@@ -477,11 +477,12 @@ Maps keys to player actions/intents. See [Input Mapping](input_mapping) for synt
 player = true
 
 [input]
-w = "action(forward)"
-a = "action(left)"
-s = "action(backward)"
-d = "action(right)"
-u = "intent(use)"
+w = "control.forward"
+a = "control.left"
+s = "control.backward"
+d = "control.right"
+u = "intent.use"
+t = "rules.basic_attack"
 ```
 
 ---

@@ -1775,6 +1775,37 @@ mod tests {
                 .is_some_and(|character| character.data.contains("SAR IR")),
             "Hideout2D should connect Words of Power to the dungeon quest"
         );
+        let player_data = project
+            .characters
+            .values()
+            .find(|character| character.name == "Player")
+            .map(|character| character.data.as_str())
+            .expect("Hideout2D contains its Player template");
+        for shortcut in [
+            "u = \"intent.use\"",
+            "l = \"intent.look\"",
+            "t = \"rules.basic_attack\"",
+            "k = \"rules.take\"",
+            "tab = \"ui.actions\"",
+        ] {
+            assert!(
+                player_data.contains(shortcut),
+                "Hideout2D Player should contain shortcut {shortcut}"
+            );
+        }
+        assert!(
+            project.screens.values().any(|screen| {
+                screen.name == "Game"
+                    && screen.map.sectors.iter().any(|sector| {
+                        sector.name == "Actions"
+                            && sector
+                                .properties
+                                .get_str("data")
+                                .is_some_and(|data| data.contains("command = \"ui.actions\""))
+                    })
+            }),
+            "Hideout2D should expose its ruleset action catalogue from the Game screen"
+        );
         assert!(
             !crate::rulesets::bundled_avatars_for_project(&project.config)
                 .expect("official avatars resolve")

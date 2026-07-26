@@ -140,7 +140,7 @@ If only those two icons exist, Eldiron keeps using them. Pressed buttons tempora
 
 ### UI Section
 
-- **command** - Preferred input binding. Use `control.forward`, `intent.attack`, `rules.basic_attack`, or `ui.inventory`.
+- **command** - Preferred input binding. Use `control.forward`, `intent.attack`, `rules.basic_attack`, or `ui.actions`.
 - **action** - Legacy movement action such as `forward`; loaded as `control.forward`.
 - **intent** - Legacy intent such as `use`; loaded as `intent.use`.
 - **spell** - Legacy spell template name used when `intent = "spell"`; loaded as `intent.spell:<template>`.
@@ -278,6 +278,24 @@ Command buttons resolve ruleset icons through `[actions.<id>.ui]`, `[intents.<id
 If a button command matches a key in the active player's `[input]` table, the hover tooltip shows the shortcut.
 
 Use `command_slot = "main.0"` / `main.1` / `main.2` and so on for class-driven action buttons. The slot first checks the active player for `command_slot_main_0` or `action_slot_main_0`, then falls back to `[classes.<Class>.action_bar]` in the active ruleset.
+
+### Reusable Actions Button
+
+Any game screen can open the ruleset-driven Actions panel with an ordinary button:
+
+```toml
+[ui]
+role = "button"
+command = "ui.actions"
+text = "Actions"
+show_icon = false
+```
+
+The panel reads the active player's complete `[classes.<Class>.action_bar]`, groups its commands into Combat, Spells, and Utility, and reuses the normal ruleset icons, descriptions, requirements, costs, cooldowns, unlock state, and targeting path. It is not specific to `Hideout2D`.
+
+Click an action to select it for normal use. Drag an action onto any button with `command_slot = "<group>.<index>"` to assign it to that quick slot. For touch or non-drag interfaces, click **Assign**, click an action, and then click the destination quick slot.
+
+Assignments are persisted as player attributes such as `command_slot_main_0`. The active class action bar remains the default, so a slot with no non-empty override still resolves from the ruleset. Only ruleset actions listed in the active class action bar can be assigned.
 
 For 2D action bars that sit on top of the game view, put a `role = "deco"` widget behind the buttons with `layer = -1` and a semi-transparent `color`. Negative-layer deco widgets draw below screen-rendered controls, which lets the background dim the map without dimming the icons.
 
@@ -599,7 +617,7 @@ Start-screen placeholders use generic UI state and work before the player has sp
 
 - `START.NAME` is the current `start.name` input value.
 - `START.CLASS` is the current `start.class` choice.
-- `START.CLASS_ROLE`, `START.CLASS_ATTRIBUTES`, `START.CLASS_WEAPONS`, `START.CLASS_ARMOR`, `START.CLASS_ABILITIES`, `START.CLASS_SPELLS`, `START.CLASS_EQUIPMENT`, and `START.CLASS_INVENTORY` are resolved from the active ruleset class.
+- `START.CLASS_ROLE`, `START.CLASS_ATTRIBUTES`, `START.CLASS_WEAPONS`, `START.CLASS_ARMOR`, `START.CLASS_ABILITIES`, `START.CLASS_SPELLS`, `START.CLASS_EQUIPMENT`, and `START.CLASS_INVENTORY` are resolved from the active ruleset class. Abilities and spells preview the class's starting `unlocks.level_1` entries, while direct class arrays remain supported for simpler custom rulesets.
 - `UI.<key>` resolves any client UI state key, such as a rune queue stored by buttons with `bind = "spell.runes"`.
 
 ### Example

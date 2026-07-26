@@ -24,6 +24,7 @@ pub struct MessageLine {
 #[derive(Clone)]
 pub(crate) enum PendingMessage {
     Line(MessageLine),
+    ChoiceGroup(Vec<MessageLine>),
     Continue,
     Timer(Duration),
 }
@@ -68,6 +69,8 @@ pub struct MessagesWidget {
     pub background_padding: f32,
     pub max_messages: usize,
     pub scrollback: bool,
+    pub active_choices: Vec<MessageLine>,
+    pub(crate) choice_scroll_offset: usize,
     pub(crate) paused: bool,
     pub(crate) pause_until: Option<Instant>,
     pub(crate) scroll_offset: usize,
@@ -135,6 +138,8 @@ impl MessagesWidget {
             background_padding: 0.0,
             max_messages: 100,
             scrollback: true,
+            active_choices: vec![],
+            choice_scroll_offset: 0,
             paused: false,
             pause_until: None,
             scroll_offset: 0,
@@ -497,6 +502,7 @@ impl MessagesWidget {
                 }
             }
 
+            let mut choice_lines = Vec::with_capacity(accepted_choices.len() + 1);
             for (index, choice) in accepted_choices.iter().enumerate() {
                 let mut rendered_choice = choice.clone();
                 let mut item_name: String = "".into();
@@ -581,32 +587,32 @@ impl MessagesWidget {
                     format!("{}) {}", index + 1, item_name)
                 };
 
-                self.pending_messages
-                    .push_back(PendingMessage::Line(MessageLine {
-                        id: Uuid::new_v4(),
-                        text,
-                        rect: Rect::default(),
-                        choice: Some(rendered_choice),
-                        choice_key: Some((b'1' + index as u8) as char),
-                        color,
-                        sender_entity: Some(choices.from),
-                    }));
-            }
-            self.pending_messages
-                .push_back(PendingMessage::Line(MessageLine {
+                choice_lines.push(MessageLine {
                     id: Uuid::new_v4(),
-                    text: self.resolve_msg("0) {system.exit_menu}", map, assets, time),
+                    text,
                     rect: Rect::default(),
-                    choice: Some(Choice::Cancel(
-                        choices.from,
-                        choices.to,
-                        choices.expires_at_tick,
-                        choices.max_distance,
-                    )),
-                    choice_key: Some('0'),
+                    choice: Some(rendered_choice),
+                    choice_key: Some((b'1' + index as u8) as char),
                     color,
-                    sender_entity: Some(choices.from),
-                }));
+                    sender_entity: None,
+                });
+            }
+            choice_lines.push(MessageLine {
+                id: Uuid::new_v4(),
+                text: self.resolve_msg("0) {system.exit_menu}", map, assets, time),
+                rect: Rect::default(),
+                choice: Some(Choice::Cancel(
+                    choices.from,
+                    choices.to,
+                    choices.expires_at_tick,
+                    choices.max_distance,
+                )),
+                choice_key: Some('0'),
+                color,
+                sender_entity: None,
+            });
+            self.pending_messages
+                .push_back(PendingMessage::ChoiceGroup(choice_lines));
         }
 
         if starts_new_reveal_batch && !self.pending_messages.is_empty() {
@@ -621,6 +627,33 @@ impl MessagesWidget {
         } else {
             Some(choice_map)
         }
+    }
+
+    fn choice_block_height(&self, font: &fontdue::Font, message: &str) -> f32 {
+        let lines = Self::wrap_message_lines(
+            &self.draw2d,
+            font,
+            self.font_size,
+            message,
+            self.rect.width.max(self.font_size),
+        );
+        self.font_size + lines.len().saturating_sub(1) as f32 * (self.font_size + self.spacing)
+    }
+
+    fn choice_panel_height(&self, font: &fontdue::Font) -> f32 {
+        if self.active_choices.is_empty() {
+            return 0.0;
+        }
+        let natural_height = self
+            .active_choices
+            .iter()
+            .map(|line| self.choice_block_height(font, &line.text))
+            .sum::<f32>()
+            + self.message_spacing * self.active_choices.len().saturating_sub(1) as f32;
+        let maximum_height = (self.rect.height * 0.55)
+            .max(self.font_size)
+            .min(self.rect.height);
+        natural_height.min(maximum_height)
     }
 
     pub fn update_draw(
@@ -672,13 +705,26 @@ impl MessagesWidget {
                     &safe,
                 );
             }
-            let prompt_reserved_height =
-                if self.command_input_enabled() || (self.paused && self.pause_until.is_none()) {
-                    self.font_size.ceil() + self.message_spacing.max(self.spacing)
-                } else {
-                    0.0
-                };
-            let content_bottom = self.rect.y + (self.rect.height - prompt_reserved_height).max(0.0);
+            let has_active_choices = !self.active_choices.is_empty();
+            let prompt_reserved_height = if !has_active_choices
+                && (self.command_input_enabled() || (self.paused && self.pause_until.is_none()))
+            {
+                self.font_size.ceil() + self.message_spacing.max(self.spacing)
+            } else {
+                0.0
+            };
+            let choice_panel_height = self.choice_panel_height(font);
+            let choice_panel_gap = if has_active_choices {
+                self.message_spacing.max(self.spacing)
+            } else {
+                0.0
+            };
+            let content_bottom = self.rect.y
+                + (self.rect.height
+                    - prompt_reserved_height
+                    - choice_panel_height
+                    - choice_panel_gap)
+                    .max(0.0);
             let mut y = if self.top_down {
                 self.rect.y
             } else {
@@ -904,7 +950,121 @@ impl MessagesWidget {
                 }
             }
 
-            if self.paused && self.pause_until.is_none() {
+            if has_active_choices {
+                let panel_top = self.rect.y + self.rect.height - choice_panel_height;
+                let panel_bottom = self.rect.y + self.rect.height;
+                let safe = (0_isize, 0_isize, width as isize, height as isize);
+                let panel_color = if self.background {
+                    self.background_color
+                } else {
+                    [0, 0, 0, 176]
+                };
+                self.draw2d.blend_rect_safe(
+                    buffer.pixels_mut(),
+                    &(
+                        self.rect.x.round() as isize,
+                        panel_top.round() as isize,
+                        self.rect.width.round().max(1.0) as isize,
+                        choice_panel_height.round().max(1.0) as isize,
+                    ),
+                    stride,
+                    &panel_color,
+                    &safe,
+                );
+                self.draw2d.blend_rect_safe(
+                    buffer.pixels_mut(),
+                    &(
+                        self.rect.x.round() as isize,
+                        (panel_top - choice_panel_gap * 0.5).round() as isize,
+                        self.rect.width.round().max(1.0) as isize,
+                        1,
+                    ),
+                    stride,
+                    &self.default_color,
+                    &safe,
+                );
+
+                for line in &mut self.active_choices {
+                    line.rect = Rect::default();
+                }
+                let mut choice_y = panel_top;
+                let choice_scroll_offset = self
+                    .choice_scroll_offset
+                    .min(self.active_choices.len().saturating_sub(1));
+                for choice_line in self.active_choices.iter_mut().skip(choice_scroll_offset) {
+                    let lines = Self::wrap_message_lines(
+                        draw2d,
+                        font,
+                        self.font_size,
+                        &choice_line.text,
+                        self.rect.width.max(self.font_size),
+                    );
+                    let line_height = self.font_size + self.spacing;
+                    let block_height =
+                        self.font_size + lines.len().saturating_sub(1) as f32 * line_height;
+                    if choice_y + block_height > panel_bottom + 0.5 {
+                        break;
+                    }
+
+                    choice_line.rect =
+                        Rect::new(self.rect.x, choice_y, self.rect.width, block_height);
+                    let color = if choice_line.id == self.clicked {
+                        darken(choice_line.color, 100)
+                    } else {
+                        choice_line.color
+                    };
+                    for (index, line) in lines.iter().enumerate() {
+                        let line_y = choice_y + index as f32 * line_height;
+                        let tuple = (
+                            self.rect.x as isize,
+                            line_y.floor() as isize,
+                            self.rect.width as isize,
+                            self.font_size as isize,
+                        );
+                        if let Some((left, right)) = line.split_once(Self::CHOICE_COLUMN_SEPARATOR)
+                        {
+                            self.draw2d.text_rect_blend_safe_clip(
+                                buffer.pixels_mut(),
+                                &tuple,
+                                stride,
+                                font,
+                                self.font_size,
+                                left,
+                                &color,
+                                draw2d::TheHorizontalAlign::Left,
+                                draw2d::TheVerticalAlign::Center,
+                                &clip_rect,
+                            );
+                            self.draw2d.text_rect_blend_safe_clip(
+                                buffer.pixels_mut(),
+                                &tuple,
+                                stride,
+                                font,
+                                self.font_size,
+                                right,
+                                &color,
+                                draw2d::TheHorizontalAlign::Right,
+                                draw2d::TheVerticalAlign::Center,
+                                &clip_rect,
+                            );
+                        } else {
+                            self.draw2d.text_rect_blend_safe_clip(
+                                buffer.pixels_mut(),
+                                &tuple,
+                                stride,
+                                font,
+                                self.font_size,
+                                line,
+                                &color,
+                                draw2d::TheHorizontalAlign::Left,
+                                draw2d::TheVerticalAlign::Center,
+                                &clip_rect,
+                            );
+                        }
+                    }
+                    choice_y += block_height + self.message_spacing;
+                }
+            } else if self.paused && self.pause_until.is_none() {
                 self.draw_continue_prompt(buffer, font, map, assets, time, stride, &clip_rect);
             } else if self.command_input_enabled() {
                 self.draw_command_input(buffer, font, stride, &clip_rect);
@@ -931,6 +1091,13 @@ impl MessagesWidget {
                         self.pause_for_continue();
                         break;
                     }
+                }
+                PendingMessage::ChoiceGroup(lines) => {
+                    self.active_choices = lines;
+                    self.choice_scroll_offset = 0;
+                    self.command_active = false;
+                    self.command_text.clear();
+                    break;
                 }
                 PendingMessage::Continue => {
                     self.pause_for_continue();
@@ -1107,7 +1274,21 @@ impl MessagesWidget {
         let inside = self
             .rect
             .contains(Vec2::new(coord.x as f32, coord.y as f32));
-        if self.command_input_enabled()
+        let choice_key = self
+            .active_choices
+            .iter()
+            .find(|line| {
+                line.rect
+                    .contains(Vec2::new(coord.x as f32, coord.y as f32))
+            })
+            .and_then(|line| line.choice_key);
+        if let Some(choice_key) = choice_key
+            && let Some(choice) = self.select_active_choice(choice_key)
+        {
+            return Some(EntityAction::Choice(choice));
+        }
+        if self.active_choices.is_empty()
+            && self.command_input_enabled()
             && self
                 .command_input_rect()
                 .contains(Vec2::new(coord.x as f32, coord.y as f32))
@@ -1123,17 +1304,6 @@ impl MessagesWidget {
         if self.paused && self.pause_blocks_input {
             return Some(EntityAction::Off);
         }
-        for message_line in &self.messages {
-            if message_line
-                .rect
-                .contains(Vec2::new(coord.x as f32, coord.y as f32))
-            {
-                if let Some(choice) = &message_line.choice {
-                    self.clicked = message_line.id;
-                    return Some(EntityAction::Choice(choice.clone()));
-                }
-            }
-        }
         None
     }
 
@@ -1142,14 +1312,12 @@ impl MessagesWidget {
     }
 
     pub fn has_active_choices(&self) -> bool {
-        self.messages
-            .iter()
-            .any(|message_line| message_line.choice.is_some())
+        !self.active_choices.is_empty()
     }
 
     fn active_choice_map(&self) -> FxHashMap<char, Choice> {
         let mut choice_map = FxHashMap::default();
-        for message_line in &self.messages {
+        for message_line in &self.active_choices {
             let Some(choice) = &message_line.choice else {
                 continue;
             };
@@ -1161,6 +1329,48 @@ impl MessagesWidget {
         choice_map
     }
 
+    pub fn dismiss_active_choices(&mut self) {
+        self.active_choices.clear();
+        self.choice_scroll_offset = 0;
+        self.clicked = Uuid::nil();
+    }
+
+    pub fn select_active_choice(&mut self, key: char) -> Option<Choice> {
+        let selected = self
+            .active_choices
+            .iter()
+            .find(|line| line.choice_key == Some(key))
+            .cloned()?;
+        let choice = selected.choice.clone()?;
+        let label = selected
+            .text
+            .split_once(") ")
+            .map(|(_, label)| label)
+            .unwrap_or(&selected.text)
+            .replace(Self::CHOICE_COLUMN_SEPARATOR, " — ");
+        self.messages.push(MessageLine {
+            id: Uuid::new_v4(),
+            text: format!("> {}", label),
+            rect: Rect::default(),
+            choice: None,
+            choice_key: None,
+            color: selected.color,
+            sender_entity: None,
+        });
+        self.scroll_offset = 0;
+        self.dismiss_active_choices();
+        self.purge_old_messages();
+        Some(choice)
+    }
+
+    pub fn select_active_choice_if_matches(&mut self, key: char, expected: &Choice) -> bool {
+        let matches = self
+            .active_choices
+            .iter()
+            .any(|line| line.choice_key == Some(key) && line.choice.as_ref() == Some(expected));
+        matches && self.select_active_choice(key).is_some()
+    }
+
     pub fn blocks_input(&self) -> bool {
         self.paused && self.pause_blocks_input
     }
@@ -1168,6 +1378,7 @@ impl MessagesWidget {
     pub fn user_event(&mut self, event: &str, value: &Value) -> Option<EntityAction> {
         self.advance_pause_timer();
         if self.command_input_enabled()
+            && self.active_choices.is_empty()
             && !self.paused
             && event == "key_down"
             && let Value::Str(v) = value
@@ -1236,7 +1447,49 @@ impl MessagesWidget {
         self.pause_blocks_input.then_some(EntityAction::Off)
     }
 
-    pub fn scroll(&mut self, delta_y: isize) -> bool {
+    fn scroll_choices(&mut self, delta_y: isize) -> bool {
+        if !self.active_choices.is_empty()
+            && self.font.as_ref().is_some_and(|font| {
+                let visible_height = self.choice_panel_height(font);
+                let natural_height = self
+                    .active_choices
+                    .iter()
+                    .map(|line| self.choice_block_height(font, &line.text))
+                    .sum::<f32>()
+                    + self.message_spacing * self.active_choices.len().saturating_sub(1) as f32;
+                natural_height > visible_height + 0.5
+            })
+        {
+            let step = (delta_y.unsigned_abs() / 120).max(1);
+            if delta_y > 0 {
+                self.choice_scroll_offset = self.choice_scroll_offset.saturating_sub(step);
+            } else if delta_y < 0 {
+                self.choice_scroll_offset = (self.choice_scroll_offset + step)
+                    .min(self.active_choices.len().saturating_sub(1));
+            }
+            return true;
+        }
+        false
+    }
+
+    pub fn scroll_at(&mut self, delta_y: isize, pointer: Option<Vec2<i32>>) -> bool {
+        let pointer_over_choices =
+            pointer
+                .zip(self.font.as_ref())
+                .is_some_and(|(pointer, font)| {
+                    let panel_height = self.choice_panel_height(font);
+                    panel_height > 0.0
+                        && Rect::new(
+                            self.rect.x,
+                            self.rect.y + self.rect.height - panel_height,
+                            self.rect.width,
+                            panel_height,
+                        )
+                        .contains(Vec2::new(pointer.x as f32, pointer.y as f32))
+                });
+        if (pointer.is_none() || pointer_over_choices) && self.scroll_choices(delta_y) {
+            return true;
+        }
         if !self.scrollback || self.messages.is_empty() {
             return false;
         }
@@ -1249,6 +1502,10 @@ impl MessagesWidget {
             self.scroll_offset = self.scroll_offset.saturating_sub(step);
         }
         true
+    }
+
+    pub fn scroll(&mut self, delta_y: isize) -> bool {
+        self.scroll_at(delta_y, None)
     }
 
     /// Resolves a message
@@ -1284,11 +1541,10 @@ impl MessagesWidget {
             .max(1) as u32;
         let now_ticks = time.to_ticks(ticks_per_minute);
 
-        for message_line in &mut self.messages {
+        self.active_choices.retain(|message_line| {
             let Some(active_choice) = message_line.choice.as_ref() else {
-                continue;
+                return false;
             };
-
             let (from, to, expires_at_tick, max_distance) = active_choice.session_meta();
             let expired = now_ticks > expires_at_tick;
             let in_range = map
@@ -1299,10 +1555,10 @@ impl MessagesWidget {
                 .is_some_and(|(from_entity, to_entity)| {
                     from_entity.get_pos_xz().distance(to_entity.get_pos_xz()) <= max_distance
                 });
-
-            if expired || !in_range {
-                message_line.choice = None;
-            }
+            !expired && in_range
+        });
+        if self.active_choices.is_empty() {
+            self.choice_scroll_offset = 0;
         }
     }
 
@@ -1384,5 +1640,225 @@ impl MessagesWidget {
         text: &str,
     ) -> f32 {
         draw2d.get_text_size(font, font_size, text).0 as f32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn choice_line(key: char, label: &str, index: u32) -> MessageLine {
+        MessageLine {
+            id: Uuid::new_v4(),
+            text: format!("{}) {}", key, label),
+            rect: Rect::default(),
+            choice: Some(Choice::ScriptChoice(
+                label.into(),
+                format!("choice_{index}"),
+                10,
+                20,
+                index,
+                i64::MAX,
+                10.0,
+            )),
+            choice_key: Some(key),
+            color: [80, 220, 80, 255],
+            sender_entity: None,
+        }
+    }
+
+    fn transcript_line(text: &str) -> MessageLine {
+        MessageLine {
+            id: Uuid::new_v4(),
+            text: text.into(),
+            rect: Rect::default(),
+            choice: None,
+            choice_key: None,
+            color: [220, 220, 220, 255],
+            sender_entity: Some(10),
+        }
+    }
+
+    #[test]
+    fn choice_group_stays_out_of_transcript_and_collapses_after_selection() {
+        let mut widget = MessagesWidget::new();
+        widget
+            .messages
+            .push(transcript_line("The guard lowers her voice."));
+        widget.active_choices = vec![
+            choice_line('1', "The hideout", 0),
+            choice_line('2', "The orc guard", 1),
+            choice_line('0', "Goodbye", 2),
+        ];
+
+        let selected = widget.select_active_choice('2').unwrap();
+
+        assert!(matches!(
+            selected,
+            Choice::ScriptChoice(_, ref attr, _, _, 1, _, _) if attr == "choice_1"
+        ));
+        assert!(widget.active_choices.is_empty());
+        assert_eq!(widget.messages.len(), 2);
+        assert_eq!(widget.messages[0].text, "The guard lowers her voice.");
+        assert_eq!(widget.messages[1].text, "> The orc guard");
+        assert!(widget.active_choice_map().is_empty());
+    }
+
+    #[test]
+    fn pending_choice_group_does_not_consume_transcript_rows() {
+        let mut widget = MessagesWidget::new();
+        widget
+            .pending_messages
+            .push_back(PendingMessage::Line(transcript_line(
+                "The barrow bell has started ringing again.",
+            )));
+        widget
+            .pending_messages
+            .push_back(PendingMessage::ChoiceGroup(vec![
+                choice_line('1', "Tell me about the barrow", 0),
+                choice_line('0', "Goodbye", 1),
+            ]));
+
+        widget.reveal_pending_messages();
+
+        assert_eq!(widget.messages.len(), 1);
+        assert_eq!(widget.active_choices.len(), 2);
+        assert!(widget.pending_messages.is_empty());
+    }
+
+    #[test]
+    fn active_choices_suppress_command_entry() {
+        let mut widget = MessagesWidget::new();
+        widget.command_input = true;
+        widget.active_choices = vec![choice_line('1', "Continue", 0)];
+
+        let _ = widget.user_event("key_down", &Value::Str("/".into()));
+
+        assert!(!widget.command_active);
+        assert!(widget.command_text.is_empty());
+    }
+
+    #[test]
+    fn choice_panel_keeps_at_least_forty_five_percent_for_context() {
+        let mut widget = MessagesWidget::new();
+        widget.rect = Rect::new(0.0, 0.0, 240.0, 100.0);
+        widget.font_size = 16.0;
+        widget.font = MessagesWidget::fallback_font();
+        widget.active_choices = (0..8)
+            .map(|index| {
+                choice_line(
+                    char::from_digit((index + 1) as u32, 10).unwrap(),
+                    &format!("Choice {}", index + 1),
+                    index,
+                )
+            })
+            .collect();
+
+        let height = widget.choice_panel_height(widget.font.as_ref().unwrap());
+
+        assert!(height > 0.0);
+        assert!(height <= 55.0);
+    }
+
+    #[test]
+    fn wheel_scrolls_the_panel_under_the_pointer() {
+        let mut widget = MessagesWidget::new();
+        widget.rect = Rect::new(0.0, 0.0, 240.0, 100.0);
+        widget.font_size = 16.0;
+        widget.font = MessagesWidget::fallback_font();
+        widget.messages = vec![
+            transcript_line("First"),
+            transcript_line("Second"),
+            transcript_line("Third"),
+        ];
+        widget.active_choices = (0..8)
+            .map(|index| {
+                choice_line(
+                    char::from_digit((index + 1) as u32, 10).unwrap(),
+                    &format!("Choice {}", index + 1),
+                    index,
+                )
+            })
+            .collect();
+
+        assert!(widget.scroll_at(120, Some(Vec2::new(10, 10))));
+        assert_eq!(widget.scroll_offset, 1);
+        assert_eq!(widget.choice_scroll_offset, 0);
+
+        assert!(widget.scroll_at(-120, Some(Vec2::new(10, 90))));
+        assert_eq!(widget.scroll_offset, 1);
+        assert_eq!(widget.choice_scroll_offset, 1);
+    }
+
+    #[test]
+    fn rendered_choices_do_not_overlap_the_latest_context_line() {
+        let mut widget = MessagesWidget::new();
+        widget.rect = Rect::new(0.0, 0.0, 320.0, 180.0);
+        widget.font_size = 16.0;
+        widget.font = MessagesWidget::fallback_font();
+        widget.messages.push(transcript_line(
+            "The guard explains why the bell is ringing.",
+        ));
+        widget.active_choices = vec![
+            choice_line('1', "The hideout", 0),
+            choice_line('2', "The orc guard", 1),
+            choice_line('3', "Nothing", 2),
+            choice_line('0', "Goodbye", 3),
+        ];
+
+        let mut map = Map::default();
+        let mut speaker = Entity::new();
+        speaker.id = 10;
+        let mut player = Entity::new();
+        player.id = 20;
+        map.entities.extend([speaker, player]);
+        let assets = Assets::default();
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(320, 180));
+
+        let _ = widget.update_draw(
+            &mut buffer,
+            &assets,
+            &map,
+            &TheTime::default(),
+            vec![],
+            vec![],
+        );
+
+        let context = widget.messages[0].rect;
+        let first_choice = widget.active_choices[0].rect;
+        assert!(context.height > 0.0);
+        assert!(first_choice.height > 0.0);
+        assert!(context.y + context.height <= first_choice.y);
+    }
+
+    #[test]
+    fn expired_choice_panel_disappears_without_leaving_option_rows() {
+        let mut widget = MessagesWidget::new();
+        widget.messages.push(transcript_line("Choose quickly."));
+        let mut expired = choice_line('1', "Too late", 0);
+        expired.choice = Some(Choice::ScriptChoice(
+            "Too late".into(),
+            "expired".into(),
+            10,
+            20,
+            0,
+            0,
+            10.0,
+        ));
+        widget.active_choices = vec![expired];
+
+        let mut map = Map::default();
+        let mut speaker = Entity::new();
+        speaker.id = 10;
+        let mut player = Entity::new();
+        player.id = 20;
+        map.entities.extend([speaker, player]);
+        let assets = Assets::default();
+
+        widget.deactivate_inactive_choices(&assets, &map, &TheTime::new_time(1, 0).unwrap());
+
+        assert!(widget.active_choices.is_empty());
+        assert_eq!(widget.messages.len(), 1);
+        assert_eq!(widget.messages[0].text, "Choose quickly.");
     }
 }

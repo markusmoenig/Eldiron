@@ -11,14 +11,16 @@ Player input is mapped in character data via a top-level `[input]` table.
 player = true
 
 [input]
-w = "action(forward)"
-a = "action(left)"
-s = "action(backward)"
-d = "action(right)"
-u = "intent(use)"
-t = "intent(attack)"
-k = "intent(take)"
-f = "spell(Fireball)"
+w = "control.forward"
+a = "control.left"
+s = "control.backward"
+d = "control.right"
+u = "intent.use"
+l = "intent.look"
+t = "rules.basic_attack"
+k = "rules.take"
+f = "intent.spell:Fireball"
+tab = "ui.actions"
 ```
 
 Key names are matched case-insensitively.
@@ -27,11 +29,21 @@ Key names are matched case-insensitively.
 
 ## Commands
 
-Each entry value supports one of:
+New mappings should use the same command namespaces as screen buttons:
+
+- `control.<action>`
+- `intent.<name>`
+- `rules.<action_id>`
+- `screen.<command>`
+- `game.<command>`
+- `ui.<command>`
+
+The older wrapper forms remain accepted for existing projects:
 
 - `action(<type>)`
 - `intent(<name>)`
 - `spell(<template>)`
+- `command(<namespaced-command>)`
 - bare action alias (`"forward"`, `"left"`, `"right"`, `"backward"`, `"strafe_left"`, `"strafe_right"`)
 
 ---
@@ -87,11 +99,20 @@ How these control commands are interpreted depends on the current runtime player
 
 ## Intents
 
-`intent(<name>)` or `command(intent.<name>)` sets the player intent (for example `use`, `attack`, `take`).
+`intent.<name>` selects a generic world interaction mode such as `use` or
+`look`. The wrapper form `intent(<name>)` remains supported.
 
-Intent policy comes from the official ruleset. Character input should map keys
-to intent names; ranges, target restrictions, cooldowns, and disposition checks
-belong to the ruleset.
+Executable ruleset actions use `rules.<action_id>`. For example, bind the
+official attack and pickup actions as `rules.basic_attack` and `rules.take`
+rather than treating their action ids as generic intents. This lets command-slot
+buttons resolve the matching shortcut, requirements, range, cooldown, and
+presentation from the active ruleset.
+
+`ui.actions` opens the reusable ruleset action catalogue. Its actions can be
+dragged onto screen buttons with `command_slot = "main.0"` and similar slot ids,
+or assigned with the panel's **Assign** mode. The resulting player override is
+persistent; the class action bar remains the fallback for slots without an
+override.
 
 ```toml
 [actions.basic_attack]
@@ -111,6 +132,10 @@ Behavior:
 For UI-driven intents, you can also use [button widgets](/docs/screens/widgets#button-widgets).
 If a button command matches a key in the active player's `[input]` table, its hover tooltip shows the shortcut.
 
+`ui.actions` is a local interface command that toggles the ruleset-driven
+Actions panel. It does not send an action to the server by itself; selecting a
+panel entry submits the corresponding `rules.<action_id>` command.
+
 For how intents behave in 2D vs 3D and how they become `intent` events, see [Player Input](player_input).
 
 ## Spell Shortcuts
@@ -121,7 +146,7 @@ New mappings can use the command form directly.
 Example:
 
 ```toml
-f = "command(intent.spell:Fireball)"
+f = "intent.spell:Fireball"
 ```
 
 This activates the button with:

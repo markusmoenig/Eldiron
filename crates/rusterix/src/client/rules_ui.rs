@@ -28,6 +28,19 @@ pub struct CommandState {
     pub disabled_reason: Option<String>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ActionCatalogEntry {
+    pub command: String,
+    pub name: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ActionCatalogGroup {
+    pub id: String,
+    pub name: String,
+    pub entries: Vec<ActionCatalogEntry>,
+}
+
 impl Default for CommandState {
     fn default() -> Self {
         Self {
@@ -247,7 +260,7 @@ pub fn container_template_for_item(assets: &Assets, item: &Item) -> ContainerUiT
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .unwrap_or("default");
-    let Ok(root) = assets.rules.parse::<Table>() else {
+    let Some(root) = assets.rules_table() else {
         return ContainerUiTemplate::default();
     };
 
@@ -261,6 +274,93 @@ pub fn container_template_for_item(assets: &Assets, item: &Item) -> ContainerUiT
     table_at(&root, &["ui", "container_templates", template_id])
         .map(|table| parse_container_template(template_id, table, default.clone()))
         .unwrap_or(default)
+}
+
+/// Resolve the presentation-neutral action catalogue for a character.
+///
+/// The class action bar remains the authored ordering. Action kinds provide the
+/// default Combat, Spells, and Utility grouping, so games can expose every
+/// command without requiring a spellbook-specific rules representation.
+pub fn action_catalog(assets: &Assets, actor: Option<&Entity>) -> Vec<ActionCatalogGroup> {
+    let Some(root) = assets.rules_table() else {
+        return Vec::new();
+    };
+    let class_name = actor
+        .and_then(|actor| {
+            actor
+                .get_attr_string("class")
+                .or_else(|| actor.get_attr_string("class_name"))
+        })
+        .or_else(|| {
+            eldiron_ruleset::resolve_identity_defaults(&root)
+                .ok()
+                .and_then(|identity| identity.class)
+        });
+    let Some(class_name) = class_name else {
+        return Vec::new();
+    };
+    let Some(action_bar) = table_at(&root, &["classes", class_name.trim(), "action_bar"]) else {
+        return Vec::new();
+    };
+
+    let mut seen = BTreeSet::new();
+    let mut combat = ActionCatalogGroup {
+        id: "combat".to_string(),
+        name: "Combat".to_string(),
+        entries: Vec::new(),
+    };
+    let mut spells = ActionCatalogGroup {
+        id: "spells".to_string(),
+        name: "Spells".to_string(),
+        entries: Vec::new(),
+    };
+    let mut utility = ActionCatalogGroup {
+        id: "utility".to_string(),
+        name: "Utility".to_string(),
+        entries: Vec::new(),
+    };
+
+    for command in action_bar
+        .values()
+        .filter_map(toml::Value::as_array)
+        .flatten()
+        .filter_map(toml::Value::as_str)
+    {
+        let command = if parse_client_command(command).is_some() {
+            command.trim().to_string()
+        } else {
+            format!("rules.{}", command.trim())
+        };
+        let Some(ClientCommandBinding::RulesAction(action_id)) = parse_client_command(&command)
+        else {
+            continue;
+        };
+        let normalized = action_id.trim().to_ascii_lowercase();
+        if normalized.is_empty() || !seen.insert(normalized) {
+            continue;
+        }
+        let Ok(Some(action)) = eldiron_ruleset::resolve_action(&root, action_id.trim()) else {
+            continue;
+        };
+        let entry = ActionCatalogEntry {
+            command,
+            name: action.name,
+        };
+        match action.kind {
+            ResolvedActionKind::Spell => spells.entries.push(entry),
+            ResolvedActionKind::Gather
+            | ResolvedActionKind::Craft
+            | ResolvedActionKind::Interaction => utility.entries.push(entry),
+            ResolvedActionKind::Attack | ResolvedActionKind::Custom(_) => {
+                combat.entries.push(entry)
+            }
+        }
+    }
+
+    [combat, spells, utility]
+        .into_iter()
+        .filter(|group| !group.entries.is_empty())
+        .collect()
 }
 
 pub fn describe_command(
@@ -310,7 +410,7 @@ pub fn describe_command(
             lines: Vec::new(),
         },
         ClientCommandBinding::RulesAction(action_id) => {
-            let Ok(root) = assets.rules.parse::<Table>() else {
+            let Some(root) = assets.rules_table() else {
                 return fallback_rules_action_description(&action_id);
             };
             let Ok(Some(action)) = eldiron_ruleset::resolve_action(&root, &action_id) else {
@@ -557,7 +657,7 @@ fn rules_action_state(assets: &Assets, actor: &Entity, action_id: &str) -> Comma
     let mut state = CommandState::default();
     apply_cooldown_from_actor(actor, "rules", action_id, &mut state);
 
-    let Ok(root) = assets.rules.parse::<Table>() else {
+    let Some(root) = assets.rules_table() else {
         return state;
     };
     let Ok(Some(action)) = eldiron_ruleset::resolve_action(&root, action_id) else {
@@ -1196,6 +1296,59 @@ fn current_weapon_range(root: &Table, entity: &Entity) -> Option<f32> {
 mod tests {
     use super::*;
     use crate::{Entity, Value};
+
+    #[test]
+    fn action_catalog_groups_class_commands_by_ruleset_kind() {
+        let mut assets = Assets::new();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Adventurer"
+
+            [classes.Adventurer.action_bar]
+            main = [
+                "rules.basic_attack",
+                "rules.minor_heal",
+                "rules.gather_herbs",
+                "rules.basic_attack",
+            ]
+
+            [actions.basic_attack]
+            name = "Basic Attack"
+            kind = "attack"
+
+            [actions.minor_heal]
+            name = "Minor Heal"
+            kind = "spell"
+
+            [actions.gather_herbs]
+            name = "Gather Herbs"
+            kind = "gather"
+        "#
+        .into();
+        let mut actor = Entity::new();
+        actor.set_attribute("class", Value::Str("Adventurer".into()));
+
+        let groups = action_catalog(&assets, Some(&actor));
+
+        assert_eq!(
+            groups
+                .iter()
+                .map(|group| group.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Combat", "Spells", "Utility"]
+        );
+        assert_eq!(groups[0].entries[0].command, "rules.basic_attack");
+        assert_eq!(groups[1].entries[0].name, "Minor Heal");
+        assert_eq!(groups[2].entries[0].command, "rules.gather_herbs");
+        assert_eq!(
+            groups
+                .iter()
+                .flat_map(|group| &group.entries)
+                .filter(|entry| entry.command == "rules.basic_attack")
+                .count(),
+            1
+        );
+    }
 
     #[test]
     fn rules_action_state_reads_spell_cooldown_attrs() {

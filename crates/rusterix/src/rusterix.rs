@@ -571,6 +571,11 @@ impl Rusterix {
             .touch_dragged(coord, map, &mut self.scene_handler);
     }
 
+    /// Send a touch up event to the client.
+    pub fn client_touch_up(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
+        self.client.touch_up(coord, map, &self.assets)
+    }
+
     /// Send a touch hover event to the client.
     pub fn client_touch_hover(&mut self, coord: Vec2<i32>, map: &Map) {
         self.client.touch_hover(coord, map, &mut self.scene_handler);

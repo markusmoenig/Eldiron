@@ -627,6 +627,12 @@ The sale session stays valid only while the buyer remains close enough and withi
 
 Offers script-defined choices to a target entity using the same Messages widget choice UI as `offer_inventory()`.
 
+Active choices occupy a dedicated panel at the bottom of the Messages widget.
+They do not push the conversation prompt out of the transcript viewport. After
+the player responds, the panel closes and only the selected response is added
+to the transcript. The text-command prompt is temporarily hidden while a choice
+session is active.
+
 ```eldrin
 multiple_choice(entity, "Open the door?", "door_choices")
 ```

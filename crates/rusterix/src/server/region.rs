@@ -539,6 +539,69 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn command_slot_assignments_are_ruleset_scoped_and_persistent() {
+        let mut ctx = RegionCtx::default();
+        ctx.set_rules(
+            r#"
+            [identity.defaults]
+            class = "Cleric"
+
+            [classes.Cleric.action_bar]
+            main = ["rules.basic_attack", "rules.minor_heal"]
+
+            [actions.basic_attack]
+            target = "hostile_entity"
+
+            [actions.minor_heal]
+            target = "friendly_or_self"
+
+            [actions.forbidden]
+            target = "self"
+            "#
+            .parse::<toml::Table>()
+            .unwrap(),
+        )
+        .unwrap();
+        let mut player = Entity::new();
+        player.id = 7;
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Cleric".into()));
+        ctx.map.entities.push(player);
+
+        assert!(set_command_slot_for_entity(
+            &mut ctx,
+            7,
+            "main.0",
+            Some("rules.minor_heal")
+        ));
+        assert_eq!(
+            ctx.map.entities[0]
+                .attributes
+                .get_str("command_slot_main_0"),
+            Some("rules.minor_heal")
+        );
+        assert!(!set_command_slot_for_entity(
+            &mut ctx,
+            7,
+            "main.0",
+            Some("rules.forbidden")
+        ));
+        assert!(!set_command_slot_for_entity(
+            &mut ctx,
+            7,
+            "../main.0",
+            Some("rules.basic_attack")
+        ));
+        assert!(set_command_slot_for_entity(&mut ctx, 7, "main.0", None));
+        assert_eq!(
+            ctx.map.entities[0]
+                .attributes
+                .get_str("command_slot_main_0"),
+            Some("")
+        );
+    }
+
+    #[test]
     fn ruleset_invocation_intent_resolves_to_the_bound_action() {
         let mut ctx = RegionCtx::default();
         ctx.set_rules(
@@ -1469,6 +1532,52 @@ mod ruleset_progression_tests {
                 .attributes
                 .get_bool_default("resource_depleted", false)
         );
+        drop(ctx);
+        clear_regionctx_store();
+    }
+
+    #[test]
+    fn directional_use_intent_reaches_adjacent_entity() {
+        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
+        clear_regionctx_store();
+        let mut ctx = resource_action_test_ctx();
+        ctx.map.items.clear();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+            [intents.use]
+            distance = 2
+            "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+        ctx.map.entities[0].set_attribute("intent", Value::Str("use".into()));
+
+        let mut target = Entity::new();
+        target.id = 2;
+        target.position = Vec3::new(1.0, 1.0, 0.0);
+        target.set_attribute("visible", Value::Bool(true));
+        ctx.entity_classes.insert(2, "Target".into());
+        ctx.map.entities.push(target);
+
+        let actor = ctx.map.entities[0].clone();
+        let ctx = Arc::new(Mutex::new(ctx));
+        register_regionctx(9904, ctx.clone());
+        let instance = RegionInstance::new(9904);
+
+        let mut actor_for_event = actor;
+        instance.send_entity_intent_events(&mut actor_for_event, Vec2::new(1.0, 0.0));
+
+        let ctx = ctx.lock().unwrap();
+        let (_, event, payload) = ctx
+            .to_execute_entity
+            .iter()
+            .find(|(entity_id, event, _)| *entity_id == 2 && event == "intent")
+            .expect("Use should be dispatched to the adjacent target");
+        assert_eq!(event, "intent");
+        assert_eq!(payload.string.as_deref(), Some("use"));
+        assert_eq!(payload.x, 1.0);
         drop(ctx);
         clear_regionctx_store();
     }
@@ -5621,7 +5730,10 @@ impl RegionInstance {
     }
 
     fn action_requests_simulation_step(action: &EntityAction) -> bool {
-        !matches!(action, EntityAction::Off | EntityAction::Intent(_))
+        !matches!(
+            action,
+            EntityAction::Off | EntityAction::Intent(_) | EntityAction::SetCommandSlot { .. }
+        )
     }
 
     fn has_active_continuous_motion(ctx: &RegionCtx) -> bool {
@@ -8205,6 +8317,16 @@ impl RegionInstance {
                                         Value::PlayerCamera(player_camera),
                                     );
                                 }
+                            });
+                        }
+                        SetCommandSlot { slot, command } => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                _ = set_command_slot_for_entity(
+                                    ctx,
+                                    entity_id,
+                                    &slot,
+                                    command.as_deref(),
+                                );
                             });
                         }
                         MoveItem {
@@ -13482,6 +13604,122 @@ fn ruleset_action_table(ctx: &RegionCtx, action_id: &str) -> Option<toml::value:
         .and_then(|actions| actions.get(action_id))
         .and_then(toml::Value::as_table)
         .cloned()
+}
+
+fn command_slot_attribute(slot: &str) -> Option<String> {
+    let slot = slot.trim();
+    let (group, index) = slot.rsplit_once('.')?;
+    let group = group.trim();
+    let index = index.trim().parse::<usize>().ok()?;
+    if group.is_empty()
+        || group.len() > 64
+        || index > 255
+        || !group
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+    {
+        return None;
+    }
+    let normalized_group = group
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    Some(format!("command_slot_{}_{}", normalized_group, index))
+}
+
+fn ruleset_command_for_entity(
+    rules: &toml::value::Table,
+    entity: &Entity,
+    command: &str,
+) -> Option<String> {
+    let (namespace, action_id) = command.trim().split_once('.')?;
+    let action_id = action_id.trim();
+    if !namespace.eq_ignore_ascii_case("rules") || action_id.is_empty() {
+        return None;
+    }
+    let actions = rules.get("actions")?.as_table()?;
+    let canonical_action_id = actions
+        .keys()
+        .find(|id| id.eq_ignore_ascii_case(action_id))?
+        .clone();
+    let class_name = entity
+        .get_attr_string("class")
+        .or_else(|| entity.get_attr_string("class_name"))
+        .or_else(|| {
+            eldiron_ruleset::resolve_identity_defaults(rules)
+                .ok()
+                .and_then(|identity| identity.class)
+        })?;
+    let action_bar = rules
+        .get("classes")?
+        .as_table()?
+        .iter()
+        .find(|(id, _)| id.eq_ignore_ascii_case(class_name.trim()))?
+        .1
+        .as_table()?
+        .get("action_bar")?
+        .as_table()?;
+    let is_available = action_bar.values().any(|group| {
+        group.as_array().is_some_and(|commands| {
+            commands.iter().any(|candidate| {
+                let Some(candidate) = candidate.as_str() else {
+                    return false;
+                };
+                let candidate = candidate.trim();
+                let candidate_id = candidate
+                    .split_once('.')
+                    .filter(|(namespace, _)| namespace.eq_ignore_ascii_case("rules"))
+                    .map(|(_, id)| id)
+                    .unwrap_or(candidate);
+                candidate_id.eq_ignore_ascii_case(&canonical_action_id)
+            })
+        })
+    });
+    is_available.then(|| format!("rules.{}", canonical_action_id))
+}
+
+fn set_command_slot_for_entity(
+    ctx: &mut RegionCtx,
+    entity_id: u32,
+    slot: &str,
+    command: Option<&str>,
+) -> bool {
+    let Some(attribute) = command_slot_attribute(slot) else {
+        return false;
+    };
+    let Some(entity) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+    else {
+        return false;
+    };
+    let value = match command {
+        Some(command) => {
+            let Some(command) = ruleset_command_for_entity(&ctx.rules, entity, command) else {
+                return false;
+            };
+            command
+        }
+        None => String::new(),
+    };
+    let Some(entity) = ctx
+        .map
+        .entities
+        .iter_mut()
+        .find(|entity| entity.id == entity_id && entity.is_player())
+    else {
+        return false;
+    };
+    entity.set_attribute(&attribute, Value::Str(value));
+    true
 }
 
 fn resolved_ruleset_action(

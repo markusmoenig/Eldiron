@@ -8,11 +8,11 @@ This page explains how **player input** works in Eldiron.
 At a high level, player input is routed through commands:
 
 - **control.\***: direct movement or turning commands such as `control.forward`, `control.left`, `control.right`, and `control.backward`
-- **intent.\***: programmable interaction modes such as `intent.use`, `intent.attack`, `intent.look`, `intent.take`, or `intent.drop`
+- **intent.\***: programmable world interaction modes such as `intent.use`, `intent.look`, or `intent.drop`
 - **rules.\***: ruleset actions such as `rules.basic_attack`, `rules.minor_heal`, or `rules.gather_wood`
 - **screen.\***: screen flow commands such as `screen.goto.Title` or `screen.goto.Play`
 - **game.\***: game flow commands such as `game.start` or `game.start_class.Warrior`
-- **ui.\***: user-interface commands such as `ui.inventory` for future action bars and panels
+- **ui.\***: local user-interface commands such as `ui.actions`
 
 Keyboard input is configured in character data via [Input Mapping](input_mapping).  
 UI buttons on screens can also trigger the same actions and intents. Button fields such as `action = "forward"` and `intent = "attack"` are read as `command = "control.forward"` and `command = "intent.attack"` when projects are loaded. Use `intent = ""` or `command = "intent."` for a Walk button which clears active targeting commands.
@@ -56,17 +56,19 @@ Intents describe **what the player wants to do**, not how they move.
 Common intents:
 
 - `use`
-- `attack`
 - `look`
-- `take`
 - `drop`
 - `spell`
 
 An intent can be selected by:
 
-- a keyboard mapping like `intent(use)`
+- a keyboard mapping like `intent.use`
 - a spell shortcut like `spell(Fireball)`
 - a screen button with an `intent` attribute
+
+Ruleset-owned actions such as attacking and taking items should normally use
+`rules.basic_attack` and `rules.take`. Legacy or script-driven games may still
+use custom `attack` and `take` intents.
 
 Once selected, the intent is stored on the player and used for the next interaction.
 
@@ -123,9 +125,10 @@ w = "control.forward"
 a = "control.left"
 s = "control.backward"
 d = "control.right"
-t = "command(rules.basic_attack)"
-u = "intent(use)"
-l = "intent(look)"
+t = "rules.basic_attack"
+u = "intent.use"
+l = "intent.look"
+tab = "ui.actions"
 ```
 
 For the screen action bar, use a Walk/default button plus rules command buttons:
@@ -157,6 +160,44 @@ command_slot = "main.1"
 
 Command slots resolve through the active player. A player attribute such as `command_slot_main_0 = "rules.minor_heal"` can override a slot; otherwise Eldiron reads the active ruleset class, for example `[classes.Cleric.action_bar] main = ["rules.basic_attack", "rules.minor_heal", "rules.holy_light", "rules.gather_herbs", "rules.craft_blessed_herb"]`. This keeps fixed world intents like Walk, Look, and Use separate from class actions.
 
+### Actions Panel
+
+The five visible command slots are a quick-access bar, not the complete list of
+commands known by a character. `ui.actions` toggles a generic Actions panel:
+
+```toml
+[input]
+tab = "ui.actions"
+
+# Or on a screen button:
+[ui]
+role = "button"
+command = "ui.actions"
+label = "Actions"
+show_icon = false
+```
+
+The panel reads all commands in the active class's `[classes.<Class>.action_bar]`
+table. It removes duplicates and groups rules actions from their `kind`:
+
+- `spell` becomes **Spells**
+- `gather`, `craft`, and `interaction` become **Utility**
+- attacks, stances, and custom action kinds become **Combat**
+
+Entries use the same rules-owned icons, tooltips, costs, reagent requirements,
+cooldowns, and unlock checks as ordinary command-slot buttons. Selecting an
+enabled entry highlights it and activates the normal rules action targeting
+path; the panel stays open for subsequent choices until closed with its button,
+close control, `Tab`, or Escape. This makes the panel suitable for martial
+abilities and sandbox actions as well as magic; a game can later present a
+spellbook as a themed or filtered view without changing the ruleset action
+representation.
+
+Drag a panel entry onto a `command_slot` button to replace that player's quick
+slot. On touch or non-drag interfaces, use **Assign**, then click the action and
+the destination slot. Eldiron persists the override on the player and validates
+that the assigned command belongs to the active class action bar.
+
 Screen flow buttons use the same command field:
 
 ```toml
@@ -184,7 +225,7 @@ bind = "start.name"
 text = "Eldiron"
 ```
 
-Text widgets on the start screen can preview those choices with placeholders such as `{START.CLASS}`, `{START.CLASS_ROLE}`, `{START.CLASS_ATTRIBUTES}`, `{START.CLASS_ABILITIES}`, and `{START.CLASS_EQUIPMENT}`. The class details come from the active ruleset.
+Text widgets on the start screen can preview those choices with placeholders such as `{START.CLASS}`, `{START.CLASS_ROLE}`, `{START.CLASS_ATTRIBUTES}`, `{START.CLASS_ABILITIES}`, `{START.CLASS_SPELLS}`, and `{START.CLASS_EQUIPMENT}`. The class details come from the active ruleset; abilities and spells use the class's starting `unlocks.level_1` entries and their authored catalogue names.
 
 `game.start_class.<Class>` starts immediately with the requested class. If `[game].play_screen` is set, Eldiron switches to that screen after starting.
 

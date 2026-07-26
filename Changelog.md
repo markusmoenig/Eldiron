@@ -20,11 +20,12 @@
 - Expanded official items and equipment with ritual focuses, protective charms, spell reagents, collectibles, resource nodes, class permissions, two-handed/occupied-slot enforcement, arbitrary slot-to-avatar anchors, and consistent quality/condition behavior.
 - Added reusable semantic icon fallbacks for actions and items and procedural FX fallbacks for actions and conditions, so new definitions no longer require a unique icon or particle block before they can be usable and readable.
 - Improved rules-aware UI state and descriptions for actions, spells, inventory, equipment, targets, requirements, costs, cooldowns, locked progression entries, generic statistics, and icon fallback resolution.
+- Added the reusable `ui.actions` screen button command and Actions panel, also available through a character input shortcut such as `Tab`. The panel groups complete class command catalogues into Combat, Spells, and Utility while retaining a compact quick bar, and reuses normal action icons, tooltips, unlock checks, costs, reagents, cooldowns, and targeting. Actions can be dragged onto reusable `command_slot` widgets or assigned through a touch-friendly Assign mode, with validated per-player overrides persisted by the server.
 - Expanded ruleset validation, terminal inspection, and headless regression coverage across schema compatibility, references, formulas, progression, equipment, classless sandbox actions, invocations, conditions, traits, gathering, ritual crafting, resource regeneration, visuals, and the official level-10 capstones.
 
 ### Examples
 
-- Updated `test_projects/Hideout2D.eldiron` as the canonical in-development ruleset integration game while leaving the released starter project unchanged. Hideout now uses the official ruleset selection/override model, contains a northern dungeon populated by Skeletons, a Bone Archer, and a Bone Warden, and replaces the original demonstration NPC loop with the multi-stage **The Bell Below** quest, expedition supplies, ritual guidance, dungeon loot, and a Grave Sigil objective.
+- Updated `test_projects/Hideout2D.eldiron` as the canonical in-development ruleset integration game while leaving the released starter project unchanged. Hideout now uses the official ruleset selection/override model, contains a northern dungeon populated by Skeletons, a Bone Archer, and a Bone Warden, replaces the original demonstration NPC loop with the multi-stage **The Bell Below** quest, expedition supplies, ritual guidance, dungeon loot, and a Grave Sigil objective, and exposes the complete class action catalogue through an Actions button and `Tab`.
 - Updated the Dungeon Master-inspired `source_projects/stonefall-dungeon` example to submit its rune/word combinations through the shared `words_of_power` invocation scheme instead of translating spells in project script.
 
 ### Documentation
@@ -32,6 +33,13 @@
 - Added the Ruleset Contract and implementation Capability Audit, rewrote the ruleset architecture and authoring documentation, and expanded the Official Rules reference with synchronized level progression, actions, spells and their Words of Power, conditions, particles, races, equipment, items, resources, reagents, recipes, and crafting tables.
 
 ## Bug Fixes
+
+### Game
+
+- Fixed conversation and vendor choices pushing their preceding dialog out of the Messages widget. Active choices now use a separate height-limited panel, preserve transcript context, hide command entry while awaiting a response, support overflow scrolling, and collapse to only the selected response in history.
+- Fixed Hideout's keyboard command ownership so `U` and `L` select the generic Use and Look intents, while `T` and `K` execute the ruleset-owned Basic Attack and Take actions. Rules action buttons now display and activate their matching shortcuts consistently.
+- Fixed severe frame drops while the Actions panel was open by caching the parsed effective ruleset and the panel's static class catalogue. Action states, icons, quick slots, item icons, tooltips, and start-screen rules lookups now share the same automatically invalidated parsed rules instead of reparsing the complete ruleset many times per frame.
+- Fixed start-screen `START.CLASS_ABILITIES` and `START.CLASS_SPELLS` placeholders displaying as unresolved strings after class progression moved into `unlocks.level_1`. They now show the starting unlocks using their authored ability and spell names.
 
 ### Creator
 

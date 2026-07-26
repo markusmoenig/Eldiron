@@ -89,6 +89,10 @@ impl ClientAction {
         labels
     }
 
+    pub fn binding_for_key(&self, key: &str) -> Option<ClientCommandBinding> {
+        self.input_map.get(&key.to_ascii_lowercase()).cloned()
+    }
+
     fn bindings_match(a: &ClientCommandBinding, b: &ClientCommandBinding) -> bool {
         match (a, b) {
             (ClientCommandBinding::Control(a), ClientCommandBinding::Control(b)) => a == b,
@@ -371,6 +375,46 @@ mod tests {
         assert_eq!(
             action.shortcut_labels_for_binding(&ClientCommandBinding::Intent(String::new())),
             vec!["Space".to_string()]
+        );
+    }
+
+    #[test]
+    fn hideout_style_shortcuts_keep_world_intents_and_rules_actions_distinct() {
+        let input = r#"
+            [input]
+            u = "intent.use"
+            l = "intent.look"
+            t = "rules.basic_attack"
+            k = "rules.take"
+        "#;
+        let mut action = ClientAction::new();
+        action.input_map = ClientAction::parse_input_map(input);
+
+        assert_eq!(
+            action.user_event("key_down".into(), Value::Str("u".into())),
+            EntityAction::Intent("use".into())
+        );
+        assert_eq!(
+            action.user_event("key_down".into(), Value::Str("l".into())),
+            EntityAction::Intent("look".into())
+        );
+        assert_eq!(
+            action.user_event("key_down".into(), Value::Str("t".into())),
+            EntityAction::Intent("action:basic_attack".into())
+        );
+        assert_eq!(
+            action.user_event("key_down".into(), Value::Str("k".into())),
+            EntityAction::Intent("action:take".into())
+        );
+        assert_eq!(
+            action.shortcut_labels_for_binding(&ClientCommandBinding::Intent("use".into())),
+            vec!["U".to_string()]
+        );
+        assert_eq!(
+            action.shortcut_labels_for_binding(&ClientCommandBinding::RulesAction(
+                "basic_attack".into()
+            )),
+            vec!["T".to_string()]
         );
     }
 }

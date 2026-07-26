@@ -205,6 +205,11 @@ pub enum EntityAction {
     FollowAttack(u32, f32, i64),
     /// Set how player input is mapped to movement
     SetPlayerCamera(PlayerCamera),
+    /// Persist or clear a player quick-slot command override.
+    SetCommandSlot {
+        slot: String,
+        command: Option<String>,
+    },
     /// Move an item (inventory/equipped drag & drop).
     MoveItem {
         item_id: u32,

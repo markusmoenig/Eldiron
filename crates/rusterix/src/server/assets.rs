@@ -1,10 +1,16 @@
 use crate::{TileMaterialMeta, Value, prelude::*};
 use indexmap::IndexMap;
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 use theframework::prelude::*;
 use toml::*;
 
 const DEFAULT_GEOMETRY_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
+
+struct ParsedRulesCache {
+    source: String,
+    table: Option<Arc<Table>>,
+}
 
 #[derive(Clone)]
 pub struct Assets {
@@ -41,6 +47,7 @@ pub struct Assets {
     pub config: String,
     pub world_source: String,
     pub rules: String,
+    parsed_rules: Arc<RwLock<Option<ParsedRulesCache>>>,
     pub default_avatar: Option<String>,
     pub locales_src: String,
     pub audio_fx_src: String,
@@ -73,18 +80,36 @@ impl Default for Assets {
 }
 
 impl Assets {
+    /// Return the effective ruleset as a shared parsed table.
+    ///
+    /// Rules source is public for editor compatibility, so the cache verifies
+    /// the source text on every access and reparses only after it changes.
+    pub fn rules_table(&self) -> Option<Arc<Table>> {
+        if let Ok(cache) = self.parsed_rules.read()
+            && let Some(cache) = cache.as_ref()
+            && cache.source == self.rules
+        {
+            return cache.table.clone();
+        }
+
+        let table = self.rules.parse::<Table>().ok().map(Arc::new);
+        if let Ok(mut cache) = self.parsed_rules.write() {
+            *cache = Some(ParsedRulesCache {
+                source: self.rules.clone(),
+                table: table.clone(),
+            });
+        }
+        table
+    }
+
     pub fn ruleset_attribute_role(&self, role: &str) -> Option<String> {
-        self.rules
-            .parse::<toml::Table>()
-            .ok()
+        self.rules_table()
             .and_then(|rules| eldiron_ruleset::resolve_attribute_roles(&rules).ok())
             .and_then(|roles| roles.get(role).map(str::to_string))
     }
 
     pub fn ruleset_declares_attribute(&self, attribute: &str) -> bool {
-        self.rules
-            .parse::<toml::Table>()
-            .ok()
+        self.rules_table()
             .map(|rules| {
                 eldiron_ruleset::declared_attribute_ids(&rules)
                     .iter()
@@ -134,6 +159,7 @@ impl Assets {
             config: String::new(),
             world_source: String::new(),
             rules: String::new(),
+            parsed_rules: Arc::new(RwLock::new(None)),
             default_avatar: None,
             locales_src: String::new(),
             audio_fx_src: String::new(),
@@ -168,7 +194,7 @@ impl Assets {
     /// Reads lightweight metadata from the effective ruleset.
     pub fn read_rules_metadata(&mut self) {
         self.default_avatar = None;
-        let Ok(table) = self.rules.parse::<Table>() else {
+        let Some(table) = self.rules_table() else {
             return;
         };
         self.default_avatar = table
@@ -512,6 +538,28 @@ mod tests {
     use super::*;
     use crate::{GeometryObject, PixelSource, Value};
     use vek::Vec3;
+
+    #[test]
+    fn parsed_rules_are_reused_and_invalidated_by_source_changes() {
+        let mut assets = Assets::new();
+        assets.rules = "[value]\nnumber = 1\n".into();
+
+        let first = assets.rules_table().expect("first parsed rules");
+        let second = assets.rules_table().expect("cached parsed rules");
+        assert!(Arc::ptr_eq(&first, &second));
+
+        assets.rules = "[value]\nnumber = 2\n".into();
+        let changed = assets.rules_table().expect("updated parsed rules");
+        assert!(!Arc::ptr_eq(&first, &changed));
+        assert_eq!(
+            changed
+                .get("value")
+                .and_then(toml::Value::as_table)
+                .and_then(|value| value.get("number"))
+                .and_then(toml::Value::as_integer),
+            Some(2)
+        );
+    }
 
     #[test]
     fn materialize_geometry_material_tiles_adds_object_variant() {

@@ -321,7 +321,7 @@ impl TextWidget {
             .filter(|value| !value.is_empty())
             .map(str::to_string)
             .or_else(|| {
-                let root = assets.rules.parse::<toml::Table>().ok()?;
+                let root = assets.rules_table()?;
                 eldiron_ruleset::resolve_identity_defaults(&root)
                     .ok()?
                     .class
@@ -369,22 +369,29 @@ impl TextWidget {
                         Self::human_list(values)
                     }
                 }),
-            "CLASS_ABILITIES" => Self::ruleset_class_array(assets, class.as_deref()?, "abilities")
-                .map(|values| {
-                    if values.is_empty() {
-                        "None".to_string()
-                    } else {
-                        Self::human_list(values)
-                    }
-                }),
+            "CLASS_ABILITIES" => {
+                Self::ruleset_class_starting_unlocks(assets, class.as_deref()?, "abilities").map(
+                    |values| {
+                        let values = Self::ruleset_entry_names(assets, "abilities", values);
+                        if values.is_empty() {
+                            "None".to_string()
+                        } else {
+                            values.join(", ")
+                        }
+                    },
+                )
+            }
             "CLASS_SPELLS" => {
-                Self::ruleset_class_array(assets, class.as_deref()?, "spells").map(|values| {
-                    if values.is_empty() {
-                        "None".to_string()
-                    } else {
-                        Self::human_list(values)
-                    }
-                })
+                Self::ruleset_class_starting_unlocks(assets, class.as_deref()?, "spells").map(
+                    |values| {
+                        let values = Self::ruleset_entry_names(assets, "spells", values);
+                        if values.is_empty() {
+                            "None".to_string()
+                        } else {
+                            values.join(", ")
+                        }
+                    },
+                )
             }
             "CLASS_EQUIPMENT" => Self::ruleset_class_loadout(
                 assets,
@@ -414,7 +421,7 @@ impl TextWidget {
     }
 
     fn ruleset_class_table(assets: &Assets, class: &str) -> Option<toml::value::Table> {
-        let root = toml::from_str::<toml::Value>(&assets.rules).ok()?;
+        let root = assets.rules_table()?;
         root.get("classes")?
             .as_table()?
             .get(class.trim())?
@@ -434,6 +441,45 @@ impl TextWidget {
     fn ruleset_class_array(assets: &Assets, class: &str, key: &str) -> Option<Vec<String>> {
         let class = Self::ruleset_class_table(assets, class)?;
         Some(Self::toml_string_array(class.get(key)?))
+    }
+
+    fn ruleset_class_starting_unlocks(
+        assets: &Assets,
+        class: &str,
+        key: &str,
+    ) -> Option<Vec<String>> {
+        let class = Self::ruleset_class_table(assets, class)?;
+        if let Some(value) = class.get(key) {
+            return Some(Self::toml_string_array(value));
+        }
+        let values = class
+            .get("unlocks")
+            .and_then(toml::Value::as_table)
+            .and_then(|unlocks| unlocks.get("level_1"))
+            .and_then(toml::Value::as_table)
+            .and_then(|level| level.get(key))
+            .map(Self::toml_string_array)
+            .unwrap_or_default();
+        Some(values)
+    }
+
+    fn ruleset_entry_names(assets: &Assets, catalog: &str, ids: Vec<String>) -> Vec<String> {
+        let root = assets.rules_table();
+        ids.into_iter()
+            .map(|id| {
+                root.as_ref()
+                    .and_then(|root| root.get(catalog))
+                    .and_then(toml::Value::as_table)
+                    .and_then(|entries| entries.get(id.trim()))
+                    .and_then(toml::Value::as_table)
+                    .and_then(|entry| entry.get("name"))
+                    .and_then(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|name| !name.is_empty())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| Self::humanize(&id))
+            })
+            .collect()
     }
 
     fn ruleset_class_loadout(assets: &Assets, class: &str, keys: &[&str]) -> Option<Vec<String>> {
@@ -574,6 +620,39 @@ mod tests {
             TextWidget::start_ui_value(&assets, &ui_state, "CLASS_EQUIPMENT").as_deref(),
             Some("Training Sword, Padded Armor")
         );
+        assert_eq!(
+            TextWidget::start_ui_value(&assets, &ui_state, "CLASS_ABILITIES").as_deref(),
+            Some("Basic Attack, Guard")
+        );
+        assert_eq!(
+            TextWidget::start_ui_value(&assets, &ui_state, "CLASS_SPELLS").as_deref(),
+            Some("None")
+        );
+    }
+
+    #[test]
+    fn resolves_official_starting_unlocks_for_every_player_class() {
+        let mut assets = Assets::default();
+        assets.rules = eldiron_ruleset::latest_official_ruleset().to_string();
+        let mut ui_state = FxHashMap::default();
+
+        for (class, abilities, spells) in [
+            ("Warrior", "Basic Attack, Guard", "None"),
+            ("Cleric", "Basic Attack, Guard", "Minor Heal"),
+            ("Ranger", "Basic Attack", "None"),
+        ] {
+            ui_state.insert("start.class".to_string(), class.to_string());
+            assert_eq!(
+                TextWidget::start_ui_value(&assets, &ui_state, "CLASS_ABILITIES").as_deref(),
+                Some(abilities),
+                "{class} abilities"
+            );
+            assert_eq!(
+                TextWidget::start_ui_value(&assets, &ui_state, "CLASS_SPELLS").as_deref(),
+                Some(spells),
+                "{class} spells"
+            );
+        }
     }
 
     #[test]

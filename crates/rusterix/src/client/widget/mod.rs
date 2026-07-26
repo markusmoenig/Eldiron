@@ -531,7 +531,7 @@ impl Widget {
         command: Option<&str>,
         visual_state: ButtonVisualState,
     ) -> Option<(&'a Texture, Pixel)> {
-        let root = assets.rules.parse::<Table>().ok()?;
+        let root = assets.rules_table()?;
         let command = command?;
         let resolved_action_icon = match parse_client_command(command) {
             Some(ClientCommandBinding::RulesAction(action_id)) => {
@@ -1048,7 +1048,7 @@ impl Widget {
             .attributes
             .get_str("icon")
             .or_else(|| item.attributes.get_str("icon_template"));
-        let root = assets.rules.parse::<Table>().ok();
+        let root = assets.rules_table();
         let icon_id = root
             .as_ref()
             .and_then(|root| {

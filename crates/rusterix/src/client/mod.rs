@@ -123,6 +123,30 @@ struct ContainerPanelLayout {
     title_rect: Option<(isize, isize, isize, isize)>,
 }
 
+#[derive(Clone, Debug)]
+struct ActionsPanelEntryLayout {
+    command: String,
+    name: String,
+    rect: Rect,
+    icon_rect: Rect,
+}
+
+#[derive(Clone, Debug)]
+struct ActionsPanelGroupLayout {
+    name: String,
+    title_rect: Rect,
+}
+
+#[derive(Clone, Debug)]
+struct ActionsPanelLayout {
+    rect: Rect,
+    close_rect: Rect,
+    assign_rect: Rect,
+    title_rect: Rect,
+    groups: Vec<ActionsPanelGroupLayout>,
+    entries: Vec<ActionsPanelEntryLayout>,
+}
+
 pub struct Client {
     pub curr_map_id: Uuid,
 
@@ -270,6 +294,17 @@ pub struct Client {
     open_container_close_rect: Option<Rect>,
     dragging_container_panel: bool,
     container_panel_drag_offset: Vec2<i32>,
+    actions_panel_open: bool,
+    actions_panel_rect: Option<Rect>,
+    actions_panel_close_rect: Option<Rect>,
+    actions_panel_assign_rect: Option<Rect>,
+    actions_panel_entries: Vec<ActionsPanelEntryLayout>,
+    actions_assignment_mode: bool,
+    pending_action_assignment: Option<String>,
+    dragging_action_command: Option<String>,
+    actions_panel_catalog_rules: String,
+    actions_panel_catalog_class: Option<String>,
+    actions_panel_catalog: Vec<rules_ui::ActionCatalogGroup>,
 }
 
 impl Default for Client {
@@ -551,7 +586,7 @@ impl Client {
         }
 
         let (group, index) = Self::split_command_slot(slot)?;
-        let rules = assets.rules.parse::<Table>().ok()?;
+        let rules = assets.rules_table()?;
         let class = entity
             .and_then(|entity| {
                 entity
@@ -815,6 +850,17 @@ impl Client {
             open_container_close_rect: None,
             dragging_container_panel: false,
             container_panel_drag_offset: Vec2::zero(),
+            actions_panel_open: false,
+            actions_panel_rect: None,
+            actions_panel_close_rect: None,
+            actions_panel_assign_rect: None,
+            actions_panel_entries: Vec::new(),
+            actions_assignment_mode: false,
+            pending_action_assignment: None,
+            dragging_action_command: None,
+            actions_panel_catalog_rules: String::new(),
+            actions_panel_catalog_class: None,
+            actions_panel_catalog: Vec::new(),
         }
     }
 
@@ -2619,6 +2665,7 @@ impl Client {
         }
 
         self.draw_open_container_panel(map, assets);
+        self.draw_actions_panel(map, assets);
         self.draw_drag_drop_highlights(map);
 
         // Drag preview icon for inventory/equipped drag & drop.
@@ -2644,6 +2691,7 @@ impl Client {
                 );
             }
         }
+        self.draw_dragged_action_preview(map, assets);
 
         self.draw_hover_tooltip(map, assets);
 
@@ -3230,6 +3278,10 @@ impl Client {
             }
         }
 
+        std::mem::swap(&mut self.target, &mut self.overlay);
+        self.draw_actions_panel(map, assets);
+        std::mem::swap(&mut self.target, &mut self.overlay);
+
         if self.dragging_started && self.dragging_item_id.is_some() {
             let dragged_item = self.find_dragged_item(map);
             if let Some(item) = dragged_item
@@ -3257,6 +3309,9 @@ impl Client {
                 );
             }
         }
+        std::mem::swap(&mut self.target, &mut self.overlay);
+        self.draw_dragged_action_preview(map, assets);
+        std::mem::swap(&mut self.target, &mut self.overlay);
 
         std::mem::swap(&mut self.target, &mut self.overlay);
         self.draw_hover_tooltip(map, assets);
@@ -3531,8 +3586,56 @@ impl Client {
         self.dragging_container_panel = false;
     }
 
+    fn toggle_actions_panel(&mut self) {
+        let should_open = !self.actions_panel_open;
+        self.close_floaters();
+        self.actions_panel_open = should_open;
+    }
+
+    fn close_actions_panel(&mut self) {
+        self.actions_panel_open = false;
+        self.actions_panel_rect = None;
+        self.actions_panel_close_rect = None;
+        self.actions_panel_assign_rect = None;
+        self.actions_panel_entries.clear();
+        self.actions_assignment_mode = false;
+        self.pending_action_assignment = None;
+        self.dragging_action_command = None;
+    }
+
+    fn apply_ui_command(&mut self, command: &str) -> bool {
+        match command.trim().to_ascii_lowercase().as_str() {
+            "actions" | "action_catalog" | "abilities" => {
+                self.toggle_actions_panel();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn activate_actions_panel_command(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        command: &str,
+    ) -> Option<EntityAction> {
+        let actor = Self::resolve_party_entity(map, None);
+        let state = rules_ui::command_state(assets, actor, command);
+        if !state.enabled {
+            return None;
+        }
+        let Some(ClientCommandBinding::RulesAction(action_id)) = parse_client_command(command)
+        else {
+            return None;
+        };
+        let payload = format!("action:{}", action_id);
+        self.intent = payload.clone();
+        self.apply_intent_button_activation(&payload);
+        Some(EntityAction::Intent(payload))
+    }
+
     fn close_floaters(&mut self) -> bool {
-        let had_floater = self.open_container_panel.is_some();
+        let had_floater = self.open_container_panel.is_some() || self.actions_panel_open;
         if let Some(panel) = self.open_container_panel {
             self.open_container_panel_positions
                 .insert((panel.item_id, panel.owner_entity_id), panel.position);
@@ -3543,9 +3646,111 @@ impl Client {
         self.open_container_title_rect = None;
         self.open_container_close_rect = None;
         self.dragging_container_panel = false;
+        self.close_actions_panel();
         self.tooltip_hover_key = None;
         self.tooltip_hover_since = None;
         had_floater
+    }
+
+    fn actions_panel_layout(&mut self, map: &Map, assets: &Assets) -> Option<ActionsPanelLayout> {
+        if !self.actions_panel_open {
+            return None;
+        }
+        let actor = Self::resolve_party_entity(map, None);
+        let actor_class = actor.and_then(|actor| {
+            actor
+                .get_attr_string("class")
+                .or_else(|| actor.get_attr_string("class_name"))
+        });
+        if self.actions_panel_catalog_rules != assets.rules
+            || self.actions_panel_catalog_class != actor_class
+        {
+            self.actions_panel_catalog = rules_ui::action_catalog(assets, actor);
+            self.actions_panel_catalog_rules.clone_from(&assets.rules);
+            self.actions_panel_catalog_class = actor_class;
+        }
+        if self.actions_panel_catalog.is_empty() {
+            return None;
+        }
+
+        let padding = 12.0;
+        let title_height = 30.0;
+        let group_title_height = 20.0;
+        let card_width = 72.0;
+        let card_height = 72.0;
+        let column_gap = 8.0;
+        let row_gap = 8.0;
+        let group_gap = 8.0;
+        let columns = 5_usize;
+        let content_width =
+            card_width * columns as f32 + column_gap * columns.saturating_sub(1) as f32;
+        let panel_width = padding * 2.0 + content_width;
+        let content_height = self
+            .actions_panel_catalog
+            .iter()
+            .map(|group| {
+                let rows = group.entries.len().div_ceil(columns);
+                group_title_height
+                    + card_height * rows as f32
+                    + row_gap * rows.saturating_sub(1) as f32
+            })
+            .sum::<f32>()
+            + group_gap * self.actions_panel_catalog.len().saturating_sub(1) as f32;
+        let panel_height = title_height + padding * 2.0 + content_height;
+        let viewport_width = self.target.dim().width.max(1) as f32;
+        let viewport_height = self.target.dim().height.max(1) as f32;
+        let x = ((viewport_width - panel_width) * 0.5).max(2.0);
+        let y = ((viewport_height - panel_height) * 0.5).max(2.0);
+        let rect = Rect::new(x, y, panel_width, panel_height);
+        let close_rect = Rect::new(x + panel_width - 26.0, y + 5.0, 20.0, 20.0);
+        let assign_rect = Rect::new(x + panel_width - 100.0, y + 5.0, 66.0, 20.0);
+        let title_rect = Rect::new(
+            x + padding,
+            y,
+            panel_width - padding * 2.0 - 100.0,
+            title_height,
+        );
+
+        let mut group_layouts = Vec::with_capacity(self.actions_panel_catalog.len());
+        let mut entry_layouts = Vec::new();
+        let mut cursor_y = y + title_height + padding;
+        for group in &self.actions_panel_catalog {
+            group_layouts.push(ActionsPanelGroupLayout {
+                name: group.name.clone(),
+                title_rect: Rect::new(x + padding, cursor_y, content_width, group_title_height),
+            });
+            cursor_y += group_title_height;
+            for (index, entry) in group.entries.iter().enumerate() {
+                let column = index % columns;
+                let row = index / columns;
+                let card_x = x + padding + column as f32 * (card_width + column_gap);
+                let card_y = cursor_y + row as f32 * (card_height + row_gap);
+                let rect = Rect::new(card_x, card_y, card_width, card_height);
+                entry_layouts.push(ActionsPanelEntryLayout {
+                    command: entry.command.clone(),
+                    name: entry.name.clone(),
+                    rect,
+                    icon_rect: Rect::new(card_x + 12.0, card_y + 2.0, 48.0, 48.0),
+                });
+            }
+            let rows = entry_layouts
+                .iter()
+                .rev()
+                .take_while(|entry| entry.rect.y >= cursor_y)
+                .count()
+                .div_ceil(columns);
+            cursor_y +=
+                card_height * rows as f32 + row_gap * rows.saturating_sub(1) as f32 + group_gap;
+        }
+
+        Some(ActionsPanelLayout {
+            rect,
+            close_rect,
+            assign_rect,
+            title_rect,
+            groups: group_layouts,
+            entries: entry_layouts,
+        })
     }
 
     fn open_container_item<'a>(&self, map: &'a Map) -> Option<&'a crate::Item> {
@@ -3607,6 +3812,34 @@ impl Client {
         self.dragging_item_container_source = None;
         self.dragging_started = false;
         self.pressed_widget = None;
+    }
+
+    fn clear_action_drag(&mut self) {
+        self.dragging_action_command = None;
+        self.dragging_started = false;
+        self.pressed_widget = None;
+    }
+
+    fn command_slot_at_point(&self, p: Vec2<i32>) -> Option<String> {
+        let point = Vec2::new(p.x as f32, p.y as f32);
+        self.button_widgets.values().find_map(|widget| {
+            widget
+                .rect
+                .contains(point)
+                .then(|| widget.command_slot.clone())
+                .flatten()
+        })
+    }
+
+    fn assign_pending_action_at_point(&mut self, p: Vec2<i32>) -> Option<EntityAction> {
+        let command = self.pending_action_assignment.clone()?;
+        let slot = self.command_slot_at_point(p)?;
+        self.pending_action_assignment = None;
+        self.actions_assignment_mode = false;
+        Some(EntityAction::SetCommandSlot {
+            slot,
+            command: Some(command),
+        })
     }
 
     fn build_container_panel_layout(
@@ -4116,6 +4349,11 @@ impl Client {
             self.move_open_container_panel_to_cursor(p);
             return;
         }
+        if self.dragging_action_command.is_some() && !self.dragging_started {
+            if self.drag_distance_exceeded(p) {
+                self.dragging_started = true;
+            }
+        }
         if self.dragging_item_id.is_some() && !self.dragging_started {
             if self.drag_distance_exceeded(p) {
                 self.dragging_started = true;
@@ -4184,6 +4422,12 @@ impl Client {
 
         if self
             .open_container_panel_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            return;
+        }
+        if self
+            .actions_panel_rect
             .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
         {
             return;
@@ -4331,6 +4575,7 @@ impl Client {
         let mut render_camera_switches: Vec<(Option<String>, PlayerCamera)> = Vec::new();
         let mut selected_walk_button_id = None;
         let mut selected_targeting_button_id = None;
+        let mut pending_ui_command = None;
         let mut bound_state_update: Option<(String, String, bool, String, Option<usize>)> = None;
         let active_intent = self.get_current_intent_for_action();
         self.dragging_item_id = None;
@@ -4338,6 +4583,7 @@ impl Client {
         self.dragging_source_widget_id = None;
         self.dragging_item_from_world = false;
         self.dragging_item_container_source = None;
+        self.dragging_action_command = None;
         self.dragging_started = false;
 
         // Adjust cursor
@@ -4349,6 +4595,49 @@ impl Client {
 
         // Transform screen coordinates to viewport coordinates
         let p = self.screen_to_viewport(coord);
+
+        if self
+            .actions_panel_close_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            self.close_actions_panel();
+            return None;
+        }
+        if self
+            .actions_panel_assign_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            self.actions_assignment_mode = !self.actions_assignment_mode;
+            self.pending_action_assignment = None;
+            return None;
+        }
+        if let Some(entry) = self
+            .actions_panel_entries
+            .iter()
+            .find(|entry| entry.rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+            .cloned()
+        {
+            if self.actions_assignment_mode {
+                self.pending_action_assignment = Some(entry.command);
+                return None;
+            }
+            self.dragging_action_command = Some(entry.command);
+            self.drag_start_pos = p;
+            return None;
+        }
+        if self
+            .actions_panel_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            return None;
+        }
+
+        if let Some(action) = self.assign_pending_action_at_point(p) {
+            return Some(action);
+        }
+        if self.actions_assignment_mode {
+            return None;
+        }
 
         if let Some(close_rect) = self.open_container_close_rect
             && close_rect.contains(Vec2::new(p.x as f32, p.y as f32))
@@ -4574,7 +4863,9 @@ impl Client {
                         ClientCommandBinding::Screen(_) | ClientCommandBinding::Game(_) => {
                             self.pending_runtime_commands.push(binding);
                         }
-                        ClientCommandBinding::Ui(_) => {}
+                        ClientCommandBinding::Ui(command) => {
+                            pending_ui_command = Some(command);
+                        }
                     }
                 }
 
@@ -4657,6 +4948,10 @@ impl Client {
 
         if camera_action.is_some() {
             action = camera_action;
+        }
+        if let Some(command) = pending_ui_command {
+            self.apply_ui_command(&command);
+            return None;
         }
 
         // Test against clicks on interactive messages (multiple choice)
@@ -4765,19 +5060,43 @@ impl Client {
     }
 
     /// Click / touch up event
-    pub fn touch_up(&mut self, coord: Vec2<i32>, map: &Map) -> Option<EntityAction> {
+    pub fn touch_up(
+        &mut self,
+        coord: Vec2<i32>,
+        map: &Map,
+        assets: &Assets,
+    ) -> Option<EntityAction> {
         let mut action = None;
         if self.dragging_container_panel {
             self.dragging_container_panel = false;
             self.pressed_widget = None;
             return None;
         }
+        let p = self.screen_to_viewport(coord);
+        if let Some(command) = self.dragging_action_command.clone() {
+            let dragging_started = self.dragging_started || self.drag_distance_exceeded(p);
+            action = if dragging_started {
+                self.command_slot_at_point(p)
+                    .map(|slot| EntityAction::SetCommandSlot {
+                        slot,
+                        command: Some(command),
+                    })
+            } else {
+                self.activate_actions_panel_command(map, assets, &command)
+            };
+            self.clear_action_drag();
+            self.activated_widgets = self.permanently_activated_widgets.clone();
+            self.curr_cursor = self.default_cursor;
+            for widget in self.messages_widgets.iter_mut() {
+                widget.touch_up();
+            }
+            return action;
+        }
         let dragged_item_id = self.dragging_item_id;
         let dragged_item_owner_entity_id = self.dragging_item_owner_entity_id;
         let dragged_source_widget_id = self.dragging_source_widget_id;
         let dragged_item_from_world = self.dragging_item_from_world;
         let dragged_container_source = self.dragging_item_container_source;
-        let p = self.screen_to_viewport(coord);
         let dragging_started = self.dragging_started || self.drag_distance_exceeded(p);
 
         if let Some(item_id) = dragged_item_id {
@@ -4985,16 +5304,24 @@ impl Client {
                 if let Value::Str(v) = &value {
                     if let Some(c) = Self::choice_key_from_input(v) {
                         if let Some(choice) = choice_map.get(&c) {
-                            let choice = if self.choice_expired(choice) {
+                            let expired = self.choice_expired(choice);
+                            let choice = if expired {
                                 let (from, to, expires_at_tick, max_distance) =
                                     choice.session_meta();
                                 Choice::Cancel(from, to, expires_at_tick, max_distance)
                             } else {
                                 choice.clone()
                             };
-                            if matches!(choice, Choice::Cancel(_, _, _, _)) {
-                                self.choice_map = None;
+                            if expired {
+                                for widget in &mut self.messages_widgets {
+                                    widget.dismiss_active_choices();
+                                }
+                            } else {
+                                for widget in &mut self.messages_widgets {
+                                    widget.select_active_choice_if_matches(c, &choice);
+                                }
                             }
+                            self.choice_map = None;
                             return EntityAction::Choice(choice);
                         }
                     }
@@ -5005,6 +5332,24 @@ impl Client {
         for widget in self.messages_widgets.iter_mut() {
             if let Some(action) = widget.user_event(&event, &value) {
                 return action;
+            }
+        }
+
+        if let Value::Str(key) = &value {
+            let ui_command = self
+                .client_action
+                .lock()
+                .ok()
+                .and_then(|action| action.binding_for_key(key))
+                .and_then(|binding| match binding {
+                    ClientCommandBinding::Ui(command) => Some(command),
+                    _ => None,
+                });
+            if let Some(command) = ui_command {
+                if event == "key_down" {
+                    self.apply_ui_command(&command);
+                }
+                return EntityAction::Off;
             }
         }
 
@@ -5098,8 +5443,9 @@ impl Client {
 
     pub fn scroll_messages(&mut self, delta_y: isize) -> bool {
         let mut handled = false;
+        let cursor_pos = self.cursor_pos;
         for widget in self.messages_widgets.iter_mut() {
-            handled |= widget.scroll(delta_y);
+            handled |= widget.scroll_at(delta_y, Some(cursor_pos));
         }
         handled
     }
@@ -6119,6 +6465,19 @@ impl Client {
     }
 
     fn draw_drag_drop_highlights(&mut self, map: &Map) {
+        if (self.dragging_started && self.dragging_action_command.is_some())
+            || self.pending_action_assignment.is_some()
+        {
+            let point = Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32);
+            if let Some(widget) = self
+                .button_widgets
+                .values()
+                .find(|widget| widget.command_slot.is_some() && widget.rect.contains(point))
+            {
+                Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, widget.rect);
+            }
+            return;
+        }
         if !self.dragging_started || self.dragging_item_id.is_none() {
             return;
         }
@@ -6194,6 +6553,49 @@ impl Client {
         );
         draw2d.rect_outline_thickness(
             target.pixels_mut(),
+            &(
+                rect.x.round().max(0.0) as usize,
+                rect.y.round().max(0.0) as usize,
+                rect.width.round().max(1.0) as usize,
+                rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            &[255, 236, 132, 255],
+            2,
+        );
+    }
+
+    fn draw_dragged_action_preview(&mut self, map: &Map, assets: &Assets) {
+        if !self.dragging_started {
+            return;
+        }
+        let Some(command) = self.dragging_action_command.as_deref() else {
+            return;
+        };
+        let size = 42.0;
+        let rect = Rect::new(
+            self.cursor_pos.x as f32 - size * 0.5,
+            self.cursor_pos.y as f32 - size * 0.5,
+            size,
+            size,
+        );
+        let actor = Self::resolve_party_entity(map, None);
+        let mut icon = Widget::new();
+        icon.rect = rect;
+        icon.command = Some(command.to_string());
+        icon.update_draw(
+            &mut self.target,
+            map,
+            assets,
+            actor,
+            &self.draw2d,
+            &self.animation_frame,
+            ButtonVisualState::Selected,
+            Some(command),
+        );
+        let stride = self.target.stride();
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
             &(
                 rect.x.round().max(0.0) as usize,
                 rect.y.round().max(0.0) as usize,
@@ -6392,6 +6794,348 @@ impl Client {
                     &self.draw2d,
                     self.animation_frame,
                 );
+            }
+        }
+    }
+
+    fn draw_actions_panel(&mut self, map: &Map, assets: &Assets) {
+        let Some(layout) = self.actions_panel_layout(map, assets) else {
+            self.actions_panel_rect = None;
+            self.actions_panel_close_rect = None;
+            self.actions_panel_assign_rect = None;
+            self.actions_panel_entries.clear();
+            return;
+        };
+        self.actions_panel_rect = Some(layout.rect);
+        self.actions_panel_close_rect = Some(layout.close_rect);
+        self.actions_panel_assign_rect = Some(layout.assign_rect);
+        self.actions_panel_entries = layout.entries.clone();
+
+        let stride = self.target.stride();
+        let target_dim = self.target.dim();
+        let safe = (
+            0_isize,
+            0_isize,
+            target_dim.width as isize,
+            target_dim.height as isize,
+        );
+        let panel_rect = (
+            layout.rect.x.round() as isize,
+            layout.rect.y.round() as isize,
+            layout.rect.width.round().max(1.0) as isize,
+            layout.rect.height.round().max(1.0) as isize,
+        );
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &panel_rect,
+            stride,
+            &[10, 12, 15, 242],
+            &safe,
+        );
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
+            &(
+                layout.rect.x.round() as usize,
+                layout.rect.y.round() as usize,
+                layout.rect.width.round().max(1.0) as usize,
+                layout.rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            &[98, 105, 116, 255],
+            1,
+        );
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &(
+                layout.rect.x.round() as isize,
+                layout.rect.y.round() as isize,
+                layout.rect.width.round().max(1.0) as isize,
+                30,
+            ),
+            stride,
+            &[20, 24, 30, 245],
+            &safe,
+        );
+
+        let actor = Self::resolve_party_entity(map, None);
+        let class_name = actor
+            .and_then(|actor| {
+                actor
+                    .get_attr_string("class")
+                    .or_else(|| actor.get_attr_string("class_name"))
+            })
+            .unwrap_or_default();
+        let title = if class_name.trim().is_empty() {
+            "Actions".to_string()
+        } else {
+            format!("Actions — {}", class_name.trim())
+        };
+        let font = self
+            .messages_font
+            .as_ref()
+            .or_else(|| assets.fonts.values().next());
+        if let Some(font) = font {
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &(
+                    layout.title_rect.x.round() as isize,
+                    layout.title_rect.y.round() as isize,
+                    layout.title_rect.width.round().max(1.0) as isize,
+                    layout.title_rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                font,
+                self.messages_font_size.clamp(13.0, 17.0),
+                &title,
+                &[236, 233, 214, 255],
+                draw2d::TheHorizontalAlign::Left,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+        }
+
+        let close_hovered = layout.close_rect.contains(Vec2::new(
+            self.cursor_pos.x as f32,
+            self.cursor_pos.y as f32,
+        ));
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &(
+                layout.close_rect.x.round() as isize,
+                layout.close_rect.y.round() as isize,
+                layout.close_rect.width.round().max(1.0) as isize,
+                layout.close_rect.height.round().max(1.0) as isize,
+            ),
+            stride,
+            if close_hovered {
+                &[70, 78, 88, 245]
+            } else {
+                &[42, 47, 54, 230]
+            },
+            &safe,
+        );
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
+            &(
+                layout.close_rect.x.round() as usize,
+                layout.close_rect.y.round() as usize,
+                layout.close_rect.width.round().max(1.0) as usize,
+                layout.close_rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            if close_hovered {
+                &[174, 179, 183, 255]
+            } else {
+                &[98, 105, 116, 255]
+            },
+            1,
+        );
+        Self::draw_close_x(
+            &self.draw2d,
+            &mut self.target,
+            layout.close_rect,
+            &[236, 233, 214, 255],
+        );
+
+        let assign_hovered = layout.assign_rect.contains(Vec2::new(
+            self.cursor_pos.x as f32,
+            self.cursor_pos.y as f32,
+        ));
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &(
+                layout.assign_rect.x.round() as isize,
+                layout.assign_rect.y.round() as isize,
+                layout.assign_rect.width.round().max(1.0) as isize,
+                layout.assign_rect.height.round().max(1.0) as isize,
+            ),
+            stride,
+            if self.actions_assignment_mode {
+                &[92, 78, 34, 245]
+            } else if assign_hovered {
+                &[70, 78, 88, 245]
+            } else {
+                &[42, 47, 54, 230]
+            },
+            &safe,
+        );
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
+            &(
+                layout.assign_rect.x.round() as usize,
+                layout.assign_rect.y.round() as usize,
+                layout.assign_rect.width.round().max(1.0) as usize,
+                layout.assign_rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            if self.actions_assignment_mode {
+                &[255, 222, 116, 255]
+            } else {
+                &[98, 105, 116, 255]
+            },
+            1,
+        );
+        if let Some(font) = font {
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &(
+                    layout.assign_rect.x.round() as isize,
+                    layout.assign_rect.y.round() as isize,
+                    layout.assign_rect.width.round().max(1.0) as isize,
+                    layout.assign_rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                font,
+                11.0,
+                "Assign",
+                &[236, 233, 214, 255],
+                draw2d::TheHorizontalAlign::Center,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+        }
+
+        if let Some(font) = font {
+            for group in &layout.groups {
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        group.title_rect.x.round() as isize,
+                        group.title_rect.y.round() as isize,
+                        group.title_rect.width.round().max(1.0) as isize,
+                        group.title_rect.height.round().max(1.0) as isize,
+                    ),
+                    stride,
+                    font,
+                    self.messages_font_size.clamp(11.0, 14.0),
+                    &group.name,
+                    &[174, 179, 183, 255],
+                    draw2d::TheHorizontalAlign::Left,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
+        }
+
+        for entry in &layout.entries {
+            let state = rules_ui::command_state(assets, actor, &entry.command);
+            let hovered = entry.rect.contains(Vec2::new(
+                self.cursor_pos.x as f32,
+                self.cursor_pos.y as f32,
+            ));
+            let selected = parse_client_command(&entry.command)
+                .and_then(|binding| binding.intent_payload())
+                .is_some_and(|payload| payload.eq_ignore_ascii_case(self.intent.trim()));
+            let assignment_selected = self
+                .pending_action_assignment
+                .as_deref()
+                .is_some_and(|command| command.eq_ignore_ascii_case(&entry.command));
+            let visual_state = if !state.enabled {
+                ButtonVisualState::Disabled
+            } else if selected || assignment_selected {
+                ButtonVisualState::Selected
+            } else if hovered {
+                ButtonVisualState::Hover
+            } else {
+                ButtonVisualState::Normal
+            };
+            let background = if !state.enabled {
+                [24, 27, 31, 220]
+            } else if selected || assignment_selected {
+                [64, 68, 49, 245]
+            } else if hovered {
+                [48, 54, 62, 242]
+            } else {
+                [31, 35, 41, 232]
+            };
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    entry.rect.x.round() as isize,
+                    entry.rect.y.round() as isize,
+                    entry.rect.width.round().max(1.0) as isize,
+                    entry.rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                &background,
+                &safe,
+            );
+            self.draw2d.rect_outline_thickness(
+                self.target.pixels_mut(),
+                &(
+                    entry.rect.x.round() as usize,
+                    entry.rect.y.round() as usize,
+                    entry.rect.width.round().max(1.0) as usize,
+                    entry.rect.height.round().max(1.0) as usize,
+                ),
+                stride,
+                if selected || assignment_selected {
+                    &[238, 214, 118, 255]
+                } else if hovered && state.enabled {
+                    &[174, 179, 183, 255]
+                } else {
+                    &[72, 78, 87, 255]
+                },
+                1,
+            );
+
+            let mut icon = Widget::new();
+            icon.rect = entry.icon_rect;
+            icon.command = Some(entry.command.clone());
+            icon.update_draw(
+                &mut self.target,
+                map,
+                assets,
+                actor,
+                &self.draw2d,
+                &self.animation_frame,
+                visual_state,
+                Some(&entry.command),
+            );
+            if !state.enabled || state.cooldown_remaining > 0.0 {
+                Self::draw_command_state_overlay(
+                    &mut self.target,
+                    &self.draw2d,
+                    entry.icon_rect,
+                    &state,
+                    assets,
+                    Some(&entry.command),
+                    visual_state,
+                    true,
+                );
+            }
+
+            if let Some(font) = font {
+                let lines = Self::wrap_tooltip_line(
+                    &self.draw2d,
+                    font,
+                    10.0,
+                    &entry.name,
+                    entry.rect.width - 6.0,
+                );
+                for (line_index, line) in lines.into_iter().take(2).enumerate() {
+                    self.draw2d.text_rect_blend_safe(
+                        self.target.pixels_mut(),
+                        &(
+                            (entry.rect.x + 3.0).round() as isize,
+                            (entry.rect.y + 51.0 + line_index as f32 * 10.0).round() as isize,
+                            (entry.rect.width - 6.0).round().max(1.0) as isize,
+                            10,
+                        ),
+                        stride,
+                        font,
+                        10.0,
+                        &line,
+                        if state.enabled {
+                            &[214, 216, 209, 255]
+                        } else {
+                            &[118, 121, 124, 255]
+                        },
+                        draw2d::TheHorizontalAlign::Center,
+                        draw2d::TheVerticalAlign::Center,
+                        &safe,
+                    );
+                }
             }
         }
     }
@@ -6837,6 +7581,29 @@ impl Client {
         bool,
     )> {
         let p = self.cursor_pos;
+        if let Some(entry) = self
+            .actions_panel_entries
+            .iter()
+            .find(|entry| entry.rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            let actor = Self::resolve_party_entity(map, None);
+            let description = rules_ui::describe_command(assets, actor, &entry.command);
+            let state = rules_ui::command_state(assets, actor, &entry.command);
+            return Some((
+                description,
+                entry.rect,
+                Some(state),
+                format!("actions-panel:{}", entry.command),
+                Duration::from_millis(350),
+                false,
+            ));
+        }
+        if self
+            .actions_panel_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            return None;
+        }
         if let Some(item) = self.open_container_item(map)
             && let Some(layout) = self.container_panel_layout(map, assets)
         {
@@ -7049,6 +7816,291 @@ mod tests {
             Some(PlayerCamera::D2),
             true
         ));
+    }
+
+    #[test]
+    fn keyboard_shortcuts_activate_world_intents_and_rules_action_buttons() {
+        let mut assets = Assets::default();
+        assets.entities.insert(
+            "Player".into(),
+            (
+                String::new(),
+                r#"
+                    [input]
+                    w = "control.forward"
+                    u = "intent.use"
+                    l = "intent.look"
+                    t = "rules.basic_attack"
+                "#
+                .into(),
+            ),
+        );
+        let mut client = Client::new();
+        client
+            .client_action
+            .lock()
+            .unwrap()
+            .init("Player".into(), &assets);
+        client.button_widgets.insert(
+            1,
+            Widget {
+                name: "Intent Use".into(),
+                id: 1,
+                command: Some("intent.use".into()),
+                ..Default::default()
+            },
+        );
+        client.button_widgets.insert(
+            2,
+            Widget {
+                name: "Intent Look".into(),
+                id: 2,
+                command: Some("intent.look".into()),
+                ..Default::default()
+            },
+        );
+        client.button_widgets.insert(
+            3,
+            Widget {
+                name: "Command Slot 1".into(),
+                id: 3,
+                command: Some("rules.basic_attack".into()),
+                ..Default::default()
+            },
+        );
+        client.active_player_camera = Some(PlayerCamera::D2);
+
+        assert_eq!(
+            client.user_event("key_down".into(), Value::Str("u".into())),
+            EntityAction::Intent("use".into())
+        );
+        assert_eq!(client.get_current_intent().as_deref(), Some("use"));
+        assert!(client.activated_widgets.contains(&1));
+
+        let _ = client.user_event("key_up".into(), Value::Str("u".into()));
+        assert_eq!(
+            client.user_event("key_down".into(), Value::Str("t".into())),
+            EntityAction::Intent("action:basic_attack".into())
+        );
+        assert_eq!(
+            client.get_current_intent().as_deref(),
+            Some("action:basic_attack")
+        );
+        assert!(client.activated_widgets.contains(&3));
+        assert!(!client.activated_widgets.contains(&1));
+
+        let _ = client.user_event("key_up".into(), Value::Str("t".into()));
+        assert_eq!(
+            client.user_event("key_down".into(), Value::Str("w".into())),
+            EntityAction::Forward
+        );
+        assert_eq!(client.get_current_intent().as_deref(), None);
+    }
+
+    #[test]
+    fn actions_shortcut_opens_ruleset_grouped_catalogue() {
+        let mut assets = Assets::default();
+        assets.entities.insert(
+            "Player".into(),
+            (
+                String::new(),
+                r#"
+                    [input]
+                    tab = "ui.actions"
+                "#
+                .into(),
+            ),
+        );
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Cleric"
+
+            [classes.Cleric.action_bar]
+            main = [
+                "rules.basic_attack",
+                "rules.minor_heal",
+                "rules.gather_herbs",
+            ]
+
+            [actions.basic_attack]
+            name = "Basic Attack"
+            kind = "attack"
+
+            [actions.minor_heal]
+            name = "Minor Heal"
+            kind = "spell"
+
+            [actions.gather_herbs]
+            name = "Gather Herbs"
+            kind = "gather"
+        "#
+        .into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Cleric".into()));
+        let mut map = Map::default();
+        map.entities.push(player);
+
+        let mut client = Client::new();
+        client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+        client
+            .client_action
+            .lock()
+            .unwrap()
+            .init("Player".into(), &assets);
+
+        assert_eq!(
+            client.user_event("key_down".into(), Value::Str("tab".into())),
+            EntityAction::Off
+        );
+        assert!(client.actions_panel_open);
+        let layout = client
+            .actions_panel_layout(&map, &assets)
+            .expect("Actions panel should resolve the class catalogue");
+        assert_eq!(
+            layout
+                .groups
+                .iter()
+                .map(|group| group.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Combat", "Spells", "Utility"]
+        );
+        assert_eq!(layout.entries.len(), 3);
+
+        let _ = client.user_event("key_up".into(), Value::Str("tab".into()));
+        let _ = client.user_event("key_down".into(), Value::Str("tab".into()));
+        assert!(!client.actions_panel_open);
+    }
+
+    #[test]
+    fn actions_panel_selection_uses_normal_rules_targeting() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Cleric"
+
+            [classes.Cleric.action_bar]
+            main = ["rules.minor_heal"]
+
+            [actions.minor_heal]
+            name = "Minor Heal"
+            kind = "spell"
+            target = "friendly_or_self"
+        "#
+        .into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Cleric".into()));
+        let mut map = Map::default();
+        map.entities.push(player);
+
+        let mut client = Client::new();
+        client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+        client.actions_panel_open = true;
+        client.draw_actions_panel(&map, &assets);
+        let entry = client.actions_panel_entries[0].clone();
+
+        assert_eq!(
+            client.activate_actions_panel_command(&map, &assets, &entry.command),
+            Some(EntityAction::Intent("action:minor_heal".into()))
+        );
+        assert_eq!(
+            client.get_current_intent().as_deref(),
+            Some("action:minor_heal")
+        );
+        assert!(client.actions_panel_open);
+    }
+
+    #[test]
+    fn actions_panel_catalog_cache_invalidates_when_rules_change() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Cleric"
+
+            [classes.Cleric.action_bar]
+            main = ["rules.minor_heal"]
+
+            [actions.minor_heal]
+            name = "Minor Heal"
+            kind = "spell"
+        "#
+        .into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Cleric".into()));
+        let mut map = Map::default();
+        map.entities.push(player);
+
+        let mut client = Client::new();
+        client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+        client.actions_panel_open = true;
+        let first = client.actions_panel_layout(&map, &assets).unwrap();
+        assert_eq!(first.entries[0].command, "rules.minor_heal");
+
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Cleric"
+
+            [classes.Cleric.action_bar]
+            main = ["rules.holy_light"]
+
+            [actions.holy_light]
+            name = "Holy Light"
+            kind = "spell"
+        "#
+        .into();
+        let changed = client.actions_panel_layout(&map, &assets).unwrap();
+        assert_eq!(changed.entries[0].command, "rules.holy_light");
+    }
+
+    #[test]
+    fn actions_panel_assign_mode_targets_reusable_command_slots() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Cleric"
+
+            [classes.Cleric.action_bar]
+            main = ["rules.minor_heal"]
+
+            [actions.minor_heal]
+            name = "Minor Heal"
+            kind = "spell"
+            target = "friendly_or_self"
+        "#
+        .into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Cleric".into()));
+        let mut map = Map::default();
+        map.entities.push(player);
+
+        let mut client = Client::new();
+        client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+        client.actions_panel_open = true;
+        client.actions_assignment_mode = true;
+        client.button_widgets.insert(
+            42,
+            Widget {
+                id: 42,
+                rect: Rect::new(20.0, 650.0, 48.0, 48.0),
+                command_slot: Some("main.0".into()),
+                ..Default::default()
+            },
+        );
+        client.draw_actions_panel(&map, &assets);
+        let entry = client.actions_panel_entries[0].clone();
+        client.pending_action_assignment = Some(entry.command);
+        assert_eq!(
+            client.assign_pending_action_at_point(Vec2::new(22, 652)),
+            Some(EntityAction::SetCommandSlot {
+                slot: "main.0".into(),
+                command: Some("rules.minor_heal".into()),
+            })
+        );
+        assert!(!client.actions_assignment_mode);
+        assert!(client.pending_action_assignment.is_none());
     }
 
     #[test]
