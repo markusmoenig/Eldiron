@@ -447,6 +447,8 @@ impl Dock for TilemapDock {
                                             alias: tile_for_runtime.name.clone(),
                                             procedural: Default::default(),
                                             material: Default::default(),
+                                            material_alias: String::new(),
+                                            baked_material_data: Vec::new(),
                                             particle_emitter: None,
                                             light_emitter: None,
                                         };
@@ -657,6 +659,8 @@ impl TilemapDock {
             alias: rgba_tile.name.clone(),
             procedural: Default::default(),
             material: Default::default(),
+            material_alias: String::new(),
+            baked_material_data: Vec::new(),
             particle_emitter: None,
             light_emitter: None,
         });

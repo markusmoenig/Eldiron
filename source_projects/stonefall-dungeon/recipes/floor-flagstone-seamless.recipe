@@ -1,0 +1,67 @@
+Tile
+    name = "Stonefall Flagstone Floor"
+    material = dungeon/floor_stone
+    size = I2(64, 64)
+    coverage = I2(3, 3)
+    wrap = Repeat
+    seed = 81
+    pixelate = 1
+
+    Noise Warp
+        scale = I2(4, 4)
+        octaves = 2
+        persistence = 0.48
+        seed = 7
+
+    Noise Wear
+        space = Stones.local
+        key = Stones.id
+        scale = I2(3, 2)
+        octaves = 2
+        persistence = 0.46
+        seed = 13
+
+    Pattern Stones
+        Voronoi
+            cells = I2(5, 5)
+            jitter = 0.78
+            falloff = 0.56
+            warp = Warp
+            warp_amount = 0.040
+            seed = 11
+
+    Pattern Pits
+        Discs
+            space = Stones.local
+            key = Stones.id
+            cells = I2(3, 3)
+            jitter = 0.82
+            radius = 0.10 + Random(Stones.id, 0.02, 0.16, 17)
+            falloff = 1.45
+            warp = Warp
+            warp_amount = 0.03
+            seed = 21
+
+    Height Surface
+        source = 0.10 + Stones.height * 0.70
+
+        Shape
+            contrast = 1.02 + Random(Stones.id, 0.0, 0.12, 27)
+            bias = Random(Stones.id, -0.02, 0.035, 31)
+            plateau = 3.10
+            rim = 0.035
+
+        Multiply
+            source = 0.88 + Wear * 0.08 + Random(Stones.id, -0.025, 0.035, 33)
+            amount = 1.0
+
+        Subtract
+            source = Pits.height * Smoothstep(0.10, 0.52, Stones.height)
+            amount = 0.07
+
+        Clamp
+            min = 0.0
+            max = 1.0
+
+    Output
+        height = Surface

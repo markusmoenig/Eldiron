@@ -697,6 +697,16 @@ impl Texture {
     ///
     /// `height` must contain one byte per pixel in row-major order.
     pub fn generate_normals_from_height(&mut self, height: &[u8], wrap: bool) {
+        self.generate_normals_from_height_with_strength(height, wrap, 0.35);
+    }
+
+    /// Generates normals from an external grayscale height field with an explicit strength.
+    pub fn generate_normals_from_height_with_strength(
+        &mut self,
+        height: &[u8],
+        wrap: bool,
+        strength: f32,
+    ) {
         if height.len() != self.width * self.height {
             return;
         }
@@ -736,7 +746,6 @@ impl Texture {
                 let gx = (-tl) + tr + (-2.0 * cl) + (2.0 * cr) + (-bl) + br;
                 let gy = (-tl) + (-2.0 * tc) + (-tr) + bl + (2.0 * bc) + br;
 
-                let strength = 0.35;
                 let nx = -gx * strength;
                 let ny = -gy * strength;
                 let nz = 1.0;
@@ -874,6 +883,31 @@ impl Texture {
                 // Preserve bytes 2-3 (normal data)
             }
         }
+    }
+
+    /// Extracts the two packed material bytes for every pixel.
+    pub fn material_bytes(&self) -> Vec<u8> {
+        let mut bytes = Vec::with_capacity(self.width * self.height * 2);
+        if let Some(ext) = &self.data_ext {
+            for pixel in ext.chunks_exact(4) {
+                bytes.extend_from_slice(&pixel[..2]);
+            }
+        }
+        bytes
+    }
+
+    /// Applies two packed material bytes per pixel while preserving normals.
+    pub fn apply_material_bytes(&mut self, bytes: &[u8]) -> bool {
+        if bytes.len() != self.width * self.height * 2 {
+            return false;
+        }
+        self.ensure_data_ext();
+        if let Some(ext) = self.data_ext.as_mut() {
+            for (pixel, material) in ext.chunks_exact_mut(4).zip(bytes.chunks_exact(2)) {
+                pixel[..2].copy_from_slice(material);
+            }
+        }
+        true
     }
 
     /// Set semantic material id for all pixels, preserving normal data.

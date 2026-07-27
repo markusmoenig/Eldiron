@@ -1,0 +1,51 @@
+Tile
+    name = "Stonefall Irregular Stone Wall"
+    material = dungeon/wall_stone
+    size = I2(64, 64)
+    coverage = I2(4, 4)
+    wrap = Repeat
+    seed = 42
+    pixelate = 1
+
+    Noise BroadWarp
+        scale = I2(3, 2)
+        octaves = 3
+        persistence = 0.54
+        seed = 7
+
+    Pattern Wall
+        Voronoi
+            cells = I2(4, 7)
+            jitter = 0.86
+            falloff = 0.54
+            warp = BroadWarp
+            warp_amount = 0.055
+            seed = 19
+
+    Noise Grain
+        space = Wall.local
+        key = Wall.id
+        scale = I2(3, 3)
+        octaves = 3
+        persistence = 0.54
+        seed = 19
+
+    Height Surface
+        source = 0.12 + Wall.height * 0.88
+
+        Shape
+            contrast = 1.02 + Random(Wall.id, 0.0, 0.16, 31)
+            bias = Random(Wall.id, -0.03, 0.04, 37)
+            plateau = 2.60 + Random(Wall.id, 0.0, 0.35, 41)
+            rim = 0.06
+
+        Multiply
+            source = 0.84 + Grain * 0.10 + Random(Wall.id, -0.035, 0.055, 47)
+            amount = 1.0
+
+        Clamp
+            min = 0.0
+            max = 1.0
+
+    Output
+        height = Surface

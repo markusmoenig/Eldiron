@@ -1,7 +1,27 @@
 tiles {
-  "#" = wall material=stone finish=matte
-  "." = floor material=stone finish=natural
-  "@" = floor material=stone finish=natural
-  "L" = floor material=stone finish=natural
-  "x" = floor material=stone finish=natural
+  # The first generated material trio. Extra glyphs preserve the authored layout
+  # while all chambers evaluate the same exact-seam textures.
+  "#" = wall-irregular-stone-seamless blocking=true
+  "%" = wall-irregular-stone-seamless blocking=true
+  "&" = wall-irregular-stone-seamless blocking=true
+  "4" = wall-irregular-stone-seamless blocking=true
+  "!" = wall-irregular-stone-seamless blocking=true
+  "?" = wall-irregular-stone-seamless blocking=true
+
+  "." = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "," = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  ";" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  ":" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "_" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "~" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "-" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "*" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "/" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+
+  "@" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "L" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "O" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "h" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "b" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "x" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
 }

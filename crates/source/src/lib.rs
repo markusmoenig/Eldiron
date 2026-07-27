@@ -1,13 +1,16 @@
+use procedural_recipes::{
+    MaterialRecipe, RecipeDocument, RecipeRenderer, RenderOptions, WrapMode, parse_document,
+};
 use rusterix::{
-    GeometryObject, GeometryObjectKind, Map, MapCamera, PixelSource, Sector, Texture, Tile,
-    TileRole, Value, ValueContainer,
+    GeometryObject, GeometryObjectKind, Light, LightType, Map, MapCamera, PixelSource, Sector,
+    Texture, Tile, TileRole, Value, ValueContainer, map::tile::TileLightEmitter,
 };
 use serde::Deserialize;
 use shared::prelude::{Asset, AssetBuffer, Character, IndexMap, Item, Project, Region, Screen};
-use std::fs;
 use std::path::{Path, PathBuf};
+use std::{collections::BTreeMap, fs};
 use uuid::Uuid;
-use vek::Vec3;
+use vek::{Vec2, Vec3};
 
 #[derive(Debug, Deserialize)]
 struct ProjectToml {
@@ -35,14 +38,67 @@ struct ProjectSection {
 struct SourceSection {
     #[serde(default = "default_main_source")]
     main: String,
+    #[serde(default)]
+    tile_dirs: Vec<String>,
+    #[serde(default)]
+    tiles: Vec<SourceTileAsset>,
+    #[serde(default)]
+    tile_animations: Vec<SourceTileAnimation>,
 }
 
 impl Default for SourceSection {
     fn default() -> Self {
         Self {
             main: default_main_source(),
+            tile_dirs: Vec::new(),
+            tiles: Vec::new(),
+            tile_animations: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct SourceTileAsset {
+    alias: String,
+    path: String,
+    #[serde(default = "default_source_tile_role")]
+    role: String,
+    #[serde(default)]
+    blocking: bool,
+    #[serde(default = "default_source_tile_scale")]
+    scale: f32,
+    #[serde(default)]
+    light_color: String,
+    #[serde(default)]
+    light_intensity: f32,
+    #[serde(default)]
+    light_range: f32,
+    #[serde(default)]
+    light_flicker: f32,
+    #[serde(default)]
+    light_lift: f32,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct SourceTileAnimation {
+    alias: String,
+    frames: Vec<String>,
+    #[serde(default = "default_source_tile_role")]
+    role: String,
+    #[serde(default)]
+    blocking: bool,
+    #[serde(default = "default_source_tile_scale")]
+    scale: f32,
+    #[serde(default)]
+    light_color: String,
+    #[serde(default)]
+    light_intensity: f32,
+    #[serde(default)]
+    light_range: f32,
+    #[serde(default)]
+    light_flicker: f32,
+    #[serde(default)]
+    light_lift: f32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -174,6 +230,9 @@ struct SourceItem {
 struct SourceTileSymbol {
     tile: String,
     material: SourceMaterial,
+    blocking: Option<bool>,
+    wall_feature: bool,
+    ceiling: Option<String>,
 }
 
 impl SourceTileSymbol {
@@ -181,6 +240,9 @@ impl SourceTileSymbol {
         Self {
             tile,
             material: SourceMaterial::default(),
+            blocking: None,
+            wall_feature: false,
+            ceiling: None,
         }
     }
 }
@@ -203,6 +265,8 @@ struct SourceRegion {
     id: String,
     name: String,
     default: String,
+    floor: String,
+    ceiling: String,
     tile_symbols: IndexMap<char, SourceTileSymbol>,
     terrain: Vec<String>,
 }
@@ -249,6 +313,8 @@ impl SourceDocument {
 struct SourceTileLookup {
     aliases: IndexMap<String, Uuid>,
     leaf_aliases: IndexMap<String, Option<Uuid>>,
+    light_emitters: IndexMap<Uuid, TileLightEmitter>,
+    coverage: IndexMap<Uuid, [u32; 2]>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -262,14 +328,30 @@ struct ResolvedSourceTiles {
 #[derive(Debug, Clone)]
 struct ResolvedTileSymbol {
     source: PixelSource,
+    coverage: [u32; 2],
     material: SourceMaterial,
+    blocking: Option<bool>,
+    wall_feature: bool,
+    ceiling: Option<PixelSource>,
+    ceiling_coverage: [u32; 2],
+    light_emitter: Option<TileLightEmitter>,
 }
 
 impl ResolvedTileSymbol {
     fn tile_only(source: PixelSource) -> Self {
+        Self::tile_with_coverage(source, [1, 1])
+    }
+
+    fn tile_with_coverage(source: PixelSource, coverage: [u32; 2]) -> Self {
         Self {
             source,
+            coverage,
             material: SourceMaterial::default(),
+            blocking: None,
+            wall_feature: false,
+            ceiling: None,
+            ceiling_coverage: [1, 1],
+            light_emitter: None,
         }
     }
 }
@@ -353,10 +435,52 @@ fn load_source_dir(project_dir: &Path, name: &str) -> Result<SourceDocument, Str
     Ok(document)
 }
 
-fn load_project_directory_assets(project: &mut Project, project_dir: &Path) -> Result<(), String> {
-    load_generic_assets_dir(project, project_dir, "assets")?;
+fn load_project_directory_assets(
+    project: &mut Project,
+    project_dir: &Path,
+    source: &SourceSection,
+) -> Result<(), String> {
+    let tile_roots = source
+        .tile_dirs
+        .iter()
+        .map(|tile_dir| tile_dir.trim())
+        .filter(|tile_dir| !tile_dir.is_empty())
+        .map(|tile_dir| project_dir.join(tile_dir))
+        .collect::<Vec<_>>();
+    let animation_frames = source
+        .tile_animations
+        .iter()
+        .flat_map(|animation| animation.frames.iter())
+        .map(|frame| project_dir.join(frame))
+        .collect::<Vec<_>>();
+    let declared_tile_files = source
+        .tiles
+        .iter()
+        .map(|tile| project_dir.join(&tile.path))
+        .chain(animation_frames)
+        .collect::<Vec<_>>();
+    load_generic_assets_dir(
+        project,
+        project_dir,
+        "assets",
+        &tile_roots,
+        &declared_tile_files,
+    )?;
     load_tile_image_dir(project, project_dir, "tiles")?;
     load_tile_image_dir(project, project_dir, "images")?;
+    load_procedural_recipe_dir(project, project_dir, "recipes")?;
+    for tile_dir in &source.tile_dirs {
+        let tile_dir = tile_dir.trim();
+        if !tile_dir.is_empty() {
+            load_tile_image_root(project, &project_dir.join(tile_dir), TileRole::Dungeon)?;
+        }
+    }
+    for tile in &source.tiles {
+        load_source_tile_asset(project, project_dir, tile)?;
+    }
+    for animation in &source.tile_animations {
+        load_source_tile_animation(project, project_dir, animation)?;
+    }
     Ok(())
 }
 
@@ -364,6 +488,8 @@ fn load_generic_assets_dir(
     project: &mut Project,
     project_dir: &Path,
     dir_name: &str,
+    excluded_roots: &[PathBuf],
+    excluded_files: &[PathBuf],
 ) -> Result<(), String> {
     let root = project_dir.join(dir_name);
     if !root.exists() {
@@ -374,6 +500,13 @@ fn load_generic_assets_dir(
     }
 
     for path in collect_files_recursive(&root)? {
+        if excluded_roots
+            .iter()
+            .any(|excluded| path.starts_with(excluded))
+            || excluded_files.contains(&path)
+        {
+            continue;
+        }
         let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
             continue;
         };
@@ -409,11 +542,18 @@ fn load_tile_image_dir(
     if !root.exists() {
         return Ok(());
     }
+    load_tile_image_root(project, &root, TileRole::ManMade)
+}
+
+fn load_tile_image_root(project: &mut Project, root: &Path, role: TileRole) -> Result<(), String> {
+    if !root.exists() {
+        return Err(format!("tile directory {} does not exist", root.display()));
+    }
     if !root.is_dir() {
         return Err(format!("{} must be a directory", root.display()));
     }
 
-    for path in collect_files_recursive(&root)? {
+    for path in collect_files_recursive(root)? {
         let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
             continue;
         };
@@ -424,12 +564,298 @@ fn load_tile_image_dir(
         let texture = Texture::from_image_safe(path.as_path())
             .ok_or_else(|| format!("failed to decode tile image {}", path.display()))?;
         let mut tile = Tile::from_texture(texture);
-        tile.role = TileRole::ManMade;
-        tile.alias = asset_name_from_path(&root, &path);
+        tile.role = role;
+        tile.alias = asset_name_from_path(root, &path);
         project.tiles.insert(tile.id, tile);
     }
 
     Ok(())
+}
+
+fn load_procedural_recipe_dir(
+    project: &mut Project,
+    project_dir: &Path,
+    dir_name: &str,
+) -> Result<(), String> {
+    let root = project_dir.join(dir_name);
+    if !root.exists() {
+        return Ok(());
+    }
+    if !root.is_dir() {
+        return Err(format!("{} must be a directory", root.display()));
+    }
+
+    let mut documents = Vec::new();
+    for path in collect_files_recursive(&root)? {
+        let Some(extension) = path.extension().and_then(|extension| extension.to_str()) else {
+            continue;
+        };
+        if !extension.eq_ignore_ascii_case("recipe") {
+            continue;
+        }
+
+        let source = fs::read_to_string(&path)
+            .map_err(|error| format!("failed to read recipe {}: {error}", path.display()))?;
+        let document = parse_document(&source)
+            .map_err(|error| format!("failed to parse recipe {}: {error}", path.display()))?;
+        documents.push((path, document));
+    }
+
+    let mut materials = BTreeMap::<String, MaterialRecipe>::new();
+    for (path, document) in &documents {
+        let RecipeDocument::Materials(document) = document else {
+            continue;
+        };
+        let file_alias = asset_name_from_path(&root, path);
+        for material in &document.materials {
+            let alias = format!("{file_alias}/{}", material.id).to_ascii_lowercase();
+            if materials.insert(alias.clone(), material.clone()).is_some() {
+                return Err(format!("duplicate procedural material alias '{alias}'"));
+            }
+        }
+    }
+
+    let renderer = RecipeRenderer::new(&project.art_palette).map_err(|error| {
+        format!(
+            "failed to create procedural recipe renderer for {}: {error}",
+            root.display()
+        )
+    })?;
+    for (path, document) in documents {
+        let RecipeDocument::Tile(recipe) = document else {
+            continue;
+        };
+        let rendered = renderer
+            .render(&recipe, &RenderOptions::default())
+            .map_err(|error| format!("failed to render recipe {}: {error}", path.display()))?;
+        let resolved_material = recipe
+            .material
+            .as_ref()
+            .map(|alias| {
+                materials.get(&alias.to_ascii_lowercase()).ok_or_else(|| {
+                    format!(
+                        "recipe {} references unknown material '{}'",
+                        path.display(),
+                        alias
+                    )
+                })
+            })
+            .transpose()?;
+        let rendered_material = resolved_material
+            .map(|material| {
+                renderer
+                    .render_material(material, &rendered, &RenderOptions::default())
+                    .map_err(|error| {
+                        format!(
+                            "failed to render material '{}' for recipe {}: {error}",
+                            material.id,
+                            path.display()
+                        )
+                    })
+            })
+            .transpose()?;
+        let wrap_normals = matches!(
+            resolved_material.map_or(recipe.wrap, |material| material.wrap),
+            WrapMode::Repeat | WrapMode::Mirror
+        );
+        let mut textures = Vec::with_capacity(rendered.frames.len());
+        for (frame_index, frame) in rendered.frames.iter().enumerate() {
+            let material_frame = rendered_material
+                .as_ref()
+                .and_then(|material| material.frames.get(frame_index));
+            let mut texture = Texture::new(
+                material_frame
+                    .map(|frame| frame.rgba.clone())
+                    .unwrap_or_else(|| frame.rgba.clone()),
+                rendered.width as usize,
+                rendered.height as usize,
+            );
+            if let (Some(material), Some(material_frame)) =
+                (rendered_material.as_ref(), material_frame)
+            {
+                for (index, [roughness, metallic, opacity, emissive]) in
+                    material_frame.material.iter().copied().enumerate()
+                {
+                    texture.set_materials(
+                        index as u32 % rendered.width,
+                        index as u32 / rendered.width,
+                        roughness,
+                        metallic,
+                        opacity,
+                        emissive,
+                    );
+                }
+                texture.generate_normals_from_height_with_strength(
+                    &material_frame.normal_height,
+                    wrap_normals,
+                    material.normal_strength,
+                );
+            } else {
+                texture.generate_normals_from_height(&frame.height, wrap_normals);
+            }
+            textures.push(texture);
+        }
+        let mut tile = Tile::from_textures(textures);
+        tile.role = TileRole::ManMade;
+        tile.alias = asset_name_from_path(&root, &path);
+        tile.procedural.coverage = [rendered.grid_width, rendered.grid_height];
+        if let Some(alias) = &recipe.material {
+            tile.material_alias = alias.clone();
+            tile.baked_material_data = tile.textures.iter().map(Texture::material_bytes).collect();
+        }
+        project.tiles.insert(tile.id, tile);
+    }
+
+    Ok(())
+}
+
+fn load_source_tile_asset(
+    project: &mut Project,
+    project_dir: &Path,
+    source_tile: &SourceTileAsset,
+) -> Result<(), String> {
+    let alias = source_tile.alias.trim();
+    if alias.is_empty() {
+        return Err("[[source.tiles]] requires a non-empty alias".to_string());
+    }
+    let path = project_dir.join(source_tile.path.trim());
+    let texture = Texture::from_image_safe(path.as_path()).ok_or_else(|| {
+        format!(
+            "failed to decode '{}' for source tile '{}'",
+            path.display(),
+            alias
+        )
+    })?;
+    let mut tile = Tile::from_texture(texture);
+    tile.alias = alias.to_string();
+    tile.role = parse_source_tile_role(&source_tile.role)?;
+    tile.blocking = source_tile.blocking;
+    tile.scale = source_tile.scale.max(0.01);
+    tile.light_emitter = source_tile_light_emitter(
+        &source_tile.light_color,
+        source_tile.light_intensity,
+        source_tile.light_range,
+        source_tile.light_flicker,
+        source_tile.light_lift,
+    )?;
+    project.tiles.insert(tile.id, tile);
+    Ok(())
+}
+
+fn load_source_tile_animation(
+    project: &mut Project,
+    project_dir: &Path,
+    animation: &SourceTileAnimation,
+) -> Result<(), String> {
+    let alias = animation.alias.trim();
+    if alias.is_empty() {
+        return Err("[[source.tile_animations]] requires a non-empty alias".to_string());
+    }
+    if animation.frames.is_empty() {
+        return Err(format!(
+            "[[source.tile_animations]] '{}' requires at least one frame",
+            alias
+        ));
+    }
+
+    let mut textures = Vec::with_capacity(animation.frames.len());
+    for frame in &animation.frames {
+        let path = project_dir.join(frame);
+        let texture = Texture::from_image_safe(path.as_path()).ok_or_else(|| {
+            format!(
+                "failed to decode frame '{}' for source tile animation '{}'",
+                path.display(),
+                alias
+            )
+        })?;
+        textures.push(texture);
+    }
+
+    let mut tile = Tile::from_textures(textures);
+    tile.alias = alias.to_string();
+    tile.role = parse_source_tile_role(&animation.role)?;
+    tile.blocking = animation.blocking;
+    tile.scale = animation.scale.max(0.01);
+    tile.light_emitter = source_tile_light_emitter(
+        &animation.light_color,
+        animation.light_intensity,
+        animation.light_range,
+        animation.light_flicker,
+        animation.light_lift,
+    )?;
+    project.tiles.insert(tile.id, tile);
+    Ok(())
+}
+
+fn source_tile_light_emitter(
+    color: &str,
+    intensity: f32,
+    range: f32,
+    flicker: f32,
+    lift: f32,
+) -> Result<Option<TileLightEmitter>, String> {
+    if intensity <= 0.0 && range <= 0.0 {
+        return Ok(None);
+    }
+    Ok(Some(TileLightEmitter {
+        color: parse_source_light_color(color)?,
+        intensity: intensity.max(0.0),
+        range: range.max(0.0),
+        flicker: flicker.max(0.0),
+        lift,
+    }))
+}
+
+fn parse_source_tile_role(role: &str) -> Result<TileRole, String> {
+    match role
+        .trim()
+        .to_ascii_lowercase()
+        .replace([' ', '-'], "_")
+        .as_str()
+    {
+        "character" => Ok(TileRole::Character),
+        "nature" => Ok(TileRole::Nature),
+        "mountain" => Ok(TileRole::Mountain),
+        "road" => Ok(TileRole::Road),
+        "water" => Ok(TileRole::Water),
+        "man_made" | "manmade" => Ok(TileRole::ManMade),
+        "dungeon" => Ok(TileRole::Dungeon),
+        "effect" => Ok(TileRole::Effect),
+        "icon" => Ok(TileRole::Icon),
+        "ui" => Ok(TileRole::UI),
+        other => Err(format!(
+            "unknown source tile role '{}'; expected character, nature, mountain, road, water, man_made, dungeon, effect, icon, or ui",
+            other
+        )),
+    }
+}
+
+fn parse_source_light_color(color: &str) -> Result<[u8; 4], String> {
+    let color = color.trim();
+    if color.is_empty() {
+        return Ok([255, 196, 96, 255]);
+    }
+    let hex = color.strip_prefix('#').unwrap_or(color);
+    if !matches!(hex.len(), 6 | 8) {
+        return Err(format!(
+            "source tile animation light_color '{}' must be #RRGGBB or #RRGGBBAA",
+            color
+        ));
+    }
+    let parse = |range: std::ops::Range<usize>| {
+        u8::from_str_radix(&hex[range], 16).map_err(|_| {
+            format!(
+                "source tile animation light_color '{}' contains invalid hexadecimal digits",
+                color
+            )
+        })
+    };
+    Ok([
+        parse(0..2)?,
+        parse(2..4)?,
+        parse(4..6)?,
+        if hex.len() == 8 { parse(6..8)? } else { 255 },
+    ])
 }
 
 fn collect_files_recursive(root: &Path) -> Result<Vec<PathBuf>, String> {
@@ -476,6 +902,16 @@ impl SourceTileLookup {
     fn from_project(project: &Project) -> Self {
         let mut lookup = Self::default();
         for tile in project.tiles.values() {
+            lookup.coverage.insert(
+                tile.id,
+                [
+                    tile.procedural.coverage[0].max(1),
+                    tile.procedural.coverage[1].max(1),
+                ],
+            );
+            if let Some(light) = &tile.light_emitter {
+                lookup.light_emitters.insert(tile.id, light.clone());
+            }
             let alias = tile.alias.trim();
             if alias.is_empty() {
                 continue;
@@ -517,6 +953,32 @@ impl SourceTileLookup {
         }
         None
     }
+
+    fn tile_only_for(&self, name: &str) -> Option<ResolvedTileSymbol> {
+        let source = self.source_for(name)?;
+        let light_emitter = match &source {
+            PixelSource::TileId(id) => self.light_emitters.get(id).cloned(),
+            _ => None,
+        };
+        let coverage = self.coverage_for(&source);
+        Some(ResolvedTileSymbol {
+            source,
+            coverage,
+            material: SourceMaterial::default(),
+            blocking: None,
+            wall_feature: false,
+            ceiling: None,
+            ceiling_coverage: [1, 1],
+            light_emitter,
+        })
+    }
+
+    fn coverage_for(&self, source: &PixelSource) -> [u32; 2] {
+        match source {
+            PixelSource::TileId(id) => self.coverage.get(id).copied().unwrap_or([1, 1]),
+            _ => [1, 1],
+        }
+    }
 }
 
 impl ResolvedSourceTiles {
@@ -525,15 +987,22 @@ impl ResolvedSourceTiles {
             .get(&glyph)
             .cloned()
             .or_else(|| {
-                source_glyph_blocks(glyph)
+                self.glyph_blocks(glyph)
                     .then(|| self.wall.clone())
                     .flatten()
             })
             .or_else(|| {
-                (!source_glyph_blocks(glyph))
+                (!self.glyph_blocks(glyph))
                     .then(|| self.floor.clone())
                     .flatten()
             })
+    }
+
+    fn glyph_blocks(&self, glyph: char) -> bool {
+        self.explicit
+            .get(&glyph)
+            .and_then(|symbol| symbol.blocking)
+            .unwrap_or_else(|| source_glyph_blocks_by_default(glyph))
     }
 }
 
@@ -573,11 +1042,34 @@ fn resolve_source_tiles(
                 source_region.id, glyph, symbol.tile
             ));
         };
+        let ceiling = match symbol.ceiling.as_deref() {
+            Some(name) => Some(lookup.source_for(name).ok_or_else(|| {
+                format!(
+                    "Region '{}' maps '{}' to ceiling tile '{}', but no loaded tile with that alias/name exists",
+                    source_region.id, glyph, name
+                )
+            })?),
+            None => None,
+        };
+        let coverage = lookup.coverage_for(&source);
+        let ceiling_coverage = ceiling
+            .as_ref()
+            .map(|source| lookup.coverage_for(source))
+            .unwrap_or([1, 1]);
         explicit.insert(
             glyph,
             ResolvedTileSymbol {
+                light_emitter: match &source {
+                    PixelSource::TileId(id) => lookup.light_emitters.get(id).cloned(),
+                    _ => None,
+                },
                 source,
+                coverage,
                 material: symbol.material,
+                blocking: symbol.blocking,
+                wall_feature: symbol.wall_feature,
+                ceiling,
+                ceiling_coverage,
             },
         );
     }
@@ -585,17 +1077,16 @@ fn resolve_source_tiles(
     Ok(ResolvedSourceTiles {
         explicit,
         wall: lookup
-            .source_for(&source_region.default)
-            .or_else(|| lookup.source_for("wall"))
-            .map(ResolvedTileSymbol::tile_only),
+            .tile_only_for(&source_region.default)
+            .or_else(|| lookup.tile_only_for("wall")),
         floor: lookup
-            .source_for("floor")
-            .or_else(|| lookup.source_for("floor.stone"))
-            .map(ResolvedTileSymbol::tile_only),
+            .tile_only_for(&source_region.floor)
+            .or_else(|| lookup.tile_only_for("floor"))
+            .or_else(|| lookup.tile_only_for("floor.stone")),
         ceiling: lookup
-            .source_for("ceiling")
-            .or_else(|| lookup.source_for("ceiling.stone"))
-            .map(ResolvedTileSymbol::tile_only),
+            .tile_only_for(&source_region.ceiling)
+            .or_else(|| lookup.tile_only_for("ceiling"))
+            .or_else(|| lookup.tile_only_for("ceiling.stone")),
     })
 }
 
@@ -694,7 +1185,7 @@ fn compile_project_inner(
     project.authoring = "[startup]\nshow = \"room\"\n".to_string();
     project.sync_ruleset_items()?;
     if let Some(project_dir) = project_dir {
-        load_project_directory_assets(&mut project, project_dir)?;
+        load_project_directory_assets(&mut project, project_dir, &config.source)?;
     }
     let tile_lookup = SourceTileLookup::from_project(&project);
     project.config = project_config(
@@ -979,13 +1470,15 @@ fn build_3d_blocks_from_source_terrain(
     map.sectors.clear();
     map.surfaces.clear();
     map.geometry_objects.clear();
+    map.lights.clear();
 
     let mut cells = 0usize;
     for (y, row) in source_region.terrain.iter().enumerate() {
         for (x, glyph) in row.chars().enumerate() {
-            if source_glyph_blocks(glyph) {
+            if source_tiles.glyph_blocks(glyph) {
                 continue;
             }
+            let glyph_tile = source_tiles.source_for_glyph(glyph);
             add_source_block(
                 map,
                 format!("floor_{x}_{y}"),
@@ -995,8 +1488,8 @@ fn build_3d_blocks_from_source_terrain(
                 x as f32 + 1.0,
                 0.0,
                 y as f32 + 1.0,
-                source_tiles
-                    .source_for_glyph(glyph)
+                glyph_tile
+                    .clone()
                     .or_else(|| source_tiles.floor.clone())
                     .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(8))),
                 true,
@@ -1014,9 +1507,13 @@ fn build_3d_blocks_from_source_terrain(
                 x as f32 + 1.0,
                 3.1,
                 y as f32 + 1.0,
-                source_tiles
-                    .ceiling
-                    .clone()
+                glyph_tile
+                    .and_then(|tile| {
+                        tile.ceiling.map(|source| {
+                            ResolvedTileSymbol::tile_with_coverage(source, tile.ceiling_coverage)
+                        })
+                    })
+                    .or_else(|| source_tiles.ceiling.clone())
                     .or_else(|| source_tiles.floor.clone())
                     .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(7))),
                 false,
@@ -1035,15 +1532,30 @@ fn build_3d_blocks_from_source_terrain(
 
     for (y, row) in source_region.terrain.iter().enumerate() {
         for (x, glyph) in row.chars().enumerate() {
-            if !source_glyph_blocks(glyph)
+            if !source_tiles.glyph_blocks(glyph)
                 || !source_block_has_walkable_neighbor(
                     &source_region.terrain,
                     x as isize,
                     y as isize,
+                    source_tiles,
                 )
             {
                 continue;
             }
+            let symbol_tile = source_tiles
+                .source_for_glyph(glyph)
+                .or_else(|| source_tiles.wall.clone())
+                .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(12)));
+            let light_emitter = symbol_tile.light_emitter.clone();
+            let wall_feature = symbol_tile.wall_feature;
+            let wall_tile = if wall_feature {
+                source_tiles
+                    .wall
+                    .clone()
+                    .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(12)))
+            } else {
+                symbol_tile.clone()
+            };
             add_source_block(
                 map,
                 format!("wall_{x}_{y}"),
@@ -1053,19 +1565,135 @@ fn build_3d_blocks_from_source_terrain(
                 x as f32 + 1.0,
                 3.0,
                 y as f32 + 1.0,
-                source_tiles
-                    .source_for_glyph(glyph)
-                    .or_else(|| source_tiles.wall.clone())
-                    .unwrap_or_else(|| {
-                        ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(12))
-                    }),
+                wall_tile,
                 true,
                 false,
             );
+            if wall_feature {
+                add_source_wall_feature(
+                    map,
+                    &source_region.terrain,
+                    x,
+                    y,
+                    source_tiles,
+                    symbol_tile,
+                );
+            }
+            if let Some(light_emitter) = light_emitter {
+                add_source_wall_light(
+                    map,
+                    &source_region.terrain,
+                    x,
+                    y,
+                    source_tiles,
+                    &light_emitter,
+                );
+            }
         }
     }
 
     Ok(())
+}
+
+fn add_source_wall_feature(
+    map: &mut Map,
+    terrain: &[String],
+    x: usize,
+    y: usize,
+    source_tiles: &ResolvedSourceTiles,
+    feature: ResolvedTileSymbol,
+) {
+    let Some((offset_x, offset_z, outward_face)) = [
+        (0_isize, -1_isize, 0_usize),
+        (1, 0, 3),
+        (0, 1, 1),
+        (-1, 0, 2),
+    ]
+    .into_iter()
+    .find(|(dx, dz, _)| {
+        !source_cell_blocks(terrain, x as isize + dx, y as isize + dz, source_tiles)
+    }) else {
+        return;
+    };
+
+    let inset = 0.015;
+    let (min_x, max_x, min_z, max_z) = match (offset_x, offset_z) {
+        (0, -1) => (x as f32, x as f32 + 1.0, y as f32 - inset, y as f32),
+        (1, 0) => (
+            x as f32 + 1.0,
+            x as f32 + 1.0 + inset,
+            y as f32,
+            y as f32 + 1.0,
+        ),
+        (0, 1) => (
+            x as f32,
+            x as f32 + 1.0,
+            y as f32 + 1.0,
+            y as f32 + 1.0 + inset,
+        ),
+        (-1, 0) => (x as f32 - inset, x as f32, y as f32, y as f32 + 1.0),
+        _ => return,
+    };
+    let mut object = GeometryObject::box_from_bounds(
+        format!("wall_feature_{x}_{y}"),
+        Vec3::new(min_x, 1.0, min_z),
+        Vec3::new(max_x, 2.0, max_z),
+    );
+    object.kind = GeometryObjectKind::Generated;
+    object.solid = false;
+    object.group = "eldiron-source-features".to_string();
+    apply_source_material(&mut object.properties, &feature.material);
+    for face in &mut object.faces {
+        face.tile = Some(PixelSource::Off);
+    }
+    if let Some(face) = object.faces.get_mut(outward_face) {
+        face.auto_uv = false;
+        face.uvs = vec![
+            vek::Vec2::new(0.0, 1.0),
+            vek::Vec2::new(1.0, 1.0),
+            vek::Vec2::new(1.0, 0.0),
+            vek::Vec2::new(0.0, 0.0),
+        ];
+        face.tile = Some(feature.source);
+    }
+    object.ensure_face_paint_data();
+    map.geometry_objects.push(object);
+}
+
+fn add_source_wall_light(
+    map: &mut Map,
+    terrain: &[String],
+    x: usize,
+    y: usize,
+    source_tiles: &ResolvedSourceTiles,
+    emitter: &TileLightEmitter,
+) {
+    let (offset_x, offset_z) = [(0_isize, -1_isize), (1, 0), (0, 1), (-1, 0)]
+        .into_iter()
+        .find(|(dx, dz)| {
+            !source_cell_blocks(terrain, x as isize + dx, y as isize + dz, source_tiles)
+        })
+        .map(|(dx, dz)| (dx as f32 * 0.55, dz as f32 * 0.55))
+        .unwrap_or((0.0, 0.0));
+    let color = [
+        emitter.color[0] as f32 / 255.0,
+        emitter.color[1] as f32 / 255.0,
+        emitter.color[2] as f32 / 255.0,
+    ];
+    let end_distance = emitter.range.max(0.1);
+    map.lights.push(
+        Light::new(LightType::Point)
+            .with_position(Vec3::new(
+                x as f32 + 0.5 + offset_x,
+                1.45 + emitter.lift,
+                y as f32 + 0.5 + offset_z,
+            ))
+            .with_color(color)
+            .with_intensity(emitter.intensity.max(0.0))
+            .with_start_distance((end_distance * 0.15).min(0.75))
+            .with_end_distance(end_distance)
+            .with_flicker(emitter.flicker.max(0.0)),
+    );
 }
 
 fn add_source_entrance_sector(map: &mut Map, x: f32, y: f32) -> Result<(), String> {
@@ -1127,7 +1755,46 @@ fn add_source_block(
     for face in &mut object.faces {
         face.tile = Some(tile.source.clone());
     }
+    apply_source_recipe_uvs(&mut object, tile.coverage);
     map.geometry_objects.push(object);
+}
+
+fn apply_source_recipe_uvs(object: &mut GeometryObject, coverage: [u32; 2]) {
+    let scale = Vec2::new(coverage[0].max(1) as f32, coverage[1].max(1) as f32);
+    if scale == Vec2::broadcast(1.0) {
+        return;
+    }
+
+    for face in &mut object.faces {
+        let points = face
+            .indices
+            .iter()
+            .filter_map(|index| object.vertices.get(*index).copied())
+            .collect::<Vec<_>>();
+        if points.len() != face.indices.len() || points.len() < 3 {
+            continue;
+        }
+
+        let mut normal = Vec3::<f32>::zero();
+        for index in 1..points.len() - 1 {
+            normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+        }
+        let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+        face.uvs = points
+            .iter()
+            .map(|point| {
+                let projected = if abs.y >= abs.x && abs.y >= abs.z {
+                    Vec2::new(point.x, point.z)
+                } else if abs.x >= abs.z {
+                    Vec2::new(point.z, point.y)
+                } else {
+                    Vec2::new(point.x, point.y)
+                };
+                Vec2::new(projected.x / scale.x, projected.y / scale.y)
+            })
+            .collect();
+        face.auto_uv = false;
+    }
 }
 
 fn apply_source_material(properties: &mut ValueContainer, material: &SourceMaterial) {
@@ -1152,25 +1819,35 @@ fn apply_source_material(properties: &mut ValueContainer, material: &SourceMater
     }
 }
 
-fn source_block_has_walkable_neighbor(lines: &[String], x: isize, y: isize) -> bool {
-    !source_cell_blocks(lines, x, y - 1)
-        || !source_cell_blocks(lines, x + 1, y)
-        || !source_cell_blocks(lines, x, y + 1)
-        || !source_cell_blocks(lines, x - 1, y)
+fn source_block_has_walkable_neighbor(
+    lines: &[String],
+    x: isize,
+    y: isize,
+    source_tiles: &ResolvedSourceTiles,
+) -> bool {
+    !source_cell_blocks(lines, x, y - 1, source_tiles)
+        || !source_cell_blocks(lines, x + 1, y, source_tiles)
+        || !source_cell_blocks(lines, x, y + 1, source_tiles)
+        || !source_cell_blocks(lines, x - 1, y, source_tiles)
 }
 
-fn source_cell_blocks(lines: &[String], x: isize, y: isize) -> bool {
+fn source_cell_blocks(
+    lines: &[String],
+    x: isize,
+    y: isize,
+    source_tiles: &ResolvedSourceTiles,
+) -> bool {
     if x < 0 || y < 0 {
         return true;
     }
     lines
         .get(y as usize)
         .and_then(|line| line.chars().nth(x as usize))
-        .map(source_glyph_blocks)
+        .map(|glyph| source_tiles.glyph_blocks(glyph))
         .unwrap_or(true)
 }
 
-fn source_glyph_blocks(glyph: char) -> bool {
+fn source_glyph_blocks_by_default(glyph: char) -> bool {
     glyph == '#' || glyph == ' '
 }
 
@@ -1361,6 +2038,8 @@ fn parse_item(block: &NamedBlock) -> Result<SourceItem, String> {
 fn parse_region(block: &NamedBlock) -> Result<SourceRegion, String> {
     let name = string_field(&block.body, "name").unwrap_or_else(|| title_case_id(&block.name));
     let default = bare_field(&block.body, "default").unwrap_or_else(|| "wall.stone".to_string());
+    let floor = bare_field(&block.body, "floor").unwrap_or_else(|| "floor".to_string());
+    let ceiling = bare_field(&block.body, "ceiling").unwrap_or_else(|| "ceiling".to_string());
     let tile_symbols = parse_tile_symbol_blocks(&block.body)?;
     let terrain = triple_string_field(&block.body, "terrain")
         .ok_or_else(|| format!("Region '{}' is missing terrain \"\"\"...\"\"\"", block.name))?;
@@ -1369,6 +2048,8 @@ fn parse_region(block: &NamedBlock) -> Result<SourceRegion, String> {
         id: block.name.clone(),
         name,
         default,
+        floor,
+        ceiling,
         tile_symbols,
         terrain: lines,
     })
@@ -1493,6 +2174,9 @@ fn parse_tile_symbol_value(value: &str) -> Result<SourceTileSymbol, String> {
 
     let mut tile = String::new();
     let mut material = SourceMaterial::default();
+    let mut blocking = None;
+    let mut wall_feature = false;
+    let mut ceiling = None;
     for token in value.replace(',', " ").split_whitespace() {
         let token = token.trim();
         if token.is_empty() {
@@ -1505,9 +2189,14 @@ fn parse_tile_symbol_value(value: &str) -> Result<SourceTileSymbol, String> {
                 "material" | "preset" | "material_preset" => material.preset = Some(raw_value),
                 "finish" | "material_finish" => material.finish = Some(raw_value),
                 "tile" | "source" => tile = raw_value,
+                "blocking" | "solid" => blocking = Some(parse_tile_symbol_bool(key, &raw_value)?),
+                "feature" | "wall_feature" => {
+                    wall_feature = parse_tile_symbol_bool(key, &raw_value)?
+                }
+                "ceiling" => ceiling = Some(raw_value),
                 _ => {
                     return Err(format!(
-                        "unknown tiles entry option '{}'; expected tile, material/preset, or finish",
+                        "unknown tiles entry option '{}'; expected tile, material/preset, finish, blocking/solid, feature/wall_feature, or ceiling",
                         key
                     ));
                 }
@@ -1522,7 +2211,13 @@ fn parse_tile_symbol_value(value: &str) -> Result<SourceTileSymbol, String> {
         }
     }
 
-    Ok(SourceTileSymbol { tile, material })
+    Ok(SourceTileSymbol {
+        tile,
+        material,
+        blocking,
+        wall_feature,
+        ceiling,
+    })
 }
 
 fn parse_tile_symbol_inline_table(value: &str) -> Result<SourceTileSymbol, String> {
@@ -1542,7 +2237,41 @@ fn parse_tile_symbol_inline_table(value: &str) -> Result<SourceTileSymbol, Strin
         finish: inline_string_value(symbol, "finish")
             .or_else(|| inline_string_value(symbol, "material_finish")),
     };
-    Ok(SourceTileSymbol { tile, material })
+    let blocking = inline_bool_value(symbol, "blocking")
+        .or_else(|| inline_bool_value(symbol, "solid"))
+        .transpose()?;
+    let wall_feature = inline_bool_value(symbol, "wall_feature")
+        .or_else(|| inline_bool_value(symbol, "feature"))
+        .transpose()?
+        .unwrap_or(false);
+    let ceiling = inline_string_value(symbol, "ceiling");
+    Ok(SourceTileSymbol {
+        tile,
+        material,
+        blocking,
+        wall_feature,
+        ceiling,
+    })
+}
+
+fn parse_tile_symbol_bool(key: &str, value: &str) -> Result<bool, String> {
+    value.parse::<bool>().map_err(|_| {
+        format!(
+            "tiles entry option '{}={}' must use true or false",
+            key, value
+        )
+    })
+}
+
+fn inline_bool_value(table: &toml::Table, key: &str) -> Option<Result<bool, String>> {
+    table.get(key).map(|value| match value {
+        toml::Value::Boolean(value) => Ok(*value),
+        toml::Value::String(value) => parse_tile_symbol_bool(key, value),
+        _ => Err(format!(
+            "tiles inline option '{}' must use true or false",
+            key
+        )),
+    })
 }
 
 fn inline_string_value(table: &toml::Table, key: &str) -> Option<String> {
@@ -2226,6 +2955,14 @@ fn default_main_source() -> String {
     "main.els".to_string()
 }
 
+fn default_source_tile_role() -> String {
+    "dungeon".to_string()
+}
+
+fn default_source_tile_scale() -> f32 {
+    1.0
+}
+
 fn default_player() -> String {
     "player".to_string()
 }
@@ -2316,8 +3053,10 @@ Item "herb" {
 
 Region "cellar" {
   default = wall.stone
+  floor = floor.cracked
+  ceiling = ceiling.vault
   tiles {
-    "#" = wall material=stone finish=matte
+    "#" = wall material=stone finish=matte blocking=true wall_feature=true ceiling=ceiling.vault
     "." = floor
   }
   terrain """
@@ -2365,6 +3104,28 @@ Screen "play" {
         assert_eq!(
             parsed.regions[0]
                 .tile_symbols
+                .get(&'#')
+                .and_then(|symbol| symbol.blocking),
+            Some(true)
+        );
+        assert!(
+            parsed.regions[0]
+                .tile_symbols
+                .get(&'#')
+                .is_some_and(|symbol| symbol.wall_feature)
+        );
+        assert_eq!(
+            parsed.regions[0]
+                .tile_symbols
+                .get(&'#')
+                .and_then(|symbol| symbol.ceiling.as_deref()),
+            Some("ceiling.vault")
+        );
+        assert_eq!(parsed.regions[0].floor, "floor.cracked");
+        assert_eq!(parsed.regions[0].ceiling, "ceiling.vault");
+        assert_eq!(
+            parsed.regions[0]
+                .tile_symbols
                 .get(&'.')
                 .map(|symbol| symbol.tile.as_str()),
             Some("floor")
@@ -2374,6 +3135,163 @@ Screen "play" {
         assert_eq!(parsed.screens.len(), 1);
         assert_eq!(parsed.screens[0].widgets.len(), 1);
         assert_eq!(parsed.screens[0].widgets[0].role, "game");
+    }
+
+    #[test]
+    fn explicit_tile_blocking_controls_source_terrain_geometry() {
+        let mut tiles = ResolvedSourceTiles::default();
+        tiles.explicit.insert(
+            '%',
+            ResolvedTileSymbol {
+                source: PixelSource::PaletteIndex(1),
+                coverage: [1, 1],
+                material: SourceMaterial::default(),
+                blocking: Some(true),
+                wall_feature: false,
+                ceiling: None,
+                ceiling_coverage: [1, 1],
+                light_emitter: None,
+            },
+        );
+        tiles.explicit.insert(
+            '-',
+            ResolvedTileSymbol {
+                source: PixelSource::PaletteIndex(2),
+                coverage: [1, 1],
+                material: SourceMaterial::default(),
+                blocking: Some(false),
+                wall_feature: false,
+                ceiling: None,
+                ceiling_coverage: [1, 1],
+                light_emitter: None,
+            },
+        );
+
+        assert!(tiles.glyph_blocks('%'));
+        assert!(!tiles.glyph_blocks('-'));
+        assert!(tiles.glyph_blocks('#'));
+        assert!(!tiles.glyph_blocks('.'));
+    }
+
+    #[test]
+    fn wall_features_render_once_over_the_base_wall() {
+        let base_wall = ResolvedTileSymbol {
+            source: PixelSource::PaletteIndex(1),
+            coverage: [1, 1],
+            material: SourceMaterial::default(),
+            blocking: Some(true),
+            wall_feature: false,
+            ceiling: None,
+            ceiling_coverage: [1, 1],
+            light_emitter: None,
+        };
+        let mut source_tiles = ResolvedSourceTiles {
+            wall: Some(base_wall.clone()),
+            floor: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(3))),
+            ceiling: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(4))),
+            ..Default::default()
+        };
+        source_tiles.explicit.insert(
+            '!',
+            ResolvedTileSymbol {
+                source: PixelSource::PaletteIndex(2),
+                coverage: [1, 1],
+                material: SourceMaterial::default(),
+                blocking: Some(true),
+                wall_feature: true,
+                ceiling: None,
+                ceiling_coverage: [1, 1],
+                light_emitter: None,
+            },
+        );
+        let region = SourceRegion {
+            id: "feature-test".to_string(),
+            name: "Feature Test".to_string(),
+            default: "wall".to_string(),
+            floor: "floor".to_string(),
+            ceiling: "ceiling".to_string(),
+            tile_symbols: IndexMap::default(),
+            terrain: vec!["#!#".to_string(), "#.#".to_string(), "###".to_string()],
+        };
+        let mut map = Map::default();
+
+        build_3d_blocks_from_source_terrain(&mut map, &region, &source_tiles)
+            .expect("feature map builds");
+
+        let wall = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.name == "wall_1_0")
+            .expect("base wall exists");
+        assert!(
+            wall.faces
+                .iter()
+                .all(|face| face.tile == Some(base_wall.source.clone()))
+        );
+        let feature = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.name == "wall_feature_1_0")
+            .expect("wall feature exists");
+        assert!(!feature.solid);
+        assert_eq!(feature.faces[1].tile, Some(PixelSource::PaletteIndex(2)));
+        assert!(
+            feature
+                .faces
+                .iter()
+                .enumerate()
+                .filter(|(_, face)| face.tile == Some(PixelSource::PaletteIndex(2)))
+                .map(|(index, _)| index)
+                .eq([1])
+        );
+    }
+
+    #[test]
+    fn procedural_coverage_uses_continuous_world_aligned_uvs() {
+        let tile = ResolvedTileSymbol::tile_with_coverage(PixelSource::PaletteIndex(1), [4, 4]);
+        let mut map = Map::default();
+        add_source_block(
+            &mut map,
+            "first".to_string(),
+            4.0,
+            0.0,
+            8.0,
+            5.0,
+            3.0,
+            9.0,
+            tile.clone(),
+            true,
+            false,
+        );
+        add_source_block(
+            &mut map,
+            "next".to_string(),
+            5.0,
+            0.0,
+            8.0,
+            6.0,
+            3.0,
+            9.0,
+            tile,
+            true,
+            false,
+        );
+
+        let first_front = &map.geometry_objects[0].faces[0];
+        let next_front = &map.geometry_objects[1].faces[0];
+        assert!(!first_front.auto_uv);
+        assert!(!next_front.auto_uv);
+        assert_eq!(
+            first_front.uvs,
+            vec![
+                Vec2::new(1.0, 0.0),
+                Vec2::new(1.25, 0.0),
+                Vec2::new(1.25, 0.75),
+                Vec2::new(1.0, 0.75),
+            ]
+        );
+        assert_eq!(first_front.uvs[1], next_front.uvs[0]);
+        assert_eq!(first_front.uvs[2], next_front.uvs[3]);
     }
 
     #[test]
@@ -2409,6 +3327,8 @@ Screen "play" {
                 id: "cellar".to_string(),
                 name: "Cellar".to_string(),
                 default: "wall.stone".to_string(),
+                floor: "floor".to_string(),
+                ceiling: "ceiling".to_string(),
                 tile_symbols: IndexMap::default(),
                 terrain: vec!["###".to_string(), "#@#".to_string(), "###".to_string()],
             }],
@@ -2454,6 +3374,8 @@ Screen "play" {
                 id: "cellar".to_string(),
                 name: "Cellar".to_string(),
                 default: "wall.stone".to_string(),
+                floor: "floor".to_string(),
+                ceiling: "ceiling".to_string(),
                 tile_symbols: IndexMap::default(),
                 terrain: vec![
                     "#####".to_string(),
@@ -2504,7 +3426,8 @@ Screen "play" {
         .expect("tile image written");
 
         let mut project = Project::new();
-        load_project_directory_assets(&mut project, &root).expect("assets load");
+        load_project_directory_assets(&mut project, &root, &SourceSection::default())
+            .expect("assets load");
 
         assert!(project.assets.values().any(|asset| {
             asset.name == "fonts/Roboto-Bold" && matches!(asset.buffer, AssetBuffer::Font(_))
@@ -2514,6 +3437,263 @@ Screen "play" {
                 .tiles
                 .values()
                 .any(|tile| tile.alias == "dungeon/stone" && !tile.textures.is_empty())
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn loads_procedural_recipes_as_regular_tiles() {
+        let root = std::env::temp_dir().join(format!("eldiron-source-recipes-{}", Uuid::new_v4()));
+        let recipes_dir = root.join("recipes/dungeon");
+        fs::create_dir_all(&recipes_dir).expect("recipe dir created");
+        fs::write(
+            root.join("recipes/dungeon.recipe"),
+            r#"
+Material wall
+    Noise Grain
+        type = Gradient
+        fractal = Ridged
+        scale = F2(3.0, 2.0)
+
+    Colorize
+        source = Input.height
+        base = DarkBrown
+
+    MaterialData
+        roughness = 0.8
+        metallic = 0.2
+        opacity = 1.0
+        emissive = 0.1
+
+    Normal
+        source = Input.height + Grain * 0.05
+        strength = 0.5
+
+Material unused
+    Colorize
+        source = Input.height
+        base = Gray
+"#,
+        )
+        .expect("material written");
+        fs::write(
+            recipes_dir.join("wall.recipe"),
+            r#"
+Tile
+    name = "Test Wall"
+    material = dungeon/wall
+    size = I2(8, 6)
+    coverage = I2(2, 1)
+    wrap = Repeat
+
+    Pattern Wall
+        Bricks
+            columns = 3
+            rows = 2
+            gap = 0.08
+            rounding = 0.1
+
+    Height Surface
+        source = Wall.height
+
+    Animation
+        frames = 3
+        fps = 6
+        looping = true
+
+    Output
+        height = Surface
+"#,
+        )
+        .expect("recipe written");
+
+        let mut project = Project::new();
+        load_project_directory_assets(&mut project, &root, &SourceSection::default())
+            .expect("procedural recipes load");
+
+        let wall = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "dungeon/wall")
+            .expect("procedural wall tile loaded");
+        assert_eq!(wall.role, TileRole::ManMade);
+        assert_eq!(wall.material_alias, "dungeon/wall");
+        assert_eq!(wall.baked_material_data.len(), 3);
+        assert_eq!(wall.procedural.coverage, [2, 1]);
+        assert_eq!(wall.textures.len(), 3);
+        assert!(
+            wall.textures
+                .iter()
+                .all(|texture| texture.width == 16 && texture.height == 6)
+        );
+        assert!(
+            wall.textures
+                .iter()
+                .all(|texture| texture.data_ext.is_some())
+        );
+        assert!(wall.textures.iter().any(|texture| {
+            (0..texture.height).any(|y| {
+                (0..texture.width).any(|x| texture.get_normal(x as u32, y as u32) != (0.0, 0.0))
+            })
+        }));
+        let material_frames = wall.to_material_array();
+        let mut material_texture = Texture::from_color([0, 0, 0, 255]);
+        material_texture.width = wall.textures[0].width;
+        material_texture.height = wall.textures[0].height;
+        material_texture.data = vec![0; material_texture.width * material_texture.height * 4];
+        material_texture.data_ext = Some(material_frames[0].clone());
+        let (roughness, metallic, opacity, emissive) = material_texture.get_materials(0, 0);
+        assert!((roughness - 0.8).abs() < 0.07);
+        assert!((metallic - 0.2).abs() < 0.07);
+        assert_eq!(opacity, 1.0);
+        assert!((emissive - 0.1).abs() < 0.07);
+
+        let lookup = SourceTileLookup::from_project(&project);
+        assert_eq!(
+            lookup.source_for("dungeon.wall"),
+            Some(PixelSource::TileId(wall.id))
+        );
+        assert_eq!(
+            lookup
+                .tile_only_for("dungeon.wall")
+                .map(|tile| tile.coverage),
+            Some([2, 1])
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn reports_procedural_recipe_path_when_parsing_fails() {
+        let root =
+            std::env::temp_dir().join(format!("eldiron-source-bad-recipe-{}", Uuid::new_v4()));
+        let recipes_dir = root.join("recipes");
+        fs::create_dir_all(&recipes_dir).expect("recipe dir created");
+        let recipe_path = recipes_dir.join("broken.recipe");
+        fs::write(&recipe_path, "Tile\n    nope = true\n").expect("recipe written");
+
+        let mut project = Project::new();
+        let error = load_project_directory_assets(&mut project, &root, &SourceSection::default())
+            .expect_err("invalid recipe is rejected");
+        assert!(error.contains(&recipe_path.display().to_string()));
+        assert!(error.contains("failed to parse recipe"));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn loads_external_tile_roots_and_animated_tiles() {
+        let base =
+            std::env::temp_dir().join(format!("eldiron-source-external-tiles-{}", Uuid::new_v4()));
+        let root = base.join("project");
+        let external_dir = base.join("shared-dungeon-tiles");
+        let frames_dir = root.join("animation");
+        fs::create_dir_all(&external_dir).expect("external tile dir created");
+        fs::create_dir_all(&frames_dir).expect("animation frame dir created");
+        let png = include_bytes!("../../rusterix/embedded/icons/character_on.png");
+        fs::write(external_dir.join("wall.png"), png).expect("external tile written");
+        fs::write(frames_dir.join("frame-1.png"), png).expect("first frame written");
+        fs::write(frames_dir.join("frame-2.png"), png).expect("second frame written");
+
+        let source = SourceSection {
+            main: default_main_source(),
+            tile_dirs: vec!["../shared-dungeon-tiles".to_string()],
+            tiles: Vec::new(),
+            tile_animations: vec![SourceTileAnimation {
+                alias: "dungeon/torch".to_string(),
+                frames: vec![
+                    "animation/frame-1.png".to_string(),
+                    "animation/frame-2.png".to_string(),
+                ],
+                role: "dungeon".to_string(),
+                blocking: true,
+                scale: 1.0,
+                light_color: "#ff8844".to_string(),
+                light_intensity: 1.0,
+                light_range: 4.0,
+                light_flicker: 0.1,
+                light_lift: 0.5,
+            }],
+        };
+        let mut project = Project::new();
+
+        load_project_directory_assets(&mut project, &root, &source)
+            .expect("external and animated tiles load");
+
+        let wall = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "wall")
+            .expect("external wall loaded");
+        assert_eq!(wall.role, TileRole::Dungeon);
+        let torch = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "dungeon/torch")
+            .expect("animated torch loaded");
+        assert_eq!(torch.textures.len(), 2);
+        assert!(torch.blocking);
+        assert_eq!(
+            torch.light_emitter.as_ref().map(|light| light.color),
+            Some([255, 136, 68, 255])
+        );
+
+        let _ = fs::remove_dir_all(base);
+    }
+
+    #[test]
+    fn local_asset_tiles_are_not_duplicated_as_generic_images() {
+        let root = std::env::temp_dir().join(format!(
+            "eldiron-source-local-asset-tiles-{}",
+            Uuid::new_v4()
+        ));
+        let tiles_dir = root.join("assets/environment/tiles");
+        let features_dir = root.join("assets/environment/features");
+        fs::create_dir_all(&tiles_dir).expect("local tile dir created");
+        fs::create_dir_all(&features_dir).expect("feature dir created");
+        let png = include_bytes!("../../rusterix/embedded/icons/character_on.png");
+        fs::write(tiles_dir.join("wall.png"), png).expect("local tile written");
+        fs::write(features_dir.join("torch.png"), png).expect("feature image written");
+
+        let source = SourceSection {
+            main: default_main_source(),
+            tile_dirs: vec!["assets/environment/tiles".to_string()],
+            tiles: vec![SourceTileAsset {
+                alias: "environment/torch".to_string(),
+                path: "assets/environment/features/torch.png".to_string(),
+                role: "dungeon".to_string(),
+                blocking: true,
+                scale: 1.0,
+                light_color: "#ff8844".to_string(),
+                light_intensity: 1.0,
+                light_range: 4.0,
+                light_flicker: 0.1,
+                light_lift: 0.5,
+            }],
+            tile_animations: Vec::new(),
+        };
+        let mut project = Project::new();
+
+        load_project_directory_assets(&mut project, &root, &source)
+            .expect("local asset tiles load");
+
+        assert!(project.tiles.values().any(|tile| tile.alias == "wall"));
+        let torch = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "environment/torch")
+            .expect("static feature tile loaded");
+        assert_eq!(torch.textures.len(), 1);
+        assert_eq!(
+            torch.light_emitter.as_ref().map(|light| light.color),
+            Some([255, 136, 68, 255])
+        );
+        assert!(
+            !project.assets.values().any(|asset| {
+                asset.name == "environment/tiles/wall" || asset.name == "environment/features/torch"
+            }),
+            "tile textures declared under assets should only be embedded as tiles"
         );
 
         let _ = fs::remove_dir_all(root);
@@ -2826,6 +4006,8 @@ Region "cellar" {
                 id: "cellar".to_string(),
                 name: "Cellar".to_string(),
                 default: "wall.stone".to_string(),
+                floor: "floor".to_string(),
+                ceiling: "ceiling".to_string(),
                 tile_symbols: IndexMap::default(),
                 terrain: vec![
                     "#####".to_string(),

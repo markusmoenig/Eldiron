@@ -1,0 +1,61 @@
+Tile
+    name = "Height-First Dungeon Stones"
+    size = I2(64, 64)
+    coverage = I2(3, 3)
+    wrap = Repeat
+    seed = 81
+
+    Noise Warp
+        scale = I2(4, 4)
+        octaves = 2
+        persistence = 0.48
+        seed = 7
+
+    Pattern Stones
+        Voronoi
+            cells = I2(9, 9)
+            jitter = 0.72
+            falloff = 0.62
+            warp = Warp
+            warp_amount = 0.028
+            seed = 11
+
+    Pattern Pits
+        Discs
+            space = Stones.local
+            key = Stones.id
+            cells = I2(5, 5)
+            jitter = 0.86
+            radius = 0.12 + Random(Stones.id, 0.02, 0.20, 17)
+            falloff = 1.6
+            warp = Warp
+            warp_amount = 0.04
+            seed = 21
+
+    Height Surface
+        source = Stones.height
+
+        Shape
+            contrast = 1.35 + Random(Stones.id, 0.0, 0.30, 27)
+            bias = 0.12
+            plateau = 1.35
+            rim = 0.10
+
+        Subtract
+            source = Pits.height * Smoothstep(0.08, 0.48, Stones.height)
+            amount = 0.30
+
+        Clamp
+            min = 0.0
+            max = 1.0
+
+    Colorize
+        source = Surface
+        ramp = Earth
+        ramp_range = F2(0.08, 0.70)
+        steps = 6
+        range = Auto
+        dither = false
+
+    Output
+        height = Surface

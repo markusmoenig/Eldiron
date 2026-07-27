@@ -1,0 +1,68 @@
+Tile
+    name = "Height-First Dungeon Bricks"
+    material = materials/stone
+    size = I2(64, 64)
+    coverage = I2(4, 4)
+    wrap = Repeat
+    seed = 42
+    pixelate = 1
+
+    Noise LocalWarp
+        key = Id
+        scale = I2(2, 2)
+        octaves = 2
+        persistence = 0.55
+        seed = 7
+
+    Pattern Kerbs
+        Discs
+            key = Id
+            cells = I2(4, 3)
+            jitter = 0.92
+            radius = 0.32 + Random(Id, 0.0, 0.28, 5)
+            falloff = 1.6
+            warp = LocalWarp
+            warp_amount = 0.08
+            seed = 9
+
+    Pattern Wall
+        Bricks
+            columns = 6
+            rows = 9
+            stagger = 0.5
+            gap = 0.075 + Random(Id, 0.0, 0.025, 8)
+            rounding = 0.07 + Random(Id, 0.0, 0.06, 13)
+            rotation = Random(Id, -2.0, 2.0, 11)
+            size_variation = F2(0.04, 0.03)
+            perturb = 0.5 + Kerbs.height * 0.5
+            perturb_amount = 0.040 + Random(Id, 0.0, 0.025, 15)
+            falloff = 0.68 + Random(Id, 0.0, 0.10, 17)
+            seed = 19
+
+    Noise Grain
+        space = Wall.local
+        key = Wall.id
+        scale = I2(3, 3)
+        octaves = 2
+        persistence = 0.55
+        seed = 19
+
+    Height Surface
+        source = Wall.height
+
+        Shape
+            contrast = 1.42 + Random(Wall.id, 0.0, 0.16, 31)
+            bias = 0.10
+            plateau = 1.45
+            rim = 0.05
+
+        Multiply
+            source = 0.72 + Grain * 0.28
+            amount = 1.0
+
+        Clamp
+            min = 0.0
+            max = 1.0
+
+    Output
+        height = Surface

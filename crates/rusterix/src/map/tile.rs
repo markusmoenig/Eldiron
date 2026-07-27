@@ -101,6 +101,12 @@ pub struct TileProceduralMeta {
     /// Weighted random selection weight for procedural generation.
     #[serde(default = "default_proc_weight")]
     pub weight: u32,
+    /// Number of map cells covered by one coordinated procedural texture.
+    ///
+    /// Ordinary tiles use `[1, 1]`. Recipe-backed surfaces may cover several
+    /// cells so their UVs remain continuous instead of restarting per cell.
+    #[serde(default = "default_proc_coverage")]
+    pub coverage: [u32; 2],
 }
 
 impl Default for TileProceduralMeta {
@@ -109,8 +115,13 @@ impl Default for TileProceduralMeta {
             style: String::new(),
             kind: String::new(),
             weight: default_proc_weight(),
+            coverage: default_proc_coverage(),
         }
     }
+}
+
+fn default_proc_coverage() -> [u32; 2] {
+    [1, 1]
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -323,6 +334,13 @@ pub struct Tile {
     /// Optional high-level material metadata used to derive render material values.
     #[serde(default, skip_serializing_if = "TileMaterialMeta::is_default")]
     pub material: TileMaterialMeta,
+    /// Source-level procedural material alias, retained for editor/source introspection.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub material_alias: String,
+    /// Packed per-pixel R/M/O/E bytes for every texture frame. Texture serialization
+    /// intentionally strips these bytes, so generated tiles persist them here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub baked_material_data: Vec<Vec<u8>>,
     /// Optional particle emitter definition derived from a tilegraph output.
     #[serde(default)]
     pub particle_emitter: Option<ParticleEmitter>,
@@ -374,6 +392,8 @@ impl Tile {
             alias: String::new(),
             procedural: TileProceduralMeta::default(),
             material: TileMaterialMeta::default(),
+            material_alias: String::new(),
+            baked_material_data: Vec::new(),
             particle_emitter: None,
             light_emitter: None,
         }
@@ -442,10 +462,14 @@ impl Tile {
 
         let preserve_runtime_materials = Self::is_synthetic_palette_tile_id(self.id);
         let mut b = vec![];
-        for texture in &self.textures {
+        for (frame, texture) in self.textures.iter().enumerate() {
             if texture.data_ext.is_some() {
                 let mut texture = texture.clone();
-                if !preserve_runtime_materials {
+                let restored_baked = self
+                    .baked_material_data
+                    .get(frame)
+                    .is_some_and(|bytes| texture.apply_material_bytes(bytes));
+                if !preserve_runtime_materials && !restored_baked {
                     texture.set_materials_all(0.5, 0.0, 1.0, 0.0);
                 }
                 if let Some(mat) = texture.data_ext {
@@ -479,6 +503,17 @@ impl Tile {
             alias: self.alias.clone(),
             procedural: self.procedural.clone(),
             material: self.material.clone(),
+            material_alias: self.material_alias.clone(),
+            baked_material_data: self
+                .textures
+                .iter()
+                .zip(&self.baked_material_data)
+                .map(|(texture, bytes)| {
+                    let mut texture = texture.clone();
+                    texture.apply_material_bytes(bytes);
+                    texture.resized(new_width, new_height).material_bytes()
+                })
+                .collect(),
             particle_emitter: self.particle_emitter.clone(),
             light_emitter: self.light_emitter.clone(),
         }
@@ -491,6 +526,7 @@ impl Tile {
     pub fn set_frames(&mut self, frames: usize) {
         if frames == 0 {
             self.textures.clear();
+            self.baked_material_data.clear();
             return;
         }
 
@@ -503,10 +539,16 @@ impl Tile {
                 for _ in current_count..frames {
                     self.textures.push(last_texture.clone());
                 }
+                if let Some(last_material) = self.baked_material_data.last().cloned() {
+                    while self.baked_material_data.len() < frames {
+                        self.baked_material_data.push(last_material.clone());
+                    }
+                }
             }
         } else if frames < current_count {
             // Truncate to the desired frame count
             self.textures.truncate(frames);
+            self.baked_material_data.truncate(frames);
         }
     }
 
@@ -548,6 +590,33 @@ mod tests {
         assert!(metallic >= 0.85);
         assert_eq!(opacity, 1.0);
         assert_eq!(emissive, 0.0);
+    }
+
+    #[test]
+    fn baked_procedural_materials_survive_tile_serialization() {
+        let mut texture = Texture::from_color([80, 70, 60, 255]);
+        texture.set_materials_all(0.2, 0.4, 0.8, 0.6);
+        texture.set_normal(0, 0, 0.25, -0.25);
+        let baked = texture.material_bytes();
+        let mut tile = Tile::from_texture(texture);
+        tile.material_alias = "dungeon/test".to_string();
+        tile.baked_material_data = vec![baked];
+
+        let serialized = serde_json::to_string(&tile).unwrap();
+        let decoded: Tile = serde_json::from_str(&serialized).unwrap();
+        let frames = decoded.to_material_array();
+        let mut reconstructed = decoded.textures[0].clone();
+        reconstructed.data_ext = Some(frames[0].clone());
+        let (roughness, metallic, opacity, emissive) = reconstructed.get_materials(0, 0);
+
+        assert_eq!(decoded.material_alias, "dungeon/test");
+        assert!((roughness - 0.2).abs() < 0.07);
+        assert!((metallic - 0.4).abs() < 0.07);
+        assert!((opacity - 0.8).abs() < 0.07);
+        assert!((emissive - 0.6).abs() < 0.07);
+        let (normal_x, normal_y) = reconstructed.get_normal(0, 0);
+        assert!((normal_x - 0.25).abs() < 0.01);
+        assert!((normal_y + 0.25).abs() < 0.01);
     }
 
     #[test]

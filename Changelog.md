@@ -2,6 +2,10 @@
 
 ## Improvements
 
+### Procedural Materials
+
+- Added reusable multi-declaration material `.recipe` files. Tiles can reference a named material recipe that procedurally derives color, direct Roughness/Metallic/Opacity/Emissive data, and normal height/strength from the tile height plus generic Value/Gradient noise, FBm/Ridged/Billow/Turbulence fractals, coordinates, and scalar math. Colorization may keep every step strictly palette-mapped or map only the base color before generating a finer unrestricted gradient. The recipe CLI previews tile and material recipes beside their source using matching `.png` names, with per-declaration selection for multi-material files. Stonefall's wall, floor, and ceiling now use these materials, with editable wood and marble examples built from the same primitives.
+
 ### Rules
 
 - Reworked rulesets into an authorable, split-TOML package model with a shared embedded loader, explicit ruleset id/version/schema metadata, compatibility checks, project selection, official-base overrides, and project-owned standalone rulesets.
@@ -34,9 +38,14 @@
 
 ## Bug Fixes
 
+### Procedural Materials
+
+- Fixed anchored material ramps collapsing to one palette color when a sparse palette lacked close matches for most requested shades. The resolver now falls back to coherent darker and lighter palette neighbors, preserving visible procedural height patterns.
+
 ### Game
 
-- Fixed conversation and vendor choices pushing their preceding dialog out of the Messages widget. Active choices now use a separate height-limited panel, preserve transcript context, hide command entry while awaiting a response, support overflow scrolling, and collapse to only the selected response in history.
+- Expanded Eldiron Source environment authoring with reusable static `tiles`, `tile_dirs`, multi-frame `tile_animations` with optional tile lights, explicit per-symbol `blocking`, wall-mounted `wall_feature` tiles, region-level `floor` / `ceiling` tiles, and per-symbol ceiling overrides. Stonefall Dungeon now uses project-local generated wall, floor, and ceiling materials finished through an exact-edge seamless-tile pipeline; the previous imported environment tiles and unstable animations are no longer used.
+- Fixed conversation and vendor choices consuming most of a short Messages widget in a permanently reserved panel. Active choices now join the normal scrollable conversation temporarily, initially leave room for preceding dialog when a choice list is long, expose a compact `v Choices` return control while off-screen, hide command entry while awaiting a response, and collapse to only the selected response in history.
 - Fixed Hideout's keyboard command ownership so `U` and `L` select the generic Use and Look intents, while `T` and `K` execute the ruleset-owned Basic Attack and Take actions. Rules action buttons now display and activate their matching shortcuts consistently.
 - Fixed severe frame drops while the Actions panel was open by caching the parsed effective ruleset and the panel's static class catalogue. Action states, icons, quick slots, item icons, tooltips, and start-screen rules lookups now share the same automatically invalidated parsed rules instead of reparsing the complete ruleset many times per frame.
 - Fixed start-screen `START.CLASS_ABILITIES` and `START.CLASS_SPELLS` placeholders displaying as unresolved strings after class progression moved into `unlocks.level_1`. They now show the starting unlocks using their authored ability and spell names.

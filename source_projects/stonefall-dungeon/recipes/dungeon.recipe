@@ -1,0 +1,102 @@
+Material wall_stone
+    name = "Stonefall Wall Stone"
+    wrap = Repeat
+    seed = 301
+
+    Noise Mineral
+        type = Gradient
+        fractal = Ridged
+        scale = F2(3.0, 4.0)
+        octaves = 3
+        persistence = 0.52
+        seed = 11
+
+    Height Tone
+        source = Clamp(Input.height * 0.91 + Mineral * 0.09, 0.0, 1.0)
+
+    Colorize
+        source = Tone
+        base = "#403A34"
+        brightness = F2(-0.16, 0.15)
+        saturation = F2(-0.04, 0.035)
+        hue = F2(-0.005, 0.005)
+        steps = 6
+        range = F2(0.0, 1.0)
+
+    MaterialData
+        roughness = Clamp(0.72 + Mineral * 0.20, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emissive = 0.0
+
+    Normal
+        source = Clamp(Input.height + Mineral * 0.045, 0.0, 1.0)
+        strength = 0.32
+
+Material floor_stone
+    name = "Stonefall Floor Stone"
+    wrap = Repeat
+    seed = 307
+
+    Noise Wear
+        type = Gradient
+        fractal = FBm
+        scale = F2(5.0, 5.0)
+        octaves = 3
+        persistence = 0.46
+        seed = 17
+
+    Height Tone
+        source = Clamp(Input.height * 0.94 + Wear * 0.06, 0.0, 1.0)
+
+    Colorize
+        source = Tone
+        base = "#343331"
+        brightness = F2(-0.12, 0.13)
+        saturation = F2(-0.03, 0.02)
+        steps = 6
+        range = F2(0.0, 1.0)
+
+    MaterialData
+        roughness = Clamp(0.64 + Wear * 0.24, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emissive = 0.0
+
+    Normal
+        source = Clamp(Input.height + Wear * 0.035, 0.0, 1.0)
+        strength = 0.27
+
+Material ceiling_stone
+    name = "Stonefall Ceiling Stone"
+    wrap = Repeat
+    seed = 313
+
+    Noise Dust
+        type = Value
+        fractal = Turbulence
+        scale = F2(4.0, 3.0)
+        octaves = 3
+        persistence = 0.50
+        seed = 23
+
+    Height Tone
+        source = Clamp(Input.height * 0.92 + Dust * 0.08, 0.0, 1.0)
+
+    Colorize
+        source = Tone
+        base = "#34363A"
+        brightness = F2(-0.13, 0.11)
+        saturation = F2(-0.02, 0.025)
+        steps = 5
+        range = F2(0.0, 1.0)
+
+    MaterialData
+        roughness = Clamp(0.76 + Dust * 0.18, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emissive = 0.0
+
+    Normal
+        source = Clamp(Input.height + Dust * 0.04, 0.0, 1.0)
+        strength = 0.29

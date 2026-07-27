@@ -1,0 +1,95 @@
+// These materials are deliberately built from the same generic vocabulary as stone.
+// They are editable examples, not hardcoded renderer material types.
+
+Material old_oak
+    name = "Old Oak"
+    wrap = Repeat
+    seed = 401
+
+    Noise Warp
+        type = Gradient
+        fractal = FBm
+        scale = F2(2.0, 3.0)
+        octaves = 4
+        persistence = 0.52
+        seed = 7
+
+    Noise Pores
+        type = Gradient
+        fractal = Ridged
+        scale = F2(18.0, 5.0)
+        octaves = 2
+        persistence = 0.42
+        seed = 13
+
+    Height Grain
+        source = Abs(Sin(V * 7.0 + U * 0.45 + Warp * 1.8))
+
+    Height Tone
+        source = Clamp(Grain * 0.78 + Pores * 0.22, 0.0, 1.0)
+
+    Colorize
+        source = Tone
+        base = DarkBrown
+        brightness = F2(-0.15, 0.24)
+        saturation = F2(-0.04, 0.10)
+        hue = F2(-0.015, 0.025)
+        steps = 8
+        range = F2(0.0, 1.0)
+
+    MaterialData
+        roughness = Clamp(0.50 + Pores * 0.32, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emissive = 0.0
+
+    Normal
+        source = Clamp(Input.height * 0.65 + Grain * 0.25 + Pores * 0.10, 0.0, 1.0)
+        strength = 0.24
+
+Material veined_marble
+    name = "Veined Marble"
+    wrap = Repeat
+    seed = 409
+
+    Noise Warp
+        type = Gradient
+        fractal = FBm
+        scale = F2(3.0, 3.0)
+        octaves = 4
+        persistence = 0.56
+        seed = 19
+
+    Noise Speckle
+        type = Value
+        fractal = Billow
+        scale = F2(14.0, 14.0)
+        octaves = 2
+        persistence = 0.40
+        seed = 29
+
+    Height Veins
+        source = Abs(Sin(U * 1.4 + V * 4.2 + Warp * 2.1))
+
+    Height Tone
+        source = Clamp(0.22 + Veins * 0.70 + Speckle * 0.08, 0.0, 1.0)
+
+    Colorize
+        source = Tone
+        palette = BaseOnly
+        base = LightGray
+        brightness = F2(-0.23, 0.17)
+        saturation = F2(-0.10, 0.02)
+        hue = F2(-0.015, 0.015)
+        steps = 32
+        range = F2(0.0, 1.0)
+
+    MaterialData
+        roughness = Clamp(0.18 + Speckle * 0.16, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emissive = 0.0
+
+    Normal
+        source = Clamp(Input.height * 0.80 + Veins * 0.16 + Speckle * 0.04, 0.0, 1.0)
+        strength = 0.16

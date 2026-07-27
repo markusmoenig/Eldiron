@@ -70,7 +70,7 @@ pub struct MessagesWidget {
     pub max_messages: usize,
     pub scrollback: bool,
     pub active_choices: Vec<MessageLine>,
-    pub(crate) choice_scroll_offset: usize,
+    pub(crate) return_to_choices_rect: Rect,
     pub(crate) paused: bool,
     pub(crate) pause_until: Option<Instant>,
     pub(crate) scroll_offset: usize,
@@ -139,7 +139,7 @@ impl MessagesWidget {
             max_messages: 100,
             scrollback: true,
             active_choices: vec![],
-            choice_scroll_offset: 0,
+            return_to_choices_rect: Rect::default(),
             paused: false,
             pause_until: None,
             scroll_offset: 0,
@@ -640,20 +640,75 @@ impl MessagesWidget {
         self.font_size + lines.len().saturating_sub(1) as f32 * (self.font_size + self.spacing)
     }
 
-    fn choice_panel_height(&self, font: &fontdue::Font) -> f32 {
-        if self.active_choices.is_empty() {
-            return 0.0;
-        }
-        let natural_height = self
-            .active_choices
-            .iter()
-            .map(|line| self.choice_block_height(font, &line.text))
-            .sum::<f32>()
-            + self.message_spacing * self.active_choices.len().saturating_sub(1) as f32;
-        let maximum_height = (self.rect.height * 0.55)
+    fn initial_choice_scroll_offset(&self, lines: &[MessageLine]) -> usize {
+        let Some(font) = &self.font else {
+            return 0;
+        };
+        let return_control_height = self.font_size.ceil() + self.message_spacing.max(self.spacing);
+        let choice_budget = (self.rect.height * 0.55 - return_control_height)
             .max(self.font_size)
             .min(self.rect.height);
-        natural_height.min(maximum_height)
+        let mut used_height = 0.0;
+        let mut visible_choices = 0;
+
+        for line in lines {
+            let gap = if visible_choices == 0 {
+                0.0
+            } else {
+                self.message_spacing
+            };
+            let next_height = gap + self.choice_block_height(font, &line.text);
+            if visible_choices > 0 && used_height + next_height > choice_budget {
+                break;
+            }
+            used_height += next_height;
+            visible_choices += 1;
+        }
+
+        lines.len().saturating_sub(visible_choices.max(1))
+    }
+
+    fn show_choice_group(&mut self, lines: Vec<MessageLine>) {
+        self.dismiss_active_choices();
+        self.scroll_offset = self.initial_choice_scroll_offset(&lines);
+        self.active_choices = lines.clone();
+        self.messages.extend(lines);
+        self.command_active = false;
+        self.command_text.clear();
+    }
+
+    fn choices_are_below_view(&self) -> bool {
+        self.scroll_offset > 0
+            && self
+                .messages
+                .iter()
+                .rev()
+                .take(self.scroll_offset)
+                .any(|line| line.choice.is_some())
+    }
+
+    fn remove_inactive_choice_rows(&mut self) {
+        let removed_from_below = self
+            .messages
+            .iter()
+            .rev()
+            .take(self.scroll_offset)
+            .filter(|line| {
+                line.choice.is_some()
+                    && !self
+                        .active_choices
+                        .iter()
+                        .any(|active| active.id == line.id)
+            })
+            .count();
+        self.messages.retain(|line| {
+            line.choice.is_none()
+                || self
+                    .active_choices
+                    .iter()
+                    .any(|active| active.id == line.id)
+        });
+        self.scroll_offset = self.scroll_offset.saturating_sub(removed_from_below);
     }
 
     pub fn update_draw(
@@ -705,26 +760,17 @@ impl MessagesWidget {
                     &safe,
                 );
             }
-            let has_active_choices = !self.active_choices.is_empty();
-            let prompt_reserved_height = if !has_active_choices
-                && (self.command_input_enabled() || (self.paused && self.pause_until.is_none()))
+            let choices_are_below_view = self.choices_are_below_view();
+            let prompt_reserved_height = if choices_are_below_view
+                || (self.active_choices.is_empty()
+                    && (self.command_input_enabled()
+                        || (self.paused && self.pause_until.is_none())))
             {
                 self.font_size.ceil() + self.message_spacing.max(self.spacing)
             } else {
                 0.0
             };
-            let choice_panel_height = self.choice_panel_height(font);
-            let choice_panel_gap = if has_active_choices {
-                self.message_spacing.max(self.spacing)
-            } else {
-                0.0
-            };
-            let content_bottom = self.rect.y
-                + (self.rect.height
-                    - prompt_reserved_height
-                    - choice_panel_height
-                    - choice_panel_gap)
-                    .max(0.0);
+            let content_bottom = self.rect.y + (self.rect.height - prompt_reserved_height).max(0.0);
             let mut y = if self.top_down {
                 self.rect.y
             } else {
@@ -732,6 +778,9 @@ impl MessagesWidget {
             };
             let draw2d = &self.draw2d;
 
+            for line in &mut self.messages {
+                line.rect = Rect::default();
+            }
             let scroll_offset = self.scroll_offset.min(self.messages.len());
             for message_line in self.messages.iter_mut().rev().skip(scroll_offset) {
                 let id = message_line.id;
@@ -950,124 +999,48 @@ impl MessagesWidget {
                 }
             }
 
-            if has_active_choices {
-                let panel_top = self.rect.y + self.rect.height - choice_panel_height;
-                let panel_bottom = self.rect.y + self.rect.height;
-                let safe = (0_isize, 0_isize, width as isize, height as isize);
-                let panel_color = if self.background {
-                    self.background_color
-                } else {
-                    [0, 0, 0, 176]
-                };
-                self.draw2d.blend_rect_safe(
-                    buffer.pixels_mut(),
-                    &(
-                        self.rect.x.round() as isize,
-                        panel_top.round() as isize,
-                        self.rect.width.round().max(1.0) as isize,
-                        choice_panel_height.round().max(1.0) as isize,
-                    ),
-                    stride,
-                    &panel_color,
-                    &safe,
+            if choices_are_below_view {
+                let label = "v Choices";
+                let control_width = (Self::measure_text_width(draw2d, font, self.font_size, label)
+                    + self.font_size)
+                    .min(self.rect.width);
+                self.return_to_choices_rect = Rect::new(
+                    self.rect.x + self.rect.width - control_width,
+                    self.rect.y + self.rect.height - self.font_size.ceil(),
+                    control_width,
+                    self.font_size.ceil(),
                 );
-                self.draw2d.blend_rect_safe(
-                    buffer.pixels_mut(),
-                    &(
-                        self.rect.x.round() as isize,
-                        (panel_top - choice_panel_gap * 0.5).round() as isize,
-                        self.rect.width.round().max(1.0) as isize,
-                        1,
-                    ),
-                    stride,
-                    &self.default_color,
-                    &safe,
+                let tuple = (
+                    self.return_to_choices_rect.x as isize,
+                    self.return_to_choices_rect.y as isize,
+                    self.return_to_choices_rect.width as isize,
+                    self.return_to_choices_rect.height as isize,
                 );
-
-                for line in &mut self.active_choices {
-                    line.rect = Rect::default();
-                }
-                let mut choice_y = panel_top;
-                let choice_scroll_offset = self
-                    .choice_scroll_offset
-                    .min(self.active_choices.len().saturating_sub(1));
-                for choice_line in self.active_choices.iter_mut().skip(choice_scroll_offset) {
-                    let lines = Self::wrap_message_lines(
-                        draw2d,
-                        font,
-                        self.font_size,
-                        &choice_line.text,
-                        self.rect.width.max(self.font_size),
-                    );
-                    let line_height = self.font_size + self.spacing;
-                    let block_height =
-                        self.font_size + lines.len().saturating_sub(1) as f32 * line_height;
-                    if choice_y + block_height > panel_bottom + 0.5 {
-                        break;
-                    }
-
-                    choice_line.rect =
-                        Rect::new(self.rect.x, choice_y, self.rect.width, block_height);
-                    let color = if choice_line.id == self.clicked {
-                        darken(choice_line.color, 100)
-                    } else {
-                        choice_line.color
-                    };
-                    for (index, line) in lines.iter().enumerate() {
-                        let line_y = choice_y + index as f32 * line_height;
-                        let tuple = (
-                            self.rect.x as isize,
-                            line_y.floor() as isize,
-                            self.rect.width as isize,
-                            self.font_size as isize,
-                        );
-                        if let Some((left, right)) = line.split_once(Self::CHOICE_COLUMN_SEPARATOR)
-                        {
-                            self.draw2d.text_rect_blend_safe_clip(
-                                buffer.pixels_mut(),
-                                &tuple,
-                                stride,
-                                font,
-                                self.font_size,
-                                left,
-                                &color,
-                                draw2d::TheHorizontalAlign::Left,
-                                draw2d::TheVerticalAlign::Center,
-                                &clip_rect,
-                            );
-                            self.draw2d.text_rect_blend_safe_clip(
-                                buffer.pixels_mut(),
-                                &tuple,
-                                stride,
-                                font,
-                                self.font_size,
-                                right,
-                                &color,
-                                draw2d::TheHorizontalAlign::Right,
-                                draw2d::TheVerticalAlign::Center,
-                                &clip_rect,
-                            );
-                        } else {
-                            self.draw2d.text_rect_blend_safe_clip(
-                                buffer.pixels_mut(),
-                                &tuple,
-                                stride,
-                                font,
-                                self.font_size,
-                                line,
-                                &color,
-                                draw2d::TheHorizontalAlign::Left,
-                                draw2d::TheVerticalAlign::Center,
-                                &clip_rect,
-                            );
-                        }
-                    }
-                    choice_y += block_height + self.message_spacing;
-                }
+                let color = self
+                    .active_choices
+                    .first()
+                    .map(|line| line.color)
+                    .unwrap_or(self.default_color);
+                self.draw2d.text_rect_blend_safe_clip(
+                    buffer.pixels_mut(),
+                    &tuple,
+                    stride,
+                    font,
+                    self.font_size,
+                    label,
+                    &color,
+                    draw2d::TheHorizontalAlign::Right,
+                    draw2d::TheVerticalAlign::Center,
+                    &clip_rect,
+                );
             } else if self.paused && self.pause_until.is_none() {
+                self.return_to_choices_rect = Rect::default();
                 self.draw_continue_prompt(buffer, font, map, assets, time, stride, &clip_rect);
-            } else if self.command_input_enabled() {
+            } else if self.active_choices.is_empty() && self.command_input_enabled() {
+                self.return_to_choices_rect = Rect::default();
                 self.draw_command_input(buffer, font, stride, &clip_rect);
+            } else {
+                self.return_to_choices_rect = Rect::default();
             }
         }
 
@@ -1082,7 +1055,9 @@ impl MessagesWidget {
         while let Some(entry) = self.pending_messages.pop_front() {
             match entry {
                 PendingMessage::Line(line) => {
-                    self.scroll_offset = 0;
+                    if self.scroll_offset > 0 {
+                        self.scroll_offset += 1;
+                    }
                     self.messages.push(line);
                     if self.press_to_continue
                         && !self.pending_messages.is_empty()
@@ -1093,10 +1068,7 @@ impl MessagesWidget {
                     }
                 }
                 PendingMessage::ChoiceGroup(lines) => {
-                    self.active_choices = lines;
-                    self.choice_scroll_offset = 0;
-                    self.command_active = false;
-                    self.command_text.clear();
+                    self.show_choice_group(lines);
                     break;
                 }
                 PendingMessage::Continue => {
@@ -1116,8 +1088,9 @@ impl MessagesWidget {
     }
 
     fn purge_old_messages(&mut self) {
-        if self.messages.len() > self.max_messages {
-            let excess = self.messages.len() - self.max_messages;
+        let retained_limit = self.max_messages.saturating_add(self.active_choices.len());
+        if self.messages.len() > retained_limit {
+            let excess = self.messages.len() - retained_limit;
             self.messages.drain(0..excess);
             self.page_start_index = self.page_start_index.saturating_sub(excess);
             self.scroll_offset = self.scroll_offset.saturating_sub(excess);
@@ -1271,16 +1244,17 @@ impl MessagesWidget {
     }
 
     pub fn touch_down(&mut self, coord: Vec2<i32>) -> Option<EntityAction> {
-        let inside = self
-            .rect
-            .contains(Vec2::new(coord.x as f32, coord.y as f32));
+        let point = Vec2::new(coord.x as f32, coord.y as f32);
+        let inside = self.rect.contains(point);
+        if self.return_to_choices_rect.contains(point) {
+            self.scroll_offset = 0;
+            self.return_to_choices_rect = Rect::default();
+            return Some(EntityAction::Off);
+        }
         let choice_key = self
-            .active_choices
+            .messages
             .iter()
-            .find(|line| {
-                line.rect
-                    .contains(Vec2::new(coord.x as f32, coord.y as f32))
-            })
+            .find(|line| line.choice.is_some() && line.rect.contains(point))
             .and_then(|line| line.choice_key);
         if let Some(choice_key) = choice_key
             && let Some(choice) = self.select_active_choice(choice_key)
@@ -1289,9 +1263,7 @@ impl MessagesWidget {
         }
         if self.active_choices.is_empty()
             && self.command_input_enabled()
-            && self
-                .command_input_rect()
-                .contains(Vec2::new(coord.x as f32, coord.y as f32))
+            && self.command_input_rect().contains(point)
         {
             self.command_active = true;
             return Some(EntityAction::Off);
@@ -1331,7 +1303,8 @@ impl MessagesWidget {
 
     pub fn dismiss_active_choices(&mut self) {
         self.active_choices.clear();
-        self.choice_scroll_offset = 0;
+        self.remove_inactive_choice_rows();
+        self.return_to_choices_rect = Rect::default();
         self.clicked = Uuid::nil();
     }
 
@@ -1447,49 +1420,7 @@ impl MessagesWidget {
         self.pause_blocks_input.then_some(EntityAction::Off)
     }
 
-    fn scroll_choices(&mut self, delta_y: isize) -> bool {
-        if !self.active_choices.is_empty()
-            && self.font.as_ref().is_some_and(|font| {
-                let visible_height = self.choice_panel_height(font);
-                let natural_height = self
-                    .active_choices
-                    .iter()
-                    .map(|line| self.choice_block_height(font, &line.text))
-                    .sum::<f32>()
-                    + self.message_spacing * self.active_choices.len().saturating_sub(1) as f32;
-                natural_height > visible_height + 0.5
-            })
-        {
-            let step = (delta_y.unsigned_abs() / 120).max(1);
-            if delta_y > 0 {
-                self.choice_scroll_offset = self.choice_scroll_offset.saturating_sub(step);
-            } else if delta_y < 0 {
-                self.choice_scroll_offset = (self.choice_scroll_offset + step)
-                    .min(self.active_choices.len().saturating_sub(1));
-            }
-            return true;
-        }
-        false
-    }
-
-    pub fn scroll_at(&mut self, delta_y: isize, pointer: Option<Vec2<i32>>) -> bool {
-        let pointer_over_choices =
-            pointer
-                .zip(self.font.as_ref())
-                .is_some_and(|(pointer, font)| {
-                    let panel_height = self.choice_panel_height(font);
-                    panel_height > 0.0
-                        && Rect::new(
-                            self.rect.x,
-                            self.rect.y + self.rect.height - panel_height,
-                            self.rect.width,
-                            panel_height,
-                        )
-                        .contains(Vec2::new(pointer.x as f32, pointer.y as f32))
-                });
-        if (pointer.is_none() || pointer_over_choices) && self.scroll_choices(delta_y) {
-            return true;
-        }
+    pub fn scroll_at(&mut self, delta_y: isize, _pointer: Option<Vec2<i32>>) -> bool {
         if !self.scrollback || self.messages.is_empty() {
             return false;
         }
@@ -1557,8 +1488,9 @@ impl MessagesWidget {
                 });
             !expired && in_range
         });
+        self.remove_inactive_choice_rows();
         if self.active_choices.is_empty() {
-            self.choice_scroll_offset = 0;
+            self.return_to_choices_rect = Rect::default();
         }
     }
 
@@ -1680,16 +1612,18 @@ mod tests {
     }
 
     #[test]
-    fn choice_group_stays_out_of_transcript_and_collapses_after_selection() {
+    fn choice_group_is_temporary_stream_content_and_collapses_after_selection() {
         let mut widget = MessagesWidget::new();
         widget
             .messages
             .push(transcript_line("The guard lowers her voice."));
-        widget.active_choices = vec![
+        widget.show_choice_group(vec![
             choice_line('1', "The hideout", 0),
             choice_line('2', "The orc guard", 1),
             choice_line('0', "Goodbye", 2),
-        ];
+        ]);
+
+        assert_eq!(widget.messages.len(), 4);
 
         let selected = widget.select_active_choice('2').unwrap();
 
@@ -1705,7 +1639,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_choice_group_does_not_consume_transcript_rows() {
+    fn pending_choice_group_joins_the_scrollable_stream() {
         let mut widget = MessagesWidget::new();
         widget
             .pending_messages
@@ -1721,7 +1655,15 @@ mod tests {
 
         widget.reveal_pending_messages();
 
-        assert_eq!(widget.messages.len(), 1);
+        assert_eq!(widget.messages.len(), 3);
+        assert_eq!(
+            widget
+                .messages
+                .iter()
+                .filter(|line| line.choice.is_some())
+                .count(),
+            2
+        );
         assert_eq!(widget.active_choices.len(), 2);
         assert!(widget.pending_messages.is_empty());
     }
@@ -1739,12 +1681,15 @@ mod tests {
     }
 
     #[test]
-    fn choice_panel_keeps_at_least_forty_five_percent_for_context() {
+    fn long_choice_group_initially_leaves_room_for_context() {
         let mut widget = MessagesWidget::new();
         widget.rect = Rect::new(0.0, 0.0, 240.0, 100.0);
         widget.font_size = 16.0;
         widget.font = MessagesWidget::fallback_font();
-        widget.active_choices = (0..8)
+        widget
+            .messages
+            .push(transcript_line("Important quest context."));
+        let choices = (0..8)
             .map(|index| {
                 choice_line(
                     char::from_digit((index + 1) as u32, 10).unwrap(),
@@ -1754,14 +1699,15 @@ mod tests {
             })
             .collect();
 
-        let height = widget.choice_panel_height(widget.font.as_ref().unwrap());
+        widget.show_choice_group(choices);
 
-        assert!(height > 0.0);
-        assert!(height <= 55.0);
+        assert!(widget.scroll_offset > 0);
+        assert!(widget.choices_are_below_view());
+        assert_eq!(widget.messages.len(), 9);
     }
 
     #[test]
-    fn wheel_scrolls_the_panel_under_the_pointer() {
+    fn wheel_scrolls_choices_and_transcript_as_one_stream() {
         let mut widget = MessagesWidget::new();
         widget.rect = Rect::new(0.0, 0.0, 240.0, 100.0);
         widget.font_size = 16.0;
@@ -1771,7 +1717,7 @@ mod tests {
             transcript_line("Second"),
             transcript_line("Third"),
         ];
-        widget.active_choices = (0..8)
+        let choices = (0..8)
             .map(|index| {
                 choice_line(
                     char::from_digit((index + 1) as u32, 10).unwrap(),
@@ -1780,14 +1726,102 @@ mod tests {
                 )
             })
             .collect();
+        widget.show_choice_group(choices);
+        let initial_offset = widget.scroll_offset;
 
         assert!(widget.scroll_at(120, Some(Vec2::new(10, 10))));
-        assert_eq!(widget.scroll_offset, 1);
-        assert_eq!(widget.choice_scroll_offset, 0);
+        assert_eq!(widget.scroll_offset, initial_offset + 1);
 
         assert!(widget.scroll_at(-120, Some(Vec2::new(10, 90))));
-        assert_eq!(widget.scroll_offset, 1);
-        assert_eq!(widget.choice_scroll_offset, 1);
+        assert_eq!(widget.scroll_offset, initial_offset);
+    }
+
+    #[test]
+    fn scrollback_reclaims_choice_space_and_return_control_restores_choices() {
+        let mut widget = MessagesWidget::new();
+        widget.rect = Rect::new(0.0, 0.0, 320.0, 180.0);
+        widget.font_size = 16.0;
+        widget.font = MessagesWidget::fallback_font();
+        widget.messages = (0..5)
+            .map(|index| transcript_line(&format!("History line {}", index + 1)))
+            .collect();
+        widget.show_choice_group(vec![
+            choice_line('1', "Accept", 0),
+            choice_line('2', "Prepare", 1),
+            choice_line('0', "Goodbye", 2),
+        ]);
+        widget.scroll_offset = widget.active_choices.len();
+
+        let mut map = Map::default();
+        let mut speaker = Entity::new();
+        speaker.id = 10;
+        let mut player = Entity::new();
+        player.id = 20;
+        map.entities.extend([speaker, player]);
+        let assets = Assets::default();
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(320, 180));
+        let _ = widget.update_draw(
+            &mut buffer,
+            &assets,
+            &map,
+            &TheTime::default(),
+            vec![],
+            vec![],
+        );
+
+        assert!(widget.return_to_choices_rect.width > 0.0);
+        assert!(
+            widget
+                .messages
+                .iter()
+                .filter(|line| line.choice.is_some())
+                .all(|line| line.rect.width == 0.0 && line.rect.height == 0.0)
+        );
+        assert!(
+            widget
+                .messages
+                .iter()
+                .filter(|line| line.choice.is_none() && line.rect.height > 0.0)
+                .count()
+                > 2
+        );
+
+        let control = widget.return_to_choices_rect;
+        let action = widget.touch_down(Vec2::new(
+            (control.x + control.width * 0.5) as i32,
+            (control.y + control.height * 0.5) as i32,
+        ));
+        assert!(matches!(action, Some(EntityAction::Off)));
+        assert_eq!(widget.scroll_offset, 0);
+    }
+
+    #[test]
+    fn incoming_messages_preserve_manual_scrollback_position() {
+        let mut widget = MessagesWidget::new();
+        widget.messages = vec![
+            transcript_line("First"),
+            transcript_line("Second"),
+            transcript_line("Third"),
+        ];
+        widget.scroll_offset = 1;
+        let anchored_id = widget.messages[1].id;
+        widget
+            .pending_messages
+            .push_back(PendingMessage::Line(transcript_line("New")));
+
+        widget.reveal_pending_messages();
+
+        assert_eq!(widget.scroll_offset, 2);
+        assert_eq!(
+            widget
+                .messages
+                .iter()
+                .rev()
+                .nth(widget.scroll_offset)
+                .unwrap()
+                .id,
+            anchored_id
+        );
     }
 
     #[test]
@@ -1799,12 +1833,12 @@ mod tests {
         widget.messages.push(transcript_line(
             "The guard explains why the bell is ringing.",
         ));
-        widget.active_choices = vec![
+        widget.show_choice_group(vec![
             choice_line('1', "The hideout", 0),
             choice_line('2', "The orc guard", 1),
             choice_line('3', "Nothing", 2),
             choice_line('0', "Goodbye", 3),
-        ];
+        ]);
 
         let mut map = Map::default();
         let mut speaker = Entity::new();
@@ -1825,7 +1859,13 @@ mod tests {
         );
 
         let context = widget.messages[0].rect;
-        let first_choice = widget.active_choices[0].rect;
+        let first_choice_id = widget.active_choices[0].id;
+        let first_choice = widget
+            .messages
+            .iter()
+            .find(|line| line.id == first_choice_id)
+            .unwrap()
+            .rect;
         assert!(context.height > 0.0);
         assert!(first_choice.height > 0.0);
         assert!(context.y + context.height <= first_choice.y);
@@ -1845,7 +1885,7 @@ mod tests {
             0,
             10.0,
         ));
-        widget.active_choices = vec![expired];
+        widget.show_choice_group(vec![expired]);
 
         let mut map = Map::default();
         let mut speaker = Entity::new();

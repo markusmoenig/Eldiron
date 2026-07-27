@@ -1455,6 +1455,7 @@ dependencies = [
  "clap",
  "eldiron-shared",
  "notify",
+ "procedural-recipes",
  "rusterix",
  "serde",
  "serde_json",
@@ -3985,6 +3986,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "535d180e0ecab6268a3e718bb9fd44db66bbbc256257165fc699dadf70d16fe7"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "procedural-recipes"
+version = "0.93.0"
+dependencies = [
+ "image",
+ "serde",
+ "serde_json",
+ "theframework",
+ "ureq 2.12.1",
 ]
 
 [[package]]

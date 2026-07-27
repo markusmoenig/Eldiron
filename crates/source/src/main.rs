@@ -133,6 +133,7 @@ fn scaffold_project(project_dir: &Path, name: Option<String>, force: bool) -> Re
         "assets",
         "characters",
         "items",
+        "recipes",
         "regions",
         "screens",
         "scripts",
@@ -258,6 +259,7 @@ fn should_rebuild_for_path(project_dir: &Path, path: &Path) -> bool {
             "assets"
                 | "characters"
                 | "items"
+                | "recipes"
                 | "regions"
                 | "screens"
                 | "scripts"
@@ -283,6 +285,7 @@ fn should_rebuild_for_path(project_dir: &Path, path: &Path) -> bool {
                 | "ogg"
                 | "mp3"
                 | "flac"
+                | "recipe"
         )
     )
 }
@@ -651,3 +654,34 @@ const STARTER_PLAYER_ELS: &str = r##"Character "player" {
   }
 }
 "##;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use uuid::Uuid;
+
+    #[test]
+    fn recipe_changes_trigger_source_rebuilds() {
+        let project = Path::new("/tmp/source-project");
+        assert!(should_rebuild_for_path(
+            project,
+            &project.join("recipes/dungeon/wall.recipe")
+        ));
+        assert!(!should_rebuild_for_path(
+            project,
+            &project.join("build/game.eldiron")
+        ));
+    }
+
+    #[test]
+    fn scaffold_creates_recipe_directory() {
+        let root = std::env::temp_dir().join(format!("eldiron-source-scaffold-{}", Uuid::new_v4()));
+        scaffold_project(&root, Some("Recipe Test".to_string()), false)
+            .expect("project scaffolded");
+
+        assert!(root.join("recipes").is_dir());
+        assert!(root.join("recipes/.gitkeep").is_file());
+
+        let _ = fs::remove_dir_all(root);
+    }
+}

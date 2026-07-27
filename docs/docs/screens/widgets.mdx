@@ -726,6 +726,12 @@ portrait_gap = 12
 
 This is useful when long wrapped messages would otherwise run visually into the next message.
 
+Active dialog, script, and vendor choices are temporary rows in the same scrollable stream as
+their preceding text. Long choice lists initially leave room for conversation context. Scrolling
+up reclaims the full widget for history; when this moves active choices below the viewport, a
+compact `v Choices` control returns directly to them. Choosing a response removes the temporary
+rows and keeps only the selected response in history.
+
 ### Pauses and Scrollback
 
 Messages widgets can pause output automatically when the visible page fills and more queued text is waiting:
