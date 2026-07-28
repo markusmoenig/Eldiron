@@ -5,28 +5,136 @@ use std::{
     fmt,
 };
 
+/// Stable categories for machine-readable recipe diagnostics.
+///
+/// Callers should use this code instead of matching the human-readable
+/// message, which may become more descriptive over time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ParseErrorCode {
+    Syntax,
+    Document,
+    MissingRequired,
+    DuplicateDefinition,
+    UnknownConstruct,
+    InvalidValue,
+    ConflictingFields,
+    UnknownReference,
+}
+
+impl ParseErrorCode {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Syntax => "PR0001",
+            Self::Document => "PR0002",
+            Self::MissingRequired => "PR0003",
+            Self::DuplicateDefinition => "PR0004",
+            Self::UnknownConstruct => "PR0005",
+            Self::InvalidValue => "PR0006",
+            Self::ConflictingFields => "PR0007",
+            Self::UnknownReference => "PR0008",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ParseError {
+    pub code: ParseErrorCode,
     pub line: usize,
+    pub column: usize,
     pub message: String,
+    pub source_line: Option<String>,
+    pub source_name: Option<String>,
 }
 
 impl ParseError {
     fn new(line: usize, message: impl Into<String>) -> Self {
+        Self::with_code(ParseErrorCode::Syntax, line, message)
+    }
+
+    fn with_code(code: ParseErrorCode, line: usize, message: impl Into<String>) -> Self {
         Self {
-            line,
+            code,
+            line: line.max(1),
+            column: 1,
             message: message.into(),
+            source_line: None,
+            source_name: None,
         }
+    }
+
+    fn document(line: usize, message: impl Into<String>) -> Self {
+        Self::with_code(ParseErrorCode::Document, line, message)
+    }
+
+    fn missing(line: usize, message: impl Into<String>) -> Self {
+        Self::with_code(ParseErrorCode::MissingRequired, line, message)
+    }
+
+    fn duplicate(line: usize, message: impl Into<String>) -> Self {
+        Self::with_code(ParseErrorCode::DuplicateDefinition, line, message)
+    }
+
+    fn unknown(line: usize, message: impl Into<String>) -> Self {
+        Self::with_code(ParseErrorCode::UnknownConstruct, line, message)
+    }
+
+    fn invalid(line: usize, message: impl Into<String>) -> Self {
+        Self::with_code(ParseErrorCode::InvalidValue, line, message)
+    }
+
+    fn conflict(line: usize, message: impl Into<String>) -> Self {
+        Self::with_code(ParseErrorCode::ConflictingFields, line, message)
+    }
+
+    fn reference(line: usize, message: impl Into<String>) -> Self {
+        Self::with_code(ParseErrorCode::UnknownReference, line, message)
+    }
+
+    fn attach_source(mut self, source: &str) -> Self {
+        if let Some(source_line) = source.lines().nth(self.line.saturating_sub(1)) {
+            self.column = source_line
+                .chars()
+                .take_while(|character| character.is_whitespace())
+                .count()
+                + 1;
+            self.source_line = Some(source_line.to_string());
+        }
+        self
+    }
+
+    /// Adds a filename or other source label to the rendered diagnostic.
+    pub fn with_source_name(mut self, source_name: impl Into<String>) -> Self {
+        self.source_name = Some(source_name.into());
+        self
+    }
+
+    pub const fn stable_code(&self) -> &'static str {
+        self.code.as_str()
     }
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.line == 0 {
-            write!(f, "{}", self.message)
+        writeln!(f, "error[{}]: {}", self.stable_code(), self.message)?;
+        if let Some(source_name) = &self.source_name {
+            write!(f, " --> {source_name}:{}:{}", self.line, self.column)?;
         } else {
-            write!(f, "line {}: {}", self.line, self.message)
+            write!(f, " --> line {}:{}", self.line, self.column)?;
         }
+        if let Some(source_line) = &self.source_line {
+            let gutter_width = self.line.to_string().len();
+            write!(
+                f,
+                "\n {:gutter_width$} |\n {} | {}\n {:gutter_width$} | {}^",
+                "",
+                self.line,
+                source_line,
+                "",
+                " ".repeat(self.column.saturating_sub(1)),
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -50,27 +158,60 @@ struct Node {
 pub fn parse_recipe(source: &str) -> Result<Recipe, ParseError> {
     match parse_document(source)? {
         RecipeDocument::Tile(recipe) => Ok(recipe),
-        RecipeDocument::Materials(_) => Err(ParseError::new(
-            0,
+        RecipeDocument::Materials(_) => Err(ParseError::document(
+            1,
             "expected a Tile recipe, found Material declarations",
-        )),
+        )
+        .attach_source(source)),
     }
 }
 
 pub fn parse_material_document(source: &str) -> Result<MaterialDocument, ParseError> {
     match parse_document(source)? {
         RecipeDocument::Materials(materials) => Ok(materials),
-        RecipeDocument::Tile(_) => Err(ParseError::new(
-            0,
+        RecipeDocument::Tile(_) => Err(ParseError::document(
+            1,
             "expected Material declarations, found a Tile recipe",
-        )),
+        )
+        .attach_source(source)),
     }
 }
 
 pub fn parse_document(source: &str) -> Result<RecipeDocument, ParseError> {
+    let mut document = parse_document_inner(source).map_err(|error| error.attach_source(source))?;
+    attach_warning_sources(&mut document, source);
+    Ok(document)
+}
+
+fn attach_warning_sources(document: &mut RecipeDocument, source: &str) {
+    let attach = |patterns: &mut [PatternDefinition]| {
+        for pattern in patterns {
+            for warning in &mut pattern.warnings {
+                if let Some(source_line) = source.lines().nth(warning.line.saturating_sub(1)) {
+                    warning.column = source_line
+                        .chars()
+                        .take_while(|character| character.is_whitespace())
+                        .count()
+                        + 1;
+                    warning.source_line = Some(source_line.to_string());
+                }
+            }
+        }
+    };
+    match document {
+        RecipeDocument::Tile(recipe) => attach(&mut recipe.patterns),
+        RecipeDocument::Materials(document) => {
+            for material in &mut document.materials {
+                attach(&mut material.patterns);
+            }
+        }
+    }
+}
+
+fn parse_document_inner(source: &str) -> Result<RecipeDocument, ParseError> {
     let lines = tokenize(source)?;
     if lines.is_empty() {
-        return Err(ParseError::new(0, "recipe is empty"));
+        return Err(ParseError::document(1, "recipe is empty"));
     }
     let mut cursor = 0;
     let roots = parse_nodes(&lines, &mut cursor, 0)?;
@@ -83,7 +224,7 @@ pub fn parse_document(source: &str) -> Result<RecipeDocument, ParseError> {
     for root in &roots {
         let (kind, declared_name) = declaration(&root.name);
         if kind != "material" {
-            return Err(ParseError::new(
+            return Err(ParseError::document(
                 root.line,
                 "a .recipe must contain either one top-level Tile block or only Material <id> blocks",
             ));
@@ -91,7 +232,7 @@ pub fn parse_document(source: &str) -> Result<RecipeDocument, ParseError> {
         let id = required_declaration_name(root, declared_name)?;
         let normalized = id.to_ascii_lowercase();
         if !ids.insert(normalized) {
-            return Err(ParseError::new(
+            return Err(ParseError::duplicate(
                 root.line,
                 format!("duplicate material id '{id}'"),
             ));
@@ -179,7 +320,7 @@ fn parse_nodes(
                     .insert(key.clone(), (value.trim().to_string(), child_line.number))
                     .is_some()
                 {
-                    return Err(ParseError::new(
+                    return Err(ParseError::duplicate(
                         child_line.number,
                         format!("duplicate field '{key}'"),
                     ));
@@ -227,39 +368,69 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
     let mut colorize = None;
     let mut output = None;
     let mut animation = None;
+    let mut material_map = None;
+    let mut implicit_output = None;
     for child in &node.children {
         let (kind, declared_name) = declaration(&child.name);
         match kind.as_str() {
             "animation" => {
                 ensure_unnamed(child, declared_name)?;
                 if animation.replace(parse_animation(child)?).is_some() {
-                    return Err(ParseError::new(child.line, "duplicate Animation block"));
+                    return Err(ParseError::duplicate(
+                        child.line,
+                        "duplicate Animation block",
+                    ));
                 }
             }
-            "noise" => recipe
-                .fields
-                .push(FieldDefinition::Noise(parse_noise(child, declared_name)?)),
-            "height" => recipe
-                .fields
-                .push(FieldDefinition::Height(parse_height(child, declared_name)?)),
-            "pattern" => recipe.patterns.push(parse_pattern(child, declared_name)?),
+            "noise" => {
+                let noise = parse_noise(child, declared_name)?;
+                implicit_output = Some(ScalarSource::Field(noise.name.clone()));
+                recipe.fields.push(FieldDefinition::Noise(noise));
+            }
+            "height" => {
+                let height = parse_height(child, declared_name)?;
+                implicit_output = Some(ScalarSource::Field(height.name.clone()));
+                recipe.fields.push(FieldDefinition::Height(height));
+            }
+            "pattern" => {
+                let pattern = parse_pattern(child, declared_name)?;
+                implicit_output = Some(ScalarSource::Pattern {
+                    name: pattern.name.clone(),
+                    channel: PatternChannel::Height,
+                });
+                recipe.patterns.push(pattern);
+            }
             "colorize" => {
                 ensure_unnamed(child, declared_name)?;
-                if colorize.replace(parse_colorize(child)?).is_some() {
-                    return Err(ParseError::new(child.line, "duplicate Colorize block"));
+                let parsed = parse_colorize(child)?;
+                implicit_output = Some(parsed.source.clone());
+                if colorize.replace(parsed).is_some() {
+                    return Err(ParseError::duplicate(
+                        child.line,
+                        "duplicate Colorize block",
+                    ));
                 }
             }
             "output" => {
                 ensure_unnamed(child, declared_name)?;
                 if output.replace(parse_output(child)?).is_some() {
-                    return Err(ParseError::new(child.line, "duplicate Output block"));
+                    return Err(ParseError::duplicate(child.line, "duplicate Output block"));
+                }
+            }
+            "materialmap" => {
+                ensure_unnamed(child, declared_name)?;
+                if material_map.replace(parse_material_map(child)?).is_some() {
+                    return Err(ParseError::duplicate(
+                        child.line,
+                        "duplicate MaterialMap block",
+                    ));
                 }
             }
             _ => {
-                return Err(ParseError::new(
+                return Err(ParseError::unknown(
                     child.line,
                     format!(
-                        "unknown top-level block '{}'; expected Noise <name>, Pattern <name>, Height <name>, Colorize, or Output",
+                        "unknown top-level block '{}'; expected Noise <name>, Pattern <name>, Height <name>, Colorize, MaterialMap, or Output",
                         child.name
                     ),
                 ));
@@ -267,16 +438,28 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
         }
     }
     recipe.animation = animation.unwrap_or_default();
-    recipe.output = output.ok_or_else(|| ParseError::new(node.line, "Tile requires Output"))?;
-    recipe.colorize = match colorize {
-        Some(colorize) => colorize,
-        None if recipe.material.is_some() => Colorize {
-            source: recipe.output.height.clone(),
-            ..Colorize::default()
-        },
-        None => return Err(ParseError::new(node.line, "Tile requires Colorize")),
-    };
-    validate_names_and_references(&recipe, node.line)?;
+    if recipe.material.is_some() && material_map.is_some() {
+        return Err(ParseError::conflict(
+            node.line,
+            "Tile.material and MaterialMap are alternatives; use only one",
+        ));
+    }
+    recipe.material_map = material_map;
+    recipe.output = output
+        .or_else(|| {
+            implicit_output.map(|height| Output {
+                height,
+                ..Output::default()
+            })
+        })
+        .ok_or_else(|| {
+            ParseError::missing(
+                node.line,
+                "Tile needs Output or at least one scalar-producing Noise, Pattern, Height, or Colorize block",
+            )
+        })?;
+    recipe.colorize = colorize;
+    validate_names_and_references(&recipe, node, true)?;
     Ok(recipe)
 }
 
@@ -292,58 +475,59 @@ fn material_from_node(node: &Node, id: &str) -> Result<MaterialRecipe, ParseErro
         seed: optional_u64(node, "seed", 1)?,
         fields: Vec::new(),
         patterns: Vec::new(),
-        colorize: Colorize::default(),
-        data: MaterialData::default(),
-        normal: MaterialNormal::default(),
+        colors: Vec::new(),
+        surface: MaterialSurface::default(),
+        output: None,
     };
 
-    let mut colorize = None;
-    let mut data = None;
-    let mut normal = None;
+    let mut surface = None;
+    let mut output = None;
     for child in &node.children {
         let (kind, declared_name) = declaration(&child.name);
         match kind.as_str() {
             "noise" => material
                 .fields
                 .push(FieldDefinition::Noise(parse_noise(child, declared_name)?)),
-            "height" => material
+            "value" => material
                 .fields
-                .push(FieldDefinition::Height(parse_height(child, declared_name)?)),
+                .push(FieldDefinition::Value(parse_value(child, declared_name)?)),
+            "height" => {
+                return Err(ParseError::invalid(
+                    child.line,
+                    "Height is tile geometry and is not available in materials; use Value for an intermediate scalar",
+                ));
+            }
             "pattern" => material.patterns.push(parse_pattern(child, declared_name)?),
-            "colorize" => {
+            "color" => material
+                .colors
+                .push(parse_color_definition(child, declared_name)?),
+            "surface" => {
                 ensure_unnamed(child, declared_name)?;
-                if colorize.replace(parse_colorize(child)?).is_some() {
-                    return Err(ParseError::new(child.line, "duplicate Colorize block"));
+                if surface.replace(parse_material_surface(child)?).is_some() {
+                    return Err(ParseError::duplicate(child.line, "duplicate Surface block"));
                 }
             }
-            "materialdata" | "data" => {
+            "output" => {
                 ensure_unnamed(child, declared_name)?;
-                if data.replace(parse_material_data(child)?).is_some() {
-                    return Err(ParseError::new(child.line, "duplicate MaterialData block"));
-                }
-            }
-            "normal" => {
-                ensure_unnamed(child, declared_name)?;
-                if normal.replace(parse_material_normal(child)?).is_some() {
-                    return Err(ParseError::new(child.line, "duplicate Normal block"));
+                if output.replace(parse_material_output(child)?).is_some() {
+                    return Err(ParseError::duplicate(child.line, "duplicate Output block"));
                 }
             }
             _ => {
-                return Err(ParseError::new(
+                return Err(ParseError::unknown(
                     child.line,
                     format!(
-                        "unknown material block '{}'; expected Noise <name>, Pattern <name>, Height <name>, Colorize, MaterialData, or Normal",
+                        "unknown material block '{}'; expected Noise <name>, Pattern <name>, Value <name>, Color <name>, Surface, or Output",
                         child.name
                     ),
                 ));
             }
         }
     }
-    material.colorize =
-        colorize.ok_or_else(|| ParseError::new(node.line, "Material requires Colorize"))?;
-    material.data = data.unwrap_or_default();
-    material.normal = normal.unwrap_or_default();
-    validate_material_names_and_references(&material, node.line)?;
+    material.surface =
+        surface.ok_or_else(|| ParseError::missing(node.line, "Material requires Surface"))?;
+    material.output = output;
+    validate_material_names_and_references(&material, node)?;
     Ok(material)
 }
 
@@ -359,7 +543,7 @@ fn declaration(value: &str) -> (String, Option<&str>) {
 
 fn ensure_unnamed(node: &Node, name: Option<&str>) -> Result<(), ParseError> {
     if name.is_some() {
-        Err(ParseError::new(
+        Err(ParseError::conflict(
             node.line,
             format!("{} does not take a declaration name", node.name),
         ))
@@ -373,7 +557,7 @@ fn required_declaration_name<'a>(
     name: Option<&'a str>,
 ) -> Result<&'a str, ParseError> {
     let name = name.ok_or_else(|| {
-        ParseError::new(
+        ParseError::missing(
             node.line,
             format!(
                 "{} requires a name, for example '{} Surface'",
@@ -412,7 +596,7 @@ fn parse_noise(node: &Node, name: Option<&str>) -> Result<NoiseField, ParseError
     )?;
     reject_children(node)?;
     if field(node, "type").is_some() && field(node, "kind").is_some() {
-        return Err(ParseError::new(
+        return Err(ParseError::conflict(
             field(node, "kind").unwrap().1,
             "Noise.type and Noise.kind are aliases; specify only one",
         ));
@@ -454,6 +638,15 @@ fn parse_height(node: &Node, name: Option<&str>) -> Result<HeightField, ParseErr
         name: required_declaration_name(node, name)?.to_string(),
         source,
         operations,
+    })
+}
+
+fn parse_value(node: &Node, name: Option<&str>) -> Result<ValueField, ParseError> {
+    reject_unknown_fields(node, &["source"])?;
+    reject_children(node)?;
+    Ok(ValueField {
+        name: required_declaration_name(node, name)?.to_string(),
+        source: required_scalar(node, "source")?,
     })
 }
 
@@ -515,7 +708,7 @@ fn parse_height_operation(node: &Node) -> Result<HeightOperation, ParseError> {
             reject_children(node)?;
             Ok(HeightOperation::Invert)
         }
-        _ => Err(ParseError::new(
+        _ => Err(ParseError::unknown(
             node.line,
             format!("unknown height operation '{}'", node.name),
         )),
@@ -525,7 +718,7 @@ fn parse_height_operation(node: &Node) -> Result<HeightOperation, ParseError> {
 fn parse_pattern(node: &Node, name: Option<&str>) -> Result<PatternDefinition, ParseError> {
     reject_unknown_fields(node, &[])?;
     if node.children.len() != 1 {
-        return Err(ParseError::new(
+        return Err(ParseError::missing(
             node.line,
             "Pattern requires exactly one Bricks, Voronoi, or Discs block",
         ));
@@ -543,10 +736,6 @@ fn parse_pattern(node: &Node, name: Option<&str>) -> Result<PatternDefinition, P
                     rotation: optional_scalar(generator, "rotation", 0.0)?,
                     size_variation: optional_f2(generator, "size_variation", [0.0, 0.0])?
                         .map(|value| value.abs().clamp(0.0, 0.45)),
-                    perturb: field(generator, "perturb")
-                        .map(|(value, line)| parse_scalar_source(value, line))
-                        .transpose()?,
-                    perturb_amount: optional_scalar(generator, "perturb_amount", 0.0)?,
                     falloff: optional_scalar(generator, "falloff", 1.0)?,
                     seed: optional_u64(generator, "seed", 0)?,
                 },
@@ -555,9 +744,12 @@ fn parse_pattern(node: &Node, name: Option<&str>) -> Result<PatternDefinition, P
                     "rows",
                     "stagger",
                     "gap",
+                    "bevel",
                     "rounding",
                     "rotation",
                     "size_variation",
+                    "warp",
+                    "warp_amount",
                     "perturb",
                     "perturb_amount",
                     "space",
@@ -578,8 +770,11 @@ fn parse_pattern(node: &Node, name: Option<&str>) -> Result<PatternDefinition, P
                     "jitter",
                     "space",
                     "key",
+                    "bevel",
                     "warp",
                     "warp_amount",
+                    "perturb",
+                    "perturb_amount",
                     "seed",
                     "falloff",
                 ],
@@ -598,20 +793,23 @@ fn parse_pattern(node: &Node, name: Option<&str>) -> Result<PatternDefinition, P
                     "radius",
                     "space",
                     "key",
+                    "bevel",
                     "warp",
                     "warp_amount",
+                    "perturb",
+                    "perturb_amount",
                     "seed",
                     "falloff",
                 ],
             ),
             _ => {
-                return Err(ParseError::new(
+                return Err(ParseError::unknown(
                     generator.line,
                     "Pattern generator must be Bricks, Voronoi, or Discs",
                 ));
             }
         };
-    reject_unknown_fields(generator, &allowed)?;
+    let warnings = unsupported_field_warnings(generator, &allowed);
     reject_children(generator)?;
     let domain = field(generator, "space")
         .map(|(value, line)| parse_domain(value, line))
@@ -631,16 +829,21 @@ fn parse_pattern(node: &Node, name: Option<&str>) -> Result<PatternDefinition, P
         })
         .transpose()?;
     if warp.is_none() && field(generator, "warp_amount").is_some() {
-        return Err(ParseError::new(
+        return Err(ParseError::missing(
             field(generator, "warp_amount").unwrap().1,
             "warp_amount requires warp",
         ));
     }
-    if let PatternKind::Bricks { perturb, .. } = &kind
-        && perturb.is_none()
-        && field(generator, "perturb_amount").is_some()
-    {
-        return Err(ParseError::new(
+    let perturb = field(generator, "perturb")
+        .map(|(value, line)| {
+            Ok::<_, ParseError>(Perturb {
+                source: parse_scalar_source(value, line)?,
+                amount: optional_scalar(generator, "perturb_amount", 0.05)?,
+            })
+        })
+        .transpose()?;
+    if perturb.is_none() && field(generator, "perturb_amount").is_some() {
+        return Err(ParseError::missing(
             field(generator, "perturb_amount").unwrap().1,
             "perturb_amount requires perturb",
         ));
@@ -650,7 +853,10 @@ fn parse_pattern(node: &Node, name: Option<&str>) -> Result<PatternDefinition, P
         domain,
         key,
         warp,
+        bevel: optional_scalar(generator, "bevel", 0.08)?,
+        perturb,
         kind,
+        warnings,
     })
 }
 
@@ -674,14 +880,14 @@ fn parse_colorize(node: &Node) -> Result<Colorize, ParseError> {
     )?;
     reject_children(node)?;
     let base = field(node, "base")
-        .map(|(value, line)| parse_base_color(value, line))
+        .map(|(value, line)| parse_authored_color(value, line))
         .transpose()?;
     let palette = field(node, "palette")
         .map(|(value, line)| parse_palette_mode(value, line))
         .transpose()?
         .unwrap_or_default();
     if palette == PaletteMode::BaseOnly && base.is_none() {
-        return Err(ParseError::new(
+        return Err(ParseError::missing(
             field(node, "palette").unwrap().1,
             "Colorize.palette = BaseOnly requires Colorize.base",
         ));
@@ -689,7 +895,7 @@ fn parse_colorize(node: &Node) -> Result<Colorize, ParseError> {
     if base.is_some() {
         for legacy in ["ramp", "ramp_range", "saturation_range"] {
             if let Some((_, line)) = field(node, legacy) {
-                return Err(ParseError::new(
+                return Err(ParseError::conflict(
                     line,
                     format!("Colorize.{legacy} cannot be combined with Colorize.base"),
                 ));
@@ -698,7 +904,7 @@ fn parse_colorize(node: &Node) -> Result<Colorize, ParseError> {
     } else {
         for anchored in ["brightness", "saturation", "hue"] {
             if let Some((_, line)) = field(node, anchored) {
-                return Err(ParseError::new(
+                return Err(ParseError::missing(
                     line,
                     format!("Colorize.{anchored} requires Colorize.base"),
                 ));
@@ -734,92 +940,214 @@ fn parse_palette_mode(value: &str, line: usize) -> Result<PaletteMode, ParseErro
     match value.trim().to_ascii_lowercase().as_str() {
         "strict" => Ok(PaletteMode::Strict),
         "baseonly" | "base_only" | "base-only" => Ok(PaletteMode::BaseOnly),
-        _ => Err(ParseError::new(
+        _ => Err(ParseError::invalid(
             line,
-            "Colorize.palette must be Strict or BaseOnly",
+            "palette must be Strict or BaseOnly",
         )),
     }
 }
 
 fn parse_output(node: &Node) -> Result<Output, ParseError> {
-    reject_unknown_fields(node, &["height"])?;
+    reject_unknown_fields(node, &["height", "space"])?;
     reject_children(node)?;
     Ok(Output {
         height: required_scalar(node, "height")?,
+        space: field(node, "space")
+            .map(|(value, line)| parse_domain(value, line))
+            .transpose()?
+            .unwrap_or(Domain::Global),
     })
 }
 
-fn parse_material_data(node: &Node) -> Result<MaterialData, ParseError> {
+fn parse_material_map(node: &Node) -> Result<MaterialMap, ParseError> {
+    reject_unknown_fields(node, &["base", "space", "tiling"])?;
+    let (base, line) = field(node, "base")
+        .ok_or_else(|| ParseError::missing(node.line, "MaterialMap requires base"))?;
+    let mut layers = Vec::new();
+    for child in &node.children {
+        let (kind, declared_name) = declaration(&child.name);
+        if kind != "layer" {
+            return Err(ParseError::unknown(
+                child.line,
+                format!("unknown MaterialMap block '{}'; expected Layer", child.name),
+            ));
+        }
+        ensure_unnamed(child, declared_name)?;
+        reject_unknown_fields(child, &["material", "mask", "space", "tiling"])?;
+        reject_children(child)?;
+        let (material, material_line) = field(child, "material")
+            .ok_or_else(|| ParseError::missing(child.line, "Layer requires material"))?;
+        layers.push(MaterialLayer {
+            material: parse_alias(material, material_line)?,
+            mask: required_scalar(child, "mask")?,
+            space: field(child, "space")
+                .map(|(value, line)| parse_domain(value, line))
+                .transpose()?
+                .unwrap_or(Domain::Global),
+            tiling: optional_positive_f2(child, "tiling", [1.0, 1.0])?,
+        });
+    }
+    Ok(MaterialMap {
+        base: parse_alias(base, line)?,
+        space: field(node, "space")
+            .map(|(value, line)| parse_domain(value, line))
+            .transpose()?
+            .unwrap_or(Domain::Global),
+        tiling: optional_positive_f2(node, "tiling", [1.0, 1.0])?,
+        layers,
+    })
+}
+
+fn parse_color_definition(node: &Node, name: Option<&str>) -> Result<ColorDefinition, ParseError> {
+    reject_unknown_fields(node, &["base", "exact", "nearest", "source"])?;
+    reject_children(node)?;
+    reject_alias_pair(node, "base", "exact")?;
+    let mut sources = Vec::new();
+    if let Some((value, line)) = field(node, "base").or_else(|| field(node, "exact")) {
+        sources.push(ColorSource::Exact(parse_authored_color(value, line)?));
+    }
+    if let Some((value, line)) = field(node, "nearest") {
+        sources.push(ColorSource::Nearest(parse_authored_color(value, line)?));
+    }
+    if let Some((value, line)) = field(node, "source") {
+        sources.push(parse_color_source(value, line)?);
+    }
+    if sources.len() != 1 {
+        return Err(ParseError::conflict(
+            node.line,
+            "Color requires exactly one of base, exact, nearest, or source",
+        ));
+    }
+    Ok(ColorDefinition {
+        name: required_declaration_name(node, name)?.to_string(),
+        source: sources.remove(0),
+    })
+}
+
+fn parse_material_surface(node: &Node) -> Result<MaterialSurface, ParseError> {
     reject_unknown_fields(
         node,
         &[
+            "color",
+            "palette",
             "roughness",
             "metallic",
             "metal",
             "opacity",
             "emissive",
             "emission",
+            "normal",
+            "normal_strength",
         ],
     )?;
     reject_children(node)?;
     reject_alias_pair(node, "metallic", "metal")?;
     reject_alias_pair(node, "emissive", "emission")?;
-    Ok(MaterialData {
-        roughness: optional_scalar(node, "roughness", 0.5)?,
+    let (color, color_line) = field(node, "color")
+        .ok_or_else(|| ParseError::missing(node.line, "Surface requires color"))?;
+    let normal = field(node, "normal")
+        .map(|(value, line)| parse_scalar_source(value, line))
+        .transpose()?;
+    if normal.is_none() && field(node, "normal_strength").is_some() {
+        return Err(ParseError::missing(
+            field(node, "normal_strength").unwrap().1,
+            "normal_strength requires normal",
+        ));
+    }
+    Ok(MaterialSurface {
+        color: parse_color_source(color, color_line)?,
+        palette: field(node, "palette")
+            .map(|(value, line)| parse_palette_mode(value, line))
+            .transpose()?
+            .unwrap_or(PaletteMode::BaseOnly),
+        roughness: optional_scalar(node, "roughness", 1.0)?,
         metallic: optional_scalar_alias(node, "metallic", "metal", 0.0)?,
         opacity: optional_scalar(node, "opacity", 1.0)?,
         emissive: optional_scalar_alias(node, "emissive", "emission", 0.0)?,
+        normal,
+        normal_strength: optional_f32(node, "normal_strength", 0.35)?.clamp(0.0, 8.0),
     })
 }
 
-fn parse_material_normal(node: &Node) -> Result<MaterialNormal, ParseError> {
-    reject_unknown_fields(node, &["source", "strength"])?;
+fn parse_material_output(node: &Node) -> Result<MaterialOutput, ParseError> {
+    if let Some((_, line)) = field(node, "height") {
+        return Err(ParseError::invalid(
+            line,
+            "material Output uses value for scalar debugging; height is reserved for tile geometry",
+        ));
+    }
+    reject_unknown_fields(node, &["value", "color", "space"])?;
     reject_children(node)?;
-    Ok(MaterialNormal {
-        source: field(node, "source")
-            .map(|(value, line)| parse_scalar_source(value, line))
-            .transpose()?
-            .unwrap_or(ScalarSource::InputHeight),
-        strength: optional_f32(node, "strength", 0.35)?.clamp(0.0, 8.0),
-    })
+    let space = field(node, "space")
+        .map(|(value, line)| parse_domain(value, line))
+        .transpose()?
+        .unwrap_or(Domain::Global);
+    match (field(node, "value"), field(node, "color")) {
+        (Some((value, line)), None) => Ok(MaterialOutput::Value {
+            source: parse_scalar_source(value, line)?,
+            space,
+        }),
+        (None, Some((value, line))) => Ok(MaterialOutput::Color {
+            source: parse_color_source(value, line)?,
+            space,
+        }),
+        _ => Err(ParseError::conflict(
+            node.line,
+            "material Output requires exactly one of value or color",
+        )),
+    }
 }
 
-fn validate_names_and_references(recipe: &Recipe, line: usize) -> Result<(), ParseError> {
+fn validate_names_and_references(
+    recipe: &Recipe,
+    root: &Node,
+    require_matching_output: bool,
+) -> Result<(), ParseError> {
+    let field_nodes = child_nodes(root, &["noise", "height", "value"]);
+    let pattern_nodes = child_nodes(root, &["pattern"]);
     let mut fields = BTreeSet::new();
     let mut patterns = BTreeSet::new();
-    for field in &recipe.fields {
+    for (index, field) in recipe.fields.iter().enumerate() {
         let name = field.name().to_ascii_lowercase();
         if !fields.insert(name.clone()) {
-            return Err(ParseError::new(
-                line,
+            return Err(ParseError::duplicate(
+                field_nodes.get(index).map_or(root.line, |node| node.line),
                 format!("duplicate field name '{}'", field.name()),
             ));
         }
     }
-    for pattern in &recipe.patterns {
+    for (index, pattern) in recipe.patterns.iter().enumerate() {
         let name = pattern.name.to_ascii_lowercase();
         if fields.contains(&name) || !patterns.insert(name) {
-            return Err(ParseError::new(
-                line,
+            return Err(ParseError::duplicate(
+                pattern_nodes.get(index).map_or(root.line, |node| node.line),
                 format!("duplicate definition name '{}'", pattern.name),
             ));
         }
     }
-    let validate_scalar =
-        |source: &ScalarSource| validate_scalar_source(source, &fields, &patterns);
-    for field in &recipe.fields {
+    for (index, field) in recipe.fields.iter().enumerate() {
+        let field_node = field_nodes.get(index).copied().unwrap_or(root);
         match field {
             FieldDefinition::Noise(noise) => {
                 if let Domain::PatternLocal(name) = &noise.domain {
-                    require_pattern(name, &patterns)?;
+                    require_pattern(name, &patterns, field_line(field_node, "space"))?;
                 }
                 if let Some(IdSource::Pattern(name)) = &noise.key {
-                    require_pattern(name, &patterns)?;
+                    require_pattern(name, &patterns, field_line(field_node, "key"))?;
                 }
             }
             FieldDefinition::Height(height) => {
-                validate_scalar(&height.source)?;
-                for operation in &height.operations {
+                validate_scalar_source(
+                    &height.source,
+                    &fields,
+                    &patterns,
+                    field_line(field_node, "source"),
+                )?;
+                for (operation_index, operation) in height.operations.iter().enumerate() {
+                    let operation_node = field_node
+                        .children
+                        .get(operation_index)
+                        .unwrap_or(field_node);
                     match operation {
                         HeightOperation::Shape {
                             contrast,
@@ -827,17 +1155,47 @@ fn validate_names_and_references(recipe: &Recipe, line: usize) -> Result<(), Par
                             plateau,
                             rim,
                         } => {
-                            for value in [contrast, bias, plateau, rim] {
-                                validate_scalar(value)?;
+                            for (name, value) in [
+                                ("contrast", contrast),
+                                ("bias", bias),
+                                ("plateau", plateau),
+                                ("rim", rim),
+                            ] {
+                                validate_scalar_source(
+                                    value,
+                                    &fields,
+                                    &patterns,
+                                    field_line(operation_node, name),
+                                )?;
                             }
                         }
                         HeightOperation::Combine { source, amount, .. } => {
-                            validate_scalar(source)?;
-                            validate_scalar(amount)?;
+                            validate_scalar_source(
+                                source,
+                                &fields,
+                                &patterns,
+                                field_line(operation_node, "source"),
+                            )?;
+                            validate_scalar_source(
+                                amount,
+                                &fields,
+                                &patterns,
+                                field_line(operation_node, "amount"),
+                            )?;
                         }
                         HeightOperation::Clamp { min, max } => {
-                            validate_scalar(min)?;
-                            validate_scalar(max)?;
+                            validate_scalar_source(
+                                min,
+                                &fields,
+                                &patterns,
+                                field_line(operation_node, "min"),
+                            )?;
+                            validate_scalar_source(
+                                max,
+                                &fields,
+                                &patterns,
+                                field_line(operation_node, "max"),
+                            )?;
                         }
                         HeightOperation::Remap { .. }
                         | HeightOperation::Terrace { .. }
@@ -845,36 +1203,74 @@ fn validate_names_and_references(recipe: &Recipe, line: usize) -> Result<(), Par
                     }
                 }
             }
+            FieldDefinition::Value(value) => {
+                validate_scalar_source(
+                    &value.source,
+                    &fields,
+                    &patterns,
+                    field_line(field_node, "source"),
+                )?;
+            }
         }
     }
-    for pattern in &recipe.patterns {
+    for (index, pattern) in recipe.patterns.iter().enumerate() {
+        let pattern_node = pattern_nodes.get(index).copied().unwrap_or(root);
+        let generator_node = pattern_node.children.first().unwrap_or(pattern_node);
         if let Domain::PatternLocal(name) = &pattern.domain {
-            require_pattern(name, &patterns)?;
+            require_pattern(name, &patterns, field_line(generator_node, "space"))?;
         }
         if let Some(IdSource::Pattern(name)) = &pattern.key {
-            require_pattern(name, &patterns)?;
+            require_pattern(name, &patterns, field_line(generator_node, "key"))?;
         }
+        validate_scalar_source(
+            &pattern.bevel,
+            &fields,
+            &patterns,
+            field_line(generator_node, "bevel"),
+        )?;
         if let Some(warp) = &pattern.warp {
-            validate_scalar(&warp.source)?;
+            validate_scalar_source(
+                &warp.source,
+                &fields,
+                &patterns,
+                field_line(generator_node, "warp"),
+            )?;
+        }
+        if let Some(perturb) = &pattern.perturb {
+            validate_scalar_source(
+                &perturb.source,
+                &fields,
+                &patterns,
+                field_line(generator_node, "perturb"),
+            )?;
+            validate_scalar_source(
+                &perturb.amount,
+                &fields,
+                &patterns,
+                field_line(generator_node, "perturb_amount"),
+            )?;
         }
         match &pattern.kind {
             PatternKind::Bricks {
                 gap,
                 rounding,
                 rotation,
-                perturb,
-                perturb_amount,
                 falloff,
                 ..
             } => {
-                validate_scalar(gap)?;
-                validate_scalar(rounding)?;
-                validate_scalar(rotation)?;
-                if let Some(perturb) = perturb {
-                    validate_scalar(perturb)?;
+                for (name, source) in [
+                    ("gap", gap),
+                    ("rounding", rounding),
+                    ("rotation", rotation),
+                    ("falloff", falloff),
+                ] {
+                    validate_scalar_source(
+                        source,
+                        &fields,
+                        &patterns,
+                        field_line(generator_node, name),
+                    )?;
                 }
-                validate_scalar(perturb_amount)?;
-                validate_scalar(falloff)?;
             }
             PatternKind::Discs {
                 jitter,
@@ -882,44 +1278,90 @@ fn validate_names_and_references(recipe: &Recipe, line: usize) -> Result<(), Par
                 falloff,
                 ..
             } => {
-                validate_scalar(jitter)?;
-                validate_scalar(radius)?;
-                validate_scalar(falloff)?;
+                for (name, source) in [("jitter", jitter), ("radius", radius), ("falloff", falloff)]
+                {
+                    validate_scalar_source(
+                        source,
+                        &fields,
+                        &patterns,
+                        field_line(generator_node, name),
+                    )?;
+                }
             }
             PatternKind::Voronoi { .. } => {}
         }
     }
-    validate_scalar(&recipe.colorize.source)?;
-    validate_scalar(&recipe.output.height)?;
-    if recipe.colorize.source != recipe.output.height {
-        return Err(ParseError::new(
-            line,
+    let colorize_node = child_node(root, "colorize");
+    if let (Some(colorize), Some(colorize_node)) = (&recipe.colorize, colorize_node) {
+        validate_scalar_source(
+            &colorize.source,
+            &fields,
+            &patterns,
+            field_line(colorize_node, "source"),
+        )?;
+    }
+    if require_matching_output {
+        let output_node = child_node(root, "output").unwrap_or(root);
+        if let Domain::PatternLocal(name) = &recipe.output.space {
+            require_pattern(name, &patterns, field_line(output_node, "space"))?;
+        }
+        validate_scalar_source(
+            &recipe.output.height,
+            &fields,
+            &patterns,
+            field_line(output_node, "height"),
+        )?;
+    }
+    if require_matching_output
+        && let (Some(colorize), Some(colorize_node)) = (&recipe.colorize, colorize_node)
+        && colorize.source != recipe.output.height
+    {
+        return Err(ParseError::conflict(
+            field_line(colorize_node, "source"),
             "Colorize.source and Output.height must reference the same field; height is the single source of truth",
         ));
+    }
+    if let Some(material_map) = &recipe.material_map {
+        let material_map_node = child_node(root, "materialmap").unwrap_or(root);
+        if let Domain::PatternLocal(name) = &material_map.space {
+            require_pattern(name, &patterns, field_line(material_map_node, "space"))?;
+        }
+        let layer_nodes = child_nodes(material_map_node, &["layer"]);
+        for (index, layer) in material_map.layers.iter().enumerate() {
+            let layer_node = layer_nodes.get(index).copied().unwrap_or(material_map_node);
+            if let Domain::PatternLocal(name) = &layer.space {
+                require_pattern(name, &patterns, field_line(layer_node, "space"))?;
+            }
+            validate_scalar_source(
+                &layer.mask,
+                &fields,
+                &patterns,
+                field_line(layer_node, "mask"),
+            )?;
+        }
     }
     Ok(())
 }
 
 fn validate_material_names_and_references(
     material: &MaterialRecipe,
-    line: usize,
+    root: &Node,
 ) -> Result<(), ParseError> {
-    // Reuse the tile definition-graph validation with the material's color source as
-    // the synthetic output. Materials deliberately allow every other channel to use
-    // a different scalar graph.
+    if let Some(line) = find_input_height_line(root) {
+        return Err(ParseError::invalid(
+            line,
+            "Input.height is not available in materials; tiles own height and material masks",
+        ));
+    }
     let recipe = Recipe {
         name: material.name.clone(),
         wrap: material.wrap,
         seed: material.seed,
         fields: material.fields.clone(),
         patterns: material.patterns.clone(),
-        colorize: material.colorize.clone(),
-        output: Output {
-            height: material.colorize.source.clone(),
-        },
         ..Recipe::default()
     };
-    validate_names_and_references(&recipe, line)?;
+    validate_names_and_references(&recipe, root, false)?;
 
     let fields = material
         .fields
@@ -931,56 +1373,205 @@ fn validate_material_names_and_references(
         .iter()
         .map(|pattern| pattern.name.to_ascii_lowercase())
         .collect::<BTreeSet<_>>();
-    for source in [
-        &material.data.roughness,
-        &material.data.metallic,
-        &material.data.opacity,
-        &material.data.emissive,
-        &material.normal.source,
+    let color_nodes = child_nodes(root, &["color"]);
+    let mut colors = BTreeSet::new();
+    for (index, color) in material.colors.iter().enumerate() {
+        let normalized = color.name.to_ascii_lowercase();
+        if !colors.insert(normalized) {
+            return Err(ParseError::duplicate(
+                color_nodes.get(index).map_or(root.line, |node| node.line),
+                format!("duplicate color name '{}'", color.name),
+            ));
+        }
+    }
+    for (index, color) in material.colors.iter().enumerate() {
+        let node = color_nodes.get(index).copied().unwrap_or(root);
+        validate_color_source(
+            &color.source,
+            &colors,
+            &fields,
+            &patterns,
+            field_line(node, "source"),
+        )?;
+    }
+
+    let surface_node = child_node(root, "surface").unwrap_or(root);
+    validate_color_source(
+        &material.surface.color,
+        &colors,
+        &fields,
+        &patterns,
+        field_line(surface_node, "color"),
+    )?;
+    for (name, alias, source) in [
+        ("roughness", None, &material.surface.roughness),
+        ("metallic", Some("metal"), &material.surface.metallic),
+        ("opacity", None, &material.surface.opacity),
+        ("emissive", Some("emission"), &material.surface.emissive),
     ] {
-        validate_scalar_source(source, &fields, &patterns)?;
+        let line = field_line_with_alias(surface_node, name, alias);
+        validate_material_scalar(source, &fields, &patterns, line)?;
+    }
+    if let Some(normal) = &material.surface.normal {
+        validate_material_scalar(
+            normal,
+            &fields,
+            &patterns,
+            field_line(surface_node, "normal"),
+        )?;
+    }
+    if let Some(output) = &material.output {
+        let output_node = child_node(root, "output").unwrap_or(root);
+        let space = match output {
+            MaterialOutput::Value { space, .. } => space,
+            MaterialOutput::Color { space, .. } => space,
+        };
+        if let Domain::PatternLocal(name) = space {
+            require_pattern(name, &patterns, field_line(output_node, "space"))?;
+        }
+        match output {
+            MaterialOutput::Value { source, .. } => validate_material_scalar(
+                source,
+                &fields,
+                &patterns,
+                field_line(output_node, "value"),
+            )?,
+            MaterialOutput::Color { source, .. } => validate_color_source(
+                source,
+                &colors,
+                &fields,
+                &patterns,
+                field_line(output_node, "color"),
+            )?,
+        }
     }
     Ok(())
+}
+
+fn find_input_height_line(node: &Node) -> Option<usize> {
+    node.fields
+        .iter()
+        .find_map(|(name, (value, line))| {
+            (name != "name" && value.to_ascii_lowercase().contains("input.height")).then_some(*line)
+        })
+        .or_else(|| node.children.iter().find_map(find_input_height_line))
+}
+
+fn validate_material_scalar(
+    source: &ScalarSource,
+    fields: &BTreeSet<String>,
+    patterns: &BTreeSet<String>,
+    line: usize,
+) -> Result<(), ParseError> {
+    if scalar_uses_input_height(source) {
+        return Err(ParseError::invalid(
+            line,
+            "Input.height is not available in materials; tiles own height and material masks",
+        ));
+    }
+    validate_scalar_source(source, fields, patterns, line)
+}
+
+fn validate_color_source(
+    source: &ColorSource,
+    colors: &BTreeSet<String>,
+    fields: &BTreeSet<String>,
+    patterns: &BTreeSet<String>,
+    line: usize,
+) -> Result<(), ParseError> {
+    match source {
+        ColorSource::Exact(_) | ColorSource::Nearest(_) => Ok(()),
+        ColorSource::Reference(name) => {
+            if colors.contains(&name.to_ascii_lowercase()) {
+                Ok(())
+            } else {
+                Err(ParseError::reference(
+                    line,
+                    format!("unknown color '{name}'"),
+                ))
+            }
+        }
+        ColorSource::Mix { a, b, factor } => {
+            validate_color_source(a, colors, fields, patterns, line)?;
+            validate_color_source(b, colors, fields, patterns, line)?;
+            validate_material_scalar(factor, fields, patterns, line)
+        }
+    }
+}
+
+fn scalar_uses_input_height(source: &ScalarSource) -> bool {
+    match source {
+        ScalarSource::InputHeight => true,
+        ScalarSource::Unary { source, .. } => scalar_uses_input_height(source),
+        ScalarSource::Binary { left, right, .. } => {
+            scalar_uses_input_height(left) || scalar_uses_input_height(right)
+        }
+        ScalarSource::Clamp { source, min, max } => {
+            scalar_uses_input_height(source)
+                || scalar_uses_input_height(min)
+                || scalar_uses_input_height(max)
+        }
+        ScalarSource::Mix { a, b, factor } => {
+            scalar_uses_input_height(a)
+                || scalar_uses_input_height(b)
+                || scalar_uses_input_height(factor)
+        }
+        ScalarSource::Smoothstep { min, max, source } => {
+            scalar_uses_input_height(min)
+                || scalar_uses_input_height(max)
+                || scalar_uses_input_height(source)
+        }
+        ScalarSource::Constant(_)
+        | ScalarSource::Coordinate(_)
+        | ScalarSource::Field(_)
+        | ScalarSource::Pattern { .. }
+        | ScalarSource::RandomId { .. }
+        | ScalarSource::Wave { .. } => false,
+    }
 }
 
 fn validate_scalar_source(
     source: &ScalarSource,
     fields: &BTreeSet<String>,
     patterns: &BTreeSet<String>,
+    line: usize,
 ) -> Result<(), ParseError> {
     match source {
         ScalarSource::Field(name) => {
             if !fields.contains(&name.to_ascii_lowercase()) {
-                return Err(ParseError::new(0, format!("unknown field '{name}'")));
+                return Err(ParseError::reference(
+                    line,
+                    format!("unknown field '{name}'"),
+                ));
             }
         }
-        ScalarSource::Pattern { name, .. } => require_pattern(name, patterns)?,
+        ScalarSource::Pattern { name, .. } => require_pattern(name, patterns, line)?,
         ScalarSource::RandomId { id, .. } => {
             if let IdSource::Pattern(name) = id {
-                require_pattern(name, patterns)?;
+                require_pattern(name, patterns, line)?;
             }
         }
         ScalarSource::Unary { source, .. } => {
-            validate_scalar_source(source, fields, patterns)?;
+            validate_scalar_source(source, fields, patterns, line)?;
         }
         ScalarSource::Binary { left, right, .. } => {
-            validate_scalar_source(left, fields, patterns)?;
-            validate_scalar_source(right, fields, patterns)?;
+            validate_scalar_source(left, fields, patterns, line)?;
+            validate_scalar_source(right, fields, patterns, line)?;
         }
         ScalarSource::Clamp { source, min, max } => {
-            validate_scalar_source(source, fields, patterns)?;
-            validate_scalar_source(min, fields, patterns)?;
-            validate_scalar_source(max, fields, patterns)?;
+            validate_scalar_source(source, fields, patterns, line)?;
+            validate_scalar_source(min, fields, patterns, line)?;
+            validate_scalar_source(max, fields, patterns, line)?;
         }
         ScalarSource::Mix { a, b, factor } => {
-            validate_scalar_source(a, fields, patterns)?;
-            validate_scalar_source(b, fields, patterns)?;
-            validate_scalar_source(factor, fields, patterns)?;
+            validate_scalar_source(a, fields, patterns, line)?;
+            validate_scalar_source(b, fields, patterns, line)?;
+            validate_scalar_source(factor, fields, patterns, line)?;
         }
         ScalarSource::Smoothstep { min, max, source } => {
-            validate_scalar_source(min, fields, patterns)?;
-            validate_scalar_source(max, fields, patterns)?;
-            validate_scalar_source(source, fields, patterns)?;
+            validate_scalar_source(min, fields, patterns, line)?;
+            validate_scalar_source(max, fields, patterns, line)?;
+            validate_scalar_source(source, fields, patterns, line)?;
         }
         ScalarSource::Constant(_)
         | ScalarSource::Coordinate(_)
@@ -990,12 +1581,42 @@ fn validate_scalar_source(
     Ok(())
 }
 
-fn require_pattern(name: &str, patterns: &BTreeSet<String>) -> Result<(), ParseError> {
+fn require_pattern(name: &str, patterns: &BTreeSet<String>, line: usize) -> Result<(), ParseError> {
     if patterns.contains(&name.to_ascii_lowercase()) {
         Ok(())
     } else {
-        Err(ParseError::new(0, format!("unknown pattern '{name}'")))
+        Err(ParseError::reference(
+            line,
+            format!("unknown pattern '{name}'"),
+        ))
     }
+}
+
+fn child_nodes<'a>(root: &'a Node, kinds: &[&str]) -> Vec<&'a Node> {
+    root.children
+        .iter()
+        .filter(|node| {
+            let (kind, _) = declaration(&node.name);
+            kinds.contains(&kind.as_str())
+        })
+        .collect()
+}
+
+fn child_node<'a>(root: &'a Node, expected_kind: &str) -> Option<&'a Node> {
+    root.children.iter().find(|node| {
+        let (kind, _) = declaration(&node.name);
+        kind == expected_kind
+    })
+}
+
+fn field_line(node: &Node, name: &str) -> usize {
+    field(node, name).map_or(node.line, |(_, line)| line)
+}
+
+fn field_line_with_alias(node: &Node, name: &str, alias: Option<&str>) -> usize {
+    field(node, name)
+        .or_else(|| alias.and_then(|alias| field(node, alias)))
+        .map_or(node.line, |(_, line)| line)
 }
 
 fn parse_scalar_source(value: &str, line: usize) -> Result<ScalarSource, ParseError> {
@@ -1087,7 +1708,7 @@ fn tokenize_scalar_expression(value: &str, line: usize) -> Result<Vec<ScalarToke
                     }
                 }
                 let number = value[start..cursor].parse::<f32>().map_err(|_| {
-                    ParseError::new(line, format!("invalid number '{}'", &value[start..cursor]))
+                    ParseError::invalid(line, format!("invalid number '{}'", &value[start..cursor]))
                 })?;
                 ScalarToken::Number(number)
             }
@@ -1103,7 +1724,7 @@ fn tokenize_scalar_expression(value: &str, line: usize) -> Result<Vec<ScalarToke
                 ScalarToken::Identifier(value[start..cursor].to_string())
             }
             _ => {
-                return Err(ParseError::new(
+                return Err(ParseError::invalid(
                     line,
                     format!("unexpected character '{character}' in scalar expression"),
                 ));
@@ -1112,7 +1733,7 @@ fn tokenize_scalar_expression(value: &str, line: usize) -> Result<Vec<ScalarToke
         tokens.push(token);
     }
     if tokens.is_empty() {
-        return Err(ParseError::new(line, "scalar expression is empty"));
+        return Err(ParseError::invalid(line, "scalar expression is empty"));
     }
     Ok(tokens)
 }
@@ -1216,7 +1837,7 @@ impl<'a> ScalarExpressionParser<'a> {
                 let id = match self.next().cloned() {
                     Some(ScalarToken::Identifier(value)) => parse_id_source(&value, self.line)?,
                     _ => {
-                        return Err(ParseError::new(
+                        return Err(ParseError::invalid(
                             self.line,
                             "Random first argument must be a stable pattern ID",
                         ));
@@ -1230,7 +1851,7 @@ impl<'a> ScalarExpressionParser<'a> {
                     let value =
                         literal_expression(self.parse_additive()?, self.line, "Random seed")?;
                     if !value.is_finite() || value < 0.0 || value.fract().abs() > f32::EPSILON {
-                        return Err(ParseError::new(
+                        return Err(ParseError::invalid(
                             self.line,
                             "Random seed must be a non-negative integer",
                         ));
@@ -1328,7 +1949,7 @@ impl<'a> ScalarExpressionParser<'a> {
                     source: Box::new(source),
                 })
             }
-            _ => Err(ParseError::new(
+            _ => Err(ParseError::unknown(
                 self.line,
                 format!("unknown scalar function '{name}'"),
             )),
@@ -1392,13 +2013,13 @@ fn scalar_identifier(value: &str, line: usize) -> Result<ScalarSource, ParseErro
             "edge" => PatternChannel::Edge,
             "center" => PatternChannel::Center,
             "id" => {
-                return Err(ParseError::new(
+                return Err(ParseError::unknown(
                     line,
                     "pattern IDs are not scalar fields; use Random(Pattern.id, min, max)",
                 ));
             }
             _ => {
-                return Err(ParseError::new(
+                return Err(ParseError::invalid(
                     line,
                     format!("unknown pattern channel '{channel}'"),
                 ));
@@ -1425,7 +2046,7 @@ fn literal_expression(
             op: UnaryOperator::Negate,
             source,
         } => literal_expression(*source, line, label).map(|value| -value),
-        _ => Err(ParseError::new(
+        _ => Err(ParseError::invalid(
             line,
             format!("{label} must be a literal number"),
         )),
@@ -1438,11 +2059,11 @@ fn parse_id_source(value: &str, line: usize) -> Result<IdSource, ParseError> {
         return Ok(IdSource::Current);
     }
     let (name, channel) = value.rsplit_once('.').ok_or_else(|| {
-        ParseError::new(line, "expected Id or a stable pattern ID such as Stones.id")
+        ParseError::invalid(line, "expected Id or a stable pattern ID such as Stones.id")
     })?;
     validate_identifier(name, line)?;
     if !channel.eq_ignore_ascii_case("id") {
-        return Err(ParseError::new(
+        return Err(ParseError::invalid(
             line,
             "stable ID references must end in .id",
         ));
@@ -1455,14 +2076,14 @@ fn parse_domain(value: &str, line: usize) -> Result<Domain, ParseError> {
         return Ok(Domain::Global);
     }
     let (name, channel) = value.trim().rsplit_once('.').ok_or_else(|| {
-        ParseError::new(
+        ParseError::invalid(
             line,
             "space must be Global or a pattern local space such as Stones.local",
         )
     })?;
     validate_identifier(name, line)?;
     if !channel.eq_ignore_ascii_case("local") {
-        return Err(ParseError::new(
+        return Err(ParseError::invalid(
             line,
             "pattern-local space references must end in .local",
         ));
@@ -1493,7 +2114,7 @@ fn parse_family(value: &str, line: usize) -> Result<ColorFamily, ParseError> {
         "blue" => Ok(ColorFamily::Blue),
         "purple" => Ok(ColorFamily::Purple),
         "magenta" => Ok(ColorFamily::Magenta),
-        _ => Err(ParseError::new(
+        _ => Err(ParseError::invalid(
             line,
             format!("unknown palette family '{value}'"),
         )),
@@ -1504,7 +2125,7 @@ fn parse_noise_kind(value: &str, line: usize) -> Result<NoiseKind, ParseError> {
     match value.trim().to_ascii_lowercase().as_str() {
         "value" => Ok(NoiseKind::Value),
         "gradient" | "perlin" => Ok(NoiseKind::Gradient),
-        _ => Err(ParseError::new(
+        _ => Err(ParseError::invalid(
             line,
             "noise type must be Value or Gradient",
         )),
@@ -1517,20 +2138,99 @@ fn parse_fractal_kind(value: &str, line: usize) -> Result<FractalKind, ParseErro
         "ridged" => Ok(FractalKind::Ridged),
         "billow" => Ok(FractalKind::Billow),
         "turbulence" => Ok(FractalKind::Turbulence),
-        _ => Err(ParseError::new(
+        _ => Err(ParseError::invalid(
             line,
             "noise fractal must be FBm, Ridged, Billow, or Turbulence",
         )),
     }
 }
 
-fn parse_base_color(value: &str, line: usize) -> Result<[u8; 4], ParseError> {
+fn parse_color_source(value: &str, line: usize) -> Result<ColorSource, ParseError> {
+    let value = value.trim();
+    if value.starts_with('#')
+        || value
+            .get(..3)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("F3("))
+    {
+        return parse_authored_color(value, line).map(ColorSource::Exact);
+    }
+    if value.ends_with(')')
+        && let Ok((call, arguments)) = parse_call(value, line)
+    {
+        let arguments = split_arguments(arguments);
+        return match call.to_ascii_lowercase().as_str() {
+            "mix" if arguments.len() == 3 => Ok(ColorSource::Mix {
+                a: Box::new(parse_color_source(arguments[0], line)?),
+                b: Box::new(parse_color_source(arguments[1], line)?),
+                factor: parse_scalar_source(arguments[2], line)?,
+            }),
+            "nearest" if arguments.len() == 1 => {
+                parse_authored_color(arguments[0], line).map(ColorSource::Nearest)
+            }
+            "exact" if arguments.len() == 1 => {
+                parse_authored_color(arguments[0], line).map(ColorSource::Exact)
+            }
+            "mix" => Err(ParseError::invalid(
+                line,
+                "color Mix requires two colors and one scalar mask",
+            )),
+            "nearest" | "exact" => Err(ParseError::invalid(
+                line,
+                format!("{call} requires exactly one color"),
+            )),
+            _ => Err(ParseError::unknown(
+                line,
+                format!("unknown color function '{call}'"),
+            )),
+        };
+    }
+    validate_identifier(value, line)?;
+    Ok(ColorSource::Reference(value.to_string()))
+}
+
+fn parse_authored_color(value: &str, line: usize) -> Result<[u8; 4], ParseError> {
     let value = value.trim().trim_matches('"');
+    if value
+        .get(..3)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("F3("))
+    {
+        let (call, arguments) = parse_call(value, line)?;
+        if !call.eq_ignore_ascii_case("F3") {
+            return Err(ParseError::invalid(line, "expected F3(r, g, b)"));
+        }
+        let arguments = split_arguments(arguments);
+        if arguments.len() != 3 {
+            return Err(ParseError::invalid(
+                line,
+                "F3 color requires three normalized components",
+            ));
+        }
+        let components = [
+            parse_number(arguments[0], line)?,
+            parse_number(arguments[1], line)?,
+            parse_number(arguments[2], line)?,
+        ];
+        if components
+            .iter()
+            .any(|component| !component.is_finite() || !(0.0..=1.0).contains(component))
+        {
+            return Err(ParseError::invalid(
+                line,
+                "F3 color components must be within 0..1",
+            ));
+        }
+        return Ok([
+            (components[0] * 255.0).round() as u8,
+            (components[1] * 255.0).round() as u8,
+            (components[2] * 255.0).round() as u8,
+            255,
+        ]);
+    }
     if let Some(hex) = value.strip_prefix('#') {
         if !matches!(hex.len(), 6 | 8) || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return Err(ParseError::new(
+            return Err(ParseError::invalid(
                 line,
-                "base color must be #RRGGBB, #RRGGBBAA, or a named color",
+                "color must be #RRGGBB, #RRGGBBAA, F3(r, g, b), or a named color",
             ));
         }
         let component = |start| u8::from_str_radix(&hex[start..start + 2], 16).unwrap();
@@ -1572,11 +2272,9 @@ fn parse_base_color(value: &str, line: usize) -> Result<[u8; 4], ParseError> {
         "purple" => [105, 62, 145],
         "magenta" => [165, 55, 135],
         _ => {
-            return Err(ParseError::new(
+            return Err(ParseError::invalid(
                 line,
-                format!(
-                    "unknown base color '{value}'; use #RRGGBB or a standard name such as DarkBrown"
-                ),
+                format!("unknown color '{value}'; use #RRGGBB, F3(r, g, b), or a standard name"),
             ));
         }
     };
@@ -1591,7 +2289,7 @@ fn parse_wrap(node: &Node) -> Result<WrapMode, ParseError> {
         "clamp" => Ok(WrapMode::Clamp),
         "repeat" => Ok(WrapMode::Repeat),
         "mirror" => Ok(WrapMode::Mirror),
-        _ => Err(ParseError::new(
+        _ => Err(ParseError::invalid(
             line,
             "wrap must be Clamp, Repeat, or Mirror",
         )),
@@ -1600,7 +2298,7 @@ fn parse_wrap(node: &Node) -> Result<WrapMode, ParseError> {
 
 fn required_scalar(node: &Node, name: &str) -> Result<ScalarSource, ParseError> {
     let (value, line) = field(node, name)
-        .ok_or_else(|| ParseError::new(node.line, format!("{} requires {name}", node.name)))?;
+        .ok_or_else(|| ParseError::missing(node.line, format!("{} requires {name}", node.name)))?;
     parse_scalar_source(value, line)
 }
 
@@ -1624,7 +2322,7 @@ fn optional_scalar_alias(
 
 fn reject_alias_pair(node: &Node, canonical: &str, alias: &str) -> Result<(), ParseError> {
     if field(node, canonical).is_some() && field(node, alias).is_some() {
-        Err(ParseError::new(
+        Err(ParseError::conflict(
             field(node, alias).unwrap().1,
             format!("{canonical} and {alias} are aliases; specify only one"),
         ))
@@ -1665,7 +2363,7 @@ fn optional_positive_f2(
         .iter()
         .any(|component| !component.is_finite() || *component <= 0.0)
     {
-        return Err(ParseError::new(
+        return Err(ParseError::invalid(
             field(node, name).map(|(_, line)| line).unwrap_or(node.line),
             format!("{name} values must be finite and greater than zero"),
         ));
@@ -1676,15 +2374,21 @@ fn optional_positive_f2(
 fn parse_i2(value: &str, line: usize) -> Result<[u32; 2], ParseError> {
     let (call, arguments) = parse_call(value, line)?;
     if !call.eq_ignore_ascii_case("I2") {
-        return Err(ParseError::new(line, "expected I2(x, y)"));
+        return Err(ParseError::invalid(line, "expected I2(x, y)"));
     }
     let args = split_arguments(arguments);
     if args.len() != 2 {
-        return Err(ParseError::new(line, "I2 requires two positive integers"));
+        return Err(ParseError::invalid(
+            line,
+            "I2 requires two positive integers",
+        ));
     }
     let result = [parse_u32(args[0], line)?, parse_u32(args[1], line)?];
     if result.contains(&0) {
-        return Err(ParseError::new(line, "I2 values must be greater than zero"));
+        return Err(ParseError::invalid(
+            line,
+            "I2 values must be greater than zero",
+        ));
     }
     Ok(result)
 }
@@ -1692,21 +2396,24 @@ fn parse_i2(value: &str, line: usize) -> Result<[u32; 2], ParseError> {
 fn parse_f2(value: &str, line: usize) -> Result<[f32; 2], ParseError> {
     let (call, arguments) = parse_call(value, line)?;
     if !call.eq_ignore_ascii_case("F2") {
-        return Err(ParseError::new(line, "expected F2(x, y)"));
+        return Err(ParseError::invalid(line, "expected F2(x, y)"));
     }
     let args = split_arguments(arguments);
     if args.len() != 2 {
-        return Err(ParseError::new(line, "F2 requires two numbers"));
+        return Err(ParseError::invalid(line, "F2 requires two numbers"));
     }
     Ok([parse_number(args[0], line)?, parse_number(args[1], line)?])
 }
 
 fn parse_call(value: &str, line: usize) -> Result<(&str, &str), ParseError> {
     let open = value.find('(').ok_or_else(|| {
-        ParseError::new(line, format!("expected function expression, got '{value}'"))
+        ParseError::invalid(line, format!("expected function expression, got '{value}'"))
     })?;
     if !value.ends_with(')') {
-        return Err(ParseError::new(line, "function expression is missing ')'"));
+        return Err(ParseError::invalid(
+            line,
+            "function expression is missing ')'",
+        ));
     }
     Ok((value[..open].trim(), &value[open + 1..value.len() - 1]))
 }
@@ -1740,7 +2447,7 @@ fn validate_identifier(value: &str, line: usize) -> Result<(), ParseError> {
     if !valid_first
         || !characters.all(|character| character.is_ascii_alphanumeric() || character == '_')
     {
-        return Err(ParseError::new(
+        return Err(ParseError::invalid(
             line,
             format!("'{value}' is not a valid identifier"),
         ));
@@ -1753,7 +2460,7 @@ fn parse_string(value: &str, line: usize) -> Result<String, ParseError> {
     if value.len() >= 2 && value.starts_with('"') && value.ends_with('"') {
         Ok(value[1..value.len() - 1].to_string())
     } else {
-        Err(ParseError::new(line, "expected a quoted string"))
+        Err(ParseError::invalid(line, "expected a quoted string"))
     }
 }
 
@@ -1773,7 +2480,7 @@ fn parse_alias(value: &str, line: usize) -> Result<String, ParseError> {
                 })
         })
     {
-        return Err(ParseError::new(
+        return Err(ParseError::invalid(
             line,
             "material must be an alias such as dungeon/wall_stone",
         ));
@@ -1785,21 +2492,21 @@ fn parse_number(value: &str, line: usize) -> Result<f32, ParseError> {
     value
         .trim()
         .parse::<f32>()
-        .map_err(|_| ParseError::new(line, format!("'{value}' is not a number")))
+        .map_err(|_| ParseError::invalid(line, format!("'{value}' is not a number")))
 }
 
 fn parse_u32(value: &str, line: usize) -> Result<u32, ParseError> {
     value
         .trim()
         .parse::<u32>()
-        .map_err(|_| ParseError::new(line, format!("'{value}' is not a positive integer")))
+        .map_err(|_| ParseError::invalid(line, format!("'{value}' is not a positive integer")))
 }
 
 fn parse_u64(value: &str, line: usize) -> Result<u64, ParseError> {
     value
         .trim()
         .parse::<u64>()
-        .map_err(|_| ParseError::new(line, format!("'{value}' is not a positive integer")))
+        .map_err(|_| ParseError::invalid(line, format!("'{value}' is not a positive integer")))
 }
 
 fn optional_u32(node: &Node, name: &str, default: u32) -> Result<u32, ParseError> {
@@ -1826,7 +2533,7 @@ fn optional_bool(node: &Node, name: &str, default: bool) -> Result<bool, ParseEr
             |(value, line)| match value.trim().to_ascii_lowercase().as_str() {
                 "true" => Ok(true),
                 "false" => Ok(false),
-                _ => Err(ParseError::new(
+                _ => Err(ParseError::invalid(
                     line,
                     format!("{name} must be true or false"),
                 )),
@@ -1844,7 +2551,7 @@ fn field<'a>(node: &'a Node, name: &str) -> Option<(&'a str, usize)> {
 fn reject_unknown_fields(node: &Node, allowed: &[&str]) -> Result<(), ParseError> {
     for (key, (_, line)) in &node.fields {
         if !allowed.contains(&key.as_str()) {
-            return Err(ParseError::new(
+            return Err(ParseError::unknown(
                 *line,
                 format!("unknown field '{key}' in {} block", node.name),
             ));
@@ -1853,9 +2560,29 @@ fn reject_unknown_fields(node: &Node, allowed: &[&str]) -> Result<(), ParseError
     Ok(())
 }
 
+fn unsupported_field_warnings(node: &Node, allowed: &[&str]) -> Vec<ParseWarning> {
+    let mut warnings = node
+        .fields
+        .iter()
+        .filter(|(key, _)| !allowed.contains(&key.as_str()))
+        .map(|(key, (_, line))| ParseWarning {
+            line: *line,
+            column: 1,
+            message: format!(
+                "field '{key}' is not supported by {} and was ignored",
+                node.name
+            ),
+            source_line: None,
+            source_name: None,
+        })
+        .collect::<Vec<_>>();
+    warnings.sort_by_key(|warning| warning.line);
+    warnings
+}
+
 fn reject_children(node: &Node) -> Result<(), ParseError> {
     if let Some(child) = node.children.first() {
-        Err(ParseError::new(
+        Err(ParseError::conflict(
             child.line,
             format!("{} does not accept nested blocks", node.name),
         ))
@@ -1872,20 +2599,185 @@ mod tests {
     fn parses_height_first_recipe_and_typed_references() {
         let recipe = parse_recipe(include_str!("../examples/bricks.recipe")).unwrap();
         assert_eq!(recipe.patterns.len(), 2);
-        assert_eq!(recipe.fields.len(), 3);
+        assert_eq!(recipe.fields.len(), 2);
         assert!(matches!(
-            &recipe.patterns[0].kind,
+            &recipe
+                .patterns
+                .iter()
+                .find(|pattern| pattern.name == "Kerbs")
+                .unwrap()
+                .kind,
             PatternKind::Discs { .. }
         ));
+        let wall = recipe
+            .patterns
+            .iter()
+            .find(|pattern| pattern.name == "Wall")
+            .unwrap();
         assert!(matches!(
-            &recipe.patterns[1].kind,
+            &wall.kind,
             PatternKind::Bricks {
-                rounding: ScalarSource::Binary { .. },
-                perturb: Some(ScalarSource::Binary { .. }),
+                rounding: ScalarSource::Constant(_),
                 ..
             }
         ));
-        assert!(matches!(recipe.colorize.range, ColorRange::Auto));
+        assert!(matches!(
+            &wall.perturb,
+            Some(Perturb {
+                source: ScalarSource::Binary { .. },
+                ..
+            })
+        ));
+        assert!(recipe.colorize.is_none());
+    }
+
+    #[test]
+    fn parses_common_warp_and_perturb_for_every_pattern_generator() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    Noise ShapeNoise
+        scale = F2(3.0, 3.0)
+
+    Pattern Masonry
+        Bricks
+            warp = ShapeNoise
+            warp_amount = 0.01
+            perturb = ShapeNoise
+            perturb_amount = 0.02
+
+    Pattern Cells
+        Voronoi
+            warp = ShapeNoise
+            warp_amount = 0.01
+            perturb = ShapeNoise
+            perturb_amount = 0.02
+
+    Pattern Dots
+        Discs
+            warp = ShapeNoise
+            warp_amount = 0.01
+            perturb = ShapeNoise
+            perturb_amount = 0.02
+
+    Output
+        height = Masonry.height
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(recipe.patterns.len(), 3);
+        assert!(
+            recipe
+                .patterns
+                .iter()
+                .all(|pattern| pattern.warp.is_some() && pattern.perturb.is_some())
+        );
+    }
+
+    #[test]
+    fn output_can_select_a_pattern_local_context() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    Noise LocalWarp
+        key = Id
+
+    Pattern Wall
+        Bricks
+            perturb = LocalWarp
+
+    Output
+        height = LocalWarp
+        space = Wall.local
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            recipe.output.space,
+            Domain::PatternLocal("Wall".to_string())
+        );
+    }
+
+    #[test]
+    fn output_rejects_an_unknown_pattern_local_context() {
+        let error = parse_recipe(
+            r#"
+Tile
+    Noise Grain
+
+    Output
+        height = Grain
+        space = Missing.local
+"#,
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code, ParseErrorCode::UnknownReference);
+        assert_eq!(error.line, 7);
+    }
+
+    #[test]
+    fn generator_specific_leftovers_warn_and_do_not_block_pattern_switching() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    Pattern Shape
+        Discs
+            columns = 6
+            rows = 9
+            gap = 0.02
+            bevel = 0.2
+            cells = I2(6, 9)
+            radius = 0.42
+
+    Output
+        height = Shape.height
+"#,
+        )
+        .unwrap();
+        let pattern = &recipe.patterns[0];
+
+        assert_eq!(pattern.bevel, ScalarSource::Constant(0.2));
+        assert_eq!(pattern.warnings.len(), 3);
+        assert_eq!(
+            pattern
+                .warnings
+                .iter()
+                .map(|warning| warning.line)
+                .collect::<Vec<_>>(),
+            vec![5, 6, 7]
+        );
+        assert!(
+            pattern
+                .warnings
+                .iter()
+                .all(|warning| warning.stable_code() == "PRW0001")
+        );
+        assert_eq!(
+            pattern.warnings[0].source_line.as_deref(),
+            Some("            columns = 6")
+        );
+    }
+
+    #[test]
+    fn malformed_supported_pattern_fields_remain_errors() {
+        let error = parse_recipe(
+            r#"
+Tile
+    Pattern Shape
+        Discs
+            radius = definitely_not_a_number
+
+    Output
+        height = Shape.height
+"#,
+        )
+        .unwrap_err();
+
+        assert_eq!(error.code, ParseErrorCode::UnknownReference);
+        assert_eq!(error.line, 5);
     }
 
     #[test]
@@ -1971,10 +2863,13 @@ Tile
 "#,
         )
         .unwrap();
-        assert_eq!(named.colorize.base, Some([58, 36, 24, 255]));
-        assert_eq!(named.colorize.brightness, [-0.18, 0.22]);
+        assert_eq!(
+            named.colorize.as_ref().unwrap().base,
+            Some([58, 36, 24, 255])
+        );
+        assert_eq!(named.colorize.as_ref().unwrap().brightness, [-0.18, 0.22]);
 
-        let hex = parse_base_color("\"#3A2418CC\"", 1).unwrap();
+        let hex = parse_authored_color("\"#3A2418CC\"", 1).unwrap();
         assert_eq!(hex, [58, 36, 24, 204]);
     }
 
@@ -2030,27 +2925,33 @@ Material old_oak
         fractal = Ridged
         scale = F2(12.0, 3.0)
 
-    Height Tone
+    Value Tone
         source = Abs(Sin(V * 6.0 + U + Grain))
 
-    Colorize
-        source = Tone
-        base = DarkBrown
+    Color Dark
+        nearest = #3a2418
 
-    MaterialData
+    Color Light
+        nearest = #9a6840
+
+    Color Oak
+        source = Mix(Dark, Light, Tone)
+
+    Surface
+        color = Oak
         roughness = Clamp(0.4 + Grain * 0.4, 0.0, 1.0)
         metal = 0.0
         opacity = 1.0
         emission = 0.0
-
-    Normal
-        source = Input.height + Tone * 0.1
-        strength = 0.25
+        normal = Tone
+        normal_strength = 0.25
 
 Material marble
-    Colorize
-        source = Input.height
-        base = LightGray
+    Color Marble
+        nearest = F3(0.75, 0.75, 0.72)
+
+    Surface
+        color = Marble
 "#,
         )
         .unwrap();
@@ -2065,7 +2966,158 @@ Material marble
                 ..
             })
         ));
-        assert_eq!(document.materials[1].normal, MaterialNormal::default());
+        assert!(document.materials[1].surface.normal.is_none());
+        assert_eq!(document.materials[0].colors.len(), 3);
+    }
+
+    #[test]
+    fn parses_material_color_mix_surface_and_debug_output() {
+        let document = parse_material_document(
+            r#"
+Material stone
+    Noise Grain
+        scale = F2(4, 4)
+
+    Color Dark
+        nearest = #324524
+
+    Color Light
+        base = F3(0.6, 0.7, 0.5)
+
+    Color Mixed
+        source = Mix(Dark, Light, Smoothstep(0.2, 0.8, Grain))
+
+    Surface
+        color = Mixed
+        roughness = Grain
+        normal = Grain
+        normal_strength = 0.2
+
+    Output
+        value = Grain
+        space = Global
+"#,
+        )
+        .unwrap();
+        let material = &document.materials[0];
+
+        assert_eq!(material.colors.len(), 3);
+        assert!(matches!(
+            material.colors[0].source,
+            ColorSource::Nearest([0x32, 0x45, 0x24, 255])
+        ));
+        assert!(matches!(material.colors[2].source, ColorSource::Mix { .. }));
+        assert!(matches!(
+            material.output,
+            Some(MaterialOutput::Value { .. })
+        ));
+    }
+
+    #[test]
+    fn material_rejects_height_fields_with_value_guidance() {
+        let error = parse_material_document(
+            r#"
+Material stone
+    Height Tone
+        source = 0.5
+
+    Surface
+        color = #777777
+"#,
+        )
+        .unwrap_err();
+
+        assert!(error.message.contains("Height is tile geometry"));
+        assert!(error.message.contains("use Value"));
+    }
+
+    #[test]
+    fn material_rejects_tile_height_coupling() {
+        let error = parse_material_document(
+            r#"
+Material stone
+    Surface
+        color = #777777
+        roughness = Input.height
+"#,
+        )
+        .unwrap_err();
+
+        assert!(error.message.contains("Input.height is not available"));
+    }
+
+    #[test]
+    fn parses_tile_material_map_layers() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    Pattern Wall
+        Bricks
+
+    MaterialMap
+        base = materials/mortar
+        space = Global
+        tiling = F2(2.0, 3.0)
+
+        Layer
+            material = materials/stone
+            mask = Pow(Wall.height, 1.6)
+            space = Wall.local
+            tiling = F2(0.5, 1.5)
+
+    Output
+        height = Wall.height
+"#,
+        )
+        .unwrap();
+        let material_map = recipe.material_map.unwrap();
+
+        assert_eq!(material_map.base, "materials/mortar");
+        assert_eq!(material_map.space, Domain::Global);
+        assert_eq!(material_map.tiling, [2.0, 3.0]);
+        assert_eq!(material_map.layers.len(), 1);
+        assert_eq!(material_map.layers[0].material, "materials/stone");
+        assert_eq!(
+            material_map.layers[0].space,
+            Domain::PatternLocal("Wall".to_string())
+        );
+        assert_eq!(material_map.layers[0].tiling, [0.5, 1.5]);
+    }
+
+    #[test]
+    fn material_map_rejects_unknown_local_space() {
+        let error = parse_recipe(
+            r#"
+Tile
+    MaterialMap
+        base = materials/wood
+        space = Missing.local
+
+    Output
+        height = 0.5
+"#,
+        )
+        .unwrap_err();
+
+        assert!(error.message.contains("unknown pattern 'Missing'"));
+    }
+
+    #[test]
+    fn material_map_rejects_non_positive_tiling() {
+        let error = parse_recipe(
+            r#"
+Tile
+    MaterialMap
+        base = materials/wood
+        tiling = F2(0.0, 1.0)
+
+    Output
+        height = 0.5
+"#,
+        )
+        .unwrap_err();
+
+        assert!(error.message.contains("tiling values must be"));
     }
 
     #[test]
@@ -2084,7 +3136,40 @@ Tile
         )
         .unwrap();
         assert_eq!(recipe.material.as_deref(), Some("dungeon/wall_stone"));
-        assert_eq!(recipe.colorize.source, recipe.output.height);
+        assert!(recipe.colorize.is_none());
+    }
+
+    #[test]
+    fn tile_without_output_uses_the_last_scalar_producing_block() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    Noise Grain
+        scale = F2(2.0, 2.0)
+
+    Height Surface
+        source = Grain
+"#,
+        )
+        .unwrap();
+        assert_eq!(
+            recipe.output.height,
+            ScalarSource::Field("Surface".to_string())
+        );
+        assert!(recipe.colorize.is_none());
+    }
+
+    #[test]
+    fn tile_without_output_or_a_scalar_block_has_a_stable_error() {
+        let error = parse_recipe(
+            r#"Tile
+    name = "Empty"
+"#,
+        )
+        .unwrap_err();
+        assert_eq!(error.code, ParseErrorCode::MissingRequired);
+        assert_eq!(error.line, 1);
+        assert!(error.message.contains("scalar-producing"));
     }
 
     #[test]
@@ -2092,14 +3177,12 @@ Tile
         let error = parse_material_document(
             r#"
 Material stone
-    Colorize
-        source = Input.height
-        base = Gray
+    Surface
+        color = #777777
 
 Material stone
-    Colorize
-        source = Input.height
-        base = Gray
+    Surface
+        color = #777777
 "#,
         )
         .unwrap_err();
@@ -2116,10 +3199,7 @@ Material stone
             RecipeDocument::Tile(_)
         ));
         assert!(matches!(
-            parse_document(
-                "Material stone\n    Colorize\n        source = Input.height\n        base = Gray\n"
-            )
-            .unwrap(),
+            parse_document("Material stone\n    Surface\n        color = #777777\n").unwrap(),
             RecipeDocument::Materials(_)
         ));
     }
@@ -2143,8 +3223,11 @@ Tile
 "#,
         )
         .unwrap();
-        assert_eq!(recipe.colorize.palette, PaletteMode::BaseOnly);
-        assert_eq!(recipe.colorize.steps, 128);
+        assert_eq!(
+            recipe.colorize.as_ref().unwrap().palette,
+            PaletteMode::BaseOnly
+        );
+        assert_eq!(recipe.colorize.as_ref().unwrap().steps, 128);
 
         let error = parse_recipe(
             r#"
@@ -2162,5 +3245,72 @@ Tile
         )
         .unwrap_err();
         assert!(error.message.contains("requires Colorize.base"));
+    }
+
+    #[test]
+    fn diagnostics_keep_stable_codes_and_reference_lines() {
+        let error = parse_recipe(
+            r#"
+Tile
+    Height Surface
+        source = Missing.height
+
+    Colorize
+        source = Surface
+
+    Output
+        height = Surface
+"#,
+        )
+        .unwrap_err()
+        .with_source_name("broken.recipe");
+
+        assert_eq!(error.code, ParseErrorCode::UnknownReference);
+        assert_eq!(error.stable_code(), "PR0008");
+        assert_eq!(error.line, 4);
+        assert_eq!(error.column, 9);
+        assert_eq!(
+            error.source_line.as_deref(),
+            Some("        source = Missing.height")
+        );
+
+        let diagnostic = error.to_string();
+        assert!(diagnostic.contains("error[PR0008]: unknown pattern 'Missing'"));
+        assert!(diagnostic.contains("--> broken.recipe:4:9"));
+        assert!(diagnostic.contains("4 |         source = Missing.height"));
+        assert!(diagnostic.ends_with("|         ^"));
+    }
+
+    #[test]
+    fn diagnostics_report_the_actual_duplicate_and_unknown_field_lines() {
+        let duplicate = parse_material_document(
+            "Material stone\n    Surface\n        color = #777777\n\
+             Material stone\n    Surface\n        color = #777777\n",
+        )
+        .unwrap_err();
+        assert_eq!(duplicate.code, ParseErrorCode::DuplicateDefinition);
+        assert_eq!(duplicate.line, 4);
+
+        let unknown = parse_recipe(
+            r#"Tile
+    mystery = 1
+    Colorize
+        source = 0.5
+    Output
+        height = 0.5
+"#,
+        )
+        .unwrap_err();
+        assert_eq!(unknown.code, ParseErrorCode::UnknownConstruct);
+        assert_eq!(unknown.line, 2);
+        assert_eq!(unknown.source_line.as_deref(), Some("    mystery = 1"));
+    }
+
+    #[test]
+    fn diagnostics_never_expose_line_zero() {
+        let error = parse_document("").unwrap_err();
+        assert_eq!(error.code, ParseErrorCode::Document);
+        assert_eq!(error.line, 1);
+        assert_eq!(error.column, 1);
     }
 }

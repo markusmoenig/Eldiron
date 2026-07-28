@@ -31,14 +31,14 @@ Stonefall's wall, floor, and ceiling live as height-first text recipes in
 building and embeds their results as normal tiles. No generated PNGs or
 edge-crossfade scripts are part of the asset pipeline. Recipe `coverage`
 controls how many dungeon cells share one continuous texture footprint; the
-primary wall uses coarse irregular Voronoi masonry rather than a repeating
+primary wall uses coarse, perturbed masonry rather than a small regular
 brick grid.
 
-Reusable color, Roughness/Metallic/Opacity/Emissive data, and normal settings
-live in multi-declaration `.recipe` files beside the tile recipes. The three
-environment recipes reference `dungeon.recipe`; `showcase.recipe` demonstrates that
-wood and marble can be composed from generic noise, coordinates, and scalar
-math without dedicated hardcoded material types.
+Reusable color graphs, Roughness/Metallic/Opacity/Emission data, and
+micro-normal settings live in unified `Surface` blocks inside
+multi-declaration `.recipe` files. Materials are independent of tile height;
+tile recipes own geometry and any material masks. The three environment recipes
+reference `dungeon.recipe`.
 
 The terrain in `regions/dungeon.els` is a first-person dungeon with distinct
 chambers, connecting galleries at least three cells wide, a trap hall, a crypt,

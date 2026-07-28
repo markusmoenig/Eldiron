@@ -596,8 +596,11 @@ fn load_procedural_recipe_dir(
 
         let source = fs::read_to_string(&path)
             .map_err(|error| format!("failed to read recipe {}: {error}", path.display()))?;
-        let document = parse_document(&source)
-            .map_err(|error| format!("failed to parse recipe {}: {error}", path.display()))?;
+        let document = parse_document(&source).map_err(|error| {
+            error
+                .with_source_name(path.display().to_string())
+                .to_string()
+        })?;
         documents.push((path, document));
     }
 
@@ -607,6 +610,15 @@ fn load_procedural_recipe_dir(
             continue;
         };
         let file_alias = asset_name_from_path(&root, path);
+        if document.materials.len() == 1 {
+            let alias = file_alias.to_ascii_lowercase();
+            if materials
+                .insert(alias.clone(), document.materials[0].clone())
+                .is_some()
+            {
+                return Err(format!("duplicate procedural material alias '{alias}'"));
+            }
+        }
         for material in &document.materials {
             let alias = format!("{file_alias}/{}", material.id).to_ascii_lowercase();
             if materials.insert(alias.clone(), material.clone()).is_some() {
@@ -628,9 +640,12 @@ fn load_procedural_recipe_dir(
         let rendered = renderer
             .render(&recipe, &RenderOptions::default())
             .map_err(|error| format!("failed to render recipe {}: {error}", path.display()))?;
-        let resolved_material = recipe
-            .material
+        let base_material_alias = recipe
+            .material_map
             .as_ref()
+            .map(|map| map.base.as_str())
+            .or(recipe.material.as_deref());
+        let resolved_material = base_material_alias
             .map(|alias| {
                 materials.get(&alias.to_ascii_lowercase()).ok_or_else(|| {
                     format!(
@@ -641,19 +656,82 @@ fn load_procedural_recipe_dir(
                 })
             })
             .transpose()?;
-        let rendered_material = resolved_material
+        let mut rendered_material = resolved_material
             .map(|material| {
-                renderer
-                    .render_material(material, &rendered, &RenderOptions::default())
+                let result = if let Some(material_map) = &recipe.material_map {
+                    renderer.render_material_in_space(
+                        material,
+                        &rendered,
+                        &recipe,
+                        &material_map.space,
+                        material_map.tiling,
+                        &RenderOptions::default(),
+                    )
+                } else {
+                    renderer.render_material(material, &rendered, &RenderOptions::default())
+                };
+                result.map_err(|error| {
+                    format!(
+                        "failed to render material '{}' for recipe {}: {error}",
+                        material.id,
+                        path.display()
+                    )
+                })
+            })
+            .transpose()?;
+        if let (Some(material_map), Some(rendered_material)) =
+            (&recipe.material_map, rendered_material.as_mut())
+        {
+            for layer in &material_map.layers {
+                let material = materials
+                    .get(&layer.material.to_ascii_lowercase())
+                    .ok_or_else(|| {
+                        format!(
+                            "recipe {} references unknown material '{}'",
+                            path.display(),
+                            layer.material
+                        )
+                    })?;
+                let layer_rendered = renderer
+                    .render_material_in_space(
+                        material,
+                        &rendered,
+                        &recipe,
+                        &layer.space,
+                        layer.tiling,
+                        &RenderOptions::default(),
+                    )
                     .map_err(|error| {
                         format!(
                             "failed to render material '{}' for recipe {}: {error}",
                             material.id,
                             path.display()
                         )
-                    })
-            })
-            .transpose()?;
+                    })?;
+                let masks = renderer
+                    .render_scalar_field(
+                        &recipe,
+                        &layer.mask,
+                        &procedural_recipes::Domain::Global,
+                        &RenderOptions::default(),
+                    )
+                    .map_err(|error| {
+                        format!(
+                            "failed to render material mask for recipe {}: {error}",
+                            path.display()
+                        )
+                    })?;
+                rendered_material
+                    .blend_layer(&layer_rendered, &masks)
+                    .map_err(|error| {
+                        format!(
+                            "failed to blend material '{}' for recipe {}: {error}",
+                            material.id,
+                            path.display()
+                        )
+                    })?;
+            }
+        }
         let wrap_normals = matches!(
             resolved_material.map_or(recipe.wrap, |material| material.wrap),
             WrapMode::Repeat | WrapMode::Mirror
@@ -685,10 +763,23 @@ fn load_procedural_recipe_dir(
                         emissive,
                     );
                 }
+                let combined_normal_height = frame
+                    .height
+                    .iter()
+                    .copied()
+                    .zip(material_frame.normal_height.iter().copied())
+                    .map(|(geometry, micro)| {
+                        let geometry = geometry as f32 / 255.0;
+                        let micro = micro as f32 / 255.0 - 0.5;
+                        ((geometry + micro * material.normal_strength * 0.2).clamp(0.0, 1.0)
+                            * 255.0)
+                            .round() as u8
+                    })
+                    .collect::<Vec<_>>();
                 texture.generate_normals_from_height_with_strength(
-                    &material_frame.normal_height,
+                    &combined_normal_height,
                     wrap_normals,
-                    material.normal_strength,
+                    1.0,
                 );
             } else {
                 texture.generate_normals_from_height(&frame.height, wrap_normals);
@@ -699,8 +790,8 @@ fn load_procedural_recipe_dir(
         tile.role = TileRole::ManMade;
         tile.alias = asset_name_from_path(&root, &path);
         tile.procedural.coverage = [rendered.grid_width, rendered.grid_height];
-        if let Some(alias) = &recipe.material {
-            tile.material_alias = alias.clone();
+        if let Some(alias) = base_material_alias {
+            tile.material_alias = alias.to_string();
             tile.baked_material_data = tile.textures.iter().map(Texture::material_bytes).collect();
         }
         project.tiles.insert(tile.id, tile);
@@ -3446,7 +3537,9 @@ Screen "play" {
     fn loads_procedural_recipes_as_regular_tiles() {
         let root = std::env::temp_dir().join(format!("eldiron-source-recipes-{}", Uuid::new_v4()));
         let recipes_dir = root.join("recipes/dungeon");
+        let materials_dir = root.join("recipes/materials");
         fs::create_dir_all(&recipes_dir).expect("recipe dir created");
+        fs::create_dir_all(&materials_dir).expect("material dir created");
         fs::write(
             root.join("recipes/dungeon.recipe"),
             r#"
@@ -3456,27 +3549,52 @@ Material wall
         fractal = Ridged
         scale = F2(3.0, 2.0)
 
-    Colorize
-        source = Input.height
-        base = DarkBrown
+    Color Dark
+        nearest = #3a2418
 
-    MaterialData
+    Color Light
+        nearest = #9a6840
+
+    Color Wall
+        source = Mix(Dark, Light, Grain)
+
+    Surface
+        color = Wall
+        palette = BaseOnly
         roughness = 0.8
         metallic = 0.2
         opacity = 1.0
-        emissive = 0.1
-
-    Normal
-        source = Input.height + Grain * 0.05
-        strength = 0.5
+        emission = 0.1
+        normal = Grain
+        normal_strength = 0.5
 
 Material unused
-    Colorize
-        source = Input.height
-        base = Gray
+    Surface
+        color = #777777
 "#,
         )
         .expect("material written");
+        fs::write(
+            materials_dir.join("stone.recipe"),
+            r#"
+Material stone
+    Surface
+        color = #795438
+        roughness = 0.9
+        metallic = 0.0
+"#,
+        )
+        .expect("single material written");
+        fs::write(
+            materials_dir.join("mortar.recipe"),
+            r#"
+Material mortar
+    Surface
+        color = #36322f
+        roughness = 1.0
+"#,
+        )
+        .expect("mortar material written");
         fs::write(
             recipes_dir.join("wall.recipe"),
             r#"
@@ -3507,6 +3625,29 @@ Tile
 "#,
         )
         .expect("recipe written");
+        fs::write(
+            recipes_dir.join("floor.recipe"),
+            r#"
+Tile
+    name = "Test Floor"
+    size = I2(8, 8)
+
+    Pattern Floor
+        Voronoi
+            cells = I2(3, 3)
+
+    MaterialMap
+        base = materials/mortar
+
+        Layer
+            material = materials/stone
+            mask = Floor.height
+
+    Output
+        height = Floor.height
+"#,
+        )
+        .expect("direct material reference recipe written");
 
         let mut project = Project::new();
         load_project_directory_assets(&mut project, &root, &SourceSection::default())
@@ -3533,10 +3674,29 @@ Tile
                 .all(|texture| texture.data_ext.is_some())
         );
         assert!(wall.textures.iter().any(|texture| {
+            texture
+                .data
+                .chunks_exact(4)
+                .any(|pixel| pixel[0] != pixel[1] || pixel[1] != pixel[2])
+        }));
+        assert!(wall.textures.iter().any(|texture| {
             (0..texture.height).any(|y| {
                 (0..texture.width).any(|x| texture.get_normal(x as u32, y as u32) != (0.0, 0.0))
             })
         }));
+        let floor = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "dungeon/floor")
+            .expect("procedural floor tile loaded");
+        assert_eq!(floor.material_alias, "materials/mortar");
+        assert_eq!(floor.baked_material_data.len(), 1);
+        assert!(
+            floor
+                .textures
+                .iter()
+                .any(|texture| texture.data_ext.is_some())
+        );
         let material_frames = wall.to_material_array();
         let mut material_texture = Texture::from_color([0, 0, 0, 255]);
         material_texture.width = wall.textures[0].width;
@@ -3577,7 +3737,7 @@ Tile
         let error = load_project_directory_assets(&mut project, &root, &SourceSection::default())
             .expect_err("invalid recipe is rejected");
         assert!(error.contains(&recipe_path.display().to_string()));
-        assert!(error.contains("failed to parse recipe"));
+        assert!(error.contains("error[PR0005]"));
 
         let _ = fs::remove_dir_all(root);
     }

@@ -10,6 +10,7 @@ pub enum RecipeDocument {
 pub struct Recipe {
     pub name: String,
     pub material: Option<String>,
+    pub material_map: Option<MaterialMap>,
     pub size: [u32; 2],
     pub coverage: [u32; 2],
     pub wrap: WrapMode,
@@ -18,7 +19,7 @@ pub struct Recipe {
     pub animation: Animation,
     pub fields: Vec<FieldDefinition>,
     pub patterns: Vec<PatternDefinition>,
-    pub colorize: Colorize,
+    pub colorize: Option<Colorize>,
     pub output: Output,
 }
 
@@ -27,6 +28,7 @@ impl Default for Recipe {
         Self {
             name: "Untitled Tile".to_string(),
             material: None,
+            material_map: None,
             size: [64, 64],
             coverage: [1, 1],
             wrap: WrapMode::Repeat,
@@ -35,7 +37,7 @@ impl Default for Recipe {
             animation: Animation::default(),
             fields: Vec::new(),
             patterns: Vec::new(),
-            colorize: Colorize::default(),
+            colorize: None,
             output: Output::default(),
         }
     }
@@ -70,6 +72,7 @@ impl Default for Animation {
 pub enum FieldDefinition {
     Noise(NoiseField),
     Height(HeightField),
+    Value(ValueField),
 }
 
 impl FieldDefinition {
@@ -77,6 +80,7 @@ impl FieldDefinition {
         match self {
             Self::Noise(field) => &field.name,
             Self::Height(field) => &field.name,
+            Self::Value(field) => &field.name,
         }
     }
 }
@@ -92,6 +96,12 @@ pub struct NoiseField {
     pub octaves: u32,
     pub persistence: f32,
     pub seed: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ValueField {
+    pub name: String,
+    pub source: ScalarSource,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,7 +170,11 @@ pub struct PatternDefinition {
     pub domain: Domain,
     pub key: Option<IdSource>,
     pub warp: Option<Warp>,
+    pub bevel: ScalarSource,
+    pub perturb: Option<Perturb>,
     pub kind: PatternKind,
+    #[serde(skip)]
+    pub warnings: Vec<ParseWarning>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -176,6 +190,56 @@ pub struct Warp {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Perturb {
+    pub source: ScalarSource,
+    pub amount: ScalarSource,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ParseWarning {
+    pub line: usize,
+    pub column: usize,
+    pub message: String,
+    pub source_line: Option<String>,
+    pub source_name: Option<String>,
+}
+
+impl ParseWarning {
+    pub const fn stable_code(&self) -> &'static str {
+        "PRW0001"
+    }
+
+    pub fn with_source_name(mut self, source_name: impl Into<String>) -> Self {
+        self.source_name = Some(source_name.into());
+        self
+    }
+}
+
+impl std::fmt::Display for ParseWarning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "warning[{}]: {}", self.stable_code(), self.message)?;
+        if let Some(source_name) = &self.source_name {
+            write!(f, " --> {source_name}:{}:{}", self.line, self.column)?;
+        } else {
+            write!(f, " --> line {}:{}", self.line, self.column)?;
+        }
+        if let Some(source_line) = &self.source_line {
+            let gutter_width = self.line.to_string().len();
+            write!(
+                f,
+                "\n {:gutter_width$} |\n {} | {}\n {:gutter_width$} | {}^",
+                "",
+                self.line,
+                source_line,
+                "",
+                " ".repeat(self.column.saturating_sub(1)),
+            )?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum PatternKind {
     Bricks {
         columns: u32,
@@ -185,8 +249,6 @@ pub enum PatternKind {
         rounding: ScalarSource,
         rotation: ScalarSource,
         size_variation: [f32; 2],
-        perturb: Option<ScalarSource>,
-        perturb_amount: ScalarSource,
         falloff: ScalarSource,
         seed: u64,
     },
@@ -358,12 +420,14 @@ pub enum ColorRange {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Output {
     pub height: ScalarSource,
+    pub space: Domain,
 }
 
 impl Default for Output {
     fn default() -> Self {
         Self {
             height: ScalarSource::Constant(0.0),
+            space: Domain::Global,
         }
     }
 }
@@ -381,43 +445,76 @@ pub struct MaterialRecipe {
     pub seed: u64,
     pub fields: Vec<FieldDefinition>,
     pub patterns: Vec<PatternDefinition>,
-    pub colorize: Colorize,
-    pub data: MaterialData,
-    pub normal: MaterialNormal,
+    pub colors: Vec<ColorDefinition>,
+    pub surface: MaterialSurface,
+    pub output: Option<MaterialOutput>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct MaterialData {
+pub struct ColorDefinition {
+    pub name: String,
+    pub source: ColorSource,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum ColorSource {
+    Exact([u8; 4]),
+    Nearest([u8; 4]),
+    Reference(String),
+    Mix {
+        a: Box<ColorSource>,
+        b: Box<ColorSource>,
+        factor: ScalarSource,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MaterialSurface {
+    pub color: ColorSource,
+    pub palette: PaletteMode,
     pub roughness: ScalarSource,
     pub metallic: ScalarSource,
     pub opacity: ScalarSource,
     pub emissive: ScalarSource,
+    pub normal: Option<ScalarSource>,
+    pub normal_strength: f32,
 }
 
-impl Default for MaterialData {
+impl Default for MaterialSurface {
     fn default() -> Self {
         Self {
-            roughness: ScalarSource::Constant(0.5),
+            color: ColorSource::Exact([128, 128, 128, 255]),
+            palette: PaletteMode::BaseOnly,
+            roughness: ScalarSource::Constant(1.0),
             metallic: ScalarSource::Constant(0.0),
             opacity: ScalarSource::Constant(1.0),
             emissive: ScalarSource::Constant(0.0),
+            normal: None,
+            normal_strength: 0.35,
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct MaterialNormal {
-    pub source: ScalarSource,
-    pub strength: f32,
+pub enum MaterialOutput {
+    Value { source: ScalarSource, space: Domain },
+    Color { source: ColorSource, space: Domain },
 }
 
-impl Default for MaterialNormal {
-    fn default() -> Self {
-        Self {
-            source: ScalarSource::InputHeight,
-            strength: 0.35,
-        }
-    }
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MaterialMap {
+    pub base: String,
+    pub space: Domain,
+    pub tiling: [f32; 2],
+    pub layers: Vec<MaterialLayer>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct MaterialLayer {
+    pub material: String,
+    pub mask: ScalarSource,
+    pub space: Domain,
+    pub tiling: [f32; 2],
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]

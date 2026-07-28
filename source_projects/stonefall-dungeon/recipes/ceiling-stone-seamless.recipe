@@ -1,5 +1,5 @@
 Tile
-    name = "Stonefall Rough Stone Ceiling"
+    name = "Stone Ceiling"
     material = dungeon/ceiling_stone
     size = I2(64, 64)
     coverage = I2(3, 3)

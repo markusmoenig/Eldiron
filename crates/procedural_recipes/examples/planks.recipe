@@ -1,0 +1,56 @@
+Tile
+    name = "Wood Planks"
+    size = I2(64, 64)
+    coverage = I2(4, 4)
+    wrap = Repeat
+    seed = 47
+    pixelate = 1
+
+    Noise EdgeWarp
+        key = Id
+        type = Gradient
+        fractal = FBm
+        scale = F2(5.0, 2.0)
+        octaves = 2
+        persistence = 0.48
+        seed = 7
+
+    Pattern Planks
+        Bricks
+            columns = 2
+            rows = 8
+            stagger = 0.5
+            gap = 0.04
+            bevel = 0.10
+            rounding = 0.02
+            rotation = Random(Id, -0.4, 0.4, 11)
+            size_variation = F2(0.04, 0.015)
+            perturb = EdgeWarp
+            perturb_amount = 0.012
+            seed = 19
+
+    Height Surface
+        source = Planks.height
+
+        Shape
+            contrast = 1.18
+            plateau = 1.25
+            rim = 0.035
+
+        Clamp
+            min = 0.0
+            max = 1.0
+
+    MaterialMap
+        base = materials/mortar
+        space = Global
+        tiling = F2(4.0, 4.0)
+
+        Layer
+            material = materials/wood
+            mask = Pow(Planks.height, 1.5)
+            space = Planks.local
+            tiling = F2(0.65, 0.45)
+
+    Output
+        height = Surface

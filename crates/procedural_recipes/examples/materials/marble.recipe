@@ -1,0 +1,64 @@
+// Seamless veined marble built entirely from generic noises and expressions.
+
+Material marble
+    name = "Marble"
+    wrap = Repeat
+    seed = 409
+
+    Noise Warp
+        type = Gradient
+        fractal = FBm
+        scale = F2(3.0, 3.0)
+        octaves = 4
+        persistence = 0.56
+        seed = 19
+
+    Noise Speckle
+        type = Value
+        fractal = Billow
+        scale = F2(14.0, 14.0)
+        octaves = 2
+        persistence = 0.40
+        seed = 29
+
+    Noise Cloud
+        type = Gradient
+        fractal = FBm
+        scale = F2(2.0, 2.0)
+        octaves = 3
+        persistence = 0.50
+        seed = 37
+
+    Value Veins
+        source = Abs(Sin(U * 2.0 + V * 5.0 + Warp * 2.3))
+
+    Value VeinMask
+        source = Pow(Smoothstep(0.86, 0.98, Veins), 2.2)
+
+    Color MarbleBase
+        nearest = #d2ccbd
+
+    Color MarbleShade
+        nearest = #aaa6a0
+
+    Color MarbleVein
+        nearest = #515258
+
+    Color MarbleBody
+        source = Mix(MarbleBase, MarbleShade, Cloud * 0.36)
+
+    Color MarbleColor
+        source = Mix(MarbleBody, MarbleVein, VeinMask)
+
+    Surface
+        color = MarbleColor
+        palette = BaseOnly
+        roughness = Clamp(0.18 + Speckle * 0.16, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emission = 0.0
+        normal = Clamp(VeinMask * 0.72 + Speckle * 0.12, 0.0, 1.0)
+        normal_strength = 0.12
+
+    Output
+        color = MarbleColor

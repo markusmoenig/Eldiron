@@ -1,9 +1,10 @@
 Material wall_stone
-    name = "Stonefall Wall Stone"
+    name = "Wall Stone"
     wrap = Repeat
     seed = 301
 
     Noise Mineral
+        key = Id
         type = Gradient
         fractal = Ridged
         scale = F2(3.0, 4.0)
@@ -11,30 +12,39 @@ Material wall_stone
         persistence = 0.52
         seed = 11
 
-    Height Tone
-        source = Clamp(Input.height * 0.91 + Mineral * 0.09, 0.0, 1.0)
+    Value WallDetail
+        source = Smoothstep(0.16, 0.84, Mineral)
 
-    Colorize
-        source = Tone
-        base = "#403A34"
-        brightness = F2(-0.16, 0.15)
-        saturation = F2(-0.04, 0.035)
-        hue = F2(-0.005, 0.005)
-        steps = 6
-        range = F2(0.0, 1.0)
+    Value WallUnitTone
+        source = Random(Id, 0.0, 1.0, 53)
 
-    MaterialData
+    Color WallShadow
+        nearest = #2d2926
+
+    Color WallBaseDark
+        nearest = #575149
+
+    Color WallBaseLight
+        nearest = #686057
+
+    Color WallBase
+        source = Mix(WallBaseDark, WallBaseLight, WallUnitTone)
+
+    Color WallColor
+        source = Mix(WallShadow, WallBase, WallDetail)
+
+    Surface
+        color = WallColor
+        palette = BaseOnly
         roughness = Clamp(0.72 + Mineral * 0.20, 0.0, 1.0)
         metallic = 0.0
         opacity = 1.0
-        emissive = 0.0
-
-    Normal
-        source = Clamp(Input.height + Mineral * 0.045, 0.0, 1.0)
-        strength = 0.32
+        emission = 0.0
+        normal = Mineral
+        normal_strength = 0.32
 
 Material floor_stone
-    name = "Stonefall Floor Stone"
+    name = "Floor Stone"
     wrap = Repeat
     seed = 307
 
@@ -46,29 +56,27 @@ Material floor_stone
         persistence = 0.46
         seed = 17
 
-    Height Tone
-        source = Clamp(Input.height * 0.94 + Wear * 0.06, 0.0, 1.0)
+    Color FloorDark
+        nearest = #292827
 
-    Colorize
-        source = Tone
-        base = "#343331"
-        brightness = F2(-0.12, 0.13)
-        saturation = F2(-0.03, 0.02)
-        steps = 6
-        range = F2(0.0, 1.0)
+    Color FloorLight
+        nearest = #55524d
 
-    MaterialData
+    Color FloorColor
+        source = Mix(FloorDark, FloorLight, Wear)
+
+    Surface
+        color = FloorColor
+        palette = BaseOnly
         roughness = Clamp(0.64 + Wear * 0.24, 0.0, 1.0)
         metallic = 0.0
         opacity = 1.0
-        emissive = 0.0
-
-    Normal
-        source = Clamp(Input.height + Wear * 0.035, 0.0, 1.0)
-        strength = 0.27
+        emission = 0.0
+        normal = Wear
+        normal_strength = 0.27
 
 Material ceiling_stone
-    name = "Stonefall Ceiling Stone"
+    name = "Ceiling Stone"
     wrap = Repeat
     seed = 313
 
@@ -80,23 +88,53 @@ Material ceiling_stone
         persistence = 0.50
         seed = 23
 
-    Height Tone
-        source = Clamp(Input.height * 0.92 + Dust * 0.08, 0.0, 1.0)
+    Color CeilingDark
+        nearest = #292b2f
 
-    Colorize
-        source = Tone
-        base = "#34363A"
-        brightness = F2(-0.13, 0.11)
-        saturation = F2(-0.02, 0.025)
-        steps = 5
-        range = F2(0.0, 1.0)
+    Color CeilingLight
+        nearest = #555960
 
-    MaterialData
+    Color CeilingColor
+        source = Mix(CeilingDark, CeilingLight, Dust)
+
+    Surface
+        color = CeilingColor
+        palette = BaseOnly
         roughness = Clamp(0.76 + Dust * 0.18, 0.0, 1.0)
         metallic = 0.0
         opacity = 1.0
-        emissive = 0.0
+        emission = 0.0
+        normal = Dust
+        normal_strength = 0.29
 
-    Normal
-        source = Clamp(Input.height + Dust * 0.04, 0.0, 1.0)
-        strength = 0.29
+Material wall_mortar
+    name = "Mortar"
+    wrap = Repeat
+    seed = 317
+
+    Noise Grit
+        type = Value
+        fractal = FBm
+        scale = F2(8.0, 8.0)
+        octaves = 3
+        persistence = 0.48
+        seed = 29
+
+    Color MortarDark
+        nearest = #171819
+
+    Color MortarLight
+        nearest = #343536
+
+    Color MortarColor
+        source = Mix(MortarDark, MortarLight, Grit * 0.58)
+
+    Surface
+        color = MortarColor
+        palette = BaseOnly
+        roughness = Clamp(0.84 + Grit * 0.12, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emission = 0.0
+        normal = Grit
+        normal_strength = 0.18

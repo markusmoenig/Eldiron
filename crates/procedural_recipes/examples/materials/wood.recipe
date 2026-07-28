@@ -1,0 +1,79 @@
+// Seamless wood grain built entirely from generic noises and scalar expressions.
+
+Material wood
+    name = "Wood"
+    wrap = Repeat
+    seed = 401
+
+    Noise Warp
+        key = Id
+        type = Gradient
+        fractal = FBm
+        scale = F2(3.0, 2.0)
+        octaves = 4
+        persistence = 0.52
+        seed = 7
+
+    Noise Pores
+        key = Id
+        type = Gradient
+        fractal = Ridged
+        scale = F2(5.0, 18.0)
+        octaves = 2
+        persistence = 0.42
+        seed = 13
+
+    Value GrainFrequency
+        source = Random(Id, 4.5, 10.5, 49)
+
+    Value GrainSharpness
+        source = Random(Id, 4.0, 8.0, 51)
+
+    Value LongGrain
+        source = Pow(Abs(Sin(V * GrainFrequency + Sin(U * 2.0) * 0.28 + Warp * 1.25)), GrainSharpness)
+
+    Value KnotU
+        source = Random(Id, 0.28, 0.72, 41)
+
+    Value KnotV
+        source = Random(Id, 0.24, 0.76, 43)
+
+    Value KnotDistance
+        source = Sqrt(Pow((U - KnotU) * 0.62, 2.0) + Pow((V - KnotV) * 1.75, 2.0))
+
+    Value KnotRings
+        source = Pow(Abs(Sin(KnotDistance * 11.0 + Warp * 0.45)), 7.0)
+
+    Value KnotMask
+        source = Invert(Smoothstep(0.08, 0.42, KnotDistance)) * Smoothstep(0.58, 0.62, Random(Id, 0.0, 1.0, 47))
+
+    Value Grain
+        source = Mix(LongGrain, KnotRings, KnotMask)
+
+    Value GrainStrength
+        source = Random(Id, 0.22, 0.58, 53)
+
+    Value Tone
+        source = Clamp(0.72 - Grain * GrainStrength + Pores * 0.12 + Random(Id, -0.12, 0.12, 31), 0.0, 1.0)
+
+    Color WoodDark
+        nearest = #3a1f0d
+
+    Color WoodLight
+        nearest = #c97825
+
+    Color WoodColor
+        source = Mix(WoodDark, WoodLight, Tone)
+
+    Surface
+        color = WoodColor
+        palette = BaseOnly
+        roughness = Clamp(0.50 + Pores * 0.32, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emission = 0.0
+        normal = Clamp(Grain * 0.72 + Pores * 0.28, 0.0, 1.0)
+        normal_strength = 0.24
+
+    Output
+        color = WoodColor

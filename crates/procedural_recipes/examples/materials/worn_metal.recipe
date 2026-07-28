@@ -1,0 +1,33 @@
+Material worn_metal
+    name = "Worn Metal"
+    wrap = Repeat
+    seed = 79
+
+    Noise Wear
+        type = Gradient
+        fractal = Billow
+        scale = F2(7.0, 7.0)
+        octaves = 3
+        persistence = 0.48
+
+    Color Iron
+        nearest = #55585c
+
+    Color Scuff
+        nearest = #a0a09a
+
+    Color WornIron
+        source = Mix(Iron, Scuff, Smoothstep(0.45, 0.82, Wear))
+
+    Surface
+        color = WornIron
+        palette = BaseOnly
+        roughness = Clamp(0.22 + Wear * 0.58, 0.0, 1.0)
+        metallic = 0.88
+        opacity = 1.0
+        emission = 0.0
+        normal = Wear
+        normal_strength = 0.22
+
+    Output
+        color = WornIron

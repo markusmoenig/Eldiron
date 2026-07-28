@@ -1,5 +1,5 @@
 Tile
-    name = "Stonefall Flagstone Floor"
+    name = "Flagstone Floor"
     material = dungeon/floor_stone
     size = I2(64, 64)
     coverage = I2(3, 3)

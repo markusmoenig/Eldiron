@@ -1,14 +1,14 @@
 use crate::{
     ast::{
-        BinaryOperator, ColorRange, Colorize, CombineMode, CoordinateChannel, Domain,
-        FieldDefinition, FractalKind, HeightOperation, IdSource, MaterialRecipe, NoiseKind, Output,
-        PaletteMode, PatternChannel, PatternDefinition, PatternKind, Recipe, ScalarSource,
-        UnaryOperator, WrapMode,
+        BinaryOperator, ColorRange, ColorSource, Colorize, CombineMode, CoordinateChannel, Domain,
+        FieldDefinition, FractalKind, HeightOperation, IdSource, MaterialOutput, MaterialRecipe,
+        NoiseKind, Output, PaletteMode, PatternChannel, PatternDefinition, PatternKind, Recipe,
+        ScalarSource, UnaryOperator, WrapMode,
     },
     palette::{PaletteError, PaletteModel},
 };
 use std::{error::Error, fmt};
-use theframework::prelude::ThePalette;
+use theframework::prelude::{TheColor, ThePalette};
 
 const MAX_RENDER_DIMENSION: u32 = 16_384;
 
@@ -155,6 +155,77 @@ impl RenderedMaterial {
             1,
         )
     }
+
+    pub fn blend_layer(
+        &mut self,
+        layer: &RenderedMaterial,
+        masks: &[Vec<f32>],
+    ) -> Result<(), RenderError> {
+        if self.width != layer.width
+            || self.height != layer.height
+            || self.frames.len() != layer.frames.len()
+            || masks.len() != self.frames.len()
+        {
+            return Err(RenderError::Dimensions(
+                "material layer dimensions or frame counts do not match".to_string(),
+            ));
+        }
+        let pixel_count = (self.width * self.height) as usize;
+        let base_normal_strength = self.normal_strength;
+        let layer_normal_strength = layer.normal_strength;
+        for (frame_index, (base, layer)) in self.frames.iter_mut().zip(&layer.frames).enumerate() {
+            let mask = &masks[frame_index];
+            if mask.len() != pixel_count {
+                return Err(RenderError::Dimensions(
+                    "material layer mask dimensions do not match".to_string(),
+                ));
+            }
+            for (index, factor) in mask.iter().copied().enumerate() {
+                let factor = factor.clamp(0.0, 1.0);
+                let base_color = srgba8_to_linear([
+                    base.rgba[index * 4],
+                    base.rgba[index * 4 + 1],
+                    base.rgba[index * 4 + 2],
+                    base.rgba[index * 4 + 3],
+                ]);
+                let layer_color = srgba8_to_linear([
+                    layer.rgba[index * 4],
+                    layer.rgba[index * 4 + 1],
+                    layer.rgba[index * 4 + 2],
+                    layer.rgba[index * 4 + 3],
+                ]);
+                let mixed = linear_to_srgba8([
+                    lerp(base_color[0], layer_color[0], factor),
+                    lerp(base_color[1], layer_color[1], factor),
+                    lerp(base_color[2], layer_color[2], factor),
+                    lerp(base_color[3], layer_color[3], factor),
+                ]);
+                base.rgba[index * 4..index * 4 + 4].copy_from_slice(&mixed);
+                base.palette_indices[index] = if factor <= 0.0 {
+                    base.palette_indices[index]
+                } else if factor >= 1.0 {
+                    layer.palette_indices[index]
+                } else {
+                    u16::MAX
+                };
+                for channel in 0..4 {
+                    base.material[index][channel] = lerp(
+                        base.material[index][channel],
+                        layer.material[index][channel],
+                        factor,
+                    );
+                }
+                let base_micro =
+                    0.5 + (base.normal_height[index] as f32 / 255.0 - 0.5) * base_normal_strength;
+                let layer_micro =
+                    0.5 + (layer.normal_height[index] as f32 / 255.0 - 0.5) * layer_normal_strength;
+                base.normal_height[index] =
+                    (lerp(base_micro, layer_micro, factor).clamp(0.0, 1.0) * 255.0).round() as u8;
+            }
+        }
+        self.normal_strength = 1.0;
+        Ok(())
+    }
 }
 
 #[derive(Debug)]
@@ -194,6 +265,19 @@ impl RecipeRenderer {
 
     pub fn from_palette_model(palette: PaletteModel) -> Self {
         Self { palette }
+    }
+
+    /// Creates a renderer for tiles that do not declare `Colorize`.
+    ///
+    /// Their output bypasses palette mapping and is emitted directly as
+    /// grayscale. A palette is still required for colored tiles and material
+    /// color previews.
+    pub fn grayscale() -> Self {
+        let palette = ThePalette::new(vec![
+            Some(TheColor::from_u8(0, 0, 0, 255)),
+            Some(TheColor::from_u8(255, 255, 255, 255)),
+        ]);
+        Self::new(&palette).expect("the built-in grayscale palette is not empty")
     }
 
     pub fn palette_model(&self) -> &PaletteModel {
@@ -243,11 +327,95 @@ impl RecipeRenderer {
         })
     }
 
+    pub fn render_scalar_field(
+        &self,
+        recipe: &Recipe,
+        source: &ScalarSource,
+        space: &Domain,
+        options: &RenderOptions,
+    ) -> Result<Vec<Vec<f32>>, RenderError> {
+        let width = recipe.size[0]
+            .checked_mul(recipe.coverage[0])
+            .ok_or_else(|| RenderError::Dimensions("render width overflows".to_string()))?;
+        let height = recipe.size[1]
+            .checked_mul(recipe.coverage[1])
+            .ok_or_else(|| RenderError::Dimensions("render height overflows".to_string()))?;
+        let evaluator = Evaluator {
+            recipe,
+            seed: mix64(recipe.seed ^ options.seed_offset),
+        };
+        let frame_count = recipe.animation.frames.max(1);
+        let mut frames = Vec::with_capacity(frame_count as usize);
+        for frame_index in 0..frame_count {
+            let time = frame_index as f32 / frame_count as f32;
+            let mut values = vec![0.0; (width * height) as usize];
+            for y in 0..height {
+                for x in 0..width {
+                    let context = EvalContext {
+                        uv: [
+                            wrap_coordinate((x as f32 + 0.5) / width as f32, recipe.wrap),
+                            wrap_coordinate((y as f32 + 0.5) / height as f32, recipe.wrap),
+                        ],
+                        time,
+                        current_id: None,
+                        input_height: 0.0,
+                        pattern_bindings: [None; 8],
+                    };
+                    let context = evaluator.context_in_domain(space, context, &mut Vec::new())?;
+                    values[(y * width + x) as usize] = evaluator
+                        .scalar(source, context, &mut Vec::new())?
+                        .clamp(0.0, 1.0);
+                }
+            }
+            frames.push(values);
+        }
+        Ok(frames)
+    }
+
     pub fn render_material(
         &self,
         material: &MaterialRecipe,
         input: &RenderedRecipe,
         options: &RenderOptions,
+    ) -> Result<RenderedMaterial, RenderError> {
+        self.render_material_internal(material, input, options, false, None, [1.0, 1.0])
+    }
+
+    /// Renders a material in a coordinate space supplied by a tile.
+    ///
+    /// Pattern-local spaces reset material coordinates for every pattern unit
+    /// and expose that unit's stable identity as `Id` to the complete material.
+    pub fn render_material_in_space(
+        &self,
+        material: &MaterialRecipe,
+        input: &RenderedRecipe,
+        tile: &Recipe,
+        space: &Domain,
+        tiling: [f32; 2],
+        options: &RenderOptions,
+    ) -> Result<RenderedMaterial, RenderError> {
+        self.render_material_internal(material, input, options, false, Some((tile, space)), tiling)
+    }
+
+    /// Renders a standalone material preview. An optional material `Output`
+    /// overrides only the preview image and is ignored by `render_material`.
+    pub fn render_material_preview(
+        &self,
+        material: &MaterialRecipe,
+        input: &RenderedRecipe,
+        options: &RenderOptions,
+    ) -> Result<RenderedMaterial, RenderError> {
+        self.render_material_internal(material, input, options, true, None, [1.0, 1.0])
+    }
+
+    fn render_material_internal(
+        &self,
+        material: &MaterialRecipe,
+        input: &RenderedRecipe,
+        options: &RenderOptions,
+        use_debug_output: bool,
+        tile_space: Option<(&Recipe, &Domain)>,
+        tiling: [f32; 2],
     ) -> Result<RenderedMaterial, RenderError> {
         let evaluation_recipe = Recipe {
             name: material.name.clone(),
@@ -255,43 +423,106 @@ impl RecipeRenderer {
             seed: material.seed,
             fields: material.fields.clone(),
             patterns: material.patterns.clone(),
-            colorize: material.colorize.clone(),
-            output: Output {
-                height: material.colorize.source.clone(),
-            },
             ..Recipe::default()
         };
         let evaluator = Evaluator {
             recipe: &evaluation_recipe,
             seed: mix64(material.seed ^ options.seed_offset),
         };
+        let tile_evaluator = tile_space.map(|(tile, _)| Evaluator {
+            recipe: tile,
+            seed: mix64(tile.seed ^ options.seed_offset),
+        });
         let pixel_count = (input.width * input.height) as usize;
         let mut frames = Vec::with_capacity(input.frames.len());
         for input_frame in &input.frames {
-            let mut color_values = vec![0.0_f32; pixel_count];
+            let mut rgba = vec![0_u8; pixel_count * 4];
+            let mut palette_indices = vec![u16::MAX; pixel_count];
             let mut material_values = vec![[0.0_f32; 4]; pixel_count];
-            let mut normal_height = vec![0_u8; pixel_count];
+            let mut normal_height = vec![128_u8; pixel_count];
             for y in 0..input.height {
                 for x in 0..input.width {
                     let index = (y * input.width + x) as usize;
-                    let context = EvalContext {
+                    let global_uv = [
+                        (x as f32 + 0.5) / input.width as f32,
+                        (y as f32 + 0.5) / input.height as f32,
+                    ];
+                    let mut context = EvalContext {
                         uv: [
-                            wrap_coordinate((x as f32 + 0.5) / input.width as f32, material.wrap),
-                            wrap_coordinate((y as f32 + 0.5) / input.height as f32, material.wrap),
+                            wrap_coordinate(global_uv[0] * tiling[0], material.wrap),
+                            wrap_coordinate(global_uv[1] * tiling[1], material.wrap),
                         ],
                         time: input_frame.time,
-                        current_id: None,
-                        input_height: input_frame.height[index] as f32 / 255.0,
+                        current_id: Some(0),
+                        input_height: 0.0,
+                        pattern_bindings: [None; 8],
                     };
-                    let mut stack = Vec::new();
-                    color_values[index] = evaluator
-                        .scalar(&material.colorize.source, context, &mut stack)?
-                        .clamp(0.0, 1.0);
+                    if let (Some((tile, space)), Some(tile_evaluator)) =
+                        (tile_space, tile_evaluator.as_ref())
+                        && let Domain::PatternLocal(_) = space
+                    {
+                        let tile_context = EvalContext {
+                            uv: global_uv.map(|coordinate| wrap_coordinate(coordinate, tile.wrap)),
+                            time: input_frame.time,
+                            current_id: None,
+                            input_height: 0.0,
+                            pattern_bindings: [None; 8],
+                        };
+                        let local = tile_evaluator.context_in_domain(
+                            space,
+                            tile_context,
+                            &mut Vec::new(),
+                        )?;
+                        context.uv = [
+                            wrap_coordinate(local.uv[0] * tiling[0], material.wrap),
+                            wrap_coordinate(local.uv[1] * tiling[1], material.wrap),
+                        ];
+                        context.current_id = Some(local.current_id.unwrap_or(0));
+                    }
+                    let color = self.evaluate_material_color(
+                        material,
+                        &material.surface.color,
+                        &evaluator,
+                        context,
+                        &mut Vec::new(),
+                    )?;
+                    let (mut pixel, mut palette_index) =
+                        self.finish_material_color(color, material.surface.palette);
+                    if use_debug_output {
+                        match &material.output {
+                            Some(MaterialOutput::Value { source, space }) => {
+                                let context =
+                                    evaluator.context_in_domain(space, context, &mut Vec::new())?;
+                                let value = evaluator
+                                    .scalar(source, context, &mut Vec::new())?
+                                    .clamp(0.0, 1.0);
+                                let gray = (value * 255.0).round() as u8;
+                                pixel = [gray, gray, gray, 255];
+                                palette_index = u16::MAX;
+                            }
+                            Some(MaterialOutput::Color { source, space }) => {
+                                let context =
+                                    evaluator.context_in_domain(space, context, &mut Vec::new())?;
+                                let color = self.evaluate_material_color(
+                                    material,
+                                    source,
+                                    &evaluator,
+                                    context,
+                                    &mut Vec::new(),
+                                )?;
+                                (pixel, palette_index) =
+                                    self.finish_material_color(color, material.surface.palette);
+                            }
+                            None => {}
+                        }
+                    }
+                    rgba[index * 4..index * 4 + 4].copy_from_slice(&pixel);
+                    palette_indices[index] = palette_index;
                     for (channel, source) in [
-                        &material.data.roughness,
-                        &material.data.metallic,
-                        &material.data.opacity,
-                        &material.data.emissive,
+                        &material.surface.roughness,
+                        &material.surface.metallic,
+                        &material.surface.opacity,
+                        &material.surface.emissive,
                     ]
                     .into_iter()
                     .enumerate()
@@ -300,14 +531,14 @@ impl RecipeRenderer {
                             .scalar(source, context, &mut Vec::new())?
                             .clamp(0.0, 1.0);
                     }
-                    let normal = evaluator
-                        .scalar(&material.normal.source, context, &mut Vec::new())?
-                        .clamp(0.0, 1.0);
-                    normal_height[index] = (normal * 255.0).round() as u8;
+                    if let Some(normal) = &material.surface.normal {
+                        let normal = evaluator
+                            .scalar(normal, context, &mut Vec::new())?
+                            .clamp(0.0, 1.0);
+                        normal_height[index] = (normal * 255.0).round() as u8;
+                    }
                 }
             }
-            let (rgba, palette_indices) =
-                self.colorize_values(&material.colorize, &color_values, input.width);
             frames.push(RenderedMaterialFrame {
                 rgba,
                 palette_indices,
@@ -327,9 +558,79 @@ impl RecipeRenderer {
             grid_height: input.grid_height,
             fps: input.fps,
             looping: input.looping,
-            normal_strength: material.normal.strength,
+            normal_strength: if material.surface.normal.is_some() {
+                material.surface.normal_strength
+            } else {
+                0.0
+            },
             frames,
         })
+    }
+
+    fn evaluate_material_color(
+        &self,
+        material: &MaterialRecipe,
+        source: &ColorSource,
+        evaluator: &Evaluator<'_>,
+        context: EvalContext,
+        stack: &mut Vec<String>,
+    ) -> Result<[f32; 4], RenderError> {
+        match source {
+            ColorSource::Exact(rgba) => Ok(srgba8_to_linear(*rgba)),
+            ColorSource::Nearest(rgba) => {
+                let authored = rgba.map(|component| component as f32 / 255.0);
+                let palette_index = self.palette.closest(authored);
+                Ok(srgba8_to_linear(self.palette.rgba(palette_index)))
+            }
+            ColorSource::Reference(name) => {
+                let key = format!("color:{}", name.to_ascii_lowercase());
+                enter(stack, &key)?;
+                let result = material
+                    .colors
+                    .iter()
+                    .find(|color| color.name.eq_ignore_ascii_case(name))
+                    .ok_or_else(|| RenderError::Evaluation(format!("unknown color '{name}'")))
+                    .and_then(|color| {
+                        self.evaluate_material_color(
+                            material,
+                            &color.source,
+                            evaluator,
+                            context,
+                            stack,
+                        )
+                    });
+                stack.pop();
+                result
+            }
+            ColorSource::Mix { a, b, factor } => {
+                let a = self.evaluate_material_color(material, a, evaluator, context, stack)?;
+                let b = self.evaluate_material_color(material, b, evaluator, context, stack)?;
+                let factor = evaluator
+                    .scalar(factor, context, &mut Vec::new())?
+                    .clamp(0.0, 1.0);
+                Ok([
+                    lerp(a[0], b[0], factor),
+                    lerp(a[1], b[1], factor),
+                    lerp(a[2], b[2], factor),
+                    lerp(a[3], b[3], factor),
+                ])
+            }
+        }
+    }
+
+    fn finish_material_color(&self, linear: [f32; 4], palette_mode: PaletteMode) -> ([u8; 4], u16) {
+        let rgba = linear_to_srgba8(linear);
+        if palette_mode == PaletteMode::Strict {
+            let index = self
+                .palette
+                .closest(rgba.map(|component| component as f32 / 255.0));
+            (
+                self.palette.rgba(index),
+                self.palette.source_index(index) as u16,
+            )
+        } else {
+            (rgba, u16::MAX)
+        }
     }
 
     fn colorize_values(
@@ -435,14 +736,18 @@ impl RecipeRenderer {
                     time,
                     current_id: None,
                     input_height: 0.0,
+                    pattern_bindings: [None; 8],
                 };
                 scalar_height[(y * width + x) as usize] = evaluator
-                    .scalar(&recipe.output.height, context, &mut Vec::new())?
+                    .output_scalar(&recipe.output, context, &mut Vec::new())?
                     .clamp(0.0, 1.0);
             }
         }
 
-        let (rgba, palette_indices) = self.colorize_values(&recipe.colorize, &scalar_height, width);
+        let (rgba, palette_indices) = recipe.colorize.as_ref().map_or_else(
+            || grayscale_values(&scalar_height),
+            |colorize| self.colorize_values(colorize, &scalar_height, width),
+        );
         let coverage = vec![255_u8; pixel_count];
         let height_values = scalar_height
             .into_iter()
@@ -465,6 +770,14 @@ struct EvalContext {
     time: f32,
     current_id: Option<u64>,
     input_height: f32,
+    pattern_bindings: [Option<PatternBinding>; 8],
+}
+
+#[derive(Clone, Copy)]
+struct PatternBinding {
+    pattern_index: usize,
+    id: u64,
+    local: [f32; 2],
 }
 
 impl EvalContext {
@@ -477,6 +790,29 @@ impl EvalContext {
             current_id: Some(current_id),
             ..self
         }
+    }
+
+    fn with_pattern(mut self, pattern_index: usize, id: u64, local: [f32; 2]) -> Self {
+        let binding = PatternBinding {
+            pattern_index,
+            id,
+            local,
+        };
+        if let Some(slot) = self.pattern_bindings.iter_mut().find(|slot| slot.is_none()) {
+            *slot = Some(binding);
+        } else {
+            self.pattern_bindings[self.pattern_bindings.len() - 1] = Some(binding);
+        }
+        self
+    }
+
+    fn pattern_binding(self, pattern_index: usize) -> Option<PatternBinding> {
+        self.pattern_bindings
+            .iter()
+            .rev()
+            .flatten()
+            .find(|binding| binding.pattern_index == pattern_index)
+            .copied()
     }
 }
 
@@ -495,6 +831,35 @@ struct Evaluator<'a> {
 }
 
 impl Evaluator<'_> {
+    fn output_scalar(
+        &self,
+        output: &Output,
+        context: EvalContext,
+        stack: &mut Vec<String>,
+    ) -> Result<f32, RenderError> {
+        let context = self.context_in_domain(&output.space, context, stack)?;
+        self.scalar(&output.height, context, stack)
+    }
+
+    fn context_in_domain(
+        &self,
+        domain: &Domain,
+        context: EvalContext,
+        stack: &mut Vec<String>,
+    ) -> Result<EvalContext, RenderError> {
+        Ok(match domain {
+            Domain::Global => context,
+            Domain::PatternLocal(name) => {
+                let pattern_index = self.pattern_index(name)?;
+                let binding = self.pattern_coordinates(pattern_index, context, stack)?;
+                context
+                    .at(binding.local)
+                    .with_pattern(pattern_index, binding.id, binding.local)
+                    .with_id(binding.id)
+            }
+        })
+    }
+
     fn scalar(
         &self,
         source: &ScalarSource,
@@ -604,7 +969,14 @@ impl Evaluator<'_> {
                     "Id is only available while evaluating a pattern unit".to_string(),
                 )
             }),
-            IdSource::Pattern(name) => Ok(self.pattern(name, context, stack)?.id),
+            IdSource::Pattern(name) => {
+                let pattern_index = self.pattern_index(name)?;
+                if let Some(binding) = context.pattern_binding(pattern_index) {
+                    Ok(binding.id)
+                } else {
+                    Ok(self.pattern_coordinates(pattern_index, context, stack)?.id)
+                }
+            }
         }
     }
 
@@ -628,7 +1000,10 @@ impl Evaluator<'_> {
                     let key_id = noise
                         .key
                         .as_ref()
-                        .map(|source| self.id(source, context, stack))
+                        .map(|source| match source {
+                            IdSource::Current => Ok(context.current_id.unwrap_or(0)),
+                            IdSource::Pattern(_) => self.id(source, context, stack),
+                        })
                         .transpose()?
                         .unwrap_or(0);
                     let seed = mix64(
@@ -651,6 +1026,7 @@ impl Evaluator<'_> {
                     }
                     Ok(value)
                 }
+                FieldDefinition::Value(value) => self.scalar(&value.source, context, stack),
             });
         stack.pop();
         result
@@ -716,25 +1092,218 @@ impl Evaluator<'_> {
         context: EvalContext,
         stack: &mut Vec<String>,
     ) -> Result<PatternSample, RenderError> {
-        let key = format!("pattern:{}", name.to_ascii_lowercase());
-        enter(stack, &key)?;
-        let result = self
-            .recipe
+        let pattern_index = self.pattern_index(name)?;
+        self.pattern_by_index(pattern_index, context, stack)
+    }
+
+    fn pattern_index(&self, name: &str) -> Result<usize, RenderError> {
+        self.recipe
             .patterns
             .iter()
-            .find(|pattern| pattern.name.eq_ignore_ascii_case(name))
+            .position(|pattern| pattern.name.eq_ignore_ascii_case(name))
             .ok_or_else(|| RenderError::Evaluation(format!("unknown pattern '{name}'")))
-            .and_then(|pattern| self.evaluate_pattern(pattern, context, stack));
+    }
+
+    fn pattern_by_index(
+        &self,
+        pattern_index: usize,
+        context: EvalContext,
+        stack: &mut Vec<String>,
+    ) -> Result<PatternSample, RenderError> {
+        let pattern = &self.recipe.patterns[pattern_index];
+        let key = format!("pattern:{}", pattern.name.to_ascii_lowercase());
+        enter(stack, &key)?;
+        let result = self.evaluate_pattern(pattern_index, pattern, context, stack);
         stack.pop();
         result
     }
 
     fn evaluate_pattern(
         &self,
+        pattern_index: usize,
         pattern: &PatternDefinition,
         context: EvalContext,
         stack: &mut Vec<String>,
     ) -> Result<PatternSample, RenderError> {
+        let (uv, seed) = self.pattern_space(pattern, context, stack)?;
+        match &pattern.kind {
+            PatternKind::Bricks {
+                columns,
+                rows,
+                stagger,
+                gap,
+                rounding,
+                rotation,
+                size_variation,
+                falloff,
+                seed: local_seed,
+            } => {
+                let cell = brick_cell(uv, *columns, *rows, *stagger, mix64(seed ^ local_seed));
+                let unit_context = context.with_id(cell.id);
+                let gap = self.scalar(gap, unit_context, stack)?.clamp(0.0, 0.95);
+                let rounding = self
+                    .scalar(rounding, unit_context, stack)?
+                    .abs()
+                    .clamp(0.0, 0.49);
+                let rotation = self.scalar(rotation, unit_context, stack)?;
+                let falloff = self.scalar(falloff, unit_context, stack)?.clamp(0.1, 8.0);
+                let rotated = brick_rotated_local(cell, rotation);
+                let (bevel, perturb, perturb_amount) = self.pattern_modifiers(
+                    pattern_index,
+                    pattern,
+                    cell.id,
+                    rotated,
+                    context,
+                    stack,
+                )?;
+                Ok(brick_pattern(
+                    cell,
+                    gap,
+                    bevel,
+                    rounding,
+                    rotation,
+                    *size_variation,
+                    perturb,
+                    perturb_amount,
+                    falloff,
+                ))
+            }
+            PatternKind::Voronoi {
+                cells,
+                jitter,
+                falloff,
+                seed: local_seed,
+            } => {
+                let local_seed = mix64(seed ^ local_seed);
+                let base =
+                    voronoi_pattern(uv, *cells, *jitter, *falloff, local_seed, 0.08, 0.5, 0.0);
+                let (bevel, perturb, perturb_amount) = self.pattern_modifiers(
+                    pattern_index,
+                    pattern,
+                    base.id,
+                    base.local,
+                    context,
+                    stack,
+                )?;
+                Ok(voronoi_pattern(
+                    uv,
+                    *cells,
+                    *jitter,
+                    *falloff,
+                    local_seed,
+                    bevel,
+                    perturb,
+                    perturb_amount,
+                ))
+            }
+            PatternKind::Discs {
+                cells,
+                jitter,
+                radius,
+                falloff,
+                seed: local_seed,
+            } => {
+                let jitter = self.scalar(jitter, context, stack)?.clamp(0.0, 1.0);
+                let radius = self.scalar(radius, context, stack)?.clamp(0.01, 2.0);
+                let falloff = self.scalar(falloff, context, stack)?.clamp(0.1, 8.0);
+                let local_seed = mix64(seed ^ local_seed);
+                let base = disc_pattern(
+                    uv, *cells, jitter, radius, falloff, local_seed, 0.08, 0.5, 0.0,
+                );
+                let (bevel, perturb, perturb_amount) = self.pattern_modifiers(
+                    pattern_index,
+                    pattern,
+                    base.id,
+                    base.local,
+                    context,
+                    stack,
+                )?;
+                Ok(disc_pattern(
+                    uv,
+                    *cells,
+                    jitter,
+                    radius,
+                    falloff,
+                    local_seed,
+                    bevel,
+                    perturb,
+                    perturb_amount,
+                ))
+            }
+        }
+    }
+
+    fn pattern_coordinates(
+        &self,
+        pattern_index: usize,
+        context: EvalContext,
+        stack: &mut Vec<String>,
+    ) -> Result<PatternBinding, RenderError> {
+        if let Some(binding) = context.pattern_binding(pattern_index) {
+            return Ok(binding);
+        }
+
+        let pattern = &self.recipe.patterns[pattern_index];
+        let key = format!("placement:{}", pattern.name.to_ascii_lowercase());
+        enter(stack, &key)?;
+        let result = (|| {
+            let (uv, seed) = self.pattern_space(pattern, context, stack)?;
+            let (id, local) = match &pattern.kind {
+                PatternKind::Bricks {
+                    columns,
+                    rows,
+                    stagger,
+                    rotation,
+                    seed: local_seed,
+                    ..
+                } => {
+                    let cell = brick_cell(uv, *columns, *rows, *stagger, mix64(seed ^ local_seed));
+                    let unit_context = context
+                        .with_pattern(pattern_index, cell.id, cell.local)
+                        .with_id(cell.id);
+                    let rotation = self.scalar(rotation, unit_context, stack)?;
+                    (cell.id, brick_rotated_local(cell, rotation))
+                }
+                PatternKind::Voronoi {
+                    cells,
+                    jitter,
+                    seed: local_seed,
+                    ..
+                } => {
+                    let local_seed = mix64(seed ^ local_seed);
+                    let sample =
+                        voronoi_pattern(uv, *cells, *jitter, 1.0, local_seed, 0.08, 0.5, 0.0);
+                    (sample.id, sample.local)
+                }
+                PatternKind::Discs {
+                    cells,
+                    jitter,
+                    seed: local_seed,
+                    ..
+                } => {
+                    let jitter = self.scalar(jitter, context, stack)?.clamp(0.0, 1.0);
+                    let local_seed = mix64(seed ^ local_seed);
+                    let sample =
+                        disc_pattern(uv, *cells, jitter, 1.0, 1.0, local_seed, 0.08, 0.5, 0.0);
+                    (sample.id, sample.local)
+                }
+            };
+            Ok(PatternBinding {
+                pattern_index,
+                id,
+                local,
+            })
+        })();
+        stack.pop();
+        result
+    }
+
+    fn pattern_space(
+        &self,
+        pattern: &PatternDefinition,
+        context: EvalContext,
+        stack: &mut Vec<String>,
+    ) -> Result<([f32; 2], u64), RenderError> {
         let (mut uv, domain_id) = self.domain(&pattern.domain, context, stack)?;
         let key_id = pattern
             .key
@@ -758,91 +1327,40 @@ impl Evaluator<'_> {
             uv[0] += (first - 0.5) * 2.0 * warp.amount;
             uv[1] += (second - 0.5) * 2.0 * warp.amount;
         }
-        uv = [
-            wrap_coordinate(uv[0], WrapMode::Repeat),
-            wrap_coordinate(uv[1], WrapMode::Repeat),
-        ];
-        match &pattern.kind {
-            PatternKind::Bricks {
-                columns,
-                rows,
-                stagger,
-                gap,
-                rounding,
-                rotation,
-                size_variation,
-                perturb,
-                perturb_amount,
-                falloff,
-                seed: local_seed,
-            } => {
-                let cell = brick_cell(uv, *columns, *rows, *stagger, mix64(seed ^ local_seed));
-                let unit_context = context.with_id(cell.id);
-                let gap = self.scalar(gap, unit_context, stack)?.clamp(0.0, 0.95);
-                let rounding = self
-                    .scalar(rounding, unit_context, stack)?
-                    .abs()
-                    .clamp(0.0, 0.49);
-                let rotation = self.scalar(rotation, unit_context, stack)?;
-                let perturb_amount = self
-                    .scalar(perturb_amount, unit_context, stack)?
-                    .abs()
-                    .clamp(0.0, 0.5);
-                let falloff = self.scalar(falloff, unit_context, stack)?.clamp(0.1, 8.0);
-                let perturb = perturb
-                    .as_ref()
-                    .map(|source| {
-                        let offset_x = random01(mix64(cell.id ^ 0x6272_6963));
-                        let offset_y = random01(mix64(cell.id ^ 0x6b73_6466));
-                        self.scalar(
-                            source,
-                            unit_context.at([
-                                (cell.local[0] + offset_x).rem_euclid(1.0),
-                                (cell.local[1] + offset_y).rem_euclid(1.0),
-                            ]),
-                            stack,
-                        )
-                    })
-                    .transpose()?
-                    .unwrap_or(0.5);
-                Ok(brick_pattern(
-                    cell,
-                    gap,
-                    rounding,
-                    rotation,
-                    *size_variation,
-                    perturb,
-                    perturb_amount,
-                    falloff,
-                ))
-            }
-            PatternKind::Voronoi {
-                cells,
-                jitter,
-                falloff,
-                seed: local_seed,
-            } => Ok(voronoi_pattern(
-                uv,
-                *cells,
-                *jitter,
-                *falloff,
-                mix64(seed ^ local_seed),
-            )),
-            PatternKind::Discs {
-                cells,
-                jitter,
-                radius,
-                falloff,
-                seed: local_seed,
-            } => Ok(disc_pattern(
-                uv,
-                *cells,
-                self.scalar(jitter, context, stack)?.clamp(0.0, 1.0),
-                self.scalar(radius, context, stack)?.clamp(0.01, 2.0),
-                self.scalar(falloff, context, stack)?.clamp(0.1, 8.0),
-                mix64(seed ^ local_seed),
-            )),
-        }
+        Ok((
+            [
+                wrap_coordinate(uv[0], WrapMode::Repeat),
+                wrap_coordinate(uv[1], WrapMode::Repeat),
+            ],
+            seed,
+        ))
+    }
+
+    fn pattern_modifiers(
+        &self,
+        pattern_index: usize,
+        pattern: &PatternDefinition,
+        unit_id: u64,
+        local: [f32; 2],
+        context: EvalContext,
+        stack: &mut Vec<String>,
+    ) -> Result<(f32, f32, f32), RenderError> {
+        let unit_context = context
+            .with_pattern(pattern_index, unit_id, local)
+            .with_id(unit_id);
+        let bevel = self
+            .scalar(&pattern.bevel, unit_context, stack)?
+            .abs()
+            .clamp(0.0, 1.0);
+        let Some(perturb) = &pattern.perturb else {
+            return Ok((bevel, 0.5, 0.0));
+        };
+        let amount = self
+            .scalar(&perturb.amount, unit_context, stack)?
+            .abs()
+            .clamp(0.0, 0.5);
+        let value = self.scalar(&perturb.source, unit_context.at(local), stack)?;
+        Ok((bevel, value, amount))
     }
 
     fn domain(
@@ -854,8 +1372,13 @@ impl Evaluator<'_> {
         match domain {
             Domain::Global => Ok((context.uv, 0)),
             Domain::PatternLocal(name) => {
-                let sample = self.pattern(name, context, stack)?;
-                Ok((sample.local, sample.id))
+                let pattern_index = self.pattern_index(name)?;
+                if let Some(binding) = context.pattern_binding(pattern_index) {
+                    Ok((binding.local, binding.id))
+                } else {
+                    let binding = self.pattern_coordinates(pattern_index, context, stack)?;
+                    Ok((binding.local, binding.id))
+                }
             }
         }
     }
@@ -900,6 +1423,7 @@ fn brick_cell(uv: [f32; 2], columns: u32, rows: u32, stagger: f32, seed: u64) ->
 fn brick_pattern(
     cell: BrickCell,
     gap: f32,
+    bevel: f32,
     rounding: f32,
     rotation_degrees: f32,
     size_variation: [f32; 2],
@@ -907,21 +1431,15 @@ fn brick_pattern(
     perturb_amount: f32,
     falloff: f32,
 ) -> PatternSample {
-    let centered = [cell.local[0] - 0.5, cell.local[1] - 0.5];
-    let radians = -rotation_degrees.to_radians();
-    let cosine = radians.cos();
-    let sine = radians.sin();
-    let rotated = [
-        centered[0] * cosine - centered[1] * sine,
-        centered[0] * sine + centered[1] * cosine,
-    ];
+    let local = brick_rotated_local(cell, rotation_degrees);
+    let rotated = [local[0] - 0.5, local[1] - 0.5];
     let base_half = (0.5 - gap * 0.5).max(0.001);
     let variation_x =
         (random01(mix64(cell.id ^ 0x7369_7a65)) * 2.0 - 1.0) * size_variation[0].clamp(0.0, 0.45);
     let variation_y =
         (random01(mix64(cell.id ^ 0x7661_7279)) * 2.0 - 1.0) * size_variation[1].clamp(0.0, 0.45);
-    let half_x = (base_half * (1.0 + variation_x)).clamp(0.02, 0.499);
-    let half_y = (base_half * (1.0 + variation_y)).clamp(0.02, 0.499);
+    let half_x = (base_half * (1.0 + variation_x)).clamp(0.02, 0.5);
+    let half_y = (base_half * (1.0 + variation_y)).clamp(0.02, 0.5);
     let radius = rounding.min(half_x.min(half_y));
     let qx = rotated[0].abs() - (half_x - radius);
     let qy = rotated[1].abs() - (half_y - radius);
@@ -929,9 +1447,14 @@ fn brick_pattern(
     let signed_distance = base_distance + (perturb - 0.5) * 2.0 * perturb_amount.clamp(0.0, 0.5);
     let inside = signed_distance <= 0.0;
     let height = if inside {
-        ((-signed_distance) / half_x.min(half_y))
-            .clamp(0.0, 1.0)
-            .powf(falloff)
+        let bevel_width = half_x.min(half_y) * bevel.clamp(0.0, 1.0);
+        if bevel_width <= f32::EPSILON {
+            1.0
+        } else {
+            ((-signed_distance) / bevel_width)
+                .clamp(0.0, 1.0)
+                .powf(falloff)
+        }
     } else {
         0.0
     };
@@ -942,8 +1465,19 @@ fn brick_pattern(
         edge: if inside { 1.0 - height } else { 1.0 },
         center: (1.0 - (dx * dx + dy * dy).sqrt() / std::f32::consts::SQRT_2).clamp(0.0, 1.0),
         id: cell.id,
-        local: [rotated[0] + 0.5, rotated[1] + 0.5],
+        local,
     }
+}
+
+fn brick_rotated_local(cell: BrickCell, rotation_degrees: f32) -> [f32; 2] {
+    let centered = [cell.local[0] - 0.5, cell.local[1] - 0.5];
+    let radians = -rotation_degrees.to_radians();
+    let cosine = radians.cos();
+    let sine = radians.sin();
+    [
+        centered[0] * cosine - centered[1] * sine + 0.5,
+        centered[0] * sine + centered[1] * cosine + 0.5,
+    ]
 }
 
 fn voronoi_pattern(
@@ -952,6 +1486,9 @@ fn voronoi_pattern(
     jitter: f32,
     falloff: f32,
     seed: u64,
+    bevel: f32,
+    perturb: f32,
+    perturb_amount: f32,
 ) -> PatternSample {
     let cells_x = cells[0].max(1) as i32;
     let cells_y = cells[1].max(1) as i32;
@@ -987,9 +1524,17 @@ fn voronoi_pattern(
             }
         }
     }
-    let height = ((second_distance - min_distance) / second_distance.max(0.000_1))
-        .clamp(0.0, 1.0)
-        .powf(falloff);
+    let boundary_depth = (second_distance - min_distance) * 0.5;
+    let perturb_offset = (perturb - 0.5) * 2.0 * perturb_amount.clamp(0.0, 0.5);
+    let profile_depth = boundary_depth - perturb_offset;
+    let bevel_width = second_distance * 0.5 * bevel.clamp(0.0, 1.0);
+    let height = if profile_depth < 0.0 {
+        0.0
+    } else if bevel_width <= f32::EPSILON {
+        1.0
+    } else {
+        (profile_depth / bevel_width).clamp(0.0, 1.0).powf(falloff)
+    };
     PatternSample {
         height,
         edge: 1.0 - height,
@@ -1009,6 +1554,9 @@ fn disc_pattern(
     radius: f32,
     falloff: f32,
     seed: u64,
+    bevel: f32,
+    perturb: f32,
+    perturb_amount: f32,
 ) -> PatternSample {
     let cells_x = cells[0].max(1) as i32;
     let cells_y = cells[1].max(1) as i32;
@@ -1040,9 +1588,19 @@ fn disc_pattern(
             }
         }
     }
-    let height = (1.0 - min_distance / (radius * 0.5).max(0.000_1))
-        .clamp(0.0, 1.0)
-        .powf(falloff);
+    let radius = (radius * 0.5).max(0.000_1);
+    let perturb_offset = (perturb - 0.5) * 2.0 * perturb_amount.clamp(0.0, 0.5);
+    let signed_distance = min_distance - radius + perturb_offset;
+    let bevel_width = radius * bevel.clamp(0.0, 1.0);
+    let height = if signed_distance > 0.0 {
+        0.0
+    } else if bevel_width <= f32::EPSILON {
+        1.0
+    } else {
+        (-signed_distance / bevel_width)
+            .clamp(0.0, 1.0)
+            .powf(falloff)
+    };
     PatternSample {
         height,
         edge: 1.0 - height,
@@ -1208,6 +1766,15 @@ fn wrap_coordinate(value: f32, mode: WrapMode) -> f32 {
     }
 }
 
+fn grayscale_values(values: &[f32]) -> (Vec<u8>, Vec<u16>) {
+    let mut rgba = Vec::with_capacity(values.len() * 4);
+    for value in values {
+        let value = (value.clamp(0.0, 1.0) * 255.0).round() as u8;
+        rgba.extend_from_slice(&[value, value, value, 255]);
+    }
+    (rgba, vec![u16::MAX; values.len()])
+}
+
 fn bayer4(x: u32, y: u32) -> f32 {
     const BAYER: [[u8; 4]; 4] = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
     (BAYER[(y % 4) as usize][(x % 4) as usize] as f32 + 0.5) / 16.0
@@ -1230,6 +1797,41 @@ fn smoothstep(value: f32) -> f32 {
 
 fn lerp(a: f32, b: f32, value: f32) -> f32 {
     a + (b - a) * value
+}
+
+fn srgba8_to_linear(rgba: [u8; 4]) -> [f32; 4] {
+    let channel = |value: u8| {
+        let value = value as f32 / 255.0;
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    [
+        channel(rgba[0]),
+        channel(rgba[1]),
+        channel(rgba[2]),
+        rgba[3] as f32 / 255.0,
+    ]
+}
+
+fn linear_to_srgba8(rgba: [f32; 4]) -> [u8; 4] {
+    let channel = |value: f32| {
+        let value = value.clamp(0.0, 1.0);
+        let value = if value <= 0.003_130_8 {
+            value * 12.92
+        } else {
+            1.055 * value.powf(1.0 / 2.4) - 0.055
+        };
+        (value * 255.0).round() as u8
+    };
+    [
+        channel(rgba[0]),
+        channel(rgba[1]),
+        channel(rgba[2]),
+        (rgba[3].clamp(0.0, 1.0) * 255.0).round() as u8,
+    ]
 }
 
 fn mix64(mut value: u64) -> u64 {
@@ -1264,14 +1866,18 @@ mod tests {
         parse_recipe(include_str!("../examples/bricks.recipe")).unwrap()
     }
 
+    fn colored_recipe() -> Recipe {
+        parse_recipe(include_str!("../examples/stones.recipe")).unwrap()
+    }
+
     #[test]
     fn height_first_render_is_deterministic_and_palette_pure() {
         let renderer = RecipeRenderer::new(&test_palette()).unwrap();
         let first = renderer
-            .render(&recipe(), &RenderOptions::default())
+            .render(&colored_recipe(), &RenderOptions::default())
             .unwrap();
         let second = renderer
-            .render(&recipe(), &RenderOptions::default())
+            .render(&colored_recipe(), &RenderOptions::default())
             .unwrap();
         assert_eq!(first.frames[0].height, second.frames[0].height);
         assert_eq!(first.frames[0].rgba, second.frames[0].rgba);
@@ -1287,7 +1893,7 @@ mod tests {
     fn palette_swap_changes_only_colorization() {
         let warm = RecipeRenderer::new(&test_palette())
             .unwrap()
-            .render(&recipe(), &RenderOptions::default())
+            .render(&colored_recipe(), &RenderOptions::default())
             .unwrap();
         let cool_palette = ThePalette::new(vec![
             Some(TheColor::from_u8(4, 8, 18, 255)),
@@ -1297,11 +1903,39 @@ mod tests {
         ]);
         let cool = RecipeRenderer::new(&cool_palette)
             .unwrap()
-            .render(&recipe(), &RenderOptions::default())
+            .render(&colored_recipe(), &RenderOptions::default())
             .unwrap();
         assert_eq!(warm.frames[0].height, cool.frames[0].height);
         assert_eq!(warm.frames[0].coverage, cool.frames[0].coverage);
         assert_ne!(warm.frames[0].rgba, cool.frames[0].rgba);
+    }
+
+    #[test]
+    fn missing_colorize_renders_the_heightmap_as_grayscale() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    size = I2(4, 1)
+
+    Height Surface
+        source = U
+"#,
+        )
+        .unwrap();
+        let rendered = RecipeRenderer::new(&test_palette())
+            .unwrap()
+            .render(&recipe, &RenderOptions::default())
+            .unwrap();
+        let frame = &rendered.frames[0];
+
+        assert_eq!(frame.height, vec![32, 96, 159, 223]);
+        assert_eq!(
+            frame.rgba,
+            vec![
+                32, 32, 32, 255, 96, 96, 96, 255, 159, 159, 159, 255, 223, 223, 223, 255,
+            ]
+        );
+        assert!(frame.palette_indices.iter().all(|index| *index == u16::MAX));
     }
 
     #[test]
@@ -1313,16 +1947,7 @@ mod tests {
             .iter_mut()
             .find(|pattern| pattern.name == "Wall")
             .unwrap();
-        let PatternKind::Bricks {
-            perturb,
-            perturb_amount,
-            ..
-        } = &mut wall.kind
-        else {
-            panic!("Wall should be a Bricks pattern");
-        };
-        *perturb = None;
-        *perturb_amount = ScalarSource::Constant(0.0);
+        wall.perturb = None;
         let renderer = RecipeRenderer::new(&test_palette()).unwrap();
         let detailed = renderer
             .render(&with_kerbs, &RenderOptions::default())
@@ -1389,7 +2014,7 @@ Tile
     }
 
     #[test]
-    fn material_render_uses_tile_height_and_outputs_direct_channels() {
+    fn material_render_uses_its_own_fields_and_outputs_direct_channels() {
         let tile = parse_recipe(
             r#"
 Tile
@@ -1409,19 +2034,23 @@ Tile
         let material = parse_material_document(
             r#"
 Material test
-    Colorize
-        source = Input.height
-        base = DarkBrown
+    Color Dark
+        base = #201810
 
-    MaterialData
-        roughness = Input.height
+    Color Light
+        base = #a08060
+
+    Color Tone
+        source = Mix(Dark, Light, U)
+
+    Surface
+        color = Tone
+        roughness = U
         metallic = 0.25
         opacity = 0.75
-        emissive = V
-
-    Normal
-        source = Input.height
-        strength = 0.6
+        emission = V
+        normal = U
+        normal_strength = 0.6
 "#,
         )
         .unwrap()
@@ -1445,6 +2074,135 @@ Material test
             material.frames[0].material[0][0],
             material.frames[0].material[3][0]
         );
+        assert_ne!(
+            &material.frames[0].rgba[0..4],
+            &material.frames[0].rgba[12..16]
+        );
+    }
+
+    #[test]
+    fn pattern_local_material_space_resets_uv_and_exposes_unit_id() {
+        let tile = parse_recipe(
+            r#"
+Tile
+    size = I2(8, 1)
+
+    Pattern Planks
+        Bricks
+            columns = 2
+            rows = 1
+            gap = 0.0
+            bevel = 0.0
+
+    Output
+        height = Planks.height
+"#,
+        )
+        .unwrap();
+        let material = parse_material_document(
+            r#"
+Material test
+    Color Dark
+        exact = #101010
+
+    Color Light
+        exact = #f0f0f0
+
+    Color UnitColor
+        source = Mix(Dark, Light, Random(Id, 0.1, 0.9, 23))
+
+    Surface
+        color = UnitColor
+        palette = BaseOnly
+        roughness = Random(Id, 0.1, 0.9, 29)
+        metallic = U
+"#,
+        )
+        .unwrap()
+        .materials
+        .remove(0);
+        let renderer = RecipeRenderer::new(&test_palette()).unwrap();
+        let rendered_tile = renderer.render(&tile, &RenderOptions::default()).unwrap();
+
+        let global = renderer
+            .render_material(&material, &rendered_tile, &RenderOptions::default())
+            .unwrap();
+        assert!(
+            global.frames[0]
+                .rgba
+                .chunks_exact(4)
+                .all(|pixel| pixel == &global.frames[0].rgba[0..4])
+        );
+
+        let local = renderer
+            .render_material_in_space(
+                &material,
+                &rendered_tile,
+                &tile,
+                &Domain::PatternLocal("Planks".to_string()),
+                [0.5, 2.0],
+                &RenderOptions::default(),
+            )
+            .unwrap();
+        let frame = &local.frames[0];
+
+        assert_ne!(&frame.rgba[0..4], &frame.rgba[16..20]);
+        assert_ne!(frame.material[0][0], frame.material[4][0]);
+        assert!((frame.material[0][1] - frame.material[4][1]).abs() < 0.000_001);
+        assert!(frame.material[0][1] < 0.1);
+    }
+
+    #[test]
+    fn material_debug_height_overrides_only_the_preview_color() {
+        let tile = parse_recipe(
+            r#"
+Tile
+    size = I2(4, 1)
+
+    Output
+        height = 0.5
+"#,
+        )
+        .unwrap();
+        let material = parse_material_document(
+            r#"
+Material test
+    Noise Debug
+        scale = F2(2, 2)
+
+    Surface
+        color = #804020
+        roughness = 0.7
+
+    Output
+        value = Debug
+"#,
+        )
+        .unwrap()
+        .materials
+        .remove(0);
+        let renderer = RecipeRenderer::new(&test_palette()).unwrap();
+        let tile = renderer.render(&tile, &RenderOptions::default()).unwrap();
+        let runtime = renderer
+            .render_material(&material, &tile, &RenderOptions::default())
+            .unwrap();
+        let preview = renderer
+            .render_material_preview(&material, &tile, &RenderOptions::default())
+            .unwrap();
+
+        assert!(
+            runtime.frames[0]
+                .rgba
+                .chunks_exact(4)
+                .all(|pixel| pixel[0] != pixel[1])
+        );
+        assert!(
+            preview.frames[0]
+                .rgba
+                .chunks_exact(4)
+                .all(|pixel| pixel[0] == pixel[1] && pixel[1] == pixel[2])
+        );
+        assert_eq!(runtime.frames[0].material, preview.frames[0].material);
     }
 
     #[test]
@@ -1467,6 +2225,7 @@ Material test
                     time: 0.0,
                     current_id: None,
                     input_height: 0.0,
+                    pattern_bindings: [None; 8],
                 },
                 &mut Vec::new(),
             )
@@ -1479,6 +2238,7 @@ Material test
                     time: 0.0,
                     current_id: None,
                     input_height: 0.0,
+                    pattern_bindings: [None; 8],
                 },
                 &mut Vec::new(),
             )
@@ -1504,6 +2264,7 @@ Material test
             time: 0.0,
             current_id: Some(41),
             input_height: 0.0,
+            pattern_bindings: [None; 8],
         };
         let first = evaluator.scalar(&source, context, &mut Vec::new()).unwrap();
         let second = evaluator
@@ -1525,8 +2286,8 @@ Material test
         let seed = 982_451_653;
         let noise = periodic_value_noise([0.173, 0.619], [5, 7], seed);
         assert!((noise - periodic_value_noise([1.173, -0.381], [5, 7], seed)).abs() < 1e-5);
-        let first = voronoi_pattern([0.173, 0.619], [6, 5], 0.8, 1.0, seed);
-        let repeated = voronoi_pattern([1.173, -0.381], [6, 5], 0.8, 1.0, seed);
+        let first = voronoi_pattern([0.173, 0.619], [6, 5], 0.8, 1.0, seed, 0.08, 0.5, 0.0);
+        let repeated = voronoi_pattern([1.173, -0.381], [6, 5], 0.8, 1.0, seed, 0.08, 0.5, 0.0);
         assert!((first.height - repeated.height).abs() < 1e-5);
         assert_eq!(first.id, repeated.id);
     }
@@ -1537,12 +2298,265 @@ Material test
             local: [0.08, 0.5],
             id: 42,
         };
-        let smooth = brick_pattern(cell, 0.08, 0.1, 0.0, [0.0, 0.0], 0.5, 0.08, 1.0);
-        let eroded = brick_pattern(cell, 0.08, 0.1, 0.0, [0.0, 0.0], 1.0, 0.08, 1.0);
+        let smooth = brick_pattern(cell, 0.08, 0.08, 0.1, 0.0, [0.0, 0.0], 0.5, 0.08, 1.0);
+        let eroded = brick_pattern(cell, 0.08, 0.08, 0.1, 0.0, [0.0, 0.0], 1.0, 0.08, 1.0);
 
         assert_eq!(smooth.id, eroded.id);
         assert_eq!(smooth.local, eroded.local);
         assert_ne!(smooth.height, eroded.height);
+    }
+
+    #[test]
+    fn pattern_perturb_changes_voronoi_and_discs_without_reassigning_units() {
+        let seed = 42;
+        let mut voronoi_changed = false;
+        let mut discs_changed = false;
+        for y in 0..32 {
+            for x in 0..32 {
+                let uv = [(x as f32 + 0.5) / 32.0, (y as f32 + 0.5) / 32.0];
+                let base = voronoi_pattern(uv, [6, 5], 0.8, 1.0, seed, 0.08, 0.5, 0.0);
+                let rough = voronoi_pattern(uv, [6, 5], 0.8, 1.0, seed, 0.08, 1.0, 0.05);
+                assert_eq!(base.id, rough.id);
+                assert_eq!(base.local, rough.local);
+                voronoi_changed |= (base.height - rough.height).abs() > 0.001;
+
+                let base = disc_pattern(uv, [6, 5], 0.8, 1.2, 1.0, seed, 0.08, 0.5, 0.0);
+                let rough = disc_pattern(uv, [6, 5], 0.8, 1.2, 1.0, seed, 0.08, 1.0, 0.05);
+                assert_eq!(base.id, rough.id);
+                assert_eq!(base.local, rough.local);
+                discs_changed |= (base.height - rough.height).abs() > 0.001;
+            }
+        }
+        assert!(voronoi_changed);
+        assert!(discs_changed);
+    }
+
+    #[test]
+    fn common_bevel_changes_voronoi_and_disc_profiles() {
+        let seed = 42;
+        let mut voronoi_changed = false;
+        let mut discs_changed = false;
+        for y in 0..32 {
+            for x in 0..32 {
+                let uv = [(x as f32 + 0.5) / 32.0, (y as f32 + 0.5) / 32.0];
+                let narrow = voronoi_pattern(uv, [4, 4], 0.8, 1.0, seed, 0.05, 0.5, 0.0);
+                let wide = voronoi_pattern(uv, [4, 4], 0.8, 1.0, seed, 0.8, 0.5, 0.0);
+                voronoi_changed |= (narrow.height - wide.height).abs() > 0.001;
+
+                let narrow = disc_pattern(uv, [4, 4], 0.8, 1.2, 1.0, seed, 0.05, 0.5, 0.0);
+                let wide = disc_pattern(uv, [4, 4], 0.8, 1.2, 1.0, seed, 0.8, 0.5, 0.0);
+                discs_changed |= (narrow.height - wide.height).abs() > 0.001;
+            }
+        }
+
+        assert!(voronoi_changed);
+        assert!(discs_changed);
+    }
+
+    #[test]
+    fn common_pattern_modifiers_render_for_every_generator() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    size = I2(16, 16)
+
+    Noise ShapeNoise
+        scale = F2(3.0, 3.0)
+        octaves = 2
+
+    Pattern Masonry
+        Bricks
+            warp = ShapeNoise
+            warp_amount = 0.01
+            perturb = ShapeNoise
+            perturb_amount = 0.02
+
+    Pattern Cells
+        Voronoi
+            warp = ShapeNoise
+            warp_amount = 0.01
+            perturb = ShapeNoise
+            perturb_amount = 0.02
+
+    Pattern Dots
+        Discs
+            warp = ShapeNoise
+            warp_amount = 0.01
+            perturb = ShapeNoise
+            perturb_amount = 0.02
+
+    Output
+        height = (Masonry.height + Cells.height + Dots.height) / 3.0
+"#,
+        )
+        .unwrap();
+        let rendered = RecipeRenderer::grayscale()
+            .render(&recipe, &RenderOptions::default())
+            .unwrap();
+
+        assert_eq!(rendered.frames[0].height.len(), 16 * 16);
+        assert!(
+            rendered.frames[0]
+                .height
+                .windows(2)
+                .any(|values| values[0] != values[1])
+        );
+    }
+
+    #[test]
+    fn output_space_previews_the_exact_pattern_local_keyed_noise() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    size = I2(32, 32)
+
+    Noise LocalWarp
+        key = Id
+        scale = F2(2.0, 2.0)
+        octaves = 2
+        seed = 7
+
+    Pattern Wall
+        Bricks
+            columns = 4
+            rows = 4
+            perturb = LocalWarp
+            perturb_amount = 0.05
+
+    Output
+        height = LocalWarp
+        space = Wall.local
+"#,
+        )
+        .unwrap();
+        let rendered = RecipeRenderer::grayscale()
+            .render(&recipe, &RenderOptions::default())
+            .unwrap();
+        let height = &rendered.frames[0].height;
+
+        let min = height.iter().copied().min().unwrap();
+        let max = height.iter().copied().max().unwrap();
+        assert!(max - min > 40);
+    }
+
+    #[test]
+    fn child_pattern_can_use_the_active_parent_local_space_for_perturbation() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    size = I2(32, 32)
+
+    Pattern Wall
+        Bricks
+            columns = 4
+            rows = 4
+            perturb = Kerbs.height
+            perturb_amount = 0.08
+
+    Pattern Kerbs
+        Discs
+            space = Wall.local
+            cells = I2(3, 3)
+            radius = 0.25 + Random(Wall.id, 0.0, 0.15, 5)
+
+    Height Surface
+        source = Wall.height
+
+        Subtract
+            source = Kerbs.height
+            amount = 0.12
+
+    Output
+        height = Surface
+"#,
+        )
+        .unwrap();
+        let rendered = RecipeRenderer::grayscale()
+            .render(&recipe, &RenderOptions::default())
+            .unwrap();
+        let height = &rendered.frames[0].height;
+
+        assert!(height.windows(2).any(|values| values[0] != values[1]));
+    }
+
+    #[test]
+    fn active_pattern_binding_does_not_hide_a_real_height_cycle() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    size = I2(4, 4)
+
+    Pattern Wall
+        Bricks
+            perturb = Wall.height
+            perturb_amount = 0.08
+
+    Output
+        height = Wall.height
+"#,
+        )
+        .unwrap();
+        let error = RecipeRenderer::grayscale()
+            .render(&recipe, &RenderOptions::default())
+            .unwrap_err();
+
+        assert!(
+            error
+                .to_string()
+                .contains("cyclic field dependency involving 'pattern:wall'")
+        );
+    }
+
+    #[test]
+    fn global_output_previews_keyed_noise_with_the_zero_key() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    size = I2(32, 32)
+
+    Noise LocalWarp
+        key = Id
+        scale = F2(2.0, 2.0)
+        octaves = 2
+        seed = 7
+
+    Output
+        height = LocalWarp
+"#,
+        )
+        .unwrap();
+        let rendered = RecipeRenderer::grayscale()
+            .render(&recipe, &RenderOptions::default())
+            .unwrap();
+        let height = &rendered.frames[0].height;
+
+        let min = height.iter().copied().min().unwrap();
+        let max = height.iter().copied().max().unwrap();
+        assert!(max - min > 40);
+    }
+
+    #[test]
+    fn zero_gap_does_not_force_a_minimum_brick_inset() {
+        let cell = BrickCell {
+            local: [0.0005, 0.5],
+            id: 42,
+        };
+        let touching = brick_pattern(cell, 0.0, 0.0, 0.0, 0.0, [0.0, 0.0], 0.5, 0.0, 1.0);
+        let separated = brick_pattern(cell, 0.01, 0.0, 0.0, 0.0, [0.0, 0.0], 0.5, 0.0, 1.0);
+
+        assert!(touching.height > 0.0);
+        assert_eq!(separated.height, 0.0);
+    }
+
+    #[test]
+    fn brick_bevel_is_bounded_to_the_edge() {
+        let cell = BrickCell {
+            local: [0.1, 0.5],
+            id: 42,
+        };
+        let sample = brick_pattern(cell, 0.0, 0.08, 0.0, 0.0, [0.0, 0.0], 0.5, 0.0, 1.0);
+
+        assert_eq!(sample.height, 1.0);
     }
 
     #[test]

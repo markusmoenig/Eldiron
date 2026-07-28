@@ -25,6 +25,7 @@ struct PaletteEntry {
     saturation: f32,
     lightness: f32,
     luma: f32,
+    oklab: [f32; 3],
 }
 
 #[derive(Clone, Debug)]
@@ -42,6 +43,7 @@ impl PaletteModel {
                 color.clone().map(|color| {
                     let hsl = color.as_hsl();
                     let luma = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
+                    let oklab = srgb_to_oklab([color.r, color.g, color.b]);
                     PaletteEntry {
                         source_index,
                         color,
@@ -49,6 +51,7 @@ impl PaletteModel {
                         saturation: hsl.y,
                         lightness: hsl.z,
                         luma,
+                        oklab,
                     }
                 })
             })
@@ -365,11 +368,33 @@ fn shade_score(base: &PaletteEntry, candidate: &PaletteEntry, target_luma: f32) 
 }
 
 fn color_distance(entry: &PaletteEntry, rgba: [f32; 4]) -> f32 {
-    let dr = entry.color.r - rgba[0];
-    let dg = entry.color.g - rgba[1];
-    let db = entry.color.b - rgba[2];
+    let target = srgb_to_oklab([rgba[0], rgba[1], rgba[2]]);
+    let dl = entry.oklab[0] - target[0];
+    let da_color = entry.oklab[1] - target[1];
+    let db_color = entry.oklab[2] - target[2];
     let da = entry.color.a - rgba[3];
-    dr * dr * 0.30 + dg * dg * 0.59 + db * db * 0.11 + da * da * 0.05
+    dl * dl + da_color * da_color + db_color * db_color + da * da * 0.05
+}
+
+fn srgb_to_oklab(rgb: [f32; 3]) -> [f32; 3] {
+    let linear = rgb.map(|value| {
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    });
+    let l = 0.412_221_46 * linear[0] + 0.536_332_55 * linear[1] + 0.051_445_995 * linear[2];
+    let m = 0.211_903_5 * linear[0] + 0.680_699_5 * linear[1] + 0.107_396_96 * linear[2];
+    let s = 0.088_302_46 * linear[0] + 0.281_718_85 * linear[1] + 0.629_978_7 * linear[2];
+    let l = l.cbrt();
+    let m = m.cbrt();
+    let s = s.cbrt();
+    [
+        0.210_454_26 * l + 0.793_617_8 * m - 0.004_072_047 * s,
+        1.977_998_5 * l - 2.428_592_2 * m + 0.450_593_7 * s,
+        0.025_904_037 * l + 0.782_771_77 * m - 0.808_675_77 * s,
+    ]
 }
 
 fn lerp(a: f32, b: f32, factor: f32) -> f32 {

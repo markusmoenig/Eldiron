@@ -1,0 +1,34 @@
+Material mortar
+    name = "Old Mortar"
+    wrap = Repeat
+    seed = 101
+
+    Noise Grit
+        type = Gradient
+        fractal = Billow
+        scale = F2(10.0, 8.0)
+        octaves = 3
+        persistence = 0.44
+        seed = 17
+
+    Color MortarDark
+        nearest = #332f2b
+
+    Color MortarLight
+        nearest = F3(0.38, 0.35, 0.31)
+
+    Color Mortar
+        source = Mix(MortarDark, MortarLight, Grit)
+
+    Surface
+        color = Mortar
+        palette = BaseOnly
+        roughness = Clamp(0.82 + Grit * 0.14, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emission = 0.0
+        normal = Grit
+        normal_strength = 0.16
+
+    Output
+        color = Mortar

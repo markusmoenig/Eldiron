@@ -1,0 +1,47 @@
+Material stone
+    name = "Dungeon Stone"
+    wrap = Repeat
+    seed = 73
+
+    Noise Mineral
+        key = Id
+        type = Gradient
+        fractal = Ridged
+        scale = F2(4.0, 3.0)
+        octaves = 3
+        persistence = 0.52
+        seed = 11
+
+    Value DetailTone
+        source = Smoothstep(0.18, 0.82, Mineral)
+
+    Value UnitTone
+        source = Random(Id, 0.0, 1.0, 37)
+
+    Color Shadow
+        nearest = #292b2c
+
+    Color BaseDark
+        nearest = #696b66
+
+    Color BaseLight
+        nearest = #7d7f78
+
+    Color Base
+        source = Mix(BaseDark, BaseLight, UnitTone)
+
+    Color Stone
+        source = Mix(Shadow, Base, DetailTone)
+
+    Surface
+        color = Stone
+        palette = BaseOnly
+        roughness = Clamp(0.66 + Mineral * 0.26, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emission = 0.0
+        normal = Mineral
+        normal_strength = 0.30
+
+    Output
+        color = Stone

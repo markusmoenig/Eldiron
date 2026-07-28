@@ -20,13 +20,11 @@ Eldiron. This README is the canonical reference for the current format.
 ## A tile recipe
 
 This tile builds a large, seamless stone surface. It delegates its appearance
-and renderer material data to the reusable `stone` material in
-`recipes/dungeon.recipe`.
+and renderer material data to reusable stone and mortar materials.
 
 ```text
 Tile
   name = "Dungeon Stone Wall"
-  material = dungeon/stone
   size = I2(128, 128)
   coverage = I2(2, 2)
   wrap = Repeat
@@ -62,6 +60,14 @@ Tile
       min = 0.0
       max = 1.0
 
+  MaterialMap
+    base = dungeon/mortar
+
+    Layer
+      material = dungeon/stone
+      mask = Pow(Stones.height, 1.6)
+      space = Stones.local
+
   Output
     height = Surface
 ```
@@ -73,16 +79,18 @@ the same low-frequency noise gently distorts and varies their surface.
 
 See [examples/stones.recipe](examples/stones.recipe) for a complete standalone
 tile and [examples/bricks.recipe](examples/bricks.recipe) for a tile using a
-referenced material.
+referenced material. [examples/planks.recipe](examples/planks.recipe)
+demonstrates a material evaluated independently inside every pattern unit.
 
 ## A material recipe
 
-Materials are also `.recipe` files. A single file may declare several named
-materials:
+Materials are also `.recipe` files. The normal layout uses one named material
+per file, so the recipe and its preview have matching names. For example,
+`recipes/dungeon/stone.recipe` contains:
 
 ```text
 Material stone
-  name = "Dark Brown Dungeon Stone"
+  name = "Dungeon Stone"
   wrap = Repeat
   seed = 41
 
@@ -93,62 +101,47 @@ Material stone
     octaves = 3
     persistence = 0.48
 
-  Height Tone
-    source = Input.height
+  Color Shadow
+    nearest = #292b2c
 
-    Add
-      source = Grain
-      amount = 0.10
+  Color Face
+    nearest = F3(0.47, 0.48, 0.45)
 
-    Clamp
-      min = 0.0
-      max = 1.0
+  Color Stone
+    source = Mix(Shadow, Face, Smoothstep(0.18, 0.82, Grain))
 
-  Colorize
-    source = Tone
-    base = DarkBrown
+  Surface
+    color = Stone
     palette = BaseOnly
-    brightness = F2(-0.20, 0.28)
-    saturation = F2(-0.10, 0.12)
-    steps = 12
-    range = Auto
-    dither = false
-
-  MaterialData
-    roughness = 0.88
+    roughness = Clamp(0.66 + Grain * 0.26, 0.0, 1.0)
     metallic = 0.0
     opacity = 1.0
-    emissive = 0.0
+    emission = 0.0
+    normal = Grain
+    normal_strength = 0.30
 
-  Normal
-    source = Tone
-    strength = 0.65
-
-Material iron
-  name = "Worn Iron"
-
-  Colorize
-    source = Input.height
-    base = Charcoal
-    palette = BaseOnly
-    brightness = F2(-0.08, 0.24)
-    saturation = F2(-0.05, 0.02)
-    steps = 10
-
-  MaterialData
-    roughness = 0.42
-    metallic = 0.92
+  Output
+    color = Stone
 ```
 
-`Input.height` is the final height produced by the referencing tile. The first
-material adds its own grain before using that field for color and normals.
-Material data fields accept scalar expressions too, so roughness or emission
-can vary across the surface instead of being constant.
+Materials do not receive tile height. They generate reusable color, renderer
+channels, and micro-normal detail in their own coordinate space. The tile owns
+geometry and uses `MaterialMap` masks to decide where complete materials
+appear. All surface data fields accept scalar expressions.
 
-If this file is `dungeon.recipe`, its material identifiers are `stone` and
-`iron`. A tile can select one of them through a resolved material reference
-such as `dungeon/stone`. See
-[examples/materials.recipe](examples/materials.recipe) for a larger example.
+The material reference is the recipe path without `.recipe`, relative to the
+recipe root. A tile selects this file as a `MaterialMap` base or layer with
+`dungeon/stone`. See
+[examples/materials/stone.recipe](examples/materials/stone.recipe),
+[examples/materials/mortar.recipe](examples/materials/mortar.recipe), and
+[examples/materials/worn_metal.recipe](examples/materials/worn_metal.recipe),
+[examples/materials/wood.recipe](examples/materials/wood.recipe), and
+[examples/materials/marble.recipe](examples/materials/marble.recipe)
+for complete examples.
+
+A file may still group several `Material` declarations when that is useful.
+Grouped materials use the reference `<file>/<material-id>` and the
+`--material` selector described below.
 
 ## Command-line use
 
@@ -168,19 +161,46 @@ procedural-recipes render recipes/wall.recipe \
 When `--output` is omitted, `wall.recipe` becomes `wall.png`. Referenced
 material files are resolved relative to the recipe root.
 
-Render one material from a multi-material document:
+An uncolored tile does not need a palette:
 
 ```sh
-procedural-recipes render recipes/dungeon.recipe \
-  --material stone \
+procedural-recipes render recipes/heightmap.recipe
+```
+
+Without a tile `Colorize` block or referenced material, its height is written
+directly as grayscale. A referenced material supplies its own colorization.
+When that material uses `palette = BaseOnly`, authored `nearest` anchors provide
+a self-contained fallback palette for CLI previews. Strict palette materials
+require `--palette`.
+
+Rerender automatically while editing:
+
+```sh
+procedural-recipes render recipes/heightmap.recipe \
+  --watch
+```
+
+Watch mode renders immediately and then watches the recipe, its referenced
+material recipe, and a local palette file. Invalid intermediate edits report an
+error without stopping the watcher; the next saved change triggers another
+attempt. Press `Ctrl-C` to stop.
+
+Render an individual material beside its recipe:
+
+```sh
+procedural-recipes render recipes/dungeon/stone.recipe \
   --palette palette.hex \
   --output previews/stone.png
 ```
 
-Omit `--material` to render every material. A multi-material file named
-`dungeon.recipe` then produces names such as `dungeon-stone.png` and
-`dungeon-iron.png`. Material previews use a broad seamless relief substrate so
-that height-responsive color, surface data, and normals are visible.
+Without `--output`, `stone.recipe` renders to `stone.png`. For an intentionally
+grouped material document, omit `--material` to render every declaration or
+select one declaration with `--material <id>`. A grouped file named
+`dungeon.recipe` produces names such as `dungeon-stone.png` and
+`dungeon-iron.png`. Material previews use a broad seamless substrate so that
+procedural color, surface data, and micro-normal detail are visible. A material
+`Output` can temporarily replace that preview with a scalar or color debug
+channel.
 
 Write the evaluated height field as an additional image:
 
@@ -190,9 +210,9 @@ procedural-recipes render recipes/wall.recipe \
   --height-output previews/wall-height.png
 ```
 
-The palette argument accepts either a local `.hex` palette or a Lospec palette
-slug in the form `lospec:<slug>`. Animated recipes produce numbered frames such
-as `wall-000.png`, `wall-001.png`, and so on.
+The optional `--palette` argument accepts either a local `.hex` palette or a
+Lospec palette slug in the form `lospec:<slug>`. Animated recipes produce
+numbered frames such as `wall-000.png`, `wall-001.png`, and so on.
 
 # Language reference
 
@@ -221,7 +241,6 @@ as `wall-000.png`, `wall-001.png`, and so on.
 ```text
 Tile
   name = "Untitled Tile"
-  material = dungeon/stone
   size = I2(64, 64)
   coverage = I2(1, 1)
   wrap = Repeat
@@ -232,7 +251,7 @@ Tile
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `name` | `"Untitled Tile"` | Human-readable name. |
-| `material` | none | Optional resolved material reference. |
+| `material` | none | Optional one-material shorthand; `MaterialMap` is used for layered surfaces. |
 | `size` | `I2(64, 64)` | Pixel size of each tile. |
 | `coverage` | `I2(1, 1)` | Number of coordinated tiles across and down. |
 | `wrap` | `Repeat` | Sampling outside the recipe domain. |
@@ -240,9 +259,19 @@ Tile
 | `pixelate` | `1` | Positive sampling-pixel size. |
 
 A tile may contain one `Animation`, any number of `Noise`, `Pattern`, and
-`Height` blocks, one `Output`, and a `Colorize` block when it does not reference
-a material. A tile with a material may still provide `Colorize` as a fallback.
-For a standalone tile, `Colorize.source` must match `Output.height`.
+`Height` blocks, and optional `Colorize`, `MaterialMap`, and `Output` blocks.
+
+When `Output` is omitted, the last scalar-producing top-level block becomes the
+output: a noise or height field uses its declared name, a pattern uses its
+`.height` channel, and `Colorize` uses its `source`. If no such block exists,
+the recipe is invalid.
+
+When `Colorize`, `material`, and `MaterialMap` are all omitted, the renderer
+outputs the heightmap directly as grayscale. `material` is a concise base-only
+surface assignment. `MaterialMap` owns layered color, surface data, and
+micro-normal composition. An inline tile `Colorize` is used only when no
+material is assigned. When both `Colorize` and `Output` are present, their
+sources must match.
 
 The full rendered image size is `size × coverage`.
 
@@ -257,18 +286,21 @@ Material stone
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| material identifier | required | Stable identifier used by aliases and `--material`. |
+| material identifier | required | Stable identifier; also used by grouped-file aliases and `--material`. |
 | `name` | identifier | Human-readable name; underscores become spaces. |
 | `wrap` | `Repeat` | Sampling outside the material domain. |
 | `seed` | `1` | Root deterministic seed. |
 
-A material may contain any number of `Noise`, `Pattern`, and `Height` blocks,
-one required `Colorize`, and optional `MaterialData` and `Normal` blocks.
-Multiple `Material` declarations are allowed in one file.
+A material may contain any number of `Noise`, `Pattern`, `Value`, and named
+`Color` blocks, one required `Surface`, and one optional preview-only `Output`.
+One material per file is the conventional layout and gives that material the
+file-path alias. Multiple declarations remain allowed; grouped materials use
+`<file>/<material-id>` aliases.
 
-Unlike a tile, a material may use different scalar graphs for color,
-roughness/metalness/opacity/emission, and normals. `Input.height` refers to the
-final height field supplied by the tile or preview substrate.
+Materials are independent of tile geometry: `Input.height` is rejected in a
+material. A material may use different scalar graphs for color,
+roughness/metalness/opacity/emission, and micro-normal detail. Tile height and
+material masks remain visible in the tile recipe.
 
 ## Wrapping
 
@@ -297,9 +329,8 @@ source = Clamp(Stones.height * 0.85 + Grain * 0.15, 0.0, 1.0)
 ### Values and operators
 
 - Floating-point literals: `0.5`, `-1.25`
-- Named noise and height fields: `Grain`, `Surface`
+- Named noise, height, and value fields: `Grain`, `Surface`, `Tone`
 - Pattern channels: `Stones.height`, `Stones.edge`, `Stones.center`
-- Material input: `Input.height`
 - Coordinates: `U`, `V`, `Radius`, `Angle`
 - Binary operators: `+`, `-`, `*`, `/`
 - Unary operators: `+`, `-`
@@ -384,7 +415,12 @@ Noise Grain
 Noise is periodic and respects the recipe's wrapping. A pattern-local noise
 domain restarts coordinates inside each pattern unit. `key` adds stable
 per-unit variation without causing the result to shimmer or change when other
-units are added.
+units are added. When a noise with `key = Id` is evaluated globally, the missing
+unit ID resolves to stable key `0`, allowing the noise to be output directly
+for debugging. Other uses of `Id`, such as `Random(Id, ...)`, still require a
+pattern-unit context in tile graphs. Complete material evaluation supplies
+stable `Id = 0` under `Global` and the tile pattern's ID under a local material
+binding.
 
 ## `Pattern`
 
@@ -411,9 +447,25 @@ All pattern generators accept these common fields:
 | --- | --- | --- |
 | `space` | `Global` | Use global coordinates or `<OtherPattern>.local`. |
 | `key` | none | Key variation with `Id`, `Current.id`, or `<Pattern>.id`. |
+| `bevel` | `0.08` | Width of the boundary-to-flat-face transition, clamped to `0..1`; `0` produces a hard, flat profile. |
+| `warp` | none | Scalar field used as a two-axis coordinate warp before generating the pattern. |
+| `warp_amount` | `0.05` | Coordinate displacement, clamped to `0..1`; requires `warp`. |
+| `perturb` | none | Scalar field used to disturb the generated unit boundary. |
+| `perturb_amount` | `0.05` | Boundary displacement, clamped to `0..0.5`; requires `perturb`. |
 | `seed` | `0` | Additional deterministic integer seed. |
 
 A pattern-local space evaluates once within every unit of another pattern.
+`warp` and `perturb` are available on every pattern generator, but operate at
+different stages:
+
+- `warp` changes coordinates before unit selection. It bends the entire pattern
+  coherently. A noise using `key = Id` resolves that key to `0` at this stage
+  because the current pattern unit does not exist yet.
+- `bevel` shapes the boundary profile after unit selection and works identically
+  for bricks, Voronoi cells, and discs.
+- `perturb` changes the boundary profile after unit selection. Its source is
+  sampled in unit-local coordinates and may use `key = Id` for an independent,
+  stable variation per unit. A value of `0.5` causes no displacement.
 
 ### `Bricks`
 
@@ -424,11 +476,10 @@ Pattern Masonry
     rows = 5
     stagger = 0.5
     gap = 0.07
+    bevel = 0.08
     rounding = 0.04
     rotation = 0.0
     size_variation = F2(0.10, 0.06)
-    perturb = Grain
-    perturb_amount = 0.08
     falloff = 1.2
 ```
 
@@ -441,13 +492,13 @@ Pattern Masonry
 | `rounding` | `0.04` | Scalar corner rounding, clamped to `0..0.49`. |
 | `rotation` | `0.0` | Scalar rotation in degrees. |
 | `size_variation` | `F2(0.0, 0.0)` | Per-brick variation, clamped to `0..0.45`. |
-| `perturb` | none | Scalar field used to disturb brick boundaries. |
-| `perturb_amount` | `0.0` | Boundary disturbance, clamped to `0..0.5`. |
 | `falloff` | `1.0` | Scalar edge profile, clamped to `0.1..8`. |
 
-The fields described as scalar accept full scalar expressions. `Bricks` does
-not currently provide the coordinate `warp` fields used by `Voronoi` and
-`Discs`; use `perturb` for irregular brick boundaries.
+The fields described as scalar accept full scalar expressions.
+
+`gap = 0` makes neighboring brick shapes touch. The common `bevel` modifier
+independently controls the narrow transition from the boundary to the flat
+face. `falloff` controls the curve within that bevel only.
 
 ### `Voronoi`
 
@@ -465,8 +516,6 @@ Pattern StoneCells
 | --- | --- | --- |
 | `cells` | `I2(6, 6)` | Positive cell count. |
 | `jitter` | `0.8` | Site displacement, clamped to `0..1`. |
-| `warp` | none | Scalar field used to distort coordinates. |
-| `warp_amount` | `0.05` | Distortion strength, clamped to `0..1`. |
 | `falloff` | `1.0` | Edge profile, clamped to `0.1..8`. |
 
 ### `Discs`
@@ -487,16 +536,30 @@ Pattern Pebbles
 | `cells` | `I2(8, 8)` | Positive cell count. |
 | `jitter` | `1.0` | Scalar site displacement, clamped to `0..1`. |
 | `radius` | `0.5` | Scalar disc radius, clamped to `0.01..2`. |
-| `warp` | none | Scalar field used to distort coordinates. |
-| `warp_amount` | `0.05` | Distortion strength, clamped to `0..1`. |
 | `falloff` | `1.0` | Scalar edge profile, clamped to `0.1..8`. |
 
-For `Voronoi` and `Discs`, specifying `warp_amount` requires `warp`.
+For every pattern, specifying `warp_amount` requires `warp`, and specifying
+`perturb_amount` requires `perturb`.
+
+### Debugging pattern IDs
+
+Pattern IDs are 64-bit discrete values and cannot be used directly as scalar
+height. Map each ID to a stable grayscale value with `Random`:
+
+```text
+Output
+  height = Random(Wall.id, 0.0, 1.0)
+```
+
+Remove or comment out `Colorize` to see the values directly in grayscale. Each
+brick is then a flat shade, which makes unit boundaries and ID stability easy
+to inspect. These shades are deterministic debug representations, not the
+literal numeric IDs; the 8-bit image can give distant units the same shade.
 
 ## `Height`
 
-A height block begins with a scalar source and applies its child operations in
-declaration order:
+A tile height block begins with a scalar source and applies its child operations
+in declaration order:
 
 ```text
 Height Surface
@@ -533,10 +596,30 @@ Height Surface
 `Shape.contrast` is clamped to `0.1..8`, `bias` to `-1..1`, and `plateau`
 and `rim` to `0..4`. Height output is clamped to `0..1`.
 
+`Height` is reserved for tile geometry and is rejected inside materials.
+
+## `Value`
+
+A material uses named values for intermediate scalar calculations:
+
+```text
+Value DetailTone
+  source = Smoothstep(0.18, 0.82, Mineral)
+
+Value UnitTone
+  source = Random(Id, 0.0, 1.0, 37)
+```
+
+`Value` has one required scalar `source` and no child operations. It does not
+alter tile geometry. Named values can drive color mixes, surface channels,
+micro-normal detail, and material preview output.
+
 ## `Colorize`
 
-`Colorize` maps a scalar field to colors from the active project palette or to
-a gradient anchored in that palette.
+The optional tile `Colorize` block maps a scalar field to colors from the active
+project palette or to a gradient anchored in that palette. Without it, a tile
+renders its heightmap as grayscale. Material recipes use named `Color` values
+and a `Surface` block instead.
 
 There are two colorization styles.
 
@@ -617,62 +700,200 @@ An explicit range gives stable authored thresholds. Dithering uses an ordered
 
 ## `Output`
 
-Every tile ends with one output block:
+A tile can explicitly select its output:
 
 ```text
 Output
   height = Surface
 ```
 
-`height` is a required scalar expression and is clamped to `0..1`. It becomes
-the tile's final height, the source for a referenced material's
-`Input.height`, and the optional `--height-output` image.
+When present, `height` is a required scalar expression and is clamped to
+`0..1`. It becomes the tile's final geometric height and the optional
+`--height-output` image.
 
-## `MaterialData`
+`space` optionally evaluates that scalar inside a pattern unit:
 
 ```text
-MaterialData
+Output
+  height = LocalWarp
+  space = Wall.local
+```
+
+The default is `space = Global`. A `<Pattern>.local` space supplies both the
+pattern's local coordinates and its current `Id`. This makes it possible to
+preview the exact keyed noise used by a pattern modifier:
+
+Local-space and `.id` references resolve pattern placement only; they do not
+evaluate that pattern's height or modifiers. A child pattern can therefore use
+`space = Wall.local` and shape `Wall` without creating a height dependency
+cycle. A genuine height loop, such as `Wall` using `Wall.height`, remains an
+error.
+
+```text
+Noise LocalWarp
+  key = Id
+  scale = F2(2.0, 2.0)
+
+Pattern Wall
+  Bricks
+    perturb = LocalWarp
+    perturb_amount = 0.02
+```
+
+When the block is absent, the last scalar-producing top-level block is selected
+implicitly. An explicit `Output` is useful when the desired result is not the
+last block or is a composed scalar expression.
+
+In a material, `Output` is optional and controls only direct previews:
+
+```text
+Output
+  value = Grain
+  space = Global
+```
+
+This renders the selected scalar as grayscale. To inspect a color graph:
+
+```text
+Output
+  color = StoneColor
+```
+
+`value` and `color` are mutually exclusive. A material `Output` is ignored
+when a tile references that material, so debugging never changes runtime
+surface composition.
+
+## `Color`
+
+Named colors make material color graphs editable and reusable:
+
+```text
+Color Shadow
+  nearest = #324524
+
+Color Face
+  nearest = F3(0.52, 0.58, 0.45)
+
+Color StoneColor
+  source = Mix(Shadow, Face, Mineral)
+```
+
+Each `Color <name>` declares exactly one of:
+
+| Field | Meaning |
+| --- | --- |
+| `base` or `exact` | Use an exact authored color. |
+| `nearest` | Replace the authored color with the perceptually nearest active-palette color. |
+| `source` | Evaluate a color expression. |
+
+Authored colors accept standard names, `#RRGGBB`, `#RRGGBBAA`, or normalized
+`F3(r, g, b)`. Nearest-color matching uses perceptual OKLab distance.
+
+Color expressions accept color names, inline exact colors,
+`Nearest(color)`, `Exact(color)`, and:
+
+```text
+Mix(ColorA, ColorB, scalar_mask)
+```
+
+The mask is clamped to `0..1`. Color interpolation uses linear RGB. Multiple
+mixes can be nested or assigned to intermediate named colors. With
+`palette = BaseOnly`, nearest anchors are palette-matched but their gradients
+remain smooth. `palette = Strict` maps the final mixed color back to the active
+palette.
+
+## `Surface`
+
+Every material has one unified final surface block:
+
+```text
+Surface
+  color = StoneColor
+  palette = BaseOnly
   roughness = Mix(0.45, 0.95, Grain)
   metallic = 0.0
   opacity = 1.0
-  emissive = EdgeGlow
-```
-
-All fields accept scalar expressions and are clamped to `0..1`.
-
-| Field | Default | Alias |
-| --- | --- | --- |
-| `roughness` | `0.5` | — |
-| `metallic` | `0.0` | `metal` |
-| `opacity` | `1.0` | — |
-| `emissive` | `0.0` | `emission` |
-
-Do not specify a field and its alias together. Rendered material data stores
-the channels in roughness, metallic, opacity, emissive order.
-
-`Data` is accepted as a shorter alias for the `MaterialData` block name.
-
-## `Normal`
-
-```text
-Normal
-  source = Surface
-  strength = 0.6
+  emission = EdgeGlow
+  normal = Grain
+  normal_strength = 0.25
 ```
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `source` | `Input.height` | Scalar field from which normals are generated. |
-| `strength` | `0.35` | Normal intensity, clamped to `0..8`. |
+| `color` | required | Named or inline color expression. |
+| `palette` | `BaseOnly` | `BaseOnly` keeps smooth mixes; `Strict` quantizes the final color. |
+| `roughness` | `1.0` | Scalar roughness. |
+| `metallic` | `0.0` | Scalar metalness; alias `metal`. |
+| `opacity` | `1.0` | Scalar opacity. |
+| `emissive` | `0.0` | Scalar emission; alias `emission`. |
+| `normal` | none | Optional scalar micro-height field. |
+| `normal_strength` | `0.35` | Micro-normal strength, clamped to `0..8`; requires `normal`. |
 
-Normals are generated automatically from the selected scalar field. Authors
-control the source and strength rather than supplying normal vectors directly.
+All scalar surface channels are clamped to `0..1`. Do not specify a field and
+its alias together. Materials never alter tile height; their `normal` is
+small-scale surface detail combined with the tile’s geometric normal.
+
+## `MaterialMap`
+
+```text
+MaterialMap
+  base = materials/mortar
+  space = Global
+  tiling = F2(1.0, 1.0)
+
+  Layer
+    material = materials/stone
+    mask = Pow(Wall.height, 1.6)
+    space = Wall.local
+    tiling = F2(0.75, 0.75)
+```
+
+`base` fills the complete tile. Its optional `space` defaults to `Global`, and
+its optional `tiling` defaults to `F2(1.0, 1.0)`. Layers are then evaluated in
+declaration order. Every layer also accepts an independent `space` and
+`tiling`, in addition to its required `material` and `mask`.
+
+`Global` evaluates material coordinates continuously across the complete tile.
+`<Pattern>.local` resets material `U` and `V` to `0..1` inside every unit of
+that tile pattern. The unit's stable identity is exposed as `Id` while
+evaluating the complete material, including its colors, noises, roughness,
+metallicity, opacity, emission, and normal field:
+
+```text
+MaterialMap
+  base = materials/mortar
+
+  Layer
+    material = materials/wood
+    mask = Planks.height
+    space = Planks.local
+    tiling = F2(0.45, 0.65)
+```
+
+A reusable material can therefore use `key = Id` on noise and
+`Random(Id, ...)` in scalar or color-mix expressions. It receives deterministic
+variation for every local plank, brick, or stone. Under `Global`, material
+`Id` resolves to stable value `0`, so the same material remains valid as one
+continuous surface.
+
+`tiling` scales coordinates after selecting the global or pattern-local domain
+and before applying the material's wrap mode. Values above `1` repeat the
+material more frequently; positive values below `1` enlarge it and sample less
+than one authored repeat. This is especially useful for keeping grain, pores,
+and veins at a sensible visual scale inside long, thin pattern units. Both
+components must be finite and greater than zero.
+
+Each `mask` remains a tile scalar expression and is clamped to `0..1`; changing
+the material space does not change mask evaluation. A layer blends the complete
+material—linear-RGB color, roughness, metallic, opacity, emission, and
+micro-normal detail. Use scalar functions such as `Pow` and `Smoothstep` to
+control transition sharpness explicitly.
 
 ## Determinism, domains, and variation
 
-A recipe produces the same result for the same recipe text, root seed, palette,
-and render options. Random-looking variation should be expressed through
-declared seeds and stable pattern identities.
+A recipe produces the same result for the same recipe text, root seed, render
+options, and—when colorized—palette. Random-looking variation should be
+expressed through declared seeds and stable pattern identities.
 
 Use these mechanisms together:
 
@@ -688,6 +909,43 @@ This keeps irregular materials coherent and reproducible without hardcoding
 specialized “wood,” “marble,” or “stone” generators. Such materials are built
 by composing the same noises, patterns, domains, expressions, and ramps.
 
+## Diagnostics
+
+Recipe diagnostics have stable machine-readable codes, one-based line and
+column numbers, and the offending source line:
+
+```text
+error[PR0008]: unknown pattern 'Missing'
+ --> recipes/wall.recipe:14:9
+    |
+ 14 |         source = Missing.height
+    |         ^
+```
+
+The explanatory text may improve over time. Integrations should match
+`ParseError.code` or `ParseError::stable_code()` instead of parsing that text.
+
+| Code | `ParseErrorCode` | Meaning |
+| --- | --- | --- |
+| `PR0001` | `Syntax` | Invalid recipe or scalar-expression syntax. |
+| `PR0002` | `Document` | Invalid or incompatible document root. |
+| `PR0003` | `MissingRequired` | A required declaration, block, or field is missing. |
+| `PR0004` | `DuplicateDefinition` | A field, block, identifier, or definition is duplicated. |
+| `PR0005` | `UnknownConstruct` | An unknown block, field, operation, function, or channel was used. |
+| `PR0006` | `InvalidValue` | A value has the wrong type, format, or supported choice. |
+| `PR0007` | `ConflictingFields` | Individually valid fields cannot be used together. |
+| `PR0008` | `UnknownReference` | A scalar, pattern, domain, or stable-ID reference cannot be resolved. |
+
+`ParseError` exposes `code`, `line`, `column`, `message`, `source_line`, and
+`source_name`. Parsers attach source text automatically. A host can add its
+filename or asset name with `with_source_name(...)`; the CLI does this for
+recipe paths.
+
+Fields left over after changing one pattern generator to another are ignored
+and reported as `warning[PRW0001]`. This keeps live previews renderable while
+the recipe is being edited. Unknown fields in other blocks, malformed values,
+unknown generators, and missing dependencies remain errors.
+
 ## Rust API
 
 The crate exposes the parser, AST, palette model, and renderer:
@@ -701,7 +959,14 @@ let source = std::fs::read_to_string("recipes/wall.recipe")?;
 let document = parse_document(&source)?;
 
 if let RecipeDocument::Tile(recipe) = document {
-    let renderer = RecipeRenderer::new(&palette)?;
+    let renderer = if recipe.colorize.is_some()
+        || recipe.material.is_some()
+        || recipe.material_map.is_some()
+    {
+        RecipeRenderer::new(&palette)?
+    } else {
+        RecipeRenderer::grayscale()
+    };
     let rendered = renderer.render(&recipe, &RenderOptions::default())?;
     // rendered.frames contains the tile's color and height data.
 }
@@ -717,7 +982,13 @@ The principal parsing entry points are:
 `RecipeRenderer::render_material` evaluates reusable materials. Use
 `RenderOptions::seed_offset` to request a deterministic variant without
 rewriting the recipe. Material rendering additionally produces the four
-renderer material channels and the normal-height field.
+renderer material channels and the micro-normal height field.
+`render_material_preview` honors a material’s debug `Output`;
+`render_material` deliberately ignores it. `render_material_in_space` evaluates
+the same complete material using a tile's global or pattern-local context and
+binding tiling.
+`render_scalar_field` evaluates tile layer masks, and
+`RenderedMaterial::blend_layer` composes complete materials.
 
 ## Current scope
 
