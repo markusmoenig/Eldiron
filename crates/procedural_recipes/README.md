@@ -10,7 +10,8 @@ they are easy to author, review, version, and generate.
 
 The currently supported procedural assets are:
 
-- **Tiles** — renderable images made from coordinated patterns and height fields.
+- **Tiles** — renderable images made from coordinated patterns and height fields,
+  with optional collision and placement-time architectural geometry.
 - **Materials** — reusable color, roughness, metalness, opacity, emission, and
   normal definitions that can be referenced by many tiles.
 
@@ -241,6 +242,7 @@ numbered frames such as `wall-000.png`, `wall-001.png`, and so on.
 ```text
 Tile
   name = "Untitled Tile"
+  blocking = false
   size = I2(64, 64)
   coverage = I2(1, 1)
   wrap = Repeat
@@ -251,6 +253,7 @@ Tile
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `name` | `"Untitled Tile"` | Human-readable name. |
+| `blocking` | `false` | Whether map compilers should treat placements as solid by default. |
 | `material` | none | Optional one-material shorthand; `MaterialMap` is used for layered surfaces. |
 | `size` | `I2(64, 64)` | Pixel size of each tile. |
 | `coverage` | `I2(1, 1)` | Number of coordinated tiles across and down. |
@@ -259,7 +262,8 @@ Tile
 | `pixelate` | `1` | Positive sampling-pixel size. |
 
 A tile may contain one `Animation`, any number of `Noise`, `Pattern`, and
-`Height` blocks, and optional `Colorize`, `MaterialMap`, and `Output` blocks.
+`Height` blocks, and optional `Geometry`, `Colorize`, `MaterialMap`, and
+`Output` blocks.
 
 When `Output` is omitted, the last scalar-producing top-level block becomes the
 output: a noise or height field uses its declared name, a pattern uses its
@@ -274,6 +278,71 @@ material is assigned. When both `Colorize` and `Output` are present, their
 sources must match.
 
 The full rendered image size is `size × coverage`.
+
+### `Geometry`
+
+`Geometry` keeps an architectural feature with the tile that owns its
+appearance. A Source map can therefore reference only `wall-niche`; the tile
+supplies collision, the opening, and its coordinated surface choices.
+
+```text
+Tile
+  name = "Wall Niche"
+  blocking = true
+
+  Geometry
+    Niche Recess
+      surface = niche-stone
+      frame = niche-frame
+      position = F2(0.12, 0.64)
+      size = F2(0.76, 1.18)
+      depth = 0.46
+      sill = 0.12
+      frame_width = 0.10
+
+  Output
+    height = 0.5
+```
+
+The first supported feature is `Niche <name>`. `position` and `size` use
+wall-local world units; X is horizontal and Y is vertical. `depth` carves into
+the wall. `sill` keeps a solid ledge at the bottom of the authored rectangle.
+`surface` is the tile used on the back, reveals, and sill. Optional `frame` and
+`frame_width` create a separately tiled transition ring around the opening.
+The map compiler instantiates the feature only on wall faces exposed to
+walkable space and validates it against the local ceiling height.
+
+Every named niche also exposes `<name>.distance`: the signed wall-local
+distance to its opening boundary in world units. It is negative inside the
+opening, zero on its edge, and positive outside. This lets the tile synchronize
+its material with its generated geometry without hard-coding the same
+dimensions twice:
+
+```text
+Noise Wear
+  scale = F2(11.0, 8.0)
+  octaves = 3
+
+Height Joint
+  source = 1.0 - Smoothstep(0.025, 0.080, Abs(Recess.distance) + (Wear - 0.5) * 0.028)
+
+MaterialMap
+  base = materials/mortar
+
+  Layer
+    material = materials/stone
+    mask = Stone.height * (1.0 - Joint)
+```
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `surface` | required | Tile alias for the cavity surfaces. |
+| `frame` | none | Optional tile alias for the opening transition. |
+| `position` | `F2(0.1, 0.6)` | Lower-left wall-local position. |
+| `size` | `F2(0.8, 1.2)` | Authored width and vertical extent. |
+| `depth` | `0.35` | Cavity depth; greater than zero and less than one wall unit. |
+| `sill` | `0.1` | Solid height inside the authored vertical extent. |
+| `frame_width` | `0.0` | Width of the optional transition ring. |
 
 ### `Material`
 

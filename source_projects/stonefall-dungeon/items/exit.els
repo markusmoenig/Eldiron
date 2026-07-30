@@ -7,7 +7,50 @@ Item "exit" {
     source_id = "exit"
     source_symbol = "x"
     terminal_glyph = "x"
-    on_look = "Cold air slips through a narrow stairwell. This must be the way out."
-    on_use = "You found the exit from Stonefall. The demo path ends here for now."
+    takeable = false
+    blocking = true
+    visible = true
+    unlocked = false
+  }
+
+  script {
+    fn event(event, value) {
+        if event == "intent" {
+            let intent = value.string;
+            if intent == "look" {
+                let keys = inventory_items_of( value.subject_id,  "Bone Key");
+                if len( keys) > 0 {
+                    set_attr( "unlocked",  true);
+                    set_attr( "blocking",  false);
+                    message( value.subject_id,  "The Bone Key turns. Cold air floods the stair as the way out of Stonefall opens.",  "success");
+                } else {
+                    message( value.subject_id,  "An iron ward seals the stair. The lock bears the same bone mark as the Warden below.",  "warning");
+                }
+            }
+            if intent == "use" {
+                let keys = inventory_items_of( value.subject_id,  "Bone Key");
+                if len( keys) > 0 {
+                    set_attr( "unlocked",  true);
+                    set_attr( "blocking",  false);
+                    message( value.subject_id,  "The Bone Key turns. Cold air floods the stair as the way out of Stonefall opens.",  "success");
+                } else {
+                    message( value.subject_id,  "An iron ward seals the stair. The lock bears the same bone mark as the Warden below.",  "warning");
+                }
+            }
+        }
+        if event == "bumped_by_entity" {
+            let unlocked = get_attr( "unlocked");
+            if unlocked == false {
+                let keys = inventory_items_of( value,  "Bone Key");
+                if len( keys) > 0 {
+                    set_attr( "unlocked",  true);
+                    set_attr( "blocking",  false);
+                    message( value,  "The Bone Key turns. Cold air floods the stair as the way out of Stonefall opens.",  "success");
+                } else {
+                    message( value,  "An iron ward seals the stair. The lock bears the same bone mark as the Warden below.",  "warning");
+                }
+            }
+        }
+    }
   }
 }

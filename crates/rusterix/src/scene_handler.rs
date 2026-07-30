@@ -3160,13 +3160,15 @@ impl SceneHandler {
             if let Some(Value::Light(light)) = item.attributes.get("light") {
                 self.vm.execute(Atom::AddLight {
                     id: Self::item_light_geo_id(item, item_index),
-                    light: Light::new_pointlight(item.position)
-                        .with_color(Vec3::from(light.get_color()))
-                        .with_intensity(light.get_intensity())
-                        .with_emitting(light.active)
-                        .with_start_distance(light.get_start_distance())
-                        .with_end_distance(light.get_end_distance())
-                        .with_flicker(light.get_flicker()),
+                    light: Light::new_pointlight(
+                        item.position + Vec3::new(0.0, light.get_lift(), 0.0),
+                    )
+                    .with_color(Vec3::from(light.get_color()))
+                    .with_intensity(light.get_intensity())
+                    .with_emitting(light.active)
+                    .with_start_distance(light.get_start_distance())
+                    .with_end_distance(light.get_end_distance())
+                    .with_flicker(light.get_flicker()),
                 });
             }
 
@@ -3220,13 +3222,15 @@ impl SceneHandler {
                 if light.active {
                     self.vm.execute(Atom::AddLight {
                         id: GeoId::ItemLight(entity.id),
-                        light: Light::new_pointlight(entity.position)
-                            .with_color(Vec3::from(light.get_color()))
-                            .with_intensity(light.get_intensity())
-                            .with_emitting(light.active)
-                            .with_start_distance(light.get_start_distance())
-                            .with_end_distance(light.get_end_distance())
-                            .with_flicker(light.get_flicker()),
+                        light: Light::new_pointlight(
+                            entity.position + Vec3::new(0.0, light.get_lift(), 0.0),
+                        )
+                        .with_color(Vec3::from(light.get_color()))
+                        .with_intensity(light.get_intensity())
+                        .with_emitting(light.active)
+                        .with_start_distance(light.get_start_distance())
+                        .with_end_distance(light.get_end_distance())
+                        .with_flicker(light.get_flicker()),
                     });
                 }
             }
@@ -3237,13 +3241,15 @@ impl SceneHandler {
                     if light.active {
                         self.vm.execute(Atom::AddLight {
                             id: GeoId::ItemLight(item.id),
-                            light: Light::new_pointlight(entity.position)
-                                .with_color(Vec3::from(light.get_color()))
-                                .with_intensity(light.get_intensity())
-                                .with_emitting(light.active)
-                                .with_start_distance(light.get_start_distance())
-                                .with_end_distance(light.get_end_distance())
-                                .with_flicker(light.get_flicker()),
+                            light: Light::new_pointlight(
+                                entity.position + Vec3::new(0.0, light.get_lift(), 0.0),
+                            )
+                            .with_color(Vec3::from(light.get_color()))
+                            .with_intensity(light.get_intensity())
+                            .with_emitting(light.active)
+                            .with_start_distance(light.get_start_distance())
+                            .with_end_distance(light.get_end_distance())
+                            .with_flicker(light.get_flicker()),
                         });
                     }
                 }
@@ -3384,13 +3390,15 @@ impl SceneHandler {
                 if let Some(Value::Light(light)) = entity.attributes.get("light") {
                     self.vm.execute(Atom::AddLight {
                         id: GeoId::ItemLight(entity.id),
-                        light: Light::new_pointlight(entity.position)
-                            .with_color(Vec3::from(light.get_color().map(|c| c.powf(2.2)))) // Convert light to linear
-                            .with_intensity(light.get_intensity())
-                            .with_emitting(light.active)
-                            .with_start_distance(light.get_start_distance())
-                            .with_end_distance(light.get_end_distance())
-                            .with_flicker(light.get_flicker()),
+                        light: Light::new_pointlight(
+                            entity.position + Vec3::new(0.0, light.get_lift(), 0.0),
+                        )
+                        .with_color(Vec3::from(light.get_color().map(|c| c.powf(2.2)))) // Convert light to linear
+                        .with_intensity(light.get_intensity())
+                        .with_emitting(light.active)
+                        .with_start_distance(light.get_start_distance())
+                        .with_end_distance(light.get_end_distance())
+                        .with_flicker(light.get_flicker()),
                     });
                 }
 
@@ -3399,13 +3407,15 @@ impl SceneHandler {
                     if let Some(Value::Light(light)) = item.attributes.get("light") {
                         self.vm.execute(Atom::AddLight {
                             id: GeoId::ItemLight(item.id),
-                            light: Light::new_pointlight(entity.position)
-                                .with_color(Vec3::from(light.get_color().map(|c| c.powf(2.2)))) // Convert light to linear
-                                .with_intensity(light.get_intensity())
-                                .with_emitting(light.active)
-                                .with_start_distance(light.get_start_distance())
-                                .with_end_distance(light.get_end_distance())
-                                .with_flicker(light.get_flicker()),
+                            light: Light::new_pointlight(
+                                entity.position + Vec3::new(0.0, light.get_lift(), 0.0),
+                            )
+                            .with_color(Vec3::from(light.get_color().map(|c| c.powf(2.2)))) // Convert light to linear
+                            .with_intensity(light.get_intensity())
+                            .with_emitting(light.active)
+                            .with_start_distance(light.get_start_distance())
+                            .with_end_distance(light.get_end_distance())
+                            .with_flicker(light.get_flicker()),
                         });
                     }
                 }
@@ -3533,13 +3543,15 @@ impl SceneHandler {
             if let Some(Value::Light(light)) = item.attributes.get("light") {
                 self.vm.execute(Atom::AddLight {
                     id: Self::item_light_geo_id(item, item_index),
-                    light: Light::new_pointlight(item.position)
-                        .with_color(Vec3::from(light.get_color().map(|c| c.powf(2.2)))) // Convert light to linear
-                        .with_intensity(light.get_intensity())
-                        .with_emitting(light.active)
-                        .with_start_distance(light.get_start_distance())
-                        .with_end_distance(light.get_end_distance())
-                        .with_flicker(light.get_flicker()),
+                    light: Light::new_pointlight(
+                        item.position + Vec3::new(0.0, light.get_lift(), 0.0),
+                    )
+                    .with_color(Vec3::from(light.get_color().map(|c| c.powf(2.2)))) // Convert light to linear
+                    .with_intensity(light.get_intensity())
+                    .with_emitting(light.active)
+                    .with_start_distance(light.get_start_distance())
+                    .with_end_distance(light.get_end_distance())
+                    .with_flicker(light.get_flicker()),
                 });
             }
 

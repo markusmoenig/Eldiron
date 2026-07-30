@@ -129,6 +129,9 @@ pub struct RegionCtx {
     pub notifications_entities: Vec<(u32, i64, String)>,
     pub notifications_items: Vec<(u32, i64, String)>,
     pub active_choice_sessions: Vec<ChoiceSession>,
+    /// The container panel most recently opened by each actor. A matching world
+    /// container remains a valid loot source while its panel is open client-side.
+    pub active_container_sessions: FxHashMap<u32, (u32, Option<u32>)>,
 
     pub ticks: i64,
     pub ticks_per_minute: u32,

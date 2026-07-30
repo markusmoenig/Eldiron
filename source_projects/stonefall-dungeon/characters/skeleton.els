@@ -1,0 +1,61 @@
+Character "skeleton" {
+  name = "Skeleton"
+  glyph = "S"
+
+  data {
+    [attributes]
+    race = "Skeleton"
+    class = "Warrior"
+    LEVEL = 1
+    visible = true
+    radius = 0.35
+    inventory_slots = 6
+    start_equipped_items = ["training_spear"]
+    start_items = ["grave_dust"]
+    source_id = "skeleton"
+  }
+
+  script {
+    fn event(event, value) {
+        if event == "startup" {
+            random_walk( 1.0,  0.65,  4);
+            set_proximity_tracking( true,  4.5);
+            set_attr( "target",  "");
+        }
+        if event == "proximity_warning" {
+            let hostile = is_hostile( value);
+            if hostile == 1 {
+                if target() == "" {
+                    set_target( value);
+                }
+                follow_attack( value,  0.65);
+            }
+        }
+        if event == "engagement_over" {
+            clear_target();
+            random_walk( 1.0,  0.65,  4);
+            set_proximity_tracking( true,  4.5);
+        }
+        if event == "kill" {
+            clear_target();
+            random_walk( 1.0,  0.65,  4);
+            set_proximity_tracking( true,  4.5);
+        }
+        if event == "arrived" {
+            set_proximity_tracking( true,  4.5);
+            random_walk( 1.0,  0.65,  4);
+        }
+        if event == "death" {
+            drop_items( "");
+            set_attr( "visible",  false);
+        }
+        if event == "damaged" {
+            let amount = value.amount;
+            message( value.attacker_id,  "You hit the Skeleton for " + amount + " damage",  "");
+            set_target( value.attacker_id);
+            follow_attack( value.attacker_id,  0.65);
+            set_proximity_tracking( true,  4.5);
+        }
+    }
+  }
+}

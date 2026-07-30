@@ -525,6 +525,14 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "return_to_spawn",
+            0,
+            NodeOp::HostCall {
+                name: "return_to_spawn".into(),
+                argc: 0,
+            },
+        );
+        b.insert(
             "face",
             1,
             NodeOp::HostCall {

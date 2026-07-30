@@ -1,9 +1,11 @@
 use procedural_recipes::{
-    MaterialRecipe, RecipeDocument, RecipeRenderer, RenderOptions, WrapMode, parse_document,
+    GeometryFeature, MaterialRecipe, RecipeDocument, RecipeRenderer, RenderOptions, WrapMode,
+    parse_document,
 };
 use rusterix::{
     GeometryObject, GeometryObjectKind, Light, LightType, Map, MapCamera, PixelSource, Sector,
-    Texture, Tile, TileRole, Value, ValueContainer, map::tile::TileLightEmitter,
+    Texture, Tile, TileGeometryFeature, TileNicheGeometry, TileRole, Value, ValueContainer,
+    map::tile::TileLightEmitter,
 };
 use serde::Deserialize;
 use shared::prelude::{Asset, AssetBuffer, Character, IndexMap, Item, Project, Region, Screen};
@@ -124,6 +126,8 @@ struct GameSection {
     #[serde(default = "default_collision_mode")]
     collision_mode: String,
     #[serde(default)]
+    persistent_intents: bool,
+    #[serde(default)]
     auto_create_player: bool,
     #[serde(default = "default_player")]
     player: String,
@@ -142,6 +146,7 @@ impl Default for GameSection {
             movement_units_per_sec: default_movement_units_per_sec(),
             turn_speed_deg_per_sec: default_turn_speed_deg_per_sec(),
             collision_mode: default_collision_mode(),
+            persistent_intents: false,
             auto_create_player: true,
             player: default_player(),
         }
@@ -226,13 +231,37 @@ struct SourceItem {
     script: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+const DEFAULT_SOURCE_CEILING_HEIGHT: f32 = 3.0;
+const SOURCE_CEILING_THICKNESS: f32 = 0.1;
+const MIN_SOURCE_CEILING_HEIGHT: f32 = 1.5;
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum SourceWallProfile {
+    #[default]
+    Flat,
+    Pillar,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct SourceTileSymbol {
     tile: String,
     material: SourceMaterial,
     blocking: Option<bool>,
     wall_feature: bool,
     ceiling: Option<String>,
+    ceiling_height: Option<f32>,
+    wall_profile: SourceWallProfile,
+    niche: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct SourceNiche {
+    id: String,
+    tile: String,
+    position: Vec2<f32>,
+    size: Vec2<f32>,
+    depth: f32,
+    sill: f32,
 }
 
 impl SourceTileSymbol {
@@ -243,6 +272,9 @@ impl SourceTileSymbol {
             blocking: None,
             wall_feature: false,
             ceiling: None,
+            ceiling_height: None,
+            wall_profile: SourceWallProfile::Flat,
+            niche: None,
         }
     }
 }
@@ -260,13 +292,14 @@ impl SourceMaterial {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 struct SourceRegion {
     id: String,
     name: String,
     default: String,
     floor: String,
     ceiling: String,
+    ceiling_height: f32,
     tile_symbols: IndexMap<char, SourceTileSymbol>,
     terrain: Vec<String>,
 }
@@ -290,9 +323,10 @@ struct SourceWidget {
     data: String,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 struct SourceDocument {
     tile_symbols: IndexMap<char, SourceTileSymbol>,
+    niches: IndexMap<String, SourceNiche>,
     characters: Vec<SourceCharacter>,
     items: Vec<SourceItem>,
     regions: Vec<SourceRegion>,
@@ -302,6 +336,7 @@ struct SourceDocument {
 impl SourceDocument {
     fn extend(&mut self, other: SourceDocument) {
         self.tile_symbols.extend(other.tile_symbols);
+        self.niches.extend(other.niches);
         self.characters.extend(other.characters);
         self.items.extend(other.items);
         self.regions.extend(other.regions);
@@ -315,6 +350,8 @@ struct SourceTileLookup {
     leaf_aliases: IndexMap<String, Option<Uuid>>,
     light_emitters: IndexMap<Uuid, TileLightEmitter>,
     coverage: IndexMap<Uuid, [u32; 2]>,
+    blocking: IndexMap<Uuid, bool>,
+    geometry: IndexMap<Uuid, Vec<TileGeometryFeature>>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -334,7 +371,24 @@ struct ResolvedTileSymbol {
     wall_feature: bool,
     ceiling: Option<PixelSource>,
     ceiling_coverage: [u32; 2],
+    ceiling_height: Option<f32>,
+    wall_profile: SourceWallProfile,
+    niche: Option<ResolvedSourceNiche>,
     light_emitter: Option<TileLightEmitter>,
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedSourceNiche {
+    id: String,
+    source: PixelSource,
+    coverage: [u32; 2],
+    frame: Option<PixelSource>,
+    frame_coverage: [u32; 2],
+    position: Vec2<f32>,
+    size: Vec2<f32>,
+    depth: f32,
+    sill: f32,
+    frame_width: f32,
 }
 
 impl ResolvedTileSymbol {
@@ -351,6 +405,9 @@ impl ResolvedTileSymbol {
             wall_feature: false,
             ceiling: None,
             ceiling_coverage: [1, 1],
+            ceiling_height: None,
+            wall_profile: SourceWallProfile::Flat,
+            niche: None,
             light_emitter: None,
         }
     }
@@ -789,7 +846,24 @@ fn load_procedural_recipe_dir(
         let mut tile = Tile::from_textures(textures);
         tile.role = TileRole::ManMade;
         tile.alias = asset_name_from_path(&root, &path);
+        tile.blocking = recipe.blocking;
         tile.procedural.coverage = [rendered.grid_width, rendered.grid_height];
+        tile.geometry = recipe
+            .geometry
+            .iter()
+            .map(|feature| match feature {
+                GeometryFeature::Niche(niche) => TileGeometryFeature::Niche(TileNicheGeometry {
+                    name: niche.name.clone(),
+                    surface: niche.surface.clone(),
+                    frame: niche.frame.clone(),
+                    position: niche.position,
+                    size: niche.size,
+                    depth: niche.depth,
+                    sill: niche.sill,
+                    frame_width: niche.frame_width,
+                }),
+            })
+            .collect();
         if let Some(alias) = base_material_alias {
             tile.material_alias = alias.to_string();
             tile.baked_material_data = tile.textures.iter().map(Texture::material_bytes).collect();
@@ -1000,6 +1074,10 @@ impl SourceTileLookup {
                     tile.procedural.coverage[1].max(1),
                 ],
             );
+            lookup.blocking.insert(tile.id, tile.blocking);
+            if !tile.geometry.is_empty() {
+                lookup.geometry.insert(tile.id, tile.geometry.clone());
+            }
             if let Some(light) = &tile.light_emitter {
                 lookup.light_emitters.insert(tile.id, light.clone());
             }
@@ -1052,16 +1130,77 @@ impl SourceTileLookup {
             _ => None,
         };
         let coverage = self.coverage_for(&source);
+        let blocking = self.blocking_for(&source);
+        let niche = self.recipe_niche_for(&source).ok().flatten();
         Some(ResolvedTileSymbol {
             source,
             coverage,
             material: SourceMaterial::default(),
-            blocking: None,
+            blocking,
             wall_feature: false,
             ceiling: None,
             ceiling_coverage: [1, 1],
+            ceiling_height: None,
+            wall_profile: SourceWallProfile::Flat,
+            niche,
             light_emitter,
         })
+    }
+
+    fn blocking_for(&self, source: &PixelSource) -> Option<bool> {
+        match source {
+            PixelSource::TileId(id) => self.blocking.get(id).copied(),
+            _ => None,
+        }
+    }
+
+    fn recipe_niche_for(
+        &self,
+        source: &PixelSource,
+    ) -> Result<Option<ResolvedSourceNiche>, String> {
+        let PixelSource::TileId(id) = source else {
+            return Ok(None);
+        };
+        let Some(features) = self.geometry.get(id) else {
+            return Ok(None);
+        };
+        let Some(feature) = features.first() else {
+            return Ok(None);
+        };
+        let TileGeometryFeature::Niche(niche) = feature;
+        let niche_source = self.source_for(&niche.surface).ok_or_else(|| {
+            format!(
+                "Tile geometry Niche '{}' references unknown surface tile '{}'",
+                niche.name, niche.surface
+            )
+        })?;
+        let frame = niche
+            .frame
+            .as_deref()
+            .map(|alias| {
+                self.source_for(alias).ok_or_else(|| {
+                    format!(
+                        "Tile geometry Niche '{}' references unknown frame tile '{}'",
+                        niche.name, alias
+                    )
+                })
+            })
+            .transpose()?;
+        Ok(Some(ResolvedSourceNiche {
+            id: niche.name.clone(),
+            coverage: self.coverage_for(&niche_source),
+            source: niche_source,
+            frame_coverage: frame
+                .as_ref()
+                .map(|source| self.coverage_for(source))
+                .unwrap_or([1, 1]),
+            frame,
+            position: Vec2::new(niche.position[0], niche.position[1]),
+            size: Vec2::new(niche.size[0], niche.size[1]),
+            depth: niche.depth,
+            sill: niche.sill,
+            frame_width: niche.frame_width,
+        }))
     }
 
     fn coverage_for(&self, source: &PixelSource) -> [u32; 2] {
@@ -1120,6 +1259,7 @@ fn push_unique_candidate(candidates: &mut Vec<String>, candidate: String) {
 fn resolve_source_tiles(
     lookup: &SourceTileLookup,
     global_tile_symbols: &IndexMap<char, SourceTileSymbol>,
+    source_niches: &IndexMap<String, SourceNiche>,
     source_region: &SourceRegion,
 ) -> Result<ResolvedSourceTiles, String> {
     let mut symbols = global_tile_symbols.clone();
@@ -1143,10 +1283,41 @@ fn resolve_source_tiles(
             None => None,
         };
         let coverage = lookup.coverage_for(&source);
+        let recipe_blocking = lookup.blocking_for(&source);
+        let recipe_niche = lookup.recipe_niche_for(&source)?;
         let ceiling_coverage = ceiling
             .as_ref()
             .map(|source| lookup.coverage_for(source))
             .unwrap_or([1, 1]);
+        let niche = match symbol.niche.as_deref() {
+            Some(id) => {
+                let definition = source_niches.get(id).ok_or_else(|| {
+                    format!(
+                        "Region '{}' maps '{}' to Niche '{}', but no Niche with that name exists",
+                        source_region.id, glyph, id
+                    )
+                })?;
+                let source = lookup.source_for(&definition.tile).ok_or_else(|| {
+                    format!(
+                        "Niche '{}' uses tile '{}', but no loaded tile with that alias/name exists",
+                        definition.id, definition.tile
+                    )
+                })?;
+                Some(ResolvedSourceNiche {
+                    id: definition.id.clone(),
+                    coverage: lookup.coverage_for(&source),
+                    source,
+                    frame: None,
+                    frame_coverage: [1, 1],
+                    position: definition.position,
+                    size: definition.size,
+                    depth: definition.depth,
+                    sill: definition.sill,
+                    frame_width: 0.0,
+                })
+            }
+            None => recipe_niche,
+        };
         explicit.insert(
             glyph,
             ResolvedTileSymbol {
@@ -1157,10 +1328,13 @@ fn resolve_source_tiles(
                 source,
                 coverage,
                 material: symbol.material,
-                blocking: symbol.blocking,
+                blocking: symbol.blocking.or(recipe_blocking),
                 wall_feature: symbol.wall_feature,
                 ceiling,
                 ceiling_coverage,
+                ceiling_height: symbol.ceiling_height,
+                wall_profile: symbol.wall_profile,
+                niche,
             },
         );
     }
@@ -1193,6 +1367,10 @@ fn write_source_map_metadata(
     properties.set(
         "eldiron_source_default",
         Value::Str(source_region.default.clone()),
+    );
+    properties.set(
+        "eldiron_source_ceiling_height",
+        Value::Float(source_region.ceiling_height),
     );
     let tile_map = source_tile_metadata(source_tiles);
     if !tile_map.is_empty() {
@@ -1287,6 +1465,7 @@ fn compile_project_inner(
         passthrough_config,
     );
     let global_tile_symbols = source.tile_symbols.clone();
+    let source_niches = source.niches.clone();
 
     let mut character_templates = IndexMap::default();
     let mut item_templates = IndexMap::default();
@@ -1359,6 +1538,7 @@ fn compile_project_inner(
             game_client_mode_is_3d(&config.game),
             &tile_lookup,
             &global_tile_symbols,
+            &source_niches,
         )?);
     }
 
@@ -1411,6 +1591,7 @@ fn compile_region(
     mode_3d: bool,
     tile_lookup: &SourceTileLookup,
     global_tile_symbols: &IndexMap<char, SourceTileSymbol>,
+    source_niches: &IndexMap<String, SourceNiche>,
 ) -> Result<Region, String> {
     if source_region.terrain.is_empty() {
         return Err(format!(
@@ -1423,7 +1604,12 @@ fn compile_region(
     region.id = Uuid::new_v4();
     region.name = source_region.name.clone();
     region.module = module_shell("Region", &region.name, false);
-    let source_tiles = resolve_source_tiles(tile_lookup, global_tile_symbols, &source_region)?;
+    let source_tiles = resolve_source_tiles(
+        tile_lookup,
+        global_tile_symbols,
+        source_niches,
+        &source_region,
+    )?;
     region.map = build_map(&source_region, mode_3d, &source_tiles)?;
     region.characters.clear();
     region.items.clear();
@@ -1563,12 +1749,16 @@ fn build_3d_blocks_from_source_terrain(
     map.geometry_objects.clear();
     map.lights.clear();
 
+    validate_source_niches(source_region, source_tiles)?;
+
     let mut cells = 0usize;
     for (y, row) in source_region.terrain.iter().enumerate() {
         for (x, glyph) in row.chars().enumerate() {
             if source_tiles.glyph_blocks(glyph) {
                 continue;
             }
+            let ceiling_height =
+                source_ceiling_height_for_glyph(glyph, source_region, source_tiles);
             let glyph_tile = source_tiles.source_for_glyph(glyph);
             add_source_block(
                 map,
@@ -1593,10 +1783,10 @@ fn build_3d_blocks_from_source_terrain(
                 map,
                 format!("ceiling_{x}_{y}"),
                 x as f32,
-                3.0,
+                ceiling_height,
                 y as f32,
                 x as f32 + 1.0,
-                3.1,
+                ceiling_height + SOURCE_CEILING_THICKNESS,
                 y as f32 + 1.0,
                 glyph_tile
                     .and_then(|tile| {
@@ -1639,6 +1829,10 @@ fn build_3d_blocks_from_source_terrain(
                 .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(12)));
             let light_emitter = symbol_tile.light_emitter.clone();
             let wall_feature = symbol_tile.wall_feature;
+            let wall_profile = symbol_tile.wall_profile;
+            let niche = symbol_tile.niche.clone();
+            let wall_height =
+                source_wall_height(source_region, source_tiles, x as isize, y as isize);
             let wall_tile = if wall_feature {
                 source_tiles
                     .wall
@@ -1647,19 +1841,34 @@ fn build_3d_blocks_from_source_terrain(
             } else {
                 symbol_tile.clone()
             };
-            add_source_block(
-                map,
-                format!("wall_{x}_{y}"),
-                x as f32,
-                0.0,
-                y as f32,
-                x as f32 + 1.0,
-                3.0,
-                y as f32 + 1.0,
-                wall_tile,
-                true,
-                false,
-            );
+            if let Some(niche) = niche {
+                add_source_carved_wall(
+                    map,
+                    source_region,
+                    x,
+                    y,
+                    source_tiles,
+                    wall_tile.clone(),
+                    niche,
+                );
+            } else {
+                add_source_block(
+                    map,
+                    format!("wall_{x}_{y}"),
+                    x as f32,
+                    0.0,
+                    y as f32,
+                    x as f32 + 1.0,
+                    wall_height,
+                    y as f32 + 1.0,
+                    wall_tile.clone(),
+                    true,
+                    false,
+                );
+            }
+            if wall_profile == SourceWallProfile::Pillar {
+                add_source_wall_pillars(map, source_region, x, y, source_tiles, wall_tile);
+            }
             if wall_feature {
                 add_source_wall_feature(
                     map,
@@ -1668,6 +1877,7 @@ fn build_3d_blocks_from_source_terrain(
                     y,
                     source_tiles,
                     symbol_tile,
+                    source_region,
                 );
             }
             if let Some(light_emitter) = light_emitter {
@@ -1678,12 +1888,544 @@ fn build_3d_blocks_from_source_terrain(
                     y,
                     source_tiles,
                     &light_emitter,
+                    source_region,
                 );
             }
         }
     }
 
+    add_source_ceiling_transitions(map, source_region, source_tiles);
+
     Ok(())
+}
+
+fn source_ceiling_height_for_glyph(
+    glyph: char,
+    source_region: &SourceRegion,
+    source_tiles: &ResolvedSourceTiles,
+) -> f32 {
+    source_tiles
+        .explicit
+        .get(&glyph)
+        .and_then(|tile| tile.ceiling_height)
+        .unwrap_or(source_region.ceiling_height)
+}
+
+fn source_walkable_ceiling_height(
+    terrain: &[String],
+    x: isize,
+    y: isize,
+    source_region: &SourceRegion,
+    source_tiles: &ResolvedSourceTiles,
+) -> Option<f32> {
+    if x < 0 || y < 0 {
+        return None;
+    }
+    let glyph = terrain
+        .get(y as usize)
+        .and_then(|line| line.chars().nth(x as usize))?;
+    (!source_tiles.glyph_blocks(glyph))
+        .then(|| source_ceiling_height_for_glyph(glyph, source_region, source_tiles))
+}
+
+fn source_wall_height(
+    source_region: &SourceRegion,
+    source_tiles: &ResolvedSourceTiles,
+    x: isize,
+    y: isize,
+) -> f32 {
+    [(0, -1), (1, 0), (0, 1), (-1, 0)]
+        .into_iter()
+        .filter_map(|(dx, dy)| {
+            source_walkable_ceiling_height(
+                &source_region.terrain,
+                x + dx,
+                y + dy,
+                source_region,
+                source_tiles,
+            )
+        })
+        .reduce(f32::max)
+        .unwrap_or(source_region.ceiling_height)
+}
+
+fn validate_source_niches(
+    source_region: &SourceRegion,
+    source_tiles: &ResolvedSourceTiles,
+) -> Result<(), String> {
+    for (y, row) in source_region.terrain.iter().enumerate() {
+        for (x, glyph) in row.chars().enumerate() {
+            let Some(niche) = source_tiles
+                .explicit
+                .get(&glyph)
+                .and_then(|tile| tile.niche.as_ref())
+            else {
+                continue;
+            };
+            for (dx, dz) in [(0_isize, -1_isize), (1, 0), (0, 1), (-1, 0)] {
+                let Some(height) = source_walkable_ceiling_height(
+                    &source_region.terrain,
+                    x as isize + dx,
+                    y as isize + dz,
+                    source_region,
+                    source_tiles,
+                ) else {
+                    continue;
+                };
+                let top = niche.position.y + niche.size.y;
+                if top > height {
+                    return Err(format!(
+                        "Region '{}' places Niche '{}' at ({x}, {y}), but position.y + size.y ({top}) exceeds the adjacent ceiling height ({height})",
+                        source_region.id, niche.id
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy)]
+struct SourceNicheCavity {
+    min: Vec3<f32>,
+    max: Vec3<f32>,
+    direction: (isize, isize),
+}
+
+impl SourceNicheCavity {
+    fn contains(self, point: Vec3<f32>) -> bool {
+        point.x >= self.min.x
+            && point.x <= self.max.x
+            && point.y >= self.min.y
+            && point.y <= self.max.y
+            && point.z >= self.min.z
+            && point.z <= self.max.z
+    }
+}
+
+fn add_source_carved_wall(
+    map: &mut Map,
+    source_region: &SourceRegion,
+    x: usize,
+    y: usize,
+    source_tiles: &ResolvedSourceTiles,
+    wall_tile: ResolvedTileSymbol,
+    niche: ResolvedSourceNiche,
+) {
+    let min = Vec3::new(x as f32, 0.0, y as f32);
+    let max = Vec3::new(
+        min.x + 1.0,
+        source_wall_height(source_region, source_tiles, x as isize, y as isize),
+        min.z + 1.0,
+    );
+    let niche_bottom = niche.position.y + niche.sill;
+    let niche_top = niche.position.y + niche.size.y;
+    let mut cavities = Vec::new();
+
+    for (dx, dz) in [(0_isize, -1_isize), (1, 0), (0, 1), (-1, 0)] {
+        if source_walkable_ceiling_height(
+            &source_region.terrain,
+            x as isize + dx,
+            y as isize + dz,
+            source_region,
+            source_tiles,
+        )
+        .is_none()
+        {
+            continue;
+        }
+
+        let tangent_min = if dz != 0 {
+            min.x + niche.position.x
+        } else {
+            min.z + niche.position.x
+        };
+        let tangent_max = tangent_min + niche.size.x;
+        let cavity = match (dx, dz) {
+            (0, -1) => SourceNicheCavity {
+                min: Vec3::new(tangent_min, niche_bottom, min.z),
+                max: Vec3::new(tangent_max, niche_top, min.z + niche.depth),
+                direction: (dx, dz),
+            },
+            (1, 0) => SourceNicheCavity {
+                min: Vec3::new(max.x - niche.depth, niche_bottom, tangent_min),
+                max: Vec3::new(max.x, niche_top, tangent_max),
+                direction: (dx, dz),
+            },
+            (0, 1) => SourceNicheCavity {
+                min: Vec3::new(tangent_min, niche_bottom, max.z - niche.depth),
+                max: Vec3::new(tangent_max, niche_top, max.z),
+                direction: (dx, dz),
+            },
+            (-1, 0) => SourceNicheCavity {
+                min: Vec3::new(min.x, niche_bottom, tangent_min),
+                max: Vec3::new(min.x + niche.depth, niche_top, tangent_max),
+                direction: (dx, dz),
+            },
+            _ => continue,
+        };
+        cavities.push(cavity);
+    }
+
+    if cavities.is_empty() {
+        add_source_block(
+            map,
+            format!("wall_{x}_{y}"),
+            min.x,
+            min.y,
+            min.z,
+            max.x,
+            max.y,
+            max.z,
+            wall_tile,
+            true,
+            false,
+        );
+        return;
+    }
+
+    let mut x_cuts = vec![min.x, max.x];
+    let mut y_cuts = vec![min.y, max.y];
+    let mut z_cuts = vec![min.z, max.z];
+    for cavity in &cavities {
+        x_cuts.extend([cavity.min.x, cavity.max.x]);
+        y_cuts.extend([cavity.min.y, cavity.max.y]);
+        z_cuts.extend([cavity.min.z, cavity.max.z]);
+        if niche.frame.is_some() && niche.frame_width > 0.0 {
+            y_cuts.extend([
+                (cavity.min.y - niche.frame_width).max(min.y),
+                (cavity.max.y + niche.frame_width).min(max.y),
+            ]);
+            if cavity.direction.1 != 0 {
+                x_cuts.extend([
+                    (cavity.min.x - niche.frame_width).max(min.x),
+                    (cavity.max.x + niche.frame_width).min(max.x),
+                ]);
+            } else {
+                z_cuts.extend([
+                    (cavity.min.z - niche.frame_width).max(min.z),
+                    (cavity.max.z + niche.frame_width).min(max.z),
+                ]);
+            }
+        }
+    }
+    sort_source_wall_cuts(&mut x_cuts);
+    sort_source_wall_cuts(&mut y_cuts);
+    sort_source_wall_cuts(&mut z_cuts);
+
+    let mut part = 0;
+    for x_bounds in x_cuts.windows(2) {
+        for y_bounds in y_cuts.windows(2) {
+            for z_bounds in z_cuts.windows(2) {
+                let part_min = Vec3::new(x_bounds[0], y_bounds[0], z_bounds[0]);
+                let part_max = Vec3::new(x_bounds[1], y_bounds[1], z_bounds[1]);
+                let center = (part_min + part_max) * 0.5;
+                if cavities.iter().any(|cavity| cavity.contains(center)) {
+                    continue;
+                }
+
+                add_source_block(
+                    map,
+                    format!("wall_niche_solid_{part}_{x}_{y}"),
+                    part_min.x,
+                    part_min.y,
+                    part_min.z,
+                    part_max.x,
+                    part_max.y,
+                    part_max.z,
+                    wall_tile.clone(),
+                    true,
+                    false,
+                );
+                if let Some(object) = map.geometry_objects.last_mut() {
+                    apply_source_cavity_tiles(object, part_min, part_max, &cavities, &niche);
+                    apply_source_niche_frame(
+                        object, part_min, part_max, min, max, &cavities, &niche,
+                    );
+                }
+                part += 1;
+            }
+        }
+    }
+}
+
+fn sort_source_wall_cuts(cuts: &mut Vec<f32>) {
+    cuts.sort_by(f32::total_cmp);
+    cuts.dedup_by(|a, b| (*a - *b).abs() < 0.0001);
+}
+
+fn apply_source_cavity_tiles(
+    object: &mut GeometryObject,
+    min: Vec3<f32>,
+    max: Vec3<f32>,
+    cavities: &[SourceNicheCavity],
+    niche: &ResolvedSourceNiche,
+) {
+    let center = (min + max) * 0.5;
+    let epsilon = 0.0001;
+    let samples = [
+        Vec3::new(center.x, center.y, min.z - epsilon),
+        Vec3::new(center.x, center.y, max.z + epsilon),
+        Vec3::new(min.x - epsilon, center.y, center.z),
+        Vec3::new(max.x + epsilon, center.y, center.z),
+        Vec3::new(center.x, max.y + epsilon, center.z),
+        Vec3::new(center.x, min.y - epsilon, center.z),
+    ];
+    let niche_faces = samples
+        .iter()
+        .enumerate()
+        .filter_map(|(index, sample)| {
+            cavities
+                .iter()
+                .any(|cavity| cavity.contains(*sample))
+                .then_some(index)
+        })
+        .collect::<Vec<_>>();
+
+    for index in niche_faces {
+        if let Some(face) = object.faces.get_mut(index) {
+            face.tile = Some(niche.source.clone());
+        }
+        apply_source_face_recipe_uvs(object, index, niche.coverage);
+    }
+}
+
+fn apply_source_niche_frame(
+    object: &mut GeometryObject,
+    part_min: Vec3<f32>,
+    part_max: Vec3<f32>,
+    wall_min: Vec3<f32>,
+    wall_max: Vec3<f32>,
+    cavities: &[SourceNicheCavity],
+    niche: &ResolvedSourceNiche,
+) {
+    let Some(frame) = &niche.frame else {
+        return;
+    };
+    if niche.frame_width <= 0.0 {
+        return;
+    }
+
+    let epsilon = 0.0001;
+    let center = (part_min + part_max) * 0.5;
+    for cavity in cavities {
+        let (face_index, on_front, tangent, opening_min, opening_max) = match cavity.direction {
+            (0, -1) => (
+                0,
+                (part_min.z - wall_min.z).abs() < epsilon,
+                center.x,
+                cavity.min.x,
+                cavity.max.x,
+            ),
+            (1, 0) => (
+                3,
+                (part_max.x - wall_max.x).abs() < epsilon,
+                center.z,
+                cavity.min.z,
+                cavity.max.z,
+            ),
+            (0, 1) => (
+                1,
+                (part_max.z - wall_max.z).abs() < epsilon,
+                center.x,
+                cavity.min.x,
+                cavity.max.x,
+            ),
+            (-1, 0) => (
+                2,
+                (part_min.x - wall_min.x).abs() < epsilon,
+                center.z,
+                cavity.min.z,
+                cavity.max.z,
+            ),
+            _ => continue,
+        };
+        if !on_front {
+            continue;
+        }
+
+        let in_outer_x = tangent >= opening_min - niche.frame_width - epsilon
+            && tangent <= opening_max + niche.frame_width + epsilon;
+        let in_outer_y = center.y >= cavity.min.y - niche.frame_width - epsilon
+            && center.y <= cavity.max.y + niche.frame_width + epsilon;
+        let in_opening_x = tangent > opening_min + epsilon && tangent < opening_max - epsilon;
+        let in_opening_y = center.y > cavity.min.y + epsilon && center.y < cavity.max.y - epsilon;
+        if in_outer_x && in_outer_y && !(in_opening_x && in_opening_y) {
+            if let Some(face) = object.faces.get_mut(face_index) {
+                face.tile = Some(frame.clone());
+            }
+            apply_source_face_recipe_uvs(object, face_index, niche.frame_coverage);
+        }
+    }
+}
+
+fn apply_source_face_recipe_uvs(
+    object: &mut GeometryObject,
+    face_index: usize,
+    coverage: [u32; 2],
+) {
+    let scale = Vec2::new(coverage[0].max(1) as f32, coverage[1].max(1) as f32);
+    let Some(face) = object.faces.get(face_index) else {
+        return;
+    };
+    let points = face
+        .indices
+        .iter()
+        .filter_map(|index| object.vertices.get(*index).copied())
+        .collect::<Vec<_>>();
+    if points.len() != face.indices.len() || points.len() < 3 {
+        return;
+    }
+    let mut normal = Vec3::<f32>::zero();
+    for index in 1..points.len() - 1 {
+        normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+    }
+    let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+    let uvs = points
+        .iter()
+        .map(|point| source_recipe_uv_for_point(*point, abs, scale))
+        .collect();
+    if let Some(face) = object.faces.get_mut(face_index) {
+        face.uvs = uvs;
+        face.auto_uv = false;
+    }
+}
+
+fn add_source_wall_pillars(
+    map: &mut Map,
+    source_region: &SourceRegion,
+    x: usize,
+    y: usize,
+    source_tiles: &ResolvedSourceTiles,
+    tile: ResolvedTileSymbol,
+) {
+    let width = 0.30;
+    let half_width = width * 0.5;
+    let depth = 0.12;
+    let overlap = 0.08;
+    for (dx, dz, direction) in [
+        (0_isize, -1_isize, "north"),
+        (1, 0, "east"),
+        (0, 1, "south"),
+        (-1, 0, "west"),
+    ] {
+        let Some(height) = source_walkable_ceiling_height(
+            &source_region.terrain,
+            x as isize + dx,
+            y as isize + dz,
+            source_region,
+            source_tiles,
+        ) else {
+            continue;
+        };
+        let center_x = x as f32 + 0.5;
+        let center_z = y as f32 + 0.5;
+        let (min_x, min_z, max_x, max_z) = match (dx, dz) {
+            (0, -1) => (
+                center_x - half_width,
+                y as f32 - depth,
+                center_x + half_width,
+                y as f32 + overlap,
+            ),
+            (1, 0) => (
+                x as f32 + 1.0 - overlap,
+                center_z - half_width,
+                x as f32 + 1.0 + depth,
+                center_z + half_width,
+            ),
+            (0, 1) => (
+                center_x - half_width,
+                y as f32 + 1.0 - overlap,
+                center_x + half_width,
+                y as f32 + 1.0 + depth,
+            ),
+            (-1, 0) => (
+                x as f32 - depth,
+                center_z - half_width,
+                x as f32 + overlap,
+                center_z + half_width,
+            ),
+            _ => continue,
+        };
+        add_source_block(
+            map,
+            format!("wall_pillar_{direction}_{x}_{y}"),
+            min_x,
+            0.0,
+            min_z,
+            max_x,
+            height,
+            max_z,
+            tile.clone(),
+            true,
+            false,
+        );
+    }
+}
+
+fn add_source_ceiling_transitions(
+    map: &mut Map,
+    source_region: &SourceRegion,
+    source_tiles: &ResolvedSourceTiles,
+) {
+    let transition_tile = source_tiles
+        .wall
+        .clone()
+        .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(12)));
+    let thickness = 0.02;
+
+    for (y, row) in source_region.terrain.iter().enumerate() {
+        for (x, glyph) in row.chars().enumerate() {
+            if source_tiles.glyph_blocks(glyph) {
+                continue;
+            }
+            let height = source_ceiling_height_for_glyph(glyph, source_region, source_tiles);
+            for (dx, dz, suffix) in [(1_isize, 0_isize, "east"), (0, 1, "south")] {
+                let Some(neighbor_height) = source_walkable_ceiling_height(
+                    &source_region.terrain,
+                    x as isize + dx,
+                    y as isize + dz,
+                    source_region,
+                    source_tiles,
+                ) else {
+                    continue;
+                };
+                if (height - neighbor_height).abs() < f32::EPSILON {
+                    continue;
+                }
+                let min_y = height.min(neighbor_height);
+                let max_y = height.max(neighbor_height);
+                let (min_x, max_x, min_z, max_z) = if dx != 0 {
+                    (
+                        x as f32 + 1.0 - thickness * 0.5,
+                        x as f32 + 1.0 + thickness * 0.5,
+                        y as f32,
+                        y as f32 + 1.0,
+                    )
+                } else {
+                    (
+                        x as f32,
+                        x as f32 + 1.0,
+                        y as f32 + 1.0 - thickness * 0.5,
+                        y as f32 + 1.0 + thickness * 0.5,
+                    )
+                };
+                add_source_block(
+                    map,
+                    format!("ceiling_transition_{suffix}_{x}_{y}"),
+                    min_x,
+                    min_y,
+                    min_z,
+                    max_x,
+                    max_y,
+                    max_z,
+                    transition_tile.clone(),
+                    false,
+                    false,
+                );
+            }
+        }
+    }
 }
 
 fn add_source_wall_feature(
@@ -1693,16 +2435,24 @@ fn add_source_wall_feature(
     y: usize,
     source_tiles: &ResolvedSourceTiles,
     feature: ResolvedTileSymbol,
+    source_region: &SourceRegion,
 ) {
-    let Some((offset_x, offset_z, outward_face)) = [
+    let Some((offset_x, offset_z, outward_face, ceiling_height)) = [
         (0_isize, -1_isize, 0_usize),
         (1, 0, 3),
         (0, 1, 1),
         (-1, 0, 2),
     ]
     .into_iter()
-    .find(|(dx, dz, _)| {
-        !source_cell_blocks(terrain, x as isize + dx, y as isize + dz, source_tiles)
+    .find_map(|(dx, dz, face)| {
+        source_walkable_ceiling_height(
+            terrain,
+            x as isize + dx,
+            y as isize + dz,
+            source_region,
+            source_tiles,
+        )
+        .map(|height| (dx, dz, face, height))
     }) else {
         return;
     };
@@ -1725,10 +2475,12 @@ fn add_source_wall_feature(
         (-1, 0) => (x as f32 - inset, x as f32, y as f32, y as f32 + 1.0),
         _ => return,
     };
+    let feature_height = 1.0_f32.min((ceiling_height - 0.5).max(0.25));
+    let feature_center = (ceiling_height * 0.5).max(feature_height * 0.5 + 0.1);
     let mut object = GeometryObject::box_from_bounds(
         format!("wall_feature_{x}_{y}"),
-        Vec3::new(min_x, 1.0, min_z),
-        Vec3::new(max_x, 2.0, max_z),
+        Vec3::new(min_x, feature_center - feature_height * 0.5, min_z),
+        Vec3::new(max_x, feature_center + feature_height * 0.5, max_z),
     );
     object.kind = GeometryObjectKind::Generated;
     object.solid = false;
@@ -1758,14 +2510,21 @@ fn add_source_wall_light(
     y: usize,
     source_tiles: &ResolvedSourceTiles,
     emitter: &TileLightEmitter,
+    source_region: &SourceRegion,
 ) {
-    let (offset_x, offset_z) = [(0_isize, -1_isize), (1, 0), (0, 1), (-1, 0)]
+    let (offset_x, offset_z, ceiling_height) = [(0_isize, -1_isize), (1, 0), (0, 1), (-1, 0)]
         .into_iter()
-        .find(|(dx, dz)| {
-            !source_cell_blocks(terrain, x as isize + dx, y as isize + dz, source_tiles)
+        .find_map(|(dx, dz)| {
+            source_walkable_ceiling_height(
+                terrain,
+                x as isize + dx,
+                y as isize + dz,
+                source_region,
+                source_tiles,
+            )
+            .map(|height| (dx as f32 * 0.55, dz as f32 * 0.55, height))
         })
-        .map(|(dx, dz)| (dx as f32 * 0.55, dz as f32 * 0.55))
-        .unwrap_or((0.0, 0.0));
+        .unwrap_or((0.0, 0.0, source_region.ceiling_height));
     let color = [
         emitter.color[0] as f32 / 255.0,
         emitter.color[1] as f32 / 255.0,
@@ -1776,7 +2535,7 @@ fn add_source_wall_light(
         Light::new(LightType::Point)
             .with_position(Vec3::new(
                 x as f32 + 0.5 + offset_x,
-                1.45 + emitter.lift,
+                (ceiling_height * 0.48 + emitter.lift).clamp(0.5, ceiling_height - 0.2),
                 y as f32 + 0.5 + offset_z,
             ))
             .with_color(color)
@@ -1873,19 +2632,28 @@ fn apply_source_recipe_uvs(object: &mut GeometryObject, coverage: [u32; 2]) {
         let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
         face.uvs = points
             .iter()
-            .map(|point| {
-                let projected = if abs.y >= abs.x && abs.y >= abs.z {
-                    Vec2::new(point.x, point.z)
-                } else if abs.x >= abs.z {
-                    Vec2::new(point.z, point.y)
-                } else {
-                    Vec2::new(point.x, point.y)
-                };
-                Vec2::new(projected.x / scale.x, projected.y / scale.y)
-            })
+            .map(|point| source_recipe_uv_for_point(*point, abs, scale))
             .collect();
         face.auto_uv = false;
     }
+}
+
+fn source_recipe_uv_for_point(
+    point: Vec3<f32>,
+    absolute_normal: Vec3<f32>,
+    scale: Vec2<f32>,
+) -> Vec2<f32> {
+    let projected =
+        if absolute_normal.y >= absolute_normal.x && absolute_normal.y >= absolute_normal.z {
+            Vec2::new(point.x, point.z)
+        } else {
+            // A shared Manhattan coordinate gives perpendicular wall faces the
+            // same U phase at their common corner. This keeps multi-tile recipes
+            // continuous when a corridor turns instead of exposing unrelated
+            // slices of the texture on each wall axis.
+            Vec2::new(point.x + point.z, point.y)
+        };
+    Vec2::new(projected.x / scale.x, projected.y / scale.y)
 }
 
 fn apply_source_material(properties: &mut ValueContainer, material: &SourceMaterial) {
@@ -2071,6 +2839,12 @@ fn parse_source(src: &str) -> Result<SourceDocument, String> {
     document
         .tile_symbols
         .extend(parse_top_level_tile_symbol_blocks(src)?);
+    for block in find_named_blocks(src, "Niche")? {
+        let niche = parse_niche(&block)?;
+        if document.niches.insert(niche.id.clone(), niche).is_some() {
+            return Err(format!("Niche '{}' is defined more than once", block.name));
+        }
+    }
     for block in find_named_blocks(src, "Character")? {
         document.characters.push(parse_character(&block)?);
     }
@@ -2084,6 +2858,90 @@ fn parse_source(src: &str) -> Result<SourceDocument, String> {
         document.screens.push(parse_screen(&block)?);
     }
     Ok(document)
+}
+
+fn parse_niche(block: &NamedBlock) -> Result<SourceNiche, String> {
+    let context = format!("Niche '{}'", block.name);
+    let tile = bare_field(&block.body, "tile")
+        .map(|value| strip_line_comment(&value).trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| format!("{context} is missing tile"))?;
+    let position = parse_source_f2_field(&block.body, "position", &context)?;
+    let size = parse_source_f2_field(&block.body, "size", &context)?;
+    let depth = parse_source_required_float_field(&block.body, "depth", &context)?;
+    let sill = parse_source_required_float_field(&block.body, "sill", &context)?;
+
+    if position.x < 0.0 || position.y < 0.0 {
+        return Err(format!(
+            "{context} position must use non-negative wall-local coordinates"
+        ));
+    }
+    if size.x <= 0.0 || size.y <= 0.0 {
+        return Err(format!(
+            "{context} size components must be greater than zero"
+        ));
+    }
+    if position.x + size.x > 1.0 {
+        return Err(format!(
+            "{context} position.x + size.x must fit within the 1.0-unit wall width"
+        ));
+    }
+    if depth <= 0.0 || depth >= 1.0 {
+        return Err(format!(
+            "{context} depth must be greater than 0.0 and less than 1.0"
+        ));
+    }
+    if sill <= 0.0 || sill > size.y {
+        return Err(format!(
+            "{context} sill must be greater than 0.0 and no larger than size.y"
+        ));
+    }
+
+    Ok(SourceNiche {
+        id: block.name.clone(),
+        tile,
+        position,
+        size,
+        depth,
+        sill,
+    })
+}
+
+fn parse_source_f2_field(src: &str, key: &str, context: &str) -> Result<Vec2<f32>, String> {
+    let value =
+        bare_field(src, key).ok_or_else(|| format!("{context} is missing {key} = F2(x, y)"))?;
+    let value = strip_line_comment(&value).trim();
+    let inner = value
+        .strip_prefix("F2(")
+        .and_then(|value| value.strip_suffix(')'))
+        .ok_or_else(|| format!("{context} {key} must use F2(x, y), but found '{value}'"))?;
+    let mut components = inner.split(',').map(str::trim);
+    let x = components
+        .next()
+        .and_then(|value| value.parse::<f32>().ok())
+        .ok_or_else(|| format!("{context} {key}.x must be a number"))?;
+    let y = components
+        .next()
+        .and_then(|value| value.parse::<f32>().ok())
+        .ok_or_else(|| format!("{context} {key}.y must be a number"))?;
+    if components.next().is_some() || !x.is_finite() || !y.is_finite() {
+        return Err(format!(
+            "{context} {key} must contain exactly two finite numbers"
+        ));
+    }
+    Ok(Vec2::new(x, y))
+}
+
+fn parse_source_required_float_field(src: &str, key: &str, context: &str) -> Result<f32, String> {
+    let value = bare_field(src, key).ok_or_else(|| format!("{context} is missing {key}"))?;
+    let value = strip_line_comment(&value).trim();
+    let value = value
+        .parse::<f32>()
+        .map_err(|_| format!("{context} {key} must be a number, but found '{value}'"))?;
+    if !value.is_finite() {
+        return Err(format!("{context} {key} must be finite"));
+    }
+    Ok(value)
 }
 
 fn parse_character(block: &NamedBlock) -> Result<SourceCharacter, String> {
@@ -2131,6 +2989,12 @@ fn parse_region(block: &NamedBlock) -> Result<SourceRegion, String> {
     let default = bare_field(&block.body, "default").unwrap_or_else(|| "wall.stone".to_string());
     let floor = bare_field(&block.body, "floor").unwrap_or_else(|| "floor".to_string());
     let ceiling = bare_field(&block.body, "ceiling").unwrap_or_else(|| "ceiling".to_string());
+    let ceiling_height = match bare_field(&block.body, "ceiling_height") {
+        Some(value) => {
+            parse_source_ceiling_height(&format!("Region '{}' ceiling_height", block.name), &value)?
+        }
+        None => DEFAULT_SOURCE_CEILING_HEIGHT,
+    };
     let tile_symbols = parse_tile_symbol_blocks(&block.body)?;
     let terrain = triple_string_field(&block.body, "terrain")
         .ok_or_else(|| format!("Region '{}' is missing terrain \"\"\"...\"\"\"", block.name))?;
@@ -2141,6 +3005,7 @@ fn parse_region(block: &NamedBlock) -> Result<SourceRegion, String> {
         default,
         floor,
         ceiling,
+        ceiling_height,
         tile_symbols,
         terrain: lines,
     })
@@ -2268,6 +3133,9 @@ fn parse_tile_symbol_value(value: &str) -> Result<SourceTileSymbol, String> {
     let mut blocking = None;
     let mut wall_feature = false;
     let mut ceiling = None;
+    let mut ceiling_height = None;
+    let mut wall_profile = SourceWallProfile::Flat;
+    let mut niche = None;
     for token in value.replace(',', " ").split_whitespace() {
         let token = token.trim();
         if token.is_empty() {
@@ -2285,9 +3153,22 @@ fn parse_tile_symbol_value(value: &str) -> Result<SourceTileSymbol, String> {
                     wall_feature = parse_tile_symbol_bool(key, &raw_value)?
                 }
                 "ceiling" => ceiling = Some(raw_value),
+                "ceiling_height" | "height" => {
+                    ceiling_height = Some(parse_source_ceiling_height(
+                        &format!("tiles entry option '{key}'"),
+                        &raw_value,
+                    )?)
+                }
+                "profile" | "wall_profile" => {
+                    wall_profile = parse_source_wall_profile(
+                        &format!("tiles entry option '{key}'"),
+                        &raw_value,
+                    )?
+                }
+                "niche" => niche = Some(raw_value),
                 _ => {
                     return Err(format!(
-                        "unknown tiles entry option '{}'; expected tile, material/preset, finish, blocking/solid, feature/wall_feature, or ceiling",
+                        "unknown tiles entry option '{}'; expected tile, material/preset, finish, blocking/solid, feature/wall_feature, ceiling, ceiling_height/height, profile/wall_profile, or niche",
                         key
                     ));
                 }
@@ -2308,6 +3189,9 @@ fn parse_tile_symbol_value(value: &str) -> Result<SourceTileSymbol, String> {
         blocking,
         wall_feature,
         ceiling,
+        ceiling_height,
+        wall_profile,
+        niche,
     })
 }
 
@@ -2336,13 +3220,51 @@ fn parse_tile_symbol_inline_table(value: &str) -> Result<SourceTileSymbol, Strin
         .transpose()?
         .unwrap_or(false);
     let ceiling = inline_string_value(symbol, "ceiling");
+    let ceiling_height = inline_value(symbol, "ceiling_height")
+        .or_else(|| inline_value(symbol, "height"))
+        .map(|value| parse_source_ceiling_height("tiles inline option 'ceiling_height'", &value))
+        .transpose()?;
+    let wall_profile = inline_value(symbol, "profile")
+        .or_else(|| inline_value(symbol, "wall_profile"))
+        .map(|value| parse_source_wall_profile("tiles inline option 'profile'", &value))
+        .transpose()?
+        .unwrap_or_default();
+    let niche = inline_string_value(symbol, "niche");
     Ok(SourceTileSymbol {
         tile,
         material,
         blocking,
         wall_feature,
         ceiling,
+        ceiling_height,
+        wall_profile,
+        niche,
     })
+}
+
+fn parse_source_ceiling_height(context: &str, value: &str) -> Result<f32, String> {
+    let height = value.parse::<f32>().map_err(|_| {
+        format!(
+            "{context} must be a number in world units, but found '{}'",
+            value
+        )
+    })?;
+    if !height.is_finite() || height < MIN_SOURCE_CEILING_HEIGHT {
+        return Err(format!(
+            "{context} must be at least {MIN_SOURCE_CEILING_HEIGHT} world units, but found '{value}'"
+        ));
+    }
+    Ok(height)
+}
+
+fn parse_source_wall_profile(context: &str, value: &str) -> Result<SourceWallProfile, String> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "flat" => Ok(SourceWallProfile::Flat),
+        "pillar" => Ok(SourceWallProfile::Pillar),
+        _ => Err(format!(
+            "{context} must be flat or pillar, but found '{value}'"
+        )),
+    }
 }
 
 fn parse_tile_symbol_bool(key: &str, value: &str) -> Result<bool, String> {
@@ -2366,6 +3288,10 @@ fn inline_bool_value(table: &toml::Table, key: &str) -> Option<Result<bool, Stri
 }
 
 fn inline_string_value(table: &toml::Table, key: &str) -> Option<String> {
+    inline_value(table, key)
+}
+
+fn inline_value(table: &toml::Table, key: &str) -> Option<String> {
     table.get(key).and_then(|value| match value {
         toml::Value::String(value) => Some(value.trim().to_string()),
         toml::Value::Integer(value) => Some(value.to_string()),
@@ -2879,7 +3805,7 @@ fn project_config(
         .map(|id| format!("cursor_id = \"{}\"\n", id))
         .unwrap_or_default();
     let mut config = format!(
-        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nclient_mode = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\ngame_tick_ms = {}\nturn_timeout_ms = {}\nmovement_units_per_sec = {}\nturn_speed_deg_per_sec = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n{}\n[terminal]\ntext_updates = {}\n",
+        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nclient_mode = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\ngame_tick_ms = {}\nturn_timeout_ms = {}\nmovement_units_per_sec = {}\nturn_speed_deg_per_sec = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\npersistent_intents = {}\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n{}\n[terminal]\ntext_updates = {}\n",
         escape_toml_string(&game.start_region),
         escape_toml_string(&game.start_screen),
         escape_toml_string(&game.client_mode),
@@ -2891,6 +3817,7 @@ fn project_config(
         game.turn_speed_deg_per_sec,
         game.auto_create_player,
         escape_toml_string(&game.collision_mode),
+        game.persistent_intents,
         viewport.width,
         viewport.height,
         viewport.grid_size,
@@ -3125,6 +4052,17 @@ mod tests {
     use vek::Vec2;
 
     #[test]
+    fn source_recipe_wall_uvs_share_phase_around_corners() {
+        let scale = Vec2::new(4.0, 4.0);
+        let corner = Vec3::new(3.0, 1.5, 6.0);
+        let x_wall = source_recipe_uv_for_point(corner, Vec3::new(1.0, 0.0, 0.0), scale);
+        let z_wall = source_recipe_uv_for_point(corner, Vec3::new(0.0, 0.0, 1.0), scale);
+
+        assert_eq!(x_wall, z_wall);
+        assert_eq!(x_wall, Vec2::new(2.25, 0.375));
+    }
+
+    #[test]
     fn parses_minimal_source() {
         let source = r##"
 Character "player" {
@@ -3142,13 +4080,22 @@ Item "herb" {
   glyph = "h"
 }
 
+Niche "candle" {
+  tile = niche.stone
+  position = F2(0.18, 0.82)
+  size = F2(0.64, 0.82)
+  depth = 0.22
+  sill = 0.07
+}
+
 Region "cellar" {
   default = wall.stone
   floor = floor.cracked
   ceiling = ceiling.vault
+  ceiling_height = 3.5
   tiles {
-    "#" = wall material=stone finish=matte blocking=true wall_feature=true ceiling=ceiling.vault
-    "." = floor
+    "#" = wall material=stone finish=matte blocking=true wall_feature=true ceiling=ceiling.vault profile=pillar niche=candle
+    "." = floor ceiling_height=2.25
   }
   terrain """
   ####
@@ -3209,17 +4156,45 @@ Screen "play" {
             parsed.regions[0]
                 .tile_symbols
                 .get(&'#')
+                .map(|symbol| symbol.wall_profile),
+            Some(SourceWallProfile::Pillar)
+        );
+        assert_eq!(
+            parsed.regions[0]
+                .tile_symbols
+                .get(&'#')
+                .and_then(|symbol| symbol.niche.as_deref()),
+            Some("candle")
+        );
+        let niche = parsed.niches.get("candle").expect("niche parses");
+        assert_eq!(niche.tile, "niche.stone");
+        assert_eq!(niche.position, Vec2::new(0.18, 0.82));
+        assert_eq!(niche.size, Vec2::new(0.64, 0.82));
+        assert_eq!(niche.depth, 0.22);
+        assert_eq!(niche.sill, 0.07);
+        assert_eq!(
+            parsed.regions[0]
+                .tile_symbols
+                .get(&'#')
                 .and_then(|symbol| symbol.ceiling.as_deref()),
             Some("ceiling.vault")
         );
         assert_eq!(parsed.regions[0].floor, "floor.cracked");
         assert_eq!(parsed.regions[0].ceiling, "ceiling.vault");
+        assert_eq!(parsed.regions[0].ceiling_height, 3.5);
         assert_eq!(
             parsed.regions[0]
                 .tile_symbols
                 .get(&'.')
                 .map(|symbol| symbol.tile.as_str()),
             Some("floor")
+        );
+        assert_eq!(
+            parsed.regions[0]
+                .tile_symbols
+                .get(&'.')
+                .and_then(|symbol| symbol.ceiling_height),
+            Some(2.25)
         );
         assert_eq!(parsed.regions.len(), 1);
         assert_eq!(parsed.regions[0].terrain.len(), 3);
@@ -3241,6 +4216,9 @@ Screen "play" {
                 wall_feature: false,
                 ceiling: None,
                 ceiling_coverage: [1, 1],
+                ceiling_height: None,
+                wall_profile: SourceWallProfile::Flat,
+                niche: None,
                 light_emitter: None,
             },
         );
@@ -3254,6 +4232,9 @@ Screen "play" {
                 wall_feature: false,
                 ceiling: None,
                 ceiling_coverage: [1, 1],
+                ceiling_height: None,
+                wall_profile: SourceWallProfile::Flat,
+                niche: None,
                 light_emitter: None,
             },
         );
@@ -3274,6 +4255,9 @@ Screen "play" {
             wall_feature: false,
             ceiling: None,
             ceiling_coverage: [1, 1],
+            ceiling_height: None,
+            wall_profile: SourceWallProfile::Flat,
+            niche: None,
             light_emitter: None,
         };
         let mut source_tiles = ResolvedSourceTiles {
@@ -3292,6 +4276,9 @@ Screen "play" {
                 wall_feature: true,
                 ceiling: None,
                 ceiling_coverage: [1, 1],
+                ceiling_height: None,
+                wall_profile: SourceWallProfile::Flat,
+                niche: None,
                 light_emitter: None,
             },
         );
@@ -3301,6 +4288,7 @@ Screen "play" {
             default: "wall".to_string(),
             floor: "floor".to_string(),
             ceiling: "ceiling".to_string(),
+            ceiling_height: DEFAULT_SOURCE_CEILING_HEIGHT,
             tile_symbols: IndexMap::default(),
             terrain: vec!["#!#".to_string(), "#.#".to_string(), "###".to_string()],
         };
@@ -3335,6 +4323,335 @@ Screen "play" {
                 .map(|(index, _)| index)
                 .eq([1])
         );
+    }
+
+    #[test]
+    fn wall_niches_generate_local_recesses_and_solid_pillars() {
+        let mut niche = ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(1));
+        niche.blocking = Some(true);
+        niche.niche = Some(ResolvedSourceNiche {
+            id: "candle".to_string(),
+            source: PixelSource::PaletteIndex(5),
+            coverage: [1, 1],
+            frame: None,
+            frame_coverage: [1, 1],
+            position: Vec2::new(0.18, 0.82),
+            size: Vec2::new(0.64, 0.82),
+            depth: 0.22,
+            sill: 0.07,
+            frame_width: 0.0,
+        });
+        let mut pillar = ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(1));
+        pillar.blocking = Some(true);
+        pillar.wall_profile = SourceWallProfile::Pillar;
+        let mut source_tiles = ResolvedSourceTiles {
+            wall: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(1))),
+            floor: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(3))),
+            ceiling: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(4))),
+            ..Default::default()
+        };
+        source_tiles.explicit.insert('%', niche);
+        source_tiles.explicit.insert('!', pillar);
+        let region = SourceRegion {
+            id: "profile-test".to_string(),
+            name: "Profile Test".to_string(),
+            default: "wall".to_string(),
+            floor: "floor".to_string(),
+            ceiling: "ceiling".to_string(),
+            ceiling_height: DEFAULT_SOURCE_CEILING_HEIGHT,
+            tile_symbols: IndexMap::default(),
+            terrain: vec![
+                "#%!##".to_string(),
+                "#...#".to_string(),
+                "#####".to_string(),
+            ],
+        };
+        let mut map = Map::default();
+
+        build_3d_blocks_from_source_terrain(&mut map, &region, &source_tiles)
+            .expect("profile map builds");
+
+        let bounds = |name: &str| {
+            let object = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.name == name)
+                .unwrap_or_else(|| panic!("missing geometry object '{name}'"));
+            object.vertices.iter().fold(
+                (
+                    f32::INFINITY,
+                    f32::INFINITY,
+                    f32::NEG_INFINITY,
+                    f32::NEG_INFINITY,
+                ),
+                |(min_x, min_z, max_x, max_z), vertex| {
+                    (
+                        min_x.min(vertex.x),
+                        min_z.min(vertex.z),
+                        max_x.max(vertex.x),
+                        max_z.max(vertex.z),
+                    )
+                },
+            )
+        };
+        let assert_bounds = |name: &str, expected: (f32, f32, f32, f32)| {
+            let actual = bounds(name);
+            for (actual, expected) in [
+                (actual.0, expected.0),
+                (actual.1, expected.1),
+                (actual.2, expected.2),
+                (actual.3, expected.3),
+            ] {
+                assert!(
+                    (actual - expected).abs() < 0.0001,
+                    "{name} bound {actual} differs from {expected}"
+                );
+            }
+        };
+        assert!(
+            map.geometry_objects
+                .iter()
+                .all(|object| object.name != "wall_1_0"),
+            "a niche wall must not retain a full collision block"
+        );
+        assert!(
+            map.geometry_objects.iter().all(|object| {
+                !object.name.starts_with("wall_niche_frame_")
+                    && !object.name.starts_with("wall_niche_back_")
+                    && !object.name.starts_with("wall_niche_reveal_")
+                    && !object.name.starts_with("wall_niche_sill_")
+            }),
+            "the old facade meshes must not be generated"
+        );
+        let carved_parts = map
+            .geometry_objects
+            .iter()
+            .filter(|object| {
+                object
+                    .name
+                    .strip_prefix("wall_niche_solid_")
+                    .is_some_and(|suffix| suffix.ends_with("_1_0"))
+            })
+            .collect::<Vec<_>>();
+        assert!(!carved_parts.is_empty());
+        assert!(carved_parts.iter().all(|object| object.solid));
+
+        let point_is_solid = |point: Vec3<f32>| {
+            carved_parts.iter().any(|object| {
+                let (min, max) = object.vertices.iter().fold(
+                    (
+                        Vec3::broadcast(f32::INFINITY),
+                        Vec3::broadcast(f32::NEG_INFINITY),
+                    ),
+                    |(min, max), vertex| {
+                        (
+                            Vec3::new(
+                                min.x.min(vertex.x),
+                                min.y.min(vertex.y),
+                                min.z.min(vertex.z),
+                            ),
+                            Vec3::new(
+                                max.x.max(vertex.x),
+                                max.y.max(vertex.y),
+                                max.z.max(vertex.z),
+                            ),
+                        )
+                    },
+                );
+                point.x > min.x
+                    && point.x < max.x
+                    && point.y > min.y
+                    && point.y < max.y
+                    && point.z > min.z
+                    && point.z < max.z
+            })
+        };
+        assert!(
+            !point_is_solid(Vec3::new(1.50, 1.20, 0.90)),
+            "the authored opening and recess must be empty"
+        );
+        assert!(
+            point_is_solid(Vec3::new(1.50, 1.20, 0.70)),
+            "solid wall must remain behind the authored depth"
+        );
+        assert!(
+            point_is_solid(Vec3::new(1.10, 1.20, 0.90)),
+            "solid wall must remain beside the opening"
+        );
+        assert!(
+            point_is_solid(Vec3::new(1.50, 0.85, 0.90)),
+            "the authored sill must remain solid"
+        );
+        assert!(
+            carved_parts.iter().any(|object| {
+                object
+                    .faces
+                    .iter()
+                    .any(|face| face.tile == Some(PixelSource::PaletteIndex(5)))
+            }),
+            "the cavity faces must use the niche tile"
+        );
+        assert_bounds("wall_pillar_south_2_0", (2.35, 0.92, 2.65, 1.12));
+        assert!(
+            map.geometry_objects
+                .iter()
+                .find(|object| object.name == "wall_pillar_south_2_0")
+                .is_some_and(|object| object.solid)
+        );
+    }
+
+    #[test]
+    fn authored_ceiling_heights_build_closed_height_transitions() {
+        let mut low = ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(3));
+        low.blocking = Some(false);
+        low.ceiling_height = Some(2.25);
+        let mut tall = ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(3));
+        tall.blocking = Some(false);
+        tall.ceiling_height = Some(4.25);
+        let mut source_tiles = ResolvedSourceTiles {
+            wall: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(1))),
+            floor: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(3))),
+            ceiling: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(4))),
+            ..Default::default()
+        };
+        source_tiles.explicit.insert('.', low);
+        source_tiles.explicit.insert(',', tall);
+        let region = SourceRegion {
+            id: "height-test".to_string(),
+            name: "Height Test".to_string(),
+            default: "wall".to_string(),
+            floor: "floor".to_string(),
+            ceiling: "ceiling".to_string(),
+            ceiling_height: DEFAULT_SOURCE_CEILING_HEIGHT,
+            tile_symbols: IndexMap::default(),
+            terrain: vec!["####".to_string(), "#.,#".to_string(), "####".to_string()],
+        };
+        let mut map = Map::default();
+
+        build_3d_blocks_from_source_terrain(&mut map, &region, &source_tiles)
+            .expect("height map builds");
+
+        let y_bounds = |name: &str| {
+            let object = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.name == name)
+                .unwrap_or_else(|| panic!("missing geometry object '{name}'"));
+            object
+                .vertices
+                .iter()
+                .fold((f32::INFINITY, f32::NEG_INFINITY), |(min, max), vertex| {
+                    (min.min(vertex.y), max.max(vertex.y))
+                })
+        };
+        assert_eq!(y_bounds("ceiling_1_1"), (2.25, 2.35));
+        assert_eq!(y_bounds("ceiling_2_1"), (4.25, 4.35));
+        assert_eq!(y_bounds("wall_1_0"), (0.0, 2.25));
+        assert_eq!(y_bounds("wall_2_0"), (0.0, 4.25));
+        assert_eq!(y_bounds("ceiling_transition_east_1_1"), (2.25, 4.25));
+    }
+
+    #[test]
+    fn ceiling_height_errors_identify_the_invalid_field() {
+        let error = parse_source(
+            r#"
+Region "cellar" {
+  ceiling_height = 1.0
+  terrain """
+  ###
+  #@#
+  ###
+  """
+}
+"#,
+        )
+        .expect_err("low ceiling must fail");
+
+        assert!(error.contains("Region 'cellar' ceiling_height"));
+        assert!(error.contains("at least 1.5"));
+    }
+
+    #[test]
+    fn niche_definitions_validate_authored_bounds_and_region_height() {
+        let error = parse_source(
+            r#"
+Niche "too-wide" {
+  tile = niche.stone
+  position = F2(0.80, 0.50)
+  size = F2(0.30, 0.60)
+  depth = 0.20
+  sill = 0.06
+}
+"#,
+        )
+        .expect_err("niche must fit wall width");
+        assert!(error.contains("Niche 'too-wide'"));
+        assert!(error.contains("position.x + size.x"));
+
+        let mut niche_wall = ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(1));
+        niche_wall.blocking = Some(true);
+        niche_wall.niche = Some(ResolvedSourceNiche {
+            id: "too-high".to_string(),
+            source: PixelSource::PaletteIndex(5),
+            coverage: [1, 1],
+            frame: None,
+            frame_coverage: [1, 1],
+            position: Vec2::new(0.20, 2.50),
+            size: Vec2::new(0.60, 0.80),
+            depth: 0.20,
+            sill: 0.06,
+            frame_width: 0.0,
+        });
+        let mut source_tiles = ResolvedSourceTiles {
+            wall: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(1))),
+            floor: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(3))),
+            ceiling: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(4))),
+            ..Default::default()
+        };
+        source_tiles.explicit.insert('!', niche_wall);
+        let region = SourceRegion {
+            id: "niche-height".to_string(),
+            name: "Niche Height".to_string(),
+            default: "wall".to_string(),
+            floor: "floor".to_string(),
+            ceiling: "ceiling".to_string(),
+            ceiling_height: DEFAULT_SOURCE_CEILING_HEIGHT,
+            tile_symbols: IndexMap::default(),
+            terrain: vec!["#!#".to_string(), "#.#".to_string(), "###".to_string()],
+        };
+        let error =
+            build_3d_blocks_from_source_terrain(&mut Map::default(), &region, &source_tiles)
+                .expect_err("niche must fit adjacent ceiling");
+        assert!(error.contains("Niche 'too-high'"));
+        assert!(error.contains("exceeds the adjacent ceiling height"));
+    }
+
+    #[test]
+    fn niche_references_must_name_a_defined_niche() {
+        let wall_id = Uuid::new_v4();
+        let mut lookup = SourceTileLookup::default();
+        lookup.aliases.insert("wall".to_string(), wall_id);
+        let mut symbol = SourceTileSymbol::tile_only("wall".to_string());
+        symbol.blocking = Some(true);
+        symbol.niche = Some("missing".to_string());
+        let mut symbols = IndexMap::default();
+        symbols.insert('!', symbol);
+        let region = SourceRegion {
+            id: "missing-niche".to_string(),
+            name: "Missing Niche".to_string(),
+            default: "wall".to_string(),
+            floor: "floor".to_string(),
+            ceiling: "ceiling".to_string(),
+            ceiling_height: DEFAULT_SOURCE_CEILING_HEIGHT,
+            tile_symbols: IndexMap::default(),
+            terrain: vec!["#!#".to_string(), "#.#".to_string(), "###".to_string()],
+        };
+
+        let error = resolve_source_tiles(&lookup, &symbols, &IndexMap::default(), &region)
+            .expect_err("missing Niche definition must fail");
+
+        assert!(error.contains("Niche 'missing'"));
+        assert!(error.contains("no Niche with that name exists"));
     }
 
     #[test]
@@ -3403,6 +4720,7 @@ Screen "play" {
                 movement_units_per_sec: 4,
                 turn_speed_deg_per_sec: 120,
                 collision_mode: "tile".to_string(),
+                persistent_intents: false,
                 auto_create_player: true,
                 player: "player".to_string(),
             },
@@ -3412,6 +4730,7 @@ Screen "play" {
         };
         let source = SourceDocument {
             tile_symbols: IndexMap::default(),
+            niches: IndexMap::default(),
             characters: Vec::new(),
             items: Vec::new(),
             regions: vec![SourceRegion {
@@ -3420,6 +4739,7 @@ Screen "play" {
                 default: "wall.stone".to_string(),
                 floor: "floor".to_string(),
                 ceiling: "ceiling".to_string(),
+                ceiling_height: DEFAULT_SOURCE_CEILING_HEIGHT,
                 tile_symbols: IndexMap::default(),
                 terrain: vec!["###".to_string(), "#@#".to_string(), "###".to_string()],
             }],
@@ -3450,6 +4770,7 @@ Screen "play" {
                 movement_units_per_sec: 4,
                 turn_speed_deg_per_sec: 120,
                 collision_mode: "tile".to_string(),
+                persistent_intents: false,
                 auto_create_player: true,
                 player: "player".to_string(),
             },
@@ -3459,6 +4780,7 @@ Screen "play" {
         };
         let source = SourceDocument {
             tile_symbols: IndexMap::default(),
+            niches: IndexMap::default(),
             characters: Vec::new(),
             items: Vec::new(),
             regions: vec![SourceRegion {
@@ -3467,6 +4789,7 @@ Screen "play" {
                 default: "wall.stone".to_string(),
                 floor: "floor".to_string(),
                 ceiling: "ceiling".to_string(),
+                ceiling_height: DEFAULT_SOURCE_CEILING_HEIGHT,
                 tile_symbols: IndexMap::default(),
                 terrain: vec![
                     "#####".to_string(),
@@ -3875,6 +5198,7 @@ main = "main.els"
 start_region = "cellar"
 start_screen = "play"
 client_mode = "3d"
+persistent_intents = true
 
 [viewport]
 width = 320
@@ -3933,6 +5257,7 @@ Screen "play" {
         assert!(project.config.contains("sun_enabled = false"));
         assert!(project.config.contains("[post]"));
         assert!(project.config.contains("posterize = 0.25"));
+        assert!(project.config.contains("persistent_intents = true"));
         assert!(!project.config.contains("[source]"));
         assert!(!project.config.contains("[build]"));
 
@@ -4151,6 +5476,7 @@ Region "cellar" {
                 movement_units_per_sec: 4,
                 turn_speed_deg_per_sec: 120,
                 collision_mode: "mesh".to_string(),
+                persistent_intents: false,
                 auto_create_player: true,
                 player: "player".to_string(),
             },
@@ -4160,6 +5486,7 @@ Region "cellar" {
         };
         let source = SourceDocument {
             tile_symbols: IndexMap::default(),
+            niches: IndexMap::default(),
             characters: Vec::new(),
             items: Vec::new(),
             regions: vec![SourceRegion {
@@ -4168,6 +5495,7 @@ Region "cellar" {
                 default: "wall.stone".to_string(),
                 floor: "floor".to_string(),
                 ceiling: "ceiling".to_string(),
+                ceiling_height: DEFAULT_SOURCE_CEILING_HEIGHT,
                 tile_symbols: IndexMap::default(),
                 terrain: vec![
                     "#####".to_string(),

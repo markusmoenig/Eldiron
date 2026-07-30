@@ -7,7 +7,8 @@ use crate::server::region::{
     entity_disposition_by_id, entity_is_hostile_by_id, entity_item_by_id,
     equip_inventory_item_for_entity, execute_ruleset_action_with_source, grant_experience,
     has_attack_ammunition_or_message, is_spell_on_cooldown, open_dialog_node,
-    queue_applied_damage_event, set_entity_cooldown_attrs, set_spell_cooldown,
+    queue_applied_damage_event, return_entity_to_spawn, set_entity_cooldown_attrs,
+    set_spell_cooldown,
 };
 use crate::server::regionctx::{ChoiceSession, ScriptScope};
 use crate::vm::*;
@@ -2864,6 +2865,25 @@ impl<'a> HostHandler for RegionHost<'a> {
                     }
                 }
             }
+            "return_to_spawn" => {
+                if return_entity_to_spawn(self.ctx, self.ctx.curr_entity_id) {
+                    if let Some(sender) = self.ctx.from_sender.get() {
+                        let _ = sender.send(RegionMessage::MapUpdate(
+                            self.ctx.region_id,
+                            self.ctx.map.clone(),
+                        ));
+                    }
+                    if self.ctx.debug_mode {
+                        add_debug_value(&mut self.ctx, TheValue::Text("Ok".into()), false);
+                    }
+                } else if self.ctx.debug_mode {
+                    add_debug_value(
+                        &mut self.ctx,
+                        TheValue::Text("No authored spawn is available".into()),
+                        true,
+                    );
+                }
+            }
             "face" => {
                 if let Some(direction) = args.get(0).and_then(|v| v.as_string())
                     && let Some(entity) = self.ctx.get_current_entity_mut()
@@ -4187,6 +4207,56 @@ mod tests {
     }
 
     #[test]
+    fn player_death_script_can_return_to_authored_spawn() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_script_class(
+            "Player",
+            r#"
+            fn event(event, value) {
+                if event == "death" {
+                    clear_target();
+                    return_to_spawn();
+                    set_attr("HP", get_attr("MAX_HP"));
+                    set_attr("mode", "active");
+                    set_attr("visible", true);
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Player", 10, 0, None);
+        arena.set_entity_attr(1, "player", Value::Bool(true));
+        arena.ctx.map.entities[0].set_position(Vec3::new(2.5, 1.0, 3.5));
+        arena.ctx.map.entities[0].set_orientation(Vec2::new(0.0, -1.0));
+        update_entity_respawns(&mut arena.ctx);
+
+        arena.ctx.map.entities[0].set_position(Vec3::new(12.0, 2.0, 14.0));
+        arena.ctx.map.entities[0].set_orientation(Vec2::new(1.0, 0.0));
+        arena.set_entity_attr(1, "target", Value::UInt(99));
+        arena.set_entity_attr(1, "attack_target", Value::UInt(99));
+        arena.ctx.map.entities[0].action = EntityAction::Forward;
+
+        assert!(apply_damage_direct(
+            &mut arena.ctx,
+            1,
+            99,
+            20,
+            "physical",
+            None
+        ));
+        arena.drain_entity_events();
+
+        let player = arena.entity(1);
+        assert_eq!(arena.hp(1), 10);
+        assert_eq!(arena.mode(1), "active");
+        assert!(player.attributes.get_bool_default("visible", false));
+        assert_eq!(player.position, Vec3::new(2.5, 1.0, 3.5));
+        assert_eq!(player.orientation, Vec2::new(0.0, -1.0));
+        assert_eq!(player.action, EntityAction::Off);
+        assert_eq!(player.attributes.get_str("target"), Some(""));
+        assert_eq!(player.attributes.get_str("attack_target"), Some(""));
+    }
+
+    #[test]
     fn ruleset_spell_damage_uses_typed_custom_action_event_cost_and_cooldown() {
         let mut arena = HeadlessRulesArena::with_rules(
             r#"
@@ -5087,6 +5157,13 @@ mod tests {
         assert_eq!(arena.attr_f32(2, "last_attacker") as u32, 1);
         assert_eq!(arena.attr_f32(2, "last_source_item") as u32, 101);
         assert!(arena.attr_f32(2, "last_damage") >= 1.0);
+        assert_eq!(
+            arena
+                .entity(1)
+                .attributes
+                .get_float("cooldown_left_rules_basic_attack"),
+            Some(1.0)
+        );
     }
 
     #[test]

@@ -2,58 +2,51 @@
 
 ## Improvements
 
-### Procedural Materials
+### Procedural Recipes
 
-- Added reusable material `.recipe` files. Tiles can reference named materials that procedurally derive color, direct Roughness/Metallic/Opacity/Emissive data, and normal height/strength from generic Value/Gradient noise, FBm/Ridged/Billow/Turbulence fractals, coordinates, stable unit IDs, and scalar math. Material calculations use explicit `Value` fields while `Height` remains reserved for tile geometry. Each base or layered material binding can use continuous global coordinates or a tile pattern's local coordinates, with independent two-axis tiling to keep details at the intended scale, allowing independent wood grain and deterministic color/surface variation per plank, brick, or stone. Colorization may keep every step strictly palette-mapped or map only the authored nearest-color anchors before generating finer unrestricted gradients. The recipe CLI previews tile and material recipes beside their source using matching `.png` names, with per-declaration selection for grouped material files. Stonefall's wall, floor, and ceiling now use these materials, while standalone stone, mortar, metal, wood, marble, brick, and plank examples document the reusable primitives.
+- Added `.recipe` files for procedural materials and tiles. Materials are reusable, can work in global or pattern-local space, and can produce color, surface data, and normal height from noise and simple math. The examples include stone, mortar, metal, wood, marble, bricks, and planks, and the CLI can render previews or watch a recipe while it is being edited.
+- Tile recipes can now describe geometry as well as the surface. The first use is a configurable wall niche whose opening, interior, and border material all come from the tile, so a Source map only has to place that tile.
 
 ### Rules
 
-- Reworked rulesets into an authorable, split-TOML package model with a shared embedded loader, explicit ruleset id/version/schema metadata, compatibility checks, project selection, official-base overrides, and project-owned standalone rulesets.
-- Added a typed resolved-rules layer for cached actions, invocation schemes, conditions, semantic attribute roles, derived statistics, equipment policy, identity defaults, and class resource growth while keeping ordinary ruleset content editable as TOML instead of Rust.
-- Made races, classes, levels, spells, crafting, and other fantasy-RPG concepts optional so classless and level-less sandbox rulesets can use the same action runtime without inheriting official attributes, identities, or progression.
-- Expanded the generic action executor with rules-owned targets, range, requirements, arbitrary resource and item costs, cooldowns, predicates, source items, entity/item/world-position targets, transactional attribute changes, condition application/removal, gathering, crafting, taking items, and script-event escape hatches. This supports both class-based games and skill/action-driven sandbox games.
-- Added configurable semantic attribute roles and formula-driven derived statistics so custom rulesets can replace names such as `HP`, `MP`, `LEVEL`, `EXP`, `DMG`, and `ARMOR`, use arbitrary resources, and omit official concepts that they do not need.
-- Completed the official level 1–10 progression for Warrior, Cleric, and Ranger, with one coherent unlock path at levels 1, 2, 4, 6, 8, and 10 and a representation that can extend through level 30 without another schema redesign.
-- Added the Warrior actions Guard, Rally, Crushing Blow, Iron Guard, and Executioner Strike; the Ranger actions Aimed Shot, Quick Step, Piercing Shot, Hunter Focus, and Deadly Shot; and the Cleric spells Minor Heal, Holy Light, Blessing, Turn Undead, Greater Heal, Smite, and Sanctuary.
-- Added a generic timed-condition system with stacking policies, trait immunities, additive/multiplicative/bounded modifiers, periodic damage/healing/attribute effects, lifecycle events, persistence, and apply/active/tick/remove particle stages. Official stances, blessings, wards, and Turn Undead now use this shared path.
-- Added the official Skeleton race with `undead` and `skeletal` traits, race relations, a separately replaceable bundled Skeleton avatar copy, generic trait-gated Turn Undead behavior, and condition particles.
-- Added optional token-sequence invocation schemes and per-action bindings. The official Words of Power lexicon now maps every spell phrase to the normal action catalogue, preserving the same targeting, costs, reagents, cooldowns, effects, and validation regardless of whether a game presents words, runes, icons, or direct spell buttons.
-- Extended message-log text commands to execute ruleset invocations directly, including `LO VI`, targeted forms such as `SAR IR at Skeleton`, explicit `invoke` commands, scheme-qualified disambiguation, longest-phrase matching, and automatic self targeting for `self` and `friendly_or_self` actions.
-- Expanded the spell economy with Moonleaf, Sun Shards, Grave Dust, and Ember Resin collectibles; Moonwater, Consecrated Oil, Warding Salt, and Ember Bead reagents; matching resource nodes and gather actions; and connected reagent requirements for the official spellbook.
-- Added a deeper crafting loop with Blessed Herb, Wooden Arrows, Hunting Bow, Moonwater, Consecrated Oil, Warding Salt, Ember Beads, Ritual Censer, and Sunward Charm recipes, including skill gates, quality-aware stacking, deterministic use-based skill advancement, mastery ranges, and reusable crafted equipment.
-- Expanded official items and equipment with ritual focuses, protective charms, spell reagents, collectibles, resource nodes, class permissions, two-handed/occupied-slot enforcement, arbitrary slot-to-avatar anchors, and consistent quality/condition behavior.
-- Added reusable semantic icon fallbacks for actions and items and procedural FX fallbacks for actions and conditions, so new definitions no longer require a unique icon or particle block before they can be usable and readable.
-- Improved rules-aware UI state and descriptions for actions, spells, inventory, equipment, targets, requirements, costs, cooldowns, locked progression entries, generic statistics, and icon fallback resolution.
-- Added the reusable `ui.actions` screen button command and Actions panel, also available through a character input shortcut such as `Tab`. The panel groups complete class command catalogues into Combat, Spells, and Utility while retaining a compact quick bar, and reuses normal action icons, tooltips, unlock checks, costs, reagents, cooldowns, and targeting. Actions can be dragged onto reusable `command_slot` widgets or assigned through a touch-friendly Assign mode, with validated per-player overrides persisted by the server.
-- Expanded ruleset validation, terminal inspection, and headless regression coverage across schema compatibility, references, formulas, progression, equipment, classless sandbox actions, invocations, conditions, traits, gathering, ritual crafting, resource regeneration, visuals, and the official level-10 capstones.
+- Rulesets are now proper project-selectable packages made from ordinary TOML files. A game can extend the official ruleset, replace parts of it, or ship a completely different classless or level-less ruleset without fighting hardcoded RPG assumptions.
+- The action runtime is now shared by combat, spells, conditions, gathering, crafting, item use, and sandbox-style skills. Rulesets own their attributes, formulas, costs, targets, ranges, cooldowns, equipment rules, and progression.
+- The official ruleset now has a complete level 1–10 path for Warrior, Cleric, and Ranger, along with the Skeleton race, timed conditions, new spells and abilities, more equipment, spell reagents, collectibles, resource nodes, and a much larger crafting loop.
+- Added Words of Power as an optional way to invoke normal ruleset actions. Games can use words, runes, icons, buttons, or text input without needing separate spell implementations.
+- Added the reusable Actions panel and assignable command slots. It shows the full class catalogue while the quick bar stays small, and actions can be dragged or assigned to slots.
+- Rules-aware tooltips, cooldowns, requirements, locked actions, icon fallbacks, and effect particles now work across the action, spell, inventory, and equipment UI. Validation and terminal inspection were expanded alongside this work.
 
 ### Examples
 
-- Updated `test_projects/Hideout2D.eldiron` as the canonical in-development ruleset integration game while leaving the released starter project unchanged. Hideout now uses the official ruleset selection/override model, contains a northern dungeon populated by Skeletons, a Bone Archer, and a Bone Warden, replaces the original demonstration NPC loop with the multi-stage **The Bell Below** quest, expedition supplies, ritual guidance, dungeon loot, and a Grave Sigil objective, and exposes the complete class action catalogue through an Actions button and `Tab`.
-- Updated the Dungeon Master-inspired `source_projects/stonefall-dungeon` example to submit its rune/word combinations through the shared `words_of_power` invocation scheme instead of translating spells in project script.
+- Hideout2D is now the main ruleset test game. It uses the new package model, has a proper northern dungeon and Skeleton enemies, and replaces the old demo NPC loop with the multi-stage **The Bell Below** quest.
+- Stonefall is growing into Eldiron's Dungeon Master-style example. It now uses the shared Words of Power system, official Orc and Skeleton avatars, ruleset loot, a small encounter path, and a Bone Key objective.
+- Eldiron Source gained the dungeon controls Stonefall needed: varied ceiling heights, wall profiles, tile-owned niches, wall features, collision-aware openings, and active item lights. The player now starts with a real ruleset torch instead of a light faked onto the character.
 
 ### Documentation
 
-- Added the Ruleset Contract and implementation Capability Audit, rewrote the ruleset architecture and authoring documentation, and expanded the Official Rules reference with synchronized level progression, actions, spells and their Words of Power, conditions, particles, races, equipment, items, resources, reagents, recipes, and crafting tables.
+- Reworked the ruleset documentation around authoring and extension, and brought the official reference up to date with progression, actions, spells and their power words, races, conditions, items, resources, and crafting.
 
 ## Bug Fixes
 
-### Procedural Materials
+### Procedural Recipes
 
-- Fixed anchored material ramps collapsing to one palette color when a sparse palette lacked close matches for most requested shades. The resolver now falls back to coherent darker and lighter palette neighbors, preserving visible procedural height patterns.
+- Fixed sparse palettes flattening procedural material ramps into a single color.
 
 ### Game
 
-- Expanded Eldiron Source environment authoring with reusable static `tiles`, `tile_dirs`, multi-frame `tile_animations` with optional tile lights, explicit per-symbol `blocking`, wall-mounted `wall_feature` tiles, region-level `floor` / `ceiling` tiles, and per-symbol ceiling overrides. Stonefall Dungeon now uses project-local generated wall, floor, and ceiling materials finished through an exact-edge seamless-tile pipeline; the previous imported environment tiles and unstable animations are no longer used.
-- Fixed conversation and vendor choices consuming most of a short Messages widget in a permanently reserved panel. Active choices now join the normal scrollable conversation temporarily, initially leave room for preceding dialog when a choice list is long, expose a compact `v Choices` return control while off-screen, hide command entry while awaiting a response, and collapse to only the selected response in history.
-- Fixed Hideout's keyboard command ownership so `U` and `L` select the generic Use and Look intents, while `T` and `K` execute the ruleset-owned Basic Attack and Take actions. Rules action buttons now display and activate their matching shortcuts consistently.
-- Fixed severe frame drops while the Actions panel was open by caching the parsed effective ruleset and the panel's static class catalogue. Action states, icons, quick slots, item icons, tooltips, and start-screen rules lookups now share the same automatically invalidated parsed rules instead of reparsing the complete ruleset many times per frame.
-- Fixed start-screen `START.CLASS_ABILITIES` and `START.CLASS_SPELLS` placeholders displaying as unresolved strings after class progression moved into `unlocks.level_1`. They now show the starting unlocks using their authored ability and spell names.
+- Fixed two large UI slowdowns: fallback fonts were being reparsed for every label, and the Actions panel was repeatedly rebuilding rules data. Stonefall now runs smoothly with the panel open.
+- Fixed sticky actions and cooldown feedback. Attack stays selected between uses, but its button is visibly unavailable while cooling down, and clicking the player profile still opens the inventory.
+- Fixed Stonefall enemies giving up permanently after the player escaped. They return to patrol, re-engage later, retaliate when hit, and ranged enemies stop at weapon range.
+- Fixed player death leaving the character beside the enemy that killed them. The player now returns to the authored entrance with restored health.
+- Fixed corpse looting so opening a container also makes its contents reachable. Items can be dragged straight onto a character profile to place them in the first free inventory slot.
+- Fixed long conversations and choice lists fighting over the small Messages widget. Choices now scroll with the conversation and provide a compact way back when they move off-screen.
+- Fixed Hideout's Use, Look, Attack, and Take shortcuts, along with unresolved starting ability and spell names on the class-selection screen.
+- Fixed several early Stonefall environment problems, including broken tile seams, flat materials, fake character lighting, and wall “insets” that were not real recesses.
 
 ### Creator
 
-- Fixed project-tab switching so selecting the active tab no longer reloads a stale snapshot, outgoing runtime/dock/tool state is detached cleanly, and the incoming project's 2D and direct-3D scenes, overlays, palette, actions, minimap, and UI context are rebuilt even when cloned projects reuse UUIDs.
-- Fixed text copy/paste by centralizing system clipboard access for focused text widgets, avoiding duplicate clipboard reads and preserving Eldiron's separate object/image clipboard during global paste operations.
+- Fixed project-tab switching occasionally restoring stale scene and editor state, especially with cloned projects.
+- Fixed text copy/paste fighting with Eldiron's separate object and image clipboard.
 
 ---
 

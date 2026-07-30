@@ -1,0 +1,17 @@
+Item "bone_key" {
+  name = "Bone Key"
+
+  data {
+    [attributes]
+    source_id = "bone_key"
+    name = "Bone Key"
+    description = "A heavy iron key decorated with a small bone ward."
+    category = "key"
+    slot = "key"
+    rarity = "uncommon"
+    takeable = true
+    blocking = false
+    visible = true
+    on_look = "A heavy iron key decorated with a small bone ward."
+  }
+}

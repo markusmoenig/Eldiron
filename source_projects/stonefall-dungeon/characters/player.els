@@ -17,6 +17,8 @@ Character "player" {
     wealth = 1
     inventory_slots = 6
     spells = ["minor_heal"]
+    start_items = ["wooden_arrows", "torch"]
+    start_active_items = ["torch"]
     source_id = "player"
 
     [input]
@@ -42,6 +44,9 @@ Character "player" {
             set_player_camera( "firstp_grid");
         }
         if event == "death" {
+            clear_target();
+            return_to_spawn();
+            set_attr( "HP",  get_attr( "MAX_HP"));
             set_attr( "mode",  "active");
             set_attr( "visible",  true);
             message( id(),  "You died. Try again!",  "severe");

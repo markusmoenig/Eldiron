@@ -40,6 +40,7 @@ client_mode = "terminal"       # Source/tool play target: "terminal", "2d", or "
 terminal_mode = "text"         # Terminal client mode: "text" or "roguelike".
 play_screen = ""               # Optional screen shown after game.start.
 click_intents_2d = false       # Target 2D intents with mouse clicks while keeping WASD movement.
+persistent_intents = false     # Keep a selected intent active after targeting in every camera.
 auto_walk_2d = false           # In walk mode, clicking terrain in 2D makes the player path-walk there.
 locale = "en"                    # Active locale used for localized strings and rules-based messages.
 
@@ -157,6 +158,13 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
   - Click a target to apply the current intent; the selected intent stays active until you switch it.
   - Intent hover / clicked cursors also apply in 2D while this mode is active.
   - For rules-driven one-shot keyboard actions, keep this `false` and use `auto_walk_2d = true`.
+  - Default: `false`.
+
+- **`persistent_intents`**
+  - Keeps the selected intent or targeted rules action active after a successful or failed target interaction.
+  - Applies in every camera mode, including `iso`, `firstp`, and `firstp_grid`.
+  - The mode remains selected until the player chooses another targeting command or returns to Walk/default mode.
+  - Useful for frequent actions such as Attack, where pressing the action button before every strike would be cumbersome.
   - Default: `false`.
 
 - **`auto_walk_2d`**
@@ -597,6 +605,21 @@ Supported runtime post fields:
 - `post.palette_bias`
 - `post.shadow_lift`
 - `post.edge_soften`
+
+---
+
+## Debug Configuration
+
+Frame timing diagnostics can be enabled per project:
+
+```toml
+[debug]
+frame_timings = true
+```
+
+`frame_timings` prints aggregated client-frame, widget-composition, SceneVM, and
+Raster3D timings every two seconds. It is intended for diagnosing runtime
+performance and defaults to `false`.
 
 ---
 

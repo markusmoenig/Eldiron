@@ -344,6 +344,7 @@ turn_timeout_ms = 600
 movement_units_per_sec = 4
 turn_speed_deg_per_sec = 120
 collision_mode = "tile"
+persistent_intents = false
 auto_create_player = true
 player = "player"
 

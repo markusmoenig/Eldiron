@@ -9,6 +9,7 @@ pub enum RecipeDocument {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Recipe {
     pub name: String,
+    pub blocking: bool,
     pub material: Option<String>,
     pub material_map: Option<MaterialMap>,
     pub size: [u32; 2],
@@ -19,6 +20,7 @@ pub struct Recipe {
     pub animation: Animation,
     pub fields: Vec<FieldDefinition>,
     pub patterns: Vec<PatternDefinition>,
+    pub geometry: Vec<GeometryFeature>,
     pub colorize: Option<Colorize>,
     pub output: Output,
 }
@@ -27,6 +29,7 @@ impl Default for Recipe {
     fn default() -> Self {
         Self {
             name: "Untitled Tile".to_string(),
+            blocking: false,
             material: None,
             material_map: None,
             size: [64, 64],
@@ -37,10 +40,37 @@ impl Default for Recipe {
             animation: Animation::default(),
             fields: Vec::new(),
             patterns: Vec::new(),
+            geometry: Vec::new(),
             colorize: None,
             output: Output::default(),
         }
     }
+}
+
+/// Optional placement-time geometry authored by a Tile recipe.
+///
+/// These features are evaluated by the map/source compiler because they need placement context
+/// such as exposed wall faces, neighbouring cells, and local ceiling height. Their parameters
+/// remain part of the Tile asset so a map only has to reference that tile.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum GeometryFeature {
+    Niche(NicheGeometry),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct NicheGeometry {
+    pub name: String,
+    /// Tile recipe used on the cavity reveal, back, and sill.
+    pub surface: String,
+    /// Optional tile recipe used for the transition ring around the opening.
+    pub frame: Option<String>,
+    /// Lower-left wall-local position in world units.
+    pub position: [f32; 2],
+    /// Opening width and authored vertical extent in world units.
+    pub size: [f32; 2],
+    pub depth: f32,
+    pub sill: f32,
+    pub frame_width: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -274,6 +304,12 @@ pub enum PatternChannel {
     Center,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GeometryChannel {
+    /// Signed wall-local distance to a feature boundary, in world units.
+    Distance,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IdSource {
     Current,
@@ -289,6 +325,10 @@ pub enum ScalarSource {
     Pattern {
         name: String,
         channel: PatternChannel,
+    },
+    Geometry {
+        name: String,
+        channel: GeometryChannel,
     },
     RandomId {
         id: IdSource,

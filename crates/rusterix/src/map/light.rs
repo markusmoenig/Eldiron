@@ -113,6 +113,11 @@ impl Light {
         self.properties.get_float_default("flicker", 0.0)
     }
 
+    /// Vertical offset applied when this light follows an entity or item.
+    pub fn get_lift(&self) -> f32 {
+        self.properties.get_float_default("lift", 0.0)
+    }
+
     /// Returns the position of the light (3D)
     pub fn position(&self) -> Vec3<f32> {
         self.get_position()

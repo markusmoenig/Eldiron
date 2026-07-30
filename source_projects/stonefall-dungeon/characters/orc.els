@@ -31,12 +31,12 @@ Character "orc" {
         if event == "engagement_over" {
             clear_target();
             random_walk( 1.0,  1.0,  4);
-            set_proximity_tracking( false,  5.0);
+            set_proximity_tracking( true,  5.0);
         }
         if event == "kill" {
-            set_proximity_tracking( false,  5.0);
-            random_walk( 1.0,  1.0,  4);
             clear_target();
+            random_walk( 1.0,  1.0,  4);
+            set_proximity_tracking( true,  5.0);
         }
         if event == "arrived" {
             set_proximity_tracking( true,  5.0);
@@ -49,6 +49,9 @@ Character "orc" {
         if event == "damaged" {
             let amount = value.amount;
             message( value.attacker_id,  "You hit the Orc for " + amount + " damage",  "");
+            set_target( value.attacker_id);
+            follow_attack( value.attacker_id,  0.6);
+            set_proximity_tracking( true,  5.0);
         }
     }
   }

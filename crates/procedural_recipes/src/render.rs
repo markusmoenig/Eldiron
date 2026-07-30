@@ -1,9 +1,9 @@
 use crate::{
     ast::{
         BinaryOperator, ColorRange, ColorSource, Colorize, CombineMode, CoordinateChannel, Domain,
-        FieldDefinition, FractalKind, HeightOperation, IdSource, MaterialOutput, MaterialRecipe,
-        NoiseKind, Output, PaletteMode, PatternChannel, PatternDefinition, PatternKind, Recipe,
-        ScalarSource, UnaryOperator, WrapMode,
+        FieldDefinition, FractalKind, GeometryChannel, GeometryFeature, HeightOperation, IdSource,
+        MaterialOutput, MaterialRecipe, NoiseKind, Output, PaletteMode, PatternChannel,
+        PatternDefinition, PatternKind, Recipe, ScalarSource, UnaryOperator, WrapMode,
     },
     palette::{PaletteError, PaletteModel},
 };
@@ -887,6 +887,9 @@ impl Evaluator<'_> {
                     PatternChannel::Center => sample.center,
                 })
             }
+            ScalarSource::Geometry { name, channel } => match channel {
+                GeometryChannel::Distance => self.geometry_distance(name, context),
+            },
             ScalarSource::RandomId { id, min, max, seed } => {
                 let id = self.id(id, context, stack)?;
                 Ok(lerp(
@@ -953,6 +956,45 @@ impl Evaluator<'_> {
                 let source = self.scalar(source, context, stack)?;
                 let factor = ((source - min) / (max - min).abs().max(0.000_001)).clamp(0.0, 1.0);
                 Ok(smoothstep(factor))
+            }
+        }
+    }
+
+    fn geometry_distance(&self, name: &str, context: EvalContext) -> Result<f32, RenderError> {
+        let feature = self
+            .recipe
+            .geometry
+            .iter()
+            .find(|feature| match feature {
+                GeometryFeature::Niche(niche) => niche.name.eq_ignore_ascii_case(name),
+            })
+            .ok_or_else(|| RenderError::Evaluation(format!("unknown Geometry feature '{name}'")))?;
+
+        match feature {
+            GeometryFeature::Niche(niche) => {
+                let wall_x =
+                    (context.uv[0] * self.recipe.coverage[0].max(1) as f32).rem_euclid(1.0);
+                let wall_y = context.uv[1] * self.recipe.coverage[1].max(1) as f32;
+                let opening_min = [niche.position[0], niche.position[1] + niche.sill];
+                let opening_max = [
+                    niche.position[0] + niche.size[0],
+                    niche.position[1] + niche.size[1],
+                ];
+                let center = [
+                    (opening_min[0] + opening_max[0]) * 0.5,
+                    (opening_min[1] + opening_max[1]) * 0.5,
+                ];
+                let half = [
+                    (opening_max[0] - opening_min[0]) * 0.5,
+                    (opening_max[1] - opening_min[1]) * 0.5,
+                ];
+                let q = [
+                    (wall_x - center[0]).abs() - half[0],
+                    (wall_y - center[1]).abs() - half[1],
+                ];
+                let outside = q[0].max(0.0).hypot(q[1].max(0.0));
+                let inside = q[0].max(q[1]).min(0.0);
+                Ok(outside + inside)
             }
         }
     }

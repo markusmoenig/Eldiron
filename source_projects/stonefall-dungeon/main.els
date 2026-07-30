@@ -1,27 +1,31 @@
 tiles {
-  # The first generated material trio. Extra glyphs preserve the authored layout
-  # while all chambers evaluate the same exact-seam textures.
-  "#" = wall-irregular-stone-seamless blocking=true
-  "%" = wall-irregular-stone-seamless blocking=true
-  "&" = wall-irregular-stone-seamless blocking=true
-  "4" = wall-irregular-stone-seamless blocking=true
-  "!" = wall-irregular-stone-seamless blocking=true
-  "?" = wall-irregular-stone-seamless blocking=true
+  # Walls
+  "#" = wall-stone
+  "%" = wall-stone
+  "&" = wall-stone
+  "4" = wall-stone
+  "!" = wall-niche
+  "?" = wall-stone profile=pillar
 
-  "." = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "," = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  ";" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  ":" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "_" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "~" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "-" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "*" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "/" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  # Floors: normal, tall, low
+  "." = floor-stone ceiling=ceiling-stone ceiling_height=3.0
+  "," = floor-stone ceiling=ceiling-stone ceiling_height=4.25
+  ";" = floor-stone ceiling=ceiling-stone ceiling_height=2.25
+  ":" = floor-stone ceiling=ceiling-stone ceiling_height=3.0
+  "_" = floor-stone ceiling=ceiling-stone ceiling_height=4.25
+  "~" = floor-stone ceiling=ceiling-stone ceiling_height=2.25
+  "-" = floor-stone ceiling=ceiling-stone ceiling_height=3.0
+  "*" = floor-stone ceiling=ceiling-stone ceiling_height=3.0
+  "/" = floor-stone ceiling=ceiling-stone ceiling_height=4.25
 
-  "@" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "L" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "O" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "h" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "b" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
-  "x" = floor-flagstone-seamless blocking=false ceiling=ceiling-stone-seamless
+  "@" = floor-stone ceiling=ceiling-stone ceiling_height=3.0
+  "L" = floor-stone ceiling=ceiling-stone ceiling_height=3.0
+  "O" = floor-stone ceiling=ceiling-stone ceiling_height=4.25
+  "B" = floor-stone ceiling=ceiling-stone ceiling_height=2.25
+  "S" = floor-stone ceiling=ceiling-stone ceiling_height=4.25
+  "A" = floor-stone ceiling=ceiling-stone ceiling_height=4.25
+  "W" = floor-stone ceiling=ceiling-stone ceiling_height=2.25
+  "h" = floor-stone ceiling=ceiling-stone ceiling_height=2.25
+  "b" = floor-stone ceiling=ceiling-stone ceiling_height=4.25
+  "x" = floor-stone ceiling=ceiling-stone ceiling_height=2.25
 }

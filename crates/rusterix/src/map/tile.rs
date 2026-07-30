@@ -124,6 +124,29 @@ fn default_proc_coverage() -> [u32; 2] {
     [1, 1]
 }
 
+/// Placement-time geometry carried by a tile asset.
+///
+/// The map compiler instantiates these features with local placement context. Keeping the
+/// declaration on the tile ensures geometry, collision, and authored surfaces travel together.
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub enum TileGeometryFeature {
+    Niche(TileNicheGeometry),
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct TileNicheGeometry {
+    pub name: String,
+    pub surface: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame: Option<String>,
+    pub position: [f32; 2],
+    pub size: [f32; 2],
+    pub depth: f32,
+    pub sill: f32,
+    #[serde(default)]
+    pub frame_width: f32,
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub struct TileMaterialMeta {
     /// High-level material preset used by authoring tools, e.g. "stone" or "wood".
@@ -331,6 +354,9 @@ pub struct Tile {
     /// Optional procedural generation hints used by region generators.
     #[serde(default)]
     pub procedural: TileProceduralMeta,
+    /// Optional architectural geometry instantiated whenever this tile is placed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub geometry: Vec<TileGeometryFeature>,
     /// Optional high-level material metadata used to derive render material values.
     #[serde(default, skip_serializing_if = "TileMaterialMeta::is_default")]
     pub material: TileMaterialMeta,
@@ -391,6 +417,7 @@ impl Tile {
             scale: 1.0,
             alias: String::new(),
             procedural: TileProceduralMeta::default(),
+            geometry: Vec::new(),
             material: TileMaterialMeta::default(),
             material_alias: String::new(),
             baked_material_data: Vec::new(),
@@ -502,6 +529,7 @@ impl Tile {
             scale: self.scale,
             alias: self.alias.clone(),
             procedural: self.procedural.clone(),
+            geometry: self.geometry.clone(),
             material: self.material.clone(),
             material_alias: self.material_alias.clone(),
             baked_material_data: self

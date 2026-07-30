@@ -1,6 +1,6 @@
 use crate::Embedded;
 use crate::prelude::*;
-use instant::Duration;
+use instant::{Duration, Instant};
 use rusterix::server::message::AudioCommand;
 use rusterix::{EntityAction, Rusterix, Value};
 use shared::{
@@ -12,6 +12,83 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::Receiver;
 
+#[derive(Default)]
+struct FrameTimingStats {
+    window_started: Option<Instant>,
+    frames: u32,
+    frame_time: Duration,
+    input_time: Duration,
+    server_time: Duration,
+    update_time: Duration,
+    sync_time: Duration,
+    render_time: Duration,
+    present_time: Duration,
+    max_frame_time: Duration,
+    max_input_time: Duration,
+    max_render_time: Duration,
+}
+
+#[derive(Default)]
+struct FrameTimingSample {
+    frame: Duration,
+    input: Duration,
+    server: Duration,
+    update: Duration,
+    sync: Duration,
+    render: Duration,
+    present: Duration,
+}
+
+impl FrameTimingStats {
+    fn record(&mut self, enabled: bool, sample: FrameTimingSample) {
+        if !enabled {
+            *self = Self::default();
+            return;
+        }
+
+        let now = Instant::now();
+        let window_started = *self.window_started.get_or_insert(now);
+        self.frames = self.frames.saturating_add(1);
+        self.frame_time += sample.frame;
+        self.input_time += sample.input;
+        self.server_time += sample.server;
+        self.update_time += sample.update;
+        self.sync_time += sample.sync;
+        self.render_time += sample.render;
+        self.present_time += sample.present;
+        self.max_frame_time = self.max_frame_time.max(sample.frame);
+        self.max_input_time = self.max_input_time.max(sample.input);
+        self.max_render_time = self.max_render_time.max(sample.render);
+
+        let elapsed = now.saturating_duration_since(window_started);
+        if elapsed < Duration::from_secs(2) {
+            return;
+        }
+
+        let frames = self.frames.max(1) as f64;
+        let ms = |duration: Duration| duration.as_secs_f64() * 1000.0;
+        eprintln!(
+            "[RenderDebug][ClientFrame] fps={:.1} frames={} avg_ms frame={:.2} input={:.2} server={:.2} update={:.2} sync={:.2} render={:.2} present={:.2} max_ms frame={:.2} input={:.2} render={:.2}",
+            frames / elapsed.as_secs_f64().max(f64::EPSILON),
+            self.frames,
+            ms(self.frame_time) / frames,
+            ms(self.input_time) / frames,
+            ms(self.server_time) / frames,
+            ms(self.update_time) / frames,
+            ms(self.sync_time) / frames,
+            ms(self.render_time) / frames,
+            ms(self.present_time) / frames,
+            ms(self.max_frame_time),
+            ms(self.max_input_time),
+            ms(self.max_render_time),
+        );
+        *self = Self {
+            window_started: Some(now),
+            ..Self::default()
+        };
+    }
+}
+
 pub struct Client {
     name: String,
     project: Project,
@@ -22,95 +99,116 @@ pub struct Client {
     rusterix: Rusterix,
     iso_paint_overlay_cache: IsoPaintRenderCache,
     cmd_line_path: Option<PathBuf>,
+    frame_timing_stats: FrameTimingStats,
 }
 
 impl Client {
     fn process_pending_events(&mut self) {
+        let mut events = Vec::new();
         if let Some(receiver) = &mut self.event_receiver {
-            while let Ok(event) = receiver.try_recv() {
-                match event {
-                    TheEvent::Resize => {}
-                    TheEvent::MouseDown(coord) => {
-                        for r in &mut self.project.regions {
-                            self.rusterix.server.apply_entities_items(&mut r.map);
+            events.extend(receiver.try_iter());
+        }
 
-                            if r.map.name == self.rusterix.client.current_map {
-                                if let Some(action) = self.rusterix.client_touch_down(coord, &r.map)
-                                {
-                                    self.rusterix.server.local_player_action(action);
-                                }
+        // A slow frame can queue many pointer moves. Preserve ordering while
+        // reducing each consecutive run to its newest coordinate.
+        let mut coalesced = Vec::with_capacity(events.len());
+        let mut pending_hover = None;
+        for event in events {
+            if let TheEvent::Hover(coord) = event {
+                pending_hover = Some(coord);
+            } else {
+                if let Some(coord) = pending_hover.take() {
+                    coalesced.push(TheEvent::Hover(coord));
+                }
+                coalesced.push(event);
+            }
+        }
+        if let Some(coord) = pending_hover {
+            coalesced.push(TheEvent::Hover(coord));
+        }
+
+        for event in coalesced {
+            match event {
+                TheEvent::Resize => {}
+                TheEvent::MouseDown(coord) => {
+                    for r in &mut self.project.regions {
+                        self.rusterix.server.apply_entities_items(&mut r.map);
+
+                        if r.map.name == self.rusterix.client.current_map {
+                            if let Some(action) = self.rusterix.client_touch_down(coord, &r.map) {
+                                self.rusterix.server.local_player_action(action);
                             }
                         }
                     }
-                    TheEvent::MouseUp(coord) => {
-                        for r in &mut self.project.regions {
-                            self.rusterix.server.apply_entities_items(&mut r.map);
+                }
+                TheEvent::MouseUp(coord) => {
+                    for r in &mut self.project.regions {
+                        self.rusterix.server.apply_entities_items(&mut r.map);
 
-                            if r.map.name == self.rusterix.client.current_map {
-                                if let Some(action) = self.rusterix.client_touch_up(coord, &r.map) {
-                                    self.rusterix.server.local_player_action(action);
-                                }
-                                self.rusterix.server.local_player_action(EntityAction::Off);
+                        if r.map.name == self.rusterix.client.current_map {
+                            if let Some(action) = self.rusterix.client_touch_up(coord, &r.map) {
+                                self.rusterix.server.local_player_action(action);
                             }
+                            self.rusterix.server.local_player_action(EntityAction::Off);
                         }
                     }
-                    TheEvent::Hover(coord) => {
-                        for r in &mut self.project.regions {
-                            if r.map.name == self.rusterix.client.current_map {
-                                self.rusterix.client_touch_hover(coord, &r.map);
-                            }
+                }
+                TheEvent::Hover(coord) => {
+                    for r in &mut self.project.regions {
+                        if r.map.name == self.rusterix.client.current_map {
+                            self.rusterix.client_touch_hover(coord, &r.map);
                         }
                     }
-                    TheEvent::KeyDown(v) => {
-                        let key = if let Some(char) = v.to_char() {
-                            Some(char.to_string())
-                        } else {
-                            v.to_key_code().and_then(|code| match code {
-                                TheKeyCode::Return => Some("enter".to_string()),
-                                TheKeyCode::Delete => Some("backspace".to_string()),
-                                TheKeyCode::Escape => Some("escape".to_string()),
-                                TheKeyCode::Space => Some("space".to_string()),
-                                _ => None,
-                            })
-                        };
-                        if let Some(key) = key {
-                            let action = self
-                                .rusterix
-                                .client
-                                .user_event("key_down".into(), Value::Str(key));
-
-                            self.rusterix.server.local_player_action(action);
-                        }
-                    }
-                    TheEvent::KeyCodeDown(v) => {
-                        let key = v.to_key_code().and_then(|code| match code {
+                }
+                TheEvent::KeyDown(v) => {
+                    let key = if let Some(char) = v.to_char() {
+                        Some(char.to_string())
+                    } else {
+                        v.to_key_code().and_then(|code| match code {
                             TheKeyCode::Return => Some("enter".to_string()),
                             TheKeyCode::Delete => Some("backspace".to_string()),
                             TheKeyCode::Escape => Some("escape".to_string()),
                             TheKeyCode::Space => Some("space".to_string()),
                             _ => None,
-                        });
-                        if let Some(key) = key {
-                            let action = self
-                                .rusterix
-                                .client
-                                .user_event("key_down".into(), Value::Str(key));
+                        })
+                    };
+                    if let Some(key) = key {
+                        let action = self
+                            .rusterix
+                            .client
+                            .user_event("key_down".into(), Value::Str(key));
 
-                            self.rusterix.server.local_player_action(action);
-                        }
+                        self.rusterix.server.local_player_action(action);
                     }
-                    TheEvent::KeyUp(v) => {
-                        if let Some(char) = v.to_char() {
-                            let action = self
-                                .rusterix
-                                .client
-                                .user_event("key_up".into(), Value::Str(char.to_string()));
-
-                            self.rusterix.server.local_player_action(action);
-                        }
-                    }
-                    _ => {}
                 }
+                TheEvent::KeyCodeDown(v) => {
+                    let key = v.to_key_code().and_then(|code| match code {
+                        TheKeyCode::Return => Some("enter".to_string()),
+                        TheKeyCode::Delete => Some("backspace".to_string()),
+                        TheKeyCode::Escape => Some("escape".to_string()),
+                        TheKeyCode::Space => Some("space".to_string()),
+                        _ => None,
+                    });
+                    if let Some(key) = key {
+                        let action = self
+                            .rusterix
+                            .client
+                            .user_event("key_down".into(), Value::Str(key));
+
+                        self.rusterix.server.local_player_action(action);
+                    }
+                }
+                TheEvent::KeyUp(v) => {
+                    if let Some(char) = v.to_char() {
+                        let action = self
+                            .rusterix
+                            .client
+                            .user_event("key_up".into(), Value::Str(char.to_string()));
+
+                        self.rusterix.server.local_player_action(action);
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -135,6 +233,7 @@ impl TheTrait for Client {
             rusterix,
             iso_paint_overlay_cache: IsoPaintRenderCache::default(),
             cmd_line_path: None,
+            frame_timing_stats: FrameTimingStats::default(),
         }
     }
 
@@ -262,25 +361,38 @@ impl TheTrait for Client {
 
     /// Handle UI events and UI state
     fn update_ui(&mut self, ui: &mut TheUI, _ctx: &mut TheContext) -> bool {
+        let frame_started = Instant::now();
         let game_tick_ms = self.rusterix.client.game_tick_ms.max(1) as u64;
         let tick_period = Duration::from_millis(game_tick_ms);
         let tick_update = self.update_tracker.update(tick_period);
         let redraw = true;
 
+        // Read the newest pointer state before potentially expensive server and
+        // renderer work, reducing input-to-frame latency.
+        let input_started = Instant::now();
+        self.process_pending_events();
+        let input_time = input_started.elapsed();
+
+        let server_started = Instant::now();
         if tick_update {
             self.rusterix.client.inc_animation_frame();
             self.rusterix.server.system_tick();
         }
 
         self.rusterix.server.redraw_tick();
+        let server_time = server_started.elapsed();
 
-        self.process_pending_events();
-
+        let update_started = Instant::now();
         if let Some(new_region_name) = self.rusterix.update_server() {
             self.rusterix.client.current_map = new_region_name;
         }
+        let update_time = update_started.elapsed();
 
+        let mut sync_time = Duration::ZERO;
+        let mut render_time = Duration::ZERO;
+        let mut present_time = Duration::ZERO;
         for r in &mut self.project.regions {
+            let sync_started = Instant::now();
             self.rusterix.server.apply_entities_items(&mut r.map);
 
             if r.map.name == self.rusterix.client.current_map {
@@ -313,6 +425,9 @@ impl TheTrait for Client {
                     }
                 }
                 let mut iso_paint = r.iso_paint.clone();
+                sync_time += sync_started.elapsed();
+
+                let render_started = Instant::now();
                 self.rusterix.draw_game_with_widget_overlays(
                     &r.map,
                     messages,
@@ -355,12 +470,31 @@ impl TheTrait for Client {
                     },
                     |_, _| {},
                 );
+                render_time += render_started.elapsed();
+
+                let present_started = Instant::now();
                 self.rusterix
                     .client
                     .insert_game_buffer(&mut ui.canvas.buffer);
+                present_time += present_started.elapsed();
                 break;
             }
+            sync_time += sync_started.elapsed();
         }
+
+        let timings_enabled = self.rusterix.client.frame_timings_enabled();
+        self.frame_timing_stats.record(
+            timings_enabled,
+            FrameTimingSample {
+                frame: frame_started.elapsed(),
+                input: input_time,
+                server: server_time,
+                update: update_time,
+                sync: sync_time,
+                render: render_time,
+                present: present_time,
+            },
+        );
 
         redraw
     }

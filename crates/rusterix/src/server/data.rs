@@ -446,6 +446,15 @@ pub fn read_light(light: &mut Light, values: &toml::Value) {
     if let Some(toml::Value::Float(flicker)) = values.get("flicker") {
         light.set_flicker(*flicker as f32);
     }
+    if let Some(lift) = values.get("lift").and_then(|value| {
+        value
+            .as_float()
+            .or_else(|| value.as_integer().map(|v| v as f64))
+    }) {
+        light
+            .properties
+            .set("lift", crate::Value::Float(lift as f32));
+    }
     light.set_start_distance(0.0);
     if let Some(toml::Value::Float(range)) = values.get("range") {
         light.set_end_distance(*range as f32);
@@ -502,5 +511,27 @@ mod tests {
             facing_to_orientation("west"),
             Some(vek::Vec2::new(-1.0, 0.0))
         );
+    }
+
+    #[test]
+    fn entity_light_data_supports_vertical_lift() {
+        let values: toml::Value = toml::from_str(
+            r##"
+[light]
+color = "#ffad52"
+strength = 4.2
+range = 4.8
+flicker = 0.1
+lift = 1.15
+"##,
+        )
+        .expect("light data parses");
+        let mut light = Light::new(LightType::Point);
+
+        read_light(&mut light, &values["light"]);
+
+        assert!((light.get_lift() - 1.15).abs() < 0.0001);
+        assert!((light.get_intensity() - 4.2).abs() < 0.0001);
+        assert!((light.get_end_distance() - 4.8).abs() < 0.0001);
     }
 }

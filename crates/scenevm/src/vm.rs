@@ -2217,8 +2217,12 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let V = normalize(UBO.cam_pos.xyz - in.world_pos);
     var bump_strength = clamp(UBO.shadow_params.z, 0.0, 1.0);
     // Bump mapping is unstable on cutout/partially transparent texels and at long distances.
-    // Fade it out with distance in first-person and disable it on non-opaque coverage.
-    if (!is_avatar && UBO.cam_kind == 2u) {
+    // Fade it out with distance in first-person only when a valid fade interval is configured,
+    // and disable it on non-opaque coverage. A 0/0 interval means "no distance fade".
+    let bump_fade_enabled =
+        UBO.render_params.w > 0.001 &&
+        UBO.render_params.w > UBO.render_params.z + 0.001;
+    if (!is_avatar && UBO.cam_kind == 2u && bump_fade_enabled) {
         let dist = distance(in.world_pos, UBO.cam_pos.xyz);
         let near_end = max(UBO.render_params.z, 0.0);
         let far_start = max(UBO.render_params.w, near_end + 0.001);
@@ -4058,16 +4062,8 @@ impl VM {
     fn build_scene_data_blob(&self) -> Vec<u8> {
         let mut lights_flat: Vec<LightPod> = Vec::with_capacity(self.lights.len());
         for (_id, l) in &self.lights {
-            let flicker: f32 = if l.flicker > 0.0 {
-                let hash = hash_u32(self.animation_counter as u32);
-                let combined_hash = hash.wrapping_add(
-                    (l.position.x as u32 + l.position.y as u32 + l.position.z as u32) * 100,
-                );
-                let flicker_value = (combined_hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
-                1.0 - flicker_value * l.flicker
-            } else {
-                1.0
-            };
+            let (flicker_intensity, flicker_range) =
+                light_flicker_multipliers(l, self.animation_counter);
 
             lights_flat.push(LightPod {
                 header: [
@@ -4080,8 +4076,13 @@ impl VM {
                 ],
                 position: [l.position.x, l.position.y, l.position.z, 0.0],
                 color: [l.color.x, l.color.y, l.color.z, 0.0],
-                params0: [l.intensity, l.radius, l.start_distance, l.end_distance],
-                params1: [flicker, 0.0, 0.0, 0.0],
+                params0: [
+                    l.intensity,
+                    l.radius,
+                    l.start_distance,
+                    l.end_distance * flicker_range,
+                ],
+                params1: [flicker_intensity, 0.0, 0.0, 0.0],
             });
         }
 
@@ -10441,24 +10442,13 @@ impl VM {
             .filter(|l| l.emitting && matches!(l.light_type, LightType::Point))
             .map(|light| {
                 let score = light.intensity * light.end_distance.max(light.radius).max(0.1);
-                let flicker_multiplier: f32 = if light.flicker > 0.0 {
-                    let hash = hash_u32(self.animation_counter as u32);
-                    let combined_hash = hash.wrapping_add(
-                        (light.position.x as u32
-                            + light.position.y as u32
-                            + light.position.z as u32)
-                            * 100,
-                    );
-                    let flicker_value = (combined_hash as f32 / u32::MAX as f32).clamp(0.0, 1.0);
-                    1.0 - flicker_value * light.flicker
-                } else {
-                    1.0
-                };
+                let (flicker_intensity, flicker_range) =
+                    light_flicker_multipliers(light, self.animation_counter);
                 RasterPointLight {
                     position: light.position,
                     color: light.color,
-                    intensity: light.intensity * flicker_multiplier,
-                    range: light.end_distance,
+                    intensity: light.intensity * flicker_intensity,
+                    range: light.end_distance * flicker_range,
                     score: score * 1.15,
                 }
             })
@@ -13399,14 +13389,41 @@ fn hash_u32(mut state: u32) -> u32 {
     state
 }
 
+/// Smooth, centered torch-style flicker shared by SceneVM's Compute3D and Raster3D paths.
+///
+/// Varying range as well as intensity makes the light edge move across distant surfaces instead
+/// of making flicker visible only when the light is very close to a wall.
+fn light_flicker_multipliers(light: &Light, animation_counter: usize) -> (f32, f32) {
+    let amount = light.flicker.clamp(0.0, 1.0);
+    if amount <= 0.0 {
+        return (1.0, 1.0);
+    }
+
+    let position_hash = hash_u32(
+        light.position.x.to_bits()
+            ^ light.position.y.to_bits().rotate_left(11)
+            ^ light.position.z.to_bits().rotate_left(22),
+    );
+    let phase = position_hash as f32 / u32::MAX as f32 * std::f32::consts::TAU;
+    let time = animation_counter as f32 * 0.12;
+    let wave = (time + phase).sin() * 0.55
+        + (time * 1.83 + phase * 1.37).sin() * 0.28
+        + (time * 0.41 + phase * 2.11).sin() * 0.17;
+
+    let intensity = (1.0 + wave * amount * 0.70).max(0.05);
+    let range = (1.0 + wave * amount * 0.22).max(0.25);
+    (intensity, range)
+}
+
 #[cfg(test)]
 mod shader_tests {
     use super::{
-        SCENEVM_3D_ORGANIC_BILLBOARD_WGSL, SCENEVM_3D_RASTER_WGSL, VM,
+        SCENEVM_3D_ORGANIC_BILLBOARD_WGSL, SCENEVM_3D_RASTER_WGSL, VM, light_flicker_multipliers,
         screen_round_paint_brush_transform,
     };
-    use crate::{Chunk, GeoId};
+    use crate::{Chunk, GeoId, Light};
     use uuid::Uuid;
+    use vek::Vec3;
 
     #[test]
     fn raster_shader_parses() {
@@ -13434,6 +13451,33 @@ mod shader_tests {
     fn organic_billboard_shader_parses() {
         wgpu::naga::front::wgsl::parse_str(SCENEVM_3D_ORGANIC_BILLBOARD_WGSL)
             .expect("organic billboard WGSL should parse");
+    }
+
+    #[test]
+    fn light_flicker_changes_intensity_and_range_around_authored_values() {
+        let light = Light::new_pointlight(Vec3::new(2.0, 1.0, -3.0)).with_flicker(0.4);
+        let samples = (0..256)
+            .map(|frame| light_flicker_multipliers(&light, frame))
+            .collect::<Vec<_>>();
+        let min_intensity = samples
+            .iter()
+            .map(|sample| sample.0)
+            .fold(f32::INFINITY, f32::min);
+        let max_intensity = samples
+            .iter()
+            .map(|sample| sample.0)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let min_range = samples
+            .iter()
+            .map(|sample| sample.1)
+            .fold(f32::INFINITY, f32::min);
+        let max_range = samples
+            .iter()
+            .map(|sample| sample.1)
+            .fold(f32::NEG_INFINITY, f32::max);
+
+        assert!(min_intensity < 0.9 && max_intensity > 1.1);
+        assert!(min_range < 0.98 && max_range > 1.02);
     }
 
     #[test]

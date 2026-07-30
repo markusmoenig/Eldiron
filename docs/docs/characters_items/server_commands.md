@@ -891,6 +891,26 @@ teleport_entity(player_id, "entrance", "Dungeon")
 
 ---
 
+## `return_to_spawn`
+
+*This command can only be used with characters.*
+
+Returns the current character to its authored initial position and orientation
+in the current region. The engine records this spawn when the character enters
+the region. Health, visibility, and mode are deliberately left to the game
+script.
+
+```eldrin
+if event == "death" {
+    return_to_spawn();
+    set_attr("HP", get_attr("MAX_HP"));
+    set_attr("mode", "active");
+    set_attr("visible", true);
+}
+```
+
+---
+
 ## `build_procedural`
 
 *This command can be used from World scripts and other server scripts.*

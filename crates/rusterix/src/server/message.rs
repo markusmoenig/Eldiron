@@ -210,6 +210,11 @@ pub enum EntityAction {
         slot: String,
         command: Option<String>,
     },
+    /// Open an item container. World containers become the actor's active loot source.
+    OpenContainer {
+        item_id: u32,
+        owner_entity_id: Option<u32>,
+    },
     /// Move an item (inventory/equipped drag & drop).
     MoveItem {
         item_id: u32,

@@ -259,6 +259,23 @@ start_equipped_items = ["Shield", "Helmet"]
 
 ---
 
+## `start_active_items`
+
+*Character-only attribute.*
+
+List of item template names that should start with their `active` attribute set
+to `true`. Each named item must also appear in `start_items` or
+`start_equipped_items`. The item receives its normal `active` event after it is
+created, so ruleset behavior such as a torch enabling its light remains owned
+by the item script.
+
+```toml
+start_items = ["Torch"]
+start_active_items = ["Torch"]
+```
+
+---
+
 ## `mode`
 
 *Character-only attribute.*
@@ -664,6 +681,7 @@ color = "#ffffff" # Light Color
 strength = 5.0      # Strength of the Light
 range = 3.0         # Range of the light
 flicker = 0.4       # Amount of light flickering
+lift = 1.0          # Optional vertical offset from the entity or item origin
 ```
 
 ---

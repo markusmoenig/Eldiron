@@ -1,0 +1,58 @@
+Tile
+    name = "Niche Stone"
+    size = I2(64, 64)
+    coverage = I2(1, 1)
+    wrap = Repeat
+    seed = 149
+    pixelate = 1
+
+    Noise Warp
+        scale = I2(3, 4)
+        octaves = 2
+        persistence = 0.50
+        seed = 17
+
+    Noise Wear
+        scale = I2(6, 7)
+        octaves = 3
+        persistence = 0.46
+        seed = 23
+
+    Pattern Stones
+        Voronoi
+            cells = I2(4, 5)
+            jitter = 0.76
+            falloff = 0.64
+            warp = Warp
+            warp_amount = 0.045
+            seed = 31
+
+    Height Surface
+        source = 0.12 + Stones.height * 0.58
+
+        Multiply
+            source = 0.84 + Wear * 0.12 + Random(Stones.id, -0.03, 0.04, 37)
+            amount = 1.0
+
+        Shape
+            contrast = 0.96
+            bias = -0.03
+            plateau = 2.20
+            rim = 0.025
+
+        Clamp
+            min = 0.0
+            max = 1.0
+
+    MaterialMap
+        base = dungeon/wall_mortar
+        space = Global
+        tiling = F2(1.0, 1.0)
+
+        Layer
+            material = dungeon/wall_stone
+            mask = Pow(Stones.height, 1.45)
+            space = Stones.local
+
+    Output
+        height = Surface

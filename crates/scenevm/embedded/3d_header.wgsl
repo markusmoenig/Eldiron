@@ -715,12 +715,17 @@ fn sv_tri_tbn(a: vec3<f32>, b: vec3<f32>, c: vec3<f32>,
   let e2 = c - a;
   let d1 = uv1 - uv0;
   let d2 = uv2 - uv0;
-  let r = 1.0 / max(d1.x * d2.y - d1.y * d2.x, 1e-8);
+  let det = d1.x * d2.y - d1.y * d2.x;
+  let det_sign = select(-1.0, 1.0, det >= 0.0);
+  let safe_det = select(det_sign * 1e-8, det, abs(det) >= 1e-8);
+  let r = 1.0 / safe_det;
 
   var T = normalize((e1 * d2.y - e2 * d1.y) * r);
   var Ng = normalize(cross(e1, e2));
   T = normalize(T - Ng * dot(Ng, T));
-  let B = normalize(cross(Ng, T));
+  // Preserve the UV winding. Mirrored wall faces otherwise use the opposite
+  // bitangent and their tangent-space normal maps appear flat or inverted.
+  let B = normalize(cross(Ng, T)) * det_sign;
   return mat3x3<f32>(T, B, Ng);
 }
 

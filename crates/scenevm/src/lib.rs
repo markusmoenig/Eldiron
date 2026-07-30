@@ -533,10 +533,25 @@ struct GlobalGpu {
 static GLOBAL_GPU: OnceLock<GlobalGpu> = OnceLock::new();
 
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+static RENDER_DEBUG_OVERRIDE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Enables renderer timing diagnostics without requiring an environment
+/// variable. This is a no-op on targets without the native GPU renderer.
+pub fn set_render_debug_enabled(enabled: bool) {
+    #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
+    RENDER_DEBUG_OVERRIDE.store(enabled, std::sync::atomic::Ordering::Relaxed);
+
+    #[cfg(not(all(feature = "gpu", not(target_arch = "wasm32"))))]
+    let _ = enabled;
+}
+
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
 pub(crate) fn render_debug_enabled() -> bool {
-    std::env::var("ELDIRON_RENDER_DEBUG")
-        .map(|v| v != "0")
-        .unwrap_or(false)
+    RENDER_DEBUG_OVERRIDE.load(std::sync::atomic::Ordering::Relaxed)
+        || std::env::var("ELDIRON_RENDER_DEBUG")
+            .map(|v| v != "0")
+            .unwrap_or(false)
 }
 
 #[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]

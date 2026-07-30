@@ -1,0 +1,69 @@
+Tile
+    name = "Brick Wall"
+    blocking = true
+    size = I2(64, 64)
+    coverage = I2(4, 4)
+    wrap = Repeat
+    seed = 42
+    pixelate = 1
+
+    Noise LocalWarp
+        key = Id
+        scale = I2(2, 2)
+        octaves = 2
+        persistence = 0.55
+        seed = 7
+
+    Pattern Wall
+        Bricks
+            columns = 6
+            rows = 9
+            //stagger = 0.5
+            gap = 0.00 //+ Random(Id, 0.0, 0.025, 8)
+            bevel = 0.2
+            rounding = 0.27// + Random(Id, 0.0, 0.06, 13)
+            rotation = Random(Id, -4.0, 4.0, 11)
+            //size_variation = F2(0.04, 0.03)
+            perturb = LocalWarp + Kerbs.height * 0.2
+            perturb_amount = 0.040 + Random(Id, 0.0, 0.025, 15)
+            //falloff = 0.68 + Random(Id, 0.0, 0.10, 17)
+            seed = 19
+            //perturb = LocalWarp
+            //perturb_amount = 0.1
+
+    Pattern Kerbs
+        Discs
+            space = Wall.local
+            cells = I2(4, 3)
+            jitter = 0.92
+            radius = 0.32 + Random(Wall.id, 0.0, 0.28, 5)
+            falloff = 1.6
+            //warp = LocalWarp
+            //warp_amount = 0.2
+            perturb = LocalWarp
+            perturb_amount = 0.5
+            seed = 9
+
+    Height Surface
+        source = Wall.height
+
+        Subtract
+            source = Kerbs.height
+            amount = 0.12
+
+        Clamp
+            min = 0.0
+            max = 1.0
+
+    MaterialMap
+        base = dungeon/wall_mortar
+        space = Global
+        tiling = F2(4.0, 4.0)
+
+        Layer
+            material = dungeon/wall_stone
+            mask = Pow(Wall.height, 1.6)
+            space = Wall.local
+
+    Output
+        height = Surface

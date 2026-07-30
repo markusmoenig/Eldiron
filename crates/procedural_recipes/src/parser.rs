@@ -340,7 +340,7 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
     reject_unknown_fields(
         node,
         &[
-            "name", "material", "size", "coverage", "wrap", "seed", "pixelate",
+            "name", "blocking", "material", "size", "coverage", "wrap", "seed", "pixelate",
         ],
     )?;
     let mut recipe = Recipe {
@@ -348,6 +348,7 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
             .map(|(value, line)| parse_string(value, line))
             .transpose()?
             .unwrap_or_else(|| "Untitled Tile".to_string()),
+        blocking: optional_bool(node, "blocking", false)?,
         material: field(node, "material")
             .map(|(value, line)| parse_alias(value, line))
             .transpose()?,
@@ -370,6 +371,7 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
     let mut animation = None;
     let mut material_map = None;
     let mut implicit_output = None;
+    let mut geometry_seen = false;
     for child in &node.children {
         let (kind, declared_name) = declaration(&child.name);
         match kind.as_str() {
@@ -426,11 +428,22 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
                     ));
                 }
             }
+            "geometry" => {
+                ensure_unnamed(child, declared_name)?;
+                if geometry_seen {
+                    return Err(ParseError::duplicate(
+                        child.line,
+                        "duplicate Geometry block",
+                    ));
+                }
+                recipe.geometry = parse_geometry(child)?;
+                geometry_seen = true;
+            }
             _ => {
                 return Err(ParseError::unknown(
                     child.line,
                     format!(
-                        "unknown top-level block '{}'; expected Noise <name>, Pattern <name>, Height <name>, Colorize, MaterialMap, or Output",
+                        "unknown top-level block '{}'; expected Noise <name>, Pattern <name>, Height <name>, Geometry, Colorize, MaterialMap, or Output",
                         child.name
                     ),
                 ));
@@ -461,6 +474,122 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
     recipe.colorize = colorize;
     validate_names_and_references(&recipe, node, true)?;
     Ok(recipe)
+}
+
+fn parse_geometry(node: &Node) -> Result<Vec<GeometryFeature>, ParseError> {
+    reject_unknown_fields(node, &[])?;
+    let mut features = Vec::new();
+    let mut names = BTreeSet::new();
+    for child in &node.children {
+        let (kind, declared_name) = declaration(&child.name);
+        match kind.as_str() {
+            "niche" => {
+                let niche = parse_niche_geometry(child, declared_name)?;
+                if !names.insert(niche.name.to_ascii_lowercase()) {
+                    return Err(ParseError::duplicate(
+                        child.line,
+                        format!("duplicate Geometry feature '{}'", niche.name),
+                    ));
+                }
+                features.push(GeometryFeature::Niche(niche));
+            }
+            _ => {
+                return Err(ParseError::unknown(
+                    child.line,
+                    format!(
+                        "unknown Geometry feature '{}'; expected Niche <name>",
+                        child.name
+                    ),
+                ));
+            }
+        }
+    }
+    if features.is_empty() {
+        return Err(ParseError::missing(
+            node.line,
+            "Geometry requires at least one feature",
+        ));
+    }
+    Ok(features)
+}
+
+fn parse_niche_geometry(node: &Node, name: Option<&str>) -> Result<NicheGeometry, ParseError> {
+    reject_unknown_fields(
+        node,
+        &[
+            "surface",
+            "frame",
+            "position",
+            "size",
+            "depth",
+            "sill",
+            "frame_width",
+        ],
+    )?;
+    reject_children(node)?;
+
+    let name = required_declaration_name(node, name)?.to_string();
+    let (surface, surface_line) = field(node, "surface")
+        .ok_or_else(|| ParseError::missing(node.line, "Niche requires surface"))?;
+    let frame = field(node, "frame")
+        .map(|(value, line)| parse_alias(value, line))
+        .transpose()?;
+    let position = optional_f2(node, "position", [0.1, 0.6])?;
+    let size = optional_f2(node, "size", [0.8, 1.2])?;
+    let depth = optional_f32(node, "depth", 0.35)?;
+    let sill = optional_f32(node, "sill", 0.1)?;
+    let frame_width = optional_f32(node, "frame_width", 0.0)?;
+
+    if position
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+    {
+        return Err(ParseError::invalid(
+            node.line,
+            "Niche.position must use finite, non-negative wall-local coordinates",
+        ));
+    }
+    if size.iter().any(|value| !value.is_finite() || *value <= 0.0) {
+        return Err(ParseError::invalid(
+            node.line,
+            "Niche.size components must be finite and greater than zero",
+        ));
+    }
+    if position[0] + size[0] > 1.0 {
+        return Err(ParseError::invalid(
+            node.line,
+            "Niche position.x + size.x must fit within the 1.0-unit wall width",
+        ));
+    }
+    if !depth.is_finite() || depth <= 0.0 || depth >= 1.0 {
+        return Err(ParseError::invalid(
+            node.line,
+            "Niche.depth must be greater than 0.0 and less than 1.0",
+        ));
+    }
+    if !sill.is_finite() || sill <= 0.0 || sill > size[1] {
+        return Err(ParseError::invalid(
+            node.line,
+            "Niche.sill must be greater than 0.0 and no larger than size.y",
+        ));
+    }
+    if !frame_width.is_finite() || frame_width < 0.0 || frame_width > 0.5 {
+        return Err(ParseError::invalid(
+            node.line,
+            "Niche.frame_width must be between 0.0 and 0.5",
+        ));
+    }
+
+    Ok(NicheGeometry {
+        name,
+        surface: parse_alias(surface, surface_line)?,
+        frame,
+        position,
+        size,
+        depth,
+        sill,
+        frame_width,
+    })
 }
 
 fn material_from_node(node: &Node, id: &str) -> Result<MaterialRecipe, ParseError> {
@@ -1125,6 +1254,12 @@ fn validate_names_and_references(
             ));
         }
     }
+    for feature in &recipe.geometry {
+        let name = match feature {
+            GeometryFeature::Niche(niche) => &niche.name,
+        };
+        fields.insert(format!("@geometry:{}", name.to_ascii_lowercase()));
+    }
     for (index, field) in recipe.fields.iter().enumerate() {
         let field_node = field_nodes.get(index).copied().unwrap_or(root);
         match field {
@@ -1525,6 +1660,7 @@ fn scalar_uses_input_height(source: &ScalarSource) -> bool {
         | ScalarSource::Coordinate(_)
         | ScalarSource::Field(_)
         | ScalarSource::Pattern { .. }
+        | ScalarSource::Geometry { .. }
         | ScalarSource::RandomId { .. }
         | ScalarSource::Wave { .. } => false,
     }
@@ -1546,6 +1682,14 @@ fn validate_scalar_source(
             }
         }
         ScalarSource::Pattern { name, .. } => require_pattern(name, patterns, line)?,
+        ScalarSource::Geometry { name, .. } => {
+            if !fields.contains(&format!("@geometry:{}", name.to_ascii_lowercase())) {
+                return Err(ParseError::reference(
+                    line,
+                    format!("unknown Geometry feature '{name}'"),
+                ));
+            }
+        }
         ScalarSource::RandomId { id, .. } => {
             if let IdSource::Pattern(name) = id {
                 require_pattern(name, patterns, line)?;
@@ -2008,6 +2152,12 @@ fn scalar_identifier(value: &str, line: usize) -> Result<ScalarSource, ParseErro
     }
     if let Some((name, channel)) = value.rsplit_once('.') {
         validate_identifier(name, line)?;
+        if channel.eq_ignore_ascii_case("distance") {
+            return Ok(ScalarSource::Geometry {
+                name: name.to_string(),
+                channel: GeometryChannel::Distance,
+            });
+        }
         let channel = match channel.to_ascii_lowercase().as_str() {
             "height" => PatternChannel::Height,
             "edge" => PatternChannel::Edge,
@@ -2629,6 +2779,62 @@ mod tests {
             })
         ));
         assert!(recipe.colorize.is_none());
+    }
+
+    #[test]
+    fn parses_recipe_owned_niche_geometry_and_collision() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    name = "Wall Niche"
+    blocking = true
+
+    Geometry
+        Niche Recess
+            surface = niche-stone
+            frame = niche-frame
+            position = F2(0.12, 0.64)
+            size = F2(0.76, 1.18)
+            depth = 0.46
+            sill = 0.12
+            frame_width = 0.10
+
+    Height Joint
+        source = Abs(Recess.distance)
+
+    Output
+        height = Joint
+"#,
+        )
+        .unwrap();
+
+        assert!(recipe.blocking);
+        assert_eq!(recipe.geometry.len(), 1);
+        let GeometryFeature::Niche(niche) = &recipe.geometry[0];
+        assert_eq!(niche.name, "Recess");
+        assert_eq!(niche.surface, "niche-stone");
+        assert_eq!(niche.frame.as_deref(), Some("niche-frame"));
+        assert_eq!(niche.position, [0.12, 0.64]);
+        assert_eq!(niche.size, [0.76, 1.18]);
+        assert_eq!(niche.depth, 0.46);
+        assert_eq!(niche.sill, 0.12);
+        assert_eq!(niche.frame_width, 0.10);
+        assert!(matches!(
+            &recipe.fields[0],
+            FieldDefinition::Height(HeightField {
+                source: ScalarSource::Unary {
+                    source,
+                    op: UnaryOperator::Abs,
+                },
+                ..
+            }) if matches!(
+                source.as_ref(),
+                ScalarSource::Geometry {
+                    name,
+                    channel: GeometryChannel::Distance,
+                } if name == "Recess"
+            )
+        ));
     }
 
     #[test]

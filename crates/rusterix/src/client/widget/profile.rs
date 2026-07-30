@@ -547,12 +547,19 @@ impl ProfileWidget {
         }
     }
 
-    fn fallback_font() -> Option<fontdue::Font> {
-        fontdue::Font::from_bytes(
-            include_bytes!("../../../../theframework/embedded/fonts/Roboto-Bold.ttf").as_slice(),
-            fontdue::FontSettings::default(),
-        )
-        .ok()
+    fn fallback_font() -> Option<&'static fontdue::Font> {
+        static FALLBACK_FONT: std::sync::OnceLock<Option<fontdue::Font>> =
+            std::sync::OnceLock::new();
+        FALLBACK_FONT
+            .get_or_init(|| {
+                fontdue::Font::from_bytes(
+                    include_bytes!("../../../../theframework/embedded/fonts/Roboto-Bold.ttf")
+                        .as_slice(),
+                    fontdue::FontSettings::default(),
+                )
+                .ok()
+            })
+            .as_ref()
     }
 
     fn display_name(entity: &Entity) -> String {
@@ -823,7 +830,7 @@ impl ProfileWidget {
             return;
         }
         let fallback = Self::fallback_font();
-        let Some(font) = assets.fonts.values().next().or(fallback.as_ref()) else {
+        let Some(font) = assets.fonts.values().next().or(fallback) else {
             return;
         };
 

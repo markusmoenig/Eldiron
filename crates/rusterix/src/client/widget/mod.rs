@@ -482,13 +482,13 @@ impl Widget {
 
         let fallback = Self::fallback_font();
         let font = if self.label_font.trim().is_empty() {
-            assets.fonts.values().next().or(fallback.as_ref())
+            assets.fonts.values().next().or(fallback)
         } else {
             assets
                 .fonts
                 .get(self.label_font.trim())
                 .or_else(|| assets.fonts.values().next())
-                .or(fallback.as_ref())
+                .or(fallback)
         };
 
         let Some(font) = font else {
@@ -518,12 +518,19 @@ impl Widget {
         );
     }
 
-    fn fallback_font() -> Option<fontdue::Font> {
-        fontdue::Font::from_bytes(
-            include_bytes!("../../../../theframework/embedded/fonts/Roboto-Bold.ttf").as_slice(),
-            fontdue::FontSettings::default(),
-        )
-        .ok()
+    fn fallback_font() -> Option<&'static fontdue::Font> {
+        static FALLBACK_FONT: std::sync::OnceLock<Option<fontdue::Font>> =
+            std::sync::OnceLock::new();
+        FALLBACK_FONT
+            .get_or_init(|| {
+                fontdue::Font::from_bytes(
+                    include_bytes!("../../../../theframework/embedded/fonts/Roboto-Bold.ttf")
+                        .as_slice(),
+                    fontdue::FontSettings::default(),
+                )
+                .ok()
+            })
+            .as_ref()
     }
 
     pub(crate) fn command_icon_texture<'a>(

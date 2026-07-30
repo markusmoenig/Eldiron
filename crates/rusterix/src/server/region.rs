@@ -539,6 +539,70 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn persistent_intents_apply_to_first_person() {
+        let mut ctx = RegionCtx::default();
+        let player = player_with_intent(PlayerCamera::D3FirstP);
+
+        assert!(!RegionInstance::should_keep_player_intent(&ctx, &player));
+
+        ctx.config = toml::from_str::<toml::Table>(
+            r#"
+            [game]
+            persistent_intents = true
+            "#,
+        )
+        .unwrap();
+
+        assert!(RegionInstance::should_keep_player_intent(&ctx, &player));
+        assert!(RegionInstance::should_keep_player_intent(
+            &ctx,
+            &player_with_intent(PlayerCamera::D3FirstPGrid)
+        ));
+
+        let mut npc = player;
+        npc.set_attribute("player", Value::Bool(false));
+        assert!(!RegionInstance::should_keep_player_intent(&ctx, &npc));
+    }
+
+    #[test]
+    fn player_can_return_to_authored_spawn() {
+        let mut ctx = RegionCtx::default();
+        let mut player = player_with_intent(PlayerCamera::D3FirstPGrid);
+        player.id = 42;
+        player.set_position(Vec3::new(3.5, 1.25, 7.5));
+        player.set_orientation(Vec2::new(0.0, -1.0));
+        ctx.map.entities.push(player);
+
+        remember_entity_respawn_points(&mut ctx);
+
+        let player = ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 42)
+            .unwrap();
+        player.set_position(Vec3::new(20.0, 3.0, 30.0));
+        player.set_orientation(Vec2::new(1.0, 0.0));
+        player.set_attribute("target", Value::UInt(7));
+        player.set_attribute("attack_target", Value::UInt(7));
+        player.action = EntityAction::Forward;
+
+        assert!(return_entity_to_spawn(&mut ctx, 42));
+
+        let player = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == 42)
+            .unwrap();
+        assert_eq!(player.position, Vec3::new(3.5, 1.25, 7.5));
+        assert_eq!(player.orientation, Vec2::new(0.0, -1.0));
+        assert_eq!(player.action, EntityAction::Off);
+        assert_eq!(player.attributes.get_str("target"), Some(""));
+        assert_eq!(player.attributes.get_str("attack_target"), Some(""));
+    }
+
+    #[test]
     fn command_slot_assignments_are_ruleset_scoped_and_persistent() {
         let mut ctx = RegionCtx::default();
         ctx.set_rules(
@@ -1446,7 +1510,14 @@ mod ruleset_progression_tests {
         entity.set_attribute("skill_fletching", Value::Int(0));
         ctx.map.entities.push(entity);
 
-        apply_spawn_item_entries_for_entity(1, "Ranger", &mut ctx, &["hunting_bow".into()], true);
+        apply_spawn_item_entries_for_entity(
+            1,
+            "Ranger",
+            &mut ctx,
+            &["hunting_bow".into()],
+            true,
+            &[],
+        );
 
         let bow = ctx.map.entities[0]
             .equipped
@@ -1461,6 +1532,54 @@ mod ruleset_progression_tests {
             bow.attributes.get_str("damage_bonus_attribute"),
             Some("DEX")
         );
+    }
+
+    #[test]
+    fn startup_active_items_override_the_template_state_and_active_event() {
+        let mut ctx = RegionCtx::default();
+        let torch_data = r##"
+            [attributes]
+            name = "Torch"
+            ruleset_id = "torch"
+            active = false
+
+            [light]
+            color = "#ffad52"
+            strength = 4.2
+            range = 4.8
+            flicker = 0.1
+            lift = 1.15
+        "##
+        .to_string();
+        ctx.assets
+            .items
+            .insert("Torch".into(), ("".into(), torch_data.clone()));
+        ctx.item_class_data.insert("Torch".into(), torch_data);
+
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.inventory.resize(2, None);
+        ctx.map.entities.push(entity);
+
+        apply_spawn_item_entries_for_entity(
+            1,
+            "Player",
+            &mut ctx,
+            &["Torch".into()],
+            false,
+            &["torch".into()],
+        );
+
+        let torch = ctx.map.entities[0]
+            .iter_inventory()
+            .find_map(|(_, item)| {
+                (item.attributes.get_str("ruleset_id") == Some("torch")).then_some(item)
+            })
+            .expect("startup torch");
+        assert!(torch.attributes.get_bool_default("active", false));
+        assert!(ctx.to_execute_item.iter().any(|(item_id, event, value)| {
+            *item_id == torch.id && event == "active" && *value == VMValue::from_bool(true)
+        }));
     }
 
     #[test]
@@ -1501,6 +1620,7 @@ mod ruleset_progression_tests {
             &mut ctx,
             &["Training Sword".into()],
             true,
+            &[],
         );
 
         assert!(ctx.map.entities[0].equipped.is_empty());
@@ -2387,6 +2507,88 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn opened_world_container_remains_a_valid_loot_source() {
+        let mut ctx = RegionCtx::default();
+        let (from_sender, _from_receiver) = unbounded();
+        let _ = ctx.from_sender.set(from_sender);
+
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.position = Vec3::new(0.0, 1.0, 0.0);
+        entity.inventory.resize(2, None);
+        ctx.map.entities.push(entity);
+
+        let mut loot = Item::new();
+        loot.id = 31;
+        loot.set_attribute("name", Value::Str("Orc Tooth".into()));
+
+        let mut corpse = Item::new();
+        corpse.id = 30;
+        corpse.position = Vec3::new(10.0, 1.0, 10.0);
+        corpse.set_attribute("name", Value::Str("Orc's Remains".into()));
+        corpse.set_attribute("container", Value::Bool(true));
+        corpse.set_attribute("container_slots", Value::Int(1));
+        corpse.apply_container_attributes();
+        corpse.add_item_to_container(loot).unwrap();
+        ctx.map.items.push(corpse);
+
+        assert!(!RegionInstance::move_container_item_for_entity(
+            &mut ctx,
+            1,
+            31,
+            30,
+            None,
+            Some(1),
+            None,
+            None,
+        ));
+        ctx.active_container_sessions.insert(1, (30, None));
+        assert!(RegionInstance::move_container_item_for_entity(
+            &mut ctx,
+            1,
+            31,
+            30,
+            None,
+            Some(1),
+            None,
+            None,
+        ));
+        assert_eq!(
+            ctx.map.entities[0].inventory[0]
+                .as_ref()
+                .map(|item| item.id),
+            Some(31)
+        );
+    }
+
+    #[test]
+    fn dropping_world_item_on_profile_uses_first_inventory_slot() {
+        let mut ctx = RegionCtx::default();
+        let (from_sender, _from_receiver) = unbounded();
+        let _ = ctx.from_sender.set(from_sender);
+
+        let mut entity = Entity::new();
+        entity.id = 1;
+        entity.position = Vec3::new(0.0, 1.0, 0.0);
+        entity.inventory.resize(2, None);
+        ctx.map.entities.push(entity);
+
+        let mut world_item = Item::new();
+        world_item.id = 40;
+        world_item.position = Vec3::new(0.5, 1.0, 0.5);
+        ctx.map.items.push(world_item);
+
+        assert!(move_item_for_entity(&mut ctx, 1, 1, 40, None, None));
+        assert_eq!(
+            ctx.map.entities[0].inventory[0]
+                .as_ref()
+                .map(|item| item.id),
+            Some(40)
+        );
+        assert!(ctx.map.items.is_empty());
+    }
+
+    #[test]
     fn equipment_policy_rejects_class_and_handedness_conflicts_transactionally() {
         fn equipment_item(id: u32, name: &str, kind: &str, category: &str, slot: &str) -> Item {
             let mut item = Item::new();
@@ -2624,6 +2826,34 @@ mod ruleset_progression_tests {
         let rules = intent_rule_config(&ctx, 1, "attack");
         assert_eq!(rules.distance.source.as_deref(), Some("weapon_range"));
         assert_eq!(intent_distance_limit(&ctx, 1, "attack", &rules), 6.0);
+    }
+
+    #[test]
+    fn follow_attack_uses_equipped_weapon_range() {
+        let mut ctx = RegionCtx::default();
+        ctx.rules = toml::from_str::<toml::Value>(
+            r#"
+        [equipment]
+        weapon_slots = ["grip"]
+
+        [equipment.weapon_categories.bow]
+        range = 6
+        "#,
+        )
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .clone();
+        let mut bow = Item::new();
+        bow.set_attribute("category", Value::Str("bow".into()));
+        let mut entity = Entity::new();
+        entity.equipped.insert("grip".into(), bow);
+
+        assert_eq!(follow_attack_range_for_entity(&ctx, &entity), 6.0);
+        assert_eq!(
+            follow_attack_range_for_entity(&RegionCtx::default(), &Entity::new()),
+            1.0
+        );
     }
 
     #[test]
@@ -3574,9 +3804,16 @@ impl RegionInstance {
     }
 
     fn should_keep_player_intent(ctx: &RegionCtx, entity: &Entity) -> bool {
-        if !entity.is_player()
-            || !get_config_bool_default(ctx, "game", "click_intents_2d", false)
-                && !get_config_bool_default(ctx, "game", "persistent_2d_intents", false)
+        if !entity.is_player() {
+            return false;
+        }
+
+        if get_config_bool_default(ctx, "game", "persistent_intents", false) {
+            return true;
+        }
+
+        if !get_config_bool_default(ctx, "game", "click_intents_2d", false)
+            && !get_config_bool_default(ctx, "game", "persistent_2d_intents", false)
         {
             return false;
         }
@@ -4444,6 +4681,8 @@ impl RegionInstance {
         };
         if container_owner_entity_id.is_none()
             && !world_item_in_drag_reach(ctx, actor_id, container_item_id)
+            && ctx.active_container_sessions.get(&actor_id)
+                != Some(&(container_item_id, container_owner_entity_id))
         {
             send_drag_too_far_message(ctx, actor_id);
             return false;
@@ -8329,6 +8568,31 @@ impl RegionInstance {
                                 );
                             });
                         }
+                        EntityAction::OpenContainer {
+                            item_id,
+                            owner_entity_id,
+                        } => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                let container_exists = Self::find_drag_container_location(
+                                    ctx,
+                                    item_id,
+                                    owner_entity_id,
+                                )
+                                .is_some();
+                                if !container_exists {
+                                    return;
+                                }
+                                ctx.active_container_sessions
+                                    .insert(entity_id, (item_id, owner_entity_id));
+                                if let Some(sender) = ctx.from_sender.get() {
+                                    let _ = sender.send(RegionMessage::OpenContainer(
+                                        ctx.region_id,
+                                        item_id,
+                                        owner_entity_id,
+                                    ));
+                                }
+                            });
+                        }
                         MoveItem {
                             item_id,
                             owner_entity_id,
@@ -9317,7 +9581,8 @@ impl RegionInstance {
                         entity.set_attribute("target", Value::UInt(target_id));
                         entity.set_attribute("attack_target", Value::UInt(target_id));
 
-                        if self.close_in_arrived(ctx, position, target_pos, 1.0) {
+                        let attack_range = follow_attack_range_for_entity(ctx, entity);
+                        if self.close_in_arrived(ctx, position, target_pos, attack_range) {
                             if ctx.ticks >= *next_attack_tick {
                                 queue_entity_attack_damage(ctx, attacker_id, target_id);
 
@@ -9385,7 +9650,7 @@ impl RegionInstance {
                                 .close_in_on_floors(
                                     position,
                                     target_pos,
-                                    1.0,
+                                    attack_range,
                                     step_speed,
                                     radius,
                                     max_step_height,
@@ -9394,7 +9659,7 @@ impl RegionInstance {
                                 .unwrap_or_else(|| {
                                     let to_target = target_pos - position;
                                     let dist = to_target.magnitude();
-                                    if dist <= 1.0 {
+                                    if dist <= attack_range {
                                         (Vec3::new(position.x, entity.position.y, position.y), true)
                                     } else {
                                         (
@@ -9405,9 +9670,14 @@ impl RegionInstance {
                                 });
                             (Vec2::new(p.x, p.z), p.y)
                         } else {
-                            let (p, _) = ctx
-                                .mapmini
-                                .close_in(position, target_pos, 1.0, step_speed, radius, 1.0);
+                            let (p, _) = ctx.mapmini.close_in(
+                                position,
+                                target_pos,
+                                attack_range,
+                                step_speed,
+                                radius,
+                                1.0,
+                            );
                             (p, entity.position.y)
                         };
 
@@ -11927,6 +12197,7 @@ fn apply_spawn_item_entries_for_entity(
     ctx: &mut RegionCtx,
     class_names: &[String],
     equip: bool,
+    active_names: &[String],
 ) {
     let entity_snapshot = ctx
         .map
@@ -11948,6 +12219,23 @@ fn apply_spawn_item_entries_for_entity(
         }
 
         let item_id = item.id;
+        if active_names
+            .iter()
+            .any(|name| name.eq_ignore_ascii_case(class_name))
+        {
+            item.set_attribute("active", Value::Bool(true));
+            if let Some((_, _, value)) = ctx
+                .to_execute_item
+                .iter_mut()
+                .rev()
+                .find(|(queued_item_id, event, _)| *queued_item_id == item_id && event == "active")
+            {
+                *value = VMValue::from_bool(true);
+            } else {
+                ctx.to_execute_item
+                    .push((item_id, "active".into(), VMValue::from_bool(true)));
+            }
+        }
         let item_slot = item.attributes.get_str("slot").map(str::to_string);
 
         let mut added = false;
@@ -11986,6 +12274,7 @@ fn apply_spawn_item_lists_for_entity(entity_id: u32, ctx: &mut RegionCtx) {
     let mut entity_name = "Unknown".to_string();
     let mut add_only: Vec<String> = Vec::new();
     let mut add_and_equip: Vec<String> = Vec::new();
+    let mut active: Vec<String> = Vec::new();
     if let Some(entity) = ctx.map.entities.iter().find(|e| e.id == entity_id) {
         entity_name = entity
             .attributes
@@ -12004,14 +12293,25 @@ fn apply_spawn_item_lists_for_entity(entity_id: u32, ctx: &mut RegionCtx) {
                 "add_equip_items",
             ],
         );
+        active = collect_spawn_item_list(
+            &entity.attributes,
+            &["start_active_items", "startup_active_items", "active_items"],
+        );
     }
 
     if add_only.is_empty() && add_and_equip.is_empty() {
         return;
     }
 
-    apply_spawn_item_entries_for_entity(entity_id, &entity_name, ctx, &add_only, false);
-    apply_spawn_item_entries_for_entity(entity_id, &entity_name, ctx, &add_and_equip, true);
+    apply_spawn_item_entries_for_entity(entity_id, &entity_name, ctx, &add_only, false, &active);
+    apply_spawn_item_entries_for_entity(
+        entity_id,
+        &entity_name,
+        ctx,
+        &add_and_equip,
+        true,
+        &active,
+    );
 }
 
 /// Set Player Camera
@@ -19903,6 +20203,12 @@ fn current_attack_range_for_entity(
     fallback
 }
 
+fn follow_attack_range_for_entity(ctx: &RegionCtx, entity: &Entity) -> f32 {
+    current_attack_range_for_entity(ctx, entity, Some(1.0))
+        .unwrap_or(1.0)
+        .max(0.1)
+}
+
 fn current_attack_source_item_id_for_entity(ctx: &RegionCtx, entity_id: u32) -> Option<u32> {
     let entity = ctx
         .map
@@ -20534,12 +20840,11 @@ fn entity_respawn_clears_corpse(ctx: &RegionCtx) -> bool {
 
 fn remember_entity_respawn_points(ctx: &mut RegionCtx) {
     for entity in &ctx.map.entities {
-        if entity.is_player() {
-            continue;
+        if !entity.is_player() {
+            ctx.entity_respawn_snapshots
+                .entry(entity.id)
+                .or_insert_with(|| entity.clone());
         }
-        ctx.entity_respawn_snapshots
-            .entry(entity.id)
-            .or_insert_with(|| entity.clone());
         let state = ctx.entity_state_data.entry(entity.id).or_default();
         if state.get("__respawn_spawn_x").is_some() {
             continue;
@@ -20559,6 +20864,47 @@ fn remember_entity_respawn_points(ctx: &mut RegionCtx) {
             state.set("__respawn_proximity_distance", Value::Float(distance));
         }
     }
+}
+
+pub(crate) fn return_entity_to_spawn(ctx: &mut RegionCtx, entity_id: u32) -> bool {
+    let Some(state) = ctx.entity_state_data.get(&entity_id) else {
+        return false;
+    };
+    let (Some(spawn_x), Some(spawn_y), Some(spawn_z)) = (
+        state.get_float("__respawn_spawn_x"),
+        state.get_float("__respawn_spawn_y"),
+        state.get_float("__respawn_spawn_z"),
+    ) else {
+        return false;
+    };
+    let orientation = (
+        state.get_float("__respawn_orientation_x"),
+        state.get_float("__respawn_orientation_z"),
+    );
+
+    let Some(entity) = ctx
+        .map
+        .entities
+        .iter_mut()
+        .find(|entity| entity.id == entity_id)
+    else {
+        return false;
+    };
+
+    entity.set_position(Vec3::new(spawn_x, spawn_y, spawn_z));
+    if let (Some(orientation_x), Some(orientation_z)) = orientation {
+        entity.set_orientation(Vec2::new(orientation_x, orientation_z));
+    }
+    entity.set_attribute("target", Value::Str(String::new()));
+    entity.set_attribute("attack_target", Value::Str(String::new()));
+    entity.action = EntityAction::Off;
+    entity.active_sequence = None;
+    entity.paused_sequence = None;
+    entity.snap_position_update = true;
+    entity.mark_all_dirty();
+
+    ctx.check_player_for_section_change_id(entity_id);
+    true
 }
 
 fn reset_respawn_item_ids(item: &mut Item) {
@@ -22164,7 +22510,75 @@ fn move_item_for_entity(
         return true;
     }
 
-    false
+    // Dropping onto a profile means "put this into that character's first
+    // available inventory slot". Items already owned by that character need
+    // no further move.
+    if !from_world && source_entity_index == Some(target_entity_index) {
+        return true;
+    }
+
+    if let Some((amount, message)) = moving_money_pickup {
+        if !credit_monetary_pickup(ctx, target_entity_id, amount) {
+            return false;
+        }
+        match &source {
+            Source::Inventory(source_index) => {
+                let Some(source_entity_index) = source_entity_index else {
+                    return false;
+                };
+                let _ = ctx.map.entities[source_entity_index].remove_item_from_slot(*source_index);
+            }
+            Source::Equipped(source_slot) => {
+                let Some(source_entity_index) = source_entity_index else {
+                    return false;
+                };
+                let _ = ctx.map.entities[source_entity_index].unequip_item(source_slot);
+            }
+            Source::World(source_index) => {
+                ctx.map.items.remove(*source_index);
+            }
+        }
+        if from_world {
+            let _ = ctx
+                .from_sender
+                .get()
+                .unwrap()
+                .send(RegionMessage::RemoveItem(ctx.region_id, item_id));
+        }
+        send_system_message_to_entity(ctx, target_entity_id, message);
+        return true;
+    }
+
+    let mut updated_target = ctx.map.entities[target_entity_index].clone();
+    if updated_target.add_item(moving_item).is_err() {
+        return false;
+    }
+    match &source {
+        Source::Inventory(source_index) => {
+            let Some(source_entity_index) = source_entity_index else {
+                return false;
+            };
+            let _ = ctx.map.entities[source_entity_index].remove_item_from_slot(*source_index);
+        }
+        Source::Equipped(source_slot) => {
+            let Some(source_entity_index) = source_entity_index else {
+                return false;
+            };
+            let _ = ctx.map.entities[source_entity_index].unequip_item(source_slot);
+        }
+        Source::World(source_index) => {
+            ctx.map.items.remove(*source_index);
+        }
+    }
+    ctx.map.entities[target_entity_index] = updated_target;
+    if from_world {
+        let _ = ctx
+            .from_sender
+            .get()
+            .unwrap()
+            .send(RegionMessage::RemoveItem(ctx.region_id, item_id));
+    }
+    true
 }
 
 fn take_item_for_entity(ctx: &mut RegionCtx, entity_id: u32, item_id: u32) -> bool {

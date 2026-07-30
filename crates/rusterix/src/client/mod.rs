@@ -147,6 +147,116 @@ struct ActionsPanelLayout {
     entries: Vec<ActionsPanelEntryLayout>,
 }
 
+#[derive(Default)]
+struct ClientDrawDebugTiming {
+    window_started: Option<Instant>,
+    frames: u32,
+    total: Duration,
+    setup: Duration,
+    game_prepare: Duration,
+    game_render: Duration,
+    game_composite: Duration,
+    screen_base: Duration,
+    text: Duration,
+    avatars: Duration,
+    profiles: Duration,
+    stats: Duration,
+    foreground: Duration,
+    messages: Duration,
+    inputs: Duration,
+    buttons: Duration,
+    button_resolve: Duration,
+    button_state: Duration,
+    button_draw: Duration,
+    button_overlay: Duration,
+    misc: Duration,
+}
+
+#[derive(Default)]
+struct ClientDrawDebugSample {
+    total: Duration,
+    setup: Duration,
+    game_prepare: Duration,
+    game_render: Duration,
+    game_composite: Duration,
+    screen_base: Duration,
+    text: Duration,
+    avatars: Duration,
+    profiles: Duration,
+    stats: Duration,
+    foreground: Duration,
+    messages: Duration,
+    inputs: Duration,
+    buttons: Duration,
+    button_resolve: Duration,
+    button_state: Duration,
+    button_draw: Duration,
+    button_overlay: Duration,
+    misc: Duration,
+}
+
+impl ClientDrawDebugTiming {
+    fn record(&mut self, sample: ClientDrawDebugSample) {
+        let now = Instant::now();
+        let window_started = *self.window_started.get_or_insert(now);
+        self.frames = self.frames.saturating_add(1);
+        self.total += sample.total;
+        self.setup += sample.setup;
+        self.game_prepare += sample.game_prepare;
+        self.game_render += sample.game_render;
+        self.game_composite += sample.game_composite;
+        self.screen_base += sample.screen_base;
+        self.text += sample.text;
+        self.avatars += sample.avatars;
+        self.profiles += sample.profiles;
+        self.stats += sample.stats;
+        self.foreground += sample.foreground;
+        self.messages += sample.messages;
+        self.inputs += sample.inputs;
+        self.buttons += sample.buttons;
+        self.button_resolve += sample.button_resolve;
+        self.button_state += sample.button_state;
+        self.button_draw += sample.button_draw;
+        self.button_overlay += sample.button_overlay;
+        self.misc += sample.misc;
+
+        let elapsed = now.saturating_duration_since(window_started);
+        if elapsed < Duration::from_secs(2) {
+            return;
+        }
+
+        let frames = self.frames.max(1) as f64;
+        let avg_ms = |duration: Duration| duration.as_secs_f64() * 1000.0 / frames;
+        eprintln!(
+            "[RenderDebug][ClientDraw] frames={} avg_ms total={:.2} setup={:.2} game_prepare={:.2} game_render={:.2} game_composite={:.2} screen_base={:.2} text={:.2} avatars={:.2} profiles={:.2} stats={:.2} foreground={:.2} messages={:.2} inputs={:.2} buttons={:.2} button_resolve={:.2} button_state={:.2} button_draw={:.2} button_overlay={:.2} misc={:.2}",
+            self.frames,
+            avg_ms(self.total),
+            avg_ms(self.setup),
+            avg_ms(self.game_prepare),
+            avg_ms(self.game_render),
+            avg_ms(self.game_composite),
+            avg_ms(self.screen_base),
+            avg_ms(self.text),
+            avg_ms(self.avatars),
+            avg_ms(self.profiles),
+            avg_ms(self.stats),
+            avg_ms(self.foreground),
+            avg_ms(self.messages),
+            avg_ms(self.inputs),
+            avg_ms(self.buttons),
+            avg_ms(self.button_resolve),
+            avg_ms(self.button_state),
+            avg_ms(self.button_draw),
+            avg_ms(self.button_overlay),
+            avg_ms(self.misc),
+        );
+        *self = Self {
+            window_started: Some(now),
+            ..Self::default()
+        };
+    }
+}
+
 pub struct Client {
     pub curr_map_id: Uuid,
 
@@ -171,6 +281,7 @@ pub struct Client {
     pub messages_font_color: Pixel,
 
     pub draw2d: Draw2D,
+    draw_debug_timing: ClientDrawDebugTiming,
 
     pub messages_to_draw: FxHashMap<u32, (Vec2<f32>, String, usize, String, TheTime)>,
 
@@ -762,6 +873,7 @@ impl Client {
 
             messages_font: None,
             draw2d: Draw2D::default(),
+            draw_debug_timing: ClientDrawDebugTiming::default(),
 
             messages_font_size: 15.0,
             messages_font_color: [229, 229, 1, 255],
@@ -1583,6 +1695,11 @@ impl Client {
         default
     }
 
+    /// Whether the project requested aggregated client and renderer timings.
+    pub fn frame_timings_enabled(&self) -> bool {
+        self.get_config_bool_default("debug", "frame_timings", false)
+    }
+
     fn get_config_string_default(&self, table: &str, key: &str, default: &str) -> String {
         if let Some(game) = self.config.get(table).and_then(toml::Value::as_table) {
             if let Some(value) = game.get(key) {
@@ -1724,6 +1841,7 @@ impl Client {
                 eprintln!("Client: Error parsing config: {}", err);
             }
         }
+        scenevm::set_render_debug_enabled(self.frame_timings_enabled());
 
         self.currencies = Currencies::from_rules_source(&assets.rules);
 
@@ -1769,7 +1887,6 @@ impl Client {
             || self.get_config_bool_default("game", "persistent_2d_intents", false);
         self.grid_size = viewport_grid_size as f32;
         self.upscale_mode = self.get_config_string_default("viewport", "upscale", "none");
-
         self.default_cursor = None;
         let tile_id_str = self.get_config_string_default("viewport", "cursor_id", "");
         if !tile_id_str.is_empty() {
@@ -2216,6 +2333,27 @@ impl Client {
         F: FnMut(&mut GameWidget, &mut SceneHandler) -> bool,
         G: FnMut(&mut GameWidget, &mut SceneHandler),
     {
+        let debug_enabled = self.frame_timings_enabled();
+        let debug_total_started = Instant::now();
+        let debug_setup_started = Instant::now();
+        let mut debug_game_prepare = Duration::ZERO;
+        let mut debug_game_render = Duration::ZERO;
+        let mut debug_game_composite = Duration::ZERO;
+        let mut debug_screen_base = Duration::ZERO;
+        let mut debug_text = Duration::ZERO;
+        let mut debug_avatars = Duration::ZERO;
+        let mut debug_profiles = Duration::ZERO;
+        let mut debug_stats = Duration::ZERO;
+        let mut debug_foreground = Duration::ZERO;
+        let mut debug_messages = Duration::ZERO;
+        let mut debug_inputs = Duration::ZERO;
+        let mut debug_buttons = Duration::ZERO;
+        let mut debug_button_resolve = Duration::ZERO;
+        let mut debug_button_state = Duration::ZERO;
+        let mut debug_button_draw = Duration::ZERO;
+        let mut debug_button_overlay = Duration::ZERO;
+        let mut debug_misc = Duration::ZERO;
+
         scene_handler.vm.set_active_vm(0);
         // Keep scene timing in sync with config
         scene_handler.set_timings(self.target_fps as f32, self.game_tick_ms);
@@ -2238,8 +2376,10 @@ impl Client {
         self.target.fill([0, 0, 0, 255]);
         let say_config = self.config.clone();
         let say_fallback_color = self.messages_font_color;
+        let debug_setup = debug_setup_started.elapsed();
         // First process the game widgets
         for widget in self.game_widgets.values_mut() {
+            let stage_started = Instant::now();
             widget.firstp_eye_level = self.firstp_eye_level;
             widget.apply_entities(map, assets, self.animation_frame, scene_handler);
             widget.prepare_frame(
@@ -2249,6 +2389,9 @@ impl Client {
                 assets,
                 scene_handler,
             );
+            debug_game_prepare += stage_started.elapsed();
+
+            let stage_started = Instant::now();
             let _ = widget_overlay(widget, scene_handler);
             widget.render_prepared_frame(
                 map,
@@ -2257,6 +2400,9 @@ impl Client {
                 assets,
                 scene_handler,
             );
+            debug_game_render += stage_started.elapsed();
+
+            let stage_started = Instant::now();
             post_widget_overlay(widget, scene_handler);
 
             if let Some(font) = &self.messages_font {
@@ -2389,7 +2535,9 @@ impl Client {
 
             self.target
                 .copy_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
+            debug_game_composite += stage_started.elapsed();
         }
+        let stage_started = Instant::now();
         self.draw_hovered_world_item_pile(map);
 
         // Negative-layer deco widgets sit between the game view and screen-rendered
@@ -2402,7 +2550,9 @@ impl Client {
             assets,
             |layer| layer < 0,
         );
+        debug_misc += stage_started.elapsed();
 
+        let stage_started = Instant::now();
         if let Some(screen) = assets.screens.get(&self.current_screen) {
             if let Some(screen_widget) = &mut self.screen_widget {
                 let (start_x, start_y) = crate::utils::align_screen_to_grid(
@@ -2439,8 +2589,10 @@ impl Client {
                 self.target.blend_into(0, 0, &screen_widget.buffer);
             }
         }
+        debug_screen_base += stage_started.elapsed();
 
         // Draw normal deco widgets on top of the screen render.
+        let stage_started = Instant::now();
         Self::draw_deco_widgets_with_layer(
             &mut self.deco_widgets,
             &mut self.target,
@@ -2449,8 +2601,10 @@ impl Client {
             assets,
             |layer| layer >= 0,
         );
+        debug_misc += stage_started.elapsed();
 
         // Draw the text widgets on top
+        let stage_started = Instant::now();
         for widget in self.text_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2474,8 +2628,10 @@ impl Client {
                     .blend_into(widget.rect.x as i32, widget.rect.y as i32, &widget.buffer);
             }
         }
+        debug_text += stage_started.elapsed();
 
         // Draw avatar preview widgets on top of text and below buttons.
+        let stage_started = Instant::now();
         for widget in self.avatar_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2491,7 +2647,9 @@ impl Client {
                 widget.update_draw(&mut self.target, assets, entity, &self.draw2d);
             }
         }
+        debug_avatars += stage_started.elapsed();
 
+        let stage_started = Instant::now();
         for widget in self.profile_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2507,7 +2665,9 @@ impl Client {
                 widget.update_draw(&mut self.target, assets, entity, &self.draw2d);
             }
         }
+        debug_profiles += stage_started.elapsed();
 
+        let stage_started = Instant::now();
         for widget in self.stat_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2529,7 +2689,9 @@ impl Client {
                 );
             }
         }
+        debug_stats += stage_started.elapsed();
 
+        let stage_started = Instant::now();
         if let Some(screen) = assets.screens.get(&self.current_screen)
             && let Some(screen_widget) = &mut self.screen_widget
         {
@@ -2540,9 +2702,11 @@ impl Client {
                 self.target.blend_into(0, 0, &screen_widget.buffer);
             }
         }
+        debug_foreground += stage_started.elapsed();
 
         // Draw messages after the screen foreground so message widgets can be
         // placed as semi-transparent overlays inside the game widget.
+        let stage_started = Instant::now();
         for widget in &mut self.messages_widgets {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2582,7 +2746,9 @@ impl Client {
                 }
             }
         }
+        debug_messages += stage_started.elapsed();
 
+        let stage_started = Instant::now();
         for widget in self.text_input_widgets.values() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2602,8 +2768,10 @@ impl Client {
                 );
             }
         }
+        debug_inputs += stage_started.elapsed();
 
         // Draw the button widgets which support inventory / gear on top
+        let stage_started = Instant::now();
         for widget in self.button_widgets.values_mut() {
             let hide = self.widgets_to_hide.iter().any(|pattern| {
                 if pattern.ends_with('*') {
@@ -2615,6 +2783,7 @@ impl Client {
             });
 
             if !hide {
+                let button_stage_started = Instant::now();
                 let entity = Self::resolve_party_entity(map, widget.party.as_deref());
                 let hovered = widget.rect.contains(Vec2::new(
                     self.cursor_pos.x as f32,
@@ -2622,9 +2791,14 @@ impl Client {
                 ));
                 let resolved_command =
                     Self::resolved_widget_command(widget, assets, entity, &self.ui_state);
+                debug_button_resolve += button_stage_started.elapsed();
+
+                let button_stage_started = Instant::now();
                 let command_state = resolved_command
                     .as_deref()
                     .map(|command| rules_ui::command_state(assets, entity, command));
+                debug_button_state += button_stage_started.elapsed();
+
                 let selected = self.activated_widgets.contains(&widget.id)
                     || (self.intent.trim().is_empty()
                         && Self::command_is_walk(resolved_command.as_deref()));
@@ -2634,6 +2808,7 @@ impl Client {
                     self.pressed_widget == Some(widget.id),
                     command_state.as_ref(),
                 );
+                let button_stage_started = Instant::now();
                 widget.update_draw(
                     &mut self.target,
                     map,
@@ -2644,6 +2819,9 @@ impl Client {
                     visual_state,
                     resolved_command.as_deref(),
                 );
+                debug_button_draw += button_stage_started.elapsed();
+
+                let button_stage_started = Instant::now();
                 if let Some(state) = command_state {
                     if !state.enabled || state.cooldown_remaining > 0.0 {
                         Self::draw_command_state_overlay(
@@ -2661,9 +2839,12 @@ impl Client {
                         }
                     }
                 }
+                debug_button_overlay += button_stage_started.elapsed();
             }
         }
+        debug_buttons += stage_started.elapsed();
 
+        let stage_started = Instant::now();
         self.draw_open_container_panel(map, assets);
         self.draw_actions_panel(map, assets);
         self.draw_drag_drop_highlights(map);
@@ -2717,6 +2898,31 @@ impl Client {
                     );
                 }
             }
+        }
+        debug_misc += stage_started.elapsed();
+
+        if debug_enabled {
+            self.draw_debug_timing.record(ClientDrawDebugSample {
+                total: debug_total_started.elapsed(),
+                setup: debug_setup,
+                game_prepare: debug_game_prepare,
+                game_render: debug_game_render,
+                game_composite: debug_game_composite,
+                screen_base: debug_screen_base,
+                text: debug_text,
+                avatars: debug_avatars,
+                profiles: debug_profiles,
+                stats: debug_stats,
+                foreground: debug_foreground,
+                messages: debug_messages,
+                inputs: debug_inputs,
+                buttons: debug_buttons,
+                button_resolve: debug_button_resolve,
+                button_state: debug_button_state,
+                button_draw: debug_button_draw,
+                button_overlay: debug_button_overlay,
+                misc: debug_misc,
+            });
         }
     }
 
@@ -3466,9 +3672,11 @@ impl Client {
     }
 
     fn has_drag_drop_targets(&self) -> bool {
-        self.button_widgets.values().any(|widget| {
-            widget.drag_drop && (widget.inventory_index.is_some() || widget.equipped_slot.is_some())
-        })
+        !self.profile_widgets.is_empty()
+            || self.button_widgets.values().any(|widget| {
+                widget.drag_drop
+                    && (widget.inventory_index.is_some() || widget.equipped_slot.is_some())
+            })
     }
 
     fn item_is_container(item: &crate::Item) -> bool {
@@ -4731,6 +4939,17 @@ impl Client {
                 if hidden || !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
                     continue;
                 }
+                // A profile may deliberately have a transparent button layered
+                // over it (for example, to open the inventory screen). That UI
+                // action takes precedence over using the profile as an intent
+                // target. Drag/drop targeting is handled separately on release.
+                if self
+                    .button_widgets
+                    .values()
+                    .any(|button| button.rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+                {
+                    continue;
+                }
                 if let Some(entity) = Self::resolve_party_entity(map, widget.party.as_deref()) {
                     self.consume_one_shot_2d_intent();
                     return Some(EntityAction::EntityClicked(
@@ -4771,12 +4990,16 @@ impl Client {
                 && let Some(item) = Self::find_container_item(map, item_id, None)
                 && Self::item_is_container(item)
             {
-                self.toggle_container_panel(
+                if self.open_container_panel.is_some_and(|panel| {
+                    panel.item_id == item_id && panel.owner_entity_id.is_none()
+                }) {
+                    self.close_floaters();
+                    return None;
+                }
+                return Some(EntityAction::OpenContainer {
                     item_id,
-                    None,
-                    Rect::new(p.x as f32, p.y as f32, 1.0, 1.0),
-                );
-                return None;
+                    owner_entity_id: None,
+                });
             }
             if intent.is_some() {
                 self.consume_one_shot_2d_intent();
@@ -5114,17 +5337,22 @@ impl Client {
                     if let Some(item) = Self::find_container_item(map, item_id, None)
                         && Self::item_is_container(item)
                     {
-                        self.toggle_container_panel(
-                            item_id,
-                            None,
-                            Rect::new(p.x as f32, p.y as f32, 1.0, 1.0),
-                        );
+                        if self.open_container_panel.is_some_and(|panel| {
+                            panel.item_id == item_id && panel.owner_entity_id.is_none()
+                        }) {
+                            self.close_floaters();
+                        } else {
+                            action = Some(EntityAction::OpenContainer {
+                                item_id,
+                                owner_entity_id: None,
+                            });
+                        }
                         self.dragging_item_id = None;
                         self.dragging_item_owner_entity_id = None;
                         self.dragging_source_widget_id = None;
                         self.dragging_item_from_world = false;
                         self.dragging_started = false;
-                        return None;
+                        return action;
                     }
                     let intent = self.get_current_intent_for_action();
                     if intent.is_some() {
@@ -5233,6 +5461,42 @@ impl Client {
                                 target_entity_id,
                                 to_inventory_index: None,
                                 to_equipped_slot: Some(target_slot.clone()),
+                            }
+                        });
+                        break;
+                    }
+                }
+                if action.is_none() {
+                    for widget in self.profile_widgets.values() {
+                        let hidden = self.widgets_to_hide.iter().any(|pattern| {
+                            if pattern.ends_with('*') {
+                                widget.name.starts_with(&pattern[..pattern.len() - 1])
+                            } else {
+                                widget.name == *pattern
+                            }
+                        });
+                        if hidden || !widget.rect.contains(Vec2::new(p.x as f32, p.y as f32)) {
+                            continue;
+                        }
+                        let target_entity_id =
+                            Self::resolve_party_entity(map, widget.party.as_deref())
+                                .map(|entity| entity.id);
+                        action = Some(if let Some(source) = dragged_container_source {
+                            EntityAction::MoveContainerItem {
+                                item_id,
+                                container_item_id: source.container_item_id,
+                                container_owner_entity_id: source.container_owner_entity_id,
+                                target_entity_id,
+                                to_inventory_index: None,
+                                to_equipped_slot: None,
+                            }
+                        } else {
+                            EntityAction::MoveItem {
+                                item_id,
+                                owner_entity_id: dragged_item_owner_entity_id,
+                                target_entity_id,
+                                to_inventory_index: None,
+                                to_equipped_slot: None,
                             }
                         });
                         break;
@@ -6526,6 +6790,20 @@ impl Client {
                     Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, widget.rect);
                     return;
                 }
+            }
+        }
+
+        for widget in self.profile_widgets.values() {
+            let hidden = self.widgets_to_hide.iter().any(|pattern| {
+                if pattern.ends_with('*') {
+                    widget.name.starts_with(&pattern[..pattern.len() - 1])
+                } else {
+                    widget.name == *pattern
+                }
+            });
+            if !hidden && widget.rect.contains(point) {
+                Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, widget.rect);
+                return;
             }
         }
     }

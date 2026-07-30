@@ -237,6 +237,10 @@ equipped weapons, armor, and clothing. If a character does not define
 starting inventory.
 
 Explicit character startup item attributes always override the class loadout.
+`start_active_items` can name any item in either explicit startup list when the
+game needs it to spawn active. The item still receives its normal ruleset
+`active` event, so state-specific visuals, light, durability, and other behavior
+remain defined by the item rather than the character.
 
 Rulesets assign engine-facing meaning through optional semantic attribute
 roles. The official mapping is:

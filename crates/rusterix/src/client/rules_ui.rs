@@ -665,6 +665,9 @@ fn rules_action_state(assets: &Assets, actor: &Entity, action_id: &str) -> Comma
         state.disabled_reason = Some("Unknown action".to_string());
         return state;
     };
+    if let Some(intent) = action.intent.as_deref() {
+        apply_cooldown_from_actor(actor, "intent", intent, &mut state);
+    }
 
     for requirement in &action.requirements {
         match requirement {
@@ -1375,6 +1378,41 @@ mod tests {
         assert!(!state.enabled);
         assert_eq!(state.cooldown_remaining, 1.5);
         assert_eq!(state.cooldown_total, 4.0);
+    }
+
+    #[test]
+    fn rules_action_state_reads_linked_intent_cooldown_attrs() {
+        let mut assets = Assets::new();
+        assets.rules = r#"
+            [abilities.basic_attack]
+            name = "Basic Attack"
+            kind = "attack"
+
+            [actions.basic_attack]
+            name = "Basic Attack"
+            kind = "attack"
+            intent = "attack"
+            requires = { ability = "basic_attack" }
+            target = "hostile_or_neutral_entity"
+            range = "weapon"
+            cooldown = 1.0
+            result = { damage = "weapon" }
+        "#
+        .to_string();
+
+        let mut actor = Entity::new();
+        actor.set_attribute(
+            "abilities",
+            Value::StrArray(vec!["basic_attack".to_string()]),
+        );
+        actor.set_attribute("cooldown_left_intent_attack", Value::Float(0.6));
+        actor.set_attribute("cooldown_total_intent_attack", Value::Float(1.0));
+
+        let state = command_state(&assets, Some(&actor), "rules.basic_attack");
+
+        assert!(!state.enabled);
+        assert_eq!(state.cooldown_remaining, 0.6);
+        assert_eq!(state.cooldown_total, 1.0);
     }
 
     #[test]

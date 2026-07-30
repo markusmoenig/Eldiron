@@ -1,0 +1,69 @@
+Tile
+    name = "Stone Ceiling"
+    material = dungeon/ceiling_stone
+    size = I2(64, 64)
+    coverage = I2(3, 3)
+    wrap = Repeat
+    seed = 113
+    pixelate = 1
+
+    Noise Broad
+        scale = I2(3, 3)
+        octaves = 3
+        persistence = 0.52
+        seed = 17
+
+    Noise Detail
+        scale = I2(7, 6)
+        octaves = 2
+        persistence = 0.45
+        seed = 29
+
+    Pattern Slabs
+        Voronoi
+            cells = I2(7, 5)
+            jitter = 0.84
+            falloff = 0.62
+            warp = Broad
+            warp_amount = 0.050
+            seed = 31
+
+    Pattern Pocks
+        Discs
+            space = Slabs.local
+            key = Slabs.id
+            cells = I2(3, 3)
+            jitter = 0.86
+            radius = 0.10
+            falloff = 1.55
+            warp = Detail
+            warp_amount = 0.025
+            seed = 37
+
+    Height Surface
+        source = 0.18 + Slabs.height * 0.54
+
+        Add
+            source = Broad
+            amount = 0.12
+
+        Multiply
+            source = 0.84 + Detail * 0.12 + Random(Slabs.id, -0.025, 0.035, 43)
+            amount = 1.0
+
+        Subtract
+            source = Pocks.height
+            amount = 0.07
+
+        Shape
+            contrast = 0.96
+            bias = -0.01
+            plateau = 2.50
+            rim = 0.025
+
+        Clamp
+            min = 0.0
+            max = 1.0
+
+    Output
+        height = Surface

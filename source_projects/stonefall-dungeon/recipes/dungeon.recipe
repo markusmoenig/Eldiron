@@ -36,12 +36,12 @@ Material wall_stone
     Surface
         color = WallColor
         palette = BaseOnly
-        roughness = Clamp(0.72 + Mineral * 0.20, 0.0, 1.0)
+        roughness = Clamp(0.32 + Mineral * 0.22, 0.0, 1.0)
         metallic = 0.0
         opacity = 1.0
         emission = 0.0
         normal = Mineral
-        normal_strength = 0.32
+        normal_strength = 0.48
 
 Material floor_stone
     name = "Floor Stone"
@@ -68,12 +68,12 @@ Material floor_stone
     Surface
         color = FloorColor
         palette = BaseOnly
-        roughness = Clamp(0.64 + Wear * 0.24, 0.0, 1.0)
+        roughness = Clamp(0.24 + Wear * 0.20, 0.0, 1.0)
         metallic = 0.0
         opacity = 1.0
         emission = 0.0
         normal = Wear
-        normal_strength = 0.27
+        normal_strength = 0.42
 
 Material ceiling_stone
     name = "Ceiling Stone"
@@ -100,12 +100,12 @@ Material ceiling_stone
     Surface
         color = CeilingColor
         palette = BaseOnly
-        roughness = Clamp(0.76 + Dust * 0.18, 0.0, 1.0)
+        roughness = Clamp(0.34 + Dust * 0.22, 0.0, 1.0)
         metallic = 0.0
         opacity = 1.0
         emission = 0.0
         normal = Dust
-        normal_strength = 0.29
+        normal_strength = 0.44
 
 Material wall_mortar
     name = "Mortar"
@@ -132,7 +132,7 @@ Material wall_mortar
     Surface
         color = MortarColor
         palette = BaseOnly
-        roughness = Clamp(0.84 + Grit * 0.12, 0.0, 1.0)
+        roughness = Clamp(0.70 + Grit * 0.16, 0.0, 1.0)
         metallic = 0.0
         opacity = 1.0
         emission = 0.0
