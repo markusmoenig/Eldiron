@@ -5,19 +5,15 @@ Character "player" {
   data {
     [attributes]
     race = "Human"
-    class = "Ranger"
+    class = "Warrior"
     LEVEL = 1
-    MP = 8
-    MAX_MP = 8
-    WIS = 12
     size_2d = 1.25
     visible = true
     player = true
     radius = 0.35
     wealth = 1
     inventory_slots = 6
-    spells = ["minor_heal"]
-    start_items = ["wooden_arrows", "torch"]
+    add_items = ["torch"]
     start_active_items = ["torch"]
     source_id = "player"
 

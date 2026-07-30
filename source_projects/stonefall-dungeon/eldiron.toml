@@ -7,7 +7,8 @@ main = "main.els"
 
 [game]
 start_region = "dungeon"
-start_screen = "play"
+start_screen = "start"
+play_screen = "play"
 client_mode = "3d"
 terminal_mode = "roguelike"
 simulation_mode = "hybrid"

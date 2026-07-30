@@ -1,0 +1,77 @@
+Tile
+    name = "Start Stone"
+    size = I2(128, 128)
+    coverage = I2(4, 4)
+    wrap = Repeat
+    seed = 191
+    pixelate = 1
+
+    Noise Warp
+        type = Gradient
+        fractal = FBm
+        scale = F2(3.0, 2.5)
+        octaves = 3
+        persistence = 0.52
+        seed = 17
+
+    Noise Wear
+        type = Value
+        fractal = Turbulence
+        scale = F2(8.0, 7.0)
+        octaves = 3
+        persistence = 0.46
+        seed = 29
+
+    Pattern Slabs
+        Voronoi
+            cells = I2(6, 5)
+            jitter = 0.74
+            bevel = 0.18
+            falloff = 0.72
+            warp = Warp
+            warp_amount = 0.055
+            seed = 31
+
+    Pattern Pocks
+        Discs
+            space = Slabs.local
+            key = Slabs.id
+            cells = I2(4, 4)
+            jitter = 0.90
+            radius = 0.08 + Random(Slabs.id, 0.02, 0.14, 41)
+            falloff = 1.8
+            seed = 43
+
+    Height Surface
+        source = 0.10 + Slabs.height * 0.48
+
+        Shape
+            contrast = 1.18
+            plateau = 2.2
+            rim = 0.05
+
+        Add
+            source = Wear
+            amount = 0.08
+
+        Subtract
+            source = Pocks.height * Smoothstep(0.12, 0.60, Slabs.height)
+            amount = 0.10
+
+        Clamp
+            min = 0.0
+            max = 1.0
+
+    Colorize
+        source = Surface
+        base = #172127
+        palette = BaseOnly
+        brightness = F2(-0.16, 0.10)
+        saturation = F2(-0.08, 0.08)
+        hue = F2(-0.02, 0.02)
+        steps = 14
+        range = Auto
+        dither = false
+
+    Output
+        height = Surface

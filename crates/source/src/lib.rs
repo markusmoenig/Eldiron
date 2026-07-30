@@ -109,6 +109,8 @@ struct GameSection {
     start_region: String,
     #[serde(default)]
     start_screen: String,
+    #[serde(default)]
+    play_screen: String,
     #[serde(default = "default_client_mode")]
     client_mode: String,
     #[serde(default = "default_terminal_mode")]
@@ -138,6 +140,7 @@ impl Default for GameSection {
         Self {
             start_region: String::new(),
             start_screen: String::new(),
+            play_screen: String::new(),
             client_mode: default_client_mode(),
             terminal_mode: default_terminal_mode(),
             simulation_mode: default_simulation_mode(),
@@ -3805,9 +3808,10 @@ fn project_config(
         .map(|id| format!("cursor_id = \"{}\"\n", id))
         .unwrap_or_default();
     let mut config = format!(
-        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nclient_mode = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\ngame_tick_ms = {}\nturn_timeout_ms = {}\nmovement_units_per_sec = {}\nturn_speed_deg_per_sec = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\npersistent_intents = {}\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n{}\n[terminal]\ntext_updates = {}\n",
+        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nplay_screen = \"{}\"\nclient_mode = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\ngame_tick_ms = {}\nturn_timeout_ms = {}\nmovement_units_per_sec = {}\nturn_speed_deg_per_sec = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\npersistent_intents = {}\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n{}\n[terminal]\ntext_updates = {}\n",
         escape_toml_string(&game.start_region),
         escape_toml_string(&game.start_screen),
+        escape_toml_string(&game.play_screen),
         escape_toml_string(&game.client_mode),
         escape_toml_string(&game.terminal_mode),
         escape_toml_string(&game.simulation_mode),
@@ -4712,6 +4716,7 @@ Niche "too-wide" {
             game: GameSection {
                 start_region: "cellar".to_string(),
                 start_screen: String::new(),
+                play_screen: String::new(),
                 client_mode: "terminal".to_string(),
                 terminal_mode: "text".to_string(),
                 simulation_mode: "hybrid".to_string(),
@@ -4762,6 +4767,7 @@ Niche "too-wide" {
             game: GameSection {
                 start_region: "cellar".to_string(),
                 start_screen: String::new(),
+                play_screen: String::new(),
                 client_mode: "3d".to_string(),
                 terminal_mode: "roguelike".to_string(),
                 simulation_mode: "hybrid".to_string(),
@@ -5197,6 +5203,7 @@ main = "main.els"
 [game]
 start_region = "cellar"
 start_screen = "play"
+play_screen = "play"
 client_mode = "3d"
 persistent_intents = true
 
@@ -5258,6 +5265,7 @@ Screen "play" {
         assert!(project.config.contains("[post]"));
         assert!(project.config.contains("posterize = 0.25"));
         assert!(project.config.contains("persistent_intents = true"));
+        assert!(project.config.contains("play_screen = \"play\""));
         assert!(!project.config.contains("[source]"));
         assert!(!project.config.contains("[build]"));
 
@@ -5468,6 +5476,7 @@ Region "cellar" {
             game: GameSection {
                 start_region: "cellar".to_string(),
                 start_screen: String::new(),
+                play_screen: String::new(),
                 client_mode: "3d".to_string(),
                 terminal_mode: "roguelike".to_string(),
                 simulation_mode: "hybrid".to_string(),

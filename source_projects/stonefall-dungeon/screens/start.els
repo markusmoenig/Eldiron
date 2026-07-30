@@ -1,0 +1,251 @@
+Screen "start" {
+  name = "Stonefall Start"
+
+  widget "Stone Backdrop" {
+    role = "deco"
+    source = start-bg
+    x = 0
+    y = 0
+    width = 960
+    height = 600
+
+    data {
+      [ui]
+      role = "deco"
+      color = "#05090ca8"
+      border_size = 0
+    }
+  }
+
+  widget "Title Shade" {
+    role = "deco"
+    x = 150
+    y = 24
+    width = 660
+    height = 94
+
+    data {
+      [ui]
+      role = "deco"
+      color = "#050708d9"
+      border_color = "#65757a"
+      border_size = 1
+    }
+  }
+
+  widget "Title" {
+    role = "text"
+    x = 180
+    y = 38
+    width = 600
+    height = 68
+
+    data {
+      [ui]
+      role = "text"
+      text = """
+STONEFALL
+Choose who enters the dungeon.
+"""
+      font = "Tiny5-Regular"
+      font_size = 28.0
+      spacing = 8.0
+      color = "#e7f8f4"
+      align = "center"
+    }
+  }
+
+  widget "Player Name" {
+    role = "input"
+    x = 330
+    y = 134
+    width = 300
+    height = 44
+
+    data {
+      [ui]
+      role = "input"
+      bind = "start.name"
+      text = "Player"
+      font = "Tiny5-Regular"
+      font_size = 21.0
+      color = "#f0f5f2"
+      background_color = "#070a0ccc"
+      border_color = "#70858a"
+      border_size = 1
+    }
+  }
+
+  widget "Warrior" {
+    role = "button"
+    x = 90
+    y = 208
+    width = 230
+    height = 112
+
+    data {
+      [ui]
+      role = "button"
+      bind = "start.class"
+      value = "Warrior"
+      selection = "single"
+      active = true
+      label = "WARRIOR"
+      font = "Tiny5-Regular"
+      font_size = 24.0
+      color = "#f3eee3"
+      background_color = "#17110d70"
+      border_color = "#a56f52"
+      border_size = 2
+      show_icon = false
+
+      [ui.style.hover]
+      background = "#3a2118a0"
+      border = "#d69a72"
+
+      [ui.style.selected]
+      background = "#54291dc0"
+      border = "#ffc08e"
+      text = "#fff0d8"
+    }
+  }
+
+  widget "Cleric" {
+    role = "button"
+    x = 365
+    y = 208
+    width = 230
+    height = 112
+
+    data {
+      [ui]
+      role = "button"
+      bind = "start.class"
+      value = "Cleric"
+      selection = "single"
+      label = "CLERIC"
+      font = "Tiny5-Regular"
+      font_size = 24.0
+      color = "#f3eee3"
+      background_color = "#10191870"
+      border_color = "#65a59a"
+      border_size = 2
+      show_icon = false
+
+      [ui.style.hover]
+      background = "#173934a0"
+      border = "#85d6c8"
+
+      [ui.style.selected]
+      background = "#1d5148c0"
+      border = "#a9fff0"
+      text = "#ddfff8"
+    }
+  }
+
+  widget "Ranger" {
+    role = "button"
+    x = 640
+    y = 208
+    width = 230
+    height = 112
+
+    data {
+      [ui]
+      role = "button"
+      bind = "start.class"
+      value = "Ranger"
+      selection = "single"
+      label = "RANGER"
+      font = "Tiny5-Regular"
+      font_size = 24.0
+      color = "#f3eee3"
+      background_color = "#121a0e70"
+      border_color = "#789d55"
+      border_size = 2
+      show_icon = false
+
+      [ui.style.hover]
+      background = "#273c1aa0"
+      border = "#a5ca79"
+
+      [ui.style.selected]
+      background = "#36551fc0"
+      border = "#c9f391"
+      text = "#efffd8"
+    }
+  }
+
+  widget "Class Details Back" {
+    role = "deco"
+    x = 120
+    y = 344
+    width = 720
+    height = 126
+
+    data {
+      [ui]
+      role = "deco"
+      color = "#050708de"
+      border_color = "#65757a"
+      border_size = 1
+    }
+  }
+
+  widget "Class Details" {
+    role = "text"
+    x = 142
+    y = 358
+    width = 676
+    height = 100
+
+    data {
+      [ui]
+      role = "text"
+      text = """
+{START.CLASS} — {START.CLASS_ROLE}
+{START.CLASS_DESCRIPTION}
+
+Focus: {START.CLASS_ATTRIBUTES}
+Loadout: {START.CLASS_EQUIPMENT}
+Actions: {START.CLASS_ABILITIES}  Spells: {START.CLASS_SPELLS}
+"""
+      font = "Tiny5-Regular"
+      font_size = 15.0
+      spacing = 3.0
+      color = "#d8e4df"
+      align = "center"
+    }
+  }
+
+  widget "Enter" {
+    role = "button"
+    x = 330
+    y = 500
+    width = 300
+    height = 58
+
+    data {
+      [ui]
+      role = "button"
+      command = "game.start"
+      label = "ENTER STONEFALL"
+      font = "Tiny5-Regular"
+      font_size = 23.0
+      color = "#f4f7ef"
+      background_color = "#151b1dcc"
+      border_color = "#d4b75e"
+      border_size = 2
+      show_icon = false
+
+      [ui.style.hover]
+      background = "#31331dcc"
+      border = "#ffe27c"
+
+      [ui.style.pressed]
+      background = "#4a4020dd"
+      border = "#fff2b2"
+      text = "#fff7d4"
+    }
+  }
+}

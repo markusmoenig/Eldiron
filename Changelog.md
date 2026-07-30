@@ -19,7 +19,7 @@
 ### Examples
 
 - Hideout2D is now the main ruleset test game. It uses the new package model, has a proper northern dungeon and Skeleton enemies, and replaces the old demo NPC loop with the multi-stage **The Bell Below** quest.
-- Stonefall is growing into Eldiron's Dungeon Master-style example. It now uses the shared Words of Power system, official Orc and Skeleton avatars, ruleset loot, a small encounter path, and a Bone Key objective.
+- Stonefall is growing into Eldiron's Dungeon Master-style example. It now opens with a recipe-backed character screen for choosing a name and starter class, then uses that class's real ruleset stats, equipment, inventory, abilities, and spells. The dungeon also uses the shared Words of Power system, official Orc and Skeleton avatars, ruleset loot, a small encounter path, and a Bone Key objective.
 - Eldiron Source gained the dungeon controls Stonefall needed: varied ceiling heights, wall profiles, tile-owned niches, wall features, collision-aware openings, and active item lights. The player now starts with a real ruleset torch instead of a light faked onto the character.
 
 ### Documentation

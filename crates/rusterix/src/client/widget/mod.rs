@@ -97,6 +97,18 @@ pub struct TextInputWidget {
 }
 
 impl TextInputWidget {
+    fn resolved_font<'a>(&self, assets: &'a Assets) -> Option<&'a fontdue::Font> {
+        if let Some(font) = assets
+            .fonts
+            .get(self.font.trim())
+            .or_else(|| assets.fonts.values().next())
+        {
+            Some(font)
+        } else {
+            Widget::fallback_font()
+        }
+    }
+
     pub fn update_draw(
         &self,
         buffer: &mut TheRGBABuffer,
@@ -142,11 +154,7 @@ impl TextInputWidget {
             );
         }
 
-        if let Some(font) = assets
-            .fonts
-            .get(self.font.trim())
-            .or_else(|| assets.fonts.values().next())
-        {
+        if let Some(font) = self.resolved_font(assets) {
             let display_text = if focused {
                 format!("{}_", self.text)
             } else {

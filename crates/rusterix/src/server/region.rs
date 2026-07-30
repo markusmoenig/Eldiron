@@ -154,11 +154,7 @@ fn apply_ruleset_class_loadout_defaults(
 
     if !explicit_key_exists(
         explicit_keys,
-        &[
-            "start_equipped_items",
-            "startup_equipped_items",
-            "add_equip_items",
-        ],
+        &["start_equipped_items", "startup_equipped_items"],
     ) {
         let equipped =
             ruleset_loadout_values(loadout, &["equipment", "weapons", "armor", "clothing"]);
@@ -169,7 +165,7 @@ fn apply_ruleset_class_loadout_defaults(
 
     if !explicit_key_exists(
         explicit_keys,
-        &["start_items", "startup_items", "add_items"],
+        &["start_items", "startup_items"],
     ) {
         let inventory = ruleset_loadout_values(loadout, &["inventory", "items"]);
         if !inventory.is_empty() {
@@ -972,6 +968,34 @@ mod ruleset_progression_tests {
         assert_eq!(
             entity.attributes.get("traits"),
             Some(&Value::StrArray(vec!["undead".into(), "skeletal".into()]))
+        );
+    }
+
+    #[test]
+    fn additive_start_items_keep_the_selected_class_loadout() {
+        let rules = eldiron_ruleset::latest_official_ruleset()
+            .parse::<toml::Table>()
+            .expect("official rules parse");
+        let mut entity = Entity::new();
+        entity.set_attribute("race", Value::Str("Human".into()));
+        entity.set_attribute("class", Value::Str("Ranger".into()));
+        entity.set_attribute("add_items", Value::StrArray(vec!["torch".into()]));
+
+        apply_ruleset_character_defaults(&rules, &mut entity);
+
+        assert!(
+            entity
+                .attributes
+                .get("start_items")
+                .is_some_and(|value| match value {
+                    Value::StrArray(items) =>
+                        items.iter().any(|item| item == "wooden_arrows"),
+                    _ => false,
+                })
+        );
+        assert_eq!(
+            entity.attributes.get("add_items"),
+            Some(&Value::StrArray(vec!["torch".into()]))
         );
     }
 
