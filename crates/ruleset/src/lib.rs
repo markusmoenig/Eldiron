@@ -5355,6 +5355,11 @@ fn ruleset_item_template_data(
         "rig_pivot",
         "rig_layer",
         "rig_flip_back",
+        "appearance_recipe",
+        "headgear_recipe",
+        "appearance_space",
+        "appearance_tiling",
+        "appearance_seed",
         "worth",
         "monetary",
         "currency",
@@ -7386,6 +7391,30 @@ mod tests {
         assert_eq!(
             palette.colors[30].as_ref().map(TheColor::to_hex).as_deref(),
             Some("#14233A")
+        );
+    }
+
+    #[test]
+    fn official_orc_skin_uses_ruleset_palette_indices() {
+        let rules = parse_ruleset_table(latest_official_ruleset()).unwrap();
+        let attributes = ruleset_table_at_path(&rules, &["races", "Orc", "attributes"])
+            .expect("official Orc attributes");
+
+        assert_eq!(
+            attributes
+                .get("light_skin_index")
+                .and_then(Value::as_integer),
+            Some(16)
+        );
+        assert_eq!(
+            attributes
+                .get("dark_skin_index")
+                .and_then(Value::as_integer),
+            Some(18)
+        );
+        assert_eq!(
+            attributes.get("hands_index").and_then(Value::as_integer),
+            Some(16)
         );
     }
 

@@ -245,6 +245,14 @@ impl Default for Builtins {
             },
         );
         b.insert(
+            "join_party",
+            1,
+            NodeOp::HostCall {
+                name: "join_party".into(),
+                argc: 1,
+            },
+        );
+        b.insert(
             "toggle_attr",
             1,
             NodeOp::HostCall {

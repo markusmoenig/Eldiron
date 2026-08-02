@@ -1,0 +1,37 @@
+Material orc_vest
+    name = "Orc Patterned Vest"
+    wrap = Repeat
+    seed = 419
+
+    Noise Wear
+        type = Value
+        fractal = FBm
+        scale = F2(7.0, 9.0)
+        octaves = 2
+        persistence = 0.48
+        seed = 23
+
+    Value DiagonalBands
+        source = Smoothstep(0.34, 0.66, Abs(Sin(U * 3.0 + V * 1.5)))
+
+    Value Pattern
+        source = Clamp(DiagonalBands * 0.82 + Wear * 0.18, 0.0, 1.0)
+
+    Color HideDark
+        exact = #39251e
+
+    Color OchreStitch
+        exact = #b47a35
+
+    Color VestColor
+        source = Mix(HideDark, OchreStitch, Pattern)
+
+    Surface
+        color = VestColor
+        palette = BaseOnly
+        roughness = Clamp(0.72 + Wear * 0.18, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emission = 0.0
+        normal = Pattern
+        normal_strength = 0.28

@@ -14,6 +14,9 @@ The currently supported procedural assets are:
   with optional collision and placement-time architectural geometry.
 - **Materials** — reusable color, roughness, metalness, opacity, emission, and
   normal definitions that can be referenced by many tiles.
+- **SDF shapes** — reusable, resolution-independent 2D coverage silhouettes
+  made from primitives and boolean operations. Consumers can place and color
+  them independently, for example as Avatar headgear.
 
 The same parser and evaluator are used by the command-line preview tool and by
 Eldiron. This README is the canonical reference for the current format.
@@ -144,6 +147,66 @@ A file may still group several `Material` declarations when that is useful.
 Grouped materials use the reference `<file>/<material-id>` and the
 `--material` selector described below.
 
+## An SDF recipe
+
+SDF recipes describe shape coverage, not color or surface properties. This
+keeps geometry reusable: the same helmet silhouette can use hammered iron,
+painted steel, bone, or magical materials without duplicating the shape.
+
+```text
+Sdf orc_helm
+  name = "Orc Steel Helm"
+
+  Shape Dome
+    Ellipse
+      position = F2(0.5, 0.36)
+      size = F2(0.78, 0.52)
+
+  Shape FaceOpening
+    RoundedRectangle
+      position = F2(0.5, 0.56)
+      size = F2(0.58, 0.30)
+      radius = 0.08
+
+  Shape Shell
+    Subtract
+      a = Dome
+      b = FaceOpening
+
+  Output
+    coverage = Shell
+```
+
+Coordinates are consumer-local and normally use `0..1` across the target
+surface. Primitive `position` values are centers; `size` contains full width
+and height. `rotation` is optional and expressed in degrees.
+
+The initial shape blocks are:
+
+| Block | Fields | Meaning |
+| --- | --- | --- |
+| `Ellipse` | `position`, `size`, `rotation` | Elliptical primitive. |
+| `RoundedRectangle` | `position`, `size`, `radius`, `rotation` | Box with rounded corners. |
+| `Capsule` | `from`, `to`, `radius` | Rounded line segment. |
+| `Union` | `a`, `b` | Coverage from either named shape. |
+| `Subtract` | `a`, `b` | Shape `a` with shape `b` removed. |
+| `Intersect` | `a`, `b` | Coverage shared by both named shapes. |
+| `Expand` | `source`, `amount` | Grow a named shape. |
+| `Contract` | `source`, `amount` | Shrink a named shape. |
+
+`Output.coverage` selects the final named shape. References are validated when
+the recipe is parsed; recursive shape graphs are rejected by the evaluator.
+The renderer returns antialiased 8-bit coverage at the resolution requested by
+the consumer.
+
+Avatar headgear is the first consumer. It derives a local surface from the
+head marker bounding box in each rendered frame, evaluates the SDF there, then
+colors the result with an ordinary Material recipe. Consequently placement
+adapts to all eight Avatar directions and to different head proportions. The
+current adapter composites one foreground overlay; explicit rear/front layer
+splitting, smooth boolean operations, extrusion, and complete SDF-authored
+Avatars remain future extensions.
+
 ## Command-line use
 
 Validate a recipe:
@@ -157,6 +220,13 @@ Render a tile beside its recipe:
 ```sh
 procedural-recipes render recipes/wall.recipe \
   --palette lospec:resurrect-64
+```
+
+Rendering an SDF recipe writes its coverage as a 256 × 256 grayscale preview:
+
+```sh
+procedural-recipes render recipes/orc-helm.recipe \
+  --output orc-helm.png
 ```
 
 When `--output` is omitted, `wall.recipe` becomes `wall.png`. Referenced
@@ -220,8 +290,8 @@ numbered frames such as `wall-000.png`, `wall-001.png`, and so on.
 ## File and syntax rules
 
 - Recipe files use the `.recipe` extension.
-- A document contains either exactly one `Tile`, or one or more `Material`
-  declarations. Tiles and materials cannot be mixed in the same document.
+- A document contains exactly one `Tile`, one or more `Material` declarations,
+  or one or more `Sdf` declarations. Document kinds cannot be mixed.
 - Blocks are indentation-based. Use spaces; tabs are rejected.
 - `//` starts a line comment.
 - Declaration and field names are case-insensitive. The spelling used in this
@@ -1046,6 +1116,7 @@ The principal parsing entry points are:
 - `parse_document` — parse either supported document kind.
 - `parse_recipe` — parse a tile document.
 - `parse_material_document` — parse a material document.
+- `parse_sdf_document` — parse an SDF document.
 
 `RecipeRenderer::render` evaluates tiles, and
 `RecipeRenderer::render_material` evaluates reusable materials. Use
@@ -1058,11 +1129,15 @@ the same complete material using a tile's global or pattern-local context and
 binding tiling.
 `render_scalar_field` evaluates tile layer masks, and
 `RenderedMaterial::blend_layer` composes complete materials.
+`SdfRenderer::render` evaluates an `SdfRecipe` on any `RenderSurface` and
+returns consumer-neutral 8-bit coverage.
 
 ## Current scope
 
-The format currently compiles procedural **tiles** and **materials**. The
+The format currently compiles procedural **tiles**, **materials**, and 2D
+**SDF coverage shapes**. The
 language deliberately describes reusable procedural fields rather than naming
 fixed visual algorithms such as marble or wood. Future procedural asset types
-can build on the same expressions, deterministic domains, palette mapping, and
-material outputs while keeping existing recipes readable.
+can build on the same surfaces, expressions, deterministic domains, palette
+mapping, shape coverage, and material outputs while keeping existing recipes
+readable.

@@ -466,10 +466,56 @@ impl Default for AvatarShadingOptions {
 }
 
 /// Output image data for an avatar frame.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AvatarMarkerChannel {
+    SkinLight,
+    SkinDark,
+    Torso,
+    Arms,
+    Legs,
+    Hair,
+    Eyes,
+    Hands,
+    Feet,
+}
+
+impl AvatarMarkerChannel {
+    pub fn from_key(key: &str) -> Option<Self> {
+        match key.trim().to_ascii_lowercase().as_str() {
+            "skin_light" | "light_skin" => Some(Self::SkinLight),
+            "skin_dark" | "dark_skin" => Some(Self::SkinDark),
+            "torso" => Some(Self::Torso),
+            "arms" => Some(Self::Arms),
+            "legs" => Some(Self::Legs),
+            "hair" => Some(Self::Hair),
+            "eyes" => Some(Self::Eyes),
+            "hands" => Some(Self::Hands),
+            "feet" => Some(Self::Feet),
+            _ => None,
+        }
+    }
+
+    fn from_marker_rgb(rgb: [u8; 3]) -> Option<Self> {
+        match rgb {
+            [255, 0, 255] => Some(Self::SkinLight),
+            [200, 0, 200] => Some(Self::SkinDark),
+            [0, 0, 255] => Some(Self::Torso),
+            [0, 120, 255] => Some(Self::Arms),
+            [0, 255, 0] => Some(Self::Legs),
+            [255, 255, 0] => Some(Self::Hair),
+            [0, 255, 255] => Some(Self::Eyes),
+            [255, 128, 0] => Some(Self::Hands),
+            [255, 80, 0] => Some(Self::Feet),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct AvatarBuildOutput {
     pub size: u32,
     pub rgba: Vec<u8>,
+    pub marker_channels: Vec<Option<AvatarMarkerChannel>>,
 }
 
 /// Request for building a single avatar frame.
@@ -524,12 +570,21 @@ impl AvatarBuilder {
         } else {
             frame.texture.resized(target_size, target_size).data
         };
+        let marker_channels = rgba
+            .chunks_exact(4)
+            .map(|pixel| {
+                (pixel[3] > 0)
+                    .then(|| AvatarMarkerChannel::from_marker_rgb([pixel[0], pixel[1], pixel[2]]))
+                    .flatten()
+            })
+            .collect();
 
         Self::recolor_markers(&mut rgba, req.marker_colors, req.shading, target_size);
 
         Some(AvatarBuildOutput {
             size: target_size as u32,
             rgba,
+            marker_channels,
         })
     }
 

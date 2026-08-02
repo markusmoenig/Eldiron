@@ -4,6 +4,66 @@ use serde::{Deserialize, Serialize};
 pub enum RecipeDocument {
     Tile(Recipe),
     Materials(MaterialDocument),
+    Sdfs(SdfDocument),
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SdfDocument {
+    pub recipes: Vec<SdfRecipe>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SdfRecipe {
+    pub id: String,
+    pub name: String,
+    pub shapes: Vec<SdfShape>,
+    pub output: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SdfShape {
+    pub name: String,
+    pub kind: SdfShapeKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum SdfShapeKind {
+    Ellipse {
+        position: [f32; 2],
+        size: [f32; 2],
+        rotation: f32,
+    },
+    RoundedRectangle {
+        position: [f32; 2],
+        size: [f32; 2],
+        radius: f32,
+        rotation: f32,
+    },
+    Capsule {
+        from: [f32; 2],
+        to: [f32; 2],
+        radius: f32,
+    },
+    Union {
+        a: String,
+        b: String,
+    },
+    Subtract {
+        a: String,
+        b: String,
+    },
+    Intersect {
+        a: String,
+        b: String,
+    },
+    Expand {
+        source: String,
+        amount: f32,
+    },
+    Contract {
+        source: String,
+        amount: f32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

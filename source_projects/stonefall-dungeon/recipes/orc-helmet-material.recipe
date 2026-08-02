@@ -1,0 +1,34 @@
+Material orc_helmet_material
+    name = "Orc Bright Hammered Steel"
+    wrap = Repeat
+    seed = 613
+
+    Noise HammerMarks
+        type = Value
+        fractal = FBm
+        scale = F2(18.0, 14.0)
+        octaves = 3
+        persistence = 0.42
+        seed = 31
+
+    Value SteelVariation
+        source = Clamp(0.34 + HammerMarks * 0.46 + (1.0 - V) * 0.20, 0.0, 1.0)
+
+    Color SteelShadow
+        exact = #657392
+
+    Color SteelHighlight
+        exact = #c7cfdd
+
+    Color HammeredSteel
+        source = Mix(SteelShadow, SteelHighlight, SteelVariation)
+
+    Surface
+        color = HammeredSteel
+        palette = BaseOnly
+        roughness = Clamp(0.38 + HammerMarks * 0.20, 0.0, 1.0)
+        metallic = 0.92
+        opacity = 1.0
+        emission = 0.0
+        normal = HammerMarks
+        normal_strength = 0.16

@@ -566,6 +566,14 @@ pub struct Project {
     #[serde(default)]
     pub assets: IndexMap<Uuid, Asset>,
 
+    /// Reusable procedural material sources keyed by their project alias.
+    #[serde(default)]
+    pub procedural_materials: IndexMap<String, String>,
+
+    /// Reusable procedural SDF sources keyed by their project alias.
+    #[serde(default)]
+    pub procedural_sdfs: IndexMap<String, String>,
+
     #[serde(default)]
     pub palette: ThePalette,
 
@@ -649,6 +657,8 @@ impl Project {
 
             screens: IndexMap::default(),
             assets: IndexMap::default(),
+            procedural_materials: IndexMap::default(),
+            procedural_sdfs: IndexMap::default(),
 
             palette: ThePalette::default(),
             art_palette: default_art_palette(),

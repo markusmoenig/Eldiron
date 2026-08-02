@@ -65,6 +65,84 @@ fn ruleset_value_to_attr(value: &toml::Value) -> Option<Value> {
     None
 }
 
+pub(crate) fn trigger_avatar_attack_animation(entity: &mut Entity) {
+    let attack_time = entity
+        .attributes
+        .get_float_default("avatar_attack_time", 0.35)
+        .max(0.05);
+    let serial = entity
+        .attributes
+        .get_int_default("avatar_attack_serial", 0)
+        .wrapping_add(1);
+    entity.set_attribute("avatar_attack_left", Value::Float(attack_time));
+    entity.set_attribute("avatar_attack_serial", Value::Int(serial));
+}
+
+fn advance_avatar_attack_timer(entity: &mut Entity, elapsed: f32) {
+    let attack_left = entity
+        .attributes
+        .get_float_default("avatar_attack_left", 0.0);
+    if attack_left > 0.0 {
+        entity.set_attribute(
+            "avatar_attack_left",
+            Value::Float((attack_left - elapsed.max(0.0)).max(0.0)),
+        );
+    }
+}
+
+fn sync_avatar_animation(entity: &mut Entity, moved: bool) {
+    let is_attacking = entity
+        .attributes
+        .get_float_default("avatar_attack_left", 0.0)
+        > 0.0;
+    let is_casting = entity.attributes.get_bool_default("spell_casting", false);
+    let desired_anim = if is_casting {
+        "Cast"
+    } else if moved {
+        "Walk"
+    } else if is_attacking {
+        "Attack"
+    } else {
+        "Idle"
+    };
+    let current_anim = entity
+        .attributes
+        .get_str_default("avatar_animation", String::new());
+    if !current_anim.eq_ignore_ascii_case(desired_anim) {
+        entity.set_attribute("avatar_animation", Value::Str(desired_anim.to_string()));
+    }
+}
+
+fn sync_avatar_animation_without_motion_sample(entity: &mut Entity) {
+    let is_attacking = entity
+        .attributes
+        .get_float_default("avatar_attack_left", 0.0)
+        > 0.0;
+    let is_casting = entity.attributes.get_bool_default("spell_casting", false);
+    let current_anim = entity
+        .attributes
+        .get_str_default("avatar_animation", String::new());
+    let desired_anim = if is_casting {
+        Some("Cast")
+    } else if is_attacking {
+        Some("Attack")
+    } else if current_anim.is_empty()
+        || current_anim.eq_ignore_ascii_case("attack")
+        || current_anim.eq_ignore_ascii_case("cast")
+    {
+        Some("Idle")
+    } else {
+        // No simulation step means there is no new movement sample. Preserve an
+        // existing Walk pose until the next step can authoritatively stop it.
+        None
+    };
+    if let Some(desired_anim) = desired_anim
+        && !current_anim.eq_ignore_ascii_case(desired_anim)
+    {
+        entity.set_attribute("avatar_animation", Value::Str(desired_anim.to_string()));
+    }
+}
+
 fn apply_ruleset_attribute_table(
     entity: &mut Entity,
     explicit_keys: &FxHashSet<String>,
@@ -163,10 +241,7 @@ fn apply_ruleset_class_loadout_defaults(
         }
     }
 
-    if !explicit_key_exists(
-        explicit_keys,
-        &["start_items", "startup_items"],
-    ) {
+    if !explicit_key_exists(explicit_keys, &["start_items", "startup_items"]) {
         let inventory = ruleset_loadout_values(loadout, &["inventory", "items"]);
         if !inventory.is_empty() {
             entity.set_attribute("start_items", Value::StrArray(inventory));
@@ -508,6 +583,49 @@ mod ruleset_progression_tests {
         entity.set_attribute("intent", Value::Str("action:minor_heal".into()));
         entity.set_attribute("player_camera", Value::PlayerCamera(camera));
         entity
+    }
+
+    #[test]
+    fn avatar_attack_visual_timer_advances_in_real_time() {
+        let mut entity = Entity::new();
+        trigger_avatar_attack_animation(&mut entity);
+        let first_serial = entity.attributes.get_int_default("avatar_attack_serial", 0);
+
+        advance_avatar_attack_timer(&mut entity, 0.2);
+        sync_avatar_animation(&mut entity, false);
+        assert_eq!(
+            entity.attributes.get_str("avatar_animation"),
+            Some("Attack")
+        );
+
+        advance_avatar_attack_timer(&mut entity, 0.2);
+        sync_avatar_animation(&mut entity, false);
+        assert_eq!(entity.attributes.get_str("avatar_animation"), Some("Idle"));
+
+        trigger_avatar_attack_animation(&mut entity);
+        assert_ne!(
+            entity.attributes.get_int_default("avatar_attack_serial", 0),
+            first_serial
+        );
+    }
+
+    #[test]
+    fn actual_movement_selects_walk_over_a_lingering_attack_pose() {
+        let mut entity = Entity::new();
+        trigger_avatar_attack_animation(&mut entity);
+        sync_avatar_animation(&mut entity, true);
+
+        assert_eq!(entity.attributes.get_str("avatar_animation"), Some("Walk"));
+    }
+
+    #[test]
+    fn skipped_hybrid_frame_preserves_the_last_walk_sample() {
+        let mut entity = Entity::new();
+        entity.set_attribute("avatar_animation", Value::Str("Walk".to_string()));
+
+        sync_avatar_animation_without_motion_sample(&mut entity);
+
+        assert_eq!(entity.attributes.get_str("avatar_animation"), Some("Walk"));
     }
 
     #[test]
@@ -988,8 +1106,7 @@ mod ruleset_progression_tests {
                 .attributes
                 .get("start_items")
                 .is_some_and(|value| match value {
-                    Value::StrArray(items) =>
-                        items.iter().any(|item| item == "wooden_arrows"),
+                    Value::StrArray(items) => items.iter().any(|item| item == "wooden_arrows"),
                     _ => false,
                 })
         );
@@ -9127,7 +9244,11 @@ impl RegionInstance {
         });
 
         for entity in &mut entities {
+            // Avatar presentation is real-time state. It must advance even when
+            // hybrid/turn-based simulation does not grant this entity a movement step.
+            advance_avatar_attack_timer(entity, redraw_dt);
             if sim_dt <= 0.0 {
+                sync_avatar_animation_without_motion_sample(entity);
                 continue;
             }
 
@@ -9138,6 +9259,7 @@ impl RegionInstance {
                 )
                 && !Self::entity_has_player_continuous_motion(entity)
             {
+                sync_avatar_animation_without_motion_sample(entity);
                 continue;
             }
 
@@ -9610,12 +9732,7 @@ impl RegionInstance {
                             if ctx.ticks >= *next_attack_tick {
                                 queue_entity_attack_damage(ctx, attacker_id, target_id);
 
-                                let attack_time = entity
-                                    .attributes
-                                    .get_float_default("avatar_attack_time", 0.35)
-                                    .max(0.05);
-                                entity
-                                    .set_attribute("avatar_attack_left", Value::Float(attack_time));
+                                trigger_avatar_attack_animation(entity);
 
                                 let next_tick =
                                     ctx.ticks + Self::follow_attack_cooldown_ticks(ctx, entity);
@@ -11125,30 +11242,7 @@ impl RegionInstance {
 
             // Keep avatar animation state in sync with actual movement this update.
             let moved = (entity.get_pos_xz() - action_start_pos).magnitude_squared() > 1e-6;
-            let mut attack_left = entity
-                .attributes
-                .get_float_default("avatar_attack_left", 0.0);
-            if attack_left > 0.0 {
-                attack_left = (attack_left - redraw_dt).max(0.0);
-                entity.set_attribute("avatar_attack_left", Value::Float(attack_left));
-            }
-            let is_attacking = attack_left > 0.0;
-            let is_casting = entity.attributes.get_bool_default("spell_casting", false);
-            let desired_anim = if is_attacking {
-                "Attack"
-            } else if is_casting {
-                "Cast"
-            } else if moved {
-                "Walk"
-            } else {
-                "Idle"
-            };
-            let current_anim = entity
-                .attributes
-                .get_str_default("avatar_animation", String::new());
-            if !current_anim.eq_ignore_ascii_case(desired_anim) {
-                entity.set_attribute("avatar_animation", Value::Str(desired_anim.to_string()));
-            }
+            sync_avatar_animation(entity, moved);
         }
 
         with_regionctx(self.id, |ctx| {
@@ -14683,6 +14777,9 @@ fn ruleset_item_from_table(
         "container_template",
         "visual_template",
         "rig_layer",
+        "appearance_recipe",
+        "headgear_recipe",
+        "appearance_space",
         "currency",
     ] {
         if let Some(value) = rule_string(item_table, key) {
@@ -14746,6 +14843,8 @@ fn ruleset_item_from_table(
         "grip_color_index",
         "accent_color_index",
         "highlight_color_index",
+        "appearance_tiling",
+        "appearance_seed",
     ] {
         if let Some(value) = item_table.get(key).and_then(toml_value_to_attr) {
             let attr = if key == "color" { "color_index" } else { key };
@@ -17169,7 +17268,16 @@ fn cast_ruleset_spell_for_entity(
         );
         return RulesetSpellCastResult::HandledFailure;
     }
-    if range > 0.0 && caster.get_pos_xz().distance(target.get_pos_xz()) > range {
+    let party_support_target = action.as_ref().is_some_and(|action| {
+        matches!(
+            action.target,
+            ResolvedActionTarget::FriendlyEntity | ResolvedActionTarget::FriendlyOrSelf
+        ) && entities_share_party(ctx, caster_id, target_id)
+    });
+    if range > 0.0
+        && !party_support_target
+        && caster.get_pos_xz().distance(target.get_pos_xz()) > range
+    {
         send_message(ctx, caster_id, "{system.too_far_away}".into(), "warning");
         return RulesetSpellCastResult::HandledFailure;
     }
@@ -17737,6 +17845,64 @@ pub(crate) fn queue_applied_damage_event(
     ));
 }
 
+fn queue_party_damage_events(ctx: &mut RegionCtx, target_id: u32, amount: i32, kind: &str) {
+    let Some(leader_id) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == target_id)
+        .and_then(entity_party_leader_id)
+    else {
+        return;
+    };
+    let companions = ctx
+        .map
+        .entities
+        .iter()
+        .filter(|entity| {
+            entity.attributes.get_bool_default("party_member", false)
+                && entity.attributes.get_uint("party_leader_id") == Some(leader_id)
+        })
+        .map(|entity| entity.id)
+        .collect::<Vec<_>>();
+    for companion_id in companions {
+        ctx.to_execute_entity.push((
+            companion_id,
+            "party_damaged".into(),
+            VMValue::new_with_string(target_id as f32, amount as f32, 0.0, kind),
+        ));
+    }
+}
+
+fn entity_party_leader_id(entity: &Entity) -> Option<u32> {
+    if entity.is_player() {
+        Some(entity.id)
+    } else if entity.attributes.get_bool_default("party_member", false) {
+        entity.attributes.get_uint("party_leader_id")
+    } else {
+        None
+    }
+}
+
+fn entities_share_party(ctx: &RegionCtx, first_id: u32, second_id: u32) -> bool {
+    if first_id == second_id {
+        return true;
+    }
+    let first_leader = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == first_id)
+        .and_then(entity_party_leader_id);
+    let second_leader = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == second_id)
+        .and_then(entity_party_leader_id);
+    first_leader.is_some() && first_leader == second_leader
+}
+
 pub(crate) fn apply_damage_direct(
     ctx: &mut RegionCtx,
     target_id: u32,
@@ -17947,6 +18113,10 @@ pub(crate) fn apply_damage_direct(
                 ));
             }
         }
+    }
+
+    if applied && !kill {
+        queue_party_damage_events(ctx, target_id, amount, kind);
     }
 
     applied
@@ -18731,6 +18901,10 @@ fn reputation_threshold(ctx: &RegionCtx, key: &str, default: f32) -> f32 {
 }
 
 fn entity_disposition(ctx: &RegionCtx, actor: &Entity, target: &Entity) -> String {
+    if entities_share_party(ctx, actor.id, target.id) {
+        return "friendly".to_string();
+    }
+
     let actor_race = entity_race_for_rules(ctx, actor);
     let target_race = entity_race_for_rules(ctx, target);
     let base = base_entity_disposition(ctx, actor, &actor_race, target, &target_race);
@@ -20392,11 +20566,7 @@ fn queue_entity_damage(
     if dmg > 0
         && let Some(attacker) = ctx.map.entities.iter_mut().find(|e| e.id == attacker_id)
     {
-        let attack_time = attacker
-            .attributes
-            .get_float_default("avatar_attack_time", 0.35)
-            .max(0.05);
-        attacker.set_attribute("avatar_attack_left", Value::Float(attack_time));
+        trigger_avatar_attack_animation(attacker);
     }
 
     if entity_uses_autodamage(ctx, target_id) {

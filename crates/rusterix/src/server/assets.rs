@@ -1,5 +1,7 @@
 use crate::{TileMaterialMeta, Value, prelude::*};
 use indexmap::IndexMap;
+use procedural_recipes::{MaterialRecipe, SdfRecipe, parse_material_document, parse_sdf_document};
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 use theframework::prelude::*;
@@ -71,6 +73,13 @@ pub struct Assets {
 
     /// The avatars
     pub avatars: FxHashMap<String, Avatar>,
+
+    /// Parsed reusable procedural materials available to runtime consumers.
+    pub procedural_materials: FxHashMap<String, MaterialRecipe>,
+    pub procedural_material_signatures: FxHashMap<String, u64>,
+    /// Parsed reusable procedural SDFs available to runtime consumers.
+    pub procedural_sdfs: FxHashMap<String, SdfRecipe>,
+    pub procedural_sdf_signatures: FxHashMap<String, u64>,
 }
 
 impl Default for Assets {
@@ -174,6 +183,68 @@ impl Assets {
             ruleset_palette: ThePalette::default(),
             locales: FxHashMap::default(),
             avatars: FxHashMap::default(),
+            procedural_materials: FxHashMap::default(),
+            procedural_material_signatures: FxHashMap::default(),
+            procedural_sdfs: FxHashMap::default(),
+            procedural_sdf_signatures: FxHashMap::default(),
+        }
+    }
+
+    pub fn set_procedural_material_sources<'a, I>(&mut self, sources: I)
+    where
+        I: IntoIterator<Item = (&'a str, &'a str)>,
+    {
+        self.procedural_materials.clear();
+        self.procedural_material_signatures.clear();
+        for (alias, source) in sources {
+            let Ok(document) = parse_material_document(source) else {
+                continue;
+            };
+            let id = alias.rsplit('/').next().unwrap_or(alias);
+            let material = document
+                .materials
+                .iter()
+                .find(|material| material.id.eq_ignore_ascii_case(id))
+                .or_else(|| (document.materials.len() == 1).then(|| &document.materials[0]));
+            let Some(material) = material else {
+                continue;
+            };
+            let alias = alias.to_ascii_lowercase();
+            let mut hasher = rustc_hash::FxHasher::default();
+            alias.hash(&mut hasher);
+            source.hash(&mut hasher);
+            self.procedural_material_signatures
+                .insert(alias.clone(), hasher.finish());
+            self.procedural_materials.insert(alias, material.clone());
+        }
+    }
+
+    pub fn set_procedural_sdf_sources<'a, I>(&mut self, sources: I)
+    where
+        I: IntoIterator<Item = (&'a str, &'a str)>,
+    {
+        self.procedural_sdfs.clear();
+        self.procedural_sdf_signatures.clear();
+        for (alias, source) in sources {
+            let Ok(document) = parse_sdf_document(source) else {
+                continue;
+            };
+            let id = alias.rsplit('/').next().unwrap_or(alias);
+            let recipe = document
+                .recipes
+                .iter()
+                .find(|recipe| recipe.id.eq_ignore_ascii_case(id))
+                .or_else(|| (document.recipes.len() == 1).then(|| &document.recipes[0]));
+            let Some(recipe) = recipe else {
+                continue;
+            };
+            let alias = alias.to_ascii_lowercase();
+            let mut hasher = rustc_hash::FxHasher::default();
+            alias.hash(&mut hasher);
+            source.hash(&mut hasher);
+            self.procedural_sdf_signatures
+                .insert(alias.clone(), hasher.finish());
+            self.procedural_sdfs.insert(alias, recipe.clone());
         }
     }
 

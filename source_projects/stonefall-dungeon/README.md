@@ -29,7 +29,8 @@ project.
 Stonefall uses the official ruleset's Orc and Skeleton avatars directly. The
 project only authors encounter roles and behavior:
 
-- the first Orc teaches the basic attack loop;
+- the first Orc teaches the basic attack loop and wears a project-local
+  recipe-patterned hide vest and procedural iron helmet;
 - an Orc Brute follows in the low eastern room;
 - Skeletons and a ranged Bone Archer defend the crypt;
 - the level-three Bone Warden guards the exit chamber and drops a Bone Key.
@@ -45,6 +46,15 @@ The exit marker is a real blocking gate: walking into it or inspecting it with
 Look checks the player's inventory. It opens only after the player takes the
 Bone Key from the Warden's remains. Custom monster atlases can replace these
 shared avatars later without changing the encounter scripts or map.
+
+The vest demonstrates project-owned procedural appearance on a ruleset-owned
+Avatar. `items/orc-patterned-vest.els` binds the `torso` marker channel to
+`recipes/orc-vest.recipe`; the official Orc and equipment definitions remain
+unchanged. The equipped `items/orc-iron-helm.els` combines the reusable SDF
+silhouette in `recipes/orc-helm.recipe` with the bright hammered-steel Material
+in `recipes/orc-helmet-material.recipe`. Its shallow cap, separate brow and
+cheek guards use a bright blue-grey steel finish. The runtime fits that overlay
+to the actual head-marker bounding box for each Avatar direction.
 
 Targeted action buttons are persistent in this example: selecting Attack once
 keeps it active for subsequent targets until another mode is chosen. On death,

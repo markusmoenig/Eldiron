@@ -4497,6 +4497,7 @@ dependencies = [
  "noiselib",
  "ordered-float",
  "pathfinding",
+ "procedural-recipes",
  "rand",
  "rayon",
  "regex",

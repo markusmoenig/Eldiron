@@ -744,6 +744,29 @@ Setting `mode` to `"dead"` hides a character. Setting `mode` to `"active"` shows
 
 ---
 
+## `join_party`
+
+*This command can only be used with characters.*
+
+Adds the current character to the next free companion slot in the given leader's
+party. It stops autonomous movement and proximity tracking, sets the character's
+party bindings, and returns the assigned slot number. It returns `0` when the
+leader does not exist or the party is full.
+
+```eldrin
+let slot = join_party(player_id);
+if slot > 0 {
+    message(player_id, "The companion joins your party.", "success");
+}
+```
+
+The joined character remains a normal ruleset entity, retaining their class,
+attributes, equipment, inventory, spells, and script state.
+Set the character attribute `hide_when_joined = true` when party members should
+leave the world view after joining, as in a classic first-person party crawler.
+
+---
+
 ## `set_audio_bus_volume`
 
 *This command can be used with both characters and items.*

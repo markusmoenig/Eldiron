@@ -72,6 +72,9 @@ radius = 0.3
 # Register the character as a player character which receives user input events
 player = true
 
+# Hide this character's world avatar after join_party() succeeds.
+hide_when_joined = true
+
 # Item specific
 
 # Defines the slot of the item (if any) when equipped.
@@ -153,6 +156,10 @@ notify_in(minutes, event_string)
 
 # Set an attribute of the current character or item.
 set_attr("key", value)
+
+# Add the current character to the next free companion slot in a leader's party.
+# Returns the assigned slot, or 0 when the party is full.
+join_party(leader_id)
 
 # Enables / disable entity proximity tracking. If enabled, the entity or item will receive
 # "proximity_warning" events with a list of entity ids within the radius.

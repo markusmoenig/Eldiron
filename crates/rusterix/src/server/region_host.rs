@@ -8,7 +8,7 @@ use crate::server::region::{
     equip_inventory_item_for_entity, execute_ruleset_action_with_source, grant_experience,
     has_attack_ammunition_or_message, is_spell_on_cooldown, open_dialog_node,
     queue_applied_damage_event, return_entity_to_spawn, set_entity_cooldown_attrs,
-    set_spell_cooldown,
+    set_spell_cooldown, trigger_avatar_attack_animation,
 };
 use crate::server::regionctx::{ChoiceSession, ScriptScope};
 use crate::vm::*;
@@ -23,6 +23,56 @@ use vek::{Vec2, Vec3};
 
 struct RegionHost<'a> {
     ctx: &'a mut RegionCtx,
+}
+
+fn join_entity_party(ctx: &mut RegionCtx, companion_id: u32, leader_id: u32) -> Option<i32> {
+    if companion_id == leader_id || !ctx.map.entities.iter().any(|entity| entity.id == leader_id) {
+        return None;
+    }
+
+    if let Some(existing) = ctx
+        .map
+        .entities
+        .iter()
+        .find(|entity| entity.id == companion_id)
+        .and_then(|entity| entity.attributes.get_int("party_index"))
+        .filter(|index| *index > 0)
+    {
+        return Some(existing);
+    }
+
+    let occupied = ctx
+        .map
+        .entities
+        .iter()
+        .filter_map(|entity| entity.attributes.get_int("party_index"))
+        .collect::<std::collections::HashSet<_>>();
+    let slot = (1..=3).find(|slot| !occupied.contains(slot))?;
+
+    let companion = ctx
+        .map
+        .entities
+        .iter_mut()
+        .find(|entity| entity.id == companion_id)?;
+    companion.set_attribute("party_member", Value::Bool(true));
+    companion.set_attribute("party_index", Value::Int(slot));
+    companion.set_attribute("party_role", Value::Str(format!("party.{slot}")));
+    companion.set_attribute("party_leader_id", Value::UInt(leader_id));
+    companion.set_attribute("target", Value::Str(String::new()));
+    companion.set_attribute("attack_target", Value::Str(String::new()));
+    if companion
+        .attributes
+        .get_bool_default("hide_when_joined", false)
+    {
+        companion.set_attribute("visible", Value::Bool(false));
+    }
+    companion.action = EntityAction::Off;
+    companion.active_sequence = None;
+    companion.paused_sequence = None;
+    companion.mark_all_dirty();
+
+    ctx.entity_proximity_alerts.remove(&companion_id);
+    Some(slot)
 }
 
 enum SpellTargetArg {
@@ -895,11 +945,7 @@ impl<'a> RegionHost<'a> {
             let dmg = apply_damage_rules(self.ctx, id, attacker_id, base_dmg, kind, source_item_id);
             if self.ctx.curr_item_id.is_none() && dmg > 0 {
                 if let Some(attacker) = self.ctx.get_current_entity_mut() {
-                    let attack_time = attacker
-                        .attributes
-                        .get_float_default("avatar_attack_time", 0.35)
-                        .max(0.05);
-                    attacker.set_attribute("avatar_attack_left", Value::Float(attack_time));
+                    trigger_avatar_attack_animation(attacker);
                 }
             }
             let autodamage = self
@@ -1725,6 +1771,15 @@ impl<'a> HostHandler for RegionHost<'a> {
                         }
                     }
                 }
+            }
+            "join_party" => {
+                let leader_id = args
+                    .first()
+                    .and_then(Self::parse_target_arg_id)
+                    .unwrap_or(0);
+                let companion_id = self.ctx.curr_entity_id;
+                let slot = join_entity_party(self.ctx, companion_id, leader_id).unwrap_or(0);
+                return self.debug_return(VMValue::from_i32(slot));
             }
             "toggle_attr" => {
                 if let Some(key) = args.get(0).and_then(|v| v.as_string()) {
@@ -2727,8 +2782,8 @@ impl<'a> HostHandler for RegionHost<'a> {
                     args.first().map(|v| v.x as u32),
                     args.get(1).and_then(|v| v.as_string()),
                 ) {
-                    let from = self.ctx.curr_entity_id;
-                    open_dialog_node(self.ctx, from, to, node);
+                    let caller = self.ctx.curr_entity_id;
+                    open_dialog_node(self.ctx, to, caller, node);
                 }
             }
             "gain_xp" => {
@@ -3751,6 +3806,152 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn join_party_uses_the_next_free_companion_slot() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_script_class(
+            "Companion",
+            r#"
+            fn event(event, value) {
+                if event == "join" {
+                    join_party(value);
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Leader", 10, 0, None);
+        arena.add_entity(2, "Existing Companion", 10, 0, None);
+        arena.add_entity(3, "Companion", 10, 0, None);
+        arena.set_entity_attr(2, "party_member", Value::Bool(true));
+        arena.set_entity_attr(2, "party_index", Value::Int(1));
+        arena.set_entity_attr(3, "hide_when_joined", Value::Bool(true));
+        arena.ctx.map.entities[2].action = EntityAction::RandomWalk(1.0, 1.0, 1, 0, Vec2::zero());
+        arena.ctx.entity_proximity_alerts.insert(3, 4.0);
+
+        arena.run_entity_event(3, "join", VMValue::from_u32(1));
+
+        let companion = arena.entity(3);
+        assert!(companion.attributes.get_bool_default("party_member", false));
+        assert_eq!(companion.attributes.get_int("party_index"), Some(2));
+        assert_eq!(companion.attributes.get_str("party_role"), Some("party.2"));
+        assert_eq!(companion.attributes.get_uint("party_leader_id"), Some(1));
+        assert!(!companion.attributes.get_bool_default("visible", true));
+        assert_eq!(companion.action, EntityAction::Off);
+        assert!(!arena.ctx.entity_proximity_alerts.contains_key(&3));
+    }
+
+    #[test]
+    fn dialog_command_opens_the_target_entity_dialog() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_script_class(
+            "Player",
+            r#"
+            fn event(event, value) {
+                if event == "talk" {
+                    dialog(value.subject_id, "");
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Player", 10, 0, None);
+        arena.add_entity(2, "Cleric", 10, 0, None);
+        arena.ctx.entity_class_data.insert(
+            "Cleric".into(),
+            r#"
+            [dialog]
+            start = "greeting"
+
+            [dialog.nodes.greeting]
+            text = "The cleric is ready."
+            choices = [{ label = "Join me.", end = true }]
+            "#
+            .into(),
+        );
+
+        arena.run_entity_event(1, "talk", VMValue::from_u32(2));
+
+        assert!(
+            arena
+                .message_texts()
+                .iter()
+                .any(|(text, role)| text == "The cleric is ready." && role == "dialog")
+        );
+        assert!(
+            arena
+                .ctx
+                .active_choice_sessions
+                .iter()
+                .any(|session| session.from == 2 && session.to == 1)
+        );
+    }
+
+    #[test]
+    fn direct_party_damage_notifies_joined_companions() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_entity(1, "Player", 10, 0, None);
+        arena.add_entity(2, "Cleric", 10, 0, None);
+        arena.set_entity_attr(1, "player", Value::Bool(true));
+        arena.set_entity_attr(2, "party_member", Value::Bool(true));
+        arena.set_entity_attr(2, "party_leader_id", Value::UInt(1));
+
+        assert!(apply_damage_direct(
+            &mut arena.ctx,
+            1,
+            9,
+            4,
+            "physical",
+            None
+        ));
+
+        assert!(
+            arena
+                .ctx
+                .to_execute_entity
+                .iter()
+                .any(|(entity_id, event, value)| {
+                    *entity_id == 2
+                        && event == "party_damaged"
+                        && value.x == 1.0
+                        && value.y == 4.0
+                        && value.z == 0.0
+                })
+        );
+    }
+
+    #[test]
+    fn joined_cleric_can_heal_a_distant_party_member() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_script_class(
+            "Cleric",
+            r#"
+            fn event(event, value) {
+                if event == "party_damaged" {
+                    set_target(value.subject_id);
+                    use_action("minor_heal");
+                    clear_target();
+                }
+            }
+            "#,
+        );
+        arena.add_official_entity(1, "Cleric", "Human", 1, None);
+        arena.add_official_entity(2, "Warrior", "Human", 1, None);
+        arena.add_official_inventory_item(1, 201, "reagents", "blessed_herb");
+        arena.add_official_inventory_item(1, 202, "reagents", "moonwater");
+        arena.set_entity_attr(1, "party_member", Value::Bool(true));
+        arena.set_entity_attr(1, "party_leader_id", Value::UInt(2));
+        arena.set_entity_attr(2, "player", Value::Bool(true));
+        arena.set_entity_attr(2, "HP", Value::Int(5));
+        arena.ctx.map.entities[0].position.x = 1.0;
+        arena.ctx.map.entities[1].position.x = 20.0;
+        let starting_mp = arena.mp(1);
+
+        arena.run_entity_event(1, "party_damaged", VMValue::from_u32(2));
+
+        assert!(arena.hp(2) > 5);
+        assert!(arena.mp(1) < starting_mp);
+        assert!(is_spell_on_cooldown(&arena.ctx, 1, "minor_heal"));
     }
 
     #[test]

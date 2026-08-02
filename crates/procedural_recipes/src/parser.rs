@@ -163,6 +163,11 @@ pub fn parse_recipe(source: &str) -> Result<Recipe, ParseError> {
             "expected a Tile recipe, found Material declarations",
         )
         .attach_source(source)),
+        RecipeDocument::Sdfs(_) => Err(ParseError::document(
+            1,
+            "expected a Tile recipe, found Sdf declarations",
+        )
+        .attach_source(source)),
     }
 }
 
@@ -172,6 +177,27 @@ pub fn parse_material_document(source: &str) -> Result<MaterialDocument, ParseEr
         RecipeDocument::Tile(_) => Err(ParseError::document(
             1,
             "expected Material declarations, found a Tile recipe",
+        )
+        .attach_source(source)),
+        RecipeDocument::Sdfs(_) => Err(ParseError::document(
+            1,
+            "expected Material declarations, found Sdf declarations",
+        )
+        .attach_source(source)),
+    }
+}
+
+pub fn parse_sdf_document(source: &str) -> Result<SdfDocument, ParseError> {
+    match parse_document(source)? {
+        RecipeDocument::Sdfs(document) => Ok(document),
+        RecipeDocument::Tile(_) => Err(ParseError::document(
+            1,
+            "expected Sdf declarations, found a Tile recipe",
+        )
+        .attach_source(source)),
+        RecipeDocument::Materials(_) => Err(ParseError::document(
+            1,
+            "expected Sdf declarations, found Material declarations",
         )
         .attach_source(source)),
     }
@@ -205,6 +231,7 @@ fn attach_warning_sources(document: &mut RecipeDocument, source: &str) {
                 attach(&mut material.patterns);
             }
         }
+        RecipeDocument::Sdfs(_) => {}
     }
 }
 
@@ -219,6 +246,30 @@ fn parse_document_inner(source: &str) -> Result<RecipeDocument, ParseError> {
         return recipe_from_node(&roots[0]).map(RecipeDocument::Tile);
     }
 
+    let root_kind = declaration(&roots[0].name).0;
+    if root_kind == "sdf" {
+        let mut ids = BTreeSet::new();
+        let mut recipes = Vec::with_capacity(roots.len());
+        for root in &roots {
+            let (kind, declared_name) = declaration(&root.name);
+            if kind != "sdf" {
+                return Err(ParseError::document(
+                    root.line,
+                    "Sdf and Material declarations cannot be mixed in one .recipe file",
+                ));
+            }
+            let id = required_declaration_name(root, declared_name)?;
+            if !ids.insert(id.to_ascii_lowercase()) {
+                return Err(ParseError::duplicate(
+                    root.line,
+                    format!("duplicate SDF id '{id}'"),
+                ));
+            }
+            recipes.push(sdf_from_node(root, id)?);
+        }
+        return Ok(RecipeDocument::Sdfs(SdfDocument { recipes }));
+    }
+
     let mut ids = BTreeSet::new();
     let mut materials = Vec::with_capacity(roots.len());
     for root in &roots {
@@ -226,7 +277,7 @@ fn parse_document_inner(source: &str) -> Result<RecipeDocument, ParseError> {
         if kind != "material" {
             return Err(ParseError::document(
                 root.line,
-                "a .recipe must contain either one top-level Tile block or only Material <id> blocks",
+                "a .recipe must contain one Tile block, only Material <id> blocks, or only Sdf <id> blocks",
             ));
         }
         let id = required_declaration_name(root, declared_name)?;
@@ -240,6 +291,206 @@ fn parse_document_inner(source: &str) -> Result<RecipeDocument, ParseError> {
         materials.push(material_from_node(root, id)?);
     }
     Ok(RecipeDocument::Materials(MaterialDocument { materials }))
+}
+
+fn sdf_from_node(node: &Node, id: &str) -> Result<SdfRecipe, ParseError> {
+    reject_unknown_fields(node, &["name"])?;
+    let mut shapes = Vec::new();
+    let mut names = BTreeSet::new();
+    let mut output = None;
+    for child in &node.children {
+        let (kind, declared_name) = declaration(&child.name);
+        match kind.as_str() {
+            "shape" => {
+                let name = required_declaration_name(child, declared_name)?.to_string();
+                if !names.insert(name.to_ascii_lowercase()) {
+                    return Err(ParseError::duplicate(
+                        child.line,
+                        format!("duplicate SDF shape '{name}'"),
+                    ));
+                }
+                shapes.push(SdfShape {
+                    name,
+                    kind: parse_sdf_shape(child)?,
+                });
+            }
+            "output" => {
+                ensure_unnamed(child, declared_name)?;
+                reject_unknown_fields(child, &["coverage"])?;
+                reject_children(child)?;
+                let (value, line) = field(child, "coverage").ok_or_else(|| {
+                    ParseError::missing(child.line, "Sdf Output requires coverage")
+                })?;
+                let value = parse_sdf_reference(value, line)?;
+                if output.replace(value).is_some() {
+                    return Err(ParseError::duplicate(child.line, "duplicate Output block"));
+                }
+            }
+            _ => {
+                return Err(ParseError::unknown(
+                    child.line,
+                    format!(
+                        "unknown SDF block '{}'; expected Shape <name> or Output",
+                        child.name
+                    ),
+                ));
+            }
+        }
+    }
+    let output = output.ok_or_else(|| ParseError::missing(node.line, "Sdf requires Output"))?;
+    if !names.contains(&output.to_ascii_lowercase()) {
+        return Err(ParseError::reference(
+            node.line,
+            format!("unknown SDF output shape '{output}'"),
+        ));
+    }
+    for shape in &shapes {
+        let references: &[&str] = match &shape.kind {
+            SdfShapeKind::Union { a, b }
+            | SdfShapeKind::Subtract { a, b }
+            | SdfShapeKind::Intersect { a, b } => &[a, b],
+            SdfShapeKind::Expand { source, .. } | SdfShapeKind::Contract { source, .. } => {
+                &[source]
+            }
+            _ => &[],
+        };
+        for reference in references {
+            if !names.contains(&reference.to_ascii_lowercase()) {
+                return Err(ParseError::reference(
+                    node.line,
+                    format!(
+                        "SDF shape '{}' references unknown shape '{reference}'",
+                        shape.name
+                    ),
+                ));
+            }
+        }
+    }
+    Ok(SdfRecipe {
+        id: id.to_string(),
+        name: field(node, "name")
+            .map(|(value, line)| parse_string(value, line))
+            .transpose()?
+            .unwrap_or_else(|| id.replace('_', " ")),
+        shapes,
+        output,
+    })
+}
+
+fn parse_sdf_shape(node: &Node) -> Result<SdfShapeKind, ParseError> {
+    reject_unknown_fields(node, &[])?;
+    if node.children.len() != 1 {
+        return Err(ParseError::invalid(
+            node.line,
+            "Shape requires exactly one primitive or operation block",
+        ));
+    }
+    let operation = &node.children[0];
+    let (kind, declared_name) = declaration(&operation.name);
+    ensure_unnamed(operation, declared_name)?;
+    reject_children(operation)?;
+    let finite_positive_size =
+        |size: [f32; 2]| size.iter().all(|value| value.is_finite() && *value > 0.0);
+    match kind.as_str() {
+        "ellipse" => {
+            reject_unknown_fields(operation, &["position", "size", "rotation"])?;
+            let size = optional_f2(operation, "size", [0.5, 0.5])?;
+            if !finite_positive_size(size) {
+                return Err(ParseError::invalid(
+                    operation.line,
+                    "Ellipse.size must be finite and greater than zero",
+                ));
+            }
+            Ok(SdfShapeKind::Ellipse {
+                position: optional_f2(operation, "position", [0.5, 0.5])?,
+                size,
+                rotation: optional_f32(operation, "rotation", 0.0)?,
+            })
+        }
+        "roundedrectangle" | "rounded_rectangle" => {
+            reject_unknown_fields(operation, &["position", "size", "radius", "rotation"])?;
+            let size = optional_f2(operation, "size", [0.5, 0.5])?;
+            let radius = optional_f32(operation, "radius", 0.05)?;
+            if !finite_positive_size(size) || !radius.is_finite() || radius < 0.0 {
+                return Err(ParseError::invalid(
+                    operation.line,
+                    "RoundedRectangle requires a positive finite size and non-negative radius",
+                ));
+            }
+            Ok(SdfShapeKind::RoundedRectangle {
+                position: optional_f2(operation, "position", [0.5, 0.5])?,
+                size,
+                radius,
+                rotation: optional_f32(operation, "rotation", 0.0)?,
+            })
+        }
+        "capsule" => {
+            reject_unknown_fields(operation, &["from", "to", "radius"])?;
+            let radius = optional_f32(operation, "radius", 0.05)?;
+            if !radius.is_finite() || radius <= 0.0 {
+                return Err(ParseError::invalid(
+                    operation.line,
+                    "Capsule.radius must be finite and greater than zero",
+                ));
+            }
+            Ok(SdfShapeKind::Capsule {
+                from: optional_f2(operation, "from", [0.25, 0.5])?,
+                to: optional_f2(operation, "to", [0.75, 0.5])?,
+                radius,
+            })
+        }
+        "union" | "subtract" | "intersect" => {
+            reject_unknown_fields(operation, &["a", "b"])?;
+            let reference = |field_name| {
+                let (value, line) = field(operation, field_name).ok_or_else(|| {
+                    ParseError::missing(
+                        operation.line,
+                        format!("{} requires {field_name}", operation.name),
+                    )
+                })?;
+                parse_sdf_reference(value, line)
+            };
+            let a = reference("a")?;
+            let b = reference("b")?;
+            Ok(match kind.as_str() {
+                "union" => SdfShapeKind::Union { a, b },
+                "subtract" => SdfShapeKind::Subtract { a, b },
+                _ => SdfShapeKind::Intersect { a, b },
+            })
+        }
+        "expand" | "contract" => {
+            reject_unknown_fields(operation, &["source", "amount"])?;
+            let (source, line) = field(operation, "source").ok_or_else(|| {
+                ParseError::missing(
+                    operation.line,
+                    format!("{} requires source", operation.name),
+                )
+            })?;
+            let amount = optional_f32(operation, "amount", 0.0)?;
+            if !amount.is_finite() || amount < 0.0 {
+                return Err(ParseError::invalid(
+                    operation.line,
+                    "SDF expand/contract amount must be finite and non-negative",
+                ));
+            }
+            let source = parse_sdf_reference(source, line)?;
+            Ok(if kind == "expand" {
+                SdfShapeKind::Expand { source, amount }
+            } else {
+                SdfShapeKind::Contract { source, amount }
+            })
+        }
+        _ => Err(ParseError::unknown(
+            operation.line,
+            format!("unknown SDF primitive or operation '{}'", operation.name),
+        )),
+    }
+}
+
+fn parse_sdf_reference(value: &str, line: usize) -> Result<String, ParseError> {
+    let value = value.trim();
+    validate_identifier(value, line)?;
+    Ok(value.to_string())
 }
 
 fn tokenize(source: &str) -> Result<Vec<SourceLine>, ParseError> {

@@ -214,6 +214,18 @@ party_role = "leader"
 
 ---
 
+## `hide_when_joined`
+
+*Character-only attribute.*
+
+When `true`, [join_party](server_commands#join_party) hides the character's world avatar after adding them to the party. The character remains an active ruleset entity and is still available to party widgets, scripts, actions, inventory, and combat systems. Leave it unset or `false` for games with visible or following companions.
+
+```toml
+hide_when_joined = true
+```
+
+---
+
 ## `portrait_tile_id`
 
 *Character-only attribute.*

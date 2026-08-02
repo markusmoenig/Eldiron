@@ -1,0 +1,25 @@
+Item "orc_patterned_vest" {
+  name = "Orc Patterned Vest"
+
+  data {
+    [attributes]
+    source_id = "orc_patterned_vest"
+    ruleset_id = "orc_patterned_vest"
+    name = "Orc Patterned Vest"
+    description = "A rough hide vest crossed by ochre war-bands."
+    category = "cloth"
+    slot = "torso"
+    rarity = "common"
+    avatar_channels = ["torso"]
+    appearance_recipe = "orc-vest"
+    appearance_space = "channel"
+    appearance_tiling = [1.0, 1.0]
+    appearance_seed = 419
+    color_index = 10
+    ARMOR = 1
+    takeable = true
+    blocking = false
+    visible = true
+    on_look = "A rough hide vest crossed by ochre war-bands."
+  }
+}

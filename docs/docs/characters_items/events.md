@@ -194,4 +194,25 @@ if event == "damaged" {
 
 ---
 
+### `party_damaged`
+
+- **Value**: party damage payload
+- **Description**: Sent to every joined companion after a living member of their party takes damage. `value.subject_id` is the injured party member, `value.amount` is the applied damage, and `value.kind` is the damage kind.
+
+This is intended for companion reactions such as automatic healing or protection. The companion remains responsible for checking health and invoking a normal ruleset action, so costs, cooldowns, reagents, and effects still apply.
+
+```eldrin
+if event == "party_damaged" {
+    let hp = get_attr_of(value.subject_id, "HP");
+    let max_hp = get_attr_of(value.subject_id, "MAX_HP");
+    if hp > 0 && hp * 2 <= max_hp {
+        set_target(value.subject_id);
+        use_action("minor_heal");
+        clear_target();
+    }
+}
+```
+
+---
+
 Player key input is configured via [Input Mapping](input_mapping), not via script events.

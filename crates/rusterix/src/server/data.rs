@@ -249,16 +249,13 @@ pub fn apply_item_data(item: &mut Item, toml: &str) {
                 if attr == "attributes" {
                     if let Some(values) = v.as_table() {
                         for (key, value) in values {
-                            if key == "rig_pivot"
+                            if matches!(key.as_str(), "rig_pivot" | "appearance_tiling")
                                 && let Some(value) = value.as_array()
                                 && value.len() == 2
                                 && let (Some(x), Some(y)) =
                                     (value[0].as_float(), value[1].as_float())
                             {
-                                item.set_attribute(
-                                    "rig_pivot",
-                                    crate::Value::Vec2([x as f32, y as f32]),
-                                );
+                                item.set_attribute(key, crate::Value::Vec2([x as f32, y as f32]));
                             } else if let Some(value) = value.as_array() {
                                 let mut values = vec![];
                                 for v in value {
@@ -533,5 +530,28 @@ lift = 1.15
         assert!((light.get_lift() - 1.15).abs() < 0.0001);
         assert!((light.get_intensity() - 4.2).abs() < 0.0001);
         assert!((light.get_end_distance() - 4.8).abs() < 0.0001);
+    }
+
+    #[test]
+    fn item_data_preserves_avatar_appearance_tiling_as_a_vector() {
+        let mut item = Item::new();
+
+        apply_item_data(
+            &mut item,
+            r#"
+[attributes]
+appearance_recipe = "orc-vest"
+appearance_tiling = [2.0, 3.0]
+"#,
+        );
+
+        assert_eq!(
+            item.attributes.get_str("appearance_recipe"),
+            Some("orc-vest")
+        );
+        assert_eq!(
+            item.attributes.get_vec2("appearance_tiling"),
+            Some([2.0, 3.0])
+        );
     }
 }

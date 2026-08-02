@@ -32,6 +32,9 @@ INT = 8
 WIS = 8
 VIT = 12
 SPEED = 1
+light_skin_index = 16
+dark_skin_index = 18
+hands_index = 16
 
 [races.Skeleton]
 description = "Animated skeletal remains driven by necromancy or lingering will."

@@ -661,11 +661,11 @@ fn load_procedural_recipe_dir(
                 .with_source_name(path.display().to_string())
                 .to_string()
         })?;
-        documents.push((path, document));
+        documents.push((path, source, document));
     }
 
     let mut materials = BTreeMap::<String, MaterialRecipe>::new();
-    for (path, document) in &documents {
+    for (path, source, document) in &documents {
         let RecipeDocument::Materials(document) = document else {
             continue;
         };
@@ -678,11 +678,40 @@ fn load_procedural_recipe_dir(
             {
                 return Err(format!("duplicate procedural material alias '{alias}'"));
             }
+            project.procedural_materials.insert(alias, source.clone());
         }
         for material in &document.materials {
             let alias = format!("{file_alias}/{}", material.id).to_ascii_lowercase();
             if materials.insert(alias.clone(), material.clone()).is_some() {
                 return Err(format!("duplicate procedural material alias '{alias}'"));
+            }
+            project.procedural_materials.insert(alias, source.clone());
+        }
+    }
+
+    for (path, source, document) in &documents {
+        let RecipeDocument::Sdfs(document) = document else {
+            continue;
+        };
+        let file_alias = asset_name_from_path(&root, path);
+        if document.recipes.len() == 1 {
+            let alias = file_alias.to_ascii_lowercase();
+            if project
+                .procedural_sdfs
+                .insert(alias.clone(), source.clone())
+                .is_some()
+            {
+                return Err(format!("duplicate procedural SDF alias '{alias}'"));
+            }
+        }
+        for recipe in &document.recipes {
+            let alias = format!("{file_alias}/{}", recipe.id).to_ascii_lowercase();
+            if project
+                .procedural_sdfs
+                .insert(alias.clone(), source.clone())
+                .is_some()
+            {
+                return Err(format!("duplicate procedural SDF alias '{alias}'"));
             }
         }
     }
@@ -693,7 +722,7 @@ fn load_procedural_recipe_dir(
             root.display()
         )
     })?;
-    for (path, document) in documents {
+    for (path, _, document) in documents {
         let RecipeDocument::Tile(recipe) = document else {
             continue;
         };
@@ -4977,6 +5006,19 @@ Tile
 "#,
         )
         .expect("direct material reference recipe written");
+        fs::write(
+            root.join("recipes/helmet.recipe"),
+            r#"
+Sdf helmet
+    Shape Shell
+        Ellipse
+            position = F2(0.5, 0.5)
+            size = F2(0.8, 0.7)
+    Output
+        coverage = Shell
+"#,
+        )
+        .expect("SDF recipe written");
 
         let mut project = Project::new();
         load_project_directory_assets(&mut project, &root, &SourceSection::default())
@@ -5026,6 +5068,15 @@ Tile
                 .iter()
                 .any(|texture| texture.data_ext.is_some())
         );
+        assert!(project.procedural_materials.contains_key("dungeon/wall"));
+        assert!(project.procedural_materials.contains_key("materials/stone"));
+        assert!(
+            project
+                .procedural_materials
+                .contains_key("materials/mortar")
+        );
+        assert!(project.procedural_sdfs.contains_key("helmet"));
+        assert!(project.procedural_sdfs.contains_key("helmet/helmet"));
         let material_frames = wall.to_material_array();
         let mut material_texture = Texture::from_color([0, 0, 0, 255]);
         material_texture.width = wall.textures[0].width;
@@ -5051,6 +5102,62 @@ Tile
         );
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn loads_stonefall_recipes_through_the_legacy_tile_material_contract() {
+        let stonefall =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source_projects/stonefall-dungeon");
+        let mut project = Project::new();
+
+        load_procedural_recipe_dir(&mut project, &stonefall, "recipes")
+            .expect("Stonefall procedural recipes load");
+
+        let expected = [
+            ("ceiling-stone", [3, 3], [192, 192], "dungeon/ceiling_stone"),
+            ("floor-stone", [3, 3], [192, 192], "dungeon/floor_stone"),
+            ("niche-stone", [1, 1], [64, 64], "dungeon/wall_mortar"),
+            ("wall-niche", [4, 4], [256, 256], "dungeon/wall_mortar"),
+            ("wall-stone", [4, 4], [256, 256], "dungeon/wall_mortar"),
+        ];
+
+        for (alias, coverage, dimensions, material_alias) in expected {
+            let tile = project
+                .tiles
+                .values()
+                .find(|tile| tile.alias == alias)
+                .unwrap_or_else(|| panic!("Stonefall recipe tile '{alias}' exists"));
+            assert_eq!(tile.procedural.coverage, coverage, "{alias} coverage");
+            assert_eq!(tile.material_alias, material_alias, "{alias} material");
+            assert_eq!(tile.textures.len(), 1, "{alias} frame count");
+            assert_eq!(tile.baked_material_data.len(), 1, "{alias} material data");
+            assert_eq!(
+                [tile.textures[0].width, tile.textures[0].height],
+                dimensions,
+                "{alias} dimensions"
+            );
+            assert!(tile.textures[0].data_ext.is_some(), "{alias} channels");
+        }
+
+        let start = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "start-bg")
+            .expect("Stonefall start background exists");
+        assert_eq!(start.procedural.coverage, [4, 4]);
+        assert_eq!(
+            [start.textures[0].width, start.textures[0].height],
+            [512, 512]
+        );
+        assert!(start.material_alias.is_empty());
+        assert!(start.baked_material_data.is_empty());
+
+        let wall_niche = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "wall-niche")
+            .expect("Stonefall wall niche exists");
+        assert_eq!(wall_niche.geometry.len(), 1);
     }
 
     #[test]

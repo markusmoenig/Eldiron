@@ -1,0 +1,63 @@
+Character "alden" {
+  name = "Alden"
+  glyph = "C"
+
+  data {
+    [attributes]
+    race = "Human"
+    class = "Cleric"
+    LEVEL = 1
+    facing = "right"
+    visible = true
+    hide_when_joined = true
+    radius = 0.35
+    add_items = ["blessed_herb", "moonwater", "blessed_herb", "moonwater"]
+    source_id = "alden"
+    on_look = "A cleric waits by the wall, listening for movement deeper in Stonefall."
+
+    [intent_distance]
+    talk = 3
+
+    [dialog]
+    start = "greeting"
+
+    [dialog.nodes.greeting]
+    text = "Alden lowers his mace. \"Stonefall shifts in the dark. I can keep you alive down here.\""
+    choices = [
+      { label = "Join me.", event = "join_party", end = true, unless = "self.party_member" },
+      { label = "Stay here.", end = true, unless = "self.party_member" },
+      { label = "Ready?", next = "joined", if = "self.party_member" },
+    ]
+
+    [dialog.nodes.joined]
+    text = "\"I am with you. Keep your eyes on the side passages.\""
+    choices = [
+      { label = "Let's move.", end = true },
+    ]
+  }
+
+  script {
+    fn event(event, value) {
+        if event == "startup" {
+            face( "right");
+        }
+        if event == "join_party" {
+            let slot = join_party( value.subject_id);
+            if slot > 0 {
+                message( value.subject_id,  "Alden joins your party.",  "success");
+            } else {
+                message( value.subject_id,  "Your party is already full.",  "warning");
+            }
+        }
+        if event == "party_damaged" {
+            let hp = get_attr_of( value.subject_id,  "HP");
+            let max_hp = get_attr_of( value.subject_id,  "MAX_HP");
+            if hp > 0 && hp * 2 <= max_hp {
+                set_target( value.subject_id);
+                use_action( "minor_heal");
+                clear_target();
+            }
+        }
+    }
+  }
+}

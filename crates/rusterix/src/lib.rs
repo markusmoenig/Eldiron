@@ -5,6 +5,8 @@ pub mod audio;
 pub mod avatar;
 #[cfg(feature = "graphics")]
 pub mod avatar_builder;
+#[cfg(feature = "graphics")]
+pub mod avatar_recipe;
 pub mod batch;
 pub mod builderpreview;
 pub mod camera;
@@ -135,7 +137,7 @@ pub use crate::{
     audio::{AudioConfig, AudioEngine, AudioError, OutputInfo, SineVoiceId},
     avatar::{
         Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarBuildOutput, AvatarBuildRequest,
-        AvatarBuilder, AvatarDirection, AvatarMarkerColors, AvatarPerspective,
+        AvatarBuilder, AvatarDirection, AvatarMarkerChannel, AvatarMarkerColors, AvatarPerspective,
         AvatarPerspectiveCount, AvatarShadingOptions,
     },
     batch::{CullMode, GeometrySource, PrimitiveMode, batch2d::Batch2D, batch3d::Batch3D},

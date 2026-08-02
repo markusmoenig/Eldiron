@@ -296,9 +296,9 @@ Find the exit below Stonefall.
   widget "Messages Back" {
     role = "deco"
     x = 16
-    y = 516
+    y = 504
     width = 688
-    height = 76
+    height = 96
 
     data {
       [ui]
@@ -311,14 +311,16 @@ Find the exit below Stonefall.
   widget "Messages" {
     role = "messages"
     x = 20
-    y = 520
+    y = 508
     width = 680
-    height = 68
+    height = 88
 
     data {
       [ui]
       role = "messages"
       font_size = 13.0
+      spacing = 0.0
+      message_spacing = 2.0
       background_color = "#00000000"
       default = "#b8f3ef"
       warning = "#ffcc66"

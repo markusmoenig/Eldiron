@@ -1,0 +1,23 @@
+Item "orc_iron_helm" {
+  name = "Orc Steel Helm"
+
+  data {
+    [attributes]
+    source_id = "orc_iron_helm"
+    ruleset_id = "orc_iron_helm"
+    name = "Orc Steel Helm"
+    description = "A bright hammered-steel helmet with a heavy brow and nasal guard."
+    category = "chain"
+    slot = "head"
+    rarity = "common"
+    headgear_recipe = "orc-helm"
+    appearance_recipe = "orc-helmet-material"
+    appearance_seed = 613
+    color_index = 11
+    ARMOR = 1
+    takeable = true
+    blocking = false
+    visible = true
+    on_look = "A pale steel helmet with a distinct brow, cheek guards, and nasal guard."
+  }
+}

@@ -45,7 +45,7 @@ pub struct RenderedRecipe {
     pub frames: Vec<RenderedFrame>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RenderedMaterialFrame {
     pub rgba: Vec<u8>,
     pub palette_indices: Vec<u16>,
@@ -54,7 +54,7 @@ pub struct RenderedMaterialFrame {
     pub time: f32,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RenderedMaterial {
     pub name: String,
     pub width: u32,
@@ -67,6 +67,103 @@ pub struct RenderedMaterial {
     pub looping: bool,
     pub normal_strength: f32,
     pub frames: Vec<RenderedMaterialFrame>,
+}
+
+/// One frame requested by a consumer-neutral procedural surface.
+///
+/// The surface describes where and when to evaluate a recipe without carrying
+/// Tile-specific concepts such as coverage, grid coordinates, or geometry.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RenderSurfaceFrame {
+    pub time: f32,
+}
+
+/// Affine mapping from normalized surface pixels to Recipe coordinates.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RenderSurfaceMapping {
+    pub origin: [f32; 2],
+    pub u_axis: [f32; 2],
+    pub v_axis: [f32; 2],
+}
+
+impl Default for RenderSurfaceMapping {
+    fn default() -> Self {
+        Self {
+            origin: [0.0, 0.0],
+            u_axis: [1.0, 0.0],
+            v_axis: [0.0, 1.0],
+        }
+    }
+}
+
+impl RenderSurfaceMapping {
+    pub fn map(self, uv: [f32; 2]) -> [f32; 2] {
+        [
+            self.origin[0] + self.u_axis[0] * uv[0] + self.v_axis[0] * uv[1],
+            self.origin[1] + self.u_axis[1] * uv[0] + self.v_axis[1] * uv[1],
+        ]
+    }
+}
+
+/// A flat procedural evaluation target that can be owned by any consumer.
+///
+/// Tiles adapt to this type today. Avatars, UI elements, and other procedural
+/// consumers can use it directly without pretending to be Tiles.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RenderSurface {
+    pub width: u32,
+    pub height: u32,
+    pub mapping: RenderSurfaceMapping,
+    pub fps: f32,
+    pub looping: bool,
+    pub frames: Vec<RenderSurfaceFrame>,
+}
+
+impl From<&RenderedRecipe> for RenderSurface {
+    fn from(recipe: &RenderedRecipe) -> Self {
+        Self {
+            width: recipe.width,
+            height: recipe.height,
+            mapping: RenderSurfaceMapping::default(),
+            fps: recipe.fps,
+            looping: recipe.looping,
+            frames: recipe
+                .frames
+                .iter()
+                .map(|frame| RenderSurfaceFrame { time: frame.time })
+                .collect(),
+        }
+    }
+}
+
+/// Material channels rendered for a consumer-neutral procedural surface.
+#[derive(Clone, Debug, PartialEq)]
+pub struct RenderedSurfaceMaterial {
+    pub name: String,
+    pub width: u32,
+    pub height: u32,
+    pub fps: f32,
+    pub looping: bool,
+    pub normal_strength: f32,
+    pub frames: Vec<RenderedMaterialFrame>,
+}
+
+impl RenderedSurfaceMaterial {
+    fn into_tiled(self, input: &RenderedRecipe) -> RenderedMaterial {
+        RenderedMaterial {
+            name: self.name,
+            width: self.width,
+            height: self.height,
+            tile_width: input.tile_width,
+            tile_height: input.tile_height,
+            grid_width: input.grid_width,
+            grid_height: input.grid_height,
+            fps: self.fps,
+            looping: self.looping,
+            normal_strength: self.normal_strength,
+            frames: self.frames,
+        }
+    }
 }
 
 impl RenderedRecipe {
@@ -381,6 +478,19 @@ impl RecipeRenderer {
         self.render_material_internal(material, input, options, false, None, [1.0, 1.0])
     }
 
+    /// Renders a material on a consumer-neutral surface.
+    ///
+    /// Coordinates are normalized across the complete surface. This is the
+    /// reusable entry point for consumers that do not need Tile-local spaces.
+    pub fn render_material_on_surface(
+        &self,
+        material: &MaterialRecipe,
+        surface: &RenderSurface,
+        options: &RenderOptions,
+    ) -> Result<RenderedSurfaceMaterial, RenderError> {
+        self.render_material_surface_internal(material, surface, options, false, None, [1.0, 1.0])
+    }
+
     /// Renders a material in a coordinate space supplied by a tile.
     ///
     /// Pattern-local spaces reset material coordinates for every pattern unit
@@ -417,6 +527,27 @@ impl RecipeRenderer {
         tile_space: Option<(&Recipe, &Domain)>,
         tiling: [f32; 2],
     ) -> Result<RenderedMaterial, RenderError> {
+        let surface = RenderSurface::from(input);
+        self.render_material_surface_internal(
+            material,
+            &surface,
+            options,
+            use_debug_output,
+            tile_space,
+            tiling,
+        )
+        .map(|rendered| rendered.into_tiled(input))
+    }
+
+    fn render_material_surface_internal(
+        &self,
+        material: &MaterialRecipe,
+        surface: &RenderSurface,
+        options: &RenderOptions,
+        use_debug_output: bool,
+        tile_space: Option<(&Recipe, &Domain)>,
+        tiling: [f32; 2],
+    ) -> Result<RenderedSurfaceMaterial, RenderError> {
         let evaluation_recipe = Recipe {
             name: material.name.clone(),
             wrap: material.wrap,
@@ -433,26 +564,27 @@ impl RecipeRenderer {
             recipe: tile,
             seed: mix64(tile.seed ^ options.seed_offset),
         });
-        let pixel_count = (input.width * input.height) as usize;
-        let mut frames = Vec::with_capacity(input.frames.len());
-        for input_frame in &input.frames {
+        let pixel_count = (surface.width * surface.height) as usize;
+        let mut frames = Vec::with_capacity(surface.frames.len());
+        for surface_frame in &surface.frames {
             let mut rgba = vec![0_u8; pixel_count * 4];
             let mut palette_indices = vec![u16::MAX; pixel_count];
             let mut material_values = vec![[0.0_f32; 4]; pixel_count];
             let mut normal_height = vec![128_u8; pixel_count];
-            for y in 0..input.height {
-                for x in 0..input.width {
-                    let index = (y * input.width + x) as usize;
+            for y in 0..surface.height {
+                for x in 0..surface.width {
+                    let index = (y * surface.width + x) as usize;
                     let global_uv = [
-                        (x as f32 + 0.5) / input.width as f32,
-                        (y as f32 + 0.5) / input.height as f32,
+                        (x as f32 + 0.5) / surface.width as f32,
+                        (y as f32 + 0.5) / surface.height as f32,
                     ];
+                    let surface_uv = surface.mapping.map(global_uv);
                     let mut context = EvalContext {
                         uv: [
-                            wrap_coordinate(global_uv[0] * tiling[0], material.wrap),
-                            wrap_coordinate(global_uv[1] * tiling[1], material.wrap),
+                            wrap_coordinate(surface_uv[0] * tiling[0], material.wrap),
+                            wrap_coordinate(surface_uv[1] * tiling[1], material.wrap),
                         ],
-                        time: input_frame.time,
+                        time: surface_frame.time,
                         current_id: Some(0),
                         input_height: 0.0,
                         pattern_bindings: [None; 8],
@@ -463,7 +595,7 @@ impl RecipeRenderer {
                     {
                         let tile_context = EvalContext {
                             uv: global_uv.map(|coordinate| wrap_coordinate(coordinate, tile.wrap)),
-                            time: input_frame.time,
+                            time: surface_frame.time,
                             current_id: None,
                             input_height: 0.0,
                             pattern_bindings: [None; 8],
@@ -544,20 +676,16 @@ impl RecipeRenderer {
                 palette_indices,
                 material: material_values,
                 normal_height,
-                time: input_frame.time,
+                time: surface_frame.time,
             });
         }
 
-        Ok(RenderedMaterial {
+        Ok(RenderedSurfaceMaterial {
             name: material.name.clone(),
-            width: input.width,
-            height: input.height,
-            tile_width: input.tile_width,
-            tile_height: input.tile_height,
-            grid_width: input.grid_width,
-            grid_height: input.grid_height,
-            fps: input.fps,
-            looping: input.looping,
+            width: surface.width,
+            height: surface.height,
+            fps: surface.fps,
+            looping: surface.looping,
             normal_strength: if material.surface.normal.is_some() {
                 material.surface.normal_strength
             } else {
@@ -2120,6 +2248,79 @@ Material test
             &material.frames[0].rgba[0..4],
             &material.frames[0].rgba[12..16]
         );
+    }
+
+    #[test]
+    fn tiled_material_wrapper_matches_consumer_neutral_surface_render() {
+        let tile = parse_recipe(
+            r#"
+Tile
+    size = I2(4, 3)
+    coverage = I2(2, 1)
+
+    Height Surface
+        source = U
+
+    Animation
+        frames = 3
+        fps = 9
+        looping = true
+
+    Output
+        height = Surface
+"#,
+        )
+        .unwrap();
+        let material = parse_material_document(
+            r#"
+Material test
+    Noise Detail
+        scale = F2(3, 2)
+
+    Color Dark
+        exact = #201810
+
+    Color Light
+        exact = #a08060
+
+    Color Tone
+        source = Mix(Dark, Light, Detail)
+
+    Surface
+        color = Tone
+        roughness = U
+        metallic = V
+        opacity = 0.75
+        emission = Detail
+        normal = Detail
+        normal_strength = 0.6
+"#,
+        )
+        .unwrap()
+        .materials
+        .remove(0);
+        let renderer = RecipeRenderer::new(&test_palette()).unwrap();
+        let rendered_tile = renderer.render(&tile, &RenderOptions::default()).unwrap();
+
+        let tiled = renderer
+            .render_material(&material, &rendered_tile, &RenderOptions::default())
+            .unwrap();
+        let surface = RenderSurface::from(&rendered_tile);
+        let neutral = renderer
+            .render_material_on_surface(&material, &surface, &RenderOptions::default())
+            .unwrap();
+
+        assert_eq!(neutral.name, tiled.name);
+        assert_eq!(neutral.width, tiled.width);
+        assert_eq!(neutral.height, tiled.height);
+        assert_eq!(neutral.fps, tiled.fps);
+        assert_eq!(neutral.looping, tiled.looping);
+        assert_eq!(neutral.normal_strength, tiled.normal_strength);
+        assert_eq!(neutral.frames, tiled.frames);
+        assert_eq!(tiled.tile_width, rendered_tile.tile_width);
+        assert_eq!(tiled.tile_height, rendered_tile.tile_height);
+        assert_eq!(tiled.grid_width, rendered_tile.grid_width);
+        assert_eq!(tiled.grid_height, rendered_tile.grid_height);
     }
 
     #[test]

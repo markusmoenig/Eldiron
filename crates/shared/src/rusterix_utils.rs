@@ -214,6 +214,18 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
         .iter()
         .map(|m| m.material_id())
         .collect();
+    rusterix.assets.set_procedural_material_sources(
+        project
+            .procedural_materials
+            .iter()
+            .map(|(alias, source)| (alias.as_str(), source.as_str())),
+    );
+    rusterix.assets.set_procedural_sdf_sources(
+        project
+            .procedural_sdfs
+            .iter()
+            .map(|(alias, source)| (alias.as_str(), source.as_str())),
+    );
     rusterix.assets.maps.clear();
     for region in &project.regions {
         rusterix

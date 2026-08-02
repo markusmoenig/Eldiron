@@ -1,7 +1,8 @@
 use procedural_recipes::{
     BinaryOperator, ColorSource, Colorize, CoordinateChannel, MaterialOutput, MaterialRecipe,
-    Output, PaletteMode, Recipe, RecipeDocument, RecipeRenderer, RenderOptions, ScalarSource,
-    UnaryOperator, parse_document,
+    Output, PaletteMode, Recipe, RecipeDocument, RecipeRenderer, RenderOptions, RenderSurface,
+    RenderSurfaceFrame, RenderSurfaceMapping, ScalarSource, SdfRenderer, UnaryOperator,
+    parse_document,
 };
 use serde::Deserialize;
 use std::{
@@ -91,6 +92,18 @@ fn validate_command(arguments: &[String]) -> Result<(), String> {
                     .materials
                     .iter()
                     .map(|material| material.id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+        RecipeDocument::Sdfs(document) => {
+            println!(
+                "Valid SDF recipe with {} declaration(s): {}",
+                document.recipes.len(),
+                document
+                    .recipes
+                    .iter()
+                    .map(|recipe| recipe.id.as_str())
                     .collect::<Vec<_>>()
                     .join(", ")
             );
@@ -417,6 +430,43 @@ fn render_with_palette(arguments: &[String], palette: &RenderPalette) -> Result<
                 );
             }
         }
+        RecipeDocument::Sdfs(document) => {
+            if material_selector.is_some() {
+                return Err("--material is only used when rendering a material recipe".to_string());
+            }
+            ensure_output_parent(&output_path)?;
+            let several = document.recipes.len() > 1;
+            let surface = RenderSurface {
+                width: 256,
+                height: 256,
+                mapping: RenderSurfaceMapping::default(),
+                fps: 0.0,
+                looping: false,
+                frames: vec![RenderSurfaceFrame { time: 0.0 }],
+            };
+            for recipe in document.recipes {
+                let rendered =
+                    SdfRenderer::render(&recipe, &surface).map_err(|error| error.to_string())?;
+                let path = if several {
+                    suffixed_output_path(&output_path, &recipe.id)
+                } else {
+                    output_path.clone()
+                };
+                image::save_buffer(
+                    &path,
+                    &rendered.coverage,
+                    rendered.width,
+                    rendered.height,
+                    image::ColorType::L8,
+                )
+                .map_err(|error| format!("could not write '{}': {error}", path.display()))?;
+                println!(
+                    "Rendered SDF '{}' coverage to {}",
+                    recipe.name,
+                    path.display()
+                );
+            }
+        }
     }
     Ok(())
 }
@@ -610,6 +660,7 @@ fn attach_warning_source_names(document: &mut RecipeDocument, path: &Path) {
                 }
             }
         }
+        RecipeDocument::Sdfs(_) => {}
     }
 }
 
@@ -631,6 +682,7 @@ fn print_document_warnings(document: &RecipeDocument) {
                 }
             }
         }
+        RecipeDocument::Sdfs(_) => {}
     }
 }
 
