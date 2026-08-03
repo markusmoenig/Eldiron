@@ -320,7 +320,6 @@ pub fn build_tile_collection_package(
 
     let mut tiles = IndexMap::default();
     let mut tile_groups = IndexMap::default();
-    let mut tile_node_groups = IndexMap::default();
 
     for entry in &collection.entries {
         match entry {
@@ -340,9 +339,6 @@ pub fn build_tile_collection_package(
                     }
                 }
                 tile_groups.insert(*group_id, group.clone());
-                if let Some(node_group) = project.tile_node_groups.get(group_id) {
-                    tile_node_groups.insert(*group_id, node_group.clone());
-                }
             }
         }
     }
@@ -352,7 +348,6 @@ pub fn build_tile_collection_package(
         collection: collection.clone(),
         tiles,
         tile_groups,
-        tile_node_groups,
     })
 }
 
@@ -390,15 +385,6 @@ pub fn import_tile_collection_payload(
             }
         }
         project.tile_groups.insert(new_group_id, group);
-    }
-
-    for (old_group_id, mut node_group) in payload.tile_node_groups {
-        let Some(new_group_id) = group_map.get(&old_group_id).copied() else {
-            continue;
-        };
-        node_group.group_id = new_group_id;
-        node_group.graph_id = Uuid::new_v4();
-        project.tile_node_groups.insert(new_group_id, node_group);
     }
 
     let mut collection = payload.collection;

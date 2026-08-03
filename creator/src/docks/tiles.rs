@@ -150,18 +150,12 @@ impl Dock for TilesDock {
 
         let mut add_button = TheTraybarButton::new(TheId::named("Tiles Dock Add"));
         add_button.set_text("New".to_string());
-        add_button.set_status_text("Create a new tile or node group.");
+        add_button.set_status_text(&fl!("status_tiles_new_group"));
         add_button.set_context_menu(Some(TheContextMenu {
-            items: vec![
-                TheContextMenuItem::new(
-                    "Tile Group".to_string(),
-                    TheId::named("Tiles Dock Add Tile Group"),
-                ),
-                TheContextMenuItem::new(
-                    "Node Group".to_string(),
-                    TheId::named("Tiles Dock Add Node Group"),
-                ),
-            ],
+            items: vec![TheContextMenuItem::new(
+                "Tile Group".to_string(),
+                TheId::named("Tiles Dock Add Tile Group"),
+            )],
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(add_button));
@@ -317,11 +311,7 @@ impl Dock for TilesDock {
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
                 if widget_id.name == "Tiles Dock Add" {
                     if item_id.name == "Tiles Dock Add Tile Group" {
-                        self.create_empty_group(project, ui, ctx, server_ctx, false);
-                        self.render_views(ui, ctx, project);
-                        redraw = true;
-                    } else if item_id.name == "Tiles Dock Add Node Group" {
-                        self.create_empty_group(project, ui, ctx, server_ctx, true);
+                        self.create_empty_group(project, ui, ctx, server_ctx);
                         self.render_views(ui, ctx, project);
                         redraw = true;
                     }
@@ -1149,9 +1139,7 @@ impl Dock for TilesDock {
                         redraw = true;
                     }
                 } else if *key == TheKeyCode::Delete {
-                    if self.board_has_active_focus(ctx)
-                        && !ui.focus_widget_supports_text_input(ctx)
-                        && server_ctx.tile_node_group_id.is_none()
+                    if self.board_has_active_focus(ctx) && !ui.focus_widget_supports_text_input(ctx)
                     {
                         if let Some(source) = self.curr_source {
                             if self.delete_source(project, source, ui, ctx, server_ctx) {
@@ -1477,17 +1465,10 @@ impl TilesDock {
         self.drag_item = None;
         self.drag_drop_cell = None;
         self.drag_hover_coord = None;
-        if project.is_tile_node_group(&group_id) {
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Open Tile Node Group Workflow"),
-                TheValue::Id(group_id),
-            ));
-        } else {
-            ctx.ui.send(TheEvent::Custom(
-                TheId::named("Close Tile Node Editor Skeleton"),
-                TheValue::Empty,
-            ));
-        }
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Close Tile Node Editor Skeleton"),
+            TheValue::Empty,
+        ));
         self.render_views(ui, ctx, project);
     }
 
@@ -1561,7 +1542,6 @@ impl TilesDock {
         ui: &mut TheUI,
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
-        node_backed: bool,
     ) -> Uuid {
         let mut group = rusterix::TileGroup::new(2, 2);
         group.name = "New Group".to_string();
@@ -1573,15 +1553,6 @@ impl TilesDock {
         let pos = self.find_open_cell_for_span(project, create_tab, Vec2::new(2, 2));
         project.ensure_tile_board_space(pos + Vec2::new(1, 1));
         project.add_tile_group(group);
-        if node_backed {
-            let palette_colors = project
-                .art_palette
-                .colors
-                .iter()
-                .filter_map(|color| color.clone())
-                .collect();
-            project.add_tile_node_group(NodeGroupAsset::new(group_id, 2, 2, palette_colors));
-        }
         if let TileTabKind::Collection(collection_id) = self.current_tab_kind(project) {
             project.add_source_to_collection(&collection_id, TileSource::TileGroup(group_id));
             project.set_collection_tile_board_position(
@@ -1631,12 +1602,8 @@ impl TilesDock {
         collection_id
     }
 
-    fn group_grid_size(&self, project: &Project, group: &rusterix::TileGroup) -> Vec2<i32> {
-        let extra = if group.members.is_empty() || project.is_tile_node_group(&group.id) {
-            0
-        } else {
-            1
-        };
+    fn group_grid_size(&self, group: &rusterix::TileGroup) -> Vec2<i32> {
+        let extra = if group.members.is_empty() { 0 } else { 1 };
         Vec2::new(
             group.width.max(1) as i32 + extra,
             group.height.max(1) as i32 + extra,
@@ -1649,7 +1616,7 @@ impl TilesDock {
             TileSource::TileGroup(group_id) => project
                 .tile_groups
                 .get(&group_id)
-                .map(|group| self.group_grid_size(project, group))
+                .map(|group| self.group_grid_size(group))
                 .unwrap_or(Vec2::new(1, 1)),
             TileSource::Procedural(_) => Vec2::new(1, 1),
         }
@@ -2138,7 +2105,7 @@ impl TilesDock {
                 .map(|group| {
                     vec![TileBoardEntry {
                         source: TileSource::TileGroup(entered_group),
-                        span: self.group_grid_size(project, group),
+                        span: self.group_grid_size(group),
                         pos: Some(Vec2::zero()),
                     }]
                 })
@@ -2170,7 +2137,7 @@ impl TilesDock {
                 if self.matches_group(project, group) && in_tab(source) {
                     entries.push(TileBoardEntry {
                         source,
-                        span: self.group_grid_size(project, group),
+                        span: self.group_grid_size(group),
                         pos: self.board_position_for_tab(project, tab, source),
                     });
                 }
@@ -2326,7 +2293,7 @@ impl TilesDock {
             }
             TileSource::TileGroup(group_id) => {
                 if let Some(group) = project.tile_groups.get(&group_id) {
-                    let grid = self.group_grid_size(project, group);
+                    let grid = self.group_grid_size(group);
                     let grid_w = grid.x;
                     let grid_h = grid.y;
                     let cell_w = (rect.z / grid_w).max(1);
@@ -2350,9 +2317,6 @@ impl TilesDock {
                                 ),
                                 3,
                             ) {
-                                if project.is_tile_node_group(&group_id) {
-                                    continue;
-                                }
                                 let is_drop_target = self
                                     .group_drop_cell(project, tab, group_id)
                                     .map(|(tx, ty)| tx == x && ty == y)
@@ -2650,7 +2614,7 @@ impl TilesDock {
             }
             TileSource::TileGroup(group_id) => {
                 if let Some(group) = project.tile_groups.get(&group_id) {
-                    let grid = self.group_grid_size(project, group);
+                    let grid = self.group_grid_size(group);
                     let grid_w = grid.x;
                     let grid_h = grid.y;
                     let cell_w = (buffer.dim().width / grid_w).max(1);
@@ -3024,9 +2988,6 @@ impl TilesDock {
         if hover_tab != tab {
             return None;
         }
-        if project.is_tile_node_group(&group_id) {
-            return None;
-        }
         let Some(group) = project.tile_groups.get(&group_id) else {
             return None;
         };
@@ -3036,7 +2997,7 @@ impl TilesDock {
         else {
             return None;
         };
-        let grid = self.group_grid_size(project, group);
+        let grid = self.group_grid_size(group);
         let grid_w = grid.x;
         let grid_h = grid.y;
         let cell_w = (placement.rect.z / grid_w).max(1);
@@ -3065,11 +3026,7 @@ impl TilesDock {
             })
             .and_then(|placement| match placement.source {
                 TileSource::TileGroup(group_id) => {
-                    if project.is_tile_node_group(&group_id) {
-                        None
-                    } else {
-                        project.tile_groups.get(&group_id).map(|_| group_id)
-                    }
+                    project.tile_groups.get(&group_id).map(|_| group_id)
                 }
                 _ => None,
             })
@@ -3086,9 +3043,6 @@ impl TilesDock {
         let TileSource::SingleTile(tile_id) = source else {
             return false;
         };
-        if project.is_tile_node_group(&group_id) {
-            return false;
-        }
         let Some(group) = project.tile_groups.get_mut(&group_id) else {
             return false;
         };
@@ -3144,9 +3098,6 @@ impl TilesDock {
             })
             .map(|placement| match placement.source {
                 TileSource::TileGroup(group_id) => {
-                    if project.is_tile_node_group(&group_id) {
-                        return placement.source;
-                    }
                     if let Some(group) = project.tile_groups.get(&group_id) {
                         let cell_w = (placement.rect.z / group.width.max(1) as i32).max(1);
                         let cell_h = (placement.rect.w / group.height.max(1) as i32).max(1);

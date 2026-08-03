@@ -130,7 +130,27 @@ fn default_proc_coverage() -> [u32; 2] {
 /// declaration on the tile ensures geometry, collision, and authored surfaces travel together.
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum TileGeometryFeature {
+    Box(TileBoxGeometry),
+    /// Legacy serialized form. New recipes compile to generic Box nodes.
     Niche(TileNicheGeometry),
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug, Default)]
+pub enum TileGeometryOperation {
+    #[default]
+    Add,
+    Subtract,
+}
+
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct TileBoxGeometry {
+    pub name: String,
+    pub operation: TileGeometryOperation,
+    pub surface: String,
+    pub position: [f32; 3],
+    pub size: [f32; 3],
+    pub repeat: [u32; 3],
+    pub spacing: [f32; 3],
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -367,10 +387,10 @@ pub struct Tile {
     /// intentionally strips these bytes, so generated tiles persist them here.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub baked_material_data: Vec<Vec<u8>>,
-    /// Optional particle emitter definition derived from a tilegraph output.
+    /// Optional particle emitter definition for this tile.
     #[serde(default)]
     pub particle_emitter: Option<ParticleEmitter>,
-    /// Optional point light definition derived from a tilegraph output.
+    /// Optional point light definition for this tile.
     #[serde(default)]
     pub light_emitter: Option<TileLightEmitter>,
 }

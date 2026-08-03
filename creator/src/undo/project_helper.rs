@@ -3,6 +3,38 @@ use crate::prelude::*;
 use rusterix::material_library::MATERIAL_PRESET_NAMES;
 use theframework::prelude::*;
 
+pub fn gen_procedural_recipe_tree_item(
+    recipe: &ProceduralRecipeAsset,
+    project: &Project,
+) -> TheTreeItem {
+    let mut item = TheTreeItem::new(TheId::named_with_id("Procedural Recipe Item", recipe.id));
+    let (name, kind) =
+        crate::recipe_utils::recipe_description(&recipe.source).unwrap_or_else(|_| {
+            (
+                fl!("invalid_recipe"),
+                crate::recipe_utils::ProceduralRecipeKind::Tile,
+            )
+        });
+    item.set_text(name);
+    item.set_sub_text(format!(
+        "{} · {}",
+        crate::recipe_utils::localized_recipe_kind(kind),
+        recipe.alias
+    ));
+    item.set_size(58);
+    if let Ok(preview) = crate::recipe_utils::render_recipe_preview(project, recipe.id) {
+        item.set_icon(preview.scaled(52, 52));
+    }
+    item.set_context_menu(Some(TheContextMenu {
+        items: vec![TheContextMenuItem::new(
+            fl!("export_recipe"),
+            TheId::named_with_reference("Export Procedural Recipe", recipe.id),
+        )],
+        ..Default::default()
+    }));
+    item
+}
+
 fn tiles_or_authoring_dock() -> String {
     let toollist = TOOLLIST.read().unwrap();
     if toollist.authoring_mode {
@@ -78,6 +110,11 @@ fn update_project_export_context_menu(ui: &mut TheUI, pc: ProjectContext, projec
                 TheId::named_with_reference("Export Font Asset", id),
             )),
         }
+    } else if pc.is_procedural_recipe() {
+        menu.add(TheContextMenuItem::new(
+            fl!("export_recipe"),
+            TheId::named_with_reference("Export Procedural Recipe", id),
+        ));
     }
 
     if menu.items.is_empty() {
@@ -898,6 +935,7 @@ pub fn set_project_context(
             | ProjectContext::ScreenWidget(_, _)
             | ProjectContext::Avatar(_)
             | ProjectContext::AvatarAnimation(_, _, _)
+            | ProjectContext::ProceduralRecipe(_)
     );
     ui.set_widget_disabled_state("Project Duplicate", ctx, !duplicate_allowed);
 
@@ -1138,6 +1176,22 @@ pub fn set_project_context(
                 project,
                 server_ctx,
             );
+        }
+        ProjectContext::ProceduralRecipe(id) => {
+            if let Some(recipe) = project.procedural_recipes.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!(
+                        "{}: {}",
+                        fl!("recipes"),
+                        crate::recipe_utils::recipe_name(&recipe.source)
+                    )),
+                );
+            }
+            let mut manager = DOCKMANAGER.write().unwrap();
+            manager.set_dock("Recipes".into(), ui, ctx, project, server_ctx);
+            manager.edit_maximize(ui, ctx, project, server_ctx);
         }
         ProjectContext::Avatar(id) => {
             if let Some(avatar) = project.avatars.get(&id) {

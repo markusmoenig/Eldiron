@@ -3,7 +3,43 @@ use buildergraph::BuilderGraph;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
 use theframework::prelude::*;
-use tilegraph::TileGraphPaletteSource;
+
+/// Canonical procedural Recipe source stored as a first-class project asset.
+///
+/// The user-facing name and document kind deliberately are not duplicated here:
+/// Creator derives both from `source`, keeping the canonical Recipe text as the
+/// single source of truth.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct ProceduralRecipeAsset {
+    pub id: Uuid,
+    /// Stable project/ruleset lookup alias (normally the source-relative path).
+    pub alias: String,
+    /// Canonical `.recipe` source.
+    pub source: String,
+    /// Baked Tile generated from this source, when this is a Tile document.
+    #[serde(default)]
+    pub tile_id: Option<Uuid>,
+}
+
+impl ProceduralRecipeAsset {
+    pub fn new(alias: impl Into<String>, source: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            alias: alias.into(),
+            source: source.into(),
+            tile_id: None,
+        }
+    }
+}
+
+impl Default for ProceduralRecipeAsset {
+    fn default() -> Self {
+        Self::new(
+            "untitled-tile",
+            "Tile\n    name = \"Untitled Tile\"\n    size = I2(64, 64)\n    coverage = I2(1, 1)\n\n    Height Surface\n        source = 0.5\n\n    Output\n        height = Surface\n",
+        )
+    }
+}
 
 /// The default target fps for the game.
 fn default_target_fps() -> u32 {
@@ -413,46 +449,6 @@ impl BuilderGraphAsset {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct NodeGroupAsset {
-    pub group_id: Uuid,
-    pub graph_id: Uuid,
-    #[serde(default)]
-    pub graph_name: String,
-    pub output_grid_width: u16,
-    pub output_grid_height: u16,
-    pub tile_pixel_width: u16,
-    pub tile_pixel_height: u16,
-    #[serde(default)]
-    pub palette_source: TileGraphPaletteSource,
-    #[serde(default)]
-    pub palette_colors: Vec<TheColor>,
-    #[serde(default)]
-    pub graph_data: String,
-}
-
-impl NodeGroupAsset {
-    pub fn new(
-        group_id: Uuid,
-        output_grid_width: u16,
-        output_grid_height: u16,
-        palette_colors: Vec<TheColor>,
-    ) -> Self {
-        Self {
-            group_id,
-            graph_id: Uuid::new_v4(),
-            graph_name: "New Node Graph".to_string(),
-            output_grid_width,
-            output_grid_height,
-            tile_pixel_width: 32,
-            tile_pixel_height: 32,
-            palette_source: TileGraphPaletteSource::Local,
-            palette_colors,
-            graph_data: String::new(),
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum TileCollectionEntry {
     SingleTile(Uuid),
@@ -520,10 +516,6 @@ pub struct Project {
     #[serde(default)]
     pub tile_groups: IndexMap<Uuid, rusterix::TileGroup>,
 
-    /// Node-backed tile groups keyed by tile-group id.
-    #[serde(default)]
-    pub tile_node_groups: IndexMap<Uuid, NodeGroupAsset>,
-
     /// Standalone builder graphs for props and assemblies.
     #[serde(default)]
     pub builder_graphs: IndexMap<Uuid, BuilderGraphAsset>,
@@ -565,6 +557,10 @@ pub struct Project {
 
     #[serde(default)]
     pub assets: IndexMap<Uuid, Asset>,
+
+    /// Editable, shareable procedural Recipe documents.
+    #[serde(default)]
+    pub procedural_recipes: IndexMap<Uuid, ProceduralRecipeAsset>,
 
     /// Reusable procedural material sources keyed by their project alias.
     #[serde(default)]
@@ -641,7 +637,6 @@ impl Project {
 
             tiles: IndexMap::default(),
             tile_groups: IndexMap::default(),
-            tile_node_groups: IndexMap::default(),
             builder_graphs: IndexMap::default(),
             tile_collections: IndexMap::default(),
             tile_board_tiles: IndexMap::default(),
@@ -657,6 +652,7 @@ impl Project {
 
             screens: IndexMap::default(),
             assets: IndexMap::default(),
+            procedural_recipes: IndexMap::default(),
             procedural_materials: IndexMap::default(),
             procedural_sdfs: IndexMap::default(),
 
@@ -973,21 +969,12 @@ impl Project {
         self.tile_groups.insert(tile_group.id, tile_group);
     }
 
-    pub fn add_tile_node_group(&mut self, node_group: NodeGroupAsset) {
-        self.tile_node_groups
-            .insert(node_group.group_id, node_group);
-    }
-
     pub fn add_builder_graph(&mut self, builder_graph: BuilderGraphAsset) {
         self.builder_graphs.insert(builder_graph.id, builder_graph);
     }
 
     pub fn add_tile_collection(&mut self, collection: TileCollectionAsset) {
         self.tile_collections.insert(collection.id, collection);
-    }
-
-    pub fn is_tile_node_group(&self, id: &Uuid) -> bool {
-        self.tile_node_groups.contains_key(id)
     }
 
     pub fn collection_contains_source(
@@ -1039,7 +1026,6 @@ impl Project {
 
     pub fn remove_tile_group(&mut self, id: &Uuid) {
         self.tile_groups.shift_remove(id);
-        self.tile_node_groups.shift_remove(id);
         self.tile_board_groups.shift_remove(id);
         self.remove_source_from_collections(rusterix::TileSource::TileGroup(*id));
     }

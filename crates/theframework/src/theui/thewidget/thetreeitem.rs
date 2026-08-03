@@ -485,7 +485,12 @@ impl TheWidget for TheTreeItem {
 
         if let Some(icon) = &self.icon {
             let ut = self.dim.to_buffer_shrunk_utuple(&shrinker);
-            let icon_rect = (ut.0 + 1, ut.1 + 2, 38, 38); // Adjust Y position by +1px
+            // Thumbnail rows can be taller than regular tree rows. Size the
+            // preview from the available row height instead of clipping every
+            // icon to the old fixed 36px square.
+            let icon_frame_size = ut.3.saturating_sub(4).max(16);
+            let icon_size = icon_frame_size.saturating_sub(2);
+            let icon_rect = (ut.0 + 1, ut.1 + 2, icon_frame_size, icon_frame_size);
             let buffer_width = buffer.dim().width as usize;
             let buffer_height = buffer.dim().height as usize;
 
@@ -503,7 +508,7 @@ impl TheWidget for TheTreeItem {
                     1,
                 );
             }
-            let icon_copy_rect = (ut.0 + 2, ut.1 + 3, 36, 36); // Adjust Y position by +1px
+            let icon_copy_rect = (ut.0 + 2, ut.1 + 3, icon_size, icon_size);
             let buffer_width = buffer.dim().width as usize;
             let buffer_height = buffer.dim().height as usize;
 
@@ -513,16 +518,26 @@ impl TheWidget for TheTreeItem {
                 && icon_copy_rect.0 + icon_copy_rect.2 <= buffer_width
                 && icon_copy_rect.1 + icon_copy_rect.3 <= buffer_height
             {
-                ctx.draw
-                    .copy_slice(buffer.pixels_mut(), icon.pixels(), &icon_copy_rect, stride);
+                let scaled_icon = if icon.dim().width as usize != icon_size
+                    || icon.dim().height as usize != icon_size
+                {
+                    icon.scaled(icon_size as i32, icon_size as i32)
+                } else {
+                    icon.clone()
+                };
+                ctx.draw.copy_slice(
+                    buffer.pixels_mut(),
+                    scaled_icon.pixels(),
+                    &icon_copy_rect,
+                    stride,
+                );
             }
 
-            let text_rect = (
-                ut.0 + 38 + 7 + 5,
-                ut.1 + 6, // Adjust Y position by +1px
-                (self.dim.width - 38 - 7 - 10) as usize,
-                13,
-            );
+            let text_x = ut.0 + icon_frame_size + 9;
+            let text_width = self.dim.width.saturating_sub(icon_frame_size as i32 + 14) as usize;
+            let text_block_height = if self.sub_text.is_empty() { 15 } else { 32 };
+            let text_y = ut.1 + ut.3.saturating_sub(text_block_height) / 2;
+            let text_rect = (text_x, text_y, text_width, 13);
             let buffer_width = buffer.dim().width as usize;
             let buffer_height = buffer.dim().height as usize;
 
@@ -548,12 +563,7 @@ impl TheWidget for TheTreeItem {
             }
 
             if !self.sub_text.is_empty() {
-                let sub_text_rect = (
-                    ut.0 + 38 + 7 + 5,
-                    ut.1 + 23, // Adjust Y position by +1px
-                    (self.dim.width - 38 - 7 - 10) as usize,
-                    13,
-                );
+                let sub_text_rect = (text_x, text_y + 17, text_width, 13);
                 let buffer_width = buffer.dim().width as usize;
                 let buffer_height = buffer.dim().height as usize;
 

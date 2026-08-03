@@ -1384,6 +1384,7 @@ dependencies = [
  "lazy_static",
  "open",
  "png 0.18.0",
+ "procedural-recipes",
  "rand",
  "rayon",
  "regex",
@@ -1440,7 +1441,6 @@ dependencies = [
  "serde",
  "serde_json",
  "theframework",
- "tilegraph",
  "toml 0.9.11+spec-1.1.0",
  "vectorize",
  "vek",
@@ -5343,19 +5343,6 @@ dependencies = [
  "quick-error",
  "weezl",
  "zune-jpeg",
-]
-
-[[package]]
-name = "tilegraph"
-version = "0.93.0"
-dependencies = [
- "image",
- "rayon",
- "rustc-hash 2.1.1",
- "serde",
- "serde_json",
- "theframework",
- "toml 0.9.11+spec-1.1.0",
 ]
 
 [[package]]

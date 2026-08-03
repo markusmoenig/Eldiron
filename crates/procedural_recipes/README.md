@@ -351,9 +351,10 @@ The full rendered image size is `size × coverage`.
 
 ### `Geometry`
 
-`Geometry` keeps an architectural feature with the tile that owns its
-appearance. A Source map can therefore reference only `wall-niche`; the tile
-supplies collision, the opening, and its coordinated surface choices.
+`Geometry` is a placement-local constructive program. Hosts supply a placement
+basis, such as an exposed wall face or a ceiling cell, and execute the same
+generic primitives and operations. Feature names such as niche or beam do not
+exist in the geometry AST.
 
 ```text
 Tile
@@ -361,32 +362,27 @@ Tile
   blocking = true
 
   Geometry
-    Niche Recess
+    Box Recess
+      operation = Subtract
       surface = niche-stone
-      frame = niche-frame
-      position = F2(0.12, 0.64)
-      size = F2(0.76, 1.18)
-      depth = 0.46
-      sill = 0.12
-      frame_width = 0.10
+      position = F3(0.12, 0.76, 0.0)
+      size = F3(0.76, 1.06, 0.46)
 
   Output
     height = 0.5
 ```
 
-The first supported feature is `Niche <name>`. `position` and `size` use
-wall-local world units; X is horizontal and Y is vertical. `depth` carves into
-the wall. `sill` keeps a solid ledge at the bottom of the authored rectangle.
-`surface` is the tile used on the back, reveals, and sill. Optional `frame` and
-`frame_width` create a separately tiled transition ring around the opening.
-The map compiler instantiates the feature only on wall faces exposed to
-walkable space and validates it against the local ceiling height.
+`Box <name>` is the first primitive. `Add` emits a solid and `Subtract` removes
+its volume from the placement solid. `surface` is the Tile recipe used on the
+emitted solid or newly exposed subtraction faces. `position`, `size`, and
+`spacing` are placement-local `F3` world-unit vectors. `repeat` is an `I3`
+instance count. Source maps wall-local X to the face tangent, Y to world up,
+and Z into the wall; ceiling-local Y projects down into the room.
 
-Every named niche also exposes `<name>.distance`: the signed wall-local
-distance to its opening boundary in world units. It is negative inside the
-opening, zero on its edge, and positive outside. This lets the tile synchronize
-its material with its generated geometry without hard-coding the same
-dimensions twice:
+Every named primitive exposes `<name>.distance`. For a Box this is the signed
+distance to its placement-local XY footprint: negative inside, zero on the
+edge, and positive outside. This lets material masks follow constructive
+geometry without duplicating its dimensions:
 
 ```text
 Noise Wear
@@ -406,13 +402,12 @@ MaterialMap
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `surface` | required | Tile alias for the cavity surfaces. |
-| `frame` | none | Optional tile alias for the opening transition. |
-| `position` | `F2(0.1, 0.6)` | Lower-left wall-local position. |
-| `size` | `F2(0.8, 1.2)` | Authored width and vertical extent. |
-| `depth` | `0.35` | Cavity depth; greater than zero and less than one wall unit. |
-| `sill` | `0.1` | Solid height inside the authored vertical extent. |
-| `frame_width` | `0.0` | Width of the optional transition ring. |
+| `operation` | `Add` | `Add` emits the Box; `Subtract` cuts it from the placement solid. |
+| `surface` | required | Tile alias for emitted or newly exposed faces. |
+| `position` | `F3(0, 0, 0)` | Placement-local minimum in world units. |
+| `size` | `F3(1, 1, 1)` | Positive placement-local dimensions. |
+| `repeat` | `I3(1, 1, 1)` | Instance count on each local axis, from 1 through 64. |
+| `spacing` | `F3(0, 0, 0)` | Translation between repeated instances. |
 
 ### `Material`
 

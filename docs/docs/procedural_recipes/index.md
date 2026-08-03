@@ -21,12 +21,13 @@ Recipe document
 
 | Area | Status | What recipes provide |
 | --- | --- | --- |
-| Tiles | Stable | Images, coordinated multi-tile coverage, height, surface materials, collision metadata, and niche geometry. |
+| Tiles | Stable | Images, coordinated multi-tile coverage, height, surface materials, collision metadata, and programmable additive/subtractive Box geometry. |
 | Materials | Stable | Reusable color, roughness, metallic, opacity, emission, and micro-normal definitions. |
 | Avatar wearables | Initial support | Recipe materials projected through semantic Avatar marker channels in all eight directions. |
 | Avatar headgear | Experimental | An SDF silhouette fitted to the head bounds and colored by a reusable material. |
 | General SDF coverage | Experimental | Resolution-independent 2D primitives and boolean operations. |
-| Brushes, stamps, UI, particles, and general geometry | Planned | Intended consumers of the shared core; no public binding contract yet. |
+| General geometry | Initial support | Placement-local Box primitives, additive/subtractive composition, repetition, and per-node surfaces in the Tile/map adapter. |
+| Brushes, stamps, UI, and particles | Planned | Intended consumers of the shared core; no public binding contract yet. |
 | Complete recipe-defined Avatars | Planned | A later extension; existing frame-based Avatars remain the current system. |
 
 :::note

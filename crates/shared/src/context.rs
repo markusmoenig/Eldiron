@@ -193,6 +193,7 @@ pub enum ProjectContext {
     Screen(Uuid),
     ScreenWidget(Uuid, Uuid),
     Asset(Uuid),
+    ProceduralRecipe(Uuid),
     Avatar(Uuid),
     AvatarAnimation(Uuid, Uuid, usize),
     ProjectSettings,
@@ -234,6 +235,7 @@ impl ProjectContext {
             | ProjectContext::Screen(id)
             | ProjectContext::ScreenWidget(id, _)
             | ProjectContext::Asset(id)
+            | ProjectContext::ProceduralRecipe(id)
             | ProjectContext::Avatar(id)
             | ProjectContext::AvatarAnimation(id, _, _) => Some(id),
         }
@@ -319,6 +321,10 @@ impl ProjectContext {
         }
     }
 
+    pub fn is_procedural_recipe(&self) -> bool {
+        matches!(self, ProjectContext::ProceduralRecipe(_))
+    }
+
     pub fn is_project_settings(&self) -> bool {
         match self {
             ProjectContext::ProjectSettings => true,
@@ -386,6 +392,7 @@ pub struct ServerContext {
     pub tree_tilemaps_id: Uuid,
     pub tree_screens_id: Uuid,
     pub tree_avatars_id: Uuid,
+    pub tree_recipes_id: Uuid,
     pub tree_assets_id: Uuid,
     pub tree_assets_fonts_id: Uuid,
     pub tree_assets_audio_id: Uuid,
@@ -424,9 +431,6 @@ pub struct ServerContext {
 
     /// The currently selected assignable tile source.
     pub curr_tile_source: Option<TileSource>,
-
-    /// The currently opened node-backed tile group editor, if any.
-    pub tile_node_group_id: Option<Uuid>,
 
     /// The currently selected builder graph asset, if any.
     pub curr_builder_graph_id: Option<Uuid>,
@@ -673,6 +677,7 @@ impl ServerContext {
             tree_tilemaps_id: Uuid::new_v4(),
             tree_screens_id: Uuid::new_v4(),
             tree_avatars_id: Uuid::new_v4(),
+            tree_recipes_id: Uuid::new_v4(),
             tree_assets_id: Uuid::new_v4(),
             tree_assets_fonts_id: Uuid::new_v4(),
             tree_assets_audio_id: Uuid::new_v4(),
@@ -694,7 +699,6 @@ impl ServerContext {
 
             curr_tile_id: None,
             curr_tile_source: None,
-            tile_node_group_id: None,
             curr_builder_graph_id: None,
             curr_builder_graph_name: None,
             curr_builder_graph_data: None,
@@ -907,6 +911,7 @@ impl ServerContext {
             self.tree_tilemaps_id,
             self.tree_screens_id,
             self.tree_avatars_id,
+            self.tree_recipes_id,
             self.tree_assets_id,
             self.tree_assets_fonts_id,
             self.tree_assets_audio_id,
@@ -922,11 +927,12 @@ impl ServerContext {
         self.tree_tilemaps_id = tree_ids.3;
         self.tree_screens_id = tree_ids.4;
         self.tree_avatars_id = tree_ids.5;
-        self.tree_assets_id = tree_ids.6;
-        self.tree_assets_fonts_id = tree_ids.7;
-        self.tree_assets_audio_id = tree_ids.8;
-        self.tree_palette_id = tree_ids.9;
-        self.tree_settings_id = tree_ids.10;
+        self.tree_recipes_id = tree_ids.6;
+        self.tree_assets_id = tree_ids.7;
+        self.tree_assets_fonts_id = tree_ids.8;
+        self.tree_assets_audio_id = tree_ids.9;
+        self.tree_palette_id = tree_ids.10;
+        self.tree_settings_id = tree_ids.11;
     }
 
     pub fn clear_interactions(&mut self) {
@@ -1363,6 +1369,7 @@ mod tests {
         let mut context = ServerContext::new();
         let tree_regions_id = context.tree_regions_id;
         let tree_assets_id = context.tree_assets_id;
+        let tree_recipes_id = context.tree_recipes_id;
         context.curr_region = Uuid::new_v4();
         context.pc = ProjectContext::ProjectSettings;
         context.curr_tile_id = Some(Uuid::new_v4());
@@ -1375,6 +1382,7 @@ mod tests {
 
         assert_eq!(context.tree_regions_id, tree_regions_id);
         assert_eq!(context.tree_assets_id, tree_assets_id);
+        assert_eq!(context.tree_recipes_id, tree_recipes_id);
         assert_eq!(context.curr_region, Uuid::nil());
         assert_eq!(context.pc, ProjectContext::Unknown);
         assert_eq!(context.curr_tile_id, None);

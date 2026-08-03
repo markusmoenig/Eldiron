@@ -65,5 +65,12 @@ Tile
             min = 0.0
             max = 1.0
 
+    Geometry
+        Box CrossBeam
+            operation = Add
+            surface = ceiling-beam-wood
+            position = F3(0.41, 0.0, 0.0)
+            size = F3(0.18, 0.12, 1.0)
+
     Output
         height = Surface

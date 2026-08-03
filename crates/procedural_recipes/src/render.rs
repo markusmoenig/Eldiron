@@ -1094,35 +1094,37 @@ impl Evaluator<'_> {
             .geometry
             .iter()
             .find(|feature| match feature {
-                GeometryFeature::Niche(niche) => niche.name.eq_ignore_ascii_case(name),
+                GeometryFeature::Box(geometry_box) => geometry_box.name.eq_ignore_ascii_case(name),
             })
             .ok_or_else(|| RenderError::Evaluation(format!("unknown Geometry feature '{name}'")))?;
 
         match feature {
-            GeometryFeature::Niche(niche) => {
-                let wall_x =
+            GeometryFeature::Box(geometry_box) => {
+                let placement_x =
                     (context.uv[0] * self.recipe.coverage[0].max(1) as f32).rem_euclid(1.0);
-                let wall_y = context.uv[1] * self.recipe.coverage[1].max(1) as f32;
-                let opening_min = [niche.position[0], niche.position[1] + niche.sill];
-                let opening_max = [
-                    niche.position[0] + niche.size[0],
-                    niche.position[1] + niche.size[1],
-                ];
-                let center = [
-                    (opening_min[0] + opening_max[0]) * 0.5,
-                    (opening_min[1] + opening_max[1]) * 0.5,
-                ];
-                let half = [
-                    (opening_max[0] - opening_min[0]) * 0.5,
-                    (opening_max[1] - opening_min[1]) * 0.5,
-                ];
-                let q = [
-                    (wall_x - center[0]).abs() - half[0],
-                    (wall_y - center[1]).abs() - half[1],
-                ];
-                let outside = q[0].max(0.0).hypot(q[1].max(0.0));
-                let inside = q[0].max(q[1]).min(0.0);
-                Ok(outside + inside)
+                let placement_y = context.uv[1] * self.recipe.coverage[1].max(1) as f32;
+                let mut distance = f32::INFINITY;
+                for repeat_x in 0..geometry_box.repeat[0] {
+                    for repeat_y in 0..geometry_box.repeat[1] {
+                        let min = [
+                            geometry_box.position[0] + repeat_x as f32 * geometry_box.spacing[0],
+                            geometry_box.position[1] + repeat_y as f32 * geometry_box.spacing[1],
+                        ];
+                        let center = [
+                            min[0] + geometry_box.size[0] * 0.5,
+                            min[1] + geometry_box.size[1] * 0.5,
+                        ];
+                        let half = [geometry_box.size[0] * 0.5, geometry_box.size[1] * 0.5];
+                        let q = [
+                            (placement_x - center[0]).abs() - half[0],
+                            (placement_y - center[1]).abs() - half[1],
+                        ];
+                        let outside = q[0].max(0.0).hypot(q[1].max(0.0));
+                        let inside = q[0].max(q[1]).min(0.0);
+                        distance = distance.min(outside + inside);
+                    }
+                }
+                Ok(distance)
             }
         }
     }

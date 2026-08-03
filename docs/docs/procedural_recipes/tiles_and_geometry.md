@@ -64,25 +64,31 @@ Use `material = alias` for a single material or `MaterialMap` for masked layers.
 
 This division prevents a material that works on stone geometry from becoming unusable on an Avatar, button, or prop that has a different shape source.
 
-## Placement-time architectural geometry
+## Programmable placement geometry
 
-The current Tile adapter also supports a `Geometry` block for a wall niche:
+The `Geometry` block contains generic constructive primitives. The host supplies
+a local placement basis; the recipe does not contain hardcoded concepts such as
+"niche" or "beam":
 
 ```text
 Geometry
-  Niche Recess
+  Box Recess
+    operation = Subtract
     surface = niche-stone
-    frame = niche-frame
-    position = F2(0.12, 0.64)
-    size = F2(0.76, 1.18)
-    depth = 0.46
-    sill = 0.12
-    frame_width = 0.10
+    position = F3(0.12, 0.76, 0.0)
+    size = F3(0.76, 1.06, 0.46)
 ```
 
-`position` and `size` use wall-local world units. The map compiler applies the niche to exposed wall faces and validates it against local wall and ceiling dimensions. This is currently a Tile/map adapter feature, not general recipe-authored mesh output.
+`Add` emits a solid; `Subtract` carves the Box from the placement solid. A wall
+placement maps local X across the face, Y upward, and Z into the wall. A ceiling
+placement maps X/Z across the cell and Y down into the room. The same IR is
+therefore useful for cavities, beams, frames, ledges, and later non-map hosts.
 
-Every named niche exposes `<name>.distance`, a signed distance to the opening boundary. It is negative inside the opening, zero on the edge, and positive outside. A Tile can use that field to align its mortar, wear, or frame material with the generated opening:
+Use `repeat = I3(x, y, z)` with `spacing = F3(x, y, z)` for arrays. The Source
+adapter clips subtractive volumes to the placement and applies `surface` to the
+newly exposed faces. Additive Boxes use that surface on every face.
+
+Every named Box exposes `<name>.distance`, a signed distance to its local XY footprint. A Tile can use it to align mortar, wear, or other material masks with the generated shape:
 
 ```text
 Height RecessJoint

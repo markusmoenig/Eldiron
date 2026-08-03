@@ -86,32 +86,6 @@ pub fn dominant_light_rgba_color(pixels: &[u8]) -> [u8; 4] {
     ]
 }
 
-pub fn render_particle_output_preview(
-    source_pixels: &[u8],
-    particle: &shared::tilegraph::TileParticleOutput,
-    width: i32,
-    height: i32,
-    time: f32,
-) -> TheRGBABuffer {
-    render_particle_preview_common(
-        average_rgba_color(source_pixels),
-        Some(&particle.ramp_colors),
-        particle.rate,
-        particle.spread,
-        particle.lifetime_min,
-        particle.lifetime_max,
-        particle.radius_min,
-        particle.radius_max,
-        particle.speed_min,
-        particle.speed_max,
-        particle.flame_base,
-        particle.color_variation,
-        width,
-        height,
-        time,
-    )
-}
-
 pub fn render_particle_emitter_preview(
     emitter: &rusterix::ParticleEmitter,
     width: i32,

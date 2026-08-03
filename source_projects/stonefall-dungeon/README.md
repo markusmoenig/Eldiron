@@ -100,18 +100,16 @@ contains the complete recess definition:
 
 ```text
 Geometry
-  Niche Recess
+  Box Recess
+    operation = Subtract
     surface = niche-stone
-    position = F2(0.12, 0.64)
-    size = F2(0.76, 1.18)
-    depth = 0.46
-    sill = 0.12
+    position = F3(0.12, 0.76, 0.0)
+    size = F3(0.76, 1.06, 0.46)
 ```
 
-The map only says `"!" = wall-niche`. `position` is the lower-left corner and
-`size` is width/height, all in wall-local world units. The compiler carves the
-recess on exposed faces, keeps its surrounding and rear wall solid, and applies
-`surface` to the cavity. The same recipe uses the signed
+The map only says `"!" = wall-niche`. The generic `Subtract` operation carves
+the Box on every exposed placement face, keeps the surrounding wall solid, and
+applies `surface` to the cavity. The same recipe uses the signed
 `Recess.distance` field to remove stone from a noisy, smoothstepped strip around
 the opening:
 
@@ -121,6 +119,22 @@ Height RecessJoint
 ```
 
 That synchronized material mask makes the mortar joint follow the generated
-opening while remaining slightly worn and irregular. Placements are also
-validated against the local wall and ceiling. Changing the recipe updates
-material, collision, and geometry together without editing the map.
+opening while remaining slightly worn and irregular. Changing the recipe
+updates material, collision, and geometry together without editing the map.
+
+`ceiling-stone.recipe` uses the same general path for structural detail:
+
+```text
+Geometry
+  Box CrossBeam
+    operation = Add
+    surface = ceiling-beam-wood
+    position = F3(0.41, 0.0, 0.0)
+    size = F3(0.18, 0.12, 1.0)
+```
+
+The Source adapter supplies a ceiling-local placement basis and the additive
+Box projects below the stone ceiling. `ceiling-beam-wood.recipe` provides its
+hewn height detail and uses the reusable `dungeon/beam_wood` material for dark
+grain, pores, roughness, and micro-normal variation. There is no beam-specific
+or niche-specific geometry feature in the Recipe AST.

@@ -39,6 +39,9 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::tiles::TilesDock::new());
         docks.insert("Tiles".into(), dock);
 
+        let dock: Box<dyn Dock> = Box::new(crate::docks::recipes::RecipesDock::new());
+        docks.insert("Recipes".into(), dock);
+
         let dock: Box<dyn Dock> = Box::new(crate::docks::blocks::BlocksDock::new());
         docks.insert("Blocks".into(), dock);
 
@@ -244,6 +247,16 @@ impl DockManager {
                 }
             }
         }
+        if self.dock != "Recipes"
+            && matches!(
+                event,
+                TheEvent::Custom(id, _) if id.name == "Render Procedural Recipe Preview"
+            )
+            && let Some(recipe_editor) = self.editor_docks.get_mut("Recipes")
+            && recipe_editor.handle_event(event, ui, ctx, project, server_ctx)
+        {
+            redraw = true;
+        }
         redraw
     }
 
@@ -260,6 +273,14 @@ impl DockManager {
         let index = stack.add_canvas(tiles_editor_canvas);
         self.editor_canvases.insert("Tiles".to_string(), index);
         self.editor_docks.insert("Tiles".to_string(), tiles_editor);
+
+        let mut recipe_editor: Box<dyn Dock> =
+            Box::new(crate::docks::recipes::RecipeEditorDock::new());
+        let recipe_editor_canvas = recipe_editor.setup(ctx);
+        let index = stack.add_canvas(recipe_editor_canvas);
+        self.editor_canvases.insert("Recipes".to_string(), index);
+        self.editor_docks
+            .insert("Recipes".to_string(), recipe_editor);
 
         let mut builder_editor: Box<dyn Dock> =
             Box::new(crate::docks::builder_editor::BuilderEditorDock::new());
@@ -282,17 +303,9 @@ impl DockManager {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &mut Project,
+        project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        if self.dock == "Tiles"
-            && server_ctx.tile_node_group_id.is_none()
-            && let Some(TileSource::TileGroup(group_id)) = server_ctx.curr_tile_source
-            && project.is_tile_node_group(&group_id)
-        {
-            server_ctx.tile_node_group_id = Some(group_id);
-        }
-
         let use_editor_canvas = if self.dock == "Data" {
             matches!(server_ctx.pc, ProjectContext::CharacterPreviewRigging(_))
         } else {
@@ -303,6 +316,11 @@ impl DockManager {
             let Some(editor_index) = self.editor_index else {
                 return;
             };
+            if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                layout.set_mode(TheSharedVLayoutMode::Top);
+            }
+            ctx.ui.relayout = true;
+            ctx.ui.redraw_all = true;
             if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                 stack.set_index(editor_index);
                 self.state = DockManagerState::Editor;
@@ -346,6 +364,11 @@ impl DockManager {
                 if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                     stack.set_index(0);
                 }
+                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                    layout.set_mode(TheSharedVLayoutMode::Shared);
+                }
+                ctx.ui.relayout = true;
+                ctx.ui.redraw_all = true;
                 self.state = DockManagerState::Minimized;
             } else if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                 layout.set_mode(TheSharedVLayoutMode::Shared);

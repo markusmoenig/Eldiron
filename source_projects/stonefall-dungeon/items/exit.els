@@ -19,7 +19,7 @@ Item "exit" {
             let intent = value.string;
             if intent == "look" {
                 let keys = inventory_items_of( value.subject_id,  "Bone Key");
-                if len( keys) > 0 {
+                if keys.count > 0 {
                     set_attr( "unlocked",  true);
                     set_attr( "blocking",  false);
                     message( value.subject_id,  "The Bone Key turns. Cold air floods the stair as the way out of Stonefall opens.",  "success");
@@ -29,7 +29,7 @@ Item "exit" {
             }
             if intent == "use" {
                 let keys = inventory_items_of( value.subject_id,  "Bone Key");
-                if len( keys) > 0 {
+                if keys.count > 0 {
                     set_attr( "unlocked",  true);
                     set_attr( "blocking",  false);
                     message( value.subject_id,  "The Bone Key turns. Cold air floods the stair as the way out of Stonefall opens.",  "success");
@@ -42,7 +42,7 @@ Item "exit" {
             let unlocked = get_attr( "unlocked");
             if unlocked == false {
                 let keys = inventory_items_of( value,  "Bone Key");
-                if len( keys) > 0 {
+                if keys.count > 0 {
                     set_attr( "unlocked",  true);
                     set_attr( "blocking",  false);
                     message( value,  "The Bone Key turns. Cold air floods the stair as the way out of Stonefall opens.",  "success");

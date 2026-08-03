@@ -734,21 +734,21 @@ fn parse_geometry(node: &Node) -> Result<Vec<GeometryFeature>, ParseError> {
     for child in &node.children {
         let (kind, declared_name) = declaration(&child.name);
         match kind.as_str() {
-            "niche" => {
-                let niche = parse_niche_geometry(child, declared_name)?;
-                if !names.insert(niche.name.to_ascii_lowercase()) {
+            "box" => {
+                let geometry_box = parse_box_geometry(child, declared_name)?;
+                if !names.insert(geometry_box.name.to_ascii_lowercase()) {
                     return Err(ParseError::duplicate(
                         child.line,
-                        format!("duplicate Geometry feature '{}'", niche.name),
+                        format!("duplicate Geometry feature '{}'", geometry_box.name),
                     ));
                 }
-                features.push(GeometryFeature::Niche(niche));
+                features.push(GeometryFeature::Box(geometry_box));
             }
             _ => {
                 return Err(ParseError::unknown(
                     child.line,
                     format!(
-                        "unknown Geometry feature '{}'; expected Niche <name>",
+                        "unknown Geometry primitive '{}'; expected Box <name>",
                         child.name
                     ),
                 ));
@@ -764,82 +764,72 @@ fn parse_geometry(node: &Node) -> Result<Vec<GeometryFeature>, ParseError> {
     Ok(features)
 }
 
-fn parse_niche_geometry(node: &Node, name: Option<&str>) -> Result<NicheGeometry, ParseError> {
+fn parse_box_geometry(node: &Node, name: Option<&str>) -> Result<BoxGeometry, ParseError> {
     reject_unknown_fields(
         node,
         &[
+            "operation",
             "surface",
-            "frame",
             "position",
             "size",
-            "depth",
-            "sill",
-            "frame_width",
+            "repeat",
+            "spacing",
         ],
     )?;
     reject_children(node)?;
 
     let name = required_declaration_name(node, name)?.to_string();
     let (surface, surface_line) = field(node, "surface")
-        .ok_or_else(|| ParseError::missing(node.line, "Niche requires surface"))?;
-    let frame = field(node, "frame")
-        .map(|(value, line)| parse_alias(value, line))
-        .transpose()?;
-    let position = optional_f2(node, "position", [0.1, 0.6])?;
-    let size = optional_f2(node, "size", [0.8, 1.2])?;
-    let depth = optional_f32(node, "depth", 0.35)?;
-    let sill = optional_f32(node, "sill", 0.1)?;
-    let frame_width = optional_f32(node, "frame_width", 0.0)?;
+        .ok_or_else(|| ParseError::missing(node.line, "Box requires surface"))?;
+    let operation = match field(node, "operation") {
+        Some((value, _)) if value.eq_ignore_ascii_case("add") => GeometryOperation::Add,
+        Some((value, _)) if value.eq_ignore_ascii_case("subtract") => GeometryOperation::Subtract,
+        Some((_value, line)) => {
+            return Err(ParseError::invalid(
+                line,
+                "Box.operation must be Add or Subtract",
+            ));
+        }
+        None => GeometryOperation::Add,
+    };
+    let position = optional_f3(node, "position", [0.0, 0.0, 0.0])?;
+    let size = optional_f3(node, "size", [1.0, 1.0, 1.0])?;
+    let repeat = optional_i3(node, "repeat", [1, 1, 1])?;
+    let spacing = optional_f3(node, "spacing", [0.0, 0.0, 0.0])?;
 
-    if position
-        .iter()
-        .any(|value| !value.is_finite() || *value < 0.0)
-    {
+    if position.iter().any(|value| !value.is_finite()) {
         return Err(ParseError::invalid(
             node.line,
-            "Niche.position must use finite, non-negative wall-local coordinates",
+            "Box.position must use finite placement-local coordinates",
         ));
     }
     if size.iter().any(|value| !value.is_finite() || *value <= 0.0) {
         return Err(ParseError::invalid(
             node.line,
-            "Niche.size components must be finite and greater than zero",
+            "Box.size components must be finite and greater than zero",
         ));
     }
-    if position[0] + size[0] > 1.0 {
+    if repeat.iter().any(|value| *value == 0 || *value > 64) {
         return Err(ParseError::invalid(
             node.line,
-            "Niche position.x + size.x must fit within the 1.0-unit wall width",
+            "Box.repeat components must be between 1 and 64",
         ));
     }
-    if !depth.is_finite() || depth <= 0.0 || depth >= 1.0 {
+    if spacing.iter().any(|value| !value.is_finite()) {
         return Err(ParseError::invalid(
             node.line,
-            "Niche.depth must be greater than 0.0 and less than 1.0",
-        ));
-    }
-    if !sill.is_finite() || sill <= 0.0 || sill > size[1] {
-        return Err(ParseError::invalid(
-            node.line,
-            "Niche.sill must be greater than 0.0 and no larger than size.y",
-        ));
-    }
-    if !frame_width.is_finite() || frame_width < 0.0 || frame_width > 0.5 {
-        return Err(ParseError::invalid(
-            node.line,
-            "Niche.frame_width must be between 0.0 and 0.5",
+            "Box.spacing must use finite placement-local distances",
         ));
     }
 
-    Ok(NicheGeometry {
+    Ok(BoxGeometry {
         name,
+        operation,
         surface: parse_alias(surface, surface_line)?,
-        frame,
         position,
         size,
-        depth,
-        sill,
-        frame_width,
+        repeat,
+        spacing,
     })
 }
 
@@ -1507,7 +1497,7 @@ fn validate_names_and_references(
     }
     for feature in &recipe.geometry {
         let name = match feature {
-            GeometryFeature::Niche(niche) => &niche.name,
+            GeometryFeature::Box(geometry_box) => &geometry_box.name,
         };
         fields.insert(format!("@geometry:{}", name.to_ascii_lowercase()));
     }
@@ -2744,6 +2734,18 @@ fn optional_f2(node: &Node, name: &str, default: [f32; 2]) -> Result<[f32; 2], P
         .unwrap_or(Ok(default))
 }
 
+fn optional_i3(node: &Node, name: &str, default: [u32; 3]) -> Result<[u32; 3], ParseError> {
+    field(node, name)
+        .map(|(value, line)| parse_i3(value, line))
+        .unwrap_or(Ok(default))
+}
+
+fn optional_f3(node: &Node, name: &str, default: [f32; 3]) -> Result<[f32; 3], ParseError> {
+    field(node, name)
+        .map(|(value, line)| parse_f3(value, line))
+        .unwrap_or(Ok(default))
+}
+
 fn optional_positive_f2(
     node: &Node,
     name: &str,
@@ -2804,6 +2806,48 @@ fn parse_f2(value: &str, line: usize) -> Result<[f32; 2], ParseError> {
         return Err(ParseError::invalid(line, "F2 requires two numbers"));
     }
     Ok([parse_number(args[0], line)?, parse_number(args[1], line)?])
+}
+
+fn parse_i3(value: &str, line: usize) -> Result<[u32; 3], ParseError> {
+    let (call, arguments) = parse_call(value, line)?;
+    if !call.eq_ignore_ascii_case("I3") {
+        return Err(ParseError::invalid(line, "expected I3(x, y, z)"));
+    }
+    let args = split_arguments(arguments);
+    if args.len() != 3 {
+        return Err(ParseError::invalid(
+            line,
+            "I3 requires three positive integers",
+        ));
+    }
+    let result = [
+        parse_u32(args[0], line)?,
+        parse_u32(args[1], line)?,
+        parse_u32(args[2], line)?,
+    ];
+    if result.contains(&0) {
+        return Err(ParseError::invalid(
+            line,
+            "I3 values must be greater than zero",
+        ));
+    }
+    Ok(result)
+}
+
+fn parse_f3(value: &str, line: usize) -> Result<[f32; 3], ParseError> {
+    let (call, arguments) = parse_call(value, line)?;
+    if !call.eq_ignore_ascii_case("F3") {
+        return Err(ParseError::invalid(line, "expected F3(x, y, z)"));
+    }
+    let args = split_arguments(arguments);
+    if args.len() != 3 {
+        return Err(ParseError::invalid(line, "F3 requires three numbers"));
+    }
+    Ok([
+        parse_number(args[0], line)?,
+        parse_number(args[1], line)?,
+        parse_number(args[2], line)?,
+    ])
 }
 
 fn parse_call(value: &str, line: usize) -> Result<(&str, &str), ParseError> {
@@ -3033,22 +3077,21 @@ mod tests {
     }
 
     #[test]
-    fn parses_recipe_owned_niche_geometry_and_collision() {
+    fn parses_generic_repeated_subtractive_box_geometry() {
         let recipe = parse_recipe(
             r#"
 Tile
-    name = "Wall Niche"
+    name = "Carved Wall"
     blocking = true
 
     Geometry
-        Niche Recess
+        Box Recess
+            operation = Subtract
             surface = niche-stone
-            frame = niche-frame
-            position = F2(0.12, 0.64)
-            size = F2(0.76, 1.18)
-            depth = 0.46
-            sill = 0.12
-            frame_width = 0.10
+            position = F3(0.12, 0.76, 0.0)
+            size = F3(0.76, 1.06, 0.46)
+            repeat = I3(1, 2, 1)
+            spacing = F3(0.0, 1.5, 0.0)
 
     Height Joint
         source = Abs(Recess.distance)
@@ -3061,15 +3104,14 @@ Tile
 
         assert!(recipe.blocking);
         assert_eq!(recipe.geometry.len(), 1);
-        let GeometryFeature::Niche(niche) = &recipe.geometry[0];
-        assert_eq!(niche.name, "Recess");
-        assert_eq!(niche.surface, "niche-stone");
-        assert_eq!(niche.frame.as_deref(), Some("niche-frame"));
-        assert_eq!(niche.position, [0.12, 0.64]);
-        assert_eq!(niche.size, [0.76, 1.18]);
-        assert_eq!(niche.depth, 0.46);
-        assert_eq!(niche.sill, 0.12);
-        assert_eq!(niche.frame_width, 0.10);
+        let GeometryFeature::Box(geometry_box) = &recipe.geometry[0];
+        assert_eq!(geometry_box.name, "Recess");
+        assert_eq!(geometry_box.operation, GeometryOperation::Subtract);
+        assert_eq!(geometry_box.surface, "niche-stone");
+        assert_eq!(geometry_box.position, [0.12, 0.76, 0.0]);
+        assert_eq!(geometry_box.size, [0.76, 1.06, 0.46]);
+        assert_eq!(geometry_box.repeat, [1, 2, 1]);
+        assert_eq!(geometry_box.spacing, [0.0, 1.5, 0.0]);
         assert!(matches!(
             &recipe.fields[0],
             FieldDefinition::Height(HeightField {

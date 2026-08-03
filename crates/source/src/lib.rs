@@ -1,14 +1,16 @@
 use procedural_recipes::{
-    GeometryFeature, MaterialRecipe, RecipeDocument, RecipeRenderer, RenderOptions, WrapMode,
-    parse_document,
+    GeometryFeature, GeometryOperation, MaterialRecipe, RecipeDocument, RecipeRenderer,
+    RenderOptions, WrapMode, parse_document,
 };
 use rusterix::{
     GeometryObject, GeometryObjectKind, Light, LightType, Map, MapCamera, PixelSource, Sector,
-    Texture, Tile, TileGeometryFeature, TileNicheGeometry, TileRole, Value, ValueContainer,
-    map::tile::TileLightEmitter,
+    Texture, Tile, TileBoxGeometry, TileGeometryFeature, TileGeometryOperation, TileRole, Value,
+    ValueContainer, map::tile::TileLightEmitter,
 };
 use serde::Deserialize;
-use shared::prelude::{Asset, AssetBuffer, Character, IndexMap, Item, Project, Region, Screen};
+use shared::prelude::{
+    Asset, AssetBuffer, Character, IndexMap, Item, ProceduralRecipeAsset, Project, Region, Screen,
+};
 use std::path::{Path, PathBuf};
 use std::{collections::BTreeMap, fs};
 use uuid::Uuid;
@@ -374,9 +376,11 @@ struct ResolvedTileSymbol {
     wall_feature: bool,
     ceiling: Option<PixelSource>,
     ceiling_coverage: [u32; 2],
+    ceiling_geometry: Vec<ResolvedSourceGeometry>,
     ceiling_height: Option<f32>,
     wall_profile: SourceWallProfile,
     niche: Option<ResolvedSourceNiche>,
+    geometry: Vec<ResolvedSourceGeometry>,
     light_emitter: Option<TileLightEmitter>,
 }
 
@@ -394,6 +398,18 @@ struct ResolvedSourceNiche {
     frame_width: f32,
 }
 
+#[derive(Debug, Clone)]
+struct ResolvedSourceGeometry {
+    name: String,
+    operation: TileGeometryOperation,
+    source: PixelSource,
+    coverage: [u32; 2],
+    position: Vec3<f32>,
+    size: Vec3<f32>,
+    repeat: [u32; 3],
+    spacing: Vec3<f32>,
+}
+
 impl ResolvedTileSymbol {
     fn tile_only(source: PixelSource) -> Self {
         Self::tile_with_coverage(source, [1, 1])
@@ -408,9 +424,11 @@ impl ResolvedTileSymbol {
             wall_feature: false,
             ceiling: None,
             ceiling_coverage: [1, 1],
+            ceiling_geometry: Vec::new(),
             ceiling_height: None,
             wall_profile: SourceWallProfile::Flat,
             niche: None,
+            geometry: Vec::new(),
             light_emitter: None,
         }
     }
@@ -661,11 +679,15 @@ fn load_procedural_recipe_dir(
                 .with_source_name(path.display().to_string())
                 .to_string()
         })?;
-        documents.push((path, source, document));
+        let alias = asset_name_from_path(&root, &path).to_ascii_lowercase();
+        let asset = ProceduralRecipeAsset::new(alias, source.clone());
+        let asset_id = asset.id;
+        project.procedural_recipes.insert(asset_id, asset);
+        documents.push((path, source, document, asset_id));
     }
 
     let mut materials = BTreeMap::<String, MaterialRecipe>::new();
-    for (path, source, document) in &documents {
+    for (path, source, document, _) in &documents {
         let RecipeDocument::Materials(document) = document else {
             continue;
         };
@@ -689,7 +711,7 @@ fn load_procedural_recipe_dir(
         }
     }
 
-    for (path, source, document) in &documents {
+    for (path, source, document, _) in &documents {
         let RecipeDocument::Sdfs(document) = document else {
             continue;
         };
@@ -722,7 +744,7 @@ fn load_procedural_recipe_dir(
             root.display()
         )
     })?;
-    for (path, _, document) in documents {
+    for (path, _, document, recipe_asset_id) in documents {
         let RecipeDocument::Tile(recipe) = document else {
             continue;
         };
@@ -884,15 +906,17 @@ fn load_procedural_recipe_dir(
             .geometry
             .iter()
             .map(|feature| match feature {
-                GeometryFeature::Niche(niche) => TileGeometryFeature::Niche(TileNicheGeometry {
-                    name: niche.name.clone(),
-                    surface: niche.surface.clone(),
-                    frame: niche.frame.clone(),
-                    position: niche.position,
-                    size: niche.size,
-                    depth: niche.depth,
-                    sill: niche.sill,
-                    frame_width: niche.frame_width,
+                GeometryFeature::Box(geometry_box) => TileGeometryFeature::Box(TileBoxGeometry {
+                    name: geometry_box.name.clone(),
+                    operation: match geometry_box.operation {
+                        GeometryOperation::Add => TileGeometryOperation::Add,
+                        GeometryOperation::Subtract => TileGeometryOperation::Subtract,
+                    },
+                    surface: geometry_box.surface.clone(),
+                    position: geometry_box.position,
+                    size: geometry_box.size,
+                    repeat: geometry_box.repeat,
+                    spacing: geometry_box.spacing,
                 }),
             })
             .collect();
@@ -900,7 +924,11 @@ fn load_procedural_recipe_dir(
             tile.material_alias = alias.to_string();
             tile.baked_material_data = tile.textures.iter().map(Texture::material_bytes).collect();
         }
-        project.tiles.insert(tile.id, tile);
+        let tile_id = tile.id;
+        project.tiles.insert(tile_id, tile);
+        if let Some(asset) = project.procedural_recipes.get_mut(&recipe_asset_id) {
+            asset.tile_id = Some(tile_id);
+        }
     }
 
     Ok(())
@@ -1163,7 +1191,7 @@ impl SourceTileLookup {
         };
         let coverage = self.coverage_for(&source);
         let blocking = self.blocking_for(&source);
-        let niche = self.recipe_niche_for(&source).ok().flatten();
+        let geometry = self.recipe_geometry_for(&source).ok().unwrap_or_default();
         Some(ResolvedTileSymbol {
             source,
             coverage,
@@ -1172,9 +1200,11 @@ impl SourceTileLookup {
             wall_feature: false,
             ceiling: None,
             ceiling_coverage: [1, 1],
+            ceiling_geometry: Vec::new(),
             ceiling_height: None,
             wall_profile: SourceWallProfile::Flat,
-            niche,
+            niche: None,
+            geometry,
             light_emitter,
         })
     }
@@ -1186,53 +1216,62 @@ impl SourceTileLookup {
         }
     }
 
-    fn recipe_niche_for(
+    fn recipe_geometry_for(
         &self,
         source: &PixelSource,
-    ) -> Result<Option<ResolvedSourceNiche>, String> {
+    ) -> Result<Vec<ResolvedSourceGeometry>, String> {
         let PixelSource::TileId(id) = source else {
-            return Ok(None);
+            return Ok(Vec::new());
         };
         let Some(features) = self.geometry.get(id) else {
-            return Ok(None);
+            return Ok(Vec::new());
         };
-        let Some(feature) = features.first() else {
-            return Ok(None);
-        };
-        let TileGeometryFeature::Niche(niche) = feature;
-        let niche_source = self.source_for(&niche.surface).ok_or_else(|| {
-            format!(
-                "Tile geometry Niche '{}' references unknown surface tile '{}'",
-                niche.name, niche.surface
-            )
-        })?;
-        let frame = niche
-            .frame
-            .as_deref()
-            .map(|alias| {
-                self.source_for(alias).ok_or_else(|| {
+
+        features
+            .iter()
+            .map(|feature| {
+                let geometry_box = match feature {
+                    TileGeometryFeature::Box(geometry_box) => geometry_box.clone(),
+                    TileGeometryFeature::Niche(niche) => TileBoxGeometry {
+                        name: niche.name.clone(),
+                        operation: TileGeometryOperation::Subtract,
+                        surface: niche.surface.clone(),
+                        position: [niche.position[0], niche.position[1] + niche.sill, 0.0],
+                        size: [niche.size[0], niche.size[1] - niche.sill, niche.depth],
+                        repeat: [1, 1, 1],
+                        spacing: [0.0, 0.0, 0.0],
+                    },
+                };
+                let geometry_source = self.source_for(&geometry_box.surface).ok_or_else(|| {
                     format!(
-                        "Tile geometry Niche '{}' references unknown frame tile '{}'",
-                        niche.name, alias
+                        "Tile geometry Box '{}' references unknown surface tile '{}'",
+                        geometry_box.name, geometry_box.surface
                     )
+                })?;
+                Ok(ResolvedSourceGeometry {
+                    name: geometry_box.name,
+                    operation: geometry_box.operation,
+                    coverage: self.coverage_for(&geometry_source),
+                    source: geometry_source,
+                    position: Vec3::new(
+                        geometry_box.position[0],
+                        geometry_box.position[1],
+                        geometry_box.position[2],
+                    ),
+                    size: Vec3::new(
+                        geometry_box.size[0],
+                        geometry_box.size[1],
+                        geometry_box.size[2],
+                    ),
+                    repeat: geometry_box.repeat,
+                    spacing: Vec3::new(
+                        geometry_box.spacing[0],
+                        geometry_box.spacing[1],
+                        geometry_box.spacing[2],
+                    ),
                 })
             })
-            .transpose()?;
-        Ok(Some(ResolvedSourceNiche {
-            id: niche.name.clone(),
-            coverage: self.coverage_for(&niche_source),
-            source: niche_source,
-            frame_coverage: frame
-                .as_ref()
-                .map(|source| self.coverage_for(source))
-                .unwrap_or([1, 1]),
-            frame,
-            position: Vec2::new(niche.position[0], niche.position[1]),
-            size: Vec2::new(niche.size[0], niche.size[1]),
-            depth: niche.depth,
-            sill: niche.sill,
-            frame_width: niche.frame_width,
-        }))
+            .collect()
     }
 
     fn coverage_for(&self, source: &PixelSource) -> [u32; 2] {
@@ -1316,11 +1355,16 @@ fn resolve_source_tiles(
         };
         let coverage = lookup.coverage_for(&source);
         let recipe_blocking = lookup.blocking_for(&source);
-        let recipe_niche = lookup.recipe_niche_for(&source)?;
+        let geometry = lookup.recipe_geometry_for(&source)?;
         let ceiling_coverage = ceiling
             .as_ref()
             .map(|source| lookup.coverage_for(source))
             .unwrap_or([1, 1]);
+        let ceiling_geometry = ceiling
+            .as_ref()
+            .map(|source| lookup.recipe_geometry_for(source))
+            .transpose()?
+            .unwrap_or_default();
         let niche = match symbol.niche.as_deref() {
             Some(id) => {
                 let definition = source_niches.get(id).ok_or_else(|| {
@@ -1348,7 +1392,7 @@ fn resolve_source_tiles(
                     frame_width: 0.0,
                 })
             }
-            None => recipe_niche,
+            None => None,
         };
         explicit.insert(
             glyph,
@@ -1360,13 +1404,17 @@ fn resolve_source_tiles(
                 source,
                 coverage,
                 material: symbol.material,
-                blocking: symbol.blocking.or(recipe_blocking),
+                blocking: symbol
+                    .blocking
+                    .or(recipe_blocking.filter(|blocking| *blocking)),
                 wall_feature: symbol.wall_feature,
                 ceiling,
                 ceiling_coverage,
+                ceiling_geometry,
                 ceiling_height: symbol.ceiling_height,
                 wall_profile: symbol.wall_profile,
                 niche,
+                geometry,
             },
         );
     }
@@ -1811,26 +1859,31 @@ fn build_3d_blocks_from_source_terrain(
             if glyph == '@' {
                 add_source_entrance_sector(map, x as f32, y as f32)?;
             }
-            add_source_block(
-                map,
-                format!("ceiling_{x}_{y}"),
-                x as f32,
-                ceiling_height,
-                y as f32,
-                x as f32 + 1.0,
-                ceiling_height + SOURCE_CEILING_THICKNESS,
-                y as f32 + 1.0,
-                glyph_tile
-                    .and_then(|tile| {
-                        tile.ceiling.map(|source| {
-                            ResolvedTileSymbol::tile_with_coverage(source, tile.ceiling_coverage)
-                        })
+            let ceiling_tile = glyph_tile
+                .and_then(|tile| {
+                    tile.ceiling.map(|source| ResolvedTileSymbol {
+                        source,
+                        coverage: tile.ceiling_coverage,
+                        geometry: tile.ceiling_geometry,
+                        ..ResolvedTileSymbol::tile_only(PixelSource::Off)
                     })
-                    .or_else(|| source_tiles.ceiling.clone())
-                    .or_else(|| source_tiles.floor.clone())
-                    .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(7))),
+                })
+                .or_else(|| source_tiles.ceiling.clone())
+                .or_else(|| source_tiles.floor.clone())
+                .unwrap_or_else(|| ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(7)));
+            add_source_programmed_block(
+                map,
+                &format!("ceiling_{x}_{y}"),
+                Vec3::new(x as f32, ceiling_height, y as f32),
+                Vec3::new(
+                    x as f32 + 1.0,
+                    ceiling_height + SOURCE_CEILING_THICKNESS,
+                    y as f32 + 1.0,
+                ),
+                ceiling_tile.clone(),
                 false,
-                false,
+                &ceiling_tile.geometry,
+                &[SourceGeometryPlacement::Ceiling],
             );
             cells += 1;
         }
@@ -1863,6 +1916,7 @@ fn build_3d_blocks_from_source_terrain(
             let wall_feature = symbol_tile.wall_feature;
             let wall_profile = symbol_tile.wall_profile;
             let niche = symbol_tile.niche.clone();
+            let geometry = symbol_tile.geometry.clone();
             let wall_height =
                 source_wall_height(source_region, source_tiles, x as isize, y as isize);
             let wall_tile = if wall_feature {
@@ -1873,7 +1927,32 @@ fn build_3d_blocks_from_source_terrain(
             } else {
                 symbol_tile.clone()
             };
-            if let Some(niche) = niche {
+            if !geometry.is_empty() {
+                let placements = [(0_isize, -1_isize), (1, 0), (0, 1), (-1, 0)]
+                    .into_iter()
+                    .filter(|(dx, dz)| {
+                        source_walkable_ceiling_height(
+                            &source_region.terrain,
+                            x as isize + dx,
+                            y as isize + dz,
+                            source_region,
+                            source_tiles,
+                        )
+                        .is_some()
+                    })
+                    .map(SourceGeometryPlacement::Wall)
+                    .collect::<Vec<_>>();
+                add_source_programmed_block(
+                    map,
+                    &format!("wall_{x}_{y}"),
+                    Vec3::new(x as f32, 0.0, y as f32),
+                    Vec3::new(x as f32 + 1.0, wall_height, y as f32 + 1.0),
+                    wall_tile.clone(),
+                    true,
+                    &geometry,
+                    &placements,
+                );
+            } else if let Some(niche) = niche {
                 add_source_carved_wall(
                     map,
                     source_region,
@@ -2015,6 +2094,262 @@ fn validate_source_niches(
         }
     }
     Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum SourceGeometryPlacement {
+    Ceiling,
+    Wall((isize, isize)),
+}
+
+#[derive(Clone)]
+struct SourceGeometryVolume {
+    name: String,
+    operation: TileGeometryOperation,
+    min: Vec3<f32>,
+    max: Vec3<f32>,
+    source: PixelSource,
+    coverage: [u32; 2],
+}
+
+impl SourceGeometryVolume {
+    fn contains(&self, point: Vec3<f32>) -> bool {
+        point.x >= self.min.x
+            && point.x <= self.max.x
+            && point.y >= self.min.y
+            && point.y <= self.max.y
+            && point.z >= self.min.z
+            && point.z <= self.max.z
+    }
+}
+
+fn source_geometry_volumes(
+    nodes: &[ResolvedSourceGeometry],
+    placement: SourceGeometryPlacement,
+    base_min: Vec3<f32>,
+    base_max: Vec3<f32>,
+) -> Vec<SourceGeometryVolume> {
+    let mut volumes = Vec::new();
+    for node in nodes {
+        for repeat_x in 0..node.repeat[0] {
+            for repeat_y in 0..node.repeat[1] {
+                for repeat_z in 0..node.repeat[2] {
+                    let position = node.position
+                        + Vec3::new(
+                            repeat_x as f32 * node.spacing.x,
+                            repeat_y as f32 * node.spacing.y,
+                            repeat_z as f32 * node.spacing.z,
+                        );
+                    let (min, max) = source_geometry_world_bounds(
+                        position, node.size, placement, base_min, base_max,
+                    );
+                    volumes.push(SourceGeometryVolume {
+                        name: node.name.clone(),
+                        operation: node.operation,
+                        min,
+                        max,
+                        source: node.source.clone(),
+                        coverage: node.coverage,
+                    });
+                }
+            }
+        }
+    }
+    volumes
+}
+
+fn source_geometry_world_bounds(
+    position: Vec3<f32>,
+    size: Vec3<f32>,
+    placement: SourceGeometryPlacement,
+    base_min: Vec3<f32>,
+    base_max: Vec3<f32>,
+) -> (Vec3<f32>, Vec3<f32>) {
+    match placement {
+        SourceGeometryPlacement::Ceiling => {
+            let min = Vec3::new(
+                base_min.x + position.x,
+                base_min.y - position.y - size.y,
+                base_min.z + position.z,
+            );
+            (min, min + size)
+        }
+        SourceGeometryPlacement::Wall((0, -1)) => {
+            let min = Vec3::new(
+                base_min.x + position.x,
+                base_min.y + position.y,
+                base_min.z + position.z,
+            );
+            (min, min + size)
+        }
+        SourceGeometryPlacement::Wall((1, 0)) => {
+            let min = Vec3::new(
+                base_max.x - position.z - size.z,
+                base_min.y + position.y,
+                base_min.z + position.x,
+            );
+            (min, min + Vec3::new(size.z, size.y, size.x))
+        }
+        SourceGeometryPlacement::Wall((0, 1)) => {
+            let min = Vec3::new(
+                base_min.x + position.x,
+                base_min.y + position.y,
+                base_max.z - position.z - size.z,
+            );
+            (min, min + size)
+        }
+        SourceGeometryPlacement::Wall((-1, 0)) => {
+            let min = Vec3::new(
+                base_min.x + position.z,
+                base_min.y + position.y,
+                base_min.z + position.x,
+            );
+            (min, min + Vec3::new(size.z, size.y, size.x))
+        }
+        SourceGeometryPlacement::Wall(_) => (base_min, base_min),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn add_source_programmed_block(
+    map: &mut Map,
+    name: &str,
+    base_min: Vec3<f32>,
+    base_max: Vec3<f32>,
+    base_tile: ResolvedTileSymbol,
+    solid: bool,
+    nodes: &[ResolvedSourceGeometry],
+    placements: &[SourceGeometryPlacement],
+) {
+    if nodes.is_empty() {
+        add_source_block(
+            map,
+            name.to_string(),
+            base_min.x,
+            base_min.y,
+            base_min.z,
+            base_max.x,
+            base_max.y,
+            base_max.z,
+            base_tile,
+            solid,
+            false,
+        );
+        return;
+    }
+
+    let volumes = placements
+        .iter()
+        .flat_map(|placement| source_geometry_volumes(nodes, *placement, base_min, base_max))
+        .collect::<Vec<_>>();
+    let subtract = volumes
+        .iter()
+        .filter(|volume| volume.operation == TileGeometryOperation::Subtract)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let mut x_cuts = vec![base_min.x, base_max.x];
+    let mut y_cuts = vec![base_min.y, base_max.y];
+    let mut z_cuts = vec![base_min.z, base_max.z];
+    for volume in &subtract {
+        x_cuts.extend([
+            volume.min.x.clamp(base_min.x, base_max.x),
+            volume.max.x.clamp(base_min.x, base_max.x),
+        ]);
+        y_cuts.extend([
+            volume.min.y.clamp(base_min.y, base_max.y),
+            volume.max.y.clamp(base_min.y, base_max.y),
+        ]);
+        z_cuts.extend([
+            volume.min.z.clamp(base_min.z, base_max.z),
+            volume.max.z.clamp(base_min.z, base_max.z),
+        ]);
+    }
+    sort_source_wall_cuts(&mut x_cuts);
+    sort_source_wall_cuts(&mut y_cuts);
+    sort_source_wall_cuts(&mut z_cuts);
+
+    let mut part = 0usize;
+    for x_bounds in x_cuts.windows(2) {
+        for y_bounds in y_cuts.windows(2) {
+            for z_bounds in z_cuts.windows(2) {
+                let min = Vec3::new(x_bounds[0], y_bounds[0], z_bounds[0]);
+                let max = Vec3::new(x_bounds[1], y_bounds[1], z_bounds[1]);
+                let center = (min + max) * 0.5;
+                if subtract.iter().any(|volume| volume.contains(center)) {
+                    continue;
+                }
+                add_source_block(
+                    map,
+                    format!("{name}_part_{part}"),
+                    min.x,
+                    min.y,
+                    min.z,
+                    max.x,
+                    max.y,
+                    max.z,
+                    base_tile.clone(),
+                    solid,
+                    false,
+                );
+                if let Some(object) = map.geometry_objects.last_mut() {
+                    apply_source_subtraction_surfaces(object, min, max, &subtract);
+                }
+                part += 1;
+            }
+        }
+    }
+
+    for (index, volume) in volumes
+        .iter()
+        .filter(|volume| volume.operation == TileGeometryOperation::Add)
+        .enumerate()
+    {
+        add_source_block(
+            map,
+            format!("{name}_{}_add_{index}", volume.name),
+            volume.min.x,
+            volume.min.y,
+            volume.min.z,
+            volume.max.x,
+            volume.max.y,
+            volume.max.z,
+            ResolvedTileSymbol {
+                source: volume.source.clone(),
+                coverage: volume.coverage,
+                ..ResolvedTileSymbol::tile_only(PixelSource::Off)
+            },
+            false,
+            false,
+        );
+    }
+}
+
+fn apply_source_subtraction_surfaces(
+    object: &mut GeometryObject,
+    min: Vec3<f32>,
+    max: Vec3<f32>,
+    subtract: &[SourceGeometryVolume],
+) {
+    let center = (min + max) * 0.5;
+    let epsilon = 0.0001;
+    let samples = [
+        Vec3::new(center.x, center.y, min.z - epsilon),
+        Vec3::new(center.x, center.y, max.z + epsilon),
+        Vec3::new(min.x - epsilon, center.y, center.z),
+        Vec3::new(max.x + epsilon, center.y, center.z),
+        Vec3::new(center.x, max.y + epsilon, center.z),
+        Vec3::new(center.x, min.y - epsilon, center.z),
+    ];
+    for (face_index, sample) in samples.iter().enumerate() {
+        let Some(volume) = subtract.iter().find(|volume| volume.contains(*sample)) else {
+            continue;
+        };
+        if let Some(face) = object.faces.get_mut(face_index) {
+            face.tile = Some(volume.source.clone());
+        }
+        apply_source_face_recipe_uvs(object, face_index, volume.coverage);
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -4249,9 +4584,11 @@ Screen "play" {
                 wall_feature: false,
                 ceiling: None,
                 ceiling_coverage: [1, 1],
+                ceiling_geometry: Vec::new(),
                 ceiling_height: None,
                 wall_profile: SourceWallProfile::Flat,
                 niche: None,
+                geometry: Vec::new(),
                 light_emitter: None,
             },
         );
@@ -4265,9 +4602,11 @@ Screen "play" {
                 wall_feature: false,
                 ceiling: None,
                 ceiling_coverage: [1, 1],
+                ceiling_geometry: Vec::new(),
                 ceiling_height: None,
                 wall_profile: SourceWallProfile::Flat,
                 niche: None,
+                geometry: Vec::new(),
                 light_emitter: None,
             },
         );
@@ -4288,9 +4627,11 @@ Screen "play" {
             wall_feature: false,
             ceiling: None,
             ceiling_coverage: [1, 1],
+            ceiling_geometry: Vec::new(),
             ceiling_height: None,
             wall_profile: SourceWallProfile::Flat,
             niche: None,
+            geometry: Vec::new(),
             light_emitter: None,
         };
         let mut source_tiles = ResolvedSourceTiles {
@@ -4309,9 +4650,11 @@ Screen "play" {
                 wall_feature: true,
                 ceiling: None,
                 ceiling_coverage: [1, 1],
+                ceiling_geometry: Vec::new(),
                 ceiling_height: None,
                 wall_profile: SourceWallProfile::Flat,
                 niche: None,
+                geometry: Vec::new(),
                 light_emitter: None,
             },
         );
@@ -4356,6 +4699,100 @@ Screen "play" {
                 .map(|(index, _)| index)
                 .eq([1])
         );
+    }
+
+    #[test]
+    fn generic_geometry_program_adds_and_subtracts_placement_local_boxes() {
+        let base = ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(1));
+        let recess = ResolvedSourceGeometry {
+            name: "Recess".to_string(),
+            operation: TileGeometryOperation::Subtract,
+            source: PixelSource::PaletteIndex(2),
+            coverage: [1, 1],
+            position: Vec3::new(0.2, 0.5, 0.0),
+            size: Vec3::new(0.6, 1.0, 0.4),
+            repeat: [1, 1, 1],
+            spacing: Vec3::zero(),
+        };
+        let mut wall_map = Map::default();
+        add_source_programmed_block(
+            &mut wall_map,
+            "generic_wall",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 2.0, 1.0),
+            base.clone(),
+            true,
+            &[recess],
+            &[SourceGeometryPlacement::Wall((0, -1))],
+        );
+
+        let cavity_center = Vec3::new(0.5, 1.0, 0.2);
+        assert!(wall_map.geometry_objects.iter().all(|object| {
+            let min = object
+                .vertices
+                .iter()
+                .fold(Vec3::broadcast(f32::INFINITY), |min, p| {
+                    Vec3::new(min.x.min(p.x), min.y.min(p.y), min.z.min(p.z))
+                });
+            let max = object
+                .vertices
+                .iter()
+                .fold(Vec3::broadcast(f32::NEG_INFINITY), |max, p| {
+                    Vec3::new(max.x.max(p.x), max.y.max(p.y), max.z.max(p.z))
+                });
+            !(cavity_center.x > min.x
+                && cavity_center.x < max.x
+                && cavity_center.y > min.y
+                && cavity_center.y < max.y
+                && cavity_center.z > min.z
+                && cavity_center.z < max.z)
+        }));
+        assert!(
+            wall_map
+                .geometry_objects
+                .iter()
+                .flat_map(|object| &object.faces)
+                .any(|face| face.tile == Some(PixelSource::PaletteIndex(2)))
+        );
+
+        let beam = ResolvedSourceGeometry {
+            name: "Beam".to_string(),
+            operation: TileGeometryOperation::Add,
+            source: PixelSource::PaletteIndex(3),
+            coverage: [1, 1],
+            position: Vec3::new(0.0, 0.0, 0.4),
+            size: Vec3::new(1.0, 0.18, 0.2),
+            repeat: [1, 1, 1],
+            spacing: Vec3::zero(),
+        };
+        let mut ceiling_map = Map::default();
+        add_source_programmed_block(
+            &mut ceiling_map,
+            "generic_ceiling",
+            Vec3::new(0.0, 3.0, 0.0),
+            Vec3::new(1.0, 3.1, 1.0),
+            base,
+            false,
+            &[beam],
+            &[SourceGeometryPlacement::Ceiling],
+        );
+        let generated_beam = ceiling_map
+            .geometry_objects
+            .iter()
+            .find(|object| object.name == "generic_ceiling_Beam_add_0")
+            .expect("generic additive beam exists");
+        assert!(
+            generated_beam
+                .faces
+                .iter()
+                .all(|face| face.tile == Some(PixelSource::PaletteIndex(3)))
+        );
+        let beam_min_y = generated_beam
+            .vertices
+            .iter()
+            .map(|vertex| vertex.y)
+            .fold(f32::INFINITY, f32::min);
+        assert!((beam_min_y - 2.82).abs() < 0.0001);
     }
 
     #[test]
@@ -4725,10 +5162,10 @@ Niche "too-wide" {
         assert_eq!(
             first_front.uvs,
             vec![
-                Vec2::new(1.0, 0.0),
-                Vec2::new(1.25, 0.0),
-                Vec2::new(1.25, 0.75),
-                Vec2::new(1.0, 0.75),
+                Vec2::new(3.0, 0.0),
+                Vec2::new(3.25, 0.0),
+                Vec2::new(3.25, 0.75),
+                Vec2::new(3.0, 0.75),
             ]
         );
         assert_eq!(first_front.uvs[1], next_front.uvs[0]);
@@ -5077,6 +5514,13 @@ Sdf helmet
         );
         assert!(project.procedural_sdfs.contains_key("helmet"));
         assert!(project.procedural_sdfs.contains_key("helmet/helmet"));
+        assert_eq!(project.procedural_recipes.len(), 6);
+        assert!(
+            project
+                .procedural_recipes
+                .values()
+                .any(|asset| { asset.alias == "dungeon/wall" && asset.tile_id == Some(wall.id) })
+        );
         let material_frames = wall.to_material_array();
         let mut material_texture = Texture::from_color([0, 0, 0, 255]);
         material_texture.width = wall.textures[0].width;
@@ -5113,7 +5557,10 @@ Sdf helmet
         load_procedural_recipe_dir(&mut project, &stonefall, "recipes")
             .expect("Stonefall procedural recipes load");
 
+        assert_eq!(project.procedural_recipes.len(), 11);
+
         let expected = [
+            ("ceiling-beam-wood", [3, 1], [192, 64], "dungeon/beam_wood"),
             ("ceiling-stone", [3, 3], [192, 192], "dungeon/ceiling_stone"),
             ("floor-stone", [3, 3], [192, 192], "dungeon/floor_stone"),
             ("niche-stone", [1, 1], [64, 64], "dungeon/wall_mortar"),
@@ -5158,6 +5605,24 @@ Sdf helmet
             .find(|tile| tile.alias == "wall-niche")
             .expect("Stonefall wall niche exists");
         assert_eq!(wall_niche.geometry.len(), 1);
+        assert!(matches!(
+            &wall_niche.geometry[0],
+            TileGeometryFeature::Box(geometry_box)
+                if geometry_box.operation == TileGeometryOperation::Subtract
+                    && geometry_box.surface == "niche-stone"
+        ));
+
+        let ceiling = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "ceiling-stone")
+            .expect("Stonefall ceiling exists");
+        assert!(matches!(
+            &ceiling.geometry[0],
+            TileGeometryFeature::Box(geometry_box)
+                if geometry_box.operation == TileGeometryOperation::Add
+                    && geometry_box.surface == "ceiling-beam-wood"
+        ));
     }
 
     #[test]

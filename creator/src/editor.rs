@@ -5061,7 +5061,6 @@ impl Editor {
                 "regions": self.project.regions.len(),
                 "tiles": self.project.tiles.len(),
                 "tile_groups": self.project.tile_groups.len(),
-                "tile_node_groups": self.project.tile_node_groups.len(),
                 "characters": self.project.characters.len(),
                 "items": self.project.items.len(),
                 "screens": self.project.screens.len(),
@@ -9325,20 +9324,6 @@ impl TheTrait for Editor {
                                 redraw = true;
                             }
                         }
-                    } else if id.name == "Open Tile Node Group Workflow" {
-                        self.server_ctx.tile_node_group_id = if let TheValue::Id(group_id) = value {
-                            Some(group_id)
-                        } else {
-                            None
-                        };
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Open Tile Node Editor Skeleton"),
-                            value.clone(),
-                        ));
-                        let mut dm = DOCKMANAGER.write().unwrap();
-                        dm.set_dock("Tiles".into(), ui, ctx, &self.project, &mut self.server_ctx);
-                        dm.edit_maximize(ui, ctx, &mut self.project, &mut self.server_ctx);
-                        redraw = true;
                     } else if id.name == "Open Builder Graph Workflow" {
                         if let TheValue::Id(builder_id) = value {
                             self.server_ctx.curr_builder_graph_id = Some(builder_id);
@@ -9352,10 +9337,6 @@ impl TheTrait for Editor {
                             &mut self.server_ctx,
                         );
                         dm.edit_maximize(ui, ctx, &mut self.project, &mut self.server_ctx);
-                        redraw = true;
-                    } else if id.name == "Close Tile Node Editor Skeleton" {
-                        self.server_ctx.tile_node_group_id = None;
-                        DOCKMANAGER.write().unwrap().minimize(ui, ctx);
                         redraw = true;
                     } else if id.name == "Minimize Dock" {
                         DOCKMANAGER.write().unwrap().minimize(ui, ctx);

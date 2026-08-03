@@ -150,6 +150,4 @@ pub struct TreasuryTileCollectionPackage {
     pub tiles: IndexMap<Uuid, rusterix::Tile>,
     #[serde(default)]
     pub tile_groups: IndexMap<Uuid, rusterix::TileGroup>,
-    #[serde(default)]
-    pub tile_node_groups: IndexMap<Uuid, NodeGroupAsset>,
 }

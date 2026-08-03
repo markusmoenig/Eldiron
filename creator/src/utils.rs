@@ -252,7 +252,7 @@ pub fn get_surface_apply_source(
                     .cloned()
                     .map(|group| SurfaceApplySource::TileGroup {
                         group,
-                        flip_y: project.tile_node_groups.contains_key(&id),
+                        flip_y: false,
                     })
             }
             TileSource::TileGroupMember { .. } => server_ctx
@@ -265,7 +265,7 @@ pub fn get_surface_apply_source(
                 .cloned()
                 .map(|group| SurfaceApplySource::TileGroup {
                     group,
-                    flip_y: project.tile_node_groups.contains_key(&id),
+                    flip_y: false,
                 })
                 .or_else(|| {
                     server_ctx

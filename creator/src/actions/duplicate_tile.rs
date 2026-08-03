@@ -90,16 +90,6 @@ impl DuplicateTile {
         let new_group_id = cloned_group.id;
         project.add_tile_group(cloned_group);
 
-        if let Some(node_group) = project.tile_node_groups.get(&group_id).cloned() {
-            let mut cloned_node_group = node_group;
-            cloned_node_group.group_id = new_group_id;
-            cloned_node_group.graph_id = Uuid::new_v4();
-            if !cloned_node_group.graph_name.is_empty() {
-                cloned_node_group.graph_name = format!("{} Copy", cloned_node_group.graph_name);
-            }
-            project.add_tile_node_group(cloned_node_group);
-        }
-
         let pos = Self::append_board_position(
             project,
             Vec2::new(group.width as i32, group.height as i32),
@@ -108,9 +98,6 @@ impl DuplicateTile {
         project.set_tile_board_position(TileSource::TileGroup(new_group_id), pos);
 
         server_ctx.curr_tile_source = Some(TileSource::TileGroup(new_group_id));
-        server_ctx.tile_node_group_id = project
-            .is_tile_node_group(&new_group_id)
-            .then_some(new_group_id);
         server_ctx.curr_tile_id = project
             .tile_groups
             .get(&new_group_id)
@@ -178,12 +165,7 @@ impl Action for DuplicateTile {
                     self.clone_tile_group(project, group_id, server_ctx, ctx);
                     return;
                 }
-                TileSource::TileGroupMember { group_id, .. } => {
-                    if project.is_tile_node_group(&group_id) {
-                        self.clone_tile_group(project, group_id, server_ctx, ctx);
-                        return;
-                    }
-                }
+                TileSource::TileGroupMember { .. } => {}
                 _ => {}
             }
         }

@@ -16,6 +16,7 @@ path = "src/main.rs"
 
 [dependencies]
 rusterix.workspace = true
+procedural-recipes = { path = "../crates/procedural_recipes", version = "0.93.0" }
 scenevm = { path = "../crates/scenevm", version = "0.93.0", default-features = false, features = ["gpu"] }
 
 shared = { path = "../crates/shared", version = "0.93.0", package = "eldiron-shared", default-features = false, features = ["graphics"] }

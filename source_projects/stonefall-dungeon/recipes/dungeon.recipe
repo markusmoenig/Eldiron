@@ -107,6 +107,52 @@ Material ceiling_stone
         normal = Dust
         normal_strength = 0.44
 
+Material beam_wood
+    name = "Ceiling Beam Wood"
+    wrap = Repeat
+    seed = 331
+
+    Noise Warp
+        type = Gradient
+        fractal = FBm
+        scale = F2(3.0, 2.0)
+        octaves = 3
+        persistence = 0.52
+        seed = 37
+
+    Noise Pores
+        type = Gradient
+        fractal = Ridged
+        scale = F2(5.0, 18.0)
+        octaves = 2
+        persistence = 0.44
+        seed = 43
+
+    Value Grain
+        source = Pow(Abs(Sin(V * 8.5 + Sin(U * 2.0) * 0.24 + Warp * 1.15)), 5.5)
+
+    Value Tone
+        source = Clamp(0.52 - Grain * 0.38 + Pores * 0.10, 0.0, 1.0)
+
+    Color WoodDark
+        nearest = #1b0e08
+
+    Color WoodLight
+        nearest = #593018
+
+    Color WoodColor
+        source = Mix(WoodDark, WoodLight, Tone)
+
+    Surface
+        color = WoodColor
+        palette = BaseOnly
+        roughness = Clamp(0.58 + Pores * 0.24, 0.0, 1.0)
+        metallic = 0.0
+        opacity = 1.0
+        emission = 0.0
+        normal = Clamp(Grain * 0.72 + Pores * 0.28, 0.0, 1.0)
+        normal_strength = 0.30
+
 Material wall_mortar
     name = "Mortar"
     wrap = Repeat

@@ -12,6 +12,7 @@ pub mod iso_paint;
 pub mod log;
 pub mod palette;
 pub mod particle_preview;
+pub mod recipes;
 pub mod text_play;
 pub mod tilemap;
 pub mod tiles;

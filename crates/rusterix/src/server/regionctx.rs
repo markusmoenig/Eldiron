@@ -907,6 +907,11 @@ impl RegionCtx {
                     .and_then(toml::Value::as_table)
                     .and_then(|attrs| attrs.get("ruleset_id"))
                     .and_then(toml::Value::as_str);
+                let source_id = table
+                    .get("attributes")
+                    .and_then(toml::Value::as_table)
+                    .and_then(|attrs| attrs.get("source_id"))
+                    .and_then(toml::Value::as_str);
                 let ruleset_path_id = table
                     .get("attributes")
                     .and_then(toml::Value::as_table)
@@ -916,6 +921,7 @@ impl RegionCtx {
                 let top_name = table.get("name").and_then(toml::Value::as_str);
                 if attr_name.is_some_and(|name| name.eq_ignore_ascii_case(requested))
                     || ruleset_id.is_some_and(|id| id.eq_ignore_ascii_case(requested))
+                    || source_id.is_some_and(|id| id.eq_ignore_ascii_case(requested))
                     || ruleset_path_id.is_some_and(|id| id.eq_ignore_ascii_case(requested))
                     || top_name.is_some_and(|name| name.eq_ignore_ascii_case(requested))
                 {
@@ -1168,5 +1174,32 @@ impl RegionCtx {
                 self.send_player_sector_description(entity, sector, false);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_item_id_resolves_to_runtime_template() {
+        let mut ctx = RegionCtx::default();
+        ctx.assets.items.insert(
+            "Bone Key".to_string(),
+            (
+                String::new(),
+                r#"
+[attributes]
+source_id = "bone_key"
+name = "Bone Key"
+"#
+                .to_string(),
+            ),
+        );
+
+        assert_eq!(
+            ctx.resolve_item_class_name("bone_key"),
+            Some("Bone Key".to_string())
+        );
     }
 }

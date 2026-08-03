@@ -1,0 +1,22 @@
+Tile
+    name = "Ceiling Beam Wood"
+    material = dungeon/beam_wood
+    size = I2(64, 64)
+    coverage = I2(3, 1)
+    wrap = Repeat
+    seed = 127
+    pixelate = 1
+
+    Noise Hewn
+        type = Gradient
+        fractal = Ridged
+        scale = F2(4.0, 15.0)
+        octaves = 3
+        persistence = 0.48
+        seed = 41
+
+    Height Surface
+        source = Clamp(0.42 + Hewn * 0.24, 0.0, 1.0)
+
+    Output
+        height = Surface

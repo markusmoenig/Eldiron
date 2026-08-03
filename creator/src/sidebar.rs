@@ -176,6 +176,12 @@ impl Sidebar {
         ));
         root.add_child(avatars_node);
 
+        let recipes_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            &fl!("recipes"),
+            server_ctx.tree_recipes_id,
+        ));
+        root.add_child(recipes_node);
+
         let mut assets_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("assets"),
             server_ctx.tree_assets_id,
@@ -285,6 +291,7 @@ impl Sidebar {
                 TheContextMenuItem::new("Add Tileset".to_string(), TheId::named("Add Tileset")),
                 TheContextMenuItem::new("Add Screen".to_string(), TheId::named("Add Screen")),
                 TheContextMenuItem::new("Add Avatar".to_string(), TheId::named("Add Avatar")),
+                TheContextMenuItem::new(fl!("add_recipe"), TheId::named("Add Procedural Recipe")),
                 TheContextMenuItem::new(
                     "Add Font Asset".to_string(),
                     TheId::named("Add Font Asset"),
@@ -327,6 +334,10 @@ impl Sidebar {
                 ),
                 TheContextMenuItem::new("Import Screen".to_string(), TheId::named("Import Screen")),
                 TheContextMenuItem::new(fl!("import_avatar"), TheId::named("Import Avatar")),
+                TheContextMenuItem::new(
+                    fl!("import_recipe"),
+                    TheId::named("Import Procedural Recipe"),
+                ),
                 TheContextMenuItem::new(
                     fl!("import_avatar_atlas"),
                     TheId::named("Import Avatar Atlas"),
@@ -951,6 +962,32 @@ impl Sidebar {
                     }
                 } else if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project);
+                } else if id.name == "Select Procedural Recipe" {
+                    if let TheValue::Id(recipe_id) = value
+                        && project.procedural_recipes.contains_key(recipe_id)
+                    {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::ProceduralRecipe(*recipe_id),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Edit Procedural Recipe" {
+                    DOCKMANAGER
+                        .write()
+                        .unwrap()
+                        .edit_maximize(ui, ctx, project, server_ctx);
+                    redraw = true;
+                } else if id.name == "Refresh Recipe Tree" {
+                    if let TheValue::Id(recipe_id) = value {
+                        self.refresh_recipe_tree_item(ui, server_ctx, project, *recipe_id);
+                    } else {
+                        self.apply_recipes(ui, ctx, server_ctx, project);
+                    }
+                    redraw = true;
                 } else if id.name == "Show Node Settings" {
                     if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
                         stack.set_index(1);
@@ -1164,6 +1201,13 @@ impl Sidebar {
                             fl!("eldiron_audio_asset"),
                             vec!["eldiron_audio_asset".to_string()],
                         ),
+                    );
+                } else if item_id.name == "Export Procedural Recipe" {
+                    let export_id = item_id.references;
+                    ctx.ui.save_file_requester(
+                        TheId::named_with_id("Procedural Recipe Export", export_id),
+                        fl!("export_recipe"),
+                        TheFileExtension::new(fl!("recipe_file"), vec!["recipe".to_string()]),
                     );
                 } else if item_id.name == "Export Avatar Atlas" {
                     let export_id = item_id.references;
@@ -2045,6 +2089,46 @@ impl Sidebar {
                             }
                         }
                     }
+                } else if id.name == "Procedural Recipe Import" {
+                    for p in paths {
+                        let Ok(source) = std::fs::read_to_string(p) else {
+                            continue;
+                        };
+                        if let Err(error) = procedural_recipes::parse_document(&source) {
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                format!("{}: {error}", fl!("invalid_recipe")),
+                            ));
+                            continue;
+                        }
+                        let requested = p
+                            .file_stem()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        let alias = crate::recipe_utils::unique_recipe_alias(project, &requested);
+                        let asset = ProceduralRecipeAsset::new(alias, source);
+                        let atom = ProjectUndoAtom::AddProceduralRecipe(asset);
+                        atom.redo(project, ui, ctx, server_ctx);
+                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        redraw = true;
+                    }
+                } else if id.name == "Procedural Recipe Export" {
+                    if let Some(recipe) = project.procedural_recipes.get(&id.uuid) {
+                        for p in paths {
+                            let p = if p.extension().is_none() {
+                                p.with_extension("recipe")
+                            } else {
+                                p.to_path_buf()
+                            };
+                            let status = if std::fs::write(&p, &recipe.source).is_ok() {
+                                fl!("recipe_saved")
+                            } else {
+                                fl!("recipe_save_failed")
+                            };
+                            ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                        }
+                    }
                 }
             }
             TheEvent::ImageDecodeResult(id, name, buffer) => {
@@ -2210,6 +2294,16 @@ impl Sidebar {
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Action Auto" {
                     server_ctx.auto_action = *state == TheWidgetState::Selected;
+                } else if id.name == "Procedural Recipe Item" && *state == TheWidgetState::Selected
+                {
+                    set_project_context(
+                        ctx,
+                        ui,
+                        project,
+                        server_ctx,
+                        ProjectContext::ProceduralRecipe(id.uuid),
+                    );
+                    redraw = true;
                 } else
                 // Iterate actions
                 if let Some(action) =
@@ -2482,6 +2576,13 @@ impl Sidebar {
                     let atom = ProjectUndoAtom::AddAvatar(Avatar::default());
                     atom.redo(project, ui, ctx, server_ctx);
                     UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                } else if id.name == "Add Procedural Recipe" {
+                    let mut recipe = ProceduralRecipeAsset::default();
+                    recipe.alias = crate::recipe_utils::unique_recipe_alias(project, &recipe.alias);
+                    let atom = ProjectUndoAtom::AddProceduralRecipe(recipe);
+                    atom.redo(project, ui, ctx, server_ctx);
+                    UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                    redraw = true;
                 } else if id.name == "Import Item" {
                     if let Some(id) = server_ctx.pc.id() {
                         ctx.ui.open_file_requester(
@@ -2528,6 +2629,12 @@ impl Sidebar {
                             "Eldiron Audio Asset".into(),
                             vec!["eldiron_audio_asset".to_string()],
                         ),
+                    );
+                } else if id.name == "Import Procedural Recipe" {
+                    ctx.ui.open_file_requester(
+                        TheId::named_with_id("Procedural Recipe Import", Uuid::new_v4()),
+                        fl!("import_recipe"),
+                        TheFileExtension::new(fl!("recipe_file"), vec!["recipe".to_string()]),
                     );
                 } else if id.name == "Project Remove" {
                     if server_ctx.pc.is_region() {
@@ -2633,6 +2740,16 @@ impl Sidebar {
                             atom.redo(project, ui, ctx, server_ctx);
                             UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
                         }
+                    } else if let ProjectContext::ProceduralRecipe(recipe_id) = server_ctx.pc {
+                        if let Some(index) = project.procedural_recipes.get_index_of(&recipe_id)
+                            && let Some(recipe) =
+                                project.procedural_recipes.get(&recipe_id).cloned()
+                        {
+                            let atom = ProjectUndoAtom::RemoveProceduralRecipe(index, recipe);
+                            atom.redo(project, ui, ctx, server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            redraw = true;
+                        }
                     } else if server_ctx.pc.is_item() {
                         // Remove Item
                         let mut item: Item = Item::default();
@@ -2693,7 +2810,24 @@ impl Sidebar {
                         }
                     }
                 } else if id.name == "Project Duplicate" {
-                    if server_ctx.pc.is_region() {
+                    if let ProjectContext::ProceduralRecipe(recipe_id) = server_ctx.pc {
+                        if let Some(mut duplicated) =
+                            project.procedural_recipes.get(&recipe_id).cloned()
+                        {
+                            duplicated.id = Uuid::new_v4();
+                            duplicated.alias = crate::recipe_utils::unique_recipe_alias(
+                                project,
+                                &format!("{}-copy", duplicated.alias),
+                            );
+                            duplicated.source =
+                                crate::recipe_utils::duplicate_recipe_source(&duplicated.source);
+                            duplicated.tile_id = None;
+                            let atom = ProjectUndoAtom::AddProceduralRecipe(duplicated);
+                            atom.redo(project, ui, ctx, server_ctx);
+                            UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            redraw = true;
+                        }
+                    } else if server_ctx.pc.is_region() {
                         if let Some(region) = project.get_region_ctx(server_ctx).cloned() {
                             let mut duplicated = region;
                             duplicated.id = Uuid::new_v4();
@@ -2915,6 +3049,15 @@ impl Sidebar {
                                 TheFileExtension::new(
                                     "Eldiron Screen".into(),
                                     vec!["eldiron_screen".to_string()],
+                                ),
+                            );
+                        } else if server_ctx.pc.is_procedural_recipe() {
+                            ctx.ui.save_file_requester(
+                                TheId::named_with_id("Procedural Recipe Export", id),
+                                fl!("export_recipe"),
+                                TheFileExtension::new(
+                                    fl!("recipe_file"),
+                                    vec!["recipe".to_string()],
                                 ),
                             );
                         } else if server_ctx.pc.is_asset() {
@@ -3159,6 +3302,17 @@ impl Sidebar {
                         );
                         redraw = true;
                     }
+                } else if id.name == "Procedural Recipe Item" {
+                    if project.procedural_recipes.contains_key(&id.uuid) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::ProceduralRecipe(id.uuid),
+                        );
+                        redraw = true;
+                    }
                 } else if id.name == "Avatar Animation Item"
                     || id.name == "Avatar Animation Name Edit"
                     || id.name == "Avatar Animation Frame Count Edit"
@@ -3352,6 +3506,7 @@ impl Sidebar {
         if project.art_palette.is_empty() {
             project.art_palette = Project::default().art_palette;
         }
+        crate::recipe_utils::migrate_legacy_recipe_catalog(project);
 
         self.apply_regions(ui, ctx, server_ctx, project);
         self.apply_characters(ui, ctx, server_ctx, project);
@@ -3359,6 +3514,7 @@ impl Sidebar {
         self.apply_tilemaps(ui, ctx, server_ctx, project);
         self.apply_screens(ui, ctx, server_ctx, project);
         self.apply_assets(ui, ctx, server_ctx, project);
+        self.apply_recipes(ui, ctx, server_ctx, project);
         apply_palette(ui, ctx, server_ctx, project);
         self.apply_screen(ui, ctx, None);
         self.apply_avatars(ui, ctx, server_ctx, project);
@@ -3604,6 +3760,64 @@ impl Sidebar {
 
                     avatar_node.add_child(node);
                 }
+            }
+        }
+    }
+
+    /// Rebuild the large thumbnail rows in the top-level Recipes tree item.
+    pub fn apply_recipes(
+        &mut self,
+        ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        project: &mut Project,
+    ) {
+        if let Some(tree_layout) = ui.get_tree_layout("Project Tree")
+            && let Some(recipes_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_recipes_id)
+        {
+            recipes_node.widgets.clear();
+            recipes_node.childs.clear();
+            for recipe in project.procedural_recipes.values() {
+                recipes_node.add_widget(Box::new(gen_procedural_recipe_tree_item(recipe, project)));
+            }
+        }
+    }
+
+    fn refresh_recipe_tree_item(
+        &self,
+        ui: &mut TheUI,
+        server_ctx: &ServerContext,
+        project: &Project,
+        recipe_id: Uuid,
+    ) {
+        let Some(recipe) = project.procedural_recipes.get(&recipe_id) else {
+            return;
+        };
+        let (name, kind) =
+            crate::recipe_utils::recipe_description(&recipe.source).unwrap_or_else(|_| {
+                (
+                    fl!("invalid_recipe"),
+                    crate::recipe_utils::ProceduralRecipeKind::Tile,
+                )
+            });
+        let sub_text = format!(
+            "{} · {}",
+            crate::recipe_utils::localized_recipe_kind(kind),
+            recipe.alias
+        );
+        let preview = crate::recipe_utils::render_recipe_preview(project, recipe_id).ok();
+        if let Some(tree) = ui.get_tree_layout("Project Tree")
+            && let Some(node) = tree.get_node_by_id_mut(&server_ctx.tree_recipes_id)
+            && let Some(widget) = node
+                .widgets
+                .iter_mut()
+                .find(|widget| widget.id().uuid == recipe_id)
+            && let Some(item) = widget.as_tree_item()
+        {
+            item.set_text(name);
+            item.set_sub_text(sub_text);
+            if let Some(preview) = preview {
+                item.set_icon(preview.scaled(52, 52));
             }
         }
     }

@@ -107,30 +107,37 @@ impl Default for Recipe {
     }
 }
 
-/// Optional placement-time geometry authored by a Tile recipe.
+/// Placement-local geometry authored by a Tile recipe.
 ///
-/// These features are evaluated by the map/source compiler because they need placement context
-/// such as exposed wall faces, neighbouring cells, and local ceiling height. Their parameters
-/// remain part of the Tile asset so a map only has to reference that tile.
+/// A caller supplies a placement basis (for example a wall face or ceiling cell). The same
+/// primitive/operation program can therefore be evaluated by Source, Creator, or another host
+/// without adding domain-specific feature types to the recipe language.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum GeometryFeature {
-    Niche(NicheGeometry),
+    Box(BoxGeometry),
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GeometryOperation {
+    #[default]
+    Add,
+    Subtract,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct NicheGeometry {
+pub struct BoxGeometry {
     pub name: String,
-    /// Tile recipe used on the cavity reveal, back, and sill.
+    pub operation: GeometryOperation,
+    /// Tile recipe applied to the emitted solid or newly exposed subtraction faces.
     pub surface: String,
-    /// Optional tile recipe used for the transition ring around the opening.
-    pub frame: Option<String>,
-    /// Lower-left wall-local position in world units.
-    pub position: [f32; 2],
-    /// Opening width and authored vertical extent in world units.
-    pub size: [f32; 2],
-    pub depth: f32,
-    pub sill: f32,
-    pub frame_width: f32,
+    /// Placement-local minimum in world units.
+    pub position: [f32; 3],
+    /// Placement-local dimensions in world units.
+    pub size: [f32; 3],
+    /// Number of instances along each placement-local axis.
+    pub repeat: [u32; 3],
+    /// Translation between repeated instances.
+    pub spacing: [f32; 3],
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
