@@ -52,6 +52,15 @@ impl Rusterix {
     }
 
     pub fn new() -> Self {
+        Self::new_with_audio(true)
+    }
+
+    /// Construct an offscreen renderer without opening an audio device.
+    pub fn new_without_audio() -> Self {
+        Self::new_with_audio(false)
+    }
+
+    fn new_with_audio(enable_audio: bool) -> Self {
         let mut scene_handler = SceneHandler::default();
 
         if let Some(bytes) = crate::Embedded::get("shader/2d_shader.wgsl") {
@@ -70,7 +79,7 @@ impl Rusterix {
             assets: Assets::default(),
             server: Server::default(),
             client: Client::default(),
-            audio: AudioEngine::new().ok(),
+            audio: enable_audio.then(|| AudioEngine::new().ok()).flatten(),
 
             is_dirty_d2: true,
             is_dirty_d3: true,

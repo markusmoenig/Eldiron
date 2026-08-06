@@ -69,6 +69,8 @@ pub enum SdfShapeKind {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Recipe {
     pub name: String,
+    /// Whether this recipe owns the placement surface or overlays an existing host.
+    pub placement: RecipePlacement,
     pub blocking: bool,
     pub material: Option<String>,
     pub material_map: Option<MaterialMap>,
@@ -81,6 +83,12 @@ pub struct Recipe {
     pub fields: Vec<FieldDefinition>,
     pub patterns: Vec<PatternDefinition>,
     pub geometry: Vec<GeometryFeature>,
+    #[serde(default)]
+    pub attachments: Vec<Attachment>,
+    #[serde(default)]
+    pub lights: Vec<LightEffect>,
+    #[serde(default)]
+    pub particles: Vec<ParticleEffect>,
     pub colorize: Option<Colorize>,
     pub output: Output,
 }
@@ -89,6 +97,7 @@ impl Default for Recipe {
     fn default() -> Self {
         Self {
             name: "Untitled Tile".to_string(),
+            placement: RecipePlacement::Surface,
             blocking: false,
             material: None,
             material_map: None,
@@ -101,10 +110,59 @@ impl Default for Recipe {
             fields: Vec::new(),
             patterns: Vec::new(),
             geometry: Vec::new(),
+            attachments: Vec::new(),
+            lights: Vec::new(),
+            particles: Vec::new(),
             colorize: None,
             output: Output::default(),
         }
     }
+}
+
+/// Host composition semantics for geometry and effects carried by a Recipe.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RecipePlacement {
+    /// The baked Tile is the host surface and geometry is part of that surface.
+    #[default]
+    Surface,
+    /// Geometry and effects overlay an existing host surface without replacing it.
+    Fixture,
+}
+
+/// A named point and direction in the same placement-local coordinate system as Geometry.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Attachment {
+    pub name: String,
+    pub position: [f32; 3],
+    pub direction: [f32; 3],
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct LightEffect {
+    pub name: String,
+    pub attachment: String,
+    pub color: [u8; 4],
+    pub intensity: f32,
+    pub range: f32,
+    pub flicker: f32,
+    pub lift: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ParticleEffect {
+    pub name: String,
+    pub attachment: String,
+    pub direction: [f32; 3],
+    pub spread: f32,
+    pub rate: f32,
+    pub color: [u8; 4],
+    pub color_ramp: Option<[[u8; 4]; 4]>,
+    pub color_variation: u8,
+    pub lifetime: [f32; 2],
+    pub radius: [f32; 2],
+    pub speed: [f32; 2],
+    pub spawn_area: [f32; 3],
+    pub flame_base: bool,
 }
 
 /// Placement-local geometry authored by a Tile recipe.

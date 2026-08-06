@@ -11,7 +11,8 @@ they are easy to author, review, version, and generate.
 The currently supported procedural assets are:
 
 - **Tiles** — renderable images made from coordinated patterns and height fields,
-  with optional collision and placement-time architectural geometry.
+  with optional collision, placement-time architectural geometry, named
+  attachments, lights, and particle emitters.
 - **Materials** — reusable color, roughness, metalness, opacity, emission, and
   normal definitions that can be referenced by many tiles.
 - **SDF shapes** — reusable, resolution-independent 2D coverage silhouettes
@@ -85,6 +86,41 @@ See [examples/stones.recipe](examples/stones.recipe) for a complete standalone
 tile and [examples/bricks.recipe](examples/bricks.recipe) for a tile using a
 referenced material. [examples/planks.recipe](examples/planks.recipe)
 demonstrates a material evaluated independently inside every pattern unit.
+
+Tile recipes can keep procedural props and their effects together. Attachments
+use the same placement-local coordinates as `Geometry`; hosts transform the
+complete program for a wall, ceiling, Avatar, or another target:
+
+```text
+Geometry
+  Box Basket
+    operation = Add
+    surface = torch-iron
+    position = F3(0.35, 1.32, -0.56)
+    size = F3(0.30, 0.11, 0.20)
+
+Attachment Flame
+  position = F3(0.50, 1.58, -0.47)
+  direction = F3(0.0, 1.0, 0.0)
+
+Light Glow
+  attach = Flame
+  color = #ff9a45
+  intensity = 1.75
+  range = 5.2
+  flicker = 0.22
+
+Particles Fire
+  attach = Flame
+  rate = 25.0
+  color_ramp = #fff2a8, #ffc14f, #f0641f, #401008
+  lifetime = F2(0.32, 0.78)
+  radius = F2(0.025, 0.065)
+  speed = F2(0.28, 0.72)
+```
+
+Effects reference named attachments instead of material surfaces, so a surface
+reused by several Boxes does not accidentally create duplicate emitters.
 
 ## A material recipe
 
@@ -312,6 +348,7 @@ numbered frames such as `wall-000.png`, `wall-001.png`, and so on.
 ```text
 Tile
   name = "Untitled Tile"
+  placement = Surface
   blocking = false
   size = I2(64, 64)
   coverage = I2(1, 1)
@@ -323,6 +360,7 @@ Tile
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `name` | `"Untitled Tile"` | Human-readable name. |
+| `placement` | `Surface` | `Surface` owns its host; `Fixture` overlays an existing host surface. |
 | `blocking` | `false` | Whether map compilers should treat placements as solid by default. |
 | `material` | none | Optional one-material shorthand; `MaterialMap` is used for layered surfaces. |
 | `size` | `I2(64, 64)` | Pixel size of each tile. |
@@ -348,6 +386,13 @@ material is assigned. When both `Colorize` and `Output` are present, their
 sources must match.
 
 The full rendered image size is `size × coverage`.
+
+`placement = Fixture` makes geometry, attachments, lights, and particles a
+host-independent overlay. The placement adapter retains the existing wall,
+floor, or ceiling surface and instantiates only the fixture content. The baked
+Tile remains an internal carrier for thumbnails and effect metadata; it is not
+painted over the host. This allows a torch, switch, or door mechanism to sit on
+top of a larger continuously mapped background Tile.
 
 ### `Geometry`
 

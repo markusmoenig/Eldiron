@@ -602,6 +602,7 @@ recipe_saved = Recipe saved successfully.
 recipe_save_failed = Unable to save Recipe.
 status_edit_recipe = Open the selected Recipe in the full-screen editor.
 tile_recipe = Tile Recipe
+fixture_recipe = Fixture Recipe
 material_recipe = Material Recipe
 sdf_recipe = SDF Recipe
 status_tiles_new_group = Create a new tile group. Procedural content is authored as a Recipe.

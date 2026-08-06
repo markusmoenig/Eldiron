@@ -1,0 +1,75 @@
+Tile
+    name = "Wall Torch"
+    placement = Fixture
+    blocking = true
+    material = dungeon/wall_stone
+    size = I2(64, 64)
+    coverage = I2(4, 4)
+    wrap = Repeat
+    seed = 431
+
+    Noise Stone
+        scale = F2(4.0, 4.0)
+        octaves = 3
+        persistence = 0.50
+        seed = 89
+
+    Geometry
+        Box Backplate
+            operation = Add
+            surface = torch-iron
+            position = F3(0.40, 1.08, -0.07)
+            size = F3(0.20, 0.38, 0.07)
+
+        Box Arm
+            operation = Add
+            surface = torch-wood
+            position = F3(0.46, 1.26, -0.43)
+            size = F3(0.08, 0.08, 0.43)
+
+        Box Basket
+            operation = Add
+            surface = torch-iron
+            position = F3(0.35, 1.32, -0.56)
+            size = F3(0.30, 0.11, 0.20)
+
+        Box BasketRim
+            operation = Add
+            surface = torch-iron
+            position = F3(0.31, 1.43, -0.59)
+            size = F3(0.38, 0.06, 0.25)
+
+        Box EmberBed
+            operation = Add
+            surface = torch-ember
+            position = F3(0.38, 1.49, -0.55)
+            size = F3(0.24, 0.05, 0.16)
+
+    Attachment Flame
+        position = F3(0.50, 1.58, -0.47)
+        direction = F3(0.0, 1.0, 0.0)
+
+    Light TorchLight
+        attach = Flame
+        color = #ff9a45
+        intensity = 3.0
+        range = 3.8
+        flicker = 0.22
+        lift = 0.04
+
+    Particles TorchFlame
+        attach = Flame
+        direction = F3(0.0, 1.0, 0.0)
+        spread = 0.48
+        rate = 25.0
+        color = #ff9a3d
+        color_ramp = #fff2a8, #ffc14f, #f0641f, #401008
+        color_variation = 20
+        lifetime = F2(0.32, 0.78)
+        radius = F2(0.025, 0.065)
+        speed = F2(0.28, 0.72)
+        spawn_area = F3(0.045, 0.015, 0.035)
+        flame_base = true
+
+    Output
+        height = Clamp(0.34 + Stone * 0.24, 0.0, 1.0)

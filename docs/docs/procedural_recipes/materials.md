@@ -7,7 +7,7 @@ A Material recipe defines reusable appearance independently of Tile height or Av
 
 ## Material structure
 
-```text
+```recipe
 Material worn_iron
   name = "Worn Iron"
   wrap = Repeat
@@ -79,7 +79,7 @@ Scalar surface channels are clamped to `0..1`. Micro-normal data adds surface de
 
 `MaterialMap` fills the Tile with a base material and then blends complete material layers in declaration order:
 
-```text
+```recipe
 MaterialMap
   base = dungeon/mortar
   space = Global

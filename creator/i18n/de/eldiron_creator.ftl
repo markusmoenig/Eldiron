@@ -600,6 +600,7 @@ recipe_saved = Rezept wurde gespeichert.
 recipe_save_failed = Rezept konnte nicht gespeichert werden.
 status_edit_recipe = Öffnet das ausgewählte Rezept im Vollbildeditor.
 tile_recipe = Kachelrezept
+fixture_recipe = Vorrichtungsrezept
 material_recipe = Materialrezept
 sdf_recipe = SDF-Rezept
 status_tiles_new_group = Erstellt eine Kachelgruppe. Prozedurale Inhalte werden als Rezept erstellt.

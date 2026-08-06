@@ -49,7 +49,7 @@ sun_enabled = false
 ambient_color = "#AAAAA0"
 
 # Ambient light strength (0.0 - 1.0)
-ambient_strength = 0.16
+ambient_strength = 0.11
 
 # Fog color
 fog_color = "#000000"

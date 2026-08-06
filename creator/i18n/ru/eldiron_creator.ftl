@@ -606,6 +606,7 @@ recipe_saved = Рецепт успешно сохранён.
 recipe_save_failed = Не удалось сохранить рецепт.
 status_edit_recipe = Открыть выбранный рецепт в полноэкранном редакторе.
 tile_recipe = Рецепт тайла
+fixture_recipe = Рецепт объекта
 material_recipe = Рецепт материала
 sdf_recipe = Рецепт SDF
 status_tiles_new_group = Создать группу тайлов. Процедурный контент создаётся как рецепт.

@@ -164,6 +164,12 @@ impl Sidebar {
         ));
         root.add_child(tilemaps_node);
 
+        let recipes_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
+            &fl!("recipes"),
+            server_ctx.tree_recipes_id,
+        ));
+        root.add_child(recipes_node);
+
         let screens_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("screens"),
             server_ctx.tree_screens_id,
@@ -175,12 +181,6 @@ impl Sidebar {
             server_ctx.tree_avatars_id,
         ));
         root.add_child(avatars_node);
-
-        let recipes_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
-            &fl!("recipes"),
-            server_ctx.tree_recipes_id,
-        ));
-        root.add_child(recipes_node);
 
         let mut assets_node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(
             &fl!("assets"),
@@ -918,6 +918,30 @@ impl Sidebar {
                     if let Some(widget) = ui.get_widget("Graph Id Text") {
                         widget.set_value(TheValue::Text("(--)".into()));
                     }
+                } else if id.name == crate::docks::recipes::RECIPE_MINIMAP_PREVIEW {
+                    if let TheValue::Image(preview) = value
+                        && let Some(render_view) = ui.get_render_view("MiniMap")
+                    {
+                        // The event is emitted only by the selected Recipe
+                        // editor. Do not gate it on ProjectContext: tree/tool
+                        // events can change that context while the full-screen
+                        // editor is still visible, which used to discard a
+                        // successfully rendered preview.
+                        let dim = *render_view.dim();
+                        let minimap = render_view.render_buffer_mut();
+                        if dim.is_valid() {
+                            minimap.resize(dim.width, dim.height);
+                            crate::docks::recipes::draw_preview_buffer(minimap, preview);
+                        } else {
+                            // Preserve the fresh pixels even if this event lands
+                            // during a relayout; TheRenderView will scale them
+                            // when its visible dimension becomes valid.
+                            *minimap = preview.clone();
+                        }
+                        render_view.set_needs_redraw(true);
+                        ctx.ui.redraw_all = true;
+                        redraw = true;
+                    }
                 } else if id.name == "Update Minimap" {
                     // Rerenders the minimap
                     if let Some(render_view) = ui.get_render_view("MiniMap") {
@@ -937,7 +961,8 @@ impl Sidebar {
                             draw_minimap(project, buffer, server_ctx, true);
                             draw_minimap_context_label(buffer, ctx, server_ctx);
                         }
-                    } else {
+                        render_view.set_needs_redraw(true);
+                        redraw = true;
                     }
                 } else if id.name == "Soft Update Minimap" {
                     // Uses the currently rendered minimap and only updates the
@@ -959,6 +984,8 @@ impl Sidebar {
                             draw_minimap(project, buffer, server_ctx, false);
                             draw_minimap_context_label(buffer, ctx, server_ctx);
                         }
+                        render_view.set_needs_redraw(true);
+                        redraw = true;
                     }
                 } else if id.name == "Update Tiles" {
                     self.update_tiles(ui, ctx, project);
@@ -975,12 +1002,6 @@ impl Sidebar {
                         );
                         redraw = true;
                     }
-                } else if id.name == "Edit Procedural Recipe" {
-                    DOCKMANAGER
-                        .write()
-                        .unwrap()
-                        .edit_maximize(ui, ctx, project, server_ctx);
-                    redraw = true;
                 } else if id.name == "Refresh Recipe Tree" {
                     if let TheValue::Id(recipe_id) = value {
                         self.refresh_recipe_tree_item(ui, server_ctx, project, *recipe_id);
@@ -3805,7 +3826,7 @@ impl Sidebar {
             crate::recipe_utils::localized_recipe_kind(kind),
             recipe.alias
         );
-        let preview = crate::recipe_utils::render_recipe_preview(project, recipe_id).ok();
+        let preview = crate::recipe_utils::render_recipe_visual_preview(project, recipe_id).ok();
         if let Some(tree) = ui.get_tree_layout("Project Tree")
             && let Some(node) = tree.get_node_by_id_mut(&server_ctx.tree_recipes_id)
             && let Some(widget) = node

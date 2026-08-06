@@ -760,6 +760,10 @@ impl GameWidget {
         if Self::is_2d_camera(&self.camera) {
             scene_handler.build_dynamics_2d(map, animation_frame, assets, &avatar_frame_styles);
         } else {
+            // Runtime clients own their render clock. Creator owns a separate
+            // editor clock and deliberately freezes 3D particles while stopped,
+            // so SceneHandler does not advance the clock implicitly.
+            scene_handler.tick_particle_clock_3d();
             scene_handler.build_dynamics_3d(
                 map,
                 self.camera_d3.as_ref(),

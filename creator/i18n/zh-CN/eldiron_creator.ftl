@@ -605,6 +605,7 @@ recipe_saved = 配方保存成功。
 recipe_save_failed = 无法保存配方。
 status_edit_recipe = 在全屏编辑器中打开所选配方。
 tile_recipe = 图块配方
+fixture_recipe = 装置配方
 material_recipe = 材质配方
 sdf_recipe = SDF 配方
 status_tiles_new_group = 创建新的图块组。程序化内容通过配方创作。

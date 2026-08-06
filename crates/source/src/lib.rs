@@ -1,11 +1,13 @@
 use procedural_recipes::{
-    GeometryFeature, GeometryOperation, MaterialRecipe, RecipeDocument, RecipeRenderer,
-    RenderOptions, WrapMode, parse_document,
+    MaterialRecipe, RecipeDocument, RecipeRenderer, RenderOptions, WrapMode, parse_document,
 };
+#[cfg(test)]
+use rusterix::ParticleEmitter;
 use rusterix::{
     GeometryObject, GeometryObjectKind, Light, LightType, Map, MapCamera, PixelSource, Sector,
-    Texture, Tile, TileBoxGeometry, TileGeometryFeature, TileGeometryOperation, TileRole, Value,
-    ValueContainer, map::tile::TileLightEmitter,
+    Texture, Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature, TileGeometryOperation,
+    TileLightEffect, TileParticleEffect, TileRecipePlacement, TileRole, Value, ValueContainer,
+    map::tile::TileLightEmitter,
 };
 use serde::Deserialize;
 use shared::prelude::{
@@ -356,7 +358,11 @@ struct SourceTileLookup {
     light_emitters: IndexMap<Uuid, TileLightEmitter>,
     coverage: IndexMap<Uuid, [u32; 2]>,
     blocking: IndexMap<Uuid, bool>,
+    fixtures: IndexMap<Uuid, bool>,
     geometry: IndexMap<Uuid, Vec<TileGeometryFeature>>,
+    attachments: IndexMap<Uuid, Vec<TileAttachment>>,
+    light_effects: IndexMap<Uuid, Vec<TileLightEffect>>,
+    particle_effects: IndexMap<Uuid, Vec<TileParticleEffect>>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -382,6 +388,9 @@ struct ResolvedTileSymbol {
     niche: Option<ResolvedSourceNiche>,
     geometry: Vec<ResolvedSourceGeometry>,
     light_emitter: Option<TileLightEmitter>,
+    attachments: Vec<TileAttachment>,
+    light_effects: Vec<TileLightEffect>,
+    particle_effects: Vec<TileParticleEffect>,
 }
 
 #[derive(Debug, Clone)]
@@ -430,6 +439,9 @@ impl ResolvedTileSymbol {
             niche: None,
             geometry: Vec::new(),
             light_emitter: None,
+            attachments: Vec::new(),
+            light_effects: Vec::new(),
+            particle_effects: Vec::new(),
         }
     }
 }
@@ -900,26 +912,8 @@ fn load_procedural_recipe_dir(
         let mut tile = Tile::from_textures(textures);
         tile.role = TileRole::ManMade;
         tile.alias = asset_name_from_path(&root, &path);
-        tile.blocking = recipe.blocking;
+        tile.apply_procedural_recipe_metadata(&recipe);
         tile.procedural.coverage = [rendered.grid_width, rendered.grid_height];
-        tile.geometry = recipe
-            .geometry
-            .iter()
-            .map(|feature| match feature {
-                GeometryFeature::Box(geometry_box) => TileGeometryFeature::Box(TileBoxGeometry {
-                    name: geometry_box.name.clone(),
-                    operation: match geometry_box.operation {
-                        GeometryOperation::Add => TileGeometryOperation::Add,
-                        GeometryOperation::Subtract => TileGeometryOperation::Subtract,
-                    },
-                    surface: geometry_box.surface.clone(),
-                    position: geometry_box.position,
-                    size: geometry_box.size,
-                    repeat: geometry_box.repeat,
-                    spacing: geometry_box.spacing,
-                }),
-            })
-            .collect();
         if let Some(alias) = base_material_alias {
             tile.material_alias = alias.to_string();
             tile.baked_material_data = tile.textures.iter().map(Texture::material_bytes).collect();
@@ -1135,8 +1129,24 @@ impl SourceTileLookup {
                 ],
             );
             lookup.blocking.insert(tile.id, tile.blocking);
+            if tile.recipe_placement == TileRecipePlacement::Fixture {
+                lookup.fixtures.insert(tile.id, true);
+            }
             if !tile.geometry.is_empty() {
                 lookup.geometry.insert(tile.id, tile.geometry.clone());
+            }
+            if !tile.attachments.is_empty() {
+                lookup.attachments.insert(tile.id, tile.attachments.clone());
+            }
+            if !tile.light_effects.is_empty() {
+                lookup
+                    .light_effects
+                    .insert(tile.id, tile.light_effects.clone());
+            }
+            if !tile.particle_effects.is_empty() {
+                lookup
+                    .particle_effects
+                    .insert(tile.id, tile.particle_effects.clone());
             }
             if let Some(light) = &tile.light_emitter {
                 lookup.light_emitters.insert(tile.id, light.clone());
@@ -1185,6 +1195,10 @@ impl SourceTileLookup {
 
     fn tile_only_for(&self, name: &str) -> Option<ResolvedTileSymbol> {
         let source = self.source_for(name)?;
+        let tile_id = match &source {
+            PixelSource::TileId(id) => Some(*id),
+            _ => None,
+        };
         let light_emitter = match &source {
             PixelSource::TileId(id) => self.light_emitters.get(id).cloned(),
             _ => None,
@@ -1206,6 +1220,15 @@ impl SourceTileLookup {
             niche: None,
             geometry,
             light_emitter,
+            attachments: tile_id
+                .and_then(|id| self.attachments.get(&id).cloned())
+                .unwrap_or_default(),
+            light_effects: tile_id
+                .and_then(|id| self.light_effects.get(&id).cloned())
+                .unwrap_or_default(),
+            particle_effects: tile_id
+                .and_then(|id| self.particle_effects.get(&id).cloned())
+                .unwrap_or_default(),
         })
     }
 
@@ -1214,6 +1237,10 @@ impl SourceTileLookup {
             PixelSource::TileId(id) => self.blocking.get(id).copied(),
             _ => None,
         }
+    }
+
+    fn is_fixture(&self, source: &PixelSource) -> bool {
+        matches!(source, PixelSource::TileId(id) if self.fixtures.contains_key(id))
     }
 
     fn recipe_geometry_for(
@@ -1355,6 +1382,7 @@ fn resolve_source_tiles(
         };
         let coverage = lookup.coverage_for(&source);
         let recipe_blocking = lookup.blocking_for(&source);
+        let recipe_fixture = lookup.is_fixture(&source);
         let geometry = lookup.recipe_geometry_for(&source)?;
         let ceiling_coverage = ceiling
             .as_ref()
@@ -1397,6 +1425,24 @@ fn resolve_source_tiles(
         explicit.insert(
             glyph,
             ResolvedTileSymbol {
+                attachments: match &source {
+                    PixelSource::TileId(id) => {
+                        lookup.attachments.get(id).cloned().unwrap_or_default()
+                    }
+                    _ => Vec::new(),
+                },
+                light_effects: match &source {
+                    PixelSource::TileId(id) => {
+                        lookup.light_effects.get(id).cloned().unwrap_or_default()
+                    }
+                    _ => Vec::new(),
+                },
+                particle_effects: match &source {
+                    PixelSource::TileId(id) => {
+                        lookup.particle_effects.get(id).cloned().unwrap_or_default()
+                    }
+                    _ => Vec::new(),
+                },
                 light_emitter: match &source {
                     PixelSource::TileId(id) => lookup.light_emitters.get(id).cloned(),
                     _ => None,
@@ -1407,7 +1453,7 @@ fn resolve_source_tiles(
                 blocking: symbol
                     .blocking
                     .or(recipe_blocking.filter(|blocking| *blocking)),
-                wall_feature: symbol.wall_feature,
+                wall_feature: symbol.wall_feature || recipe_fixture,
                 ceiling,
                 ceiling_coverage,
                 ceiling_geometry,
@@ -1885,6 +1931,17 @@ fn build_3d_blocks_from_source_terrain(
                 &ceiling_tile.geometry,
                 &[SourceGeometryPlacement::Ceiling],
             );
+            add_source_recipe_effects(
+                map,
+                &ceiling_tile,
+                SourceGeometryPlacement::Ceiling,
+                Vec3::new(x as f32, ceiling_height, y as f32),
+                Vec3::new(
+                    x as f32 + 1.0,
+                    ceiling_height + SOURCE_CEILING_THICKNESS,
+                    y as f32 + 1.0,
+                ),
+            );
             cells += 1;
         }
     }
@@ -1927,21 +1984,21 @@ fn build_3d_blocks_from_source_terrain(
             } else {
                 symbol_tile.clone()
             };
+            let placements = [(0_isize, -1_isize), (1, 0), (0, 1), (-1, 0)]
+                .into_iter()
+                .filter(|(dx, dz)| {
+                    source_walkable_ceiling_height(
+                        &source_region.terrain,
+                        x as isize + dx,
+                        y as isize + dz,
+                        source_region,
+                        source_tiles,
+                    )
+                    .is_some()
+                })
+                .map(SourceGeometryPlacement::Wall)
+                .collect::<Vec<_>>();
             if !geometry.is_empty() {
-                let placements = [(0_isize, -1_isize), (1, 0), (0, 1), (-1, 0)]
-                    .into_iter()
-                    .filter(|(dx, dz)| {
-                        source_walkable_ceiling_height(
-                            &source_region.terrain,
-                            x as isize + dx,
-                            y as isize + dz,
-                            source_region,
-                            source_tiles,
-                        )
-                        .is_some()
-                    })
-                    .map(SourceGeometryPlacement::Wall)
-                    .collect::<Vec<_>>();
                 add_source_programmed_block(
                     map,
                     &format!("wall_{x}_{y}"),
@@ -1980,15 +2037,28 @@ fn build_3d_blocks_from_source_terrain(
             if wall_profile == SourceWallProfile::Pillar {
                 add_source_wall_pillars(map, source_region, x, y, source_tiles, wall_tile);
             }
-            if wall_feature {
+            // A feature with authored 3D geometry is an overlay on the base
+            // wall. Its baked Tile remains useful as an asset thumbnail and
+            // particle source, but must not also be painted as a flat wall
+            // decal. Geometry-free features keep the existing decal path.
+            if wall_feature && geometry.is_empty() {
                 add_source_wall_feature(
                     map,
                     &source_region.terrain,
                     x,
                     y,
                     source_tiles,
-                    symbol_tile,
+                    symbol_tile.clone(),
                     source_region,
+                );
+            }
+            for placement in &placements {
+                add_source_recipe_effects(
+                    map,
+                    &symbol_tile,
+                    *placement,
+                    Vec3::new(x as f32, 0.0, y as f32),
+                    Vec3::new(x as f32 + 1.0, wall_height, y as f32 + 1.0),
                 );
             }
             if let Some(light_emitter) = light_emitter {
@@ -2207,6 +2277,146 @@ fn source_geometry_world_bounds(
             (min, min + Vec3::new(size.z, size.y, size.x))
         }
         SourceGeometryPlacement::Wall(_) => (base_min, base_min),
+    }
+}
+
+fn source_geometry_world_point(
+    position: Vec3<f32>,
+    placement: SourceGeometryPlacement,
+    base_min: Vec3<f32>,
+    base_max: Vec3<f32>,
+) -> Vec3<f32> {
+    match placement {
+        SourceGeometryPlacement::Ceiling => Vec3::new(
+            base_min.x + position.x,
+            base_min.y - position.y,
+            base_min.z + position.z,
+        ),
+        SourceGeometryPlacement::Wall((0, -1)) => Vec3::new(
+            base_min.x + position.x,
+            base_min.y + position.y,
+            base_min.z + position.z,
+        ),
+        SourceGeometryPlacement::Wall((1, 0)) => Vec3::new(
+            base_max.x - position.z,
+            base_min.y + position.y,
+            base_min.z + position.x,
+        ),
+        SourceGeometryPlacement::Wall((0, 1)) => Vec3::new(
+            base_min.x + position.x,
+            base_min.y + position.y,
+            base_max.z - position.z,
+        ),
+        SourceGeometryPlacement::Wall((-1, 0)) => Vec3::new(
+            base_min.x + position.z,
+            base_min.y + position.y,
+            base_min.z + position.x,
+        ),
+        SourceGeometryPlacement::Wall(_) => base_min,
+    }
+}
+
+fn source_geometry_world_direction(
+    direction: Vec3<f32>,
+    placement: SourceGeometryPlacement,
+) -> Vec3<f32> {
+    let world = match placement {
+        SourceGeometryPlacement::Ceiling => Vec3::new(direction.x, -direction.y, direction.z),
+        SourceGeometryPlacement::Wall((0, -1)) => direction,
+        SourceGeometryPlacement::Wall((1, 0)) => Vec3::new(-direction.z, direction.y, direction.x),
+        SourceGeometryPlacement::Wall((0, 1)) => Vec3::new(direction.x, direction.y, -direction.z),
+        SourceGeometryPlacement::Wall((-1, 0)) => Vec3::new(direction.z, direction.y, direction.x),
+        SourceGeometryPlacement::Wall(_) => direction,
+    };
+    world.try_normalized().unwrap_or(Vec3::unit_y())
+}
+
+fn add_source_recipe_effects(
+    map: &mut Map,
+    tile: &ResolvedTileSymbol,
+    placement: SourceGeometryPlacement,
+    base_min: Vec3<f32>,
+    base_max: Vec3<f32>,
+) {
+    if tile.light_effects.is_empty() && tile.particle_effects.is_empty() {
+        return;
+    }
+    let attachment = |name: &str| {
+        tile.attachments
+            .iter()
+            .find(|attachment| attachment.name.eq_ignore_ascii_case(name))
+    };
+
+    for light in &tile.light_effects {
+        let Some(anchor) = attachment(&light.attachment) else {
+            continue;
+        };
+        let position = source_geometry_world_point(
+            Vec3::new(anchor.position[0], anchor.position[1], anchor.position[2]),
+            placement,
+            base_min,
+            base_max,
+        );
+        let emitter = &light.emitter;
+        let end_distance = emitter.range.max(0.1);
+        map.lights.push(
+            Light::new(LightType::Point)
+                .with_position(position + Vec3::new(0.0, emitter.lift, 0.0))
+                .with_color([
+                    emitter.color[0] as f32 / 255.0,
+                    emitter.color[1] as f32 / 255.0,
+                    emitter.color[2] as f32 / 255.0,
+                ])
+                .with_intensity(emitter.intensity.max(0.0))
+                .with_start_distance((end_distance * 0.15).min(0.75))
+                .with_end_distance(end_distance)
+                .with_flicker(emitter.flicker.max(0.0)),
+        );
+    }
+
+    for particles in &tile.particle_effects {
+        let Some(anchor) = attachment(&particles.attachment) else {
+            continue;
+        };
+        let position = source_geometry_world_point(
+            Vec3::new(anchor.position[0], anchor.position[1], anchor.position[2]),
+            placement,
+            base_min,
+            base_max,
+        );
+        let local_direction = Vec3::new(
+            particles.emitter.direction.x,
+            particles.emitter.direction.y,
+            particles.emitter.direction.z,
+        );
+        let direction = source_geometry_world_direction(local_direction, placement);
+        let epsilon = 0.002;
+        let mut object = GeometryObject::box_from_bounds(
+            format!("recipe_effect_{}", particles.name),
+            position - Vec3::broadcast(epsilon),
+            position + Vec3::broadcast(epsilon),
+        );
+        object.kind = GeometryObjectKind::Generated;
+        object.solid = false;
+        object.group = "eldiron-recipe-effects".to_string();
+        for face in &mut object.faces {
+            face.tile = Some(PixelSource::Off);
+        }
+        object
+            .properties
+            .set("recipe_effect_source", Value::Source(tile.source.clone()));
+        object
+            .properties
+            .set("recipe_particle_effect", Value::Str(particles.name.clone()));
+        object.properties.set(
+            "recipe_effect_origin",
+            Value::Vec3([position.x, position.y, position.z]),
+        );
+        object.properties.set(
+            "recipe_effect_direction",
+            Value::Vec3([direction.x, direction.y, direction.z]),
+        );
+        map.geometry_objects.push(object);
     }
 }
 
@@ -4590,6 +4800,9 @@ Screen "play" {
                 niche: None,
                 geometry: Vec::new(),
                 light_emitter: None,
+                attachments: Vec::new(),
+                light_effects: Vec::new(),
+                particle_effects: Vec::new(),
             },
         );
         tiles.explicit.insert(
@@ -4608,6 +4821,9 @@ Screen "play" {
                 niche: None,
                 geometry: Vec::new(),
                 light_emitter: None,
+                attachments: Vec::new(),
+                light_effects: Vec::new(),
+                particle_effects: Vec::new(),
             },
         );
 
@@ -4633,6 +4849,9 @@ Screen "play" {
             niche: None,
             geometry: Vec::new(),
             light_emitter: None,
+            attachments: Vec::new(),
+            light_effects: Vec::new(),
+            particle_effects: Vec::new(),
         };
         let mut source_tiles = ResolvedSourceTiles {
             wall: Some(base_wall.clone()),
@@ -4656,6 +4875,9 @@ Screen "play" {
                 niche: None,
                 geometry: Vec::new(),
                 light_emitter: None,
+                attachments: Vec::new(),
+                light_effects: Vec::new(),
+                particle_effects: Vec::new(),
             },
         );
         let region = SourceRegion {
@@ -4699,6 +4921,99 @@ Screen "play" {
                 .map(|(index, _)| index)
                 .eq([1])
         );
+    }
+
+    #[test]
+    fn geometry_wall_features_overlay_the_base_without_a_tile_decal() {
+        let base_wall = ResolvedTileSymbol {
+            source: PixelSource::PaletteIndex(1),
+            coverage: [4, 4],
+            material: SourceMaterial::default(),
+            blocking: Some(true),
+            wall_feature: false,
+            ceiling: None,
+            ceiling_coverage: [1, 1],
+            ceiling_geometry: Vec::new(),
+            ceiling_height: None,
+            wall_profile: SourceWallProfile::Flat,
+            niche: None,
+            geometry: Vec::new(),
+            light_emitter: None,
+            attachments: Vec::new(),
+            light_effects: Vec::new(),
+            particle_effects: Vec::new(),
+        };
+        let mut source_tiles = ResolvedSourceTiles {
+            wall: Some(base_wall.clone()),
+            floor: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(3))),
+            ceiling: Some(ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(4))),
+            ..Default::default()
+        };
+        source_tiles.explicit.insert(
+            'T',
+            ResolvedTileSymbol {
+                source: PixelSource::PaletteIndex(2),
+                coverage: [1, 1],
+                material: SourceMaterial::default(),
+                blocking: Some(true),
+                wall_feature: true,
+                ceiling: None,
+                ceiling_coverage: [1, 1],
+                ceiling_geometry: Vec::new(),
+                ceiling_height: None,
+                wall_profile: SourceWallProfile::Flat,
+                niche: None,
+                geometry: vec![ResolvedSourceGeometry {
+                    name: "Torch".to_string(),
+                    operation: TileGeometryOperation::Add,
+                    source: PixelSource::PaletteIndex(5),
+                    coverage: [1, 1],
+                    position: Vec3::new(0.4, 1.1, -0.4),
+                    size: Vec3::new(0.2, 0.4, 0.4),
+                    repeat: [1, 1, 1],
+                    spacing: Vec3::zero(),
+                }],
+                light_emitter: None,
+                attachments: Vec::new(),
+                light_effects: Vec::new(),
+                particle_effects: Vec::new(),
+            },
+        );
+        let region = SourceRegion {
+            id: "geometry-feature-test".to_string(),
+            name: "Geometry Feature Test".to_string(),
+            default: "wall".to_string(),
+            floor: "floor".to_string(),
+            ceiling: "ceiling".to_string(),
+            ceiling_height: DEFAULT_SOURCE_CEILING_HEIGHT,
+            tile_symbols: IndexMap::default(),
+            terrain: vec!["#T#".to_string(), "#.#".to_string(), "###".to_string()],
+        };
+        let mut map = Map::default();
+
+        build_3d_blocks_from_source_terrain(&mut map, &region, &source_tiles)
+            .expect("geometry feature map builds");
+
+        assert!(
+            map.geometry_objects
+                .iter()
+                .all(|object| object.name != "wall_feature_1_0"),
+            "geometry features must not add their baked Tile as a flat decal"
+        );
+        assert!(map.geometry_objects.iter().any(|object| {
+            object.name.contains("wall_1_0_Torch_add")
+                && object
+                    .faces
+                    .iter()
+                    .all(|face| face.tile == Some(PixelSource::PaletteIndex(5)))
+        }));
+        assert!(map.geometry_objects.iter().any(|object| {
+            object.name.starts_with("wall_1_0_part_")
+                && object
+                    .faces
+                    .iter()
+                    .all(|face| face.tile == Some(base_wall.source.clone()))
+        }));
     }
 
     #[test]
@@ -4793,6 +5108,60 @@ Screen "play" {
             .map(|vertex| vertex.y)
             .fold(f32::INFINITY, f32::min);
         assert!((beam_min_y - 2.82).abs() < 0.0001);
+    }
+
+    #[test]
+    fn recipe_effects_follow_the_wall_placement_basis() {
+        let mut tile = ResolvedTileSymbol::tile_only(PixelSource::PaletteIndex(7));
+        tile.attachments.push(TileAttachment {
+            name: "Flame".to_string(),
+            position: [0.25, 1.5, -0.4],
+            direction: [0.0, 1.0, 0.0],
+        });
+        tile.light_effects.push(TileLightEffect {
+            name: "Glow".to_string(),
+            attachment: "Flame".to_string(),
+            emitter: TileLightEmitter {
+                color: [255, 128, 64, 255],
+                intensity: 1.5,
+                range: 4.0,
+                flicker: 0.2,
+                lift: 0.1,
+            },
+        });
+        tile.particle_effects.push(TileParticleEffect {
+            name: "Fire".to_string(),
+            attachment: "Flame".to_string(),
+            emitter: ParticleEmitter::new(Vec3::zero(), Vec3::unit_y()),
+        });
+
+        let mut map = Map::default();
+        add_source_recipe_effects(
+            &mut map,
+            &tile,
+            SourceGeometryPlacement::Wall((1, 0)),
+            Vec3::new(10.0, 0.0, 20.0),
+            Vec3::new(11.0, 3.0, 21.0),
+        );
+
+        assert_eq!(map.lights.len(), 1);
+        let light_position = map.lights[0].position();
+        assert!((light_position.x - 11.4).abs() < 0.0001);
+        assert!((light_position.y - 1.6).abs() < 0.0001);
+        assert!((light_position.z - 20.25).abs() < 0.0001);
+        let anchor = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.group == "eldiron-recipe-effects")
+            .expect("particle anchor exists");
+        assert_eq!(
+            anchor.properties.get_vec3("recipe_effect_origin"),
+            Some([11.4, 1.5, 20.25])
+        );
+        assert_eq!(
+            anchor.properties.get_str("recipe_particle_effect"),
+            Some("Fire")
+        );
     }
 
     #[test]
@@ -5557,15 +5926,19 @@ Sdf helmet
         load_procedural_recipe_dir(&mut project, &stonefall, "recipes")
             .expect("Stonefall procedural recipes load");
 
-        assert_eq!(project.procedural_recipes.len(), 11);
+        assert_eq!(project.procedural_recipes.len(), 15);
 
         let expected = [
             ("ceiling-beam-wood", [3, 1], [192, 64], "dungeon/beam_wood"),
             ("ceiling-stone", [3, 3], [192, 192], "dungeon/ceiling_stone"),
             ("floor-stone", [3, 3], [192, 192], "dungeon/floor_stone"),
             ("niche-stone", [1, 1], [64, 64], "dungeon/wall_mortar"),
+            ("torch-ember", [1, 1], [32, 32], "dungeon/torch_ember"),
+            ("torch-iron", [1, 1], [32, 32], "dungeon/torch_iron"),
+            ("torch-wood", [1, 1], [32, 32], "dungeon/torch_wood"),
             ("wall-niche", [4, 4], [256, 256], "dungeon/wall_mortar"),
             ("wall-stone", [4, 4], [256, 256], "dungeon/wall_mortar"),
+            ("wall-torch", [4, 4], [256, 256], "dungeon/wall_stone"),
         ];
 
         for (alias, coverage, dimensions, material_alias) in expected {
@@ -5585,6 +5958,17 @@ Sdf helmet
             );
             assert!(tile.textures[0].data_ext.is_some(), "{alias} channels");
         }
+
+        let torch = project
+            .tiles
+            .values()
+            .find(|tile| tile.alias == "wall-torch")
+            .expect("Stonefall wall torch exists");
+        assert_eq!(torch.geometry.len(), 5);
+        assert_eq!(torch.recipe_placement, TileRecipePlacement::Fixture);
+        assert_eq!(torch.attachments.len(), 1);
+        assert_eq!(torch.light_effects.len(), 1);
+        assert_eq!(torch.particle_effects.len(), 1);
 
         let start = project
             .tiles

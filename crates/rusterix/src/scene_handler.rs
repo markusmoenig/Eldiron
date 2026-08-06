@@ -35,9 +35,10 @@ enum AnimationClock {
 struct BuilderParticleSource {
     key: u32,
     light_id: GeoId,
-    tile_id: Uuid,
+    sprite_tile_id: Uuid,
     emitter: ParticleEmitter,
     light_override: Option<crate::map::tile::TileLightEmitter>,
+    emit_implicit_light: bool,
     origin: Vec3<f32>,
     direction: Vec3<f32>,
     size_scale: f32,
@@ -196,6 +197,16 @@ mod tests {
             "missing diagonal placeholder should stay transparent instead of falling back to a visible cardinal frame"
         );
     }
+
+    #[test]
+    fn stopped_3d_particles_do_not_defeat_the_dynamics_cache() {
+        assert!(SceneHandler::can_reuse_dynamics_3d(
+            true, true, false, false, true,
+        ));
+        assert!(!SceneHandler::can_reuse_dynamics_3d(
+            true, true, false, true, true,
+        ));
+    }
 }
 
 pub struct SceneHandler {
@@ -270,6 +281,20 @@ impl Default for SceneHandler {
 }
 
 impl SceneHandler {
+    #[inline]
+    fn can_reuse_dynamics_3d(
+        dynamics_ready: bool,
+        hash_matches: bool,
+        has_render_billboard_animation: bool,
+        has_pending_particle_steps: bool,
+        has_active_particles: bool,
+    ) -> bool {
+        dynamics_ready
+            && hash_matches
+            && !has_render_billboard_animation
+            && !(has_pending_particle_steps && has_active_particles)
+    }
+
     fn character_billboard_axes(camera: &dyn D3Camera) -> (Vec3<f32>, Vec3<f32>) {
         let (_forward, right, camera_up) = camera.basis_vectors();
         let mut world_right = Vec3::new(right.x, 0.0, right.z);
@@ -298,12 +323,12 @@ impl SceneHandler {
         self.tick_particle_clock_3d();
     }
 
-    fn tick_particle_clock_2d(&mut self) {
+    pub fn tick_particle_clock_2d(&mut self) {
         self.pending_particle_steps_2d =
             (self.pending_particle_steps_2d + 1).min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
     }
 
-    fn tick_particle_clock_3d(&mut self) {
+    pub fn tick_particle_clock_3d(&mut self) {
         self.pending_particle_steps_3d =
             (self.pending_particle_steps_3d + 1).min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
     }
@@ -352,6 +377,30 @@ impl SceneHandler {
         }
     }
 
+    fn add_authored_map_lights(&mut self, map: &Map, linear_color: bool) {
+        for (index, authored) in map.lights.iter().enumerate() {
+            if !authored.active || !matches!(authored.light_type, crate::LightType::Point) {
+                continue;
+            }
+            let light = authored.compile();
+            let color = if linear_color {
+                light.color.map(|channel| channel.powf(2.2))
+            } else {
+                light.color
+            };
+            self.vm.execute(Atom::AddLight {
+                id: GeoId::Light(index as u32),
+                light: Light::new_pointlight(light.position)
+                    .with_color(Vec3::from(color))
+                    .with_intensity(light.intensity)
+                    .with_emitting(light.emitting)
+                    .with_start_distance(light.start_distance)
+                    .with_end_distance(light.end_distance)
+                    .with_flicker(light.flicker),
+            });
+        }
+    }
+
     fn update_generated_item_avatar_data(&mut self, active_geo: &FxHashSet<GeoId>) {
         let stale: Vec<GeoId> = self
             .generated_item_avatar_geo
@@ -367,6 +416,15 @@ impl SceneHandler {
 
     fn particle_sprite_tile_id(tile_id: Uuid) -> Uuid {
         Uuid::from_u128(tile_id.as_u128() ^ 0x705f_6172_7469_636c_655f_7370_7269)
+    }
+
+    fn recipe_particle_sprite_tile_id(tile_id: Uuid, effect_name: &str) -> Uuid {
+        let hash = effect_name
+            .bytes()
+            .fold(0xcbf29ce484222325u64, |hash, byte| {
+                (hash ^ byte as u64).wrapping_mul(0x100000001b3)
+            });
+        Uuid::from_u128(tile_id.as_u128() ^ 0x725f_6566_6665_6374_5f73_7072_6974 ^ hash as u128)
     }
 
     fn ruleset_fx_particle_sprite_tile_id() -> Uuid {
@@ -1062,9 +1120,10 @@ impl SceneHandler {
                 out.push(BuilderParticleSource {
                     key,
                     light_id: GeoId::Unknown(0xB17D_0000 ^ key),
-                    tile_id: tile.id,
+                    sprite_tile_id: Self::particle_sprite_tile_id(tile.id),
                     emitter,
                     light_override: tile.light_emitter.clone(),
+                    emit_implicit_light: true,
                     origin: emitter_origin,
                     direction,
                     size_scale: 1.0,
@@ -1217,9 +1276,10 @@ impl SceneHandler {
                 out.push(BuilderParticleSource {
                     key,
                     light_id: GeoId::Unknown(0xB17E_0000 ^ key),
-                    tile_id: tile.id,
+                    sprite_tile_id: Self::particle_sprite_tile_id(tile.id),
                     emitter,
                     light_override: tile.light_emitter.clone(),
+                    emit_implicit_light: true,
                     origin: emitter_origin,
                     direction,
                     size_scale: 1.0,
@@ -1270,6 +1330,35 @@ impl SceneHandler {
 
         let mut out = Vec::new();
         for object in &map.geometry_objects {
+            if let (Some(Value::Source(source)), Some(effect_name), Some(origin), Some(direction)) = (
+                object.properties.get("recipe_effect_source"),
+                object.properties.get_str("recipe_particle_effect"),
+                object.properties.get_vec3("recipe_effect_origin"),
+                object.properties.get_vec3("recipe_effect_direction"),
+            ) && let Some(tile) = source.tile_from_tile_list(assets)
+                && let Some(effect) = tile
+                    .particle_effects
+                    .iter()
+                    .find(|effect| effect.name.eq_ignore_ascii_case(effect_name))
+            {
+                let name_hash = Self::hash_u32_label(effect_name);
+                let key = Self::tile_particle_key(9, Self::hash_u32_uuid(object.id), name_hash);
+                out.push(BuilderParticleSource {
+                    key,
+                    light_id: GeoId::Unknown(0xB180_0000 ^ key),
+                    sprite_tile_id: Self::recipe_particle_sprite_tile_id(tile.id, effect_name),
+                    emitter: effect.emitter.clone(),
+                    // Source compiles recipe lights into map.lights at the same attachment.
+                    light_override: None,
+                    emit_implicit_light: false,
+                    origin: Vec3::from(origin),
+                    direction: Vec3::from(direction)
+                        .try_normalized()
+                        .unwrap_or(Vec3::unit_y()),
+                    size_scale: 1.0,
+                });
+                continue;
+            }
             if object.properties.get_str("builder_baked") != Some("geometry_object") {
                 continue;
             }
@@ -1300,9 +1389,10 @@ impl SceneHandler {
             out.push(BuilderParticleSource {
                 key,
                 light_id: GeoId::Unknown(0xB17F_0000 ^ key),
-                tile_id: tile.id,
+                sprite_tile_id: Self::particle_sprite_tile_id(tile.id),
                 emitter,
                 light_override: tile.light_emitter.clone(),
+                emit_implicit_light: true,
                 origin,
                 direction: Vec3::new(0.0, 1.0, 0.0),
                 size_scale: width.clamp(0.35, 1.5),
@@ -1354,7 +1444,7 @@ impl SceneHandler {
                 );
                 let dynamic = DynamicObject::particle_tile_2d(
                     GeoId::Unknown(source.key.wrapping_mul(2048).wrapping_add(index as u32)),
-                    Self::particle_sprite_tile_id(source.tile_id),
+                    source.sprite_tile_id,
                     Vec2::new(particle.pos.x, particle.pos.z),
                     size,
                     size,
@@ -1403,44 +1493,49 @@ impl SceneHandler {
             emitter.direction = source.direction;
             Self::advance_emitter(emitter, particle_steps);
 
-            let (light_color, light_intensity, light_range, light_flicker, light_lift) =
-                if let Some(light) = &source.light_override {
-                    let light_range = Self::effective_tile_light_range(light.range);
-                    (
-                        Vec3::new(
-                            (light.color[0] as f32 / 255.0).powf(2.2),
-                            (light.color[1] as f32 / 255.0).powf(2.2),
-                            (light.color[2] as f32 / 255.0).powf(2.2),
-                        ),
-                        Self::effective_tile_light_intensity(light.intensity),
-                        light_range,
-                        light.flicker,
-                        light.lift,
-                    )
-                } else {
-                    let light_range = Self::effective_tile_light_range(4.0);
-                    (
-                        Vec3::new(
-                            (source.emitter.color[0] as f32 / 255.0).powf(2.2),
-                            (source.emitter.color[1] as f32 / 255.0).powf(2.2),
-                            (source.emitter.color[2] as f32 / 255.0).powf(2.2),
-                        ),
-                        Self::effective_tile_light_intensity(1.8),
-                        light_range,
-                        0.2,
-                        0.06,
-                    )
-                };
-            self.vm.execute(Atom::AddLight {
-                id: source.light_id,
-                light: Light::new_pointlight(source.origin + Vec3::new(0.0, light_lift, 0.0))
-                    .with_color(light_color)
-                    .with_intensity(light_intensity)
-                    .with_emitting(true)
-                    .with_start_distance(Self::effective_tile_light_start_distance(light_range))
-                    .with_end_distance(light_range)
-                    .with_flicker(light_flicker),
-            });
+            let light = if let Some(light) = &source.light_override {
+                let light_range = Self::effective_tile_light_range(light.range);
+                Some((
+                    Vec3::new(
+                        (light.color[0] as f32 / 255.0).powf(2.2),
+                        (light.color[1] as f32 / 255.0).powf(2.2),
+                        (light.color[2] as f32 / 255.0).powf(2.2),
+                    ),
+                    Self::effective_tile_light_intensity(light.intensity),
+                    light_range,
+                    light.flicker,
+                    light.lift,
+                ))
+            } else if source.emit_implicit_light {
+                let light_range = Self::effective_tile_light_range(4.0);
+                Some((
+                    Vec3::new(
+                        (source.emitter.color[0] as f32 / 255.0).powf(2.2),
+                        (source.emitter.color[1] as f32 / 255.0).powf(2.2),
+                        (source.emitter.color[2] as f32 / 255.0).powf(2.2),
+                    ),
+                    Self::effective_tile_light_intensity(1.8),
+                    light_range,
+                    0.2,
+                    0.06,
+                ))
+            } else {
+                None
+            };
+            if let Some((light_color, light_intensity, light_range, light_flicker, light_lift)) =
+                light
+            {
+                self.vm.execute(Atom::AddLight {
+                    id: source.light_id,
+                    light: Light::new_pointlight(source.origin + Vec3::new(0.0, light_lift, 0.0))
+                        .with_color(light_color)
+                        .with_intensity(light_intensity)
+                        .with_emitting(true)
+                        .with_start_distance(Self::effective_tile_light_start_distance(light_range))
+                        .with_end_distance(light_range)
+                        .with_flicker(light_flicker),
+                });
+            }
 
             let lifetime_max = emitter.lifetime_range.1.max(0.001);
             for (index, particle) in emitter.particles.iter().enumerate() {
@@ -1455,7 +1550,7 @@ impl SceneHandler {
                 );
                 let dynamic = DynamicObject::particle_tile(
                     GeoId::Unknown(source.key.wrapping_mul(2048).wrapping_add(index as u32)),
-                    Self::particle_sprite_tile_id(source.tile_id),
+                    source.sprite_tile_id,
                     center,
                     basis.1,
                     basis.2,
@@ -1495,7 +1590,7 @@ impl SceneHandler {
                                 .wrapping_mul(4096)
                                 .wrapping_add(3000 + layer as u32),
                         ),
-                        Self::particle_sprite_tile_id(source.tile_id),
+                        source.sprite_tile_id,
                         source.origin + Vec3::new(0.0, yoff, 0.0),
                         basis.1,
                         basis.2,
@@ -2079,7 +2174,11 @@ impl SceneHandler {
         self.campfire_emitters.clear();
         self.tile_emitters_2d.clear();
         self.tile_emitters_3d.clear();
+        self.builder_emitters_2d.clear();
+        self.builder_emitters_3d.clear();
         self.ruleset_fx_first_seen.clear();
+        self.pending_particle_steps_2d = 0;
+        self.pending_particle_steps_3d = 0;
         self.mark_dynamics_dirty();
     }
 
@@ -2879,6 +2978,18 @@ impl SceneHandler {
                     material_frames: sprite.data_ext.clone().map(|ext| vec![ext]),
                 });
             }
+            for effect in &tile.particle_effects {
+                let emitter = &effect.emitter;
+                let sprite =
+                    Self::build_particle_sprite_texture(emitter.color, emitter.color_ramp.as_ref());
+                self.vm.execute(Atom::AddTile {
+                    id: Self::recipe_particle_sprite_tile_id(*id, &effect.name),
+                    width: sprite.width as u32,
+                    height: sprite.height as u32,
+                    frames: vec![sprite.data],
+                    material_frames: sprite.data_ext.clone().map(|ext| vec![ext]),
+                });
+            }
         }
 
         let checker = Texture::checkerboard(100, 50);
@@ -3147,6 +3258,7 @@ impl SceneHandler {
 
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
+        self.add_authored_map_lights(map, false);
         let _has_tile_particles = self.rebuild_tile_particles_2d(map, assets, particle_steps);
         let _has_builder_particles = self.rebuild_builder_particles_2d(map, assets, particle_steps);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
@@ -3334,7 +3446,6 @@ impl SceneHandler {
     ) {
         // Dynamics must always be built into base layer 0.
         self.vm.set_active_vm(0);
-        self.tick_particle_clock_3d();
         self.avatar_builder
             .set_shading_options(AvatarShadingOptions {
                 enabled: self.settings.avatar_shading_enabled,
@@ -3344,25 +3455,29 @@ impl SceneHandler {
         let has_active_campfire_particles = !self.campfire_emitters.is_empty();
         let has_active_tile_particles = !self.tile_emitters_3d.is_empty();
         let has_active_builder_particles = !self.builder_emitters_3d.is_empty();
+        let has_pending_particle_steps = self.pending_particle_steps_3d > 0;
         let has_active_render_billboard_anim = self
             .billboard_anim_states
             .values()
             .any(|state| (state.start_open - state.target_open).abs() > f32::EPSILON);
         let current_hash =
             self.dynamics_hash_3d(map, camera, animation_frame, assets, avatar_frame_styles);
-        if self.dynamics_ready_3d
-            && self.last_dynamics_hash_3d == Some(current_hash)
-            && !has_active_render_billboard_anim
-            && !has_active_campfire_particles
-            && !has_active_tile_particles
-            && !has_active_builder_particles
-        {
+        if Self::can_reuse_dynamics_3d(
+            self.dynamics_ready_3d,
+            self.last_dynamics_hash_3d == Some(current_hash),
+            has_active_render_billboard_anim,
+            has_pending_particle_steps,
+            has_active_campfire_particles
+                || has_active_tile_particles
+                || has_active_builder_particles,
+        ) {
             return;
         }
         self.last_dynamics_hash_3d = Some(current_hash);
         let particle_steps = std::mem::take(&mut self.pending_particle_steps_3d);
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
+        self.add_authored_map_lights(map, true);
         self.add_sector_campfire_lights(map);
         let _has_campfire_particles =
             self.rebuild_campfire_particles(map, camera, assets, particle_steps);

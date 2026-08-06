@@ -17,7 +17,7 @@ The examples in this chapter use canonical text because it is copyable, versiona
 
 Create `recipes/cloth.recipe`:
 
-```text
+```recipe
 Material cloth
   name = "Red Woven Cloth"
   wrap = Repeat
@@ -59,7 +59,7 @@ A catalog entry containing one material uses its path without `.recipe` as its s
 
 Create `recipes/cloth-panel.recipe`:
 
-```text
+```recipe
 Tile
   name = "Cloth Panel"
   size = I2(64, 64)

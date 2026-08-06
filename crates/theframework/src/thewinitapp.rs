@@ -279,7 +279,6 @@ impl TheWinitApp {
         if ctx.ctx.width == 0 || ctx.ctx.height == 0 {
             return;
         }
-
         #[cfg(feature = "ui")]
         self.app.pre_ui(&mut ctx.ctx);
 
@@ -308,7 +307,6 @@ impl TheWinitApp {
         };
 
         let mut wants_redraw = false;
-
         let current_has_changes = self.app.has_changes();
         if current_has_changes != self.has_changes {
             self.has_changes = current_has_changes;

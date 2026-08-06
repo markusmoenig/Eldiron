@@ -7,9 +7,10 @@ Tile recipes are height-first procedural assets. Fields and patterns build scala
 
 ## Tile root
 
-```text
+```recipe
 Tile
   name = "Dungeon Stone Wall"
+  placement = Surface
   blocking = true
   size = I2(128, 128)
   coverage = I2(2, 2)
@@ -21,6 +22,7 @@ Tile
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `name` | `"Untitled Tile"` | Human-readable name. |
+| `placement` | `Surface` | `Surface` owns the host; `Fixture` overlays an existing host. |
 | `blocking` | `false` | Default placement solidity for map compilers. |
 | `size` | `I2(64, 64)` | Pixel size of one Tile cell. |
 | `coverage` | `I2(1, 1)` | Coordinated Tile cells across and down. |
@@ -30,9 +32,14 @@ Tile
 
 The complete rendered image is `size × coverage`. A coverage of `I2(2, 2)` produces one coordinated four-cell surface rather than four copies of a smaller image.
 
+Use `placement = Fixture` for host-independent props such as torches, switches,
+and door mechanisms. A fixture carries geometry, lights, particles, and named
+attachments but does not replace the wall, floor, or ceiling beneath it. The
+placement host therefore keeps its own continuous texture coverage.
+
 ## Height workflow
 
-```text
+```recipe
 Pattern Stones
   Voronoi
     cells = I2(5, 4)
@@ -70,7 +77,7 @@ The `Geometry` block contains generic constructive primitives. The host supplies
 a local placement basis; the recipe does not contain hardcoded concepts such as
 "niche" or "beam":
 
-```text
+```recipe
 Geometry
   Box Recess
     operation = Subtract
@@ -90,9 +97,51 @@ newly exposed faces. Additive Boxes use that surface on every face.
 
 Every named Box exposes `<name>.distance`, a signed distance to its local XY footprint. A Tile can use it to align mortar, wear, or other material masks with the generated shape:
 
-```text
+```recipe
 Height RecessJoint
   source = 1.0 - Smoothstep(0.025, 0.080, Abs(Recess.distance))
 ```
 
 The geometry and appearance therefore stay synchronized in one recipe while the adapter remains responsible for map-aware placement.
+
+## Named attachments and placement effects
+
+`Attachment` declares a reusable point in the same local coordinates as
+`Geometry`. `Light` and `Particles` blocks refer to that point by name:
+
+```recipe
+Attachment Flame
+  position = F3(0.50, 1.58, -0.47)
+  direction = F3(0.0, 1.0, 0.0)
+
+Light TorchLight
+  attach = Flame
+  color = #ff9a45
+  intensity = 1.75
+  range = 5.2
+  flicker = 0.22
+
+Particles TorchFlame
+  attach = Flame
+  direction = F3(0.0, 1.0, 0.0)
+  spread = 0.48
+  rate = 25.0
+  color_ramp = #fff2a8, #ffc14f, #f0641f, #401008
+  lifetime = F2(0.32, 0.78)
+  radius = F2(0.025, 0.065)
+  speed = F2(0.28, 0.72)
+  spawn_area = F3(0.045, 0.015, 0.035)
+  flame_base = true
+```
+
+The host transforms attachments, geometry, lights, and particle directions
+through one placement basis. A wall torch therefore keeps its flame over its
+basket on every exposed wall direction. Effects belong to the owning Tile
+recipe rather than a Box `surface`, preventing one emitter from being created
+for every textured geometry face.
+
+`Light` fields are `attach`, `color`, `intensity`, `range`, `flicker`, and
+`lift`. `Particles` supports `attach`, `direction`, `spread` (radians), `rate`,
+`color`, an optional four-color `color_ramp`, `color_variation`, ordered
+`lifetime`, `radius`, and `speed` ranges, `spawn_area`, and `flame_base`.
+Multiple named attachments and effects may coexist in one recipe.

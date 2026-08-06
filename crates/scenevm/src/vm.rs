@@ -7394,7 +7394,9 @@ impl VM {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: Some(false),
-                    depth_compare: Some(wgpu::CompareFunction::Always),
+                    // Particles blend without writing depth, but opaque walls and props must
+                    // still occlude them. `Always` made flames visible through dungeon walls.
+                    depth_compare: Some(wgpu::CompareFunction::LessEqual),
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),

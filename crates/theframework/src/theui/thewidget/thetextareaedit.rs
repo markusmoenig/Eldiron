@@ -247,6 +247,9 @@ impl TheWidget for TheTextAreaEdit {
                     self.is_dirty = true;
                     redraw = true;
                     update_status = true;
+                    if self.continuous {
+                        self.emit_value_changed(ctx);
+                    }
                 }
             }
             TheEvent::Redo => {
@@ -257,6 +260,9 @@ impl TheWidget for TheTextAreaEdit {
                     self.is_dirty = true;
                     redraw = true;
                     update_status = true;
+                    if self.continuous {
+                        self.emit_value_changed(ctx);
+                    }
                 }
             }
             TheEvent::Copy => {
@@ -1834,5 +1840,38 @@ mod tests {
             &mut ctx,
         ));
         assert_eq!(edit.value().to_string().as_deref(), Some("external\ntext"));
+    }
+
+    #[test]
+    fn continuous_editor_emits_value_changed_after_undo_and_redo() {
+        let mut edit = TheTextAreaEdit::new(TheId::named("Test"));
+        edit.set_continuous(true);
+        let mut ctx = TheContext::new(100, 100, 1.0);
+        let mut ui = TheUI::new();
+        ui.init(&mut ctx);
+        let receiver = ui.add_state_listener("textarea undo test".to_string());
+
+        assert!(edit.on_event(
+            &TheEvent::Paste(TheValue::Text("changed".to_string()), None),
+            &mut ctx,
+        ));
+        ui.process_events(&mut ctx);
+        let _ = receiver.try_iter().collect::<Vec<_>>();
+
+        assert!(edit.on_event(&TheEvent::Undo, &mut ctx));
+        ui.process_events(&mut ctx);
+        assert!(receiver.try_iter().any(|event| matches!(
+            event,
+            TheEvent::ValueChanged(id, TheValue::Text(text))
+                if id.name == "Test" && text.is_empty()
+        )));
+
+        assert!(edit.on_event(&TheEvent::Redo, &mut ctx));
+        ui.process_events(&mut ctx);
+        assert!(receiver.try_iter().any(|event| matches!(
+            event,
+            TheEvent::ValueChanged(id, TheValue::Text(text))
+                if id.name == "Test" && text == "changed"
+        )));
     }
 }

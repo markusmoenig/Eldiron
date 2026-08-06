@@ -12,6 +12,7 @@ pub mod iso_paint;
 pub mod log;
 pub mod palette;
 pub mod particle_preview;
+pub mod recipe_preview_3d;
 pub mod recipes;
 pub mod text_play;
 pub mod tilemap;
@@ -88,6 +89,19 @@ pub trait Dock: Send + Sync {
         ctx: &mut TheContext,
         project: &mut Project,
         server_ctx: &mut ServerContext,
+    ) -> bool {
+        false
+    }
+
+    /// Apply completed background work owned by this dock. This is polled by
+    /// Creator independently of UI event routing so a worker result cannot be
+    /// lost when the visible tool/dock changes while it is rendering.
+    fn poll_background(
+        &mut self,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _project: &mut Project,
+        _server_ctx: &mut ServerContext,
     ) -> bool {
         false
     }

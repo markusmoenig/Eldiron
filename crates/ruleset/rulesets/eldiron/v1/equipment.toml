@@ -1266,7 +1266,7 @@ on_empty = "destroy"
 [items.tools.torch.light]
 color = "#ffad52"
 strength = 4.2
-range = 4.8
+range = 3.8
 flicker = 0.4
 lift = 1.15
 

@@ -1726,34 +1726,47 @@ impl SceneVM {
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let instance =
-                wgpu::Instance::new(scenevm_instance_descriptor(selected_wgpu_backends()));
-            let adapter =
-                pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-                    power_preference: wgpu::PowerPreference::HighPerformance,
-                    force_fallback_adapter: false,
-                    compatible_surface: None,
-                }))
-                .expect("No compatible GPU adapter found");
-            log_adapter_info("headless", &adapter);
-
-            let (device, queue) =
-                pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
-                    label: Some("scenevm-device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
-                    ..Default::default()
-                }))
-                .expect("Failed to create wgpu device");
+            // Every offscreen SceneVM can share one native device/queue. This
+            // keeps auxiliary views (such as Creator's Recipe preview) from
+            // requesting another adapter and compiling a second device stack.
+            let global = GLOBAL_GPU
+                .get_or_init(|| {
+                    let instance =
+                        wgpu::Instance::new(scenevm_instance_descriptor(selected_wgpu_backends()));
+                    let adapter = pollster::block_on(instance.request_adapter(
+                        &wgpu::RequestAdapterOptions {
+                            power_preference: wgpu::PowerPreference::HighPerformance,
+                            force_fallback_adapter: false,
+                            compatible_surface: None,
+                        },
+                    ))
+                    .expect("No compatible GPU adapter found");
+                    log_adapter_info("headless", &adapter);
+                    let (device, queue) =
+                        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+                            label: Some("scenevm-device"),
+                            required_features: wgpu::Features::empty(),
+                            required_limits: wgpu::Limits::default(),
+                            ..Default::default()
+                        }))
+                        .expect("Failed to create wgpu device");
+                    GlobalGpu {
+                        instance,
+                        adapter,
+                        device,
+                        queue,
+                    }
+                })
+                .clone();
 
             let mut surface = Texture::new(initial_width, initial_height);
-            surface.ensure_gpu_with(&device);
+            surface.ensure_gpu_with(&global.device);
 
             let gpu = GPUState {
-                _instance: instance,
-                _adapter: adapter,
-                device,
-                queue,
+                _instance: global.instance,
+                _adapter: global.adapter,
+                device: global.device,
+                queue: global.queue,
                 surface,
                 window_surface: None,
             };

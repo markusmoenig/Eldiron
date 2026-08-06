@@ -184,3 +184,102 @@ Material wall_mortar
         emission = 0.0
         normal = Grit
         normal_strength = 0.18
+
+Material torch_iron
+    name = "Torch Iron"
+    wrap = Repeat
+    seed = 347
+
+    Noise Hammer
+        type = Value
+        fractal = Ridged
+        scale = F2(7.0, 7.0)
+        octaves = 2
+        persistence = 0.48
+        seed = 61
+
+    Color IronDark
+        nearest = #252a2d
+
+    Color IronLight
+        nearest = #737a7d
+
+    Color IronColor
+        source = Mix(IronDark, IronLight, Hammer * 0.62)
+
+    Surface
+        color = IronColor
+        palette = BaseOnly
+        roughness = Clamp(0.34 + Hammer * 0.24, 0.0, 1.0)
+        metallic = 0.78
+        opacity = 1.0
+        emission = 0.0
+        normal = Hammer
+        normal_strength = 0.20
+
+Material torch_wood
+    name = "Torch Wood"
+    wrap = Repeat
+    seed = 349
+
+    Noise GrainNoise
+        type = Gradient
+        fractal = FBm
+        scale = F2(3.0, 14.0)
+        octaves = 3
+        persistence = 0.50
+        seed = 67
+
+    Value Grain
+        source = Clamp(0.5 + Sin(V * 19.0 + GrainNoise * 1.8) * 0.34, 0.0, 1.0)
+
+    Color WoodDark
+        nearest = #211109
+
+    Color WoodLight
+        nearest = #6b3819
+
+    Color WoodColor
+        source = Mix(WoodDark, WoodLight, Grain)
+
+    Surface
+        color = WoodColor
+        palette = BaseOnly
+        roughness = 0.72
+        metallic = 0.0
+        opacity = 1.0
+        emission = 0.0
+        normal = Grain
+        normal_strength = 0.22
+
+Material torch_ember
+    name = "Torch Ember"
+    wrap = Repeat
+    seed = 353
+
+    Noise Coal
+        type = Value
+        fractal = Turbulence
+        scale = F2(6.0, 5.0)
+        octaves = 3
+        persistence = 0.52
+        seed = 71
+
+    Color EmberDark
+        exact = #8c2108
+
+    Color EmberBright
+        exact = #ffd25c
+
+    Color EmberColor
+        source = Mix(EmberDark, EmberBright, Coal)
+
+    Surface
+        color = EmberColor
+        palette = Strict
+        roughness = 0.66
+        metallic = 0.0
+        opacity = 1.0
+        emission = Clamp(0.45 + Coal * 0.55, 0.0, 1.0)
+        normal = Coal
+        normal_strength = 0.12

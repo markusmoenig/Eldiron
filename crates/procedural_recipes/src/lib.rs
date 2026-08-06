@@ -10,8 +10,8 @@ pub use ast::{
     GeometryChannel, GeometryFeature, GeometryOperation, HeightField, HeightOperation, IdSource,
     MaterialDocument, MaterialLayer, MaterialMap, MaterialOutput, MaterialRecipe, MaterialSurface,
     NoiseField, NoiseKind, Output, PaletteMode, ParseWarning, PatternChannel, PatternDefinition,
-    PatternKind, Perturb, Recipe, RecipeDocument, ScalarSource, SdfDocument, SdfRecipe, SdfShape,
-    SdfShapeKind, UnaryOperator, ValueField, Warp, WrapMode,
+    PatternKind, Perturb, Recipe, RecipeDocument, RecipePlacement, ScalarSource, SdfDocument,
+    SdfRecipe, SdfShape, SdfShapeKind, UnaryOperator, ValueField, Warp, WrapMode,
 };
 pub use palette::{PaletteError, PaletteModel};
 pub use parser::{

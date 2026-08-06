@@ -446,12 +446,16 @@ impl Dock for TilemapDock {
                                             scale: tile_for_runtime.scale,
                                             alias: tile_for_runtime.name.clone(),
                                             procedural: Default::default(),
+                                            recipe_placement: Default::default(),
                                             geometry: Default::default(),
                                             material: Default::default(),
                                             material_alias: String::new(),
                                             baked_material_data: Vec::new(),
                                             particle_emitter: None,
                                             light_emitter: None,
+                                            attachments: Vec::new(),
+                                            light_effects: Vec::new(),
+                                            particle_effects: Vec::new(),
                                         };
                                         tile.set_default_materials();
                                         project.tiles.insert(id, tile);
@@ -659,12 +663,16 @@ impl TilemapDock {
             scale: rgba_tile.scale,
             alias: rgba_tile.name.clone(),
             procedural: Default::default(),
+            recipe_placement: Default::default(),
             geometry: Default::default(),
             material: Default::default(),
             material_alias: String::new(),
             baked_material_data: Vec::new(),
             particle_emitter: None,
             light_emitter: None,
+            attachments: Vec::new(),
+            light_effects: Vec::new(),
+            particle_effects: Vec::new(),
         });
 
         // if let Some(icon_view) = ui.get_icon_view("Tilemap Selection Preview") {

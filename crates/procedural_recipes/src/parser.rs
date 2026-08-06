@@ -591,7 +591,15 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
     reject_unknown_fields(
         node,
         &[
-            "name", "blocking", "material", "size", "coverage", "wrap", "seed", "pixelate",
+            "name",
+            "placement",
+            "blocking",
+            "material",
+            "size",
+            "coverage",
+            "wrap",
+            "seed",
+            "pixelate",
         ],
     )?;
     let mut recipe = Recipe {
@@ -599,6 +607,7 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
             .map(|(value, line)| parse_string(value, line))
             .transpose()?
             .unwrap_or_else(|| "Untitled Tile".to_string()),
+        placement: parse_recipe_placement(node)?,
         blocking: optional_bool(node, "blocking", false)?,
         material: field(node, "material")
             .map(|(value, line)| parse_alias(value, line))
@@ -623,6 +632,7 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
     let mut material_map = None;
     let mut implicit_output = None;
     let mut geometry_seen = false;
+    let mut effect_names = BTreeSet::new();
     for child in &node.children {
         let (kind, declared_name) = declaration(&child.name);
         match kind.as_str() {
@@ -690,11 +700,46 @@ fn recipe_from_node(node: &Node) -> Result<Recipe, ParseError> {
                 recipe.geometry = parse_geometry(child)?;
                 geometry_seen = true;
             }
+            "attachment" => {
+                let attachment = parse_attachment(child, declared_name)?;
+                if !effect_names.insert(format!(
+                    "attachment:{}",
+                    attachment.name.to_ascii_lowercase()
+                )) {
+                    return Err(ParseError::duplicate(
+                        child.line,
+                        format!("duplicate Attachment '{}'", attachment.name),
+                    ));
+                }
+                recipe.attachments.push(attachment);
+            }
+            "light" => {
+                let light = parse_light_effect(child, declared_name)?;
+                if !effect_names.insert(format!("light:{}", light.name.to_ascii_lowercase())) {
+                    return Err(ParseError::duplicate(
+                        child.line,
+                        format!("duplicate Light '{}'", light.name),
+                    ));
+                }
+                recipe.lights.push(light);
+            }
+            "particles" => {
+                let particles = parse_particle_effect(child, declared_name)?;
+                if !effect_names
+                    .insert(format!("particles:{}", particles.name.to_ascii_lowercase()))
+                {
+                    return Err(ParseError::duplicate(
+                        child.line,
+                        format!("duplicate Particles '{}'", particles.name),
+                    ));
+                }
+                recipe.particles.push(particles);
+            }
             _ => {
                 return Err(ParseError::unknown(
                     child.line,
                     format!(
-                        "unknown top-level block '{}'; expected Noise <name>, Pattern <name>, Height <name>, Geometry, Colorize, MaterialMap, or Output",
+                        "unknown top-level block '{}'; expected Noise <name>, Pattern <name>, Height <name>, Geometry, Attachment <name>, Light <name>, Particles <name>, Colorize, MaterialMap, or Output",
                         child.name
                     ),
                 ));
@@ -762,6 +807,201 @@ fn parse_geometry(node: &Node) -> Result<Vec<GeometryFeature>, ParseError> {
         ));
     }
     Ok(features)
+}
+
+fn parse_attachment(node: &Node, name: Option<&str>) -> Result<Attachment, ParseError> {
+    reject_unknown_fields(node, &["position", "direction"])?;
+    reject_children(node)?;
+    let name = required_declaration_name(node, name)?.to_string();
+    let position = optional_f3(node, "position", [0.0, 0.0, 0.0])?;
+    let direction = optional_f3(node, "direction", [0.0, 1.0, 0.0])?;
+    validate_finite_f3(node, "position", position)?;
+    validate_direction(node, direction)?;
+    Ok(Attachment {
+        name,
+        position,
+        direction,
+    })
+}
+
+fn parse_light_effect(node: &Node, name: Option<&str>) -> Result<LightEffect, ParseError> {
+    reject_unknown_fields(
+        node,
+        &["attach", "color", "intensity", "range", "flicker", "lift"],
+    )?;
+    reject_children(node)?;
+    let name = required_declaration_name(node, name)?.to_string();
+    let attachment = required_identifier_field(node, "attach")?;
+    let color = field(node, "color")
+        .map(|(value, line)| parse_authored_color(value, line))
+        .transpose()?
+        .unwrap_or([255, 196, 96, 255]);
+    let intensity = optional_f32(node, "intensity", 1.0)?;
+    let range = optional_f32(node, "range", 4.0)?;
+    let flicker = optional_f32(node, "flicker", 0.0)?;
+    let lift = optional_f32(node, "lift", 0.0)?;
+    for (field_name, value) in [
+        ("intensity", intensity),
+        ("range", range),
+        ("flicker", flicker),
+    ] {
+        if !value.is_finite() || value < 0.0 {
+            return Err(ParseError::invalid(
+                field(node, field_name).map_or(node.line, |(_, line)| line),
+                format!("Light.{field_name} must be a finite non-negative number"),
+            ));
+        }
+    }
+    if !lift.is_finite() {
+        return Err(ParseError::invalid(
+            field(node, "lift").map_or(node.line, |(_, line)| line),
+            "Light.lift must be finite",
+        ));
+    }
+    Ok(LightEffect {
+        name,
+        attachment,
+        color,
+        intensity,
+        range,
+        flicker,
+        lift,
+    })
+}
+
+fn parse_particle_effect(node: &Node, name: Option<&str>) -> Result<ParticleEffect, ParseError> {
+    reject_unknown_fields(
+        node,
+        &[
+            "attach",
+            "direction",
+            "spread",
+            "rate",
+            "color",
+            "color_ramp",
+            "color_variation",
+            "lifetime",
+            "radius",
+            "speed",
+            "spawn_area",
+            "flame_base",
+        ],
+    )?;
+    reject_children(node)?;
+    let name = required_declaration_name(node, name)?.to_string();
+    let attachment = required_identifier_field(node, "attach")?;
+    let direction = optional_f3(node, "direction", [0.0, 1.0, 0.0])?;
+    validate_direction(node, direction)?;
+    let spread = optional_f32(node, "spread", std::f32::consts::FRAC_PI_4)?;
+    let rate = optional_f32(node, "rate", 30.0)?;
+    let color = field(node, "color")
+        .map(|(value, line)| parse_authored_color(value, line))
+        .transpose()?
+        .unwrap_or([255, 160, 0, 255]);
+    let color_ramp = field(node, "color_ramp")
+        .map(|(value, line)| parse_color_ramp4(value, line))
+        .transpose()?;
+    let variation = optional_u32(node, "color_variation", 30)?;
+    if variation > u8::MAX as u32 {
+        return Err(ParseError::invalid(
+            field(node, "color_variation").unwrap().1,
+            "Particles.color_variation must be within 0..255",
+        ));
+    }
+    let lifetime = optional_f2(node, "lifetime", [0.5, 1.5])?;
+    let radius = optional_f2(node, "radius", [0.05, 0.15])?;
+    let speed = optional_f2(node, "speed", [0.5, 1.5])?;
+    let spawn_area = optional_f3(node, "spawn_area", [0.0, 0.0, 0.0])?;
+    for (field_name, range) in [("lifetime", lifetime), ("radius", radius), ("speed", speed)] {
+        validate_non_negative_range(node, field_name, range)?;
+    }
+    validate_finite_f3(node, "spawn_area", spawn_area)?;
+    if spawn_area.iter().any(|value| *value < 0.0) {
+        return Err(ParseError::invalid(
+            field(node, "spawn_area").map_or(node.line, |(_, line)| line),
+            "Particles.spawn_area components must be non-negative",
+        ));
+    }
+    for (field_name, value) in [("spread", spread), ("rate", rate)] {
+        if !value.is_finite() || value < 0.0 {
+            return Err(ParseError::invalid(
+                field(node, field_name).map_or(node.line, |(_, line)| line),
+                format!("Particles.{field_name} must be a finite non-negative number"),
+            ));
+        }
+    }
+    Ok(ParticleEffect {
+        name,
+        attachment,
+        direction,
+        spread,
+        rate,
+        color,
+        color_ramp,
+        color_variation: variation as u8,
+        lifetime,
+        radius,
+        speed,
+        spawn_area,
+        flame_base: optional_bool(node, "flame_base", false)?,
+    })
+}
+
+fn required_identifier_field(node: &Node, name: &str) -> Result<String, ParseError> {
+    let (value, line) = field(node, name)
+        .ok_or_else(|| ParseError::missing(node.line, format!("{} requires {name}", node.name)))?;
+    let value = value.trim().trim_matches('"');
+    validate_identifier(value, line)?;
+    Ok(value.to_string())
+}
+
+fn parse_color_ramp4(value: &str, line: usize) -> Result<[[u8; 4]; 4], ParseError> {
+    let values = split_arguments(value);
+    if values.len() != 4 {
+        return Err(ParseError::invalid(
+            line,
+            "Particles.color_ramp requires four comma-separated colors",
+        ));
+    }
+    Ok([
+        parse_authored_color(values[0], line)?,
+        parse_authored_color(values[1], line)?,
+        parse_authored_color(values[2], line)?,
+        parse_authored_color(values[3], line)?,
+    ])
+}
+
+fn validate_direction(node: &Node, direction: [f32; 3]) -> Result<(), ParseError> {
+    validate_finite_f3(node, "direction", direction)?;
+    if direction.iter().map(|value| value * value).sum::<f32>() <= f32::EPSILON {
+        return Err(ParseError::invalid(
+            field(node, "direction").map_or(node.line, |(_, line)| line),
+            "direction must not be zero",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_finite_f3(node: &Node, name: &str, value: [f32; 3]) -> Result<(), ParseError> {
+    if value.iter().any(|value| !value.is_finite()) {
+        Err(ParseError::invalid(
+            field(node, name).map_or(node.line, |(_, line)| line),
+            format!("{name} components must be finite"),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_non_negative_range(node: &Node, name: &str, range: [f32; 2]) -> Result<(), ParseError> {
+    if range.iter().any(|value| !value.is_finite() || *value < 0.0) || range[0] > range[1] {
+        Err(ParseError::invalid(
+            field(node, name).map_or(node.line, |(_, line)| line),
+            format!("Particles.{name} must be an ordered non-negative F2 range"),
+        ))
+    } else {
+        Ok(())
+    }
 }
 
 fn parse_box_geometry(node: &Node, name: Option<&str>) -> Result<BoxGeometry, ParseError> {
@@ -1500,6 +1740,44 @@ fn validate_names_and_references(
             GeometryFeature::Box(geometry_box) => &geometry_box.name,
         };
         fields.insert(format!("@geometry:{}", name.to_ascii_lowercase()));
+    }
+    let attachment_nodes = child_nodes(root, &["attachment"]);
+    let light_nodes = child_nodes(root, &["light"]);
+    let particle_nodes = child_nodes(root, &["particles"]);
+    let mut attachments = BTreeSet::new();
+    for (index, attachment) in recipe.attachments.iter().enumerate() {
+        if !attachments.insert(attachment.name.to_ascii_lowercase()) {
+            return Err(ParseError::duplicate(
+                attachment_nodes
+                    .get(index)
+                    .map_or(root.line, |node| node.line),
+                format!("duplicate Attachment '{}'", attachment.name),
+            ));
+        }
+    }
+    for (index, light) in recipe.lights.iter().enumerate() {
+        if !attachments.contains(&light.attachment.to_ascii_lowercase()) {
+            let node = light_nodes.get(index).copied().unwrap_or(root);
+            return Err(ParseError::invalid(
+                field_line(node, "attach"),
+                format!(
+                    "Light '{}' references unknown Attachment '{}'",
+                    light.name, light.attachment
+                ),
+            ));
+        }
+    }
+    for (index, particles) in recipe.particles.iter().enumerate() {
+        if !attachments.contains(&particles.attachment.to_ascii_lowercase()) {
+            let node = particle_nodes.get(index).copied().unwrap_or(root);
+            return Err(ParseError::invalid(
+                field_line(node, "attach"),
+                format!(
+                    "Particles '{}' references unknown Attachment '{}'",
+                    particles.name, particles.attachment
+                ),
+            ));
+        }
     }
     for (index, field) in recipe.fields.iter().enumerate() {
         let field_node = field_nodes.get(index).copied().unwrap_or(root);
@@ -2687,6 +2965,20 @@ fn parse_wrap(node: &Node) -> Result<WrapMode, ParseError> {
     }
 }
 
+fn parse_recipe_placement(node: &Node) -> Result<RecipePlacement, ParseError> {
+    let Some((value, line)) = field(node, "placement") else {
+        return Ok(RecipePlacement::Surface);
+    };
+    match value.trim().to_ascii_lowercase().as_str() {
+        "surface" => Ok(RecipePlacement::Surface),
+        "fixture" => Ok(RecipePlacement::Fixture),
+        _ => Err(ParseError::invalid(
+            line,
+            "placement must be Surface or Fixture",
+        )),
+    }
+}
+
 fn required_scalar(node: &Node, name: &str) -> Result<ScalarSource, ParseError> {
     let (value, line) = field(node, name)
         .ok_or_else(|| ParseError::missing(node.line, format!("{} requires {name}", node.name)))?;
@@ -3128,6 +3420,91 @@ Tile
                 } if name == "Recess"
             )
         ));
+    }
+
+    #[test]
+    fn parses_fixture_placement_and_rejects_unknown_placement() {
+        let fixture = parse_recipe(
+            r#"
+Tile
+    name = "Torch"
+    placement = Fixture
+
+    Output
+        height = 0.0
+"#,
+        )
+        .unwrap();
+        assert_eq!(fixture.placement, RecipePlacement::Fixture);
+
+        let error = parse_recipe(
+            r#"
+Tile
+    placement = Floating
+    Output
+        height = 0.0
+"#,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("Surface or Fixture"));
+    }
+
+    #[test]
+    fn parses_named_placement_effects() {
+        let recipe = parse_recipe(
+            r#"
+Tile
+    Attachment Flame
+        position = F3(0.5, 1.4, -0.3)
+        direction = F3(0.0, 1.0, 0.0)
+
+    Light Glow
+        attach = Flame
+        color = #ff9a45
+        intensity = 1.7
+        range = 5.0
+        flicker = 0.2
+
+    Particles Fire
+        attach = Flame
+        direction = F3(0.0, 1.0, 0.0)
+        spread = 0.5
+        rate = 24.0
+        color_ramp = #fff2a8, #ffc14f, #f0641f, #401008
+        lifetime = F2(0.3, 0.8)
+        radius = F2(0.02, 0.07)
+        speed = F2(0.3, 0.7)
+        flame_base = true
+
+    Output
+        height = 0.5
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(recipe.attachments[0].name, "Flame");
+        assert_eq!(recipe.lights[0].attachment, "Flame");
+        assert_eq!(recipe.lights[0].color, [255, 154, 69, 255]);
+        assert_eq!(recipe.particles[0].attachment, "Flame");
+        assert_eq!(recipe.particles[0].color_ramp.unwrap()[3], [64, 16, 8, 255]);
+        assert!(recipe.particles[0].flame_base);
+    }
+
+    #[test]
+    fn placement_effects_require_a_known_attachment() {
+        let error = parse_recipe(
+            r#"
+Tile
+    Light Glow
+        attach = Missing
+
+    Output
+        height = 0.5
+"#,
+        )
+        .unwrap_err();
+
+        assert!(error.message.contains("unknown Attachment 'Missing'"));
     }
 
     #[test]

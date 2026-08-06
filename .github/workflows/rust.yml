@@ -56,6 +56,12 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup default stable
 
+      - name: Verify generated Recipe language assets
+        if: runner.os == 'Linux' && matrix.working-directory == 'creator'
+        shell: bash
+        working-directory: .
+        run: cargo xtask recipe-language --check
+
       # ────────────────────────────────────────────────────────────────────────────
       # 4. Build
       # ────────────────────────────────────────────────────────────────────────────

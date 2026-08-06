@@ -911,6 +911,9 @@ impl Server {
         self.audio_commands.clear();
         self.world_render = RuntimeRenderState::default();
         self.region_render.clear();
+        self.runtime_maps.clear();
+        self.runtime_map_position_guards.clear();
+        self.multiple_choice.clear();
         self.id_gen = 1;
         self.region_id_map.clear();
         self.region_name_id_map.clear();
@@ -931,5 +934,22 @@ impl Server {
         let id = self.id_gen;
         self.id_gen += 1;
         id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clear_removes_generated_runtime_maps() {
+        let mut server = Server::new();
+        server.runtime_maps.insert(7, Map::default());
+        server.runtime_map_position_guards.insert(7, 4);
+
+        server.clear();
+
+        assert!(server.runtime_maps.is_empty());
+        assert!(server.runtime_map_position_guards.is_empty());
     }
 }

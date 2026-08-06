@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use procedural_recipes::{
-    MaterialRecipe, Recipe, RecipeDocument, RecipeRenderer, RenderOptions, RenderSurface,
-    RenderSurfaceFrame, RenderSurfaceMapping, SdfRenderer, parse_document,
+    MaterialRecipe, Recipe, RecipeDocument, RecipePlacement, RecipeRenderer, RenderOptions,
+    RenderSurface, RenderSurfaceFrame, RenderSurfaceMapping, SdfRenderer, parse_document,
 };
 use rusterix::{Texture, Tile, TileRole};
 use std::collections::hash_map::DefaultHasher;
@@ -12,6 +12,7 @@ use std::sync::{LazyLock, RwLock};
 struct RecipePreviewCacheEntry {
     fingerprint: u64,
     buffer: TheRGBABuffer,
+    visual: TheRGBABuffer,
 }
 
 static RECIPE_PREVIEW_CACHE: LazyLock<RwLock<FxHashMap<Uuid, RecipePreviewCacheEntry>>> =
@@ -20,6 +21,7 @@ static RECIPE_PREVIEW_CACHE: LazyLock<RwLock<FxHashMap<Uuid, RecipePreviewCacheE
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ProceduralRecipeKind {
     Tile,
+    Fixture,
     Material,
     Sdf,
 }
@@ -28,6 +30,7 @@ impl ProceduralRecipeKind {
     pub fn label(self) -> &'static str {
         match self {
             Self::Tile => "Tile Recipe",
+            Self::Fixture => "Fixture Recipe",
             Self::Material => "Material Recipe",
             Self::Sdf => "SDF Recipe",
         }
@@ -37,14 +40,41 @@ impl ProceduralRecipeKind {
 pub fn localized_recipe_kind(kind: ProceduralRecipeKind) -> String {
     match kind {
         ProceduralRecipeKind::Tile => fl!("tile_recipe"),
+        ProceduralRecipeKind::Fixture => fl!("fixture_recipe"),
         ProceduralRecipeKind::Material => fl!("material_recipe"),
         ProceduralRecipeKind::Sdf => fl!("sdf_recipe"),
     }
 }
 
+/// Converts the parser's multi-line source diagnostic into text suitable for
+/// the Creator's single-line status bar.
+pub fn compact_recipe_diagnostic(error: &str) -> String {
+    let mut lines = error.lines().map(str::trim).filter(|line| !line.is_empty());
+    let summary = lines.next().unwrap_or("Invalid Recipe");
+    let location = lines
+        .find_map(|line| line.strip_prefix("-->").map(str::trim))
+        .filter(|line| !line.is_empty());
+    let diagnostic = location
+        .map(|location| format!("{summary} — {location}"))
+        .unwrap_or_else(|| summary.to_string());
+    const MAX_CHARS: usize = 180;
+    if diagnostic.chars().count() <= MAX_CHARS {
+        diagnostic
+    } else {
+        diagnostic.chars().take(MAX_CHARS - 1).collect::<String>() + "…"
+    }
+}
+
 pub fn recipe_description(source: &str) -> Result<(String, ProceduralRecipeKind), String> {
     match parse_document(source).map_err(|error| error.to_string())? {
-        RecipeDocument::Tile(recipe) => Ok((recipe.name, ProceduralRecipeKind::Tile)),
+        RecipeDocument::Tile(recipe) => {
+            let kind = if recipe.placement == RecipePlacement::Fixture {
+                ProceduralRecipeKind::Fixture
+            } else {
+                ProceduralRecipeKind::Tile
+            };
+            Ok((recipe.name, kind))
+        }
         RecipeDocument::Materials(document) => {
             let first = document
                 .materials
@@ -202,19 +232,6 @@ fn recipe_preview_fingerprint(project: &Project, asset: &ProceduralRecipeAsset) 
     hasher.finish()
 }
 
-/// A cheap revision used by list views to avoid rebuilding unchanged rows.
-pub fn recipe_catalog_fingerprint(project: &Project) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    hash_art_palette(project, &mut hasher);
-    for (id, asset) in &project.procedural_recipes {
-        id.hash(&mut hasher);
-        asset.alias.hash(&mut hasher);
-        asset.source.hash(&mut hasher);
-        asset.tile_id.hash(&mut hasher);
-    }
-    hasher.finish()
-}
-
 pub fn clear_recipe_preview_cache() {
     RECIPE_PREVIEW_CACHE.write().unwrap().clear();
 }
@@ -261,26 +278,66 @@ pub fn render_recipe_preview(project: &Project, asset_id: Uuid) -> Result<TheRGB
             RecipePreviewCacheEntry {
                 fingerprint,
                 buffer: buffer.clone(),
+                visual: buffer.clone(),
             },
         );
         return Ok(buffer);
     }
 
-    let buffer = render_recipe_preview_uncached(project, asset_id)?;
+    let (buffer, visual) = render_recipe_preview_uncached(project, asset_id)?;
     RECIPE_PREVIEW_CACHE.write().unwrap().insert(
         asset_id,
         RecipePreviewCacheEntry {
             fingerprint,
             buffer: buffer.clone(),
+            visual,
         },
     );
     Ok(buffer)
 }
 
-fn render_recipe_preview_uncached(
+/// Returns the editor-facing visualization for a Recipe. For Tile recipes this
+/// is the recipe's own rendered output (height, or its Colorize output), not
+/// the referenced material. A material is allowed to stay constant while the
+/// recipe's noise/geometry changes, so using it here makes successful edits
+/// appear as if the preview never refreshed.
+pub fn render_recipe_visual_preview(
     project: &Project,
     asset_id: Uuid,
 ) -> Result<TheRGBABuffer, String> {
+    let _ = render_recipe_preview(project, asset_id)?;
+    let asset = project
+        .procedural_recipes
+        .get(&asset_id)
+        .ok_or_else(|| "Recipe asset was not found".to_string())?;
+    let fingerprint = recipe_preview_fingerprint(project, asset);
+    RECIPE_PREVIEW_CACHE
+        .read()
+        .unwrap()
+        .get(&asset_id)
+        .filter(|entry| entry.fingerprint == fingerprint)
+        .map(|entry| entry.visual.clone())
+        .ok_or_else(|| "Recipe preview cache was not populated".to_string())
+}
+
+/// Return an already-rendered editor preview without doing any rendering on
+/// the UI thread. Selection uses this for an immediate image when available,
+/// then queues a fresh revision through the preview worker.
+pub fn cached_recipe_visual_preview(project: &Project, asset_id: Uuid) -> Option<TheRGBABuffer> {
+    let asset = project.procedural_recipes.get(&asset_id)?;
+    let fingerprint = recipe_preview_fingerprint(project, asset);
+    RECIPE_PREVIEW_CACHE
+        .read()
+        .unwrap()
+        .get(&asset_id)
+        .filter(|entry| entry.fingerprint == fingerprint)
+        .map(|entry| entry.visual.clone())
+}
+
+fn render_recipe_preview_uncached(
+    project: &Project,
+    asset_id: Uuid,
+) -> Result<(TheRGBABuffer, TheRGBABuffer), String> {
     let asset = project
         .procedural_recipes
         .get(&asset_id)
@@ -295,11 +352,12 @@ fn render_recipe_preview_uncached(
             let rendered = renderer
                 .render(&recipe, &options)
                 .map_err(|error| error.to_string())?;
-            let mut rgba = rendered
+            let frame = rendered
                 .frames
                 .first()
-                .map(|frame| frame.rgba.clone())
                 .ok_or_else(|| "Recipe rendered no frames".to_string())?;
+            let mut rgba = frame.rgba.clone();
+            let visual = rgba.clone();
             if let Some(alias) = recipe
                 .material_map
                 .as_ref()
@@ -311,7 +369,10 @@ fn render_recipe_preview_uncached(
             {
                 rgba = frame.rgba.clone();
             }
-            Ok(TheRGBABuffer::from(rgba, rendered.width, rendered.height))
+            Ok((
+                TheRGBABuffer::from(rgba, rendered.width, rendered.height),
+                TheRGBABuffer::from(visual, rendered.width, rendered.height),
+            ))
         }
         RecipeDocument::Materials(document) => {
             let material = document
@@ -328,11 +389,8 @@ fn render_recipe_preview_uncached(
                 .frames
                 .first()
                 .ok_or_else(|| "Material rendered no frames".to_string())?;
-            Ok(TheRGBABuffer::from(
-                frame.rgba.clone(),
-                rendered.width,
-                rendered.height,
-            ))
+            let buffer = TheRGBABuffer::from(frame.rgba.clone(), rendered.width, rendered.height);
+            Ok((buffer.clone(), buffer))
         }
         RecipeDocument::Sdfs(document) => {
             let recipe = document
@@ -353,9 +411,43 @@ fn render_recipe_preview_uncached(
             for alpha in rendered.coverage {
                 rgba.extend_from_slice(&[216, 201, 167, alpha]);
             }
-            Ok(TheRGBABuffer::from(rgba, rendered.width, rendered.height))
+            let buffer = TheRGBABuffer::from(rgba, rendered.width, rendered.height);
+            Ok((buffer.clone(), buffer))
         }
     }
+}
+
+/// Fully render a preview without consulting or mutating the shared cache.
+/// RecipeEditor uses this on its worker thread so typing never blocks the UI.
+pub(crate) fn render_recipe_preview_fresh(
+    project: &Project,
+    asset_id: Uuid,
+) -> Result<(TheRGBABuffer, TheRGBABuffer), String> {
+    render_recipe_preview_uncached(project, asset_id)
+}
+
+/// Install a completed worker render only after its generation has been
+/// accepted by the editor. This prevents an older, slower render from
+/// replacing the cache entry for newer source.
+pub(crate) fn cache_recipe_preview_result(
+    project: &Project,
+    asset_id: Uuid,
+    buffer: TheRGBABuffer,
+    visual: TheRGBABuffer,
+) -> Result<(), String> {
+    let asset = project
+        .procedural_recipes
+        .get(&asset_id)
+        .ok_or_else(|| "Recipe asset was not found".to_string())?;
+    RECIPE_PREVIEW_CACHE.write().unwrap().insert(
+        asset_id,
+        RecipePreviewCacheEntry {
+            fingerprint: recipe_preview_fingerprint(project, asset),
+            buffer,
+            visual,
+        },
+    );
+    Ok(())
 }
 
 /// Rebuild the compatibility material/SDF lookup maps after canonical Recipe edits.
@@ -430,15 +522,13 @@ pub fn rebake_tile_recipe_with_preview(
     {
         tile.textures = vec![texture];
         tile.alias = asset.alias.clone();
-        tile.blocking = recipe.blocking;
-        tile.procedural.coverage = recipe.coverage;
+        tile.apply_procedural_recipe_metadata(&recipe);
         tile_id
     } else {
         let mut tile = Tile::from_texture(texture);
         tile.alias = asset.alias.clone();
         tile.role = TileRole::ManMade;
-        tile.blocking = recipe.blocking;
-        tile.procedural.coverage = recipe.coverage;
+        tile.apply_procedural_recipe_metadata(&recipe);
         let tile_id = tile.id;
         project.tiles.insert(tile_id, tile);
         tile_id
@@ -490,6 +580,18 @@ mod tests {
     }
 
     #[test]
+    fn parser_diagnostics_are_compacted_for_the_single_line_statusbar() {
+        let diagnostic = compact_recipe_diagnostic(
+            "error[PR0006]: field assignments require a name and value\n --> line 20:5\n 20 | seed =\n    |     ^",
+        );
+        assert_eq!(
+            diagnostic,
+            "error[PR0006]: field assignments require a name and value — line 20:5"
+        );
+        assert!(!diagnostic.contains('\n'));
+    }
+
+    #[test]
     fn duplicate_changes_the_source_name_and_uses_a_unique_alias() {
         let mut project = Project::new();
         let asset = ProceduralRecipeAsset::default();
@@ -532,6 +634,34 @@ mod tests {
     }
 
     #[test]
+    fn fixture_recipe_rebakes_with_shared_fixture_metadata() {
+        let mut project = Project::new();
+        let asset = ProceduralRecipeAsset::new(
+            "fixture",
+            r#"Tile
+    name = "Fixture"
+    placement = Fixture
+    Output
+        height = 0.0
+"#,
+        );
+        let id = asset.id;
+        project.procedural_recipes.insert(id, asset);
+        rebake_tile_recipe(&mut project, id).unwrap();
+        let tile_id = project.procedural_recipes[&id].tile_id.unwrap();
+        assert_eq!(
+            project.tiles[&tile_id].recipe_placement,
+            rusterix::TileRecipePlacement::Fixture
+        );
+        assert_eq!(
+            recipe_description(&project.procedural_recipes[&id].source)
+                .unwrap()
+                .1,
+            ProceduralRecipeKind::Fixture
+        );
+    }
+
+    #[test]
     fn preview_cache_hits_until_the_source_changes() {
         let mut project = Project::new();
         let asset = ProceduralRecipeAsset::default();
@@ -558,6 +688,73 @@ mod tests {
             RECIPE_PREVIEW_CACHE.read().unwrap()[&id].fingerprint,
             first_fingerprint
         );
+    }
+
+    #[test]
+    fn tile_visual_preview_changes_when_an_external_material_hides_height_changes() {
+        let mut project = Project::new();
+        let material = ProceduralRecipeAsset::new(
+            "material",
+            "Material stone\n    name = \"Stone\"\n\n    Color Base\n        nearest = #555555\n\n    Surface\n        color = Base\n",
+        );
+        let tile = ProceduralRecipeAsset::new(
+            "stone",
+            "Tile\n    name = \"Stone\"\n    material = material/stone\n    size = I2(16, 16)\n\n    Noise Broad\n        scale = I2(3, 3)\n        seed = 17\n\n    Height Surface\n        source = Broad\n\n    Output\n        height = Surface\n",
+        );
+        let tile_id = tile.id;
+        project.procedural_recipes.insert(material.id, material);
+        project.procedural_recipes.insert(tile.id, tile);
+        sync_recipe_compatibility_catalogs(&mut project);
+
+        let first_baked = render_recipe_preview(&project, tile_id).unwrap();
+        let first = render_recipe_visual_preview(&project, tile_id).unwrap();
+        let changed_source =
+            project.procedural_recipes[&tile_id]
+                .source
+                .replacen("seed = 17", "seed = 18", 1);
+        project.procedural_recipes.get_mut(&tile_id).unwrap().source = changed_source;
+        let second_baked = render_recipe_preview(&project, tile_id).unwrap();
+        let second = render_recipe_visual_preview(&project, tile_id).unwrap();
+
+        assert_eq!(first_baked.pixels(), second_baked.pixels());
+        assert_ne!(first.pixels(), second.pixels());
+    }
+
+    #[test]
+    fn stonefall_ceiling_visual_preview_changes_after_a_noise_seed_edit() {
+        let mut project = Project::new();
+        let material = ProceduralRecipeAsset::new(
+            "dungeon",
+            include_str!("../../source_projects/stonefall-dungeon/recipes/dungeon.recipe"),
+        );
+        let tile = ProceduralRecipeAsset::new(
+            "ceiling-stone",
+            include_str!("../../source_projects/stonefall-dungeon/recipes/ceiling-stone.recipe"),
+        );
+        let tile_id = tile.id;
+        project.procedural_recipes.insert(material.id, material);
+        project.procedural_recipes.insert(tile.id, tile);
+        sync_recipe_compatibility_catalogs(&mut project);
+
+        let first = render_recipe_visual_preview(&project, tile_id).unwrap();
+        let source = &project.procedural_recipes[&tile_id].source;
+        let value_start = source.find("seed = ").unwrap() + "seed = ".len();
+        let value_end = source[value_start..]
+            .find('\n')
+            .map(|offset| value_start + offset)
+            .unwrap_or(source.len());
+        let mut changed_source = source.clone();
+        changed_source.replace_range(value_start..value_end, "987654");
+        project.procedural_recipes.get_mut(&tile_id).unwrap().source = changed_source;
+        let second = render_recipe_visual_preview(&project, tile_id).unwrap();
+
+        let changed_channels = first
+            .pixels()
+            .iter()
+            .zip(second.pixels())
+            .filter(|(a, b)| a != b)
+            .count();
+        assert!(changed_channels > first.pixels().len() / 20);
     }
 
     #[test]

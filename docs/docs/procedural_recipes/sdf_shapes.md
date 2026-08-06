@@ -9,7 +9,7 @@ This layer is experimental. Avatar headgear is its first runtime consumer.
 
 ## Shape recipe
 
-```text
+```recipe
 Sdf simple_helm
   name = "Simple Steel Helm"
 

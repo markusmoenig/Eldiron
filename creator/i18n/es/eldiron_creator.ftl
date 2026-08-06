@@ -605,6 +605,7 @@ recipe_saved = Receta guardada correctamente.
 recipe_save_failed = No se pudo guardar la receta.
 status_edit_recipe = Abre la receta seleccionada en el editor de pantalla completa.
 tile_recipe = Receta de mosaico
+fixture_recipe = Receta de accesorio
 material_recipe = Receta de material
 sdf_recipe = Receta SDF
 status_tiles_new_group = Crea un grupo de mosaicos. El contenido procedural se crea como receta.

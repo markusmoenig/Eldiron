@@ -184,8 +184,9 @@ pub use crate::{
         softrig::{Keyform, SoftRig, SoftRigAnimator},
         surface::{BillboardAnimation, LoopOp, ProfileLoop, Surface},
         tile::{
-            Tile, TileBoxGeometry, TileGeometryFeature, TileGeometryOperation, TileMaterialMeta,
-            TileNicheGeometry, TileRole,
+            Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature, TileGeometryOperation,
+            TileLightEffect, TileMaterialMeta, TileNicheGeometry, TileParticleEffect,
+            TileRecipePlacement, TileRole,
         },
         tilesource::{TileGroup, TileGroupMemberRef, TileSource},
         topology::MapTopology,
@@ -252,9 +253,10 @@ pub mod prelude {
     pub use crate::{
         Keyform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget, OrganicBushCluster,
         OrganicGrowthShape, OrganicVineStroke, Particle, ParticleEmitter, PixelSource, Sector,
-        SoftRig, SoftRigAnimator, Tile, TileBoxGeometry, TileGeometryFeature,
-        TileGeometryOperation, TileGroup, TileGroupMemberRef, TileNicheGeometry, TileRole,
-        TileSource, Vertex, default_organic_bush_clusters, default_organic_vine_strokes,
+        SoftRig, SoftRigAnimator, Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature,
+        TileGeometryOperation, TileGroup, TileGroupMemberRef, TileLightEffect, TileNicheGeometry,
+        TileParticleEffect, TileRole, TileSource, Vertex, default_organic_bush_clusters,
+        default_organic_vine_strokes,
     };
     pub use crate::{
         Rect, Scene, SceneManager, SceneManagerCmd, SceneManagerResult, Value, ValueContainer,

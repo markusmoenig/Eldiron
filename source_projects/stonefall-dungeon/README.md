@@ -138,3 +138,13 @@ Box projects below the stone ceiling. `ceiling-beam-wood.recipe` provides its
 hewn height detail and uses the reusable `dungeon/beam_wood` material for dark
 grain, pores, roughness, and micro-normal variation. There is no beam-specific
 or niche-specific geometry feature in the Recipe AST.
+
+`wall-torch.recipe` demonstrates the same system as a procedural overlay prop.
+Additive Boxes form its iron backplate and basket, wooden arm, and emissive ember
+bed. A named `Flame` attachment owns a flickering point light and flame particle
+emitter. Source transforms all of them with the wall-local basis, keeping the
+geometry and effects aligned on every wall direction. Its
+`placement = Fixture` declaration is carried in shared Tile metadata, so the
+dungeon can map `T` directly to `wall-torch`: Source places the prop over the
+continuous `wall-stone` background instead of replacing that background with a
+separate one-cell Tile.

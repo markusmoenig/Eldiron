@@ -26,7 +26,7 @@ Root kinds cannot be mixed in one file. Keeping them separate lets each consumer
 - `I2(x, y)` is an integer pair and `F2(x, y)` is a floating-point pair.
 - Unknown fields, unknown references, duplicate definitions, and cyclic scalar references are errors.
 
-```text
+```recipe
 // One named field feeding another block.
 Noise Grain
   type = Gradient
@@ -40,7 +40,7 @@ Value Face
 
 Scalar fields are shared by Tile height, pattern masks, material channels, and color mixing.
 
-```text
+```recipe
 source = Clamp(Stones.height * 0.85 + Grain * 0.15, 0.0, 1.0)
 ```
 
@@ -58,7 +58,7 @@ Final output channels are clamped to `0..1`. Division by zero evaluates to zero.
 
 `Noise` creates reusable scalar variation. Its root seed, local seed, scale, fractal, octave count, and persistence make the result deterministic.
 
-```text
+```recipe
 Noise Wear
   type = Gradient
   fractal = Ridged

@@ -7327,6 +7327,7 @@ mod tests {
                 && template.source.contains("set_tile(\"f76473d1")
                 && template.data.contains("tile_id = \"05ab6adc")
                 && template.data.contains("[light]")
+                && template.data.contains("range = 3.8")
                 && template.data.contains("on_look_on = \"A lit torch")
                 && template.authoring.contains("[state.on]")
         }));

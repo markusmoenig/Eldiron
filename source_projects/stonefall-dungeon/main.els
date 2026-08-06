@@ -5,6 +5,7 @@ tiles {
   "&" = wall-stone
   "4" = wall-stone
   "!" = wall-niche
+  "T" = wall-torch
   "?" = wall-stone profile=pillar
 
   # Floors: normal, tall, low

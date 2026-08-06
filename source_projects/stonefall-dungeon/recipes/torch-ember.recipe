@@ -1,0 +1,15 @@
+Tile
+    name = "Torch Ember Surface"
+    material = dungeon/torch_ember
+    size = I2(32, 32)
+    wrap = Repeat
+    seed = 419
+
+    Noise Coal
+        scale = F2(6.0, 5.0)
+        octaves = 3
+        persistence = 0.52
+        seed = 83
+
+    Output
+        height = Clamp(0.40 + Coal * 0.22, 0.0, 1.0)

@@ -26,6 +26,7 @@ pub struct ToolList {
 
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
+    previous_non_game_tool: Option<usize>,
 
     // Editor tools for dock editors
     pub editor_tools: Vec<Box<dyn EditorTool>>,
@@ -70,6 +71,7 @@ impl ToolList {
         self.previous_palette_dock = None;
         self.last_3d_hover_pick_at = None;
         self.last_3d_overlay_update_at = None;
+        self.previous_non_game_tool = None;
         ctx.ui.set_widget_state(
             Self::AUTHORING_BUTTON_NAME.to_string(),
             TheWidgetState::None,
@@ -1360,6 +1362,7 @@ impl ToolList {
             previous_palette_dock: None,
             game_tools,
             curr_game_tool: 2,
+            previous_non_game_tool: None,
 
             editor_tools: Vec::new(),
             curr_editor_tool: 0,
@@ -3228,6 +3231,49 @@ impl ToolList {
         );
     }
 
+    /// Leave the full-screen Game tool after the runtime stops and restore the
+    /// editor tool that was active before Play. Keeping GameTool active with an
+    /// Off server leaves its hidden-sidebar/full-screen state installed and
+    /// routes every redraw through the wrong editor path.
+    pub fn leave_game_tool_after_stop(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        if self.editor_mode || self.game_tools[self.curr_game_tool].id().name != "Game Tool" {
+            server_ctx.game_mode = false;
+            return false;
+        }
+
+        let target = self
+            .previous_non_game_tool
+            .take()
+            .filter(|index| {
+                *index < self.game_tools.len() && self.game_tools[*index].id().name != "Game Tool"
+            })
+            .or_else(|| {
+                self.game_tools
+                    .iter()
+                    .position(|tool| tool.id().name != "Game Tool")
+            });
+        let Some(target) = target else {
+            self.game_tools[self.curr_game_tool].tool_event(
+                ToolEvent::DeActivate,
+                ui,
+                ctx,
+                project,
+                server_ctx,
+            );
+            return true;
+        };
+        let id = self.game_tools[target].id();
+        let changed = self.set_tool(id.uuid, ui, ctx, project, server_ctx);
+        ctx.ui.set_widget_state(id.name, TheWidgetState::Selected);
+        changed
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn set_tool(
         &mut self,
@@ -3285,6 +3331,11 @@ impl ToolList {
                 }
             }
             if switched_tool {
+                if self.game_tools[self.curr_game_tool].id().name == "Game Tool"
+                    && self.game_tools[old_tool_index].id().name != "Game Tool"
+                {
+                    self.previous_non_game_tool = Some(old_tool_index);
+                }
                 server_ctx.hover = (None, None, None);
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
@@ -3313,11 +3364,14 @@ impl ToolList {
                     server_ctx,
                 );
 
-                // Switching game tools should collapse any maximized dock/editor view.
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Minimize Dock"),
-                    TheValue::Empty,
-                ));
+                // Collapse an editor before activating the next tool. Doing
+                // this through a queued event races with tool activation: the
+                // late event can reopen the lower dock after a full-screen
+                // tool such as Game has already hidden it.
+                DOCKMANAGER
+                    .write()
+                    .unwrap()
+                    .minimize_for_tool_switch(ui, ctx);
             }
 
             if let Some(layout) = ui.get_hlayout(layout_name) {
@@ -5190,7 +5244,10 @@ impl ToolList {
             .vm
             .execute(scenevm::Atom::AddChunk { id, chunk });
         rusterix.scene_handler.vm.set_active_vm(0);
-        rusterix.scene_handler.mark_dynamics_dirty();
+        // The editor tool overlay is isolated on VM layer 3. Updating it does
+        // not change base entities, items, lights, billboards, or particles.
+        // Invalidating dynamics here forced the 2,257-object Stonefall scene
+        // to rebuild on every Vertex-tool redraw after leaving Game mode.
     }
 
     /*

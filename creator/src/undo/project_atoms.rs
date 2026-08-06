@@ -779,14 +779,9 @@ impl ProjectUndoAtom {
                     recipe.source = old.clone();
                 }
                 crate::recipe_utils::sync_recipe_compatibility_catalogs(project);
-                let _ = crate::recipe_utils::rebake_tile_recipe(project, *id);
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Refresh Recipe Tree"),
-                    TheValue::Id(*id),
-                ));
                 ui.set_widget_value("Procedural Recipe Source", ctx, TheValue::Text(old.clone()));
                 ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Update Minimap"),
+                    TheId::named_with_id(crate::docks::recipes::RECIPE_SOURCE_CHANGED, *id),
                     TheValue::Empty,
                 ));
             }
@@ -1554,14 +1549,9 @@ impl ProjectUndoAtom {
                     recipe.source = new.clone();
                 }
                 crate::recipe_utils::sync_recipe_compatibility_catalogs(project);
-                let _ = crate::recipe_utils::rebake_tile_recipe(project, *id);
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Refresh Recipe Tree"),
-                    TheValue::Id(*id),
-                ));
                 ui.set_widget_value("Procedural Recipe Source", ctx, TheValue::Text(new.clone()));
                 ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Update Minimap"),
+                    TheId::named_with_id(crate::docks::recipes::RECIPE_SOURCE_CHANGED, *id),
                     TheValue::Empty,
                 ));
             }

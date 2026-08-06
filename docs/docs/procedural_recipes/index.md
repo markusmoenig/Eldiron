@@ -8,7 +8,7 @@ Procedural Recipes are Eldiron's shared assets for deterministic procedural visu
 
 The goal is one procedural foundation with small adapters for different consumers. Tiles, Avatar wearables, headgear, and future UI or geometry systems should reuse the same fields and materials instead of developing separate pattern languages.
 
-```text
+```recipe
 Recipe document
   fields, patterns, shapes, colors, materials
                     |

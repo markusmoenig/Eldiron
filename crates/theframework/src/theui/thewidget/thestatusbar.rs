@@ -126,9 +126,30 @@ pub trait TheStatusbarTrait {
 
 impl TheStatusbarTrait for TheStatusbar {
     fn set_text(&mut self, text: String) {
+        // The status bar is a single 21px row. Never pass multi-line
+        // diagnostics to the text renderer: subsequent lines otherwise draw
+        // over and outside the widget.
+        let text = text
+            .lines()
+            .find(|line| !line.trim().is_empty())
+            .map(str::trim)
+            .unwrap_or_default()
+            .to_string();
         if self.text != text {
             self.text = text;
             self.is_dirty = true;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn multiline_messages_are_reduced_to_one_status_line() {
+        let mut statusbar = TheStatusbar::new(TheId::named("Statusbar"));
+        statusbar.set_text("first line\nsecond line\nthird line".to_string());
+        assert_eq!(statusbar.text, "first line");
     }
 }

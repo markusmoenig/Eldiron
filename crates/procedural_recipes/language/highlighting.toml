@@ -1,0 +1,9 @@
+# This is the only hand-maintained vocabulary for Recipe syntax highlighting.
+# The Rust parser remains authoritative for whether a Recipe is valid.
+name = "Eldiron Recipe"
+language_id = "eldiron-recipe"
+scope = "source.eldiron-recipe"
+extensions = ["recipe"]
+line_comment = "//"
+declarations = ["Tile", "Material", "Sdf"]
+booleans = ["true", "false"]

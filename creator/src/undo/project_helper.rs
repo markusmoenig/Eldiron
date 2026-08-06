@@ -22,7 +22,7 @@ pub fn gen_procedural_recipe_tree_item(
         recipe.alias
     ));
     item.set_size(58);
-    if let Ok(preview) = crate::recipe_utils::render_recipe_preview(project, recipe.id) {
+    if let Ok(preview) = crate::recipe_utils::render_recipe_visual_preview(project, recipe.id) {
         item.set_icon(preview.scaled(52, 52));
     }
     item.set_context_menu(Some(TheContextMenu {
@@ -1190,8 +1190,7 @@ pub fn set_project_context(
                 );
             }
             let mut manager = DOCKMANAGER.write().unwrap();
-            manager.set_dock("Recipes".into(), ui, ctx, project, server_ctx);
-            manager.edit_maximize(ui, ctx, project, server_ctx);
+            manager.set_editor_dock("Recipes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Avatar(id) => {
             if let Some(avatar) = project.avatars.get(&id) {

@@ -1,0 +1,15 @@
+Tile
+    name = "Torch Iron Surface"
+    material = dungeon/torch_iron
+    size = I2(32, 32)
+    wrap = Repeat
+    seed = 401
+
+    Noise Hammer
+        scale = F2(7.0, 7.0)
+        octaves = 2
+        persistence = 0.48
+        seed = 73
+
+    Output
+        height = Clamp(0.42 + Hammer * 0.18, 0.0, 1.0)

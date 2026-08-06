@@ -39,9 +39,6 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::tiles::TilesDock::new());
         docks.insert("Tiles".into(), dock);
 
-        let dock: Box<dyn Dock> = Box::new(crate::docks::recipes::RecipesDock::new());
-        docks.insert("Recipes".into(), dock);
-
         let dock: Box<dyn Dock> = Box::new(crate::docks::blocks::BlocksDock::new());
         docks.insert("Blocks".into(), dock);
 
@@ -250,7 +247,9 @@ impl DockManager {
         if self.dock != "Recipes"
             && matches!(
                 event,
-                TheEvent::Custom(id, _) if id.name == "Render Procedural Recipe Preview"
+                TheEvent::Custom(id, _)
+                    if id.name == "Render Procedural Recipe Preview"
+                        || id.name == crate::docks::recipes::RECIPE_SOURCE_CHANGED
             )
             && let Some(recipe_editor) = self.editor_docks.get_mut("Recipes")
             && recipe_editor.handle_event(event, ui, ctx, project, server_ctx)
@@ -258,6 +257,20 @@ impl DockManager {
             redraw = true;
         }
         redraw
+    }
+
+    /// Poll dock-owned workers without relying on their wake-up event being
+    /// routed through whichever dock happens to be visible at that moment.
+    pub fn poll_background(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        self.editor_docks
+            .get_mut("Recipes")
+            .is_some_and(|dock| dock.poll_background(ui, ctx, project, server_ctx))
     }
 
     /// Returns the state of the dock manager.
@@ -351,6 +364,54 @@ impl DockManager {
         }
     }
 
+    /// Open a dock that exists only as a full-screen editor. Recipes use this
+    /// path deliberately: their tree already provides the catalog, so a second
+    /// regular list dock must never be constructed or exposed.
+    pub fn set_editor_dock(
+        &mut self,
+        dock: String,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        let Some(editor_index) = self.editor_canvases.get(&dock).copied() else {
+            eprintln!("Editor dock \"{dock}\" not found!");
+            return;
+        };
+
+        if self.state == DockManagerState::Editor && self.dock != dock {
+            self.minimize(ui, ctx);
+        } else if self.state != DockManagerState::Editor {
+            self.minimize(ui, ctx);
+        }
+
+        self.dock = dock;
+        self.editor_index = Some(editor_index);
+        if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+            layout.set_mode(TheSharedVLayoutMode::Top);
+        }
+        if let Some(stack) = ui.get_stack_layout("Editor Stack") {
+            stack.set_index(editor_index);
+        }
+        self.state = DockManagerState::Editor;
+        ctx.ui.relayout = true;
+        ctx.ui.redraw_all = true;
+
+        let mut supports_undo = false;
+        if let Some(editor_dock) = self.editor_docks.get_mut(&self.dock) {
+            editor_dock.activate(ui, ctx, project, server_ctx);
+            supports_undo = editor_dock.supports_undo();
+            if supports_undo {
+                editor_dock.set_undo_state_to_ui(ctx);
+            }
+            if let Some(tools) = editor_dock.editor_tools() {
+                TOOLLIST.write().unwrap().set_editor_tools(tools, ui, ctx);
+            }
+        }
+        self.set_supports_undo(supports_undo, ctx);
+    }
+
     fn minimize_inner(&mut self, ui: &mut TheUI, ctx: &mut TheContext, restore_game_tools: bool) {
         if self.state != DockManagerState::Minimized {
             // Switch back to game tools when minimizing from editor mode
@@ -370,6 +431,16 @@ impl DockManager {
                 ctx.ui.relayout = true;
                 ctx.ui.redraw_all = true;
                 self.state = DockManagerState::Minimized;
+
+                // Editor-only docks have no corresponding lower canvas. Put
+                // the manager back on the regular dock whose stack index was
+                // preserved when the editor opened.
+                if !self.docks.contains_key(&self.dock)
+                    && let Some((regular_dock, _)) = self.docks.get_index(self.index)
+                {
+                    self.dock = regular_dock.clone();
+                    self.editor_index = self.editor_canvases.get(&self.dock).copied();
+                }
             } else if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
                 layout.set_mode(TheSharedVLayoutMode::Shared);
                 self.state = DockManagerState::Minimized;
@@ -575,5 +646,16 @@ impl DockManager {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn recipes_are_not_registered_as_a_regular_dock() {
+        let manager = DockManager::new();
+        assert!(!manager.docks.contains_key("Recipes"));
     }
 }
