@@ -1,12 +1,12 @@
 Item "orc_iron_helm" {
-  name = "Orc Steel Helm"
+  name = "Orc Iron Skullcap"
 
   data {
     [attributes]
     source_id = "orc_iron_helm"
     ruleset_id = "orc_iron_helm"
-    name = "Orc Steel Helm"
-    description = "A bright hammered-steel helmet with a heavy brow and nasal guard."
+    name = "Orc Iron Skullcap"
+    description = "A compact, battered iron cap worn low over the brow."
     category = "chain"
     slot = "head"
     rarity = "common"
@@ -18,6 +18,6 @@ Item "orc_iron_helm" {
     takeable = true
     blocking = false
     visible = true
-    on_look = "A pale steel helmet with a distinct brow, cheek guards, and nasal guard."
+    on_look = "A simple blue-black iron skullcap, battered from use."
   }
 }

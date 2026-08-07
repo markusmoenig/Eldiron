@@ -6,13 +6,13 @@ Item "orc_patterned_vest" {
     source_id = "orc_patterned_vest"
     ruleset_id = "orc_patterned_vest"
     name = "Orc Patterned Vest"
-    description = "A rough hide vest crossed by ochre war-bands."
+    description = "A dark sleeved hide jerkin reinforced by a single ochre strap."
     category = "cloth"
     slot = "torso"
     rarity = "common"
-    avatar_channels = ["torso"]
+    avatar_channels = ["torso", "arms"]
     appearance_recipe = "orc-vest"
-    appearance_space = "channel"
+    appearance_space = "avatar"
     appearance_tiling = [1.0, 1.0]
     appearance_seed = 419
     color_index = 10
@@ -20,6 +20,6 @@ Item "orc_patterned_vest" {
     takeable = true
     blocking = false
     visible = true
-    on_look = "A rough hide vest crossed by ochre war-bands."
+    on_look = "A dark hide jerkin with worn sleeves and one broad ochre strap."
   }
 }

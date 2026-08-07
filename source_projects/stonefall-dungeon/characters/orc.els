@@ -9,9 +9,9 @@ Character "orc" {
     visible = true
     radius = 0.35
     inventory_slots = 6
-    arms_index = 18
-    legs_index = 29
-    start_equipped_items = ["orc_patterned_vest", "orc_iron_helm"]
+    arms_index = 17
+    legs_index = 17
+    start_equipped_items = ["orc_patterned_vest"]
     source_id = "orc"
   }
 

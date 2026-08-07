@@ -11,17 +11,17 @@ Material orc_vest
         persistence = 0.48
         seed = 23
 
-    Value DiagonalBands
-        source = Smoothstep(0.34, 0.66, Abs(Sin(U * 3.0 + V * 1.5)))
+    Value WarStrap
+        source = 1.0 - Smoothstep(0.045, 0.105, Abs(U * 0.82 + V - 0.95))
 
     Value Pattern
-        source = Clamp(DiagonalBands * 0.82 + Wear * 0.18, 0.0, 1.0)
+        source = Clamp(WarStrap * 0.30 + Wear * 0.06, 0.0, 1.0)
 
     Color HideDark
-        exact = #39251e
+        exact = #241a18
 
     Color OchreStitch
-        exact = #b47a35
+        exact = #4d3828
 
     Color VestColor
         source = Mix(HideDark, OchreStitch, Pattern)
@@ -29,9 +29,9 @@ Material orc_vest
     Surface
         color = VestColor
         palette = BaseOnly
-        roughness = Clamp(0.72 + Wear * 0.18, 0.0, 1.0)
+        roughness = Clamp(0.76 + Wear * 0.14, 0.0, 1.0)
         metallic = 0.0
         opacity = 1.0
         emission = 0.0
         normal = Pattern
-        normal_strength = 0.28
+        normal_strength = 0.16

@@ -1,5 +1,5 @@
 Material orc_helmet_material
-    name = "Orc Bright Hammered Steel"
+    name = "Orc Worn Dark Iron"
     wrap = Repeat
     seed = 613
 
@@ -12,13 +12,13 @@ Material orc_helmet_material
         seed = 31
 
     Value SteelVariation
-        source = Clamp(0.34 + HammerMarks * 0.46 + (1.0 - V) * 0.20, 0.0, 1.0)
+        source = Clamp(0.08 + HammerMarks * 0.25 + (1.0 - V) * 0.05, 0.0, 1.0)
 
     Color SteelShadow
-        exact = #657392
+        exact = #10151c
 
     Color SteelHighlight
-        exact = #c7cfdd
+        exact = #2e3947
 
     Color HammeredSteel
         source = Mix(SteelShadow, SteelHighlight, SteelVariation)
@@ -26,9 +26,9 @@ Material orc_helmet_material
     Surface
         color = HammeredSteel
         palette = BaseOnly
-        roughness = Clamp(0.38 + HammerMarks * 0.20, 0.0, 1.0)
-        metallic = 0.92
+        roughness = Clamp(0.58 + HammerMarks * 0.16, 0.0, 1.0)
+        metallic = 0.68
         opacity = 1.0
         emission = 0.0
         normal = HammerMarks
-        normal_strength = 0.16
+        normal_strength = 0.12
