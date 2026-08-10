@@ -74,6 +74,13 @@ pub(crate) struct ResolvedRulesCache {
     error: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct TaggedTileContact {
+    tags: Vec<String>,
+    cell: Vec2<i32>,
+    layer: u8,
+}
+
 fn resolve_rules_state(
     rules: &Table,
 ) -> Result<
@@ -155,6 +162,7 @@ pub struct RegionCtx {
 
     pub entity_state_data: FxHashMap<u32, ValueContainer>,
     pub item_state_data: FxHashMap<u32, ValueContainer>,
+    pub(crate) entity_tile_contacts: FxHashMap<u32, FxHashMap<(u32, Uuid), TaggedTileContact>>,
     pub entity_respawn_snapshots: FxHashMap<u32, Entity>,
     pub region_state: ValueContainer,
     pub procedural_spawn_guard: u8,
@@ -1047,10 +1055,93 @@ impl RegionCtx {
         name
     }
 
+    fn tagged_tile_contacts_at(
+        &self,
+        position: Vec2<f32>,
+    ) -> FxHashMap<(u32, Uuid), TaggedTileContact> {
+        let cell = position.map(|component| component.floor() as i32);
+        self.map
+            .sectors
+            .iter()
+            .filter_map(|sector| {
+                let layer = sector.layer?;
+                let tile_id = match sector.properties.get_default_source()? {
+                    PixelSource::TileId(tile_id) => *tile_id,
+                    _ => return None,
+                };
+                let tile = self.assets.tiles.get(&tile_id)?;
+                if tile.gameplay_tags.is_empty() || !sector.is_inside(&self.map, position) {
+                    return None;
+                }
+                let tags = tile.normalized_gameplay_tags();
+                if tags.is_empty() {
+                    return None;
+                }
+                Some((
+                    (sector.id, tile_id),
+                    TaggedTileContact { tags, cell, layer },
+                ))
+            })
+            .collect()
+    }
+
+    fn push_tile_tag_event(
+        &mut self,
+        entity_id: u32,
+        event: &str,
+        contact: &TaggedTileContact,
+        tag: &str,
+    ) {
+        self.to_execute_entity.push((
+            entity_id,
+            event.to_string(),
+            VMValue::new_with_string(
+                contact.cell.x as f32,
+                contact.cell.y as f32,
+                contact.layer as f32,
+                tag,
+            ),
+        ));
+    }
+
+    /// Emit tag-based transitions for authored 2D tile placements underneath
+    /// an entity. Logical named sectors are handled independently.
+    fn check_entity_for_tile_change(&mut self, entity_id: u32, position: Vec2<f32>) {
+        let new_contacts = self.tagged_tile_contacts_at(position);
+        let old_contacts = self
+            .entity_tile_contacts
+            .remove(&entity_id)
+            .unwrap_or_default();
+
+        for (key, old_contact) in &old_contacts {
+            let new_tags = new_contacts.get(key).map(|contact| &contact.tags);
+            for tag in &old_contact.tags {
+                if new_tags.is_none_or(|tags| !tags.contains(tag)) {
+                    self.push_tile_tag_event(entity_id, "left_tile", old_contact, tag);
+                }
+            }
+        }
+
+        for (key, new_contact) in &new_contacts {
+            let old_tags = old_contacts.get(key).map(|contact| &contact.tags);
+            for tag in &new_contact.tags {
+                if old_tags.is_none_or(|tags| !tags.contains(tag)) {
+                    self.push_tile_tag_event(entity_id, "entered_tile", new_contact, tag);
+                }
+            }
+        }
+
+        if !new_contacts.is_empty() {
+            self.entity_tile_contacts.insert(entity_id, new_contacts);
+        }
+    }
+
     /// Check if the player moved to a different sector and if yes send "enter" and "left" events
     pub fn check_player_for_section_change(&mut self, entity: &mut Entity) {
+        let entity_id = entity.id;
+        let entity_position = entity.get_pos_xz();
         // Determine, set and notify the entity about the sector it is in.
-        if let Some(sector) = self.map.find_sector_at(entity.get_pos_xz()).cloned() {
+        if let Some(sector) = self.map.find_sector_at(entity_position).cloned() {
             let old_sector_name = entity
                 .attributes
                 .get_str("sector")
@@ -1097,6 +1188,7 @@ impl RegionCtx {
             entity.set_attribute("sector", Value::Str(String::new()));
             entity.set_attribute("sector_id", Value::Int64(-1));
         }
+        self.check_entity_for_tile_change(entity_id, entity_position);
     }
 
     pub fn check_player_for_section_change_id(&mut self, id: u32) {
@@ -1173,6 +1265,8 @@ impl RegionCtx {
             {
                 self.send_player_sector_description(entity, sector, false);
             }
+
+            self.check_entity_for_tile_change(id, pos);
         }
     }
 }
@@ -1180,6 +1274,81 @@ impl RegionCtx {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn add_tagged_tile_sector(ctx: &mut RegionCtx, tile_id: Uuid, tags: &[&str]) {
+        let v0 = ctx.map.add_vertex_at(0.0, 0.0);
+        let v1 = ctx.map.add_vertex_at(1.0, 0.0);
+        let v2 = ctx.map.add_vertex_at(1.0, 1.0);
+        let v3 = ctx.map.add_vertex_at(0.0, 1.0);
+        ctx.map.create_linedef_manual(v0, v1);
+        ctx.map.create_linedef_manual(v1, v2);
+        ctx.map.create_linedef_manual(v2, v3);
+        ctx.map.create_linedef_manual(v3, v0);
+        let sector_id = ctx.map.close_polygon_manual().unwrap();
+        let sector = ctx.map.find_sector_mut(sector_id).unwrap();
+        sector.layer = Some(3);
+        sector
+            .properties
+            .set("source", Value::Source(PixelSource::TileId(tile_id)));
+
+        let mut tile = Tile::empty();
+        tile.id = tile_id;
+        tile.gameplay_tags = tags.iter().map(|tag| (*tag).to_string()).collect();
+        ctx.assets.tiles.insert(tile_id, tile);
+    }
+
+    #[test]
+    fn tagged_tile_emits_entered_and_left_events_with_cell_and_layer() {
+        let mut ctx = RegionCtx::default();
+        add_tagged_tile_sector(&mut ctx, Uuid::new_v4(), &["Chair", "seat"]);
+        let mut entity = Entity::new();
+        entity.id = 7;
+        entity.set_pos_xz(Vec2::new(0.5, 0.5));
+
+        ctx.check_player_for_section_change(&mut entity);
+
+        let entered = ctx
+            .to_execute_entity
+            .iter()
+            .filter(|(_, event, _)| event == "entered_tile")
+            .collect::<Vec<_>>();
+        assert_eq!(entered.len(), 2);
+        assert_eq!(entered[0].0, 7);
+        assert_eq!(entered[0].2.as_string(), Some("chair"));
+        assert_eq!(entered[0].2.to_vec3(), Vec3::new(0.0, 0.0, 3.0));
+        assert_eq!(entered[1].2.as_string(), Some("seat"));
+
+        ctx.to_execute_entity.clear();
+        entity.set_pos_xz(Vec2::new(1.5, 0.5));
+        ctx.check_player_for_section_change(&mut entity);
+
+        let left = ctx
+            .to_execute_entity
+            .iter()
+            .filter(|(_, event, _)| event == "left_tile")
+            .collect::<Vec<_>>();
+        assert_eq!(left.len(), 2);
+        assert_eq!(left[0].2.as_string(), Some("chair"));
+        assert_eq!(left[0].2.to_vec3(), Vec3::new(0.0, 0.0, 3.0));
+        assert_eq!(left[1].2.as_string(), Some("seat"));
+    }
+
+    #[test]
+    fn untagged_tiles_do_not_emit_tile_events() {
+        let mut ctx = RegionCtx::default();
+        add_tagged_tile_sector(&mut ctx, Uuid::new_v4(), &[]);
+        let mut entity = Entity::new();
+        entity.id = 8;
+        entity.set_pos_xz(Vec2::new(0.5, 0.5));
+
+        ctx.check_player_for_section_change(&mut entity);
+
+        assert!(
+            ctx.to_execute_entity
+                .iter()
+                .all(|(_, event, _)| event != "entered_tile" && event != "left_tile")
+        );
+    }
 
     #[test]
     fn source_item_id_resolves_to_runtime_template() {

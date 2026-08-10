@@ -403,6 +403,10 @@ pub struct Tile {
     /// Human-readable alias used for filtering and source lookup.
     #[serde(default, alias = "tags")]
     pub alias: String,
+    /// Gameplay-facing tags used by tile transition events such as
+    /// `entered_tile` and `left_tile`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub gameplay_tags: Vec<String>,
     /// Optional procedural generation hints used by region generators.
     #[serde(default)]
     pub procedural: TileProceduralMeta,
@@ -440,6 +444,26 @@ pub struct Tile {
 }
 
 impl Tile {
+    /// Parse a comma, semicolon, or newline separated gameplay tag list.
+    /// Tags are stored in a stable, lowercase form so scripts can compare them
+    /// without depending on how they were capitalized in Creator.
+    pub fn parse_gameplay_tags(value: &str) -> Vec<String> {
+        let mut tags = Vec::new();
+        for tag in value.split([',', ';', '\n']) {
+            let tag = tag.trim().to_ascii_lowercase();
+            if !tag.is_empty() && !tags.contains(&tag) {
+                tags.push(tag);
+            }
+        }
+        tags
+    }
+
+    /// Return normalized gameplay tags, including for project data authored
+    /// outside Creator.
+    pub fn normalized_gameplay_tags(&self) -> Vec<String> {
+        Self::parse_gameplay_tags(&self.gameplay_tags.join(","))
+    }
+
     fn is_synthetic_palette_tile_id(id: Uuid) -> bool {
         id.as_u128() & PALETTE_TILE_UUID_MASK == PALETTE_TILE_UUID_PREFIX
     }
@@ -562,6 +586,7 @@ impl Tile {
             blocking: false,
             scale: 1.0,
             alias: String::new(),
+            gameplay_tags: Vec::new(),
             procedural: TileProceduralMeta::default(),
             recipe_placement: TileRecipePlacement::Surface,
             geometry: Vec::new(),
@@ -678,6 +703,7 @@ impl Tile {
             blocking: self.blocking,
             scale: self.scale,
             alias: self.alias.clone(),
+            gameplay_tags: self.gameplay_tags.clone(),
             procedural: self.procedural.clone(),
             recipe_placement: self.recipe_placement,
             geometry: self.geometry.clone(),
@@ -752,6 +778,34 @@ const fn default_proc_weight() -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gameplay_tags_are_normalized_and_deduplicated() {
+        assert_eq!(
+            Tile::parse_gameplay_tags(" Chair, water;CHAIR\n  trap "),
+            vec!["chair", "water", "trap"]
+        );
+
+        let mut tile = Tile::empty();
+        tile.gameplay_tags = vec!["Chair".into(), " chair ".into(), "TRAP".into()];
+        assert_eq!(tile.normalized_gameplay_tags(), vec!["chair", "trap"]);
+    }
+
+    #[test]
+    fn gameplay_tags_default_when_loading_older_tile_data() {
+        let tile: Tile = serde_json::from_value(serde_json::json!({
+            "id": Uuid::new_v4(),
+            "role": "ManMade",
+            "textures": [],
+            "module": null,
+            "blocking": false,
+            "scale": 1.0,
+            "alias": "chair"
+        }))
+        .unwrap();
+
+        assert!(tile.gameplay_tags.is_empty());
+    }
 
     #[test]
     fn material_meta_overrides_material_frames() {

@@ -80,6 +80,21 @@ Events are categorized as:
 
 ---
 
+### `entered_tile`
+
+*Character-only event.*
+
+- **Value**: gameplay tag *(string)*; tile cell in `.x`/`.y`, tile layer in `.z`
+- **Description**: Triggered once for each gameplay tag on a painted 2D tile when the character enters that tile placement. Untagged tiles do not send events. Gameplay tags are configured with **Edit Tile Meta Data**.
+
+```eldrin
+if event == "entered_tile" && value == "chair" {
+    set_tile("player_sitting")
+}
+```
+
+---
+
 ### `engagement_over`
 
 - **Value**: reason *(string)*
@@ -136,6 +151,21 @@ Sent to a character after `gain_xp(...)` causes it to reach a new level.
 
 - **Value**: `sector_name` *(string)*
 - **Description**: Triggered when the character has left a named sector.
+
+---
+
+### `left_tile`
+
+*Character-only event.*
+
+- **Value**: gameplay tag *(string)*; previous tile cell in `.x`/`.y`, tile layer in `.z`
+- **Description**: Triggered once for each gameplay tag when the character leaves a tagged painted 2D tile placement.
+
+```eldrin
+if event == "left_tile" && value == "chair" {
+    set_tile("player_standing")
+}
+```
 
 ---
 

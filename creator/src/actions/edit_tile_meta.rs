@@ -77,6 +77,16 @@ impl Action for EditTileMeta {
         );
         nodeui.add_item(item);
 
+        let item = TheNodeUIItem::Text(
+            "actionTileGameplayTags".into(),
+            fl!("action_tile_gameplay_tags"),
+            fl!("status_tile_gameplay_tags"),
+            "".into(),
+            None,
+            false,
+        );
+        nodeui.add_item(item);
+
         nodeui.add_item(TheNodeUIItem::OpenTree("procedural".into()));
         nodeui.add_item(TheNodeUIItem::Text(
             "actionTileProceduralStyle".into(),
@@ -162,6 +172,8 @@ impl Action for EditTileMeta {
                 self.nodeui
                     .set_text_value("actionTileAlias", tile.alias.clone());
                 self.nodeui
+                    .set_text_value("actionTileGameplayTags", tile.gameplay_tags.join(", "));
+                self.nodeui
                     .set_text_value("actionTileProceduralStyle", tile.procedural.style.clone());
                 let kind_index = PROCEDURAL_KIND_VALUES
                     .iter()
@@ -200,6 +212,12 @@ impl Action for EditTileMeta {
             .nodeui
             .get_text_value("actionTileAlias")
             .unwrap_or(String::new());
+        let gameplay_tags = rusterix::Tile::parse_gameplay_tags(
+            &self
+                .nodeui
+                .get_text_value("actionTileGameplayTags")
+                .unwrap_or_default(),
+        );
         let proc_style = self
             .nodeui
             .get_text_value("actionTileProceduralStyle")
@@ -248,6 +266,7 @@ impl Action for EditTileMeta {
                 tile.role = role;
                 tile.blocking = blocking;
                 tile.alias = name.clone();
+                tile.gameplay_tags = gameplay_tags.clone();
                 tile.procedural.style = proc_style.trim().to_string();
                 tile.procedural.kind = if proc_kind == "none" {
                     String::new()

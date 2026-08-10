@@ -2,6 +2,10 @@
 
 ## Improvements
 
+### 2D Gameplay
+
+- Added gameplay tags to **Edit Tile Meta Data** and new `entered_tile` / `left_tile` character events, allowing painted tiles such as chairs, water, lava, and traps to carry their interaction triggers without separate synchronized sectors.
+
 ### Procedural Recipes
 
 - Added `.recipe` files for procedural materials and tiles. Materials are reusable, can work in global or pattern-local space, and can produce color, surface data, and normal height from noise and simple math. The examples include stone, mortar, metal, wood, marble, bricks, and planks, and the CLI can render previews or watch a recipe while it is being edited.

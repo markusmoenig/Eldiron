@@ -1533,7 +1533,7 @@ impl Project {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusterix::Sector;
+    use rusterix::{Entity, PixelSource, RegionCtx, Sector, Value};
 
     fn official_ruleset_item_count() -> usize {
         let rules = crate::rulesets::resolve_project_rules(
@@ -1661,6 +1661,106 @@ mod tests {
                 .any(|screen| screen.map.name == "Start"),
             "Hideout2D fixture should contain the Start screen"
         );
+    }
+
+    #[test]
+    fn hideout2d_tagged_tile_events_work_under_a_named_sector() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test_projects/Hideout2D.eldiron");
+        let contents = std::fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("read Hideout2D fixture '{}': {err}", path.display()));
+        let mut project: Project = serde_json::from_str(&contents)
+            .unwrap_or_else(|err| panic!("Hideout2D fixture deserializes: {err}"));
+
+        let (region_index, sector_index, tile_id) = project
+            .regions
+            .iter()
+            .enumerate()
+            .find_map(|(region_index, region)| {
+                region
+                    .map
+                    .sectors
+                    .iter()
+                    .enumerate()
+                    .find_map(|(sector_index, sector)| {
+                        if sector.layer.is_none() {
+                            return None;
+                        }
+                        match sector.properties.get_default_source() {
+                            Some(PixelSource::TileId(tile_id))
+                                if project.tiles.contains_key(tile_id) =>
+                            {
+                                Some((region_index, sector_index, *tile_id))
+                            }
+                            _ => None,
+                        }
+                    })
+            })
+            .expect("Hideout2D contains a painted 2D tile sector");
+
+        project.tiles.get_mut(&tile_id).unwrap().gameplay_tags = vec!["chair".into()];
+
+        // Exercise the same JSON round-trip used by real .eldiron projects.
+        let serialized = serde_json::to_string(&project).expect("serialize tagged 2D project");
+        let roundtrip: Project =
+            serde_json::from_str(&serialized).expect("reload tagged 2D project");
+        assert_eq!(
+            roundtrip.tiles[&tile_id].gameplay_tags,
+            vec!["chair".to_string()]
+        );
+
+        let mut ctx = RegionCtx::default();
+        ctx.map = roundtrip.regions[region_index].map.clone();
+        ctx.assets.set_tiles(roundtrip.tiles.clone());
+
+        let painted_sector = ctx.map.sectors[sector_index].clone();
+        let chair_position = painted_sector
+            .center(&ctx.map)
+            .expect("painted tile sector has a center");
+
+        // Add the logical sector users previously had to keep synchronized with
+        // the painted tile. Tile events must still see the tile underneath it.
+        let mut named_sector = painted_sector;
+        named_sector.id = ctx.map.find_free_sector_id().unwrap();
+        named_sector.creator_id = Uuid::new_v4();
+        named_sector.name = "Chair Area".into();
+        named_sector.layer = None;
+        named_sector
+            .properties
+            .set("source", Value::Source(PixelSource::Off));
+        ctx.map.sectors.push(named_sector);
+
+        let mut entity = Entity::new();
+        entity.id = 42;
+        entity.set_pos_xz(chair_position);
+        ctx.map.entities.push(entity);
+
+        ctx.check_player_for_section_change_id(42);
+        assert!(ctx.to_execute_entity.iter().any(|(id, event, value)| {
+            *id == 42 && event == "entered" && value.as_string() == Some("Chair Area")
+        }));
+        assert!(ctx.to_execute_entity.iter().any(|(id, event, value)| {
+            *id == 42 && event == "entered_tile" && value.as_string() == Some("chair")
+        }));
+
+        ctx.to_execute_entity.clear();
+        ctx.check_player_for_section_change_id(42);
+        assert!(
+            ctx.to_execute_entity
+                .iter()
+                .all(|(_, event, _)| event != "entered_tile" && event != "left_tile")
+        );
+
+        ctx.map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == 42)
+            .unwrap()
+            .set_pos_xz(chair_position + Vec2::new(10_000.0, 10_000.0));
+        ctx.check_player_for_section_change_id(42);
+        assert!(ctx.to_execute_entity.iter().any(|(id, event, value)| {
+            *id == 42 && event == "left_tile" && value.as_string() == Some("chair")
+        }));
     }
 
     #[test]
