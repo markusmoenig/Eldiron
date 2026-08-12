@@ -1,4 +1,4 @@
-use crate::editor::RUSTERIX;
+use crate::editor::{RUSTERIX, SCENEMANAGER};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -373,6 +373,7 @@ impl Tool for RectTool {
                             };
                             if changed {
                                 self.stroke_changed = true;
+                                Self::add_2d_cell_dirty_chunk(k, &mut self.stroke_dirty_chunks);
                                 Self::sync_live_stroke_throttled(
                                     work_map,
                                     server_ctx,
@@ -477,6 +478,10 @@ impl Tool for RectTool {
                                 };
                                 if changed {
                                     self.stroke_changed = true;
+                                    Self::add_2d_cell_dirty_chunk(
+                                        cell,
+                                        &mut self.stroke_dirty_chunks,
+                                    );
                                     Self::sync_live_stroke_throttled(
                                         work_map,
                                         server_ctx,
@@ -517,19 +522,27 @@ impl Tool for RectTool {
                         && let (Some(prev), Some(new_map)) =
                             (self.stroke_prev_map.take(), self.stroke_work_map.take())
                     {
-                        Self::sync_live_stroke_throttled(
-                            &new_map,
-                            server_ctx,
-                            &mut self.last_live_scene_sync_at,
-                            &mut self.stroke_dirty_chunks,
-                            true,
-                        );
-                        *map = new_map;
-                        undo_atom = Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
-                            Box::new(prev),
-                            Box::new(map.clone()),
-                        ));
+                        let has_persistent_change = server_ctx.editor_view_mode
+                            != EditorViewMode::D2
+                            || crate::toollist::ToolList::changed_d2_rect_paint_chunks(
+                                &prev, &new_map,
+                            )
+                            .is_some();
+                        if has_persistent_change {
+                            Self::sync_live_stroke_throttled(
+                                &new_map,
+                                server_ctx,
+                                &mut self.last_live_scene_sync_at,
+                                &mut self.stroke_dirty_chunks,
+                                true,
+                            );
+                            *map = new_map;
+                            undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                server_ctx.pc,
+                                Box::new(prev),
+                                Box::new(map.clone()),
+                            ));
+                        }
                     }
                     self.reset_stroke();
                 }
@@ -658,6 +671,61 @@ impl Tool for RectTool {
             _ => {}
         }
         redraw
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn d2_paint_cells_select_their_scene_chunk_across_boundaries() {
+        let mut chunks = FxHashSet::default();
+        for cell in [
+            Vec2::new(0, 0),
+            Vec2::new(31, 31),
+            Vec2::new(32, 32),
+            Vec2::new(-1, -1),
+            Vec2::new(-32, -32),
+            Vec2::new(-33, -33),
+        ] {
+            RectTool::add_2d_cell_dirty_chunk(cell, &mut chunks);
+        }
+
+        assert_eq!(chunks.len(), 4);
+        assert!(chunks.contains(&(0, 0)));
+        assert!(chunks.contains(&(32, 32)));
+        assert!(chunks.contains(&(-32, -32)));
+        assert!(chunks.contains(&(-64, -64)));
+
+        let mut custom_chunks = FxHashSet::default();
+        RectTool::add_2d_cell_dirty_chunk_with_size(Vec2::new(17, -1), 8, &mut custom_chunks);
+        assert!(custom_chunks.contains(&(16, -8)));
+    }
+
+    #[test]
+    fn explicit_recipe_uv_faces_use_stable_paint_cells_for_rect_hits() {
+        let mut object = rusterix::GeometryObject::box_from_bounds(
+            "Explicit recipe UV wall",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(2.0, 1.0, 1.0),
+        );
+        object.faces.truncate(1);
+        let face = &mut object.faces[0];
+        face.auto_uv = false;
+        face.uvs = face.paint_uvs.iter().map(|uv| *uv / 4.0).collect();
+        let object_id = object.id;
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+
+        assert_eq!(
+            RectTool::geometry_face_target_at_world(&map, object_id, Vec3::new(0.5, 0.5, 0.0),),
+            Some((0, (0, 0)))
+        );
+        assert_eq!(
+            RectTool::geometry_face_target_at_world(&map, object_id, Vec3::new(1.5, 0.5, 0.0),),
+            Some((0, (1, 0)))
+        );
     }
 }
 
@@ -892,6 +960,25 @@ impl RectTool {
         })
     }
 
+    fn interpolate_face_uv(
+        uv: Vec2<f32>,
+        face_uvs: &[Vec2<f32>],
+        target_uvs: &[Vec2<f32>],
+    ) -> Option<Vec2<f32>> {
+        if face_uvs.len() < 3 || face_uvs.len() != target_uvs.len() {
+            return None;
+        }
+        for index in 1..face_uvs.len() - 1 {
+            let Some((u, v, w)) =
+                Self::barycentric_2d(uv, face_uvs[0], face_uvs[index], face_uvs[index + 1])
+            else {
+                continue;
+            };
+            return Some(target_uvs[0] * u + target_uvs[index] * v + target_uvs[index + 1] * w);
+        }
+        None
+    }
+
     fn geometry_face_target_at_world(
         map: &Map,
         object_id: Uuid,
@@ -921,15 +1008,24 @@ impl RectTool {
             };
             let normal_unit = normal / normal.magnitude();
             let plane_dist = (local_hit - points[0]).dot(normal_unit).abs();
-            let face_uvs = points
+            let projected_uvs = points
                 .iter()
                 .map(|point| Self::geometry_point_auto_uv(*point, normal))
                 .collect::<Vec<_>>();
-            let hit_uv = Self::geometry_point_auto_uv(local_hit, normal);
-            if !Self::uv_inside_face(hit_uv, &face_uvs) {
+            let projected_hit = Self::geometry_point_auto_uv(local_hit, normal);
+            if !Self::uv_inside_face(projected_hit, &projected_uvs) {
                 continue;
             }
-            let min_uv = face_uvs
+            let paint_uvs = if face.paint_uvs.len() == points.len() {
+                face.paint_uvs.clone()
+            } else {
+                projected_uvs.clone()
+            };
+            let Some(hit_uv) = Self::interpolate_face_uv(projected_hit, &projected_uvs, &paint_uvs)
+            else {
+                continue;
+            };
+            let min_uv = paint_uvs
                 .iter()
                 .fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
                     Vec2::new(acc.x.min(uv.x), acc.y.min(uv.y))
@@ -1018,7 +1114,21 @@ impl RectTool {
 
     fn live_stroke_dirty_chunks(work_map: &Map, server_ctx: &ServerContext) -> Vec<(i32, i32)> {
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
-            return Vec::new();
+            let cell = server_ctx
+                .rect_terrain_id
+                .map(|(x, y)| Vec2::new(x, y))
+                .or_else(|| {
+                    server_ctx
+                        .hover_cursor
+                        .map(|cursor| Vec2::new(cursor.x.floor() as i32, cursor.y.floor() as i32))
+                });
+            return cell
+                .map(|cell| {
+                    let mut chunks = FxHashSet::default();
+                    Self::add_2d_cell_dirty_chunk(cell, &mut chunks);
+                    chunks.into_iter().collect()
+                })
+                .unwrap_or_default();
         }
 
         let mut dirty_chunks = Vec::new();
@@ -1059,6 +1169,24 @@ impl RectTool {
         }
 
         dirty_chunks
+    }
+
+    fn add_2d_cell_dirty_chunk(cell: Vec2<i32>, chunks: &mut FxHashSet<(i32, i32)>) {
+        // Scene streaming uses world-space chunks; this is unrelated to a tile's pixel size.
+        let chunk_size = SCENEMANAGER.read().unwrap().chunk_size();
+        Self::add_2d_cell_dirty_chunk_with_size(cell, chunk_size, chunks);
+    }
+
+    fn add_2d_cell_dirty_chunk_with_size(
+        cell: Vec2<i32>,
+        chunk_size: i32,
+        chunks: &mut FxHashSet<(i32, i32)>,
+    ) {
+        let chunk_size = chunk_size.max(1);
+        chunks.insert((
+            cell.x.div_euclid(chunk_size) * chunk_size,
+            cell.y.div_euclid(chunk_size) * chunk_size,
+        ));
     }
 
     fn sync_live_stroke_throttled(
@@ -1163,6 +1291,8 @@ impl RectTool {
                 Some(Value::BlendOverrides(existing)) => existing.clone(),
                 _ => FxHashMap::default(),
             };
+            let previous_tiles = tiles.clone();
+            let previous_blend_tiles = blend_tiles.clone();
 
             if ui.shift {
                 tiles.remove(&(x, z));
@@ -1176,6 +1306,10 @@ impl RectTool {
                     tiles.remove(&(x, z));
                 }
             } else {
+                return None;
+            }
+
+            if tiles == previous_tiles && blend_tiles == previous_blend_tiles {
                 return None;
             }
 
@@ -1203,8 +1337,11 @@ impl RectTool {
             let face = object.faces.get_mut(face_index)?;
 
             if ui.shift {
-                face.tiles.remove(&key);
+                face.tiles.remove(&key)?;
             } else if let Some(source) = source.clone() {
+                if face.tiles.get(&key) == Some(&source) {
+                    return None;
+                }
                 face.tiles.insert(key, source);
             } else {
                 return None;
@@ -1226,6 +1363,8 @@ impl RectTool {
                 Some(Value::BlendOverrides(existing)) => existing.clone(),
                 _ => FxHashMap::default(),
             };
+            let previous_tiles = tiles.clone();
+            let previous_blend_tiles = blend_tiles.clone();
 
             if ui.shift {
                 tiles.remove(&server_ctx.rect_tile_id_3d);
@@ -1242,6 +1381,10 @@ impl RectTool {
                     tiles.remove(&server_ctx.rect_tile_id_3d);
                 }
             } else {
+                return None;
+            }
+
+            if tiles == previous_tiles && blend_tiles == previous_blend_tiles {
                 return None;
             }
 

@@ -15,6 +15,10 @@ use rusterix::chunkbuilder::terrain_generator::{TerrainConfig, TerrainGenerator}
 use scenevm::GeoId;
 use std::time::Instant;
 
+fn rect_stroke_streams_scene_update(tool_type: MapToolType, view_mode: EditorViewMode) -> bool {
+    tool_type == MapToolType::Rect && view_mode == EditorViewMode::D2
+}
+
 pub struct ToolList {
     pub server_time: TheTime,
     pub render_button_text: String,
@@ -54,6 +58,64 @@ struct GeometrySelectionSnapshot {
 impl Default for ToolList {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn map_with_rect_cell(x: f32, y: f32) -> Map {
+        let mut map = Map::default();
+        let v0 = map.add_vertex_at(x, y);
+        let v1 = map.add_vertex_at(x, y + 1.0);
+        let v2 = map.add_vertex_at(x + 1.0, y + 1.0);
+        let v3 = map.add_vertex_at(x + 1.0, y);
+        let _ = map.create_linedef_manual(v0, v1);
+        let _ = map.create_linedef_manual(v1, v2);
+        let _ = map.create_linedef_manual(v2, v3);
+        let _ = map.create_linedef_manual(v3, v0);
+        let sector_id = map.close_polygon_manual().expect("close rect sector");
+        let sector = map.find_sector_mut(sector_id).unwrap();
+        sector.properties.set("rect", Value::Bool(true));
+        sector
+            .properties
+            .set("source", Value::Source(PixelSource::TileId(Uuid::new_v4())));
+        sector.layer = Some(1);
+        map
+    }
+
+    #[test]
+    fn only_2d_rect_strokes_stream_their_commit_update() {
+        assert!(rect_stroke_streams_scene_update(
+            MapToolType::Rect,
+            EditorViewMode::D2
+        ));
+        assert!(!rect_stroke_streams_scene_update(
+            MapToolType::Rect,
+            EditorViewMode::Iso
+        ));
+        assert!(!rect_stroke_streams_scene_update(
+            MapToolType::Selection,
+            EditorViewMode::D2
+        ));
+    }
+
+    #[test]
+    fn d2_rect_undo_invalidates_added_and_removed_cell_chunks() {
+        let empty = Map::default();
+        let painted = map_with_rect_cell(-33.0, -33.0);
+
+        let added = ToolList::changed_d2_rect_paint_chunks(&empty, &painted).unwrap();
+        let removed = ToolList::changed_d2_rect_paint_chunks(&painted, &empty).unwrap();
+
+        assert!(added.contains(&(-64, -64)));
+        assert!(removed.contains(&(-64, -64)));
+        assert!(ToolList::changed_d2_rect_paint_chunks(&painted, &painted).is_none());
+
+        let custom_chunks =
+            ToolList::changed_d2_rect_paint_chunks_with_size(&empty, &painted, 16).unwrap();
+        assert!(custom_chunks.contains(&(-48, -48)));
     }
 }
 
@@ -1092,6 +1154,15 @@ impl ToolList {
         server_ctx: &ServerContext,
     ) -> bool {
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
+            if server_ctx.curr_map_tool_type == MapToolType::Rect
+                && let Some(dirty_chunks) = Self::changed_d2_rect_paint_chunks(old_map, new_map)
+            {
+                crate::utils::editor_scene_replace_incremental_map_update(
+                    new_map.clone(),
+                    dirty_chunks,
+                );
+                return true;
+            }
             return false;
         }
 
@@ -1105,6 +1176,90 @@ impl ToolList {
         }
 
         false
+    }
+
+    pub(crate) fn changed_d2_rect_paint_chunks(
+        old_map: &Map,
+        new_map: &Map,
+    ) -> Option<Vec<(i32, i32)>> {
+        // Scene streaming uses world-space chunks; this is unrelated to tile/recipe resolution.
+        let chunk_size = SCENEMANAGER.read().unwrap().chunk_size();
+        Self::changed_d2_rect_paint_chunks_with_size(old_map, new_map, chunk_size)
+    }
+
+    fn changed_d2_rect_paint_chunks_with_size(
+        old_map: &Map,
+        new_map: &Map,
+        chunk_size: i32,
+    ) -> Option<Vec<(i32, i32)>> {
+        let chunk_size = chunk_size.max(1);
+        let mut dirty_chunks: FxHashSet<(i32, i32)> = FxHashSet::default();
+
+        for (x, y) in Self::changed_terrain_override_keys(old_map, new_map) {
+            dirty_chunks.insert((
+                x.div_euclid(chunk_size) * chunk_size,
+                y.div_euclid(chunk_size) * chunk_size,
+            ));
+        }
+
+        let mut sector_ids = FxHashSet::default();
+        sector_ids.extend(old_map.sectors.iter().map(|sector| sector.id));
+        sector_ids.extend(new_map.sectors.iter().map(|sector| sector.id));
+
+        for sector_id in sector_ids {
+            let old_sector = old_map.find_sector(sector_id);
+            let new_sector = new_map.find_sector(sector_id);
+            let unchanged = matches!((old_sector, new_sector), (Some(old), Some(new))
+                if old.linedefs == new.linedefs
+                    && old.properties == new.properties
+                    && old.shader == new.shader
+                    && old.layer == new.layer);
+            if unchanged {
+                continue;
+            }
+
+            if let Some(sector) = old_sector {
+                Self::add_bbox_dirty_chunks_with_size(
+                    sector.bounding_box(old_map),
+                    chunk_size,
+                    &mut dirty_chunks,
+                );
+            }
+            if let Some(sector) = new_sector {
+                Self::add_bbox_dirty_chunks_with_size(
+                    sector.bounding_box(new_map),
+                    chunk_size,
+                    &mut dirty_chunks,
+                );
+            }
+        }
+
+        (!dirty_chunks.is_empty()).then(|| dirty_chunks.into_iter().collect())
+    }
+
+    fn add_bbox_dirty_chunks_with_size(
+        bbox: rusterix::BBox,
+        chunk_size: i32,
+        chunks: &mut FxHashSet<(i32, i32)>,
+    ) {
+        if !bbox.min.x.is_finite()
+            || !bbox.min.y.is_finite()
+            || !bbox.max.x.is_finite()
+            || !bbox.max.y.is_finite()
+        {
+            return;
+        }
+
+        let chunk_size = chunk_size.max(1);
+        let min_cx = (bbox.min.x / chunk_size as f32).floor() as i32;
+        let min_cy = (bbox.min.y / chunk_size as f32).floor() as i32;
+        let max_cx = (bbox.max.x / chunk_size as f32).ceil() as i32;
+        let max_cy = (bbox.max.y / chunk_size as f32).ceil() as i32;
+        for cy in min_cy..max_cy.max(min_cy + 1) {
+            for cx in min_cx..max_cx.max(min_cx + 1) {
+                chunks.insert((cx * chunk_size, cy * chunk_size));
+            }
+        }
     }
 
     fn apply_live_geometry_owner_replacement(map: &Map, server_ctx: &ServerContext) -> bool {
@@ -1647,7 +1802,13 @@ impl ToolList {
                         } else {
                             self.update_geometry_overlay_3d(project, server_ctx);
                         }
-                        let mut used_incremental_terrain_update = false;
+                        // RectTool already streams the touched chunks while painting in 2D.
+                        // Rebuilding here would clear that preview and visibly reload the map
+                        // as soon as the stroke is committed.
+                        let mut used_incremental_scene_update = rect_stroke_streams_scene_update(
+                            server_ctx.curr_map_tool_type,
+                            server_ctx.editor_view_mode,
+                        );
                         if let Some(dirty_chunks) = rect_paint_dirty_chunks
                             && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
                         {
@@ -1655,15 +1816,15 @@ impl ToolList {
                                 (**new_map).clone(),
                                 dirty_chunks,
                             );
-                            used_incremental_terrain_update = true;
+                            used_incremental_scene_update = true;
                         }
                         if let Some(plan) = geometry_replacement_plan
                             && let ProjectUndoAtom::MapEdit(_, _, new_map) = &undo_atom
                         {
-                            used_incremental_terrain_update =
+                            used_incremental_scene_update =
                                 Self::apply_geometry_scene_update(new_map, plan);
                         }
-                        if !used_incremental_terrain_update {
+                        if !used_incremental_scene_update {
                             crate::utils::editor_scene_full_rebuild(project, server_ctx);
                         }
                     }

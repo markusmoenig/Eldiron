@@ -634,6 +634,107 @@ mod tests {
     }
 
     #[test]
+    fn hideout2d_meadow_grass_rebakes_as_a_paintable_surface_tile() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../test_projects/Hideout2D.eldiron");
+        let contents = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read Hideout2D fixture '{}': {error}", path.display()));
+        let mut project: Project = serde_json::from_str(&contents)
+            .unwrap_or_else(|error| panic!("load Hideout2D fixture: {error}"));
+        let recipe_id = project
+            .procedural_recipes
+            .values()
+            .find(|asset| asset.alias == "meadow-grass")
+            .map(|asset| asset.id)
+            .expect("Hideout2D contains the meadow-grass recipe");
+        let original_tile_id = project.procedural_recipes[&recipe_id]
+            .tile_id
+            .expect("meadow-grass has a baked tile");
+
+        rebake_tile_recipe(&mut project, recipe_id).expect("rebake meadow grass");
+
+        let tile_id = project.procedural_recipes[&recipe_id].tile_id.unwrap();
+        let tile = &project.tiles[&tile_id];
+        assert_eq!(tile_id, original_tile_id);
+        assert_eq!(tile.alias, "meadow-grass");
+        assert_eq!(tile.role, TileRole::Nature);
+        assert_eq!(
+            tile.recipe_placement,
+            rusterix::TileRecipePlacement::Surface
+        );
+        assert_eq!(tile.procedural.coverage, [1, 1]);
+        assert_eq!(tile.textures.len(), 1);
+        assert_eq!((tile.textures[0].width, tile.textures[0].height), (64, 64));
+
+        let pixels = &tile.textures[0].data;
+        let green_pixels = pixels
+            .chunks_exact(4)
+            .filter(|pixel| pixel[1] > pixel[0] && pixel[1] > pixel[2])
+            .count();
+        assert!(
+            green_pixels * 4 > pixels.len() / 4 * 3,
+            "expected the rebaked tile to be predominantly green"
+        );
+    }
+
+    #[test]
+    fn gate_brick_wall_rebakes_as_a_rect_paintable_surface_tile() {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_projects/Gate.eldiron");
+        let contents = std::fs::read_to_string(&path)
+            .unwrap_or_else(|error| panic!("read Gate fixture '{}': {error}", path.display()));
+        let mut project: Project = serde_json::from_str(&contents)
+            .unwrap_or_else(|error| panic!("load Gate fixture: {error}"));
+        let recipe_id = project
+            .procedural_recipes
+            .values()
+            .find(|asset| asset.alias == "gate-brick-wall")
+            .map(|asset| asset.id)
+            .expect("Gate contains the brick-wall recipe");
+        assert!(
+            project
+                .procedural_recipes
+                .values()
+                .any(|asset| asset.alias == "gate-brick-material")
+        );
+
+        let original_tile_id = project.procedural_recipes[&recipe_id]
+            .tile_id
+            .expect("gate-brick-wall has a baked tile");
+        let saved_pixels = project.tiles[&original_tile_id].textures[0].data.clone();
+        let (fresh_preview, _) =
+            render_recipe_preview_fresh(&project, recipe_id).expect("render Gate brick wall");
+        rebake_tile_recipe_with_preview(&mut project, recipe_id, &fresh_preview)
+            .expect("rebake Gate brick wall");
+
+        let tile_id = project.procedural_recipes[&recipe_id].tile_id.unwrap();
+        let tile = &project.tiles[&tile_id];
+        assert_eq!(tile_id, original_tile_id);
+        assert_eq!(tile.alias, "gate-brick-wall");
+        assert_eq!(tile.role, TileRole::ManMade);
+        assert!(tile.blocking);
+        assert_eq!(
+            tile.recipe_placement,
+            rusterix::TileRecipePlacement::Surface
+        );
+        assert_eq!(tile.procedural.coverage, [1, 1]);
+        assert_eq!(tile.textures.len(), 1);
+        assert_eq!((tile.textures[0].width, tile.textures[0].height), (48, 48));
+        assert_eq!(tile.textures[0].data, saved_pixels);
+
+        let red_brick_pixels = saved_pixels
+            .chunks_exact(4)
+            .filter(|pixel| {
+                pixel[0] > pixel[1].saturating_add(20) && pixel[0] > pixel[2].saturating_add(20)
+            })
+            .count();
+        assert!(
+            red_brick_pixels > 48 * 48 / 2,
+            "expected most of the tile to be red brick"
+        );
+    }
+
+    #[test]
     fn fixture_recipe_rebakes_with_shared_fixture_metadata() {
         let mut project = Project::new();
         let asset = ProceduralRecipeAsset::new(

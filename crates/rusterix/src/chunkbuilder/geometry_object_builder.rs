@@ -719,21 +719,25 @@ impl GeometryObjectBuilder {
         vmchunk: &mut scenevm::Chunk,
         object_id: Uuid,
         material: Option<&crate::TileMaterialMeta>,
-        face_uvs: &[Vec2<f32>],
+        cell_uvs: &[Vec2<f32>],
         face_paint_uvs: &[Vec2<f32>],
+        face_texture_uvs: Option<&[Vec2<f32>]>,
         world_points: &[Vec3<f32>],
         object_center: Vec3<f32>,
     ) -> bool {
-        if face_uvs.len() < 3 || face_uvs.len() != world_points.len() {
+        if cell_uvs.len() < 3
+            || cell_uvs.len() != world_points.len()
+            || face_texture_uvs.is_some_and(|uvs| uvs.len() != cell_uvs.len())
+        {
             return false;
         }
 
-        let min_uv = face_uvs
+        let min_uv = cell_uvs
             .iter()
             .fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
                 Vec2::new(acc.x.min(uv.x), acc.y.min(uv.y))
             });
-        let max_uv = face_uvs
+        let max_uv = cell_uvs
             .iter()
             .fold(Vec2::broadcast(f32::NEG_INFINITY), |acc, uv| {
                 Vec2::new(acc.x.max(uv.x), acc.y.max(uv.y))
@@ -769,8 +773,9 @@ impl GeometryObjectBuilder {
                 let mut vertices = Vec::with_capacity(4);
                 let mut vertices_world = Vec::with_capacity(4);
                 let mut paint_uvs = Vec::with_capacity(4);
+                let mut texture_uvs = Vec::with_capacity(4);
                 for uv in corners_uv {
-                    let Some(world) = Self::world_from_face_uv(uv, face_uvs, world_points) else {
+                    let Some(world) = Self::world_from_face_uv(uv, cell_uvs, world_points) else {
                         vertices.clear();
                         vertices_world.clear();
                         break;
@@ -778,7 +783,7 @@ impl GeometryObjectBuilder {
                     let world = world + render_nudge;
                     vertices_world.push(world);
                     vertices.push([world.x, world.y, world.z, 1.0]);
-                    let Some(paint_uv) = Self::paint_uv_from_face_uv(uv, face_uvs, face_paint_uvs)
+                    let Some(paint_uv) = Self::paint_uv_from_face_uv(uv, cell_uvs, face_paint_uvs)
                     else {
                         vertices.clear();
                         vertices_world.clear();
@@ -786,6 +791,18 @@ impl GeometryObjectBuilder {
                         break;
                     };
                     paint_uvs.push([paint_uv.x, paint_uv.y]);
+                    if let Some(face_texture_uvs) = face_texture_uvs {
+                        let Some(texture_uv) =
+                            Self::paint_uv_from_face_uv(uv, cell_uvs, face_texture_uvs)
+                        else {
+                            vertices.clear();
+                            vertices_world.clear();
+                            paint_uvs.clear();
+                            texture_uvs.clear();
+                            break;
+                        };
+                        texture_uvs.push([texture_uv.x, texture_uv.y]);
+                    }
                 }
                 if vertices.len() != 4 {
                     continue;
@@ -798,8 +815,12 @@ impl GeometryObjectBuilder {
                     .as_ref()
                     .and_then(|noise| noise.source.as_ref())
                     .map(|source| Self::face_tile_id(Some(source), None, assets));
-                let tile_uvs = Self::tiled_face_base_uvs(&vertices_world);
-                let uvs = Self::transformed_face_uvs(face, &tile_uvs, Some(&vertices_world));
+                let uvs = if face_texture_uvs.is_some() {
+                    texture_uvs
+                } else {
+                    let tile_uvs = Self::tiled_face_base_uvs(&vertices_world);
+                    Self::transformed_face_uvs(face, &tile_uvs, Some(&vertices_world))
+                };
                 if let (Some(noise), Some(noise_tile_id)) =
                     (face.surface_noise.as_ref(), noise_tile_id)
                 {
@@ -909,19 +930,31 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 } else {
                     crate::geometry_face_paint_uvs(&local_points)
                 };
-                if face.auto_uv && !face.tiles.is_empty() {
+                if !face.tiles.is_empty() {
                     let face_uvs = uvs
                         .iter()
                         .map(|uv| Vec2::new(uv[0], uv[1]))
                         .collect::<Vec<_>>();
+                    let transformed_face_uvs = (!face.auto_uv).then(|| {
+                        Self::transformed_face_uvs(face, &uvs, Some(&world_points))
+                            .into_iter()
+                            .map(|uv| Vec2::new(uv[0], uv[1]))
+                            .collect::<Vec<_>>()
+                    });
+                    let cell_uvs = if face.auto_uv {
+                        face_uvs.as_slice()
+                    } else {
+                        paint_uvs.as_slice()
+                    };
                     if Self::add_tiled_face(
                         face,
                         assets,
                         vmchunk,
                         object.id,
                         object_material.as_ref(),
-                        &face_uvs,
+                        cell_uvs,
                         &paint_uvs,
+                        transformed_face_uvs.as_deref(),
                         &world_points,
                         object_center,
                     ) {
@@ -1107,6 +1140,69 @@ mod tests {
             GeometryObjectBuilder::tiled_face_base_uvs(&floor_cell),
             [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]
         );
+    }
+
+    #[test]
+    fn explicit_recipe_uvs_remain_continuous_when_a_rect_cell_is_overridden() {
+        let mut base_tile =
+            crate::Tile::from_texture(crate::Texture::new(vec![80, 80, 80, 255], 1, 1));
+        let base_tile_id = base_tile.id;
+        base_tile.alias = "base-recipe".to_string();
+        let mut override_tile =
+            crate::Tile::from_texture(crate::Texture::new(vec![180, 40, 40, 255], 1, 1));
+        let override_tile_id = override_tile.id;
+        override_tile.alias = "rect-override".to_string();
+        let mut tiles = indexmap::IndexMap::new();
+        tiles.insert(base_tile_id, base_tile);
+        tiles.insert(override_tile_id, override_tile);
+        let mut assets = Assets::default();
+        assets.set_tiles(tiles);
+
+        let mut object = crate::GeometryObject::box_from_bounds(
+            "Explicit recipe UV wall",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(2.0, 1.0, 1.0),
+        );
+        object.faces.truncate(1);
+        let face = &mut object.faces[0];
+        face.auto_uv = false;
+        face.tile = Some(PixelSource::TileId(base_tile_id));
+        face.uvs = face.paint_uvs.iter().map(|uv| *uv / 4.0).collect();
+        let expected_base_uvs = face.uvs.iter().map(|uv| [uv.x, uv.y]).collect::<Vec<_>>();
+        let object_id = object.id;
+
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+        let mut chunk = Chunk::new(Vec2::zero(), 16);
+        let mut vmchunk = scenevm::Chunk::new(Vec2::zero(), 16);
+        let mut builder = GeometryObjectBuilder;
+        builder.build(&map, &assets, &mut chunk, &mut vmchunk);
+
+        let unpainted = vmchunk
+            .polys3d_map
+            .get(&GeoId::GeometryObject(object_id))
+            .expect("explicit-UV face should render");
+        assert_eq!(unpainted.len(), 1);
+        assert_eq!(unpainted[0].tile_id, base_tile_id);
+        assert_eq!(unpainted[0].uvs, expected_base_uvs);
+
+        map.geometry_objects[0].faces[0]
+            .tiles
+            .insert((1, 0), PixelSource::TileId(override_tile_id));
+        let mut painted_chunk = Chunk::new(Vec2::zero(), 16);
+        let mut painted_vmchunk = scenevm::Chunk::new(Vec2::zero(), 16);
+        builder.build(&map, &assets, &mut painted_chunk, &mut painted_vmchunk);
+
+        let painted = painted_vmchunk
+            .polys3d_map
+            .get(&GeoId::GeometryObject(object_id))
+            .expect("Rect-painted explicit-UV face should render");
+        assert_eq!(painted.len(), 2);
+        assert_eq!(painted[0].tile_id, base_tile_id);
+        assert_eq!(painted[1].tile_id, override_tile_id);
+        assert_eq!(painted[0].uvs[2][0], painted[1].uvs[1][0]);
+        assert_eq!(painted[0].uvs[3][0], painted[1].uvs[0][0]);
+        assert_eq!(painted[0].uvs[2][0], 0.25);
     }
 
     #[test]

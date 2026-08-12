@@ -51,6 +51,8 @@
 
 - Fixed project-tab switching occasionally restoring stale scene and editor state, especially with cloned projects.
 - Fixed text copy/paste fighting with Eldiron's separate object and image clipboard.
+- Fixed 2D Rect painting so painted tiles preview during a stroke, commits and undo/redo update only the touched scene chunks instead of visibly rebuilding the whole project, and unchanged cells no longer create empty undo entries.
+- Fixed Rect painting on Source-built geometry with continuous procedural recipe UVs. Sparse cell overrides now use the face's stable paint coordinates while preserving its original seamless material UVs.
 
 ---
 

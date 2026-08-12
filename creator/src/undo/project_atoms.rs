@@ -85,10 +85,16 @@ impl ProjectUndoAtom {
                         ToolList::try_incremental_map_edit(previous_map, map, server_ctx)
                     })
                     .unwrap_or(false);
-                if !used_incremental {
+                if used_incremental {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Minimap"),
+                        TheValue::Empty,
+                    ));
+                    RUSTERIX.write().unwrap().set_dirty();
+                } else {
                     SCENEMANAGER.write().unwrap().update_map(map.clone());
+                    update_region(ctx);
                 }
-                update_region(ctx);
             } else if pc.is_screen() {
                 RUSTERIX.write().unwrap().set_dirty();
                 ctx.ui.send(TheEvent::Custom(
