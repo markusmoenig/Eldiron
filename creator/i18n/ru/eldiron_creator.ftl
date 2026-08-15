@@ -31,6 +31,7 @@ render_editor_trace_button = Начать трассировку
 starter_dialog_title = Выберите стартовый проект
 starter_loading = Загрузка стартовых проектов...
 starter_loading_sub = Получение метаданных из репозитория Eldiron.
+starter_loading_project = Загрузка стартового проекта...
 starter_choose = Выбрать
 starter_cancel = Отмена
 starter_empty = Стартовые проекты не найдены.

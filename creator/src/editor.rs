@@ -237,6 +237,7 @@ pub struct Editor {
     starter_project_cache: HashMap<String, Project>,
     starter_manifest_cache: Option<Vec<StarterProjectEntry>>,
     starter_loader_rx: Option<Receiver<Vec<StarterProjectEntry>>>,
+    starter_project_loader_rx: Option<Receiver<(String, Option<Project>)>>,
     selected_starter_manifest_id: Option<String>,
     iso_paint_render_cache: SharedIsoPaintRenderCache,
 }
@@ -4385,25 +4386,13 @@ impl Editor {
         )))
     }
 
-    fn load_named_starter_project(&mut self, manifest_id: &str) -> Option<Project> {
-        if let Some(project) = self.starter_project_cache.get(manifest_id).cloned() {
-            return Some(project);
-        }
-
-        let choice = self
-            .starter_manifest_cache
-            .clone()
-            .unwrap_or_else(|| self.starter_projects.clone())
-            .into_iter()
-            .find(|choice| choice.manifest_id == manifest_id)?;
-        let contents = Self::fetch_url_text(&Self::starter_repo_url(&choice.project_path))?;
+    fn load_starter_project(repo_path: &str) -> Option<Project> {
+        let contents = Self::fetch_url_text(&Self::starter_repo_url(repo_path))?;
         let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
         loaded.migrate_default_ruleset();
         loaded.migrate_button_commands();
         let _ = loaded.sync_ruleset_items();
         loaded.art_palette.current_index = 0;
-        self.starter_project_cache
-            .insert(manifest_id.to_string(), loaded.clone());
         Some(loaded)
     }
 
@@ -4609,6 +4598,7 @@ impl Editor {
 
     fn open_starter_project_dialog(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.starter_loader_rx = None;
+        self.starter_project_loader_rx = None;
         self.selected_starter_manifest_id = None;
 
         let width = 980;
@@ -7537,6 +7527,7 @@ impl TheTrait for Editor {
             starter_project_cache: HashMap::new(),
             starter_manifest_cache: None,
             starter_loader_rx: None,
+            starter_project_loader_rx: None,
             selected_starter_manifest_id: None,
             iso_paint_render_cache: SharedIsoPaintRenderCache::default(),
         }
@@ -8478,6 +8469,59 @@ impl TheTrait for Editor {
             ctx.ui.relayout = true;
             ctx.ui.redraw_all = true;
             redraw_update = true;
+        }
+
+        let starter_cancel_pending = pending_events.iter().any(|event| {
+            matches!(
+                event,
+                TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                    if id.name == Self::STARTER_CANCEL_ID
+            )
+        });
+        let loaded_starter = (!starter_cancel_pending)
+            .then(|| {
+                self.starter_project_loader_rx
+                    .as_mut()
+                    .and_then(|receiver| receiver.try_recv().ok())
+            })
+            .flatten();
+        if let Some((manifest_id, project)) = loaded_starter {
+            self.starter_project_loader_rx = None;
+            ui.set_widget_value(
+                Self::STARTER_CREATE_ID,
+                ctx,
+                TheValue::Text(fl!("starter_choose")),
+            );
+            ui.set_enabled(Self::STARTER_CREATE_ID, ctx);
+
+            if let Some(project) = project {
+                self.starter_project_cache
+                    .insert(manifest_id, project.clone());
+                ui.clear_dialog();
+                self.open_project_as_session(
+                    project,
+                    None,
+                    ui,
+                    ctx,
+                    &mut update_server_icons,
+                    &mut redraw,
+                );
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    fl!("status_starter_initialized"),
+                ));
+            } else {
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    fl!("status_starter_load_failed"),
+                ));
+            }
+
+            ctx.ui
+                .set_widget_state(Self::STARTER_CREATE_ID.to_string(), TheWidgetState::None);
+            ctx.ui.clear_hover();
+            redraw_update = true;
+            redraw = true;
         }
 
         if tick_update {
@@ -9858,7 +9902,9 @@ impl TheTrait for Editor {
                                     .map(|entry| entry.manifest_id.clone())
                             });
                         if let Some(manifest_id) = selected_manifest_id {
-                            if let Some(project) = self.load_named_starter_project(&manifest_id) {
+                            if let Some(project) =
+                                self.starter_project_cache.get(&manifest_id).cloned()
+                            {
                                 ui.clear_dialog();
                                 self.open_project_as_session(
                                     project,
@@ -9872,6 +9918,29 @@ impl TheTrait for Editor {
                                     TheId::empty(),
                                     fl!("status_starter_initialized"),
                                 ));
+                            } else if self.starter_project_loader_rx.is_none()
+                                && let Some(choice) = self
+                                    .starter_projects
+                                    .iter()
+                                    .find(|choice| choice.manifest_id == manifest_id)
+                            {
+                                let project_path = choice.project_path.clone();
+                                let (tx, rx) = std::sync::mpsc::channel();
+                                self.starter_project_loader_rx = Some(rx);
+                                ui.set_widget_value(
+                                    Self::STARTER_CREATE_ID,
+                                    ctx,
+                                    TheValue::Text(fl!("starter_loading_project")),
+                                );
+                                ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!("starter_loading_project"),
+                                ));
+                                std::thread::spawn(move || {
+                                    let project = Self::load_starter_project(&project_path);
+                                    let _ = tx.send((manifest_id, project));
+                                });
                             } else {
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
@@ -9886,6 +9955,7 @@ impl TheTrait for Editor {
                         ctx.ui.clear_hover();
                         redraw = true;
                     } else if id.name == Self::STARTER_CANCEL_ID {
+                        self.starter_project_loader_rx = None;
                         ui.clear_dialog();
                         ctx.ui.set_widget_state(
                             Self::STARTER_CANCEL_ID.to_string(),

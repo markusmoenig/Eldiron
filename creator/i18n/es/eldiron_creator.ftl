@@ -31,6 +31,7 @@ render_editor_trace_button = Iniciar traza
 starter_dialog_title = Elegir proyecto inicial
 starter_loading = Cargando proyectos iniciales...
 starter_loading_sub = Obteniendo metadatos del repositorio de Eldiron.
+starter_loading_project = Cargando proyecto inicial...
 starter_choose = Elegir
 starter_cancel = Cancelar
 starter_empty = No se encontraron proyectos iniciales.

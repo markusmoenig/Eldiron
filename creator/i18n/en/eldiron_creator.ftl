@@ -31,6 +31,7 @@ render_editor_trace_button = Start Trace
 starter_dialog_title = Choose Starter Project
 starter_loading = Loading starter projects...
 starter_loading_sub = Fetching metadata from the Eldiron repo.
+starter_loading_project = Loading starter project...
 starter_choose = Choose
 starter_cancel = Cancel
 starter_empty = No starter projects found.

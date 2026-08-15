@@ -31,6 +31,7 @@ render_editor_trace_button = 开始追踪
 starter_dialog_title = 选择入门项目
 starter_loading = 正在加载入门项目...
 starter_loading_sub = 正在从 Eldiron 仓库获取元数据。
+starter_loading_project = 正在加载入门项目...
 starter_choose = 选择
 starter_cancel = 取消
 starter_empty = 未找到入门项目。

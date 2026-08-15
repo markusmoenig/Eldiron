@@ -31,6 +31,7 @@ render_editor_trace_button = 開始追蹤
 starter_dialog_title = 選擇入門專案
 starter_loading = 正在載入入門專案...
 starter_loading_sub = 正在從 Eldiron 儲存庫取得中繼資料。
+starter_loading_project = 正在載入入門專案...
 starter_choose = 選擇
 starter_cancel = 取消
 starter_empty = 找不到入門專案。
