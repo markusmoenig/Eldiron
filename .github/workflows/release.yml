@@ -15,6 +15,7 @@ jobs:
           - { working-directory: "creator", bin-name: "eldiron-creator", features: "log,self-update" }
           - { working-directory: "clients/client", bin-name: "eldiron-client", features: "log" }
           - { working-directory: "clients/client-wgpu", bin-name: "eldiron-client-wgpu", features: "" }
+          - { working-directory: "crates/source", bin-name: "eldiron-source", features: "" }
 
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +61,7 @@ jobs:
           - { working-directory: "creator", bin-name: "eldiron-creator", features: "log,self-update" }
           - { working-directory: "clients/client", bin-name: "eldiron-client", features: "log" }
           - { working-directory: "clients/client-wgpu", bin-name: "eldiron-client-wgpu", features: "" }
+          - { working-directory: "crates/source", bin-name: "eldiron-source", features: "" }
 
     steps:
       - uses: actions/checkout@v4
@@ -225,6 +227,27 @@ jobs:
           files: |
             eldiron-client-wgpu-*.gz
 
+  # ─────────────────────────── Linux release source ──────────────────────────────
+  linux_release_source:
+    runs-on: ubuntu-latest
+    needs: linux_build
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-eldiron-source
+
+      - name: GitHub release (Linux)
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            eldiron-source-*.gz
+
   # ────────────────────────── Windows release creator ─────────────────────────────
   windows_release_creator:
     runs-on: windows-latest
@@ -310,6 +333,30 @@ jobs:
         with:
           files: |
             eldiron-client-wgpu-*.zip
+
+  # ───────────────────────── Windows release source ─────────────────────────────
+  windows_release_source:
+    runs-on: windows-latest
+    needs: windows_build
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-eldiron-source
+
+      - name: GitHub release (Windows)
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            eldiron-source-*.zip
 
   # ──────────────────────────────── WASM release ──────────────────────────────────
   wasm_release:

@@ -490,7 +490,7 @@ pub fn build_project(project_dir: &Path) -> Result<PathBuf, String> {
         fs::create_dir_all(parent)
             .map_err(|err| format!("failed to create {}: {err}", parent.display()))?;
     }
-    let json = serde_json::to_string_pretty(&project)
+    let json = serde_json::to_string(&project)
         .map_err(|err| format!("failed to serialize project: {err}"))?;
     fs::write(&output_path, json)
         .map_err(|err| format!("failed to write {}: {err}", output_path.display()))?;
@@ -6210,9 +6210,12 @@ Screen "play" {
         .expect("source written");
 
         let output = build_project(&root).expect("project builds");
-        let project: Project =
-            serde_json::from_str(&fs::read_to_string(&output).expect("compiled project readable"))
-                .expect("compiled project parses");
+        let compiled = fs::read_to_string(&output).expect("compiled project readable");
+        assert!(
+            !compiled.contains('\n'),
+            "generated projects should use compact JSON"
+        );
+        let project: Project = serde_json::from_str(&compiled).expect("compiled project parses");
 
         assert!(project.config.contains("[renderer]"));
         assert!(project.config.contains("backend_3d = \"raster\""));

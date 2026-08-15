@@ -42,6 +42,15 @@ fn dynamic_collision_height(container: &ValueContainer) -> f32 {
         .max(0.1)
 }
 
+fn entity_ruleset_fx_position(entity: &Entity) -> Vec3<f32> {
+    let height = entity
+        .attributes
+        .get_float("fx_anchor_height")
+        .unwrap_or_else(|| dynamic_collision_height(&entity.attributes) * 0.55)
+        .max(0.0);
+    entity.position + Vec3::new(0.0, height, 0.0)
+}
+
 fn ruleset_value_to_attr(value: &toml::Value) -> Option<Value> {
     if let Some(value) = value.as_bool() {
         return Some(Value::Bool(value));
@@ -807,6 +816,62 @@ mod ruleset_progression_tests {
         assert_eq!(
             resolve_ruleset_invocation_intent(&mut ctx, 1, "action:minor_heal"),
             Some("action:minor_heal".into())
+        );
+    }
+
+    #[test]
+    fn no_target_words_of_power_default_friendly_or_self_actions_to_the_caster() {
+        let rules = eldiron_ruleset::latest_official_ruleset()
+            .parse::<toml::Table>()
+            .unwrap();
+        let mut ctx = RegionCtx::default();
+        let (from_sender, from_receiver) = unbounded();
+        let _ = ctx.from_sender.set(from_sender);
+        std::mem::forget(from_receiver);
+        ctx.set_rules(rules.clone()).unwrap();
+
+        let mut cleric = Entity::new();
+        cleric.id = 1;
+        cleric.set_attribute("name", Value::Str("Cleric".into()));
+        cleric.set_attribute("race", Value::Str("Human".into()));
+        cleric.set_attribute("class", Value::Str("Cleric".into()));
+        cleric.set_attribute("LEVEL", Value::Int(1));
+        apply_ruleset_character_defaults(&rules, &mut cleric);
+        cleric.set_attribute("HP", Value::Int(2));
+        cleric.inventory.resize(6, None);
+        cleric
+            .add_item(ruleset_item_from_table(&rules, "blessed_herb", 1).unwrap())
+            .unwrap();
+        cleric
+            .add_item(ruleset_item_from_table(&rules, "moonwater", 1).unwrap())
+            .unwrap();
+        let starting_mp = cleric.attributes.get_int_default("MP", 0);
+        ctx.map.entities.push(cleric);
+
+        let resolved =
+            resolve_ruleset_invocation_intent(&mut ctx, 1, "invoke:words_of_power:LO VI").unwrap();
+        assert_eq!(resolved, "action:minor_heal");
+        assert_eq!(
+            execute_default_target_invocation(
+                &mut ctx,
+                1,
+                "invoke:words_of_power:LO VI",
+                &resolved,
+            ),
+            Some(true)
+        );
+        assert!(ctx.map.entities[0].attributes.get_int_default("HP", 0) > 2);
+        assert_eq!(
+            ctx.map.entities[0].attributes.get_int_default("MP", 0),
+            starting_mp - 3
+        );
+        assert_eq!(inventory_quantity(&ctx.map.entities[0], "blessed_herb"), 0);
+        assert_eq!(inventory_quantity(&ctx.map.entities[0], "moonwater"), 0);
+
+        assert_eq!(
+            execute_default_target_invocation(&mut ctx, 1, "action:minor_heal", &resolved),
+            None,
+            "ordinary action buttons retain their explicit targeting behavior"
         );
     }
 
@@ -3440,7 +3505,8 @@ mod ruleset_progression_tests {
         .unwrap();
         let mut entity = Entity::new();
         entity.id = 1;
-        entity.position = Vec3::new(2.0, 0.0, 3.0);
+        entity.position = Vec3::new(2.0, 0.25, 3.0);
+        entity.set_attribute("collision_height", Value::Float(2.4));
         ctx.map.entities.push(entity);
 
         assert!(execute_ruleset_action(&mut ctx, 1, "guard", None));
@@ -3451,6 +3517,11 @@ mod ruleset_progression_tests {
             .filter(|item| item.attributes.get_bool_default("is_ruleset_fx", false))
             .collect::<Vec<_>>();
         assert_eq!(fx.len(), 3);
+        let expected_fx_y = 0.25 + 2.4 * 0.55;
+        assert!(
+            fx.iter()
+                .all(|item| (item.position.y - expected_fx_y).abs() < 0.0001)
+        );
         assert_eq!(
             fx.iter()
                 .filter_map(|item| item.attributes.get_str("fx_preset"))
@@ -8017,16 +8088,30 @@ impl RegionInstance {
                     match action {
                         Intent(intent) => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                                let intent =
+                                let resolved_intent =
                                     resolve_ruleset_invocation_intent(ctx, entity_id, &intent)
                                         .unwrap_or_default();
+                                let executed_immediately = execute_default_target_invocation(
+                                    ctx,
+                                    entity_id,
+                                    &intent,
+                                    &resolved_intent,
+                                )
+                                .is_some();
                                 if let Some(entity) = ctx
                                     .map
                                     .entities
                                     .iter_mut()
                                     .find(|entity| entity.id == entity_id)
                                 {
-                                    entity.set_attribute("intent", Value::Str(intent));
+                                    entity.set_attribute(
+                                        "intent",
+                                        Value::Str(if executed_immediately {
+                                            String::new()
+                                        } else {
+                                            resolved_intent
+                                        }),
+                                    );
                                 }
                             });
                         }
@@ -14218,6 +14303,38 @@ fn resolve_ruleset_invocation_intent(
     }
 }
 
+/// Words of Power without an explicit target follow the text-command default:
+/// self-targeted actions and friendly-or-self actions execute on the caster.
+/// Other invocation targets remain selected as intents for the next click.
+fn execute_default_target_invocation(
+    ctx: &mut RegionCtx,
+    actor_id: u32,
+    raw_intent: &str,
+    resolved_intent: &str,
+) -> Option<bool> {
+    let raw_intent = raw_intent.trim();
+    if !raw_intent
+        .get(.."invoke:".len())
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("invoke:"))
+    {
+        return None;
+    }
+    let action_id = resolved_intent.trim().strip_prefix("action:")?.trim();
+    let action = resolved_ruleset_action(ctx, action_id).ok().flatten()?;
+    if !matches!(
+        action.target,
+        ResolvedActionTarget::SelfTarget | ResolvedActionTarget::FriendlyOrSelf
+    ) {
+        return None;
+    }
+    Some(execute_ruleset_action_with_target(
+        ctx,
+        actor_id,
+        action_id,
+        Some(RulesetActionTarget::Entity(actor_id)),
+    ))
+}
+
 fn ruleset_spell_display_name(spell_id: &str, spell: &toml::value::Table) -> String {
     rule_string(spell, "name")
         .map(str::to_string)
@@ -14545,7 +14662,7 @@ fn spawn_condition_fx(
         .entities
         .iter()
         .find(|entity| entity.id == entity_id)
-        .map(|entity| entity.position + Vec3::new(0.0, 0.55, 0.0))?;
+        .map(entity_ruleset_fx_position)?;
     let item_id = spawn_ruleset_fx_stage_item(
         ctx,
         &stage_table,
@@ -15807,7 +15924,7 @@ fn ruleset_action_target_position(
             .entities
             .iter()
             .find(|entity| entity.id == *id)
-            .map(|entity| entity.position),
+            .map(entity_ruleset_fx_position),
         RulesetActionTarget::Item {
             item_id,
             owner_entity_id: None,
@@ -15825,7 +15942,7 @@ fn ruleset_action_target_position(
             .entities
             .iter()
             .find(|entity| entity.id == *owner_id)
-            .map(|entity| entity.position),
+            .map(entity_ruleset_fx_position),
         RulesetActionTarget::Position(position) => Some(*position),
         RulesetActionTarget::Unknown(_) => None,
     }
@@ -16563,13 +16680,13 @@ fn execute_resolved_attack_action(
         .entities
         .iter()
         .find(|entity| entity.id == actor_id)
-        .map(|entity| entity.position + Vec3::new(0.0, 0.55, 0.0));
+        .map(entity_ruleset_fx_position);
     let impact_position = ctx
         .map
         .entities
         .iter()
         .find(|entity| entity.id == target_id)
-        .map(|entity| entity.position + Vec3::new(0.0, 0.55, 0.0));
+        .map(entity_ruleset_fx_position);
     if let Some(position) = cast_position {
         spawn_ruleset_action_fx_item(ctx, action, "cast", position);
     }
@@ -16762,7 +16879,7 @@ fn execute_resolved_state_action(
         .entities
         .iter()
         .find(|entity| entity.id == actor_id)
-        .map(|entity| entity.position + Vec3::new(0.0, 0.55, 0.0));
+        .map(entity_ruleset_fx_position);
     let impact_position = target
         .and_then(|target| ruleset_action_target_position(ctx, target))
         .or(cast_position);
@@ -17242,8 +17359,8 @@ fn cast_ruleset_spell_for_entity(
     else {
         return RulesetSpellCastResult::HandledFailure;
     };
-    let caster_pos = caster.position;
-    let target_pos = target.position;
+    let caster_fx_position = entity_ruleset_fx_position(caster);
+    let target_fx_position = entity_ruleset_fx_position(target);
     let range = action
         .as_ref()
         .map(|action| resolved_action_range_limit(ctx, &action.range, caster, 0.0))
@@ -17398,13 +17515,7 @@ fn cast_ruleset_spell_for_entity(
         .unwrap_or_else(|| rule_number(&spell, "cooldown", 0.0))
         .max(0.0);
     set_spell_cooldown(ctx, caster_id, spell_id, cooldown);
-    spawn_ruleset_fx_item(
-        ctx,
-        action.as_ref(),
-        &spell,
-        "cast",
-        Vec3::new(caster_pos.x, caster_pos.y + 0.55, caster_pos.z),
-    );
+    spawn_ruleset_fx_item(ctx, action.as_ref(), &spell, "cast", caster_fx_position);
 
     if is_heal {
         if !apply_ruleset_heal_direct(ctx, target_id, caster_id, amount, &spell_name) {
@@ -17418,13 +17529,7 @@ fn cast_ruleset_spell_for_entity(
                 "system",
             );
         } else {
-            spawn_ruleset_fx_item(
-                ctx,
-                action.as_ref(),
-                &spell,
-                "impact",
-                Vec3::new(target_pos.x, target_pos.y + 0.55, target_pos.z),
-            );
+            spawn_ruleset_fx_item(ctx, action.as_ref(), &spell, "impact", target_fx_position);
         }
         return RulesetSpellCastResult::Cast(0);
     }
@@ -17457,13 +17562,7 @@ fn cast_ruleset_spell_for_entity(
             VMValue::new_with_string(caster_id as f32, final_amount as f32, 0.0, &damage_kind),
         ));
     }
-    spawn_ruleset_fx_item(
-        ctx,
-        action.as_ref(),
-        &spell,
-        "impact",
-        Vec3::new(target_pos.x, target_pos.y + 0.55, target_pos.z),
-    );
+    spawn_ruleset_fx_item(ctx, action.as_ref(), &spell, "impact", target_fx_position);
     RulesetSpellCastResult::Cast(0)
 }
 
@@ -21798,7 +21897,7 @@ pub(crate) fn update_spell_items(ctx: &mut RegionCtx) {
         );
         entity_alignment.insert(entity.id, entity.attributes.get_int_default("ALIGNMENT", 0));
         entity_orientation.insert(entity.id, entity.orientation);
-        entity_fx_positions.insert(entity.id, entity.position + Vec3::new(0.0, 0.55, 0.0));
+        entity_fx_positions.insert(entity.id, entity_ruleset_fx_position(entity));
         entity_attrs.insert(entity.id, entity.attributes.clone());
     }
 

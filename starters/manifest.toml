@@ -21,3 +21,11 @@ dimension = "3D"
 description = "A compact 3D starter featuring block editing, stairs, mesh navigation, and an 8-direction avatar."
 project_path = "starters/projects/Gate.eldiron"
 image = "starters/images/logo.png"
+
+[[starter]]
+id = "stonefall-dungeon"
+title = "Stonefall Dungeon"
+dimension = "3D"
+description = "A Dungeon Master-style example featuring a first-person dungeon, combat, spells, inventory, procedural architecture, and multiple character classes."
+project_path = "starters/projects/StonefallDungeon.eldiron"
+image = "starters/images/logo.png"
