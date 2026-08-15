@@ -1,0 +1,106 @@
+---
+title: Eldiron v0.93.0 Released
+authors: [markusm]
+tags: [releases]
+---
+
+<!-- truncate -->
+
+![Eldiron v0.93.0 Stonefall Dungeon battle with the Ranger and Alden](/img/Eldironv0.93_stonefall.png)
+
+Eldiron v0.93.0 brings several long-running parts of the project together. Rulesets are now proper project-selectable packages, procedural recipes can define complete surfaces and architectural details, and **Stonefall Dungeon** has grown into a playable Dungeon Master-style example built through the new Eldiron Source workflow.
+
+Stonefall is the clearest picture yet of where I want Eldiron to go. Its first-person dungeon is still deliberately retro, but the systems behind it are shared rather than demo-specific: classes, equipment, attacks, spells, companions, enemies, loot, crafting resources, UI actions, and even Words of Power all come through the same rules runtime.
+
+## Stonefall Dungeon
+
+Stonefall now starts with a recipe-backed character screen where you choose a name and one of the real ruleset classes: Warrior, Cleric, or Ranger. That choice determines the character's attributes, starting equipment, inventory, abilities, and spells.
+
+The dungeon uses official Orc and Skeleton avatars, ruleset-owned weapons and loot, a compact encounter path, and a Bone Key objective. Enemies patrol, react when attacked, return to their patrol after losing the player, and respect the actual range of their equipped weapon. That means a Bone Archer can stay at bow range while melee enemies close the distance.
+
+Companions can also join dynamically. The first is **Alden**, a Cleric with his own equipment, reagents, and healing spell. The screenshot above shows the Ranger and Alden fighting a Bone Archer while the shared combat log, action state, targeting, and spell rules all work together.
+
+Stonefall is included as a starter project, so it can be opened directly from Eldiron Creator. Its authored source is also included in the repository as a complete example of the [Eldiron Source](/docs/source-projects) workflow.
+
+## Rulesets Become Real Packages
+
+The largest foundation change in v0.93.0 is the ruleset system. Rulesets are now project-selectable packages made from ordinary TOML files. A game can use the bundled official ruleset, extend it, replace individual definitions, or ship a completely different ruleset without having to work around hardcoded assumptions about classes, levels, or fantasy-RPG progression.
+
+The shared action runtime now handles much more than basic combat. Attacks, spells, conditions, gathering, crafting, item use, and sandbox-style skills all use the same path. The ruleset owns the relevant attributes, formulas, costs, targets, ranges, cooldowns, equipment requirements, and progression.
+
+The [Official Eldiron Ruleset](/docs/official_rules) has expanded with:
+
+- complete level 1–10 progression for Warrior, Cleric, and Ranger;
+- the Skeleton race and timed conditions;
+- new abilities, spells, weapons, armor, and clothing;
+- spell reagents, collectibles, and resource nodes;
+- a larger gathering and crafting loop;
+- rules-aware requirements, cooldowns, targeting, and effect particles.
+
+This is important for both graphical and terminal play. The same resolved action can be invoked from a screen button, a keyboard mapping, text input, an icon, or another client without creating a separate implementation for each presentation.
+
+## Actions And Words Of Power
+
+v0.93.0 adds a reusable **Actions panel** and assignable command slots. The panel can expose the complete class catalogue while the quick bar remains small, and actions can be assigned or dragged into the slots a player wants to keep close at hand.
+
+Tooltips and button state now understand the rules behind an action. They can show requirements, locked abilities, costs, cooldowns, unavailable states, and icon fallbacks across action, spell, inventory, and equipment interfaces.
+
+**Words of Power** provide another optional way to invoke those same actions. A game can represent a spell through syllables, runes, icons, buttons, or text without maintaining a second spell system. Stonefall demonstrates this directly in its Magic panel: entering the correct words resolves the normal ruleset spell, including its target rules, resource cost, reagent requirements, healing or damage, cooldown, and effects.
+
+## Procedural Recipes
+
+This release also introduces `.recipe` files for procedural materials and tiles. Recipes are small, readable text documents that can be edited, versioned, generated, and previewed outside the project file.
+
+Materials can combine noise, patterns, colors, surface values, and normal detail in global or pattern-local space. The initial examples cover stone, mortar, metal, wood, marble, bricks, and planks. A command-line preview tool can render a recipe once or watch it while it is being edited.
+
+Tile recipes can now own geometry as well as appearance. Stonefall uses this for wall niches and fixtures: the opening, cavity, border treatment, material, collision, lighting, and particle attachments can travel with the tile. The map only places the tile; it does not need separate synchronized geometry and material instructions.
+
+This keeps authored intent in one place. Changing a wall-niche recipe updates its surface and its physical detail together, while continuous procedural UVs keep larger floors and walls from looking like a grid of repeated images.
+
+Read the [Procedural Recipes documentation](/docs/procedural-recipes) for the language, materials, shapes, and tile workflow.
+
+## Eldiron Source
+
+Eldiron Source is the text-first project workflow behind Stonefall. An `eldiron.toml` manifest, `.els` content files, procedural recipes, and normal assets compile into a regular `.eldiron` project that can be opened or played by the existing Eldiron applications.
+
+For Stonefall, the Source compiler gained the dungeon features the example needed: varied ceiling heights, wall profiles, tile-owned niches, wall features, collision-aware openings, active item lights, and responsive client scaling. The player now carries a real ruleset torch instead of receiving a light faked onto the character.
+
+The `eldiron-source` command supports scaffolding, building, playing, and watching a project:
+
+```bash
+eldiron-source new my-game
+eldiron-source build my-game
+eldiron-source play my-game
+eldiron-source watch my-game
+```
+
+Prebuilt Linux and Windows versions are part of the release, and the tool can also be installed through Cargo. The new [Eldiron Source chapter](/docs/source-projects) explains the workflow and project structure.
+
+## Better 2D Interaction And Painting
+
+2D games gain gameplay tags in **Edit Tile Meta Data** plus new `entered_tile` and `left_tile` character events. A chair, trap, water tile, lava tile, or another interactive surface can now carry its own trigger instead of requiring a separate sector that must be moved and maintained alongside it.
+
+The 2D Rect and painting workflows also received several fixes. Strokes preview again while painting, only touched scene chunks are updated when a stroke commits or is undone, and unchanged cells no longer create empty undo entries. Rect painting on Source-built geometry now preserves continuous procedural material UVs while applying sparse cell overrides through stable paint coordinates.
+
+## Fixes And Refinements
+
+There are many smaller but important improvements throughout the release:
+
+- fallback fonts are no longer reparsed for every UI label;
+- the Actions panel no longer rebuilds rules data repeatedly;
+- sticky actions and cooldown feedback behave consistently;
+- player death returns the character to the authored entrance with restored health;
+- corpse containers make their contents reachable for direct drag and drop;
+- long conversations and choice lists scroll together cleanly;
+- Hideout's Use, Look, Attack, and Take shortcuts work again;
+- project-tab switching no longer restores stale cloned-project scene state;
+- normal text copy and paste no longer fights the object and image clipboard.
+
+The procedural pipeline also fixes sparse palettes flattening material ramps, along with several early Stonefall issues involving tile seams, flat materials, fake character lighting, and wall recesses.
+
+v0.93.0 is a substantial step toward one of Eldiron's main goals: games that can be authored visually or as source, presented in different clients, and still share the same world, rules, and content systems underneath.
+
+---
+
+Take care,  
+Markus
