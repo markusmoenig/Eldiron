@@ -172,6 +172,10 @@ struct ViewportSection {
     unit: String,
     #[serde(default = "default_viewport_resize")]
     resize: String,
+    #[serde(default = "default_viewport_upscale")]
+    upscale: String,
+    #[serde(default = "default_viewport_window_scale")]
+    window_scale: f32,
     #[serde(default)]
     cursor: String,
     #[serde(default)]
@@ -186,6 +190,8 @@ impl Default for ViewportSection {
             grid_size: default_viewport_grid_size(),
             unit: default_viewport_unit(),
             resize: default_viewport_resize(),
+            upscale: default_viewport_upscale(),
+            window_scale: default_viewport_window_scale(),
             cursor: String::new(),
             cursor_id: String::new(),
         }
@@ -4382,7 +4388,7 @@ fn project_config(
         .map(|id| format!("cursor_id = \"{}\"\n", id))
         .unwrap_or_default();
     let mut config = format!(
-        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nplay_screen = \"{}\"\nclient_mode = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\ngame_tick_ms = {}\nturn_timeout_ms = {}\nmovement_units_per_sec = {}\nturn_speed_deg_per_sec = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\npersistent_intents = {}\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\n{}\n[terminal]\ntext_updates = {}\n",
+        "[game]\nstart_region = \"{}\"\nstart_screen = \"{}\"\nplay_screen = \"{}\"\nclient_mode = \"{}\"\nterminal_mode = \"{}\"\nsimulation_mode = \"{}\"\ngame_tick_ms = {}\nturn_timeout_ms = {}\nmovement_units_per_sec = {}\nturn_speed_deg_per_sec = {}\nauto_create_player = {}\ncollision_mode = \"{}\"\npersistent_intents = {}\n\n[viewport]\nwidth = {}\nheight = {}\ngrid_size = {}\nunit = \"{}\"\nresize = \"{}\"\nupscale = \"{}\"\nwindow_scale = {}\n{}\n[terminal]\ntext_updates = {}\n",
         escape_toml_string(&game.start_region),
         escape_toml_string(&game.start_screen),
         escape_toml_string(&game.play_screen),
@@ -4401,6 +4407,8 @@ fn project_config(
         viewport.grid_size,
         escape_toml_string(&viewport.unit),
         escape_toml_string(&viewport.resize),
+        escape_toml_string(&viewport.upscale),
+        viewport.window_scale,
         cursor_line,
         terminal.text_updates
     );
@@ -4617,6 +4625,14 @@ fn default_viewport_unit() -> String {
 
 fn default_viewport_resize() -> String {
     "fit".to_string()
+}
+
+fn default_viewport_upscale() -> String {
+    "none".to_string()
+}
+
+fn default_viewport_window_scale() -> f32 {
+    1.0
 }
 
 fn default_output() -> String {
@@ -6167,6 +6183,8 @@ persistent_intents = true
 width = 320
 height = 200
 grid_size = 1
+upscale = "aspect"
+window_scale = 1.5
 
 [renderer]
 backend_3d = "raster"
@@ -6225,6 +6243,8 @@ Screen "play" {
         assert!(project.config.contains("posterize = 0.25"));
         assert!(project.config.contains("persistent_intents = true"));
         assert!(project.config.contains("play_screen = \"play\""));
+        assert!(project.config.contains("upscale = \"aspect\""));
+        assert!(project.config.contains("window_scale = 1.5"));
         assert!(!project.config.contains("[source]"));
         assert!(!project.config.contains("[build]"));
 

@@ -27,6 +27,7 @@ height = 600
 grid_size = 1
 unit = "pixel"
 resize = "fit"
+upscale = "aspect"
 
 [debug]
 # Print aggregated client and SceneVM/Raster3D timings every two seconds.

@@ -55,6 +55,17 @@ output = "build/game.eldiron"
 
 Other runtime sections, such as `[viewport]`, `[terminal]`, `[render]`, and `[post]`, are carried into the generated project's configuration.
 
+Graphical projects can scale their authored viewport with the client window while preserving its aspect ratio:
+
+```toml
+[viewport]
+width = 960
+height = 600
+upscale = "aspect"
+```
+
+An optional `window_scale = 2.0` opens the initial window at twice the authored viewport size. It does not change the internal rendering resolution.
+
 ## Source files
 
 The compiler reads:
