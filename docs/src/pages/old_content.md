@@ -67,7 +67,7 @@ In the earlier example, `user_event` handles **keyboard input**, allowing the pl
 
 When you **drag a character template into the map**, it creates a **new instance**.
 
-The [Character](/docs/creator/sections/#region) section lists all **character instances** in the **region**. Characters are displayed with a **human avatar** on the map.
+The [Characters](/docs/creator/project_tree#characters) section explains reusable character templates and their instances in a **region**. Characters are displayed with a **human avatar** on the map.
 
 :::tip
 **Click & Drag** a character in the map to move it.
@@ -126,7 +126,7 @@ Using the **Data Tool** is **often more convenient** than setting attributes in 
 
 ## Learn More
 
-See the **[Scripting & Data Reference](/docs/scripting_data/reference)** for a complete list of available **events, commands, actions, and data properties**.
+See the reference chapters for [Eldrin Script](/docs/characters_items/eldrin_scripting_language), [events](/docs/characters_items/events), [server commands](/docs/characters_items/server_commands), [Creator actions](/docs/creator/actions), and [attributes](/docs/characters_items/attributes).
 
 ## Opening a Door
 

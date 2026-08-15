@@ -5,7 +5,7 @@ sidebar_position: 7
 
 The **Block Tool** (keyboard shortcut **`B`**) builds 3D regions from modular block stamps.
 
-Use it for fast dungeon, house, corridor, room, and blockout construction when you want editable 3D Geometry Objects without writing a Builder Graph.
+Use it for fast dungeon, house, corridor, room, and blockout construction that produces editable 3D Geometry Objects.
 
 ## What It Does
 

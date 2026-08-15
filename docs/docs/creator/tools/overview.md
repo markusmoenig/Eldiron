@@ -14,7 +14,6 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Sector / Face Tool**
 - **Rect Tool**
 - **Block Tool**
-- **Builder Tool**
 - **3D Paint Tool**
 
 The tool strip also contains **mode toggles** below the main map tools:

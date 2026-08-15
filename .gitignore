@@ -1,5 +1,6 @@
 /target
 /generated
+/docs/static/play/
 utilities/target
 .DS_Store
 clients/solo/embedded/*.eldiron

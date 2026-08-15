@@ -25,3 +25,7 @@ development update:
 releases:
   label: releases
   permalink: /blog/tags/releases
+
+sneak peek:
+  label: Sneak peek
+  permalink: /blog/tags/sneak-peek

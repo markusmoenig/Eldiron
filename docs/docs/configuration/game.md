@@ -307,7 +307,7 @@ target_rect_color = "" # Optional target rectangle color for the current leader 
     If omitted, it falls back to `background_color_2d`.
 
 - **`cursor_id`**
-    The [tile id](/docs/what_is/#tileid) for the default mouse cursor.
+    The [tile id](/docs/what_is/#tile-id) for the default mouse cursor.
 
 - **`target_rect_color`**
     Optional rectangle color for drawing the current leader target in 2D game widgets.

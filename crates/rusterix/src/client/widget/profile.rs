@@ -552,12 +552,10 @@ impl ProfileWidget {
             std::sync::OnceLock::new();
         FALLBACK_FONT
             .get_or_init(|| {
-                fontdue::Font::from_bytes(
-                    include_bytes!("../../../../theframework/embedded/fonts/Roboto-Bold.ttf")
-                        .as_slice(),
-                    fontdue::FontSettings::default(),
-                )
-                .ok()
+                theframework::Embedded::get("fonts/Roboto-Bold.ttf").and_then(|font_bytes| {
+                    fontdue::Font::from_bytes(font_bytes.data, fontdue::FontSettings::default())
+                        .ok()
+                })
             })
             .as_ref()
     }

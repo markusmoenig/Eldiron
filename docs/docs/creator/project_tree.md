@@ -13,7 +13,7 @@ Selecting specific content in the project tree will display a corresponding edit
 
 Regions are the maps in your game which define the world, dungeons and towns.
 
-You use the [geometry tools](tools/overview#map-tool-specifics) to create geometry for the regions. Regions can be viewed using a **2D** or various **3D** cameras.
+You use the [geometry tools](tools/overview#map-tools-specifics) to create geometry for the regions. Regions can be viewed using a **2D** or various **3D** cameras.
 
 Each region also has its own script entries in the tree:
 
@@ -113,7 +113,7 @@ Use the [Palette Tool](tools/palette) to edit the Art Palette, load external pal
 
 In the game section you can select:
 
-- **Settings**. Edit your game settings, see all supported settings in the [reference](../reference/configuration).
+- **Settings**. Edit your game settings and see all supported options in [Game Configuration](../configuration/game).
 - **World / Eldrin Scripting**. Edit text-based world/global logic.
 - **Authoring**. Edit global text-adventure and authoring behavior like startup text and sector description policies, see [Authoring Configuration](../configuration/authoring).
 - **Rules**. Edit project-wide gameplay rules and formulas in a TOML-based data editor, see [Rules](../rules).

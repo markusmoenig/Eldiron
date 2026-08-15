@@ -1,6 +1,7 @@
 ---
 title: "Builder Tool"
 sidebar_position: 8
+draft: true
 ---
 
 The **Builder Tool** (keyboard shortcut **`B`**) bakes reusable [Builder Graph](/docs/builder_graph) assets into editable 3D Geometry Objects.

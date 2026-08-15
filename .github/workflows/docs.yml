@@ -5,11 +5,29 @@ on:
     branches: ["master"]
     paths:
       - "docs/**"
+      - ".cargo/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "clients/client/**"
+      - "crates/**"
+      - "run-wasm/**"
+      - "source_projects/stonefall-dungeon/build/stonefall-dungeon.eldiron"
+      - "starters/projects/Gate.eldiron"
+      - "starters/projects/Hideout2D.eldiron"
       - ".github/workflows/docs.yml"
   pull_request:
     branches: ["master"]
     paths:
       - "docs/**"
+      - ".cargo/**"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "clients/client/**"
+      - "crates/**"
+      - "run-wasm/**"
+      - "source_projects/stonefall-dungeon/build/stonefall-dungeon.eldiron"
+      - "starters/projects/Gate.eldiron"
+      - "starters/projects/Hideout2D.eldiron"
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
@@ -38,6 +56,21 @@ jobs:
           node-version: 18
           cache: npm
           cache-dependency-path: docs/package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build web client
+        working-directory: clients/client
+        run: cargo run-wasm --release --package eldiron-client --bin eldiron-client --build-only
+
+      - name: Stage web client and games
+        run: npm run stage:web-games
 
       - name: Install dependencies
         run: npm ci

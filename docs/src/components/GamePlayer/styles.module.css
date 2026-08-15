@@ -1,0 +1,260 @@
+.gamePlayer {
+  margin: 1.5rem 0 2.5rem;
+}
+
+.gameTabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.8rem;
+}
+
+.gameTab {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.85rem 1rem;
+  color: var(--ifm-font-color-base);
+  text-align: left;
+  cursor: pointer;
+  background: var(--ifm-card-background-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 10px;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    transform 150ms ease;
+}
+
+.gameTab:hover {
+  border-color: var(--ifm-color-primary);
+  transform: translateY(-1px);
+}
+
+.gameTab:focus-visible,
+.gamePreview:focus-visible,
+.secondaryButton:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ifm-color-primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.gameTabActive {
+  color: #fbf1c7;
+  background: var(--ifm-color-primary-darkest);
+  border-color: var(--ifm-color-primary-darkest);
+  box-shadow: 0 8px 20px rgba(40, 40, 40, 0.14);
+}
+
+.gameName {
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.gameFormat {
+  font-size: 0.76rem;
+  opacity: 0.72;
+}
+
+.gamePanel {
+  overflow: hidden;
+  background: var(--ifm-card-background-color);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(40, 40, 40, 0.12);
+}
+
+.gameHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: 1.15rem 1.25rem;
+}
+
+.gameHeading h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.55rem;
+}
+
+.gameHeading p:last-child {
+  max-width: 46rem;
+  margin: 0;
+  color: var(--ifm-font-color-secondary);
+  line-height: 1.55;
+}
+
+.eyebrow {
+  margin: 0 0 0.2rem;
+  color: var(--ifm-color-primary);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.gameActions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.75rem;
+  color: var(--ifm-color-primary-darkest);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--ifm-color-emphasis-400);
+  border-radius: 7px;
+}
+
+.secondaryButton:hover {
+  color: var(--ifm-color-primary-darker);
+  text-decoration: none;
+  background: var(--ifm-color-emphasis-100);
+}
+
+.viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: #0d0d0d;
+  border-top: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.viewport:fullscreen {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+}
+
+.gameFrame {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border: 0;
+}
+
+.gamePreview {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  color: #fff;
+  cursor: pointer;
+  background: #0d0d0d;
+  border: 0;
+}
+
+.gamePreview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 250ms ease;
+}
+
+.gamePreview:hover img {
+  transform: scale(1.015);
+}
+
+.previewShade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.52));
+}
+
+.playButton {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 10rem;
+  padding: 0.9rem 1.2rem;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 800;
+  background: rgba(40, 40, 40, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+}
+
+.downloadHint {
+  position: absolute;
+  right: 1rem;
+  bottom: 0.8rem;
+  left: 1rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-align: center;
+  text-shadow: 0 1px 3px #000;
+  opacity: 0.86;
+}
+
+[data-theme="dark"] .gameTabActive {
+  color: #fbf1c7;
+  background: #504945;
+  border-color: #a89984;
+}
+
+[data-theme="dark"] .secondaryButton {
+  color: var(--ifm-font-color-base);
+}
+
+@media (max-width: 760px) {
+  .gameTabs {
+    grid-template-columns: 1fr;
+  }
+
+  .gameTab {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .gameHeading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .gameActions {
+    justify-content: flex-start;
+  }
+
+  .viewport {
+    min-height: 20rem;
+    aspect-ratio: 4 / 3;
+  }
+}
+
+@media (max-width: 420px) {
+  .secondaryButton {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .viewport {
+    min-height: 17rem;
+  }
+}
