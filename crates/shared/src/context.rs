@@ -193,6 +193,7 @@ pub enum ProjectContext {
     Screen(Uuid),
     ScreenWidget(Uuid, Uuid),
     Asset(Uuid),
+    Prefab(Uuid),
     ProceduralRecipe(Uuid),
     Avatar(Uuid),
     AvatarAnimation(Uuid, Uuid, usize),
@@ -235,6 +236,7 @@ impl ProjectContext {
             | ProjectContext::Screen(id)
             | ProjectContext::ScreenWidget(id, _)
             | ProjectContext::Asset(id)
+            | ProjectContext::Prefab(id)
             | ProjectContext::ProceduralRecipe(id)
             | ProjectContext::Avatar(id)
             | ProjectContext::AvatarAnimation(id, _, _) => Some(id),
@@ -325,6 +327,10 @@ impl ProjectContext {
         matches!(self, ProjectContext::ProceduralRecipe(_))
     }
 
+    pub fn is_prefab(&self) -> bool {
+        matches!(self, ProjectContext::Prefab(_))
+    }
+
     pub fn is_project_settings(&self) -> bool {
         match self {
             ProjectContext::ProjectSettings => true,
@@ -369,7 +375,7 @@ impl ProjectContext {
 
     pub fn has_custom_map(&self) -> bool {
         match self {
-            ProjectContext::Screen(_) => true,
+            ProjectContext::Screen(_) | ProjectContext::Prefab(_) => true,
             _ => false,
         }
     }
@@ -819,7 +825,7 @@ impl ServerContext {
     /// Checks if the PolyView has focus.
     pub fn polyview_has_focus(&self, ctx: &TheContext) -> bool {
         if let Some(focus) = &ctx.ui.focus {
-            if focus.name == "PolyView" {
+            if focus.name == "PolyView" || (self.pc.is_prefab() && focus.name == "PrefabView") {
                 return true;
             }
         }

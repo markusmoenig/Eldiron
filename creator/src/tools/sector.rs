@@ -494,7 +494,8 @@ impl Tool for SectorTool {
                         self.click_pos_3d = server_ctx.geo_hit_pos;
                     }
 
-                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
+                    {
                         let dim = *render_view.dim();
                         let screen_uv = [
                             coord.x as f32 / dim.width as f32,
@@ -552,7 +553,9 @@ impl Tool for SectorTool {
 
                     // Compute initial ray intersection on the drag plane at click time
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                        if let Some(render_view) =
+                            crate::utils::map_editor_render_view(ui, server_ctx)
+                        {
                             let dim = *render_view.dim();
                             let screen_uv = [
                                 coord.x as f32 / dim.width as f32,
@@ -607,7 +610,8 @@ impl Tool for SectorTool {
 
                 if self.click_selected {
                     // Dragging selected sectors
-                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
+                    {
                         let dim = *render_view.dim();
 
                         if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -1064,7 +1068,9 @@ impl Tool for SectorTool {
                             }
                         }
                     }
-                } else if let Some(render_view) = ui.get_render_view("PolyView") {
+                } else if let Some(render_view) =
+                    crate::utils::map_editor_render_view(ui, server_ctx)
+                {
                     if detail_mode_3d {
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         return None;
@@ -1185,7 +1191,7 @@ impl Tool for SectorTool {
                     return None;
                 }
 
-                if let Some(render_view) = ui.get_render_view("PolyView") {
+                if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx) {
                     if server_ctx.editor_view_mode == EditorViewMode::D2 {
                         let dim = *render_view.dim();
                         let h = server_ctx.geometry_at(

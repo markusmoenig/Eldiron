@@ -128,6 +128,21 @@ pub trait Tool: Send + Sync {
         self.map_event(map_event, ui, ctx, &mut region.map, server_ctx)
     }
 
+    fn prefab_map_event(
+        &mut self,
+        map_event: MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        _asset_id: Uuid,
+        server_ctx: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
+        project
+            .prefab_editor_map
+            .as_mut()
+            .and_then(|map| self.map_event(map_event, ui, ctx, map, server_ctx))
+    }
+
     fn handle_event(
         &mut self,
         event: &TheEvent,

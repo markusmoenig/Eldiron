@@ -3628,6 +3628,80 @@ mod ruleset_progression_tests {
         assert!(!ctx.map.entities[0].attributes.contains("LEVEL"));
         assert!(!ctx.map.entities[1].attributes.contains("LEVEL"));
     }
+
+    #[test]
+    fn block_prop_door_interaction_is_authoritative_and_instance_local() {
+        let (from_sender, from_receiver) = unbounded();
+        let mut ctx = RegionCtx::default();
+        ctx.region_id = 42;
+        let _ = ctx.from_sender.set(from_sender);
+        let mut player = Entity::new();
+        player.id = 1;
+        player.position = Vec3::new(0.0, 0.0, 0.0);
+        player.set_attribute("player", Value::Bool(true));
+        ctx.map.entities.push(player);
+
+        let object = crate::GeometryObject::box_("Leaf", Vec3::zero(), Vec3::one());
+        let mut asset = crate::BlockPropAsset::new_authored("Door", vec![object]);
+        let part_id = asset.parts[0].id;
+        let mut component = crate::BlockPropComponent::new("Door");
+        component.properties.set("part_id", Value::Id(part_id));
+        component
+            .properties
+            .set("interaction_range", Value::Float(3.0));
+        let component_id = component.id;
+        asset.components.push(component);
+        let target_id = Uuid::new_v4();
+        asset
+            .interaction_targets
+            .push(crate::BlockPropInteractionTarget {
+                id: target_id,
+                name: "Handle".into(),
+                part_id,
+                shape: crate::BlockPropSemanticShape::Plane {
+                    origin: [0.0; 3],
+                    axis_u: [1.0, 0.0, 0.0],
+                    axis_v: [0.0, 1.0, 0.0],
+                    size: [1.0, 1.0],
+                },
+                interaction_anchor: [0.0, 0.0, 0.0],
+                facing_direction: [0.0, 0.0, 1.0],
+                component_id: Some(component_id),
+            });
+        let asset_id = asset.id;
+        ctx.assets.block_props.insert(asset_id, asset.clone());
+        let first = crate::BlockPropInstance::new(asset_id);
+        let first_id = first.id;
+        let mut second = crate::BlockPropInstance::new(asset_id);
+        second.world_transform[3][0] = 10.0;
+        ctx.map.block_prop_instances.extend([first, second]);
+
+        assert!(RegionInstance::apply_block_prop_interaction(
+            &mut ctx, 1, first_id, target_id, "open"
+        ));
+        assert_eq!(
+            crate::block_prop_door_is_open(&asset, &ctx.map.block_prop_instances[0], component_id),
+            Some(true)
+        );
+        assert_eq!(
+            crate::block_prop_door_is_open(&asset, &ctx.map.block_prop_instances[1], component_id),
+            Some(false)
+        );
+        assert!(matches!(
+            from_receiver.try_recv(),
+            Ok(RegionMessage::BlockPropInstancesUpdate(42, instances))
+                if instances.len() == 2
+        ));
+
+        ctx.map.entities[0].position = Vec3::new(20.0, 0.0, 0.0);
+        assert!(!RegionInstance::apply_block_prop_interaction(
+            &mut ctx, 1, first_id, target_id, "close"
+        ));
+        assert_eq!(
+            crate::block_prop_door_is_open(&asset, &ctx.map.block_prop_instances[0], component_id),
+            Some(true)
+        );
+    }
 }
 
 fn vertical_collision_ranges_overlap(a_y: f32, a_height: f32, b_y: f32, b_height: f32) -> bool {
@@ -3914,6 +3988,143 @@ pub struct RegionInstance {
 }
 
 impl RegionInstance {
+    fn block_prop_collision_chunks(
+        instance: &crate::BlockPropInstance,
+        assets: &Assets,
+    ) -> BTreeSet<(i32, i32)> {
+        const CHUNK_SIZE: f32 = 10.0;
+        let mut chunks = BTreeSet::new();
+        let resolution =
+            crate::resolve_block_prop_geometry(std::slice::from_ref(instance), &assets.block_props);
+        for object in &resolution.geometry_objects {
+            let Some(bbox) = object.bbox() else {
+                continue;
+            };
+            let min_x = (bbox.min.x / CHUNK_SIZE).floor() as i32;
+            let min_y = (bbox.min.y / CHUNK_SIZE).floor() as i32;
+            let max_x = (bbox.max.x / CHUNK_SIZE).floor() as i32;
+            let max_y = (bbox.max.y / CHUNK_SIZE).floor() as i32;
+            for y in min_y..=max_y {
+                for x in min_x..=max_x {
+                    chunks.insert((x, y));
+                }
+            }
+        }
+        chunks
+    }
+
+    fn rebuild_block_prop_collision_chunks(ctx: &mut RegionCtx, chunks: &BTreeSet<(i32, i32)>) {
+        use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
+
+        let mut chunk_builder = D3ChunkBuilder::new();
+        for &(x, y) in chunks {
+            let chunk_origin = Vec2::new(x, y);
+            let chunk_collision =
+                chunk_builder.build_collision(&ctx.map, &ctx.assets, chunk_origin, 10);
+            ctx.collision_world
+                .update_chunk(chunk_origin, chunk_collision);
+        }
+    }
+
+    /// Apply one authoritative target interaction. Returns true only when runtime
+    /// state changed and a client update was emitted.
+    fn apply_block_prop_interaction(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        instance_id: Uuid,
+        target_id: Uuid,
+        verb: &str,
+    ) -> bool {
+        let Some(actor) = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == actor_id && entity.is_player())
+        else {
+            return false;
+        };
+        let actor_position = actor.position;
+        let Some(instance_index) = ctx
+            .map
+            .block_prop_instances
+            .iter()
+            .position(|instance| instance.id == instance_id)
+        else {
+            return false;
+        };
+        let instance_before = ctx.map.block_prop_instances[instance_index].clone();
+        let Some(asset) = ctx
+            .assets
+            .block_props
+            .get(&instance_before.asset_id)
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(target) = asset.find_interaction_target(target_id) else {
+            return false;
+        };
+        let Some(component_id) = target.component_id else {
+            return false;
+        };
+        let Some(component) = asset.components.iter().find(|component| {
+            component.id == component_id
+                && component.kind == "Door"
+                && component.properties.get_id("part_id") == Some(target.part_id)
+        }) else {
+            return false;
+        };
+        let Some(anchor) =
+            crate::block_prop_interaction_world_anchor(&asset, &instance_before, target_id)
+        else {
+            return false;
+        };
+        let interaction_range = component
+            .properties
+            .get_float_default("interaction_range", 3.0)
+            .max(0.0);
+        if (actor_position - anchor).magnitude() > interaction_range {
+            send_message(ctx, actor_id, "{system.too_far_away}".into(), "warning");
+            return false;
+        }
+
+        let Some(currently_open) =
+            crate::block_prop_door_is_open(&asset, &instance_before, component_id)
+        else {
+            return false;
+        };
+        let requested_open = match verb.trim().to_ascii_lowercase().as_str() {
+            "open" => true,
+            "close" => false,
+            "use" => !currently_open,
+            _ => return false,
+        };
+        if requested_open == currently_open {
+            return false;
+        }
+
+        let mut affected_chunks = Self::block_prop_collision_chunks(&instance_before, &ctx.assets);
+        crate::set_block_prop_door_open(
+            &mut ctx.map.block_prop_instances[instance_index],
+            component_id,
+            requested_open,
+        );
+        affected_chunks.extend(Self::block_prop_collision_chunks(
+            &ctx.map.block_prop_instances[instance_index],
+            &ctx.assets,
+        ));
+        Self::rebuild_block_prop_collision_chunks(ctx, &affected_chunks);
+        let _ = ctx.from_sender.get().and_then(|sender| {
+            sender
+                .send(RegionMessage::BlockPropInstancesUpdate(
+                    ctx.region_id,
+                    ctx.map.block_prop_instances.clone(),
+                ))
+                .ok()
+        });
+        true
+    }
+
     fn probe_dynamic_collisions_in_ctx(
         &self,
         ctx: &mut RegionCtx,
@@ -6000,6 +6211,7 @@ impl RegionInstance {
             action,
             EntityAction::EntityClicked(_, _, _)
                 | EntityAction::ItemClicked(_, _, _, _)
+                | EntityAction::BlockPropInteract { .. }
                 | EntityAction::TerrainClicked(_)
                 | EntityAction::TextCommand(_)
                 | EntityAction::Choice(_)
@@ -7378,10 +7590,13 @@ impl RegionInstance {
 
         // Calculate chunk bounds from full map extents, not only surfaces.
         // Feature collisions (e.g. palisade/fence on linedefs) can extend beyond sector surfaces.
-        let world_bbox = if ctx.map.vertices.is_empty() && ctx.map.geometry_objects.is_empty() {
+        let world_bbox = if ctx.map.vertices.is_empty()
+            && ctx.map.geometry_objects.is_empty()
+            && ctx.map.block_prop_instances.is_empty()
+        {
             None
         } else {
-            Some(ctx.map.bbox())
+            Some(ctx.map.bbox_with_block_props(&ctx.assets.block_props))
         };
         if let Some(bbox) = world_bbox {
             let min_chunk = vek::Vec2::new(
@@ -7429,11 +7644,12 @@ impl RegionInstance {
             if mode == "always" { 1 } else { 0 }
         };
         self.collision_mode = {
-            let default_mode = if ctx.map.geometry_objects.is_empty() {
-                "tile"
-            } else {
-                "mesh"
-            };
+            let default_mode =
+                if ctx.map.geometry_objects.is_empty() && ctx.map.block_prop_instances.is_empty() {
+                    "tile"
+                } else {
+                    "mesh"
+                };
             let mode = get_config_string_default(&ctx, "game", "collision_mode", default_mode);
             if mode.eq_ignore_ascii_case("mesh") {
                 CollisionMode::Mesh
@@ -8120,6 +8336,21 @@ impl RegionInstance {
                                 if ctx.entity_classes.get(&entity_id).is_some() {
                                     self.handle_text_command(ctx, entity_id, &input);
                                 }
+                            });
+                        }
+                        BlockPropInteract {
+                            instance_id,
+                            target_id,
+                            verb,
+                        } => {
+                            with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                Self::apply_block_prop_interaction(
+                                    ctx,
+                                    entity_id,
+                                    instance_id,
+                                    target_id,
+                                    &verb,
+                                );
                             });
                         }
                         action
@@ -23219,9 +23450,12 @@ fn set_attr(key: PyObjectRef, value: PyObjectRef, vm: &VirtualMachine) {
                             use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
                             let mut chunk_builder = D3ChunkBuilder::new();
                             let chunk_size = 10;
-                            if !ctx.map.vertices.is_empty() || !ctx.map.geometry_objects.is_empty()
+                            if !ctx.map.vertices.is_empty()
+                                || !ctx.map.geometry_objects.is_empty()
+                                || !ctx.map.block_prop_instances.is_empty()
                             {
-                                let bbox = ctx.map.bbox();
+                                let bbox =
+                                    ctx.map.bbox_with_block_props(&ctx.assets.block_props);
                                 let min_chunk = vek::Vec2::new(
                                     (bbox.min.x / chunk_size as f32).floor() as i32,
                                     (bbox.min.y / chunk_size as f32).floor() as i32,

@@ -123,7 +123,7 @@ pub use crate::{
     light::{Light, LightType},
     line3d::Line3D,
     poly2d::Poly2D,
-    poly3d::{Poly3D, SurfaceNoiseLayer},
+    poly3d::Poly3D,
     texture::Texture,
 };
 #[cfg(feature = "gpu")]

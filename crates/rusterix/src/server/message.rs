@@ -1,5 +1,5 @@
 use crate::vm::EldrinDebugModule;
-use crate::{Entity, Map, Value, ValueContainer};
+use crate::{BlockPropInstance, Entity, Map, Value, ValueContainer};
 use scenevm::PaletteRemap2DMode;
 use theframework::prelude::*;
 
@@ -95,6 +95,8 @@ pub enum RegionMessage {
     TeleportEntityPos(u32, Vec2<f32>),
     /// Replace a region map after runtime procedural generation.
     MapUpdate(u32, Map),
+    /// Replace only the per-instance Block / Prop runtime state for a region.
+    BlockPropInstancesUpdate(u32, Vec<BlockPropInstance>),
     /// Entity updates for a given region instance
     EntitiesUpdate(u32, Vec<Vec<u8>>),
     /// Item updates for a given region instance
@@ -161,6 +163,12 @@ pub enum EntityAction {
     ItemClicked(u32, f32, Option<String>, Option<u32>),
     // Entity clicked, entity id, click distance and optional explicit intent
     EntityClicked(u32, f32, Option<String>),
+    /// Interact with a stable target on one linked Block / Prop instance.
+    BlockPropInteract {
+        instance_id: Uuid,
+        target_id: Uuid,
+        verb: String,
+    },
     // Terrain clicked
     TerrainClicked(Vec2<f32>),
     /// Sleep until the given tick and switch back to the given action

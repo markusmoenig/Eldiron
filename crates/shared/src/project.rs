@@ -520,6 +520,24 @@ pub struct Project {
     #[serde(default)]
     pub builder_graphs: IndexMap<Uuid, BuilderGraphAsset>,
 
+    /// Reusable linked construction blocks, furniture, and interactive props.
+    #[serde(default)]
+    pub block_props: IndexMap<Uuid, rusterix::BlockPropAsset>,
+
+    /// Asset-local 3D Paint keyed by Prefab UUID. Keeping paint beside the
+    /// project catalog avoids making the renderer's geometry crate depend on
+    /// Creator's shared paint model while still serializing it as Prefab data.
+    #[serde(default)]
+    pub block_prop_paint: IndexMap<Uuid, IsoPaintLayer>,
+
+    /// Runtime-only isolated map used while editing a Prefab asset.
+    #[serde(skip)]
+    pub prefab_editor_map: Option<Map>,
+
+    /// Runtime-only ownership of isolated editor objects by stable Prefab part.
+    #[serde(skip)]
+    pub prefab_editor_part_by_object: IndexMap<Uuid, Uuid>,
+
     /// Custom top-level tile collections shown as tabs in the tile picker.
     #[serde(default)]
     pub tile_collections: IndexMap<Uuid, TileCollectionAsset>,
@@ -638,6 +656,10 @@ impl Project {
             tiles: IndexMap::default(),
             tile_groups: IndexMap::default(),
             builder_graphs: IndexMap::default(),
+            block_props: IndexMap::default(),
+            block_prop_paint: IndexMap::default(),
+            prefab_editor_map: None,
+            prefab_editor_part_by_object: IndexMap::default(),
             tile_collections: IndexMap::default(),
             tile_board_tiles: IndexMap::default(),
             tile_board_groups: IndexMap::default(),
@@ -1344,6 +1366,9 @@ impl Project {
 
     /// Get the map of the current context.
     pub fn get_map(&self, ctx: &ServerContext) -> Option<&Map> {
+        if ctx.pc.is_prefab() {
+            return self.prefab_editor_map.as_ref();
+        }
         if ctx.editor_view_mode != EditorViewMode::D2 {
             if let Some(region) = self.get_region(&ctx.curr_region) {
                 if ctx.geometry_edit_mode == GeometryEditMode::Detail {
@@ -1397,6 +1422,9 @@ impl Project {
 
     /// Get the mutable map of the current context.
     pub fn get_map_mut(&mut self, ctx: &ServerContext) -> Option<&mut Map> {
+        if ctx.pc.is_prefab() {
+            return self.prefab_editor_map.as_mut();
+        }
         if ctx.get_map_context() == MapContext::Region {
             let id = ctx.curr_region;
             // if let Some(id) = ctx.pc.id() {
@@ -1533,7 +1561,11 @@ impl Project {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rusterix::{Entity, PixelSource, RegionCtx, Sector, Value};
+    use rusterix::{
+        BlockPropAsset, BlockPropFaceRef, BlockPropOccupancyPolicy, BlockPropOccupant,
+        BlockPropSemanticShape, BlockPropSupportSurface, BlockPropSurfacePlacement, Entity,
+        GeometryObject, PixelSource, RegionCtx, Sector, Value, identity_block_prop_transform,
+    };
 
     fn official_ruleset_item_count() -> usize {
         let rules = crate::rulesets::resolve_project_rules(
@@ -1573,6 +1605,92 @@ mod tests {
             Some("#571C27")
         );
         assert!(project.art_palette.colors[64].is_none());
+    }
+
+    #[test]
+    fn block_prop_catalog_instances_and_surface_placements_round_trip() {
+        let mut project = Project::new();
+        let object = GeometryObject::box_from_bounds(
+            "Table Top",
+            Vec3::new(-0.75, 0.7, -0.4),
+            Vec3::new(0.75, 0.8, 0.4),
+        );
+        let object_id = object.id;
+        let top_face_id = object.faces[4].id;
+        let mut asset = BlockPropAsset::new_authored("Table", vec![object]);
+        asset.alias = "furniture/table".to_string();
+        asset.category = "Furniture".to_string();
+        let asset_id = asset.id;
+        let part_id = asset.parts[0].id;
+        let surface_id = Uuid::new_v4();
+        asset.support_surfaces.push(BlockPropSupportSurface {
+            id: surface_id,
+            name: "Tabletop".to_string(),
+            part_id,
+            shape: BlockPropSemanticShape::Faces(vec![BlockPropFaceRef {
+                object_id,
+                face_id: top_face_id,
+            }]),
+            snap_spacing: 0.1,
+            allowed_item_tags: vec!["placeable".to_string()],
+            capacity: Some(6),
+            occupancy_policy: BlockPropOccupancyPolicy::RejectOverlap,
+        });
+        project.block_props.insert(asset_id, asset);
+        let mut prefab_paint = IsoPaintLayer::default();
+        prefab_paint
+            .chunks
+            .insert("tabletop".to_string(), IsoPaintChunk::new([0, 0]));
+        project.block_prop_paint.insert(asset_id, prefab_paint);
+        project
+            .prefab_editor_part_by_object
+            .insert(object_id, part_id);
+
+        let instance = rusterix::BlockPropInstance::new(asset_id);
+        let instance_id = instance.id;
+        project.regions[0].map.block_prop_instances.push(instance);
+        let mut local_transform = identity_block_prop_transform();
+        local_transform[3][1] = 0.05;
+        project.regions[0]
+            .map
+            .block_prop_surface_placements
+            .push(BlockPropSurfacePlacement {
+                id: Uuid::new_v4(),
+                prop_instance_id: instance_id,
+                surface_id,
+                occupant: BlockPropOccupant::Item(7),
+                local_transform,
+            });
+
+        let serialized = serde_json::to_string(&project).expect("serialize block/prop project");
+        let restored: Project =
+            serde_json::from_str(&serialized).expect("deserialize block/prop project");
+
+        let restored_asset = restored
+            .block_props
+            .get(&asset_id)
+            .expect("restored block/prop asset");
+        assert_eq!(restored_asset.name, "Table");
+        assert!(restored_asset.find_support_surface(surface_id).is_some());
+        assert!(
+            restored.block_prop_paint[&asset_id]
+                .chunks
+                .contains_key("tabletop")
+        );
+        assert!(restored.prefab_editor_part_by_object.is_empty());
+        assert_eq!(restored.regions[0].map.block_prop_instances.len(), 1);
+        assert_eq!(
+            restored.regions[0].map.block_prop_instances[0].asset_id,
+            asset_id
+        );
+        assert_eq!(
+            restored.regions[0].map.block_prop_surface_placements[0].occupant,
+            BlockPropOccupant::Item(7)
+        );
+        assert_eq!(
+            restored.regions[0].map.block_prop_surface_placements[0].local_transform[3][1],
+            0.05
+        );
     }
 
     #[test]

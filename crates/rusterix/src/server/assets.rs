@@ -26,6 +26,7 @@ pub struct Assets {
 
     pub tiles: IndexMap<Uuid, Tile>,
     pub tile_groups: IndexMap<Uuid, TileGroup>,
+    pub block_props: IndexMap<Uuid, BlockPropAsset>,
     pub materials: FxHashMap<Uuid, Tile>,
     pub textures: FxHashMap<String, Texture>,
 
@@ -156,6 +157,7 @@ impl Assets {
             item_authoring: FxHashMap::default(),
             tiles: IndexMap::default(),
             tile_groups: IndexMap::default(),
+            block_props: IndexMap::default(),
             textures: FxHashMap::default(),
             tile_list: vec![],
             tile_indices: FxHashMap::default(),
@@ -331,6 +333,10 @@ impl Assets {
                 self.tile_list.push(tile.clone());
             }
         }
+    }
+
+    pub fn set_block_props(&mut self, block_props: IndexMap<Uuid, BlockPropAsset>) {
+        self.block_props = block_props;
     }
 
     pub fn object_material_meta(properties: &ValueContainer) -> Option<TileMaterialMeta> {

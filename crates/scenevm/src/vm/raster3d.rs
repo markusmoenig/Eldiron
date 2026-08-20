@@ -14,7 +14,6 @@ pub struct Vert3DPod {
     pub opacity: f32,
     pub normal: [f32; 3],
     pub _pad2: f32,
-    pub surface_noise: [f32; 4],
     pub paint_geo: [u32; 4],
     pub paint_uv: [f32; 2],
     pub _pad3: [f32; 2],
@@ -440,9 +439,9 @@ mod tests {
 
     #[test]
     fn raster_vertex_paint_fields_match_gpu_layout() {
-        assert_eq!(std::mem::size_of::<Vert3DPod>(), 128);
-        assert_eq!(std::mem::offset_of!(Vert3DPod, paint_geo), 80);
-        assert_eq!(std::mem::offset_of!(Vert3DPod, paint_uv), 96);
-        assert_eq!(std::mem::offset_of!(Vert3DPod, paint_geo_fallback), 112);
+        assert_eq!(std::mem::size_of::<Vert3DPod>(), 112);
+        assert_eq!(std::mem::offset_of!(Vert3DPod, paint_geo), 64);
+        assert_eq!(std::mem::offset_of!(Vert3DPod, paint_uv), 80);
+        assert_eq!(std::mem::offset_of!(Vert3DPod, paint_geo_fallback), 96);
     }
 }

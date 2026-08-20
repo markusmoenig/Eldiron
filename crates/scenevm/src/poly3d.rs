@@ -2,13 +2,6 @@ use crate::GeoId;
 use uuid::Uuid;
 use vek::Vec3;
 
-#[derive(Debug, Clone, Copy)]
-pub struct SurfaceNoiseLayer {
-    pub scale: f32,
-    pub amount: f32,
-    pub seed: f32,
-}
-
 #[derive(Debug, Clone)]
 pub struct Poly3D {
     pub id: GeoId,
@@ -22,7 +15,6 @@ pub struct Poly3D {
     // Vertex blending support (optional)
     pub tile_id2: Option<uuid::Uuid>, // Secondary texture for blending
     pub blend_weights: Vec<f32>,      // Per-vertex blend factor (0.0=primary, 1.0=secondary)
-    pub surface_noise: Option<SurfaceNoiseLayer>,
     /// Optional persistent surface identity supplied by editable geometry.
     pub paint_surface_id: Option<[u32; 4]>,
     /// Per-vertex paint coordinates, independent from material UVs.
@@ -50,7 +42,6 @@ impl Poly3D {
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
-            surface_noise: None,
             paint_surface_id: None,
             paint_uvs: Vec::new(),
         }
@@ -123,7 +114,6 @@ impl Poly3D {
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
-            surface_noise: None,
             paint_surface_id: None,
             paint_uvs: Vec::new(),
         }
@@ -206,7 +196,6 @@ impl Poly3D {
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
-            surface_noise: None,
             paint_surface_id: None,
             paint_uvs: Vec::new(),
         }
@@ -269,7 +258,6 @@ impl Poly3D {
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
-            surface_noise: None,
             paint_surface_id: None,
             paint_uvs: Vec::new(),
         }

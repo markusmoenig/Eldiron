@@ -170,6 +170,7 @@ impl ShortcutResolver {
             }
             'X' | 'M' => context.has_geometry_vertices,
             'L' => context.has_geometry_vertices || context.has_surface_detail,
+            'C' => context.current_tool == MapToolType::Linedef && context.has_geometry_vertices,
             'F' => context.current_tool == MapToolType::Vertex && context.has_geometry_vertices,
             'T' => context.has_geometry_faces || context.has_geometry_objects,
             _ => false,
@@ -238,6 +239,18 @@ mod tests {
 
         assert_eq!(
             ShortcutResolver::default().resolve('l', context),
+            Some(ShortcutResolution::PreserveInTool)
+        );
+    }
+
+    #[test]
+    fn edge_contour_preserves_c_in_tool() {
+        let mut context = ctx();
+        context.current_tool = MapToolType::Linedef;
+        context.has_geometry_vertices = true;
+
+        assert_eq!(
+            ShortcutResolver::default().resolve('c', context),
             Some(ShortcutResolution::PreserveInTool)
         );
     }

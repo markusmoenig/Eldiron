@@ -59,19 +59,18 @@ impl IsoPaintTool {
         index == Some(0) || average < 58 || (color[0] > 150 && color[1] < 90 && color[2] < 90)
     }
 
-    fn ensure_initial_material_settings(region: &mut Region, neutral: (u16, [u8; 4])) {
-        let active_brush = region.iso_paint.active_brush.as_str();
-        let active_index = region.iso_paint.active_palette_indices.first().copied();
-        let active_color = region
-            .iso_paint
+    fn ensure_initial_material_settings(layer: &mut IsoPaintLayer, neutral: (u16, [u8; 4])) {
+        let active_brush = layer.active_brush.as_str();
+        let active_index = layer.active_palette_indices.first().copied();
+        let active_color = layer
             .active_palette_colors
             .first()
             .copied()
-            .unwrap_or(region.iso_paint.active_color);
+            .unwrap_or(layer.active_color);
         let needs_material_seed = active_brush.is_empty()
             || active_brush == "screen"
             || (active_brush == "material"
-                && (region.iso_paint.active_palette_colors.is_empty()
+                && (layer.active_palette_colors.is_empty()
                     || Self::material_color_needs_gray(active_index, active_color)));
 
         if !needs_material_seed {
@@ -79,18 +78,18 @@ impl IsoPaintTool {
         }
 
         let (palette_index, color) = neutral;
-        let size = if region.iso_paint.active_size <= 1.001 {
+        let size = if layer.active_size <= 1.001 {
             8.0
         } else {
-            region.iso_paint.active_size
+            layer.active_size
         };
-        let opacity = if region.iso_paint.active_opacity <= 0.0 {
+        let opacity = if layer.active_opacity <= 0.0 {
             1.0
         } else {
-            region.iso_paint.active_opacity
+            layer.active_opacity
         };
         let material_id = MaterialDefinition::from_preset_finish("default", "natural").id();
-        region.iso_paint.set_active_settings(
+        layer.set_active_settings(
             "draw",
             "material",
             "solid",
@@ -102,14 +101,14 @@ impl IsoPaintTool {
             color,
             vec![palette_index],
             vec![color],
-            region.iso_paint.active_pattern_kind.clone(),
-            region.iso_paint.active_pattern_scale,
-            region.iso_paint.active_pattern_mortar,
-            region.iso_paint.active_pattern_detail,
-            region.iso_paint.active_pattern_variation,
-            region.iso_paint.active_stamp_density,
-            region.iso_paint.active_stamp_size_jitter,
-            region.iso_paint.active_stamp_rotation_jitter,
+            layer.active_pattern_kind.clone(),
+            layer.active_pattern_scale,
+            layer.active_pattern_mortar,
+            layer.active_pattern_detail,
+            layer.active_pattern_variation,
+            layer.active_stamp_density,
+            layer.active_stamp_size_jitter,
+            layer.active_stamp_rotation_jitter,
             "wildflowers",
             size,
             opacity,
@@ -177,45 +176,45 @@ impl IsoPaintTool {
     }
 
     fn apply_stamp_at(
-        region: &mut Region,
+        layer: &mut IsoPaintLayer,
         point: IsoPaintPoint,
         clip_geo: Option<[u32; 4]>,
     ) -> bool {
         if !Self::stamp_point_matches_clip(&point, clip_geo) {
             return false;
         }
-        if region.iso_paint.active_operation == "erase" {
-            let active_brush = region.iso_paint.active_brush.clone();
-            region.iso_paint.erase_stamps_near_owner_kind(
+        if layer.active_operation == "erase" {
+            let active_brush = layer.active_brush.clone();
+            layer.erase_stamps_near_owner_kind(
                 point.screen,
-                region.iso_paint.active_size,
+                layer.active_size,
                 point.owner.as_ref(),
                 Some(active_brush.as_str()),
             )
-        } else if region.iso_paint.active_operation == "draw" {
-            region.iso_paint.add_stamp(point);
+        } else if layer.active_operation == "draw" {
+            layer.add_stamp(point);
             true
         } else {
             false
         }
     }
 
-    fn sync_live_paint_settings(ui: &mut TheUI, region: &mut Region) {
+    fn sync_live_paint_settings(ui: &mut TheUI, layer: &mut IsoPaintLayer) {
         if let Some(opacity) = ui
             .get_widget_value("3D Paint Tool Opacity")
             .and_then(|value| value.to_f32())
         {
-            region.iso_paint.active_opacity = opacity.clamp(0.0, 1.0);
+            layer.active_opacity = opacity.clamp(0.0, 1.0);
         }
         if let Some(TheValue::Int(index)) = ui.get_widget_value("3D Paint Material Mode") {
-            region.iso_paint.active_material_mode = match index {
+            layer.active_material_mode = match index {
                 1 => "replace".to_string(),
                 2 => "stamp".to_string(),
                 _ => "coat".to_string(),
             };
         }
         if let Some(TheValue::Int(index)) = ui.get_widget_value(ISO_PAINT_PATTERN_KIND) {
-            region.iso_paint.active_pattern_kind = match index {
+            layer.active_pattern_kind = match index {
                 0 => "tile".to_string(),
                 2 => "arch".to_string(),
                 _ => "brick".to_string(),
@@ -225,46 +224,43 @@ impl IsoPaintTool {
             .get_widget_value(ISO_PAINT_PATTERN_SCALE)
             .and_then(|value| value.to_f32())
         {
-            region.iso_paint.active_pattern_scale = pattern_scale.clamp(0.25, 4.0);
+            layer.active_pattern_scale = pattern_scale.clamp(0.25, 4.0);
         }
         if let Some(mortar) = ui
             .get_widget_value(ISO_PAINT_MORTAR)
             .and_then(|value| value.to_f32())
         {
-            region.iso_paint.active_pattern_mortar = mortar.clamp(0.0, 0.4);
+            layer.active_pattern_mortar = mortar.clamp(0.0, 0.4);
         }
         if let Some(detail) = ui
             .get_widget_value(ISO_PAINT_PATTERN_DETAIL)
             .and_then(|value| value.to_f32())
         {
-            region.iso_paint.active_pattern_detail = detail.clamp(0.0, 1.0);
+            layer.active_pattern_detail = detail.clamp(0.0, 1.0);
         }
         if let Some(variation) = ui
             .get_widget_value(ISO_PAINT_PATTERN_VARIATION)
             .and_then(|value| value.to_f32())
         {
-            region.iso_paint.active_pattern_variation = variation.clamp(0.0, 1.0);
+            layer.active_pattern_variation = variation.clamp(0.0, 1.0);
         }
         if let Some(size) = ui
             .get_widget_value("3D Paint Tool Size")
             .and_then(|value| value.to_f32())
         {
-            region.iso_paint.active_size = size.clamp(
-                ISO_PAINT_MIN_BRUSH_SIZE,
-                Self::active_size_max(&region.iso_paint),
-            );
+            layer.active_size = size.clamp(ISO_PAINT_MIN_BRUSH_SIZE, Self::active_size_max(layer));
         }
         if let Some(size_jitter) = ui
             .get_widget_value("3D Paint Stamp Size Jitter")
             .and_then(|value| value.to_f32())
         {
-            region.iso_paint.active_stamp_size_jitter = size_jitter.clamp(0.0, 1.0);
+            layer.active_stamp_size_jitter = size_jitter.clamp(0.0, 1.0);
         }
         if let Some(rotation_jitter) = ui
             .get_widget_value("3D Paint Stamp Rotation Jitter")
             .and_then(|value| value.to_f32())
         {
-            region.iso_paint.active_stamp_rotation_jitter = rotation_jitter.clamp(0.0, 1.0);
+            layer.active_stamp_rotation_jitter = rotation_jitter.clamp(0.0, 1.0);
         }
     }
 
@@ -370,8 +366,13 @@ impl IsoPaintTool {
             .with_brush_transform(brush_transform)
     }
 
-    fn paint_viewport_size(ui: &mut TheUI) -> Option<[i32; 2]> {
-        ui.get_render_view("PolyView").map(|render_view| {
+    fn paint_viewport_size(ui: &mut TheUI, server_ctx: &ServerContext) -> Option<[i32; 2]> {
+        let view_name = if server_ctx.pc.is_prefab() {
+            "PrefabView"
+        } else {
+            "PolyView"
+        };
+        ui.get_render_view(view_name).map(|render_view| {
             let dim = *render_view.dim();
             [dim.width, dim.height]
         })
@@ -450,7 +451,22 @@ impl Tool for IsoPaintTool {
                 server_ctx.iso_paint_hover_screen = None;
 
                 let neutral_material = Self::neutral_material_palette(project);
-                if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
+                if let ProjectContext::Prefab(asset_id) = server_ctx.pc {
+                    if let Some(map) = project.prefab_editor_map.as_mut() {
+                        for object in &mut map.geometry_objects {
+                            object.ensure_face_paint_data();
+                        }
+                        map.clear_selection();
+                        map.clear_temp();
+                    }
+                    let paint = project.block_prop_paint.entry(asset_id).or_default();
+                    Self::ensure_initial_material_settings(paint, neutral_material);
+                    if matches!(paint.active_brush.as_str(), "material" | "brick")
+                        && paint.active_size <= 1.001
+                    {
+                        paint.active_size = 8.0;
+                    }
+                } else if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                     if server_ctx.editor_view_mode == EditorViewMode::Iso {
                         region.map.camera = MapCamera::ThreeDIso;
                     }
@@ -462,7 +478,7 @@ impl Tool for IsoPaintTool {
                     }
                     region.map.clear_selection();
                     region.map.clear_temp();
-                    Self::ensure_initial_material_settings(region, neutral_material);
+                    Self::ensure_initial_material_settings(&mut region.iso_paint, neutral_material);
                     if matches!(region.iso_paint.active_brush.as_str(), "material" | "brick")
                         && region.iso_paint.active_size <= 1.001
                     {
@@ -470,21 +486,23 @@ impl Tool for IsoPaintTool {
                     }
                 }
 
-                let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
-                if current_dock != "3D Paint" {
-                    self.previous_dock = if current_dock.is_empty() {
-                        None
-                    } else {
-                        Some(current_dock)
-                    };
+                if !server_ctx.pc.is_prefab() {
+                    let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
+                    if current_dock != "3D Paint" {
+                        self.previous_dock = if current_dock.is_empty() {
+                            None
+                        } else {
+                            Some(current_dock)
+                        };
+                    }
+                    DOCKMANAGER.write().unwrap().set_dock(
+                        "3D Paint".into(),
+                        ui,
+                        ctx,
+                        project,
+                        server_ctx,
+                    );
                 }
-                DOCKMANAGER.write().unwrap().set_dock(
-                    "3D Paint".into(),
-                    ui,
-                    ctx,
-                    project,
-                    server_ctx,
-                );
 
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
@@ -500,7 +518,8 @@ impl Tool for IsoPaintTool {
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
                 server_ctx.iso_paint_hover_screen = None;
-                if DOCKMANAGER.read().unwrap().dock == "3D Paint"
+                if !server_ctx.pc.is_prefab()
+                    && DOCKMANAGER.read().unwrap().dock == "3D Paint"
                     && let Some(prev) = self.previous_dock.take()
                 {
                     DOCKMANAGER
@@ -578,16 +597,18 @@ impl Tool for IsoPaintTool {
     ) -> Option<ProjectUndoAtom> {
         match map_event {
             MapClicked(coord) => {
-                let viewport_size = Self::paint_viewport_size(ui);
+                let viewport_size = Self::paint_viewport_size(ui, server_ctx);
                 server_ctx.iso_paint_hover_screen = Some(coord);
-                Self::sync_live_paint_settings(ui, region);
+                if !server_ctx.pc.is_prefab() {
+                    Self::sync_live_paint_settings(ui, &mut region.iso_paint);
+                }
                 self.painting = true;
                 self.stroke_before = Some(region.iso_paint.clone());
                 if Self::is_stamp_mode(&region.iso_paint) {
                     let point = Self::paint_point(coord, server_ctx, viewport_size);
                     self.stamp_clip_geo = Self::stamp_clip_geo(&region.iso_paint, &point);
                     let clip_geo = self.stamp_clip_geo;
-                    let changed = Self::apply_stamp_at(region, point, clip_geo);
+                    let changed = Self::apply_stamp_at(&mut region.iso_paint, point, clip_geo);
                     self.active_stroke = None;
                     self.last_stamp_screen = Some([coord.x, coord.y]);
                     self.stroke_changed = changed;
@@ -629,7 +650,7 @@ impl Tool for IsoPaintTool {
                 ));
             }
             MapDragged(coord) => {
-                let viewport_size = Self::paint_viewport_size(ui);
+                let viewport_size = Self::paint_viewport_size(ui, server_ctx);
                 server_ctx.iso_paint_hover_screen = Some(coord);
                 if self.painting
                     && Self::is_stamp_mode(&region.iso_paint)
@@ -641,7 +662,8 @@ impl Tool for IsoPaintTool {
                     )
                 {
                     let point = Self::paint_point(coord, server_ctx, viewport_size);
-                    let changed = Self::apply_stamp_at(region, point, self.stamp_clip_geo);
+                    let changed =
+                        Self::apply_stamp_at(&mut region.iso_paint, point, self.stamp_clip_geo);
                     if changed {
                         self.last_stamp_screen = Some([coord.x, coord.y]);
                     }
@@ -664,7 +686,7 @@ impl Tool for IsoPaintTool {
                 Self::request_paint_redraw(ctx);
             }
             MapUp(coord) => {
-                let viewport_size = Self::paint_viewport_size(ui);
+                let viewport_size = Self::paint_viewport_size(ui, server_ctx);
                 server_ctx.iso_paint_hover_screen = Some(coord);
                 if self.painting
                     && Self::is_stamp_mode(&region.iso_paint)
@@ -676,7 +698,8 @@ impl Tool for IsoPaintTool {
                     )
                 {
                     let point = Self::paint_point(coord, server_ctx, viewport_size);
-                    let changed = Self::apply_stamp_at(region, point, self.stamp_clip_geo);
+                    let changed =
+                        Self::apply_stamp_at(&mut region.iso_paint, point, self.stamp_clip_geo);
                     self.stroke_changed |= changed;
                 } else if self.painting
                     && let Some(stroke_id) = self.active_stroke
@@ -725,5 +748,36 @@ impl Tool for IsoPaintTool {
         }
 
         None
+    }
+
+    fn prefab_map_event(
+        &mut self,
+        map_event: MapEvent,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        asset_id: Uuid,
+        server_ctx: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
+        // Reuse the mature Region paint gesture implementation while storing
+        // the resulting layer on the Prefab source instead of a region.
+        let mut proxy = Region::default();
+        proxy.iso_paint = project
+            .block_prop_paint
+            .shift_remove(&asset_id)
+            .unwrap_or_default();
+        let undo = self.region_map_event(map_event, ui, ctx, &mut proxy, server_ctx);
+        project.block_prop_paint.insert(asset_id, proxy.iso_paint);
+        match undo {
+            Some(ProjectUndoAtom::RegionPaintEdit(_, _, old, new)) => {
+                Some(ProjectUndoAtom::PrefabPaintEdit(
+                    ProjectContext::Prefab(asset_id),
+                    asset_id,
+                    old,
+                    new,
+                ))
+            }
+            other => other,
+        }
     }
 }

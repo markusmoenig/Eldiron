@@ -400,6 +400,7 @@ impl TheWidget for TheDropdownMenu {
 
 pub trait TheDropdownMenuTrait: TheWidget {
     fn add_option(&mut self, option: String);
+    fn clear_options(&mut self);
     fn selected_text(&self) -> String;
     fn set_selected_index(&mut self, index: i32);
     fn selected_index(&self) -> usize;
@@ -408,6 +409,12 @@ pub trait TheDropdownMenuTrait: TheWidget {
 impl TheDropdownMenuTrait for TheDropdownMenu {
     fn add_option(&mut self, option: String) {
         self.options.push(option);
+    }
+    fn clear_options(&mut self) {
+        self.options.clear();
+        self.selected = 0;
+        self.original = 0;
+        self.is_dirty = true;
     }
     fn selected_index(&self) -> usize {
         self.selected as usize

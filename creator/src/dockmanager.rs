@@ -24,6 +24,9 @@ pub struct DockManager {
     pub supports_undo: bool,
     pub auto_text_play_prev_dock: Option<String>,
     pub auto_text_play_active: bool,
+    prefab_return_context: Option<(ProjectContext, EditorViewMode, Uuid)>,
+    prefab_return_orbit: Option<(Vec3<f32>, f32)>,
+    prefab_return_preview_post: Option<bool>,
 }
 
 impl Default for DockManager {
@@ -33,6 +36,39 @@ impl Default for DockManager {
 }
 
 impl DockManager {
+    pub(crate) fn action_canvas(list_id: &str) -> TheCanvas {
+        let mut action_canvas = TheCanvas::new();
+
+        let mut toolbar_canvas = TheCanvas::default();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
+        toolbar_hlayout.set_background_color(None);
+
+        let mut text = TheText::new(TheId::named("Action Text"));
+        text.set_text(fl!("dock_auto"));
+        text.set_text_size(12.0);
+
+        let mut action_auto_button = TheCheckButton::new(TheId::named("Action Auto"));
+        action_auto_button.set_status_text(&fl!("status_dock_action_auto"));
+        action_auto_button.set_value(TheValue::Bool(false));
+
+        let mut action_apply_button = TheTraybarButton::new(TheId::named("Action Apply"));
+        action_apply_button.set_text(fl!("apply"));
+        action_apply_button.set_status_text(&fl!("status_dock_action_apply"));
+
+        toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
+        toolbar_hlayout.set_padding(3);
+        toolbar_hlayout.add_widget(Box::new(text));
+        toolbar_hlayout.add_widget(Box::new(action_auto_button));
+        toolbar_hlayout.add_widget(Box::new(action_apply_button));
+        toolbar_hlayout.set_reverse_index(Some(1));
+        toolbar_canvas.set_layout(toolbar_hlayout);
+
+        action_canvas.set_layout(TheListLayout::new(TheId::named(list_id)));
+        action_canvas.set_top(toolbar_canvas);
+        action_canvas
+    }
+
     pub fn new() -> Self {
         let mut docks = IndexMap::default();
 
@@ -40,7 +76,7 @@ impl DockManager {
         docks.insert("Tiles".into(), dock);
 
         let dock: Box<dyn Dock> = Box::new(crate::docks::blocks::BlocksDock::new());
-        docks.insert("Blocks".into(), dock);
+        docks.insert("Prefabs".into(), dock);
 
         let dock: Box<dyn Dock> = Box::new(crate::docks::builder::BuilderDock::new());
         docks.insert("Builder".into(), dock);
@@ -83,6 +119,9 @@ impl DockManager {
             supports_undo: false,
             auto_text_play_prev_dock: None,
             auto_text_play_active: false,
+            prefab_return_context: None,
+            prefab_return_orbit: None,
+            prefab_return_preview_post: None,
         }
     }
 
@@ -107,37 +146,7 @@ impl DockManager {
         shared_layout.add_canvas(dock_canvas);
 
         // Action Canvas
-        let mut action_canvas: TheCanvas = TheCanvas::new();
-
-        let mut toolbar_canvas = TheCanvas::default();
-        let traybar_widget = TheTraybar::new(TheId::empty());
-        toolbar_canvas.set_widget(traybar_widget);
-        let mut toolbar_hlayout = TheHLayout::new(TheId::empty());
-        toolbar_hlayout.set_background_color(None);
-
-        let mut text = TheText::new(TheId::named("Action Text"));
-        text.set_text(fl!("dock_auto"));
-        text.set_text_size(12.0);
-
-        let mut action_auto_button = TheCheckButton::new(TheId::named("Action Auto"));
-        action_auto_button.set_status_text(&fl!("status_dock_action_auto"));
-        action_auto_button.set_value(TheValue::Bool(false));
-
-        let mut action_apply_button = TheTraybarButton::new(TheId::named("Action Apply"));
-        action_apply_button.set_text(fl!("apply"));
-        action_apply_button.set_status_text(&fl!("status_dock_action_apply"));
-
-        toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
-        toolbar_hlayout.set_padding(3);
-        toolbar_hlayout.add_widget(Box::new(text));
-        toolbar_hlayout.add_widget(Box::new(action_auto_button));
-        toolbar_hlayout.add_widget(Box::new(action_apply_button));
-        toolbar_hlayout.set_reverse_index(Some(1));
-        toolbar_canvas.set_layout(toolbar_hlayout);
-
-        let action_list_layout = TheListLayout::new(TheId::named("Action List"));
-        action_canvas.set_layout(action_list_layout);
-        action_canvas.set_top(toolbar_canvas);
+        let action_canvas = Self::action_canvas("Action List");
 
         // ---
 
@@ -157,7 +166,7 @@ impl DockManager {
         server_ctx: &mut ServerContext,
     ) {
         if dock != self.dock {
-            self.minimize(ui, ctx);
+            self.minimize(ui, ctx, project, server_ctx);
 
             if let Some(index) = self.docks.get_index_of(&dock) {
                 self.index = index;
@@ -309,6 +318,14 @@ impl DockManager {
         let index = stack.add_canvas(data_editor_canvas);
         self.editor_canvases.insert("Data".to_string(), index);
         self.editor_docks.insert("Data".to_string(), data_editor);
+
+        let mut prefabs_editor: Box<dyn Dock> =
+            Box::new(crate::docks::prefabs_editor::PrefabsEditorDock::new());
+        let prefabs_editor_canvas = prefabs_editor.setup(ctx);
+        let index = stack.add_canvas(prefabs_editor_canvas);
+        self.editor_canvases.insert("Prefabs".to_string(), index);
+        self.editor_docks
+            .insert("Prefabs".to_string(), prefabs_editor);
     }
 
     /// Shows the editor of the current dock if available, otherwise maximizes the dock.
@@ -316,9 +333,97 @@ impl DockManager {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        project: &Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
+        if self.dock == "Prefabs" {
+            let Some(asset_id) = server_ctx
+                .curr_block_asset_id
+                .filter(|id| project.block_props.contains_key(id))
+            else {
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    fl!("status_prefab_editor_select_project_prefab"),
+                ));
+                return;
+            };
+            if let Err(message) = crate::block_props::begin_prefab_editor(project, asset_id) {
+                ctx.ui
+                    .send(TheEvent::SetStatusText(TheId::empty(), message));
+                return;
+            }
+            self.prefab_return_context = Some((
+                server_ctx.pc,
+                server_ctx.editor_view_mode,
+                server_ctx.curr_region,
+            ));
+            self.prefab_return_preview_post = Some({
+                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                let enabled = rusterix.editor_preview_post_enabled;
+                rusterix.editor_preview_post_enabled = false;
+                enabled
+            });
+            server_ctx.pc = ProjectContext::Prefab(asset_id);
+            server_ctx.editor_view_mode = EditorViewMode::Orbit;
+            server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
+
+            if let Some((center, distance)) =
+                crate::block_props::prefab_editor_camera_frame(project)
+            {
+                let mut camera = crate::editor::EDITCAMERA.write().unwrap();
+                self.prefab_return_orbit =
+                    Some((camera.orbit_camera.center, camera.orbit_camera.distance));
+                camera.orbit_camera.center = center;
+                camera.orbit_camera.distance = distance;
+            }
+            {
+                let camera = crate::editor::EDITCAMERA
+                    .read()
+                    .unwrap()
+                    .orbit_camera
+                    .clone();
+                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                rusterix.scene_handler.vm.set_active_vm(0);
+                rusterix.scene_handler.clear_runtime_scene();
+                rusterix.client.scene.d3_overlay.clear();
+                rusterix.scene_handler.clear_overlay();
+                rusterix
+                    .scene_handler
+                    .vm
+                    .execute(scenevm::Atom::ClearRaster3DPaintOverlay);
+                rusterix
+                    .scene_handler
+                    .vm
+                    .execute(scenevm::Atom::ClearPaintBillboards);
+                rusterix
+                    .scene_handler
+                    .vm
+                    .execute(scenevm::Atom::ClearOrganicBillboards);
+                rusterix
+                    .scene_handler
+                    .vm
+                    .execute(scenevm::Atom::ClearAvatarBillboardData);
+                rusterix.client.set_camera_d3(Box::new(camera));
+            }
+            if let Some(group) = ui
+                .get_widget("Editor View Switch")
+                .and_then(|widget| widget.as_group_button())
+            {
+                group.set_index(EditorViewMode::Orbit.to_index());
+            }
+            crate::utils::editor_scene_full_rebuild(project, server_ctx);
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Set Tool"),
+                TheValue::Text("Object Tool".to_string()),
+            ));
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                fl!(
+                    "status_prefab_editor_open",
+                    name = server_ctx.curr_block_asset_name.as_deref().unwrap_or("")
+                ),
+            ));
+        }
         let use_editor_canvas = if self.dock == "Data" {
             matches!(server_ctx.pc, ProjectContext::CharacterPreviewRigging(_))
         } else {
@@ -354,6 +459,10 @@ impl DockManager {
                     }
                 }
 
+                if self.dock == "Prefabs" {
+                    TOOLLIST.write().unwrap().set_prefab_tools(ui, ctx);
+                }
+
                 if let Some(supports_undo) = supports_undo {
                     self.set_supports_undo(supports_undo, ctx);
                 }
@@ -381,9 +490,9 @@ impl DockManager {
         };
 
         if self.state == DockManagerState::Editor && self.dock != dock {
-            self.minimize(ui, ctx);
+            self.minimize(ui, ctx, project, server_ctx);
         } else if self.state != DockManagerState::Editor {
-            self.minimize(ui, ctx);
+            self.minimize(ui, ctx, project, server_ctx);
         }
 
         self.dock = dock;
@@ -412,7 +521,14 @@ impl DockManager {
         self.set_supports_undo(supports_undo, ctx);
     }
 
-    fn minimize_inner(&mut self, ui: &mut TheUI, ctx: &mut TheContext, restore_game_tools: bool) {
+    fn minimize_inner(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+        restore_game_tools: bool,
+    ) {
         if self.state != DockManagerState::Minimized {
             // Switch back to game tools when minimizing from editor mode
             if self.state == DockManagerState::Editor {
@@ -431,6 +547,32 @@ impl DockManager {
                 ctx.ui.relayout = true;
                 ctx.ui.redraw_all = true;
                 self.state = DockManagerState::Minimized;
+
+                if self.dock == "Prefabs"
+                    && let Some((pc, view_mode, region_id)) = self.prefab_return_context.take()
+                {
+                    if let Some((center, distance)) = self.prefab_return_orbit.take() {
+                        let mut camera = crate::editor::EDITCAMERA.write().unwrap();
+                        camera.orbit_camera.center = center;
+                        camera.orbit_camera.distance = distance;
+                    }
+                    server_ctx.pc = pc;
+                    server_ctx.editor_view_mode = view_mode;
+                    server_ctx.curr_region = region_id;
+                    if let Some(enabled) = self.prefab_return_preview_post.take() {
+                        crate::editor::RUSTERIX
+                            .write()
+                            .unwrap()
+                            .editor_preview_post_enabled = enabled;
+                    }
+                    if let Some(group) = ui
+                        .get_widget("Editor View Switch")
+                        .and_then(|widget| widget.as_group_button())
+                    {
+                        group.set_index(view_mode.to_index());
+                    }
+                    crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                }
 
                 // Editor-only docks have no corresponding lower canvas. Put
                 // the manager back on the regular dock whose stack index was
@@ -451,13 +593,25 @@ impl DockManager {
     }
 
     /// Shows the editor of the current dock if available, otherwise maximizes the dock.
-    pub fn minimize(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.minimize_inner(ui, ctx, true);
+    pub fn minimize(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        self.minimize_inner(ui, ctx, project, server_ctx, true);
     }
 
     /// Minimize during game-tool switching, while the tool list is already locked by the caller.
-    pub fn minimize_for_tool_switch(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.minimize_inner(ui, ctx, false);
+    pub fn minimize_for_tool_switch(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) {
+        self.minimize_inner(ui, ctx, project, server_ctx, false);
     }
 
     /// Returns true if the current dock (either the editor dock or the normal dock) supports undo.
@@ -642,7 +796,7 @@ impl DockManager {
                 if let Some(dock) = restore_dock {
                     self.set_dock(dock, _ui, ctx, project, server_ctx);
                 } else {
-                    self.minimize(_ui, ctx);
+                    self.minimize(_ui, ctx, project, server_ctx);
                 }
             }
         }
@@ -657,5 +811,11 @@ mod tests {
     fn recipes_are_not_registered_as_a_regular_dock() {
         let manager = DockManager::new();
         assert!(!manager.docks.contains_key("Recipes"));
+    }
+
+    #[test]
+    fn prefabs_dock_exposes_the_shared_action_list() {
+        let manager = DockManager::new();
+        assert!(manager.docks["Prefabs"].supports_actions());
     }
 }

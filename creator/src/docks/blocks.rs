@@ -32,6 +32,7 @@ struct BlocksDockBoard {
     selected: Uuid,
     hovered: Option<Uuid>,
     rectangles: Vec<(Uuid, TheDim)>,
+    project_assets: Vec<rusterix::BlockPropAsset>,
     preview_cache: HashMap<(Uuid, i32), TheRGBABuffer>,
     is_dirty: bool,
 }
@@ -47,6 +48,7 @@ impl BlocksDockBoard {
             selected: default_block_asset_id(),
             hovered: None,
             rectangles: Vec::new(),
+            project_assets: Vec::new(),
             preview_cache: HashMap::new(),
             is_dirty: true,
         }
@@ -59,6 +61,14 @@ impl BlocksDockBoard {
         }
     }
 
+    fn set_project_assets(&mut self, assets: Vec<rusterix::BlockPropAsset>) {
+        if self.project_assets != assets {
+            self.project_assets = assets;
+            self.preview_cache.clear();
+            self.is_dirty = true;
+        }
+    }
+
     fn calc_layout(&self) -> (i32, i32, i32) {
         const PAD_X: i32 = 10;
         const PAD_Y: i32 = 8;
@@ -66,7 +76,7 @@ impl BlocksDockBoard {
         const MIN_CELL: i32 = 66;
         const MAX_CELL: i32 = 88;
 
-        let count = block_assets().len().max(1) as i32;
+        let count = (block_assets().len() + self.project_assets.len()).max(1) as i32;
         let aw = (self.dim.width - PAD_X * 2).max(MIN_CELL);
         let max_cols = ((aw + SPACING) / (MIN_CELL + SPACING)).max(1).min(count);
 
@@ -220,6 +230,97 @@ impl BlocksDockBoard {
         TheRGBABuffer::from(pixels, width as u32, height as u32)
     }
 
+    fn render_prop_preview(asset: &rusterix::BlockPropAsset, size: i32) -> TheRGBABuffer {
+        const SSAA: usize = 2;
+
+        let width = size.max(32) as usize;
+        let height = size.max(32) as usize;
+        let render_width = width * SSAA;
+        let render_height = height * SSAA;
+        let mut catalog = IndexMap::default();
+        catalog.insert(asset.id, asset.clone());
+        let instance = rusterix::BlockPropInstance::new(asset.id);
+        let resolution = rusterix::resolve_block_prop_geometry(&[instance], &catalog);
+        let mut scene = rusterix::Scene::empty();
+        let mut min = Vec3::broadcast(f32::INFINITY);
+        let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+
+        for (object_index, object) in resolution.geometry_objects.iter().enumerate() {
+            let vertices = object
+                .vertices
+                .iter()
+                .map(|vertex| {
+                    let world = object.transform_point(*vertex);
+                    min.x = min.x.min(world.x);
+                    min.y = min.y.min(world.y);
+                    min.z = min.z.min(world.z);
+                    max.x = max.x.max(world.x);
+                    max.y = max.y.max(world.y);
+                    max.z = max.z.max(world.z);
+                    [world.x, world.y, world.z, 1.0]
+                })
+                .collect::<Vec<_>>();
+            let mut indices = Vec::new();
+            for face in &object.faces {
+                let Some(first) = face.indices.first().copied() else {
+                    continue;
+                };
+                for edge in face.indices[1..].windows(2) {
+                    indices.push((first, edge[0], edge[1]));
+                }
+            }
+            if vertices.is_empty() || indices.is_empty() {
+                continue;
+            }
+            let vertex_count = vertices.len();
+            let mut batch =
+                rusterix::Batch3D::new(vertices, indices, vec![[0.0, 0.0]; vertex_count])
+                    .source(rusterix::PixelSource::Pixel(
+                        BLOCK_PREVIEW_COLORS[object_index % BLOCK_PREVIEW_COLORS.len()],
+                    ))
+                    .cull_mode(rusterix::CullMode::Off);
+            batch.ambient_color = Vec3::new(0.42, 0.44, 0.48);
+            scene.d3_static.push(batch);
+        }
+
+        if scene.d3_static.is_empty() {
+            return TheRGBABuffer::new(TheDim::sized(size, size));
+        }
+        scene.compute_static_normals();
+        let center = (min + max) * 0.5;
+        let extent = (max - min).map(|value| value.max(0.1));
+        let mut camera = <rusterix::D3IsoCamera as rusterix::D3Camera>::new();
+        camera.center = center;
+        camera.azimuth_deg = 135.0;
+        camera.elevation_deg = 34.0;
+        camera.height_clearance = 0.0;
+        camera.distance = extent.magnitude().max(4.0);
+        camera.scale = (extent.x.max(extent.y).max(extent.z) * 0.78).max(1.35);
+        camera.near = 0.1;
+        camera.far = 80.0;
+
+        let mut pixels = vec![0_u8; render_width * render_height * 4];
+        let mut rasterizer = rusterix::Rasterizer::setup(
+            None,
+            camera.view_matrix(),
+            camera.projection_matrix(render_width as f32, render_height as f32),
+        )
+        .render_mode(rusterix::RenderMode::render_3d())
+        .background([0, 0, 0, 0])
+        .ambient(Vec4::new(0.38, 0.40, 0.43, 1.0));
+        rasterizer.preserve_transparency = true;
+        rasterizer.rasterize(
+            &mut scene,
+            &mut pixels,
+            render_width,
+            render_height,
+            64,
+            &rusterix::Assets::default(),
+        );
+        let pixels = Self::downsample_rgba_box(&pixels, render_width, render_height, SSAA);
+        TheRGBABuffer::from(pixels, width as u32, height as u32)
+    }
+
     fn cylinder_batch(min: Vec3<f32>, max: Vec3<f32>) -> rusterix::Batch3D {
         let (vertices, faces) = cylinder_vertices_and_faces(min, max, BLOCK_COLUMN_SEGMENTS);
         let mut batch_vertices = vertices
@@ -273,6 +374,36 @@ impl BlocksDockBoard {
         let preview = preview_cache
             .entry((asset.id, preview_size))
             .or_insert_with(|| Self::render_asset_preview(asset, preview_size));
+        let x = rect.x + (rect.width - preview.dim().width) / 2;
+        let y = rect.y + (rect.height - preview.dim().height) / 2;
+        buffer.blend_into(x, y, preview);
+    }
+
+    fn draw_prop_icon(
+        preview_cache: &mut HashMap<(Uuid, i32), TheRGBABuffer>,
+        buffer: &mut TheRGBABuffer,
+        rect: TheDim,
+        asset: &rusterix::BlockPropAsset,
+        selected: bool,
+        hovered: bool,
+    ) {
+        let bg = if selected {
+            BLOCK_SELECTED_BG
+        } else if hovered {
+            [45, 49, 52, 255]
+        } else {
+            [32, 35, 38, 255]
+        };
+        let border = if selected {
+            [102, 194, 204, 255]
+        } else {
+            [75, 80, 86, 255]
+        };
+        buffer.draw_rounded_rect(&rect, &bg, &(5.0, 5.0, 5.0, 5.0), 1.0, &border);
+        let preview_size = (rect.width - 10).max(32);
+        let preview = preview_cache
+            .entry((asset.id, preview_size))
+            .or_insert_with(|| Self::render_prop_preview(asset, preview_size));
         let x = rect.x + (rect.width - preview.dim().width) / 2;
         let y = rect.y + (rect.height - preview.dim().height) / 2;
         buffer.blend_into(x, y, preview);
@@ -347,13 +478,26 @@ impl TheWidget for BlocksDockBoard {
                 if hovered != self.hovered {
                     self.hovered = hovered;
                     let text = hovered
-                        .and_then(block_asset)
-                        .map(|asset| {
-                            format!(
-                                "{}: {}",
-                                localized_block_asset_name(asset),
-                                localized_block_asset_description(asset)
-                            )
+                        .and_then(|id| {
+                            block_asset(id)
+                                .map(|asset| {
+                                    format!(
+                                        "{}: {}",
+                                        localized_block_asset_name(asset),
+                                        localized_block_asset_description(asset)
+                                    )
+                                })
+                                .or_else(|| {
+                                    self.project_assets.iter().find(|asset| asset.id == id).map(
+                                        |asset| {
+                                            fl!(
+                                                "prefab_catalog_hover",
+                                                name = asset.name.as_str(),
+                                                part_count = asset.parts.len()
+                                            )
+                                        },
+                                    )
+                                })
                         })
                         .unwrap_or_default();
                     ctx.ui.send(TheEvent::SetStatusText(self.id.clone(), text));
@@ -401,9 +545,6 @@ impl TheWidget for BlocksDockBoard {
         for _ in 0..rows {
             let mut x_off = 10usize;
             for _ in 0..columns {
-                let Some(asset) = block_assets().get(index) else {
-                    break;
-                };
                 let rect = TheDim::new(x_off as i32, y_off as i32, item_width, item_width);
                 let draw_rect = TheDim::new(
                     self.dim.buffer_x + x_off as i32,
@@ -411,20 +552,36 @@ impl TheWidget for BlocksDockBoard {
                     item_width,
                     item_width,
                 );
-                Self::draw_asset_icon(
-                    &mut self.preview_cache,
-                    buffer,
-                    draw_rect,
-                    asset,
-                    asset.id == self.selected,
-                    self.hovered == Some(asset.id),
-                );
-                self.rectangles.push((asset.id, rect));
+                let asset_id = if let Some(asset) = block_assets().get(index) {
+                    Self::draw_asset_icon(
+                        &mut self.preview_cache,
+                        buffer,
+                        draw_rect,
+                        asset,
+                        asset.id == self.selected,
+                        self.hovered == Some(asset.id),
+                    );
+                    asset.id
+                } else {
+                    let Some(asset) = self.project_assets.get(index - block_assets().len()) else {
+                        break;
+                    };
+                    Self::draw_prop_icon(
+                        &mut self.preview_cache,
+                        buffer,
+                        draw_rect,
+                        asset,
+                        asset.id == self.selected,
+                        self.hovered == Some(asset.id),
+                    );
+                    asset.id
+                };
+                self.rectangles.push((asset_id, rect));
                 index += 1;
                 x_off += item_width as usize + spacing;
             }
             y_off += item_width as usize + spacing;
-            if index >= block_assets().len() {
+            if index >= block_assets().len() + self.project_assets.len() {
                 break;
             }
         }
@@ -441,16 +598,22 @@ pub struct BlocksDock {
 }
 
 impl BlocksDock {
-    fn ensure_selection(&mut self, server_ctx: &mut ServerContext) {
+    fn ensure_selection(&mut self, project: &Project, server_ctx: &mut ServerContext) {
         let selected = server_ctx.curr_block_asset_id.unwrap_or(self.selected);
-        if block_asset(selected).is_some() {
+        if block_asset(selected).is_some() || project.block_props.contains_key(&selected) {
             self.selected = selected;
         } else {
             self.selected = default_block_asset_id();
         }
         server_ctx.curr_block_asset_id = Some(self.selected);
-        server_ctx.curr_block_asset_name =
-            block_asset(self.selected).map(|asset| asset.name.to_string());
+        server_ctx.curr_block_asset_name = block_asset(self.selected)
+            .map(|asset| asset.name.to_string())
+            .or_else(|| {
+                project
+                    .block_props
+                    .get(&self.selected)
+                    .map(|asset| asset.name.clone())
+            });
     }
 
     fn text(value: impl Into<String>) -> Box<dyn TheWidget> {
@@ -463,14 +626,16 @@ impl BlocksDock {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
+        project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        self.ensure_selection(server_ctx);
+        self.ensure_selection(project, server_ctx);
 
         if let Some(widget) = ui.get_widget(BLOCKS_DOCK_BOARD)
             && let Some(board) = widget.as_any().downcast_mut::<BlocksDockBoard>()
         {
             board.set_selected(self.selected);
+            board.set_project_assets(project.block_props.values().cloned().collect());
         }
         if let Some(widget) = ui.get_widget(BLOCKS_DOCK_OPERATION)
             && let Some(group) = widget.as_group_button()
@@ -555,6 +720,33 @@ impl BlocksDock {
                 layout.add_pair(
                     fl!("block_label_resize"),
                     Self::text(fl!("block_help_resize")),
+                );
+            } else if let Some(asset) = project.block_props.get(&self.selected) {
+                let object_count = asset
+                    .parts
+                    .iter()
+                    .map(|part| part.geometry_source.geometry_objects().len())
+                    .sum::<usize>();
+                layout.add_pair(fl!("prefab_label_prefab"), Self::text(asset.name.clone()));
+                layout.add_pair(
+                    fl!("prefab_label_source"),
+                    Self::text(fl!(
+                        "prefab_project_source",
+                        part_count = asset.parts.len(),
+                        object_count = object_count
+                    )),
+                );
+                layout.add_pair(
+                    fl!("prefab_label_semantics"),
+                    Self::text(fl!(
+                        "prefab_semantics_summary",
+                        surface_count = asset.support_surfaces.len(),
+                        interaction_count = asset.interaction_targets.len()
+                    )),
+                );
+                layout.add_pair(
+                    fl!("prefab_label_placement"),
+                    Self::text(fl!("prefab_linked_placement")),
                 );
             }
             ctx.ui.relayout = true;
@@ -647,14 +839,10 @@ impl Dock for BlocksDock {
         &mut self,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &Project,
+        project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        self.sync_widgets(ui, ctx, server_ctx);
-    }
-
-    fn supports_actions(&self) -> bool {
-        false
+        self.sync_widgets(ui, ctx, project, server_ctx);
     }
 
     fn handle_event(
@@ -662,21 +850,32 @@ impl Dock for BlocksDock {
         event: &TheEvent,
         ui: &mut TheUI,
         ctx: &mut TheContext,
-        _project: &mut Project,
+        project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
         match event {
             TheEvent::Custom(id, TheValue::Id(asset_id)) if id.name == "Block Asset Selected" => {
                 self.selected = *asset_id;
                 server_ctx.curr_block_asset_id = Some(*asset_id);
-                server_ctx.curr_block_asset_name =
-                    block_asset(*asset_id).map(|asset| asset.name.to_string());
-                self.sync_widgets(ui, ctx, server_ctx);
+                server_ctx.curr_block_asset_name = block_asset(*asset_id)
+                    .map(|asset| asset.name.to_string())
+                    .or_else(|| {
+                        project
+                            .block_props
+                            .get(asset_id)
+                            .map(|asset| asset.name.clone())
+                    });
+                self.sync_widgets(ui, ctx, project, server_ctx);
                 if let Some(asset) = block_asset(*asset_id) {
                     let asset_name = localized_block_asset_name(asset);
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
                         format!("{}", fl!("status_block_selected", asset_name = asset_name)),
+                    ));
+                } else if let Some(asset) = project.block_props.get(asset_id) {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        fl!("status_prefab_selected", name = asset.name.as_str()),
                     ));
                 }
                 Self::update_overlay(ctx);
@@ -685,25 +884,25 @@ impl Dock for BlocksDock {
             TheEvent::IndexChanged(id, index) if id.name == BLOCKS_DOCK_OPERATION => {
                 server_ctx.block_operation =
                     (*index as i32).clamp(BLOCK_OPERATION_PLACE, BLOCK_OPERATION_ERASE);
-                self.sync_widgets(ui, ctx, server_ctx);
+                self.sync_widgets(ui, ctx, project, server_ctx);
                 Self::update_overlay(ctx);
                 true
             }
             TheEvent::IndexChanged(id, index) if id.name == BLOCKS_DOCK_STROKE => {
                 server_ctx.block_stroke_mode =
                     (*index as i32).clamp(BLOCK_STROKE_LINE, BLOCK_STROKE_RECT);
-                self.sync_widgets(ui, ctx, server_ctx);
+                self.sync_widgets(ui, ctx, project, server_ctx);
                 Self::update_overlay(ctx);
                 true
             }
             TheEvent::IndexChanged(id, index) if id.name == BLOCKS_DOCK_DAMAGE => {
                 server_ctx.block_damage_enabled = *index == 1;
-                self.sync_widgets(ui, ctx, server_ctx);
+                self.sync_widgets(ui, ctx, project, server_ctx);
                 Self::update_overlay(ctx);
                 true
             }
             TheEvent::Custom(id, TheValue::Empty) if id.name == BLOCKS_DOCK_SYNC_EVENT => {
-                self.sync_widgets(ui, ctx, server_ctx);
+                self.sync_widgets(ui, ctx, project, server_ctx);
                 true
             }
             _ => false,

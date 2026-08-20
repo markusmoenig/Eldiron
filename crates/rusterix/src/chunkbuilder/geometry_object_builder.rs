@@ -2,7 +2,7 @@ use crate::collision_world::{
     ChunkCollision, DynamicOpening, OpeningType, StaticBarrier, WalkableFloor,
 };
 use crate::{Assets, Chunk, ChunkBuilder, Map, PixelSource};
-use scenevm::{GeoId, SurfaceNoiseLayer};
+use scenevm::GeoId;
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
@@ -23,6 +23,13 @@ impl GeometryObjectBuilder {
             (value >> 64) as u32,
             (value >> 96) as u32,
         ]
+    }
+
+    fn paint_source_object_id(object: &crate::GeometryObject) -> Uuid {
+        object
+            .properties
+            .get_id("block_prop_source_object_id")
+            .unwrap_or(object.id)
     }
 
     fn default_tile_id() -> Uuid {
@@ -276,14 +283,6 @@ impl GeometryObjectBuilder {
                 [p.x, p.y]
             })
             .collect()
-    }
-
-    fn surface_noise_layer(noise: &crate::GeometrySurfaceNoise) -> SurfaceNoiseLayer {
-        SurfaceNoiseLayer {
-            scale: noise.scale.max(0.0001),
-            amount: noise.amount.clamp(0.0, 1.0),
-            seed: noise.seed as f32,
-        }
     }
 
     fn face_normal(world_points: &[Vec3<f32>], object_center: Vec3<f32>) -> Option<Vec3<f32>> {
@@ -718,6 +717,7 @@ impl GeometryObjectBuilder {
         assets: &Assets,
         vmchunk: &mut scenevm::Chunk,
         object_id: Uuid,
+        paint_object_id: Uuid,
         material: Option<&crate::TileMaterialMeta>,
         cell_uvs: &[Vec2<f32>],
         face_paint_uvs: &[Vec2<f32>],
@@ -810,52 +810,26 @@ impl GeometryObjectBuilder {
 
                 let source = face.tiles.get(&(tx, ty)).or(face.tile.as_ref());
                 let tile_id = Self::face_tile_id(source, material, assets);
-                let noise_tile_id = face
-                    .surface_noise
-                    .as_ref()
-                    .and_then(|noise| noise.source.as_ref())
-                    .map(|source| Self::face_tile_id(Some(source), None, assets));
                 let uvs = if face_texture_uvs.is_some() {
                     texture_uvs
                 } else {
                     let tile_uvs = Self::tiled_face_base_uvs(&vertices_world);
                     Self::transformed_face_uvs(face, &tile_uvs, Some(&vertices_world))
                 };
-                if let (Some(noise), Some(noise_tile_id)) =
-                    (face.surface_noise.as_ref(), noise_tile_id)
-                {
-                    vmchunk.add_poly_3d_surface_noise_painted(
-                        GeoId::GeometryObject(object_id),
-                        tile_id,
-                        noise_tile_id,
-                        vertices,
-                        uvs,
-                        vec![(0, 1, 2), (0, 2, 3)],
-                        0,
-                        true,
-                        Self::surface_noise_layer(noise),
-                        Self::paint_surface_id(
-                            object_id,
-                            crate::geometry_face_effective_paint_surface_id(face),
-                        ),
-                        paint_uvs,
-                    );
-                } else {
-                    vmchunk.add_poly_3d_painted(
-                        GeoId::GeometryObject(object_id),
-                        tile_id,
-                        vertices,
-                        uvs,
-                        vec![(0, 1, 2), (0, 2, 3)],
-                        0,
-                        true,
-                        Self::paint_surface_id(
-                            object_id,
-                            crate::geometry_face_effective_paint_surface_id(face),
-                        ),
-                        paint_uvs,
-                    );
-                }
+                vmchunk.add_poly_3d_painted(
+                    GeoId::GeometryObject(object_id),
+                    tile_id,
+                    vertices,
+                    uvs,
+                    vec![(0, 1, 2), (0, 2, 3)],
+                    0,
+                    true,
+                    Self::paint_surface_id(
+                        paint_object_id,
+                        crate::geometry_face_effective_paint_surface_id(face),
+                    ),
+                    paint_uvs,
+                );
             }
         }
 
@@ -875,7 +849,14 @@ impl ChunkBuilder for GeometryObjectBuilder {
         chunk: &mut Chunk,
         vmchunk: &mut scenevm::Chunk,
     ) {
-        for object in &map.geometry_objects {
+        let resolved_block_props =
+            crate::resolve_block_prop_geometry(&map.block_prop_instances, &assets.block_props);
+        for object in map
+            .geometry_objects
+            .iter()
+            .chain(resolved_block_props.geometry_objects.iter())
+        {
+            let paint_object_id = Self::paint_source_object_id(object);
             // Build hidden objects too so scripts can later reveal 3D geometry
             // through the controlling area's `visible` attribute.
             let Some(bbox) = object.bbox() else {
@@ -951,6 +932,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         assets,
                         vmchunk,
                         object.id,
+                        paint_object_id,
                         object_material.as_ref(),
                         cell_uvs,
                         &paint_uvs,
@@ -968,46 +950,20 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 }
                 let uvs = Self::transformed_face_uvs(face, &uvs, Some(&world_points));
 
-                let noise_tile_id = face
-                    .surface_noise
-                    .as_ref()
-                    .and_then(|noise| noise.source.as_ref())
-                    .map(|source| Self::face_tile_id(Some(source), None, assets));
-                if let (Some(noise), Some(noise_tile_id)) =
-                    (face.surface_noise.as_ref(), noise_tile_id)
-                {
-                    vmchunk.add_poly_3d_surface_noise_painted(
-                        GeoId::GeometryObject(object.id),
-                        tile_id,
-                        noise_tile_id,
-                        vertices,
-                        uvs,
-                        indices,
-                        0,
-                        true,
-                        Self::surface_noise_layer(noise),
-                        Self::paint_surface_id(
-                            object.id,
-                            crate::geometry_face_effective_paint_surface_id(face),
-                        ),
-                        paint_uvs.iter().map(|uv| [uv.x, uv.y]).collect(),
-                    );
-                } else {
-                    vmchunk.add_poly_3d_painted(
-                        GeoId::GeometryObject(object.id),
-                        tile_id,
-                        vertices,
-                        uvs,
-                        indices,
-                        0,
-                        true,
-                        Self::paint_surface_id(
-                            object.id,
-                            crate::geometry_face_effective_paint_surface_id(face),
-                        ),
-                        paint_uvs.iter().map(|uv| [uv.x, uv.y]).collect(),
-                    );
-                }
+                vmchunk.add_poly_3d_painted(
+                    GeoId::GeometryObject(object.id),
+                    tile_id,
+                    vertices,
+                    uvs,
+                    indices,
+                    0,
+                    true,
+                    Self::paint_surface_id(
+                        paint_object_id,
+                        crate::geometry_face_effective_paint_surface_id(face),
+                    ),
+                    paint_uvs.iter().map(|uv| [uv.x, uv.y]).collect(),
+                );
             }
         }
     }
@@ -1015,7 +971,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
     fn build_collision(
         &mut self,
         map: &Map,
-        _assets: &Assets,
+        assets: &Assets,
         chunk_origin: Vec2<i32>,
         chunk_size: i32,
     ) -> ChunkCollision {
@@ -1025,7 +981,13 @@ impl ChunkBuilder for GeometryObjectBuilder {
             Vec2::broadcast(chunk_size as f32),
         );
 
-        for object in &map.geometry_objects {
+        let resolved_block_props =
+            crate::resolve_block_prop_geometry(&map.block_prop_instances, &assets.block_props);
+        for object in map
+            .geometry_objects
+            .iter()
+            .chain(resolved_block_props.geometry_objects.iter())
+        {
             if !object.solid {
                 continue;
             }
@@ -1114,6 +1076,36 @@ impl ChunkBuilder for GeometryObjectBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn linked_block_prop_instance_builds_render_geometry() {
+        let object = crate::GeometryObject::box_from_bounds(
+            "Table Top",
+            Vec3::new(1.0, 0.0, 1.0),
+            Vec3::new(3.0, 1.0, 3.0),
+        );
+        let asset = crate::BlockPropAsset::new_authored("Table", vec![object]);
+        let asset_id = asset.id;
+        let instance = crate::BlockPropInstance::new(asset_id);
+        let mut map = Map::default();
+        map.block_prop_instances.push(instance);
+        let mut assets = Assets::default();
+        assets.block_props.insert(asset_id, asset);
+        let resolved =
+            crate::resolve_block_prop_geometry(&map.block_prop_instances, &assets.block_props);
+        let resolved_object_id = resolved.geometry_objects[0].id;
+
+        let mut chunk = Chunk::new(Vec2::zero(), 16);
+        let mut vmchunk = scenevm::Chunk::new(Vec2::zero(), 16);
+        let mut builder = GeometryObjectBuilder;
+        builder.build(&map, &assets, &mut chunk, &mut vmchunk);
+
+        let polys = vmchunk
+            .polys3d_map
+            .get(&GeoId::GeometryObject(resolved_object_id))
+            .expect("linked Block / Prop geometry should render");
+        assert_eq!(polys.len(), 6);
+    }
 
     #[test]
     fn tiled_wall_face_uvs_keep_tiles_upright() {
@@ -1206,40 +1198,6 @@ mod tests {
     }
 
     #[test]
-    fn surface_noise_uses_shader_layer_without_topology_change() {
-        let mut object = crate::GeometryObject::box_from_bounds(
-            "Box",
-            Vec3::new(0.0, 0.0, 0.0),
-            Vec3::new(2.0, 1.0, 2.0),
-        );
-        let original_face_count = object.faces.len();
-        object.faces[2].surface_noise = Some(crate::GeometrySurfaceNoise {
-            scale: 1.0,
-            amount: 0.35,
-            seed: 0,
-            source: Some(PixelSource::PaletteIndex(0)),
-        });
-
-        let mut map = Map::default();
-        let object_id = object.id;
-        map.geometry_objects.push(object);
-
-        let assets = Assets::default();
-        let mut chunk = Chunk::new(Vec2::zero(), 16);
-        let mut vmchunk = scenevm::Chunk::new(Vec2::zero(), 16);
-        let mut builder = GeometryObjectBuilder;
-        builder.build(&map, &assets, &mut chunk, &mut vmchunk);
-
-        let polys = vmchunk
-            .polys3d_map
-            .get(&GeoId::GeometryObject(object_id))
-            .expect("geometry object should render");
-        assert_eq!(polys.len(), original_face_count);
-        assert!(polys.iter().any(|poly| poly.surface_noise.is_some()));
-        assert_eq!(map.geometry_objects[0].faces.len(), original_face_count);
-    }
-
-    #[test]
     fn geometry_build_keeps_face_identity_and_object_local_paint_coordinates() {
         let mut object = crate::GeometryObject::box_from_bounds(
             "Painted box",
@@ -1277,6 +1235,37 @@ mod tests {
             .expect("persistent face should be present in rendered geometry");
         assert_eq!(poly.paint_uvs, expected_uvs);
         assert!(poly.vertices.iter().all(|vertex| vertex[0] >= 4.0));
+    }
+
+    #[test]
+    fn linked_prefab_geometry_uses_source_surface_identity_for_paint() {
+        let mut object = crate::GeometryObject::box_from_bounds(
+            "Linked painted box",
+            Vec3::zero(),
+            Vec3::broadcast(2.0),
+        );
+        let instance_object_id = object.id;
+        let source_object_id = Uuid::new_v4();
+        let face_id = object.faces[0].id;
+        object.properties.set(
+            "block_prop_source_object_id",
+            crate::Value::Id(source_object_id),
+        );
+
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+        let assets = Assets::default();
+        let mut chunk = Chunk::new(Vec2::zero(), 16);
+        let mut vmchunk = scenevm::Chunk::new(Vec2::zero(), 16);
+        let mut builder = GeometryObjectBuilder;
+        builder.build(&map, &assets, &mut chunk, &mut vmchunk);
+
+        let expected = GeometryObjectBuilder::paint_surface_id(source_object_id, face_id);
+        assert!(
+            vmchunk.polys3d_map[&GeoId::GeometryObject(instance_object_id)]
+                .iter()
+                .any(|poly| poly.paint_surface_id == Some(expected))
+        );
     }
 
     #[test]
@@ -1323,63 +1312,6 @@ mod tests {
     }
 
     #[test]
-    fn high_scale_surface_noise_does_not_add_render_tessellation() {
-        let mut object = crate::GeometryObject::new("Many Triangles");
-        for index in 0..64 {
-            let x = (index % 8) as f32;
-            let z = (index / 8) as f32;
-            let base = object.vertices.len();
-            object.vertices.extend([
-                Vec3::new(x, 0.0, z),
-                Vec3::new(x + 0.8, 0.0, z),
-                Vec3::new(x, 0.0, z + 0.8),
-            ]);
-            object.faces.push(crate::GeometryFace {
-                id: Uuid::new_v4(),
-                paint_surface_id: None,
-                indices: vec![base, base + 1, base + 2],
-                uvs: Vec::new(),
-                paint_uvs: Vec::new(),
-                auto_uv: true,
-                texture_offset: Vec2::zero(),
-                texture_scale: Vec2::broadcast(1.0),
-                texture_rotation: 0.0,
-                tile: None,
-                tiles: Default::default(),
-                surface_points: Vec::new(),
-                surface_segments: Vec::new(),
-                surface_noise: Some(crate::GeometrySurfaceNoise {
-                    scale: 500.0,
-                    amount: 0.35,
-                    seed: 0,
-                    source: Some(PixelSource::PaletteIndex(0)),
-                }),
-            });
-        }
-        let object_id = object.id;
-        let face_count = object.faces.len();
-        let mut map = Map::default();
-        map.geometry_objects.push(object);
-
-        let assets = Assets::default();
-        let mut chunk = Chunk::new(Vec2::zero(), 16);
-        let mut vmchunk = scenevm::Chunk::new(Vec2::zero(), 16);
-        let mut builder = GeometryObjectBuilder;
-        builder.build(&map, &assets, &mut chunk, &mut vmchunk);
-
-        let polys = vmchunk
-            .polys3d_map
-            .get(&GeoId::GeometryObject(object_id))
-            .expect("geometry object should render");
-        assert_eq!(
-            polys.len(),
-            face_count,
-            "shader-side surface noise should not add render polys"
-        );
-        assert!(polys.iter().all(|poly| poly.surface_noise.is_some()));
-    }
-
-    #[test]
     fn collision_keeps_inset_horizontal_geometry_faces_walkable() {
         let mut object = crate::GeometryObject::new("StairLike");
         let object_id = object.id;
@@ -1408,7 +1340,6 @@ mod tests {
             tiles: Default::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
-            surface_noise: None,
         }];
 
         let mut map = Map::default();
@@ -1452,7 +1383,6 @@ mod tests {
             tiles: Default::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
-            surface_noise: None,
         }];
 
         let mut map = Map::default();
@@ -1488,7 +1418,6 @@ mod tests {
                 tiles: Default::default(),
                 surface_points: Vec::new(),
                 surface_segments: Vec::new(),
-                surface_noise: None,
             }
         }
 

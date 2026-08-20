@@ -1614,7 +1614,8 @@ impl Tool for LinedefTool {
                 } else if !detail_surface_retargeted {
                     // Line mode
                     let mut set_current_gid_pos = true;
-                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
+                    {
                         if server_ctx.editor_view_mode == EditorViewMode::D2 {
                             let dim = *render_view.dim();
                             let grid_pos = server_ctx.local_to_map_grid(
@@ -2071,7 +2072,8 @@ impl Tool for LinedefTool {
                         self.click_pos_3d = server_ctx.geo_hit_pos;
                     }
 
-                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
+                    {
                         let dim = *render_view.dim();
                         let screen_uv = [
                             coord.x as f32 / dim.width as f32,
@@ -2126,7 +2128,9 @@ impl Tool for LinedefTool {
                     // Compute initial ray intersection on the drag plane at click time
                     // This ensures dragging is relative to this point, not the vertex average
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                        if let Some(render_view) =
+                            crate::utils::map_editor_render_view(ui, server_ctx)
+                        {
                             let dim = *render_view.dim();
                             let screen_uv = [
                                 coord.x as f32 / dim.width as f32,
@@ -2180,7 +2184,8 @@ impl Tool for LinedefTool {
 
                 if self.click_selected {
                     // Dragging selected lines
-                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
+                    {
                         let dim = *render_view.dim();
 
                         if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -2473,7 +2478,9 @@ impl Tool for LinedefTool {
                     }
 
                     if self.rectangle_mode {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                        if let Some(render_view) =
+                            crate::utils::map_editor_render_view(ui, server_ctx)
+                        {
                             let dim = *render_view.dim();
                             let click_pos = server_ctx.local_to_map_grid(
                                 Vec2::new(dim.width as f32, dim.height as f32),
@@ -2614,7 +2621,7 @@ impl Tool for LinedefTool {
                     return None;
                 }
 
-                if let Some(render_view) = ui.get_render_view("PolyView") {
+                if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx) {
                     if server_ctx.editor_view_mode == EditorViewMode::D2 {
                         let dim = *render_view.dim();
                         if !self.rectangle_mode {

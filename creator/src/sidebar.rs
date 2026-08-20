@@ -4596,8 +4596,10 @@ impl Sidebar {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        if let Some(layout) = ui.canvas.get_layout(Some(&"Action List".to_string()), None) {
-            if let Some(list_layout) = layout.as_list_layout() {
+        for list_id in ["Action List", "Prefab Action List"] {
+            if let Some(layout) = ui.canvas.get_layout(Some(&list_id.to_string()), None)
+                && let Some(list_layout) = layout.as_list_layout()
+            {
                 list_layout.clear();
 
                 let actions = ACTIONLIST.read().unwrap();
@@ -4759,15 +4761,25 @@ impl Sidebar {
         param_update: bool,
     ) -> bool {
         if let Some(undo_atom) = action.apply(map, ui, ctx, server_ctx) {
-            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
-
             if server_ctx.editor_view_mode == EditorViewMode::D2
                 && server_ctx.profile_view.is_some()
             {
             } else {
                 map.update_surfaces();
-                return true;
+                let used_incremental =
+                    if let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom {
+                        ToolList::try_incremental_map_edit(old_map, new_map, server_ctx)
+                    } else {
+                        false
+                    };
+                UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                if !used_incremental {
+                    return true;
+                }
+                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                return false;
             }
+            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
             crate::editor::RUSTERIX.write().unwrap().set_dirty();
         }
 

@@ -2,7 +2,7 @@ use crate::client::draw2d::Draw2D;
 use crate::client::{apply_2d_visibility_mask, draw2d};
 use crate::prelude::*;
 use crate::{
-    Assets, Map, MapMini, Pixel, PlayerCamera, Rect, SceneHandler, Value, WHITE,
+    Assets, BlockPropInstance, Map, MapMini, Pixel, PlayerCamera, Rect, SceneHandler, Value, WHITE,
     avatar_builder::AvatarFrameStyle,
 };
 use crate::{ValueGroups, ValueTomlLoader};
@@ -81,6 +81,7 @@ pub struct GameWidget {
     // Used to detect region changes (have to rebuild the geometry)
     pub build_region_name: String,
     pub build_map_changed: u32,
+    pub block_prop_instances: Vec<BlockPropInstance>,
 
     // Upscale factor (1.0 = no upscaling, >1.0 = render at lower res and upscale)
     pub upscale: f32,
@@ -169,6 +170,7 @@ impl GameWidget {
 
             build_region_name: String::new(),
             build_map_changed: 0,
+            block_prop_instances: Vec::new(),
 
             upscale: 1.0,
             upscale_buffer: TheRGBABuffer::default(),
@@ -704,6 +706,8 @@ impl GameWidget {
 
         self.scenemanager
             .set_tile_list(assets.tile_list.clone(), assets.tile_indices.clone());
+        self.scenemanager
+            .set_block_props(assets.block_props.clone());
         self.scenemanager.set_palette(
             assets.palette.clone(),
             assets.palette_materials.clone(),
@@ -722,10 +726,34 @@ impl GameWidget {
             .set_focus_chunk(Some(self.player_chunk_origin(32)));
         self.build_region_name = map.name.clone();
         self.build_map_changed = map.changed;
+        self.block_prop_instances = map.block_prop_instances.clone();
         self.iso_hidden_sectors.clear();
         self.iso_sector_fade.clear();
         self.iso_hidden_geometry_objects.clear();
         self.iso_geometry_fade.clear();
+    }
+
+    fn sync_block_prop_runtime_geometry(&mut self, map: &Map, assets: &Assets) {
+        if self.block_prop_instances == map.block_prop_instances {
+            return;
+        }
+
+        let mut dirty_chunks = FxHashSet::default();
+        for instances in [&self.block_prop_instances, &map.block_prop_instances] {
+            let resolution =
+                crate::resolve_block_prop_geometry(instances.as_slice(), &assets.block_props);
+            for object in &resolution.geometry_objects {
+                if let Some(bbox) = object.bbox() {
+                    dirty_chunks.extend(self.scenemanager.chunk_coords_for_bbox(&bbox));
+                }
+            }
+        }
+        self.scenemanager.update_map(map.clone());
+        if !dirty_chunks.is_empty() {
+            self.scenemanager
+                .add_dirty(dirty_chunks.into_iter().collect());
+        }
+        self.block_prop_instances = map.block_prop_instances.clone();
     }
 
     pub fn apply_entities(
@@ -921,6 +949,8 @@ impl GameWidget {
             if let Some(start) = start {
                 debug_build_ms = start.elapsed().as_secs_f64() * 1000.0;
             }
+        } else {
+            self.sync_block_prop_runtime_geometry(map, assets);
         }
         let start = debug_enabled.then(Instant::now);
         self.update_streaming_chunks(map, scene_handler);

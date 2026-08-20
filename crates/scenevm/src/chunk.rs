@@ -1,6 +1,6 @@
 use crate::{
     BBox2D, GeoId, Line3D, LineStrip2D, OrganicBillboardInstance, OrganicBillboardSprite, Poly2D,
-    Poly3D, SurfaceNoiseLayer,
+    Poly3D,
 };
 use rustc_hash::FxHashMap;
 use uuid::Uuid;
@@ -263,7 +263,6 @@ impl Chunk {
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
-            surface_noise: None,
             paint_surface_id: None,
             paint_uvs: Vec::new(),
         });
@@ -346,77 +345,9 @@ impl Chunk {
             opacity: 1.0,
             tile_id2: Some(tile_id2),
             blend_weights,
-            surface_noise: None,
             paint_surface_id: None,
             paint_uvs: Vec::new(),
         });
-    }
-
-    /// Add a 3D polygon with shader-side world-space surface noise.
-    pub fn add_poly_3d_surface_noise(
-        &mut self,
-        id: GeoId,
-        tile_id: uuid::Uuid,
-        tile_id2: uuid::Uuid,
-        vertices: Vec<[f32; 4]>,
-        uvs: Vec<[f32; 2]>,
-        indices: Vec<(usize, usize, usize)>,
-        layer: i32,
-        visible: bool,
-        surface_noise: SurfaceNoiseLayer,
-    ) {
-        self.polys3d_map.entry(id).or_default().push(Poly3D {
-            id,
-            tile_id,
-            vertices,
-            uvs,
-            indices,
-            layer,
-            visible,
-            opacity: 1.0,
-            tile_id2: Some(tile_id2),
-            blend_weights: Vec::new(),
-            surface_noise: Some(surface_noise),
-            paint_surface_id: None,
-            paint_uvs: Vec::new(),
-        });
-    }
-
-    /// Add a surface-noise polygon with persistent paint metadata.
-    #[allow(clippy::too_many_arguments)]
-    pub fn add_poly_3d_surface_noise_painted(
-        &mut self,
-        id: GeoId,
-        tile_id: uuid::Uuid,
-        tile_id2: uuid::Uuid,
-        vertices: Vec<[f32; 4]>,
-        uvs: Vec<[f32; 2]>,
-        indices: Vec<(usize, usize, usize)>,
-        layer: i32,
-        visible: bool,
-        surface_noise: SurfaceNoiseLayer,
-        paint_surface_id: [u32; 4],
-        paint_uvs: Vec<[f32; 2]>,
-    ) {
-        self.add_poly_3d_surface_noise(
-            id,
-            tile_id,
-            tile_id2,
-            vertices,
-            uvs,
-            indices,
-            layer,
-            visible,
-            surface_noise,
-        );
-        if let Some(poly) = self
-            .polys3d_map
-            .get_mut(&id)
-            .and_then(|polys| polys.last_mut())
-        {
-            poly.paint_surface_id = Some(paint_surface_id);
-            poly.paint_uvs = paint_uvs;
-        }
     }
 
     /// Add a camera-facing quad billboard centered at `center` with side length `size`.
@@ -490,7 +421,6 @@ impl Chunk {
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
-            surface_noise: None,
             paint_surface_id: None,
             paint_uvs: Vec::new(),
         };
@@ -585,7 +515,6 @@ impl Chunk {
             opacity: 1.0,
             tile_id2: None,
             blend_weights: Vec::new(),
-            surface_noise: None,
             paint_surface_id: None,
             paint_uvs: Vec::new(),
         };

@@ -1,13 +1,15 @@
 use crate::{
-    Assets, BBox, Chunk, ChunkBuilder, D2ChunkBuilder, GeometryObjectBuilder, Map, PixelSource,
-    Texture, Tile, Value, ValueContainer,
+    Assets, BBox, BlockPropAsset, Chunk, ChunkBuilder, D2ChunkBuilder, GeometryObjectBuilder, Map,
+    PixelSource, Texture, Tile, Value, ValueContainer, resolve_block_prop_geometry,
 };
+use indexmap::IndexMap;
 use scenevm::Chunk as VMChunk;
 use theframework::prelude::*;
 
 #[allow(clippy::large_enum_variant)]
 pub enum SceneManagerCmd {
     SetTileList(Vec<Tile>, FxHashMap<Uuid, u16>),
+    SetBlockProps(IndexMap<Uuid, BlockPropAsset>),
     SetPalette(ThePalette, Vec<[f32; 4]>, Vec<u8>),
     SetMap(Map),
     UpdateMap(Map),
@@ -54,6 +56,18 @@ impl Default for SceneManager {
 }
 
 impl SceneManager {
+    fn render_bbox(&self) -> BBox {
+        self.map.bbox_with_block_props(&self.assets.block_props)
+    }
+
+    fn report_block_prop_diagnostics(&self) {
+        let resolution =
+            resolve_block_prop_geometry(&self.map.block_prop_instances, &self.assets.block_props);
+        for diagnostic in resolution.diagnostics {
+            eprintln!("[BlockProp] {}", diagnostic.message);
+        }
+    }
+
     fn palette_index_tile_uuid(index: u16) -> Uuid {
         Uuid::from_u128(0x50414C455454455F0000000000000000u128 | index as u128)
     }
@@ -170,7 +184,13 @@ impl SceneManager {
             SceneManagerCmd::SetTileList(tiles, indices) => {
                 self.assets.tile_list = tiles;
                 self.assets.tile_indices = indices;
-                self.dirty = Self::generate_chunk_coords(&self.map.bbox(), self.chunk_size);
+                self.dirty = Self::generate_chunk_coords(&self.render_bbox(), self.chunk_size);
+                self.all = self.dirty.clone();
+            }
+            SceneManagerCmd::SetBlockProps(block_props) => {
+                self.assets.set_block_props(block_props);
+                self.report_block_prop_diagnostics();
+                self.dirty = Self::generate_chunk_coords(&self.render_bbox(), self.chunk_size);
                 self.all = self.dirty.clone();
             }
             SceneManagerCmd::SetPalette(palette, palette_materials, palette_material_ids) => {
@@ -178,12 +198,12 @@ impl SceneManager {
                 self.assets.palette_materials = palette_materials;
                 self.assets.palette_material_ids = palette_material_ids;
                 self.ensure_palette_tiles_for_map();
-                self.dirty = Self::generate_chunk_coords(&self.map.bbox(), self.chunk_size);
+                self.dirty = Self::generate_chunk_coords(&self.render_bbox(), self.chunk_size);
                 self.all = self.dirty.clone();
             }
             SceneManagerCmd::SetBuilder2D(builder) => {
                 self.chunk_builder_d2 = builder;
-                self.dirty = Self::generate_chunk_coords(&self.map.bbox(), self.chunk_size);
+                self.dirty = Self::generate_chunk_coords(&self.render_bbox(), self.chunk_size);
                 self.all = self.dirty.clone();
             }
             SceneManagerCmd::SetFocusChunk(chunk) => {
@@ -206,8 +226,9 @@ impl SceneManager {
                     self.results.push(SceneManagerResult::Clear);
                 }
                 self.map = new_map;
+                self.report_block_prop_diagnostics();
                 self.ensure_palette_tiles_for_map();
-                let bbox = self.map.bbox();
+                let bbox = self.render_bbox();
                 self.dirty = Self::generate_chunk_coords(&bbox, self.chunk_size);
                 self.all = self.dirty.clone();
                 self.total_chunks = self.dirty.len() as i32;
@@ -234,6 +255,10 @@ impl SceneManager {
 
     pub fn set_tile_list(&mut self, tiles: Vec<Tile>, tile_indices: FxHashMap<Uuid, u16>) {
         self.send(SceneManagerCmd::SetTileList(tiles, tile_indices));
+    }
+
+    pub fn set_block_props(&mut self, block_props: IndexMap<Uuid, BlockPropAsset>) {
+        self.send(SceneManagerCmd::SetBlockProps(block_props));
     }
 
     pub fn set_palette(

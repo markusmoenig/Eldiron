@@ -36,6 +36,9 @@ pub struct ToolList {
     pub editor_tools: Vec<Box<dyn EditorTool>>,
     pub curr_editor_tool: usize,
     pub editor_mode: bool,
+    /// Full-screen Prefab editing uses the normal geometry implementations,
+    /// but exposes only the tools that make sense inside an isolated asset.
+    pub prefab_mode: bool,
     last_3d_hover_pick_at: Option<Instant>,
     last_3d_overlay_update_at: Option<Instant>,
 }
@@ -102,6 +105,56 @@ mod tests {
     }
 
     #[test]
+    fn prefab_context_routes_geometry_tools_to_isolated_map() {
+        let mut project = Project::default();
+        let region_name = project.regions[0].map.name.clone();
+        let mut prefab_map = Map::default();
+        prefab_map.name = "Isolated Prefab".to_string();
+        project.prefab_editor_map = Some(prefab_map);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.pc = ProjectContext::Prefab(Uuid::new_v4());
+        server_ctx.editor_view_mode = EditorViewMode::Orbit;
+        server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
+
+        ToolList::get_tool_map_mut(&mut project, &server_ctx)
+            .unwrap()
+            .name = "Edited Prefab".to_string();
+
+        assert_eq!(
+            project.prefab_editor_map.as_ref().unwrap().name,
+            "Edited Prefab"
+        );
+        assert_eq!(project.regions[0].map.name, region_name);
+    }
+
+    #[test]
+    fn prefab_palette_contains_geometry_and_paint_tools() {
+        assert!(ToolList::is_prefab_tool("Object Tool"));
+        assert!(ToolList::is_prefab_tool("Vertex Tool"));
+        assert!(ToolList::is_prefab_tool("Linedef / Edge Tool"));
+        assert!(ToolList::is_prefab_tool("Sector / Face Tool"));
+        assert!(ToolList::is_prefab_tool("3D Paint Tool"));
+        assert!(!ToolList::is_prefab_tool("Entity Tool"));
+        assert!(!ToolList::is_prefab_tool("Prefab Tool"));
+        assert!(!ToolList::is_prefab_tool("Game Tool"));
+    }
+
+    #[test]
+    fn prefab_geometry_input_uses_the_isolated_render_view() {
+        let mut server_ctx = ServerContext::default();
+        assert_eq!(
+            crate::utils::map_editor_render_view_name(&server_ctx),
+            "PolyView"
+        );
+
+        server_ctx.pc = ProjectContext::Prefab(Uuid::new_v4());
+        assert_eq!(
+            crate::utils::map_editor_render_view_name(&server_ctx),
+            "PrefabView"
+        );
+    }
+
+    #[test]
     fn d2_rect_undo_invalidates_added_and_removed_cell_chunks() {
         let empty = Map::default();
         let painted = map_with_rect_cell(-33.0, -33.0);
@@ -134,6 +187,7 @@ impl ToolList {
         self.last_3d_hover_pick_at = None;
         self.last_3d_overlay_update_at = None;
         self.previous_non_game_tool = None;
+        self.prefab_mode = false;
         ctx.ui.set_widget_state(
             Self::AUTHORING_BUTTON_NAME.to_string(),
             TheWidgetState::None,
@@ -160,7 +214,7 @@ impl ToolList {
         let Some(map) = project.get_map(server_ctx) else {
             return false;
         };
-        let Some(render_view) = ui.get_render_view("PolyView") else {
+        let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx) else {
             return false;
         };
 
@@ -298,7 +352,8 @@ impl ToolList {
         project: &'a mut Project,
         server_ctx: &ServerContext,
     ) -> Option<&'a mut Map> {
-        if server_ctx.get_map_context() == MapContext::Region
+        if !server_ctx.pc.is_prefab()
+            && server_ctx.get_map_context() == MapContext::Region
             && server_ctx.editor_view_mode != EditorViewMode::D2
             && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
         {
@@ -334,7 +389,20 @@ impl ToolList {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        if server_ctx.get_map_context() == MapContext::Region {
+        if server_ctx.pc.is_prefab() {
+            let ProjectContext::Prefab(asset_id) = server_ctx.pc else {
+                return None;
+            };
+            let undo_atom = self
+                .get_current_tool()
+                .prefab_map_event(map_event, ui, ctx, project, asset_id, server_ctx);
+            if undo_atom.is_some()
+                && let Some(map) = project.prefab_editor_map.as_mut()
+            {
+                map.changed += 1;
+            }
+            return undo_atom;
+        } else if server_ctx.get_map_context() == MapContext::Region {
             if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                 let undo_atom = self
                     .get_current_tool()
@@ -880,6 +948,7 @@ impl ToolList {
         let mut affected_linedefs: FxHashSet<u32> = FxHashSet::default();
         let mut affected_vertices: FxHashSet<u32> = FxHashSet::default();
         let mut affected_geometry_objects: FxHashSet<Uuid> = FxHashSet::default();
+        let mut affected_prefab_instances: FxHashSet<Uuid> = FxHashSet::default();
 
         let old_vertices = old_map
             .vertices
@@ -992,10 +1061,36 @@ impl ToolList {
             }
         }
 
+        let old_prefab_instances = old_map
+            .block_prop_instances
+            .iter()
+            .map(|instance| (instance.id, instance))
+            .collect::<FxHashMap<_, _>>();
+        let new_prefab_instances = new_map
+            .block_prop_instances
+            .iter()
+            .map(|instance| (instance.id, instance))
+            .collect::<FxHashMap<_, _>>();
+        let mut prefab_instance_ids = FxHashSet::default();
+        prefab_instance_ids.extend(old_prefab_instances.keys().copied());
+        prefab_instance_ids.extend(new_prefab_instances.keys().copied());
+        for instance_id in prefab_instance_ids {
+            match (
+                old_prefab_instances.get(&instance_id),
+                new_prefab_instances.get(&instance_id),
+            ) {
+                (Some(old), Some(new)) if *old == *new => {}
+                _ => {
+                    affected_prefab_instances.insert(instance_id);
+                }
+            }
+        }
+
         if affected_sectors.is_empty()
             && affected_linedefs.is_empty()
             && affected_vertices.is_empty()
             && affected_geometry_objects.is_empty()
+            && affected_prefab_instances.is_empty()
         {
             return None;
         }
@@ -1016,6 +1111,31 @@ impl ToolList {
                 .iter()
                 .copied()
                 .map(GeoId::GeometryObject),
+        );
+        let prefab_assets = RUSTERIX.read().unwrap().assets.block_props.clone();
+        let old_changed_instances = old_map
+            .block_prop_instances
+            .iter()
+            .filter(|instance| affected_prefab_instances.contains(&instance.id))
+            .cloned()
+            .collect::<Vec<_>>();
+        let new_changed_instances = new_map
+            .block_prop_instances
+            .iter()
+            .filter(|instance| affected_prefab_instances.contains(&instance.id))
+            .cloned()
+            .collect::<Vec<_>>();
+        let old_prefab_geometry =
+            rusterix::resolve_block_prop_geometry(&old_changed_instances, &prefab_assets)
+                .geometry_objects;
+        let new_prefab_geometry =
+            rusterix::resolve_block_prop_geometry(&new_changed_instances, &prefab_assets)
+                .geometry_objects;
+        owners.extend(
+            old_prefab_geometry
+                .iter()
+                .chain(new_prefab_geometry.iter())
+                .map(|object| GeoId::GeometryObject(object.id)),
         );
         let include_terrain = Self::changed_elements_affect_terrain(
             old_map,
@@ -1059,6 +1179,11 @@ impl ToolList {
                 .get(object_id)
                 .and_then(|object| object.bbox())
             {
+                Self::add_bbox_dirty_chunks(bbox, &mut chunk_origins);
+            }
+        }
+        for object in old_prefab_geometry.iter().chain(new_prefab_geometry.iter()) {
+            if let Some(bbox) = object.bbox() {
                 Self::add_bbox_dirty_chunks(bbox, &mut chunk_origins);
             }
         }
@@ -1522,6 +1647,7 @@ impl ToolList {
             editor_tools: Vec::new(),
             curr_editor_tool: 0,
             editor_mode: false,
+            prefab_mode: false,
             last_3d_hover_pick_at: None,
             last_3d_overlay_update_at: None,
         }
@@ -1557,6 +1683,9 @@ impl ToolList {
         } else {
             // Show game tools
             for (index, tool) in self.game_tools.iter().enumerate() {
+                if self.prefab_mode && !Self::is_prefab_tool(tool.id().name.as_str()) {
+                    continue;
+                }
                 let mut b = TheToolListButton::new(tool.id());
 
                 b.set_icon_name(tool.icon_name());
@@ -1565,6 +1694,10 @@ impl ToolList {
                     b.set_state(TheWidgetState::Selected);
                 }
                 list.add_widget(Box::new(b));
+            }
+
+            if self.prefab_mode {
+                return;
             }
 
             let mut sep = TheSeparator::new(TheId::named_with_id("Tool Separator", Uuid::new_v4()));
@@ -1620,6 +1753,17 @@ impl ToolList {
         } else {
             info
         }
+    }
+
+    fn is_prefab_tool(name: &str) -> bool {
+        matches!(
+            name,
+            "Object Tool"
+                | "Vertex Tool"
+                | "Linedef / Edge Tool"
+                | "Sector / Face Tool"
+                | "3D Paint Tool"
+        )
     }
 
     fn enforce_builder_dock(
@@ -1732,6 +1876,7 @@ impl ToolList {
         self.editor_tools = tools;
         self.curr_editor_tool = 0;
         self.editor_mode = true;
+        self.prefab_mode = false;
 
         // Activate first tool
         if !self.editor_tools.is_empty() {
@@ -1753,9 +1898,25 @@ impl ToolList {
         }
 
         self.editor_mode = false;
+        self.prefab_mode = false;
         self.editor_tools.clear();
 
         // Update the toolbar
+        if let Some(list) = ui.get_vlayout("Tool List Layout") {
+            self.set_active_editor(list, ctx);
+        }
+    }
+
+    /// Keep the geometry tool engine active while presenting a purpose-built
+    /// asset-authoring palette instead of the region/game tool list.
+    pub fn set_prefab_tools(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if self.editor_mode && self.curr_editor_tool < self.editor_tools.len() {
+            self.editor_tools[self.curr_editor_tool].deactivate();
+        }
+        self.editor_mode = false;
+        self.editor_tools.clear();
+        self.prefab_mode = true;
+
         if let Some(list) = ui.get_vlayout("Tool List Layout") {
             self.set_active_editor(list, ctx);
         }
@@ -1825,6 +1986,24 @@ impl ToolList {
                                 Self::apply_geometry_scene_update(new_map, plan);
                         }
                         if !used_incremental_scene_update {
+                            crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                        }
+                    }
+                } else if pc.is_prefab() {
+                    if let ProjectContext::Prefab(asset_id) = pc {
+                        if let Err(message) =
+                            crate::block_props::sync_prefab_editor(project, asset_id)
+                        {
+                            ctx.ui
+                                .send(TheEvent::SetStatusText(TheId::empty(), message));
+                        } else {
+                            let prefabs = project.block_props.clone();
+                            RUSTERIX.write().unwrap().set_block_props(prefabs.clone());
+                            SCENEMANAGER.write().unwrap().set_block_props(prefabs);
+                        }
+                    }
+                    if let ProjectUndoAtom::MapEdit(_, old_map, new_map) = &undo_atom {
+                        if !Self::try_incremental_map_edit(old_map, new_map, server_ctx) {
                             crate::utils::editor_scene_full_rebuild(project, server_ctx);
                         }
                     }
@@ -2151,7 +2330,7 @@ impl ToolList {
                     && !server_ctx.game_input_mode
                     && !server_ctx.text_game_mode
                     && !self.editor_mode
-                    && self.get_current_tool().id().name == "Block Tool"
+                    && self.get_current_tool().id().name == "Prefab Tool"
                     && matches!(
                         c,
                         'r' | 'R' | 'e' | 'E' | 'h' | 'H' | 'w' | 'W' | '[' | '{' | ']' | '}'
@@ -2801,7 +2980,8 @@ impl ToolList {
                         }
 
                         if server_ctx.editor_view_mode != EditorViewMode::D2
-                            && let Some(render_view) = ui.get_render_view("PolyView")
+                            && let Some(render_view) =
+                                crate::utils::map_editor_render_view(ui, server_ctx)
                         {
                             if let Some(rc) =
                                 self.get_geometry_hit(render_view, *coord, project, server_ctx)
@@ -2895,10 +3075,12 @@ impl ToolList {
                                     .unwrap()
                                     .mouse_dragged_firstp(region, coord);
                             }
-                        } else if let Some(view_size) = ui.get_render_view("PolyView").map(|view| {
-                            let dim = *view.dim();
-                            Vec2::new(dim.width, dim.height)
-                        }) {
+                        } else if let Some(view_size) =
+                            crate::utils::map_editor_render_view(ui, server_ctx).map(|view| {
+                                let dim = *view.dim();
+                                Vec2::new(dim.width, dim.height)
+                            })
+                        {
                             crate::editor::EDITCAMERA
                                 .write()
                                 .unwrap()
@@ -2934,22 +3116,34 @@ impl ToolList {
                         }
 
                         if pan_drag
-                            && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
-                            && let Some(render_view) = ui.get_render_view("PolyView")
+                            && let Some(render_view) =
+                                crate::utils::map_editor_render_view(ui, server_ctx)
                         {
                             let dim = *render_view.dim();
-                            crate::editor::EDITCAMERA
-                                .write()
-                                .unwrap()
-                                .mouse_dragged_pan_3d(
-                                    region,
-                                    server_ctx,
-                                    coord,
-                                    Vec2::new(dim.x, dim.y),
-                                );
-                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
-                            ctx.ui.redraw_all = true;
-                            return true;
+                            if server_ctx.pc.is_prefab() {
+                                crate::editor::EDITCAMERA
+                                    .write()
+                                    .unwrap()
+                                    .mouse_dragged_pan_prefab(coord, Vec2::new(dim.x, dim.y));
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                ctx.ui.redraw_all = true;
+                                return true;
+                            } else if let Some(region) =
+                                project.get_region_mut(&server_ctx.curr_region)
+                            {
+                                crate::editor::EDITCAMERA
+                                    .write()
+                                    .unwrap()
+                                    .mouse_dragged_pan_3d(
+                                        region,
+                                        server_ctx,
+                                        coord,
+                                        Vec2::new(dim.x, dim.y),
+                                    );
+                                crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                                ctx.ui.redraw_all = true;
+                                return true;
+                            }
                         }
                     }
 
@@ -2958,7 +3152,8 @@ impl ToolList {
                     }
 
                     if server_ctx.editor_view_mode != EditorViewMode::D2
-                        && let Some(render_view) = ui.get_render_view("PolyView")
+                        && let Some(render_view) =
+                            crate::utils::map_editor_render_view(ui, server_ctx)
                     {
                         if let Some(rc) =
                             self.get_geometry_hit(render_view, *coord, project, server_ctx)
@@ -3105,10 +3300,11 @@ impl ToolList {
                         && server_ctx.editor_fly_nav_active
                     {
                         if !server_ctx.editor_fly_nav_mouse_down
-                            && let Some(view_size) = ui.get_render_view("PolyView").map(|view| {
-                                let dim = *view.dim();
-                                Vec2::new(dim.width, dim.height)
-                            })
+                            && let Some(view_size) =
+                                crate::utils::map_editor_render_view(ui, server_ctx).map(|view| {
+                                    let dim = *view.dim();
+                                    Vec2::new(dim.width, dim.height)
+                                })
                         {
                             crate::editor::EDITCAMERA
                                 .write()
@@ -3121,7 +3317,9 @@ impl ToolList {
                     }
 
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                        if let Some(render_view) =
+                            crate::utils::map_editor_render_view(ui, server_ctx)
+                        {
                             if let Some(rc) =
                                 self.get_geometry_hit(render_view, *coord, project, server_ctx)
                             {
@@ -3451,8 +3649,8 @@ impl ToolList {
         let previous_geometry_selection =
             if !self.editor_mode && server_ctx.editor_view_mode != EditorViewMode::D2 {
                 project
-                    .get_region(&server_ctx.curr_region)
-                    .map(|region| Self::geometry_selection_snapshot(&region.map))
+                    .get_map(server_ctx)
+                    .map(Self::geometry_selection_snapshot)
             } else {
                 None
             };
@@ -3529,10 +3727,16 @@ impl ToolList {
                 // this through a queued event races with tool activation: the
                 // late event can reopen the lower dock after a full-screen
                 // tool such as Game has already hidden it.
-                DOCKMANAGER
-                    .write()
-                    .unwrap()
-                    .minimize_for_tool_switch(ui, ctx);
+                let keep_prefab_editor_open = {
+                    let manager = DOCKMANAGER.read().unwrap();
+                    manager.state == DockManagerState::Editor && manager.dock == "Prefabs"
+                };
+                if !keep_prefab_editor_open {
+                    DOCKMANAGER
+                        .write()
+                        .unwrap()
+                        .minimize_for_tool_switch(ui, ctx, project, server_ctx);
+                }
             }
 
             if let Some(layout) = ui.get_hlayout(layout_name) {
@@ -3568,9 +3772,9 @@ impl ToolList {
                 && server_ctx.editor_view_mode != EditorViewMode::D2
                 && !preserve_surface_detail_host
                 && let Some(snapshot) = previous_geometry_selection.as_ref()
-                && let Some(region) = project.get_region_mut(&server_ctx.curr_region)
+                && let Some(map) = project.get_map_mut(server_ctx)
                 && Self::apply_geometry_tool_selection_carryover(
-                    &mut region.map,
+                    map,
                     server_ctx.curr_map_tool_type,
                     snapshot,
                 )
@@ -3714,8 +3918,7 @@ impl ToolList {
         rusterix.client.scene.d3_overlay.clear();
         let thickness = 0.15;
 
-        if let Some(region) = project.get_region_ctx(&server_ctx) {
-            let map = &region.map;
+        if let Some(map) = project.get_map(server_ctx) {
             let mut visible_sector_ids: FxHashSet<u32> = FxHashSet::default();
             let mut visible_linedef_ids: FxHashSet<u32> = FxHashSet::default();
             let mut visible_vertex_ids: FxHashSet<u32> = FxHashSet::default();
@@ -4049,6 +4252,112 @@ impl ToolList {
                 }
             }
 
+            if block_grid_active
+                && let Some(asset_id) = server_ctx.curr_block_asset_id
+                && crate::blocks::block_asset(asset_id).is_none()
+                && rusterix.assets.block_props.contains_key(&asset_id)
+                && let Some(hit) = crate::blocks::block_grid_plane_hit(server_ctx)
+                    .or(server_ctx.hover_cursor_3d)
+                    .or(server_ctx.hover_surface_hit_pos)
+                    .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+            {
+                let hover_cell = Vec3::new(
+                    (hit.x / grid_step).floor() as i32,
+                    server_ctx.block_grid_level,
+                    (hit.z / grid_step).floor() as i32,
+                );
+                let cells = if let Some(start) = server_ctx.block_drag_start_cell {
+                    crate::blocks::block_stroke_cells(
+                        start,
+                        server_ctx.block_drag_end_cell.unwrap_or(start),
+                        server_ctx.block_stroke_mode,
+                    )
+                } else {
+                    vec![hover_cell]
+                };
+                let preview_base_y = server_ctx
+                    .block_drag_base_y
+                    .or_else(|| crate::blocks::block_surface_base_y(server_ctx, grid_base_y))
+                    .unwrap_or(grid_base_y);
+                let erase_preview =
+                    server_ctx.block_operation == crate::blocks::BLOCK_OPERATION_ERASE;
+                let rotation = server_ctx.block_rotation_quarters.rem_euclid(4);
+                let angle = rotation as f32 * std::f32::consts::FRAC_PI_2;
+                let (sin, cos) = angle.sin_cos();
+
+                for (cell_index, cell) in cells.iter().enumerate() {
+                    if erase_preview {
+                        let x0 = cell.x as f32 * grid_step;
+                        let z0 = cell.z as f32 * grid_step;
+                        let y = preview_base_y + 0.030;
+                        let corners = [
+                            Vec3::new(x0, y, z0),
+                            Vec3::new(x0 + grid_step, y, z0),
+                            Vec3::new(x0 + grid_step, y, z0 + grid_step),
+                            Vec3::new(x0, y, z0 + grid_step),
+                        ];
+                        for (edge_index, (a, b)) in
+                            [(0, 1), (1, 2), (2, 3), (3, 0)].into_iter().enumerate()
+                        {
+                            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                GeoId::Unknown(
+                                    0xE309_0000u32
+                                        .wrapping_add((cell_index as u32) << 4)
+                                        .wrapping_add(edge_index as u32),
+                                ),
+                                corners[a],
+                                corners[b],
+                                [0.90, 0.22, 0.14, 0.95],
+                                15,
+                            );
+                        }
+                        continue;
+                    }
+
+                    let mut instance = rusterix::BlockPropInstance::new(asset_id);
+                    instance.world_transform[0][0] = cos;
+                    instance.world_transform[0][2] = -sin;
+                    instance.world_transform[2][0] = sin;
+                    instance.world_transform[2][2] = cos;
+                    instance.world_transform[3][0] = cell.x as f32 * grid_step;
+                    instance.world_transform[3][1] = preview_base_y;
+                    instance.world_transform[3][2] = cell.z as f32 * grid_step;
+                    let resolved = rusterix::resolve_block_prop_geometry(
+                        &[instance],
+                        &rusterix.assets.block_props,
+                    );
+                    for (object_index, object) in resolved.geometry_objects.iter().enumerate() {
+                        for (face_index, face) in object.faces.iter().enumerate() {
+                            if face.indices.len() < 2 {
+                                continue;
+                            }
+                            for edge_index in 0..face.indices.len() {
+                                let a_index = face.indices[edge_index];
+                                let b_index = face.indices[(edge_index + 1) % face.indices.len()];
+                                let (Some(a), Some(b)) =
+                                    (object.vertices.get(a_index), object.vertices.get(b_index))
+                                else {
+                                    continue;
+                                };
+                                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                    GeoId::Unknown(
+                                        0xE30A_0000u32
+                                            .wrapping_add((cell_index as u32) << 12)
+                                            .wrapping_add((object_index as u32) << 8)
+                                            .wrapping_add((face_index as u32) << 4)
+                                            .wrapping_add(edge_index as u32),
+                                    ),
+                                    object.transform_point(*a) + cam_forward * -0.006,
+                                    object.transform_point(*b) + cam_forward * -0.006,
+                                    [0.08, 0.72, 0.72, 0.95],
+                                    15,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
             if !map.linedefs.is_empty() {
                 let reference_y = grid_y + 0.010;
                 let mut reference_index = 0u32;
@@ -4098,6 +4407,50 @@ impl ToolList {
                         [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 0.88],
                         13,
                     );
+                }
+            }
+
+            if server_ctx.curr_map_tool_type == MapToolType::Selection
+                && !map.selected_block_prop_instances.is_empty()
+            {
+                let selected_ids = map
+                    .selected_block_prop_instances
+                    .iter()
+                    .copied()
+                    .collect::<FxHashSet<_>>();
+                let selected_instances = map
+                    .block_prop_instances
+                    .iter()
+                    .filter(|instance| selected_ids.contains(&instance.id))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let resolved = rusterix::resolve_block_prop_geometry(
+                    &selected_instances,
+                    &rusterix.assets.block_props,
+                );
+                let mut line_index = 0u32;
+                for object in &resolved.geometry_objects {
+                    for face in &object.faces {
+                        for edge_index in 0..face.indices.len() {
+                            let Some(a) = object.vertices.get(face.indices[edge_index]) else {
+                                continue;
+                            };
+                            let Some(b) = object
+                                .vertices
+                                .get(face.indices[(edge_index + 1) % face.indices.len()])
+                            else {
+                                continue;
+                            };
+                            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                GeoId::Unknown(0xE30B_0000u32.wrapping_add(line_index)),
+                                object.transform_point(*a) + view_nudge,
+                                object.transform_point(*b) + view_nudge,
+                                [187.0 / 255.0, 122.0 / 255.0, 208.0 / 255.0, 1.0],
+                                21,
+                            );
+                            line_index = line_index.wrapping_add(1);
+                        }
+                    }
                 }
             }
 

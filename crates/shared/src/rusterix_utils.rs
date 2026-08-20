@@ -57,6 +57,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
         rusterix.assets.world_source = project.world_source.clone();
     }
     rusterix.assets.region_sources.clear();
+    rusterix.assets.set_block_props(project.block_props.clone());
     rusterix.assets.read_locales();
 
     // Characters
@@ -201,6 +202,7 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
     rusterix.assets.audio_fx_src = project.audio_fx.clone();
     rusterix.assets.authoring_src = project.authoring.clone();
     rusterix.assets.region_sources.clear();
+    rusterix.assets.set_block_props(project.block_props.clone());
     rusterix.assets.read_locales();
     rusterix.assets.ruleset_palette = project.palette.clone();
     rusterix.assets.palette = project.art_palette.clone();

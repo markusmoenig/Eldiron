@@ -25,7 +25,12 @@ In 3D views, the same tool becomes the edge/surface-line editing tool for direct
 - **X**: Split selected geometry edges. On connected quad geometry this performs a loop-cut through the quad strip.
 - **M**: Merge selected edge vertices to their center and rebuild affected faces.
 - **L**: Expand a selected edge into an edge loop on quad geometry, or expand a selected surface-line point/segment to its connected guide shape.
+- **C**: Expand a selected geometry rim edge into the closed contour around its coplanar opening or surface boundary.
 - **[ / ]**: Move selected edge vertices vertically by one grid step.
+
+Use **L** to follow a quad strip. Use **C** to follow a boundary: selecting one edge of a door, window, arch, or irregular opening selects its complete closed contour.
+
+For a fitted insert, select one rim edge, press **C**, then **L** to select the corresponding contour through the opening depth. **Create Fitted Geometry** turns those contours and the reveal band between them into a separate capped Geometry Object without changing the wall.
 
 When edge or vertex edits create a concave or non-planar face, Eldiron automatically resolves the affected face into triangles so the mesh remains valid.
 
@@ -53,13 +58,14 @@ Surface lines are editor geometry attached to the face. They do not cut or defor
 - **Create Ridge** converts selected surface lines into persistent raised geometry.
 - **Create Groove** converts selected surface lines into persistent recessed geometry.
 - **Duplicate Surface Detail** duplicates the selected guide shape on the same face with face-local offsets.
+- **Clear Surface Detail** removes every editable guide from the host faces identified by the selected guide points or segments, without affecting paint or generated geometry.
 - **Surface Curve** sets selected guide segments, or the shortest path between selected points, to straight lines or configurable arcs.
 
 Create Cutout keeps the guide loops selected after openings are created, so shapes can be reused or duplicated instead of redrawn. The guides remain selectable on the rebuilt ring, which supports several matching cutouts on one object. Curved guide segments are tessellated into the resulting cutout, ridge, or groove geometry. Ridge and Groove can create box-shaped, triangular, or rounded strokes. They generate a separate Geometry Object, select it after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default.
 
 The same closed guide-loop concept is intended to support future surface-region actions: cutting through, carving/chipping the inside, raising the inside, splitting the region into new paintable faces, or assigning different tiles/colors to generated interior regions.
 
-Use surface lines for custom detail that should be drawn directly on a face: mortar lines, stone blocks, guide cobbles, floor seams, decorative raised trim, grooves, vents, custom window cuts, or other geometry-first surface relief. For committed patterned surface geometry, use **Create Pattern** in relief mode.
+Use surface lines for custom detail that should be drawn directly on a face: mortar lines, stone blocks, guide cobbles, floor seams, decorative raised trim, grooves, vents, custom window cuts, or other geometry-first surface relief.
 
 ## Creation Mode (Manual)
 

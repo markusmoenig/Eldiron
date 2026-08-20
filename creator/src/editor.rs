@@ -4529,7 +4529,10 @@ impl Editor {
     fn deactivate_project_for_switch(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         // Finish editor-local interactions while the outgoing project is still
         // installed, then snapshot it before clearing global UI state.
-        DOCKMANAGER.write().unwrap().minimize(ui, ctx);
+        DOCKMANAGER
+            .write()
+            .unwrap()
+            .minimize(ui, ctx, &self.project, &mut self.server_ctx);
         {
             let mut tools = TOOLLIST.write().unwrap();
             if tools.editor_mode {
@@ -7338,7 +7341,7 @@ impl Editor {
             "Tiles" | "Tilemap" | "Tile Editor Dock RGBA Layout View" | "Tile Editor Tree" => {
                 Some("docs/creator/docks/tile_picker_editor".into())
             }
-            "Blocks" => Some("docs/creator/tools/blocks".into()),
+            "Prefabs" => Some("docs/creator/tools/blocks".into()),
             "Builder" => Some("docs/creator/tools/builder".into()),
             "Palette" => Some("docs/creator/tools/palette".into()),
             "3D Paint" => Some("docs/creator/tools/iso-paint".into()),
@@ -7404,7 +7407,7 @@ impl Editor {
             if dm.state != DockManagerState::Minimized {
                 return match dm.dock.as_str() {
                     "Tiles" => Some("docs/creator/docks/tile_picker_editor".into()),
-                    "Blocks" => Some("docs/creator/tools/blocks".into()),
+                    "Prefabs" => Some("docs/creator/tools/blocks".into()),
                     "Builder" => Some("docs/creator/tools/builder".into()),
                     "Palette" => Some("docs/creator/tools/palette".into()),
                     "3D Paint" => Some("docs/creator/tools/iso-paint".into()),
@@ -8724,14 +8727,22 @@ impl TheTrait for Editor {
                 );
             }
 
-            // Draw Map
-            if let Some(render_view) = ui.get_render_view("PolyView") {
+            // Draw the regular region canvas or the isolated Prefab canvas.
+            // They intentionally have distinct widget identities so editor
+            // state and visual content cannot leak between them.
+            let render_view_name = if self.server_ctx.pc.is_prefab() {
+                "PrefabView"
+            } else {
+                "PolyView"
+            };
+            if let Some(render_view) = ui.get_render_view(render_view_name) {
                 let dim = *render_view.dim();
 
                 let buffer = render_view.render_buffer_mut();
                 buffer.resize(dim.width, dim.height);
 
                 {
+                    let prefab_paint_catalog = self.project.block_prop_paint.clone();
                     // If we are drawing billboard vertices in the geometry overlay, update them.
                     if !running_game_mode && self.server_ctx.editor_view_mode != EditorViewMode::D2
                     {
@@ -8770,6 +8781,11 @@ impl TheTrait for Editor {
                             if r.map.name == rusterix.client.current_map {
                                 let region_id = r.id;
                                 let mut iso_paint = r.iso_paint.clone();
+                                crate::block_props::merge_prefab_paint_for_map(
+                                    &mut iso_paint,
+                                    &r.map,
+                                    &prefab_paint_catalog,
+                                );
                                 let has_iso_paint = iso_paint.visible
                                     && (!iso_paint.surface_commit_strokes.is_empty()
                                         || !iso_paint.chunks.is_empty()
@@ -8850,7 +8866,86 @@ impl TheTrait for Editor {
                             .client
                             .insert_game_buffer(render_view.render_buffer_mut());
                     } else {
-                        if self.server_ctx.editor_view_mode != EditorViewMode::D2
+                        if self.server_ctx.pc.is_prefab()
+                            && self.server_ctx.editor_view_mode != EditorViewMode::D2
+                        {
+                            rusterix.client.set_camera_d3(Box::new(
+                                EDITCAMERA.read().unwrap().orbit_camera.clone(),
+                            ));
+                            let asset_id = match self.server_ctx.pc {
+                                ProjectContext::Prefab(asset_id) => Some(asset_id),
+                                _ => None,
+                            };
+                            let mut prefab_paint = asset_id
+                                .and_then(|asset_id| {
+                                    self.project.block_prop_paint.get(&asset_id).cloned()
+                                })
+                                .unwrap_or_default();
+                            let has_prefab_paint = prefab_paint.visible
+                                && (!prefab_paint.surface_commit_strokes.is_empty()
+                                    || !prefab_paint.chunks.is_empty()
+                                    || !prefab_paint.baked_chunks.is_empty());
+                            if has_prefab_paint {
+                                let view = rusterix
+                                    .client
+                                    .camera_d3
+                                    .view_matrix_for_surface(dim.width as f32, dim.height as f32);
+                                let proj = rusterix
+                                    .client
+                                    .camera_d3
+                                    .projection_matrix(dim.width as f32, dim.height as f32);
+                                let camera_scale = Some(rusterix.client.camera_d3.scale());
+                                let scene_camera =
+                                    rusterix.client.camera_d3.as_scenevm_camera_for_surface(
+                                        dim.width as f32,
+                                        dim.height as f32,
+                                    );
+                                let active_vm = rusterix.scene_handler.vm.active_vm_index();
+                                rusterix.scene_handler.vm.set_active_vm(0);
+                                rusterix
+                                    .scene_handler
+                                    .vm
+                                    .execute(scenevm::Atom::SetCamera3D {
+                                        camera: scene_camera,
+                                    });
+                                IsoPaintRenderer::upload_overlay_cached(
+                                    &mut self.iso_paint_render_cache,
+                                    asset_id.unwrap_or_default(),
+                                    2,
+                                    &mut prefab_paint,
+                                    &mut rusterix.scene_handler.vm,
+                                    scene_camera,
+                                    view,
+                                    proj,
+                                    dim.width as u32,
+                                    dim.height as u32,
+                                    camera_scale,
+                                );
+                                rusterix.scene_handler.vm.set_active_vm(active_vm);
+                            } else {
+                                let active_vm = rusterix.scene_handler.vm.active_vm_index();
+                                rusterix.scene_handler.vm.set_active_vm(0);
+                                rusterix
+                                    .scene_handler
+                                    .vm
+                                    .execute(scenevm::Atom::ClearRaster3DPaintOverlay);
+                                rusterix
+                                    .scene_handler
+                                    .vm
+                                    .execute(scenevm::Atom::ClearPaintBillboards);
+                                rusterix.scene_handler.vm.set_active_vm(active_vm);
+                                self.iso_paint_render_cache = Default::default();
+                            }
+                            if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                rusterix.draw_d3_with_editor_background(
+                                    map,
+                                    render_view.render_buffer_mut().pixels_mut(),
+                                    dim.width as usize,
+                                    dim.height as usize,
+                                    true,
+                                );
+                            }
+                        } else if self.server_ctx.editor_view_mode != EditorViewMode::D2
                             && self.server_ctx.get_map_context() == MapContext::Region
                         {
                             if let Some(region) =
@@ -8907,10 +9002,16 @@ impl TheTrait for Editor {
                                 let animation_frame = rusterix.client.animation_frame;
                                 rusterix.build_dynamics_3d(&region.map, animation_frame);
                                 let editor_neutral_background = !is_running;
-                                let has_iso_paint = region.iso_paint.visible
-                                    && (!region.iso_paint.surface_commit_strokes.is_empty()
-                                        || !region.iso_paint.chunks.is_empty()
-                                        || !region.iso_paint.baked_chunks.is_empty());
+                                let mut combined_iso_paint = region.iso_paint.clone();
+                                crate::block_props::merge_prefab_paint_for_map(
+                                    &mut combined_iso_paint,
+                                    &region.map,
+                                    &prefab_paint_catalog,
+                                );
+                                let has_iso_paint = combined_iso_paint.visible
+                                    && (!combined_iso_paint.surface_commit_strokes.is_empty()
+                                        || !combined_iso_paint.chunks.is_empty()
+                                        || !combined_iso_paint.baked_chunks.is_empty());
                                 if has_iso_paint {
                                     let view = rusterix.client.camera_d3.view_matrix_for_surface(
                                         dim.width as f32,
@@ -8938,7 +9039,7 @@ impl TheTrait for Editor {
                                         &mut self.iso_paint_render_cache,
                                         region.id,
                                         0,
-                                        &mut region.iso_paint,
+                                        &mut combined_iso_paint,
                                         &mut rusterix.scene_handler.vm,
                                         scene_camera,
                                         view,
@@ -9209,18 +9310,22 @@ impl TheTrait for Editor {
                         }
                     }
                 }
-                if !running_game_mode
-                    && self.server_ctx.get_map_context() == MapContext::Region
-                    && self.server_ctx.editor_view_mode != EditorViewMode::D2
-                {
-                    let iso_paint = self
-                        .project
-                        .get_region(&self.server_ctx.curr_region)
-                        .map(|region| region.iso_paint.clone());
+                if !running_game_mode && self.server_ctx.editor_view_mode != EditorViewMode::D2 {
+                    let iso_paint = match self.server_ctx.pc {
+                        ProjectContext::Prefab(asset_id) => {
+                            self.project.block_prop_paint.get(&asset_id).cloned()
+                        }
+                        _ if self.server_ctx.get_map_context() == MapContext::Region => self
+                            .project
+                            .get_region(&self.server_ctx.curr_region)
+                            .map(|region| region.iso_paint.clone()),
+                        _ => None,
+                    };
                     if let Some(iso_paint) = iso_paint {
                         let buffer = render_view.render_buffer_mut();
-                        if self.server_ctx.editor_view_mode == EditorViewMode::Iso
-                            && self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint
+                        if self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint
+                            && (self.server_ctx.pc.is_prefab()
+                                || self.server_ctx.editor_view_mode == EditorViewMode::Iso)
                         {
                             Self::draw_iso_paint_preview(
                                 buffer,
@@ -9436,7 +9541,12 @@ impl TheTrait for Editor {
                         dm.edit_maximize(ui, ctx, &mut self.project, &mut self.server_ctx);
                         redraw = true;
                     } else if id.name == "Minimize Dock" {
-                        DOCKMANAGER.write().unwrap().minimize(ui, ctx);
+                        DOCKMANAGER.write().unwrap().minimize(
+                            ui,
+                            ctx,
+                            &self.project,
+                            &mut self.server_ctx,
+                        );
                         ctx.ui.relayout = true;
                         ctx.ui.redraw_all = true;
                         redraw = true;
@@ -9583,7 +9693,7 @@ impl TheTrait for Editor {
                         }
                     }
                 }
-                TheEvent::RenderViewDrop(_id, location, drop) => {
+                TheEvent::RenderViewDrop(id, location, drop) if id.name == "PolyView" => {
                     if drop.id.name.starts_with("Shader") {
                         return true;
                     }

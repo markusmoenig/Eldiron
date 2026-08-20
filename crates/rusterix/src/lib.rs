@@ -160,11 +160,24 @@ pub use crate::{
     map::{
         Map, MapCamera, MapToolType,
         bbox::BBox,
+        block_prop::{
+            BlockPropAsset, BlockPropAssetLayer, BlockPropAttachment, BlockPropComponent,
+            BlockPropFaceRef, BlockPropGeometryDiagnostic, BlockPropGeometryDiagnosticKind,
+            BlockPropGeometryResolution, BlockPropGeometrySource, BlockPropInstance,
+            BlockPropInteractionHit, BlockPropInteractionTarget, BlockPropOccupancyPolicy,
+            BlockPropOccupant, BlockPropPart, BlockPropPlacementProfile, BlockPropSemanticShape,
+            BlockPropSupportSurface, BlockPropSurfacePlacement, BlockPropTransform,
+            block_prop_door_is_open, block_prop_interaction_verb,
+            block_prop_interaction_world_anchor, identity_block_prop_transform,
+            multiply_block_prop_transforms, resolve_block_prop_asset, resolve_block_prop_geometry,
+            resolve_block_prop_interaction_hit, resolve_block_prop_preview_geometry,
+            set_block_prop_door_open,
+        },
         geometry_object::{
-            GeometryFace, GeometryObject, GeometryObjectKind, GeometrySurfaceNoise,
-            GeometrySurfacePoint, GeometrySurfacePointMode, GeometrySurfaceSegment,
-            GeometrySurfaceSegmentMode, geometry_face_effective_paint_surface_id,
-            geometry_face_paint_uvs, remap_geometry_face_paint_uvs,
+            GeometryFace, GeometryObject, GeometryObjectKind, GeometrySurfacePoint,
+            GeometrySurfacePointMode, GeometrySurfaceSegment, GeometrySurfaceSegmentMode,
+            geometry_face_effective_paint_surface_id, geometry_face_paint_uvs,
+            remap_geometry_face_paint_uvs,
         },
         light::CompiledLight,
         light::Light,
@@ -246,18 +259,25 @@ pub mod prelude {
     };
     pub use crate::{BLACK, Pixel, TRANSPARENT, WHITE};
     pub use crate::{Batch2D, Batch3D, CullMode, GeometrySource, PrimitiveMode};
+    pub use crate::{
+        BlockPropAsset, BlockPropAssetLayer, BlockPropAttachment, BlockPropComponent,
+        BlockPropFaceRef, BlockPropGeometryDiagnostic, BlockPropGeometryDiagnosticKind,
+        BlockPropGeometryResolution, BlockPropGeometrySource, BlockPropInstance,
+        BlockPropInteractionHit, BlockPropInteractionTarget, BlockPropOccupancyPolicy,
+        BlockPropOccupant, BlockPropPart, BlockPropPlacementProfile, BlockPropSemanticShape,
+        BlockPropSupportSurface, BlockPropSurfacePlacement, BlockPropTransform, Keyform, Light,
+        LightType, Map, MapMeta, MapToolType, NoiseTarget, OrganicBushCluster, OrganicGrowthShape,
+        OrganicVineStroke, Particle, ParticleEmitter, PixelSource, Sector, SoftRig,
+        SoftRigAnimator, Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature,
+        TileGeometryOperation, TileGroup, TileGroupMemberRef, TileLightEffect, TileNicheGeometry,
+        TileParticleEffect, TileRole, TileSource, Vertex, block_prop_interaction_verb,
+        default_organic_bush_clusters, default_organic_vine_strokes,
+        resolve_block_prop_interaction_hit,
+    };
     #[cfg(feature = "graphics")]
     pub use crate::{Command, Daylight, MsgParser, Tok};
     pub use crate::{D3Camera, D3FirstPCamera, D3IsoCamera, D3OrbitCamera};
     pub use crate::{GridShader, Shader, VGrayGradientShader};
-    pub use crate::{
-        Keyform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget, OrganicBushCluster,
-        OrganicGrowthShape, OrganicVineStroke, Particle, ParticleEmitter, PixelSource, Sector,
-        SoftRig, SoftRigAnimator, Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature,
-        TileGeometryOperation, TileGroup, TileGroupMemberRef, TileLightEffect, TileNicheGeometry,
-        TileParticleEffect, TileRole, TileSource, Vertex, default_organic_bush_clusters,
-        default_organic_vine_strokes,
-    };
     pub use crate::{
         Rect, Scene, SceneManager, SceneManagerCmd, SceneManagerResult, Value, ValueContainer,
     };

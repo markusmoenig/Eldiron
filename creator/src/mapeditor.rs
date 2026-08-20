@@ -8,6 +8,11 @@ fn geometry_selection_status_text(map: &Map, server_ctx: &ServerContext) -> Opti
         return None;
     }
 
+    if !map.selected_block_prop_instances.is_empty() {
+        let count = map.selected_block_prop_instances.len();
+        return Some(fl!("status_prefab_instances_selected", count = count));
+    }
+
     if !map.selected_geometry_surface_points.is_empty()
         || !map.selected_geometry_surface_segments.is_empty()
     {
@@ -829,8 +834,8 @@ impl MapEditor {
             TheEvent::ValueChanged(id, value) => {
                 if id.name == "Grid Subdiv" {
                     if let Some(value) = value.to_i32() {
-                        if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
-                            region.map.subdivisions =
+                        if let Some(map) = project.get_map_mut(server_ctx) {
+                            map.subdivisions =
                                 (1.0 / ServerContext::edit_grid_step(value as f32)).round();
                         }
                     }

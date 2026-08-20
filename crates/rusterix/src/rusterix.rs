@@ -587,7 +587,8 @@ impl Rusterix {
 
     /// Send a touch hover event to the client.
     pub fn client_touch_hover(&mut self, coord: Vec2<i32>, map: &Map) {
-        self.client.touch_hover(coord, map, &mut self.scene_handler);
+        self.client
+            .touch_hover(coord, map, &self.assets, &mut self.scene_handler);
     }
 
     /// Update the server messages.
@@ -601,6 +602,10 @@ impl Rusterix {
         self.assets
             .materialize_geometry_material_tiles(&mut all_tiles);
         self.apply_tiles(all_tiles, editor);
+    }
+
+    pub fn set_block_props(&mut self, block_props: IndexMap<Uuid, BlockPropAsset>) {
+        self.assets.set_block_props(block_props);
     }
 
     pub fn set_tiles_for_maps<'a, I>(

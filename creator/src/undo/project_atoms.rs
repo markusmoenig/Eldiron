@@ -10,6 +10,7 @@ pub enum ProjectUndoAtom {
     MapEdit(ProjectContext, Box<Map>, Box<Map>),
     RegionEdit(ProjectContext, Box<Region>, Box<Region>),
     RegionPaintEdit(ProjectContext, Uuid, Box<IsoPaintLayer>, Box<IsoPaintLayer>),
+    PrefabPaintEdit(ProjectContext, Uuid, Box<IsoPaintLayer>, Box<IsoPaintLayer>),
     TilePickerEdit(Box<Project>, Box<Project>),
     ProjectEdit(String, Box<Project>, Box<Project>),
     AddRegion(Region),
@@ -73,6 +74,37 @@ impl ProjectUndoAtom {
         restored_map: &Map,
         previous_map: Option<&Map>,
     ) {
+        if let ProjectContext::Prefab(asset_id) = pc {
+            project.prefab_editor_map = Some(restored_map.clone());
+            if let Err(message) = crate::block_props::sync_prefab_editor(project, asset_id) {
+                ctx.ui
+                    .send(TheEvent::SetStatusText(TheId::empty(), message));
+                return;
+            }
+            let prefabs = project.block_props.clone();
+            RUSTERIX.write().unwrap().set_block_props(prefabs.clone());
+            SCENEMANAGER.write().unwrap().set_block_props(prefabs);
+            if server_ctx.pc.is_prefab() {
+                let used_incremental = previous_map
+                    .map(|previous| {
+                        ToolList::try_incremental_map_edit(previous, restored_map, server_ctx)
+                    })
+                    .unwrap_or(false);
+                if !used_incremental {
+                    SCENEMANAGER
+                        .write()
+                        .unwrap()
+                        .update_map(restored_map.clone());
+                }
+            } else {
+                crate::utils::editor_scene_full_rebuild(project, server_ctx);
+            }
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
+                TheValue::Empty,
+            ));
+            return;
+        }
         let preserved_dock = DOCKMANAGER.read().unwrap().dock.clone();
         set_project_context(ctx, ui, project, server_ctx, pc);
         if let Some(map) = project.get_map_mut(server_ctx) {
@@ -162,6 +194,7 @@ impl ProjectUndoAtom {
         match self {
             RegionEdit(_, old, new) => Self::is_iso_paint_only_region_edit(old, new),
             RegionPaintEdit(_, _, _, _) => true,
+            PrefabPaintEdit(_, _, _, _) => true,
             _ => false,
         }
     }
@@ -178,12 +211,25 @@ impl ProjectUndoAtom {
         }
     }
 
+    fn apply_prefab_paint_state(
+        project: &mut Project,
+        ctx: &mut TheContext,
+        asset_id: Uuid,
+        restored_paint: &IsoPaintLayer,
+    ) {
+        project
+            .block_prop_paint
+            .insert(asset_id, restored_paint.clone());
+        ctx.ui.redraw_all = true;
+    }
+
     /// Returns the ProjectContext for the MapEdit
     pub fn pc(&self) -> Option<ProjectContext> {
         match self {
             MapEdit(pc, _, _) => Some(*pc),
             RegionEdit(pc, _, _) => Some(*pc),
             RegionPaintEdit(pc, _, _, _) => Some(*pc),
+            PrefabPaintEdit(pc, _, _, _) => Some(*pc),
             _ => None,
         }
     }
@@ -194,6 +240,7 @@ impl ProjectUndoAtom {
             MapEdit(_, _, _) => "Map Edit".to_string(),
             RegionEdit(_, _, _) => "Region Edit".to_string(),
             RegionPaintEdit(_, _, _, _) => "3D Paint Edit".to_string(),
+            PrefabPaintEdit(_, _, _, _) => "Prefab Paint Edit".to_string(),
             TilePickerEdit(_, _) => "Tile Picker Edit".to_string(),
             ProjectEdit(label, _, _) => label.clone(),
             AddRegion(region) => format!("Add Region: {}", region.name),
@@ -288,6 +335,9 @@ impl ProjectUndoAtom {
             RegionPaintEdit(_, region_id, old, _) => {
                 Self::apply_region_paint_state(project, ctx, *region_id, old);
             }
+            PrefabPaintEdit(_, asset_id, old, _) => {
+                Self::apply_prefab_paint_state(project, ctx, *asset_id, old);
+            }
             TilePickerEdit(old, _new) => {
                 *project = (*old.clone()).clone();
                 ctx.ui.send(TheEvent::Custom(
@@ -298,6 +348,7 @@ impl ProjectUndoAtom {
             ProjectEdit(_, old, _new) => {
                 *project = (*old.clone()).clone();
                 shared::rusterix_utils::insert_content_into_maps(project);
+                crate::utils::editor_scene_full_rebuild(project, server_ctx);
                 update_region(ctx);
             }
             AddRegion(region) => {
@@ -966,6 +1017,9 @@ impl ProjectUndoAtom {
             RegionPaintEdit(_, region_id, _, new) => {
                 Self::apply_region_paint_state(project, ctx, *region_id, new);
             }
+            PrefabPaintEdit(_, asset_id, _, new) => {
+                Self::apply_prefab_paint_state(project, ctx, *asset_id, new);
+            }
             TilePickerEdit(_old, new) => {
                 *project = (*new.clone()).clone();
                 ctx.ui.send(TheEvent::Custom(
@@ -976,6 +1030,7 @@ impl ProjectUndoAtom {
             ProjectEdit(_, _old, new) => {
                 *project = (*new.clone()).clone();
                 shared::rusterix_utils::insert_content_into_maps(project);
+                crate::utils::editor_scene_full_rebuild(project, server_ctx);
                 update_region(ctx);
             }
             AddRegion(region) => {

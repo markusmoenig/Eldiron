@@ -1334,7 +1334,6 @@ fn fill_selected_geometry_vertices(map: &mut Map) -> bool {
             tiles: FxHashMap::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
-            surface_noise: None,
         });
         new_selected_faces.push((object.id, face_index));
         changed = true;
@@ -2129,6 +2128,15 @@ fn remove_geometry_object_selection(map: &mut Map, object_id: Uuid) {
         .retain(|(selected_object_id, _)| *selected_object_id != object_id);
 }
 
+fn block_prop_instance_for_resolved_object(map: &Map, object_id: Uuid) -> Option<Uuid> {
+    let rusterix = RUSTERIX.read().unwrap();
+    rusterix::resolve_block_prop_geometry(&map.block_prop_instances, &rusterix.assets.block_props)
+        .geometry_objects
+        .into_iter()
+        .find(|object| object.id == object_id)
+        .and_then(|object| object.properties.get_id("block_prop_instance_id"))
+}
+
 fn add_geometry_face_selection(map: &mut Map, object_id: Uuid, face_index: usize) {
     ensure_geometry_object_selected(map, object_id);
     let selection = (object_id, face_index);
@@ -2486,6 +2494,221 @@ fn select_geometry_edge_loops(map: &mut Map) -> bool {
     changed
 }
 
+fn geometry_face_normal(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+) -> Option<Vec3<f32>> {
+    let first = *object.vertices.get(*face.indices.first()?)?;
+    let mut normal = Vec3::zero();
+    for index in 1..face.indices.len().saturating_sub(1) {
+        let a = *object.vertices.get(face.indices[index])?;
+        let b = *object.vertices.get(face.indices[index + 1])?;
+        normal += (a - first).cross(b - first);
+    }
+    normal.try_normalized()
+}
+
+fn geometry_face_edges(face: &rusterix::GeometryFace) -> Vec<(usize, usize)> {
+    if face.indices.len() < 2 {
+        return Vec::new();
+    }
+    (0..face.indices.len())
+        .map(|index| {
+            normalized_edge(
+                face.indices[index],
+                face.indices[(index + 1) % face.indices.len()],
+            )
+        })
+        .collect()
+}
+
+fn coplanar_face_island(
+    object: &rusterix::GeometryObject,
+    edge_faces: &BTreeMap<(usize, usize), Vec<usize>>,
+    start_face: usize,
+) -> BTreeSet<usize> {
+    let Some(reference_face) = object.faces.get(start_face) else {
+        return BTreeSet::new();
+    };
+    let Some(reference_normal) = geometry_face_normal(object, reference_face) else {
+        return BTreeSet::new();
+    };
+    let Some(reference_origin) = reference_face
+        .indices
+        .first()
+        .and_then(|index| object.vertices.get(*index))
+        .copied()
+    else {
+        return BTreeSet::new();
+    };
+
+    let coplanar = |face: &rusterix::GeometryFace| {
+        let Some(normal) = geometry_face_normal(object, face) else {
+            return false;
+        };
+        if reference_normal.dot(normal).abs() < 0.999 {
+            return false;
+        }
+        face.indices.iter().all(|index| {
+            object
+                .vertices
+                .get(*index)
+                .is_some_and(|point| (*point - reference_origin).dot(reference_normal).abs() < 1e-4)
+        })
+    };
+
+    let mut island = BTreeSet::new();
+    let mut queue = VecDeque::from([start_face]);
+    while let Some(face_index) = queue.pop_front() {
+        if !island.insert(face_index) {
+            continue;
+        }
+        let Some(face) = object.faces.get(face_index) else {
+            continue;
+        };
+        for edge in geometry_face_edges(face) {
+            let Some(neighbors) = edge_faces.get(&edge) else {
+                continue;
+            };
+            for neighbor in neighbors {
+                if !island.contains(neighbor)
+                    && object
+                        .faces
+                        .get(*neighbor)
+                        .is_some_and(|face| coplanar(face))
+                {
+                    queue.push_back(*neighbor);
+                }
+            }
+        }
+    }
+    island
+}
+
+fn boundary_contour_for_seed(
+    object: &rusterix::GeometryObject,
+    island: &BTreeSet<usize>,
+    seed: (usize, usize),
+) -> Option<Vec<(usize, usize)>> {
+    let mut counts = BTreeMap::<(usize, usize), usize>::new();
+    for face_index in island {
+        let face = object.faces.get(*face_index)?;
+        for edge in geometry_face_edges(face) {
+            *counts.entry(edge).or_default() += 1;
+        }
+    }
+    let boundary = counts
+        .into_iter()
+        .filter_map(|(edge, count)| (count == 1).then_some(edge))
+        .collect::<Vec<_>>();
+    let seed = normalized_edge(seed.0, seed.1);
+    if !boundary.contains(&seed) {
+        return None;
+    }
+
+    let mut component = BTreeSet::from([seed]);
+    let mut vertices = VecDeque::from([seed.0, seed.1]);
+    while let Some(vertex) = vertices.pop_front() {
+        for edge in &boundary {
+            if (edge.0 == vertex || edge.1 == vertex) && component.insert(*edge) {
+                vertices.push_back(if edge.0 == vertex { edge.1 } else { edge.0 });
+            }
+        }
+    }
+    if component.len() < 3 {
+        return None;
+    }
+    let mut degrees = BTreeMap::<usize, usize>::new();
+    for (a, b) in &component {
+        *degrees.entry(*a).or_default() += 1;
+        *degrees.entry(*b).or_default() += 1;
+    }
+    degrees
+        .values()
+        .all(|degree| *degree == 2)
+        .then(|| component.into_iter().collect())
+}
+
+fn contour_view_alignment(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+    view_ray: Option<Vec3<f32>>,
+) -> f32 {
+    let (Some(normal), Some(view_ray)) = (geometry_face_normal(object, face), view_ray) else {
+        return 0.0;
+    };
+    let origin = object.transform_point(Vec3::zero());
+    let Some(world_normal) = (object.transform_point(normal) - origin).try_normalized() else {
+        return 0.0;
+    };
+    world_normal.dot(view_ray).abs()
+}
+
+fn select_geometry_contours(map: &mut Map, view_ray: Option<Vec3<f32>>) -> bool {
+    let objects = map.geometry_objects.clone();
+    let mut selected_vertices = BTreeSet::new();
+
+    for object in &objects {
+        let seeds = selected_geometry_edges_for_object(map, object);
+        if seeds.is_empty() {
+            continue;
+        }
+        let mut edge_faces = BTreeMap::<(usize, usize), Vec<usize>>::new();
+        for (face_index, face) in object.faces.iter().enumerate() {
+            for edge in geometry_face_edges(face) {
+                edge_faces.entry(edge).or_default().push(face_index);
+            }
+        }
+
+        for seed in seeds {
+            let seed = normalized_edge(seed.0, seed.1);
+            let mut best: Option<(usize, f32, Vec<(usize, usize)>)> = None;
+            for face_index in edge_faces.get(&seed).into_iter().flatten() {
+                let island = coplanar_face_island(object, &edge_faces, *face_index);
+                let Some(contour) = boundary_contour_for_seed(object, &island, seed) else {
+                    continue;
+                };
+                let alignment = object
+                    .faces
+                    .get(*face_index)
+                    .map(|face| contour_view_alignment(object, face, view_ray))
+                    .unwrap_or(0.0);
+                let candidate = (island.len(), alignment, contour);
+                if best
+                    .as_ref()
+                    .is_none_or(|current| (candidate.0, candidate.1) > (current.0, current.1))
+                {
+                    best = Some(candidate);
+                }
+            }
+            if let Some((_, _, contour)) = best {
+                for (a, b) in contour {
+                    selected_vertices.insert((object.id, a));
+                    selected_vertices.insert((object.id, b));
+                }
+            }
+        }
+    }
+
+    let next = selected_vertices.into_iter().collect::<Vec<_>>();
+    if next.is_empty() || next == map.selected_geometry_vertices {
+        return false;
+    }
+    map.selected_geometry_faces.clear();
+    map.selected_geometry_vertices = next;
+    sanitize_geometry_selection(map);
+    true
+}
+
+fn refresh_geometry_selection(ctx: &mut TheContext) {
+    RUSTERIX.write().unwrap().set_overlay_dirty();
+    ctx.ui.redraw_all = true;
+    ctx.ui.send(TheEvent::Custom(
+        TheId::named("Map Selection Changed"),
+        TheValue::Empty,
+    ));
+}
+
 impl Tool for GeometryTool {
     fn new() -> Self
     where
@@ -2668,9 +2891,7 @@ impl Tool for GeometryTool {
                     self.rectangle_undo_map = Some(map.clone());
                     self.rectangle_mode = false;
                     if !_ui.shift && !_ui.alt {
-                        map.selected_geometry_objects.clear();
-                        map.selected_geometry_vertices.clear();
-                        map.selected_geometry_faces.clear();
+                        map.clear_selection();
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,
@@ -2685,8 +2906,30 @@ impl Tool for GeometryTool {
                     .iter()
                     .find(|object| object.id == object_id)
                 else {
+                    if let Some(instance_id) =
+                        block_prop_instance_for_resolved_object(map, object_id)
+                    {
+                        if _ui.shift {
+                            if !map.selected_block_prop_instances.contains(&instance_id) {
+                                map.selected_block_prop_instances.push(instance_id);
+                            }
+                        } else if _ui.alt {
+                            map.selected_block_prop_instances
+                                .retain(|id| *id != instance_id);
+                        } else {
+                            map.clear_selection();
+                            map.selected_block_prop_instances.push(instance_id);
+                        }
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                        RUSTERIX.write().unwrap().set_overlay_dirty();
+                    }
                     return None;
                 };
+
+                map.selected_block_prop_instances.clear();
 
                 let start_vertices = object.vertices.clone();
                 let start_transform = object.transform;
@@ -2841,7 +3084,9 @@ impl Tool for GeometryTool {
                         let Some(base_map) = self.rectangle_undo_map.clone() else {
                             return None;
                         };
-                        let Some(render_view) = _ui.get_render_view("PolyView") else {
+                        let Some(render_view) =
+                            crate::utils::map_editor_render_view(_ui, server_ctx)
+                        else {
                             return None;
                         };
                         let dim = *render_view.dim();
@@ -3243,16 +3488,22 @@ impl Tool for GeometryTool {
                 }
 
                 if matches!(key, 'l' | 'L') && !map.selected_geometry_vertices.is_empty() {
-                    let old_map = map.clone();
                     if !select_geometry_edge_loops(map) {
                         return None;
                     }
-                    refresh_geometry_topology_edit(None, map, ctx);
-                    return Some(ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
-                        Box::new(old_map),
-                        Box::new(map.clone()),
-                    ));
+                    refresh_geometry_selection(ctx);
+                    return None;
+                }
+
+                if matches!(key, 'c' | 'C')
+                    && server_ctx.curr_map_tool_type == MapToolType::Linedef
+                    && !map.selected_geometry_vertices.is_empty()
+                {
+                    if !select_geometry_contours(map, server_ctx.hover_ray_dir_3d) {
+                        return None;
+                    }
+                    refresh_geometry_selection(ctx);
+                    return None;
                 }
 
                 if !_ui.ctrl
@@ -3388,6 +3639,56 @@ mod tests {
         map.geometry_objects.push(object);
         map.selected_geometry_objects.push(object_id);
         (map, object_id)
+    }
+
+    fn ring_map() -> (Map, Uuid) {
+        let (mut map, object_id) = box_map();
+        let object = &mut map.geometry_objects[0];
+        object.vertices = vec![
+            Vec3::new(-2.0, -2.0, 0.0),
+            Vec3::new(2.0, -2.0, 0.0),
+            Vec3::new(2.0, 2.0, 0.0),
+            Vec3::new(-2.0, 2.0, 0.0),
+            Vec3::new(-1.0, -1.0, 0.0),
+            Vec3::new(1.0, -1.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+            Vec3::new(-1.0, 1.0, 0.0),
+        ];
+        let template = object.faces[0].clone();
+        let faces = [
+            vec![0, 1, 5, 4],
+            vec![1, 2, 6, 5],
+            vec![2, 3, 7, 6],
+            vec![3, 0, 4, 7],
+        ]
+        .into_iter()
+        .map(|indices| {
+            let mut face = template.clone();
+            face.id = Uuid::new_v4();
+            face.indices = indices;
+            face.uvs = face_uvs_for_indices(object, &face.indices);
+            face
+        })
+        .collect();
+        object.faces = faces;
+        (map, object_id)
+    }
+
+    #[test]
+    fn contour_selects_closed_hole_boundary() {
+        let (mut map, object_id) = ring_map();
+        map.selected_geometry_vertices = vec![(object_id, 4), (object_id, 5)];
+
+        assert!(select_geometry_contours(&mut map, Some(Vec3::unit_z())));
+        assert_eq!(
+            map.selected_geometry_vertices,
+            vec![
+                (object_id, 4),
+                (object_id, 5),
+                (object_id, 6),
+                (object_id, 7),
+            ]
+        );
     }
 
     #[test]

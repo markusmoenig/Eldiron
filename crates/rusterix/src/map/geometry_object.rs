@@ -51,20 +51,6 @@ pub struct GeometryFace {
     pub surface_points: Vec<GeometrySurfacePoint>,
     #[serde(default)]
     pub surface_segments: Vec<GeometrySurfaceSegment>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub surface_noise: Option<GeometrySurfaceNoise>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct GeometrySurfaceNoise {
-    #[serde(default = "default_surface_noise_scale")]
-    pub scale: f32,
-    #[serde(default = "default_surface_noise_amount")]
-    pub amount: f32,
-    #[serde(default)]
-    pub seed: i32,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source: Option<PixelSource>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -381,7 +367,6 @@ fn face(indices: Vec<usize>) -> GeometryFace {
         tiles: FxHashMap::default(),
         surface_points: Vec::new(),
         surface_segments: Vec::new(),
-        surface_noise: None,
     }
 }
 
@@ -410,14 +395,6 @@ fn default_geometry_object_solid() -> bool {
 }
 
 fn default_surface_curve_amount() -> f32 {
-    0.35
-}
-
-fn default_surface_noise_scale() -> f32 {
-    1.0
-}
-
-fn default_surface_noise_amount() -> f32 {
     0.35
 }
 

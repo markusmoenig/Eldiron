@@ -4,6 +4,24 @@ use rusterix::{PixelSource, Value, ValueContainer, pixel_to_vec4};
 use std::str::FromStr;
 use toml::*;
 
+/// Return the render view that owns map/prefab editing input. Prefab editor
+/// events keep the established PolyView contract, but their actual widget is
+/// intentionally isolated under a different id.
+pub fn map_editor_render_view_name(server_ctx: &ServerContext) -> &'static str {
+    if server_ctx.pc.is_prefab() {
+        "PrefabView"
+    } else {
+        "PolyView"
+    }
+}
+
+pub fn map_editor_render_view<'a>(
+    ui: &'a mut TheUI,
+    server_ctx: &ServerContext,
+) -> Option<&'a mut dyn TheRenderViewTrait> {
+    ui.get_render_view(map_editor_render_view_name(server_ctx))
+}
+
 pub fn default_preview_rigging_toml() -> String {
     if let Some(bytes) = crate::Embedded::get("toml/preview_rigging.toml")
         && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
@@ -794,6 +812,12 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
             SCENEMANAGER.write().unwrap().set_map(map.clone());
         }
     } else {
+        if server_ctx.pc.is_prefab() {
+            if let Some(map) = project.get_map(server_ctx) {
+                SCENEMANAGER.write().unwrap().set_map(map.clone());
+            }
+            return;
+        }
         // In 3D, SceneManager builds region geometry. This includes profile/surface editing
         // contexts, but excludes non-region contexts.
         if server_ctx.get_map_context() != MapContext::Region {
@@ -815,6 +839,7 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
 pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) {
     let (tile_list, tile_indices) = {
         let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix.set_block_props(project.block_props.clone());
         rusterix.set_tiles_for_maps(
             project.tiles.clone(),
             true,
@@ -829,8 +854,90 @@ pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) 
         .write()
         .unwrap()
         .set_tile_list(tile_list, tile_indices);
+    SCENEMANAGER
+        .write()
+        .unwrap()
+        .set_block_props(project.block_props.clone());
     scenemanager_render_map(project, server_ctx);
     RUSTERIX.write().unwrap().set_dirty();
+}
+
+/// Refreshes linked Prefab geometry without clearing the whole editor scene.
+/// Only chunks occupied by instances of changed assets are replaced.
+pub fn editor_scene_refresh_prefab_assets(
+    before: &Project,
+    project: &Project,
+    server_ctx: &ServerContext,
+) -> bool {
+    let mut changed_assets = FxHashSet::default();
+    changed_assets.extend(before.block_props.keys().copied());
+    changed_assets.extend(project.block_props.keys().copied());
+    changed_assets.retain(|id| before.block_props.get(id) != project.block_props.get(id));
+
+    let Some(old_map) = before.get_map(server_ctx) else {
+        editor_scene_full_rebuild(project, server_ctx);
+        return false;
+    };
+    let Some(new_map) = project.get_map(server_ctx) else {
+        editor_scene_full_rebuild(project, server_ctx);
+        return false;
+    };
+    let old_instances = old_map
+        .block_prop_instances
+        .iter()
+        .filter(|instance| changed_assets.contains(&instance.asset_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let new_instances = new_map
+        .block_prop_instances
+        .iter()
+        .filter(|instance| changed_assets.contains(&instance.asset_id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let old_geometry =
+        rusterix::resolve_block_prop_geometry(&old_instances, &before.block_props).geometry_objects;
+    let new_geometry = rusterix::resolve_block_prop_geometry(&new_instances, &project.block_props)
+        .geometry_objects;
+    let chunk_size = SCENEMANAGER.read().unwrap().chunk_size().max(1);
+    let mut dirty_chunks = FxHashSet::default();
+    for bbox in old_geometry
+        .iter()
+        .chain(new_geometry.iter())
+        .filter_map(|object| object.bbox())
+    {
+        let min_x = (bbox.min.x / chunk_size as f32).floor() as i32;
+        let min_y = (bbox.min.y / chunk_size as f32).floor() as i32;
+        let max_x = (bbox.max.x / chunk_size as f32).ceil() as i32;
+        let max_y = (bbox.max.y / chunk_size as f32).ceil() as i32;
+        for y in min_y..max_y.max(min_y + 1) {
+            for x in min_x..max_x.max(min_x + 1) {
+                dirty_chunks.insert((x * chunk_size, y * chunk_size));
+            }
+        }
+    }
+
+    if dirty_chunks.is_empty() {
+        if serde_json::to_value(old_map).ok() == serde_json::to_value(new_map).ok() {
+            RUSTERIX.write().unwrap().set_overlay_dirty();
+            return true;
+        }
+        editor_scene_full_rebuild(project, server_ctx);
+        return false;
+    }
+
+    {
+        let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix.set_block_props(project.block_props.clone());
+    }
+    SCENEMANAGER
+        .write()
+        .unwrap()
+        .set_block_props(project.block_props.clone());
+    editor_scene_replace_incremental_map_update(
+        new_map.clone(),
+        dirty_chunks.into_iter().collect(),
+    );
+    true
 }
 
 pub fn editor_scene_apply_map_edit(

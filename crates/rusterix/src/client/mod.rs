@@ -382,6 +382,9 @@ pub struct Client {
     // Hovered entity id
     hovered_entity_id: Option<u32>,
 
+    // Stable target on a linked Block / Prop instance under the 3D cursor.
+    hovered_block_prop_target: Option<BlockPropInteractionHit>,
+
     // Hover distance
     hover_distance: f32,
     hovered_world_pos: Option<Vec3<f32>>,
@@ -941,6 +944,7 @@ impl Client {
             cursor_pos: Vec2::zero(),
             hovered_entity_id: None,
             hovered_item_id: None,
+            hovered_block_prop_target: None,
             hovered_world_pos: None,
 
             hover_distance: f32::MAX,
@@ -4489,6 +4493,7 @@ impl Client {
         &mut self,
         p: Vec2<i32>,
         map: &Map,
+        assets: &Assets,
         scene_handler: &mut SceneHandler,
     ) -> bool {
         let point = Vec2::new(p.x as f32, p.y as f32);
@@ -4502,6 +4507,7 @@ impl Client {
 
         self.hovered_entity_id = None;
         self.hovered_item_id = None;
+        self.hovered_block_prop_target = None;
         self.hovered_world_pos = None;
         self.hover_distance = f32::MAX;
 
@@ -4538,6 +4544,23 @@ impl Client {
             }
             GeoId::Item(item_id) => {
                 self.hovered_item_id = Some(item_id);
+            }
+            GeoId::GeometryObject(object_id) => {
+                let paint_surface_id = scene_handler
+                    .vm
+                    .pick_paint_surface_at_uv(
+                        widget.rect.width as u32,
+                        widget.rect.height as u32,
+                        [screen_uv.x, screen_uv.y],
+                    )
+                    .filter(|surface| surface.valid)
+                    .map(|surface| surface.paint_geo);
+                self.hovered_block_prop_target = resolve_block_prop_interaction_hit(
+                    &map.block_prop_instances,
+                    &assets.block_props,
+                    object_id,
+                    paint_surface_id,
+                );
             }
             _ => {}
         }
@@ -4597,7 +4620,13 @@ impl Client {
     }
 
     ///Hover event, used to adjust the screen cursor based on the widget or game object under the mouse
-    pub fn touch_hover(&mut self, coord: Vec2<i32>, map: &Map, scene_handler: &mut SceneHandler) {
+    pub fn touch_hover(
+        &mut self,
+        coord: Vec2<i32>,
+        map: &Map,
+        assets: &Assets,
+        scene_handler: &mut SceneHandler,
+    ) {
         let p = self.screen_to_viewport(coord);
         self.cursor_pos = p;
         if self.dragging_container_panel {
@@ -4622,6 +4651,7 @@ impl Client {
         self.curr_cursor = self.default_cursor;
         self.hovered_entity_id = None;
         self.hovered_item_id = None;
+        self.hovered_block_prop_target = None;
         self.hovered_world_pos = None;
         self.curr_intent_cursor = None;
         self.curr_clicked_intent_cursor = None;
@@ -4757,6 +4787,27 @@ impl Client {
                                 self.hovered_item_id = Some(item_id);
                                 self.hover_distance = distance;
                                 pending_cursor_target = Some((false, true));
+                            }
+                            GeoId::GeometryObject(object_id) => {
+                                let paint_surface_id = scene_handler
+                                    .vm
+                                    .pick_paint_surface_at_uv(
+                                        widget.rect.width as u32,
+                                        widget.rect.height as u32,
+                                        [screen_uv.x, screen_uv.y],
+                                    )
+                                    .filter(|surface| surface.valid)
+                                    .map(|surface| surface.paint_geo);
+                                self.hovered_block_prop_target = resolve_block_prop_interaction_hit(
+                                    &map.block_prop_instances,
+                                    &assets.block_props,
+                                    object_id,
+                                    paint_surface_id,
+                                );
+                                if self.hovered_block_prop_target.is_some() {
+                                    self.hover_distance = distance;
+                                    pending_cursor_target = Some((false, true));
+                                }
                             }
                             _ => {}
                         }
@@ -4961,7 +5012,41 @@ impl Client {
             }
         }
 
-        let clicked_3d_game_widget = self.refresh_3d_pick_at(p, map, scene_handler);
+        let clicked_3d_game_widget = self.refresh_3d_pick_at(p, map, assets, scene_handler);
+
+        if clicked_3d_game_widget && let Some(hit) = self.hovered_block_prop_target {
+            let explicit_intent = self.get_current_intent_for_action();
+            let contextual_verb = map
+                .block_prop_instances
+                .iter()
+                .find(|instance| instance.id == hit.instance_id)
+                .and_then(|instance| {
+                    assets
+                        .block_props
+                        .get(&instance.asset_id)
+                        .and_then(|asset| {
+                            block_prop_interaction_verb(asset, instance, hit.target_id)
+                        })
+                })
+                .map(str::to_string);
+            let verb = match explicit_intent.as_deref() {
+                Some(intent) => {
+                    let intent = intent.trim().to_ascii_lowercase();
+                    matches!(intent.as_str(), "open" | "close" | "use").then_some(intent)
+                }
+                None => contextual_verb,
+            };
+            if let Some(verb) = verb {
+                if explicit_intent.is_some() {
+                    self.consume_one_shot_2d_intent();
+                }
+                return Some(EntityAction::BlockPropInteract {
+                    instance_id: hit.instance_id,
+                    target_id: hit.target_id,
+                    verb,
+                });
+            }
+        }
 
         // If we hovered over an item in 3D, send an explicit ItemClicked intent
         if clicked_3d_game_widget && let Some(entity_id) = self.hovered_entity_id {

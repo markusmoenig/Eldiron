@@ -1,4 +1,5 @@
 pub mod bbox;
+pub mod block_prop;
 pub mod geometry;
 pub mod geometry_object;
 pub mod light;
@@ -32,6 +33,7 @@ use vek::{Vec2, Vec3, Vec4};
 use vertex::*;
 
 use crate::{Entity, Item, Light};
+use block_prop::{BlockPropInstance, BlockPropSurfacePlacement};
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Copy)]
 pub enum MapCamera {
@@ -95,6 +97,16 @@ pub struct Map {
     #[serde(default)]
     pub geometry_objects: Vec<GeometryObject>,
 
+    /// Linked instances of reusable Blocks & Props assets. Source geometry is
+    /// resolved through the owning project's asset catalog.
+    #[serde(default)]
+    pub block_prop_instances: Vec<BlockPropInstance>,
+
+    /// Persistent occupants attached to semantic support surfaces on prop
+    /// instances, stored in the support surface's local coordinates.
+    #[serde(default)]
+    pub block_prop_surface_placements: Vec<BlockPropSurfacePlacement>,
+
     pub sky_texture: Option<Uuid>,
 
     // Camera Mode
@@ -119,6 +131,11 @@ pub struct Map {
     pub selected_sectors: Vec<u32>,
     #[serde(default)]
     pub selected_geometry_objects: Vec<Uuid>,
+    /// Editor selection of linked Block / Prop instances. Kept separate from
+    /// resolved Geometry Object IDs so instance operations remain stable when
+    /// an asset source changes.
+    #[serde(skip)]
+    pub selected_block_prop_instances: Vec<Uuid>,
     #[serde(skip)]
     pub selected_geometry_vertices: Vec<(Uuid, usize)>,
     #[serde(skip)]
@@ -456,6 +473,8 @@ impl Map {
             linedefs: vec![],
             sectors: vec![],
             geometry_objects: vec![],
+            block_prop_instances: vec![],
+            block_prop_surface_placements: vec![],
 
             sky_texture: None,
 
@@ -471,6 +490,7 @@ impl Map {
             selected_linedefs: vec![],
             selected_sectors: vec![],
             selected_geometry_objects: vec![],
+            selected_block_prop_instances: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],
             selected_geometry_surface_points: vec![],
@@ -506,6 +526,7 @@ impl Map {
         self.selected_linedefs = vec![];
         self.selected_sectors = vec![];
         self.selected_geometry_objects = vec![];
+        self.selected_block_prop_instances = vec![];
         self.selected_geometry_vertices = vec![];
         self.selected_geometry_faces = vec![];
         self.selected_geometry_surface_points = vec![];
@@ -1083,6 +1104,24 @@ impl Map {
         }
 
         bbox.unwrap_or_else(|| BBox::new(Vec2::new(-1.0, -1.0), Vec2::new(1.0, 1.0)))
+    }
+
+    /// Generate bounds including linked Blocks & Props resolved through the
+    /// supplied effective asset catalog.
+    pub fn bbox_with_block_props(
+        &self,
+        assets: &IndexMap<Uuid, block_prop::BlockPropAsset>,
+    ) -> BBox {
+        if self.block_prop_instances.is_empty() {
+            return self.bbox();
+        }
+        let mut resolved = self.clone();
+        resolved.geometry_objects.extend(
+            block_prop::resolve_block_prop_geometry(&self.block_prop_instances, assets)
+                .geometry_objects,
+        );
+        resolved.block_prop_instances.clear();
+        resolved.bbox()
     }
 
     /// Generate a bounding box for all vertices in the map
@@ -2369,6 +2408,7 @@ impl Map {
             || !self.selected_linedefs.is_empty()
             || !self.selected_sectors.is_empty()
             || !self.selected_geometry_objects.is_empty()
+            || !self.selected_block_prop_instances.is_empty()
     }
 
     /// Check if the map is empty.
@@ -2377,6 +2417,7 @@ impl Map {
             && self.linedefs.is_empty()
             && self.sectors.is_empty()
             && self.geometry_objects.is_empty()
+            && self.block_prop_instances.is_empty()
     }
 
     /// Copy selected geometry into a new map
@@ -2660,6 +2701,8 @@ impl Map {
             linedefs: self.linedefs.clone(),
             sectors: self.sectors.clone(),
             geometry_objects: self.geometry_objects.clone(),
+            block_prop_instances: self.block_prop_instances.clone(),
+            block_prop_surface_placements: self.block_prop_surface_placements.clone(),
 
             sky_texture: None,
 
@@ -2675,6 +2718,7 @@ impl Map {
             selected_linedefs: vec![],
             selected_sectors: vec![],
             selected_geometry_objects: vec![],
+            selected_block_prop_instances: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],
             selected_geometry_surface_points: vec![],

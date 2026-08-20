@@ -71,6 +71,7 @@ pub struct Server {
     pub times: FxHashMap<u32, TheTime>,
     pub runtime_maps: FxHashMap<u32, Map>,
     pub runtime_map_position_guards: FxHashMap<u32, u8>,
+    pub block_prop_instances: FxHashMap<u32, Vec<BlockPropInstance>>,
 
     pub state: ServerState,
 
@@ -113,6 +114,7 @@ impl Server {
             times: FxHashMap::default(),
             runtime_maps: FxHashMap::default(),
             runtime_map_position_guards: FxHashMap::default(),
+            block_prop_instances: FxHashMap::default(),
 
             state: ServerState::Off,
 
@@ -237,6 +239,10 @@ impl Server {
 
             if let Some(items) = self.items.get(region_id) {
                 map.items = items.clone();
+            }
+
+            if let Some(instances) = self.block_prop_instances.get(region_id) {
+                map.block_prop_instances = instances.clone();
             }
         };
     }
@@ -644,11 +650,16 @@ impl Server {
                         if let Some(region_id) = self.region_id_map.get(&map.id).copied() {
                             self.entities.insert(region_id, map.entities.clone());
                             self.items.insert(region_id, map.items.clone());
+                            self.block_prop_instances
+                                .insert(region_id, map.block_prop_instances.clone());
                             self.runtime_maps.insert(region_id, map.clone());
                             self.runtime_map_position_guards.insert(region_id, 4);
                         }
                         assets.maps.insert(map.name.clone(), map.clone());
                         rc = Some(map.name.clone());
+                    }
+                    RegionMessage::BlockPropInstancesUpdate(id, instances) => {
+                        self.block_prop_instances.insert(id, instances);
                     }
                     RegionMessage::EldrinDebugData(data) => {
                         self.eldrin_debug.merge(&data);
@@ -913,6 +924,7 @@ impl Server {
         self.region_render.clear();
         self.runtime_maps.clear();
         self.runtime_map_position_guards.clear();
+        self.block_prop_instances.clear();
         self.multiple_choice.clear();
         self.id_gen = 1;
         self.region_id_map.clear();

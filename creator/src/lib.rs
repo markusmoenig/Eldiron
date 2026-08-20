@@ -5,6 +5,7 @@ mod macros;
 pub mod actionlist;
 pub mod actions;
 pub mod avatar_atlas;
+pub mod block_props;
 pub mod blocks;
 pub mod configeditor;
 pub mod dockmanager;

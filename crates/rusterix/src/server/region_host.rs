@@ -137,11 +137,14 @@ fn rebuild_runtime_navigation(ctx: &mut RegionCtx) {
     let mut chunk_builder = D3ChunkBuilder::new();
     let chunk_size = 10;
 
-    if ctx.map.vertices.is_empty() && ctx.map.geometry_objects.is_empty() {
+    if ctx.map.vertices.is_empty()
+        && ctx.map.geometry_objects.is_empty()
+        && ctx.map.block_prop_instances.is_empty()
+    {
         return;
     }
 
-    let bbox = ctx.map.bbox();
+    let bbox = ctx.map.bbox_with_block_props(&ctx.assets.block_props);
     let min_chunk = Vec2::new(
         (bbox.min.x / chunk_size as f32).floor() as i32,
         (bbox.min.y / chunk_size as f32).floor() as i32,

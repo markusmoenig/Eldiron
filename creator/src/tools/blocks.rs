@@ -37,6 +37,12 @@ impl BlockTool {
         Some(asset)
     }
 
+    fn selected_asset_id(server_ctx: &mut ServerContext) -> Uuid {
+        *server_ctx
+            .curr_block_asset_id
+            .get_or_insert_with(default_block_asset_id)
+    }
+
     fn placement_hit(server_ctx: &ServerContext) -> Option<Vec3<f32>> {
         crate::blocks::block_grid_plane_hit(server_ctx).or_else(|| {
             server_ctx
@@ -164,7 +170,6 @@ impl BlockTool {
             tiles: FxHashMap::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
-            surface_noise: None,
         }
     }
 
@@ -310,6 +315,67 @@ impl BlockTool {
         instances
     }
 
+    fn prop_instance_grid_cell(instance: &rusterix::BlockPropInstance) -> Option<Vec3<i32>> {
+        Some(Vec3::new(
+            instance.overrides.get_int("block_grid_x")?,
+            instance.overrides.get_int("block_grid_y")?,
+            instance.overrides.get_int("block_grid_z")?,
+        ))
+    }
+
+    fn remove_prop_instances_at_cells(map: &mut Map, cells: &[Vec3<i32>]) -> FxHashSet<Uuid> {
+        let removed = map
+            .block_prop_instances
+            .iter()
+            .filter_map(|instance| {
+                Self::prop_instance_grid_cell(instance)
+                    .filter(|cell| cells.contains(cell))
+                    .map(|_| instance.id)
+            })
+            .collect::<FxHashSet<_>>();
+        if removed.is_empty() {
+            return removed;
+        }
+        map.block_prop_instances
+            .retain(|instance| !removed.contains(&instance.id));
+        map.block_prop_surface_placements
+            .retain(|placement| !removed.contains(&placement.prop_instance_id));
+        removed
+    }
+
+    fn make_prop_instance(
+        asset_id: Uuid,
+        grid_cell: Vec3<i32>,
+        base_y: f32,
+        cell_size: f32,
+        quarter_turns: i32,
+    ) -> rusterix::BlockPropInstance {
+        let mut instance = rusterix::BlockPropInstance::new(asset_id);
+        let angle = quarter_turns.rem_euclid(4) as f32 * std::f32::consts::FRAC_PI_2;
+        let (sin, cos) = angle.sin_cos();
+        instance.world_transform[0][0] = cos;
+        instance.world_transform[0][2] = -sin;
+        instance.world_transform[2][0] = sin;
+        instance.world_transform[2][2] = cos;
+        instance.world_transform[3][0] = grid_cell.x as f32 * cell_size;
+        instance.world_transform[3][1] = base_y;
+        instance.world_transform[3][2] = grid_cell.z as f32 * cell_size;
+        instance
+            .overrides
+            .set("block_grid_x", Value::Int(grid_cell.x));
+        instance
+            .overrides
+            .set("block_grid_y", Value::Int(grid_cell.y));
+        instance
+            .overrides
+            .set("block_grid_z", Value::Int(grid_cell.z));
+        instance.overrides.set("block_base_y", Value::Float(base_y));
+        instance
+            .overrides
+            .set("block_rotation", Value::Int(quarter_turns.rem_euclid(4)));
+        instance
+    }
+
     fn clear_drag(&mut self, server_ctx: &mut ServerContext) {
         self.drag_start_cell = None;
         self.drag_end_cell = None;
@@ -386,32 +452,56 @@ impl BlockTool {
             return None;
         }
 
-        let removed = if operation == BLOCK_OPERATION_REPLACE || operation == BLOCK_OPERATION_ERASE
-        {
-            Self::remove_block_instances_at_cells(map, &cells)
-        } else {
-            FxHashSet::default()
-        };
+        let (removed, removed_props) =
+            if operation == BLOCK_OPERATION_REPLACE || operation == BLOCK_OPERATION_ERASE {
+                (
+                    Self::remove_block_instances_at_cells(map, &cells),
+                    Self::remove_prop_instances_at_cells(map, &cells),
+                )
+            } else {
+                (FxHashSet::default(), FxHashSet::default())
+            };
 
         let mut created = Vec::new();
+        let mut created_props = Vec::new();
         let mut asset_name = fl!("block_asset_instances");
         if operation != BLOCK_OPERATION_ERASE {
-            let asset = Self::selected_asset(server_ctx)?;
-            asset_name = localized_block_asset_name(asset);
-            for cell in &cells {
-                created.extend(Self::make_objects(
-                    asset,
-                    *cell,
-                    base_y,
-                    cell_size,
-                    server_ctx.block_rotation_quarters,
-                    block_sizing_from_context(server_ctx),
-                    server_ctx.block_damage_enabled,
-                ));
+            let asset_id = Self::selected_asset_id(server_ctx);
+            if let Some(asset) = block_asset(asset_id) {
+                asset_name = localized_block_asset_name(asset);
+                for cell in &cells {
+                    created.extend(Self::make_objects(
+                        asset,
+                        *cell,
+                        base_y,
+                        cell_size,
+                        server_ctx.block_rotation_quarters,
+                        block_sizing_from_context(server_ctx),
+                        server_ctx.block_damage_enabled,
+                    ));
+                }
+            } else {
+                asset_name = server_ctx
+                    .curr_block_asset_name
+                    .clone()
+                    .unwrap_or_else(|| "Project Prop".to_string());
+                for cell in &cells {
+                    created_props.push(Self::make_prop_instance(
+                        asset_id,
+                        *cell,
+                        base_y,
+                        cell_size,
+                        server_ctx.block_rotation_quarters,
+                    ));
+                }
             }
         }
 
-        if created.is_empty() && removed.is_empty() {
+        if created.is_empty()
+            && created_props.is_empty()
+            && removed.is_empty()
+            && removed_props.is_empty()
+        {
             return None;
         }
 
@@ -424,6 +514,9 @@ impl BlockTool {
             map.selected_geometry_objects = created.iter().map(|object| object.id).collect();
             map.geometry_selection_mode = 0;
             map.geometry_objects.extend(created);
+        } else if !created_props.is_empty() {
+            map.clear_selection();
+            map.block_prop_instances.extend(created_props);
         } else {
             map.selected_geometry_objects.clear();
         }
@@ -463,7 +556,7 @@ impl Tool for BlockTool {
         Self: Sized,
     {
         Self {
-            id: TheId::named("Block Tool"),
+            id: TheId::named("Prefab Tool"),
             previous_dock: None,
             drag_start_cell: None,
             drag_end_cell: None,
@@ -507,12 +600,14 @@ impl Tool for BlockTool {
                 server_ctx
                     .curr_block_asset_id
                     .get_or_insert_with(default_block_asset_id);
-                server_ctx.curr_block_asset_name =
-                    Self::selected_asset(server_ctx).map(|asset| asset.name.to_string());
+                if server_ctx.curr_block_asset_name.is_none() {
+                    server_ctx.curr_block_asset_name =
+                        Self::selected_asset(server_ctx).map(|asset| asset.name.to_string());
+                }
                 self.clear_drag(server_ctx);
 
                 let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
-                if current_dock != "Blocks" {
+                if current_dock != "Prefabs" {
                     self.previous_dock = if current_dock.is_empty() {
                         None
                     } else {
@@ -520,7 +615,7 @@ impl Tool for BlockTool {
                     };
                 }
                 DOCKMANAGER.write().unwrap().set_dock(
-                    "Blocks".into(),
+                    "Prefabs".into(),
                     ui,
                     ctx,
                     project,
@@ -542,9 +637,13 @@ impl Tool for BlockTool {
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
                 self.clear_drag(server_ctx);
-                if DOCKMANAGER.read().unwrap().dock == "Blocks" {
+                let prefab_editor_open = {
+                    let manager = DOCKMANAGER.read().unwrap();
+                    manager.dock == "Prefabs" && manager.state == DockManagerState::Editor
+                };
+                if DOCKMANAGER.read().unwrap().dock == "Prefabs" && !prefab_editor_open {
                     let mut dockmanager = DOCKMANAGER.write().unwrap();
-                    dockmanager.minimize_for_tool_switch(ui, ctx);
+                    dockmanager.minimize_for_tool_switch(ui, ctx, project, server_ctx);
                     if let Some(prev) = self.previous_dock.take() {
                         dockmanager.set_dock(prev, ui, ctx, project, server_ctx);
                     }
@@ -774,5 +873,50 @@ impl Tool for BlockTool {
             }
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn project_prop_instance_uses_grid_transform_and_metadata() {
+        let asset_id = Uuid::new_v4();
+        let instance = BlockTool::make_prop_instance(asset_id, Vec3::new(3, 2, -4), 2.5, 0.5, 1);
+        assert_eq!(instance.asset_id, asset_id);
+        assert!((instance.world_transform[0][0]).abs() < 1e-5);
+        assert_eq!(instance.world_transform[0][2], -1.0);
+        assert_eq!(instance.world_transform[2][0], 1.0);
+        assert!((instance.world_transform[2][2]).abs() < 1e-5);
+        assert_eq!(instance.world_transform[3][0], 1.5);
+        assert_eq!(instance.world_transform[3][1], 2.5);
+        assert_eq!(instance.world_transform[3][2], -2.0);
+        assert_eq!(
+            BlockTool::prop_instance_grid_cell(&instance),
+            Some(Vec3::new(3, 2, -4))
+        );
+    }
+
+    #[test]
+    fn erasing_project_prop_also_removes_surface_occupants() {
+        let mut map = Map::default();
+        let instance =
+            BlockTool::make_prop_instance(Uuid::new_v4(), Vec3::new(1, 0, 2), 0.0, 1.0, 0);
+        let instance_id = instance.id;
+        map.block_prop_instances.push(instance);
+        map.block_prop_surface_placements
+            .push(rusterix::BlockPropSurfacePlacement {
+                id: Uuid::new_v4(),
+                prop_instance_id: instance_id,
+                surface_id: Uuid::new_v4(),
+                occupant: rusterix::BlockPropOccupant::PropInstance(Uuid::new_v4()),
+                local_transform: rusterix::identity_block_prop_transform(),
+            });
+
+        let removed = BlockTool::remove_prop_instances_at_cells(&mut map, &[Vec3::new(1, 0, 2)]);
+        assert_eq!(removed, FxHashSet::from_iter([instance_id]));
+        assert!(map.block_prop_instances.is_empty());
+        assert!(map.block_prop_surface_placements.is_empty());
     }
 }

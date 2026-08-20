@@ -6,6 +6,12 @@ fn set_dirty_and_status(ctx: &mut TheContext, status: String) {
     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
 }
 
+fn editor_preview_render_applicable(server_ctx: &ServerContext) -> bool {
+    server_ctx.get_map_context() == MapContext::Region
+        && !server_ctx.pc.is_prefab()
+        && server_ctx.editor_view_mode != EditorViewMode::D2
+}
+
 pub struct ToggleEditorPreviewPost {
     id: TheId,
     nodeui: TheNodeUI,
@@ -40,8 +46,7 @@ impl Action for ToggleEditorPreviewPost {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+        editor_preview_render_applicable(server_ctx)
     }
 
     fn apply(
@@ -117,8 +122,7 @@ impl Action for ToggleEditorPreviewLighting {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        server_ctx.get_map_context() == MapContext::Region
-            && server_ctx.editor_view_mode != EditorViewMode::D2
+        editor_preview_render_applicable(server_ctx)
     }
 
     fn apply(
@@ -157,5 +161,20 @@ impl Action for ToggleEditorPreviewLighting {
         _server_ctx: &mut ServerContext,
     ) -> bool {
         self.nodeui.handle_event(event)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preview_post_and_lighting_are_region_only() {
+        let mut server_ctx = ServerContext::default();
+        server_ctx.editor_view_mode = EditorViewMode::Orbit;
+        assert!(editor_preview_render_applicable(&server_ctx));
+
+        server_ctx.pc = ProjectContext::Prefab(Uuid::new_v4());
+        assert!(!editor_preview_render_applicable(&server_ctx));
     }
 }

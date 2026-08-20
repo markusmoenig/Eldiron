@@ -100,9 +100,14 @@ Useful edge shortcuts:
 - **X** splits selected geometry edges. On connected quad geometry this performs a loop-cut through the quad strip.
 - With two non-neighboring vertices selected on the same face, **X** splits that face along the selected diagonal.
 - **L** expands a selected edge into an edge loop on quad geometry.
+- **C** expands a selected rim edge into the closed contour around its coplanar opening or surface boundary.
 - **[ / ]** moves selected edge vertices vertically by one grid step.
 
 Edge loops are most useful after subdividing quad faces, because they let you select a continuous row or column of edges quickly.
+
+Contours are useful for openings: select one edge of a door, window, or arch rim and press **C** to select the complete closed boundary, including irregular shapes.
+
+To create geometry that fits an existing opening exactly, select one rim edge and press **C**, then **L** to include the matching contour on the other side. Run **Create Fitted Geometry**. Eldiron copies the selected reveal band, caps both contours, and selects the resulting independent solid. The wall remains unchanged, and the new object can be edited into a door, window, frame, or Prefab.
 
 Moved edge vertices snap to absolute grid positions. Auto-merge can run after drag or gizmo movement when moved vertices land on existing vertices.
 
@@ -118,10 +123,8 @@ Surface lines are the shared workflow for custom relief and holes:
 - **Create Groove** turns selected surface lines into recessed box-shaped, triangular, or rounded strokes.
 - **Create Cutout** turns selected closed loops into openings through the host object.
 - **Create Face** turns selected closed loops into new selectable faces on the host object without cutting through it.
-- **Create Pattern** can stamp editable guide patterns or generate raised relief geometry directly. Patterns include discs, triangles, quads, lines, regular or interleaved tile grids, irregular cobbles, and alternating comma sequences.
 - **Duplicate Surface Detail** repeats the selected guide shape on the same face using face-local offsets.
 - **Surface Curve** sets selected guide segments, or the shortest path between two selected guide points, to straight lines or configurable arcs. Positive and negative amounts bend the arc in opposite directions, so the same drawn loop can become a plain cutout, an arched opening, or a decorative curved pattern.
-- **Surface Noise** applies procedural noise to selected 3D faces. Its **NOISE** HUD material slot can be assigned or cleared from the Tiles dock or the Palette dock's Art Palette controls, and the noise is evaluated from object/world-space coordinates so adjoining noisy faces can stay continuous around corners.
 - **3D Paint** adds persistent surface-space paint to 3D geometry for organic details such as moss, cracks, dirt, grass, puddles, stamps, and generated brick/tile patterns.
 
 Ridges and grooves become persistent Geometry Objects, are selected after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default. This makes small details like mortar lines, brick seams, carved floor patterns, and raised borders immediately visible without selecting and painting each tiny face.

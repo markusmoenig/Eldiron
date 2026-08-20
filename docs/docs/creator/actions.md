@@ -224,46 +224,6 @@ Options:
 * `ridge_height`: groove depth into the host surface.
 * Source material: inherited from the host face by default.
 
-### Create Pattern
-
-Create patterns on the selected 3D face. In **guide** mode, the action creates editable surface-line guides without directly changing topology. In **relief** mode, the same pattern creates generated raised surface geometry immediately, with separate foreground/background material slots.
-
-Options:
-
-* `mode`: select `guide` or `relief`.
-* `pattern`: select `disc`, `triangle`, `quad`, `line`, `tile`, or `cobble`.
-* `sequence`: optional comma-separated pattern sequence such as `disc,triangle`; leave empty to use `pattern`.
-* `repeat`: when off, creates one centered stamp; when on, repeats across the selected face.
-* `interleave`: offsets every second repeated row by half the X spacing. A brick layout is `pattern = "tile"` with `interleave = true`.
-* `[shape].scale`: overall stamp size.
-* `[shape].rotation`: stamp rotation in degrees.
-* `[shape].margin`: inset margin used when fitting shapes inside the selected face.
-* `[shape].sides`: side count for disc-like shapes.
-* `[shape].roundness`: cobble corner roundness, from squarer stones to softer rounded stones.
-* `[shape].jitter`: cobble size and placement variation.
-* `[shape].seed`: cobble variation seed.
-* `[spacing].x`: horizontal spacing between repeated stamps.
-* `[spacing].y`: vertical spacing between repeated stamps.
-* `[relief].height`: raised pattern height in relief mode.
-* `[relief].height_jitter`: per-stamp height variation in relief mode.
-* `[relief].dome`: rounded top amount in relief mode.
-* `[relief].edge_depth`: base edge offset for generated relief geometry.
-* `[relief].color_jitter`: palette-index variation for the generated pattern material.
-* `[fit].rows`: row count; `0` lets the action compute the count from the face and spacing.
-* `[fit].columns`: column count; `0` lets the action compute the count from the face and spacing.
-
-Pattern notes:
-
-* `guide` mode selects the created surface details after creation so they can be committed with **Create Face**, **Create Cutout**, **Create Ridge**, or **Create Groove**.
-* `relief` mode creates a generated non-solid Geometry Object and selects it after creation.
-* While Create Pattern is selected, the minimap previews the current pattern outline on the selected face before applying.
-* The HUD exposes **PATTERN** and **BACKGROUND** material slots while Create Pattern is active. Applying a tile or palette color to those slots controls generated relief material and optional host-face background material.
-* `tile`: creates a regular grid guide in guide mode and rectangular raised cells in relief mode.
-* `tile` plus `interleave`: creates a staggered brick-like layout.
-* `cobble`: creates repeated irregular rounded closed loops in guide mode and rounded raised cobbles in relief mode.
-* Repeated patterns are centered in the remaining space and skip stamps that do not fit inside the actual face polygon.
-* A fixed row or column count is useful for decorative one-row patterns, such as alternating disc and triangle cutouts.
-
 ### Create Ridge
 
 Convert selected 3D surface lines into persistent raised ridge geometry. Draw surface lines with the Linedef / Edge Tool, click a point or segment to select the connected shape, then set the ridge shape, width, and height in the action parameters.
@@ -280,18 +240,6 @@ Options:
 * `ridge_height`: ridge height above the host surface.
 * Source material: inherited from the host face by default.
 
-### Cut Profile
-
-Cut a repeated profile into the whole selected Geometry Object. The first profile is `crenellation`, useful for castle battlements: it keeps the lower wall continuous and rebuilds the top into centered merlon blocks with crenel gaps.
-
-Options:
-
-* `profile`: currently `crenellation`.
-* `axis`: `auto`, `x`, or `z`; `auto` uses the longest horizontal object axis.
-* `height`: vertical cut depth down from the object top.
-* `merlon`: width of each solid battlement block.
-* `crenel`: width of each gap between battlement blocks.
-
 ### Cut Stairs
 
 Cut a stair profile into one selected Geometry Object. Select one top face and one adjacent side face, then run the action. The top face defines the stair run, the side face defines the rise, and the result remains a single editable object.
@@ -300,6 +248,12 @@ Options:
 
 * `step_height`: target height for each stair step; the action derives the step count and adjusts the actual height to fit.
 * `landing`: distance on the back of the selected top face to leave flat behind the stairs.
+
+### Create Fitted Geometry
+
+Create an independent solid that exactly matches an existing opening, including rectangular, arched, concave, and irregular contours. In the 3D Edge Tool, select one opening rim edge, press **C** to select that closed contour, then press **L** to include the matching contour across the opening depth. Run **Create Fitted Geometry** to copy the selected reveal band, reverse its side faces for the new solid, and triangulate caps on both ends.
+
+The source wall is not modified. The new Geometry Object inherits the opening's transform and adjacent face materials, and is selected immediately so it can be inset, reshaped, painted, or converted into a Prefab.
 
 ### Duplicate
 
@@ -326,6 +280,10 @@ Options:
 
 * `surface_detail_u`: face-local horizontal offset.
 * `surface_detail_v`: face-local vertical offset.
+
+### Clear Surface Detail
+
+Remove every editable 3D surface-line guide attached to the selected Geometry Object faces. In Edge mode, selecting any surface-guide point or segment identifies its host face, so the action can clear every guide on that face while the details remain visible. Face selections remain selected, and the action does not alter 3D Paint, materials, cutouts, or separate geometry generated by Ridge and Groove.
 
 ### Edit Face Texture
 
@@ -486,20 +444,6 @@ Options:
 
 * `curve_mode`: `Line` or `Arc`.
 * `curve_amount`: curve strength. Positive and negative values bend the arc in opposite directions.
-
-### Surface Noise
-
-Apply procedural surface noise to the selected direct 3D geometry faces. The action exposes a **NOISE** HUD material slot; use the Tiles dock or the Palette dock's Art Palette controls to assign or clear that slot before applying the action.
-
-The noise is stored on each selected face and uses object/world-space coordinates for evaluation, so adjoining faces with matching noise settings can continue around corners instead of restarting per face.
-
-Options:
-
-* **NOISE material slot**: tile or palette color used as the noise material.
-* Empty **NOISE** slot: clears noise from the selected faces.
-* `scale`: noise frequency; higher values create finer detail.
-* `amount`: blend strength between the base face material and the noise material.
-* `seed`: deterministic noise seed.
 
 ### Toggle Editing Geometry
 

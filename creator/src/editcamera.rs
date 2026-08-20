@@ -273,6 +273,22 @@ impl EditCamera {
         self.last_mouse = Some(curr);
     }
 
+    /// Pan the isolated Prefab camera without mutating any region camera
+    /// anchor. Prefabs own a temporary orbit center for the editor session.
+    pub fn mouse_dragged_pan_prefab(&mut self, coord: &Vec2<i32>, view_size: Vec2<i32>) {
+        let curr = *coord;
+        if let Some(prev) = self.last_mouse {
+            let delta = Vec2::new((curr.x - prev.x) as f32, (curr.y - prev.y) as f32);
+            let viewport_h = view_size.y.max(1) as f32;
+            let distance = self.orbit_camera.distance();
+            let world_per_pixel =
+                2.0 * distance * (self.orbit_camera.fov.to_radians() * 0.5).tan() / viewport_h;
+            let (_forward, right, up) = self.orbit_camera.basis_vectors();
+            self.orbit_camera.center += (-right * delta.x + up * delta.y) * world_per_pixel;
+        }
+        self.last_mouse = Some(curr);
+    }
+
     pub fn pan_3d_by_delta(
         &self,
         region: &mut Region,

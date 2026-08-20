@@ -1205,7 +1205,6 @@ struct VsIn {
     @location(6) blend_factor: f32,
     @location(7) opacity: f32,
     @location(8) normal: vec3<f32>,
-    @location(13) surface_noise: vec4<f32>,
     @location(14) paint_geo: vec4<u32>,
     @location(10) paint_uv: vec2<f32>,
     @location(11) paint_geo_fallback: vec4<u32>,
@@ -1220,7 +1219,6 @@ struct VsOut {
     @location(6) opacity: f32,
     @location(7) normal: vec3<f32>,
     @location(12) world_pos: vec3<f32>,
-    @location(13) surface_noise: vec4<f32>,
     @location(14) @interpolate(flat) paint_geo: vec4<u32>,
     @location(10) paint_uv: vec2<f32>,
     @location(11) @interpolate(flat) paint_geo_fallback: vec4<u32>,
@@ -1709,7 +1707,7 @@ fn hash13(p: vec3<f32>) -> f32 {
     return fract(sin(dot(p, vec3<f32>(127.1, 311.7, 74.7))) * 43758.5453123);
 }
 
-fn surface_noise_value(pos: vec3<f32>, seed: f32) -> f32 {
+fn material_noise_value(pos: vec3<f32>, seed: f32) -> f32 {
     let cell = floor(pos);
     let frac_pos = fract(pos);
     let f = frac_pos * frac_pos * (vec3<f32>(3.0) - 2.0 * frac_pos);
@@ -1728,16 +1726,6 @@ fn surface_noise_value(pos: vec3<f32>, seed: f32) -> f32 {
     let nxy0 = mix(nx00, nx10, f.y);
     let nxy1 = mix(nx01, nx11, f.y);
     return mix(nxy0, nxy1, f.z);
-}
-
-fn surface_noise_blend(params: vec4<f32>, world_pos: vec3<f32>) -> f32 {
-    if (params.w <= 0.5 || params.y <= 0.0001) {
-        return 0.0;
-    }
-    let scale = max(params.x, 0.0001);
-    let amount = clamp(params.y, 0.0, 1.0);
-    let seed = vec3<f32>(params.z * 0.173, params.z * 0.371, params.z * 0.619);
-    return surface_noise_value(world_pos * scale + seed, params.z * 0.013) * amount;
 }
 
 fn bayer4_threshold(x: u32, y: u32) -> f32 {
@@ -1955,7 +1943,6 @@ fn vs_main(in: VsIn) -> VsOut {
     out.opacity = clamp(in.opacity, 0.0, 1.0);
     out.normal = select(normalize(in.normal), max(in.normal, vec3<f32>(0.0)), is_particle);
     out.world_pos = in.pos;
-    out.surface_noise = in.surface_noise;
     out.paint_geo = in.paint_geo;
     out.paint_uv = in.paint_uv;
     out.paint_geo_fallback = in.paint_geo_fallback;
@@ -2040,10 +2027,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let shadow_receiver = in.world_pos + Nf_shadow * select(0.01, 0.03, UBO.cam_kind == 2u);
     let shadow = sample_shadow(shadow_receiver, NdotL_shadow);
     let phase_start = select(0u, u32(max(in.blend_factor, 0.0)), is_billboard);
-    var blend = clamp(in.blend_factor, 0.0, 1.0);
-    if (!is_avatar && !is_billboard && !is_particle && in.surface_noise.w > 0.5) {
-        blend = surface_noise_blend(in.surface_noise, in.world_pos);
-    }
+    let blend = clamp(in.blend_factor, 0.0, 1.0);
     let c0 = select(sample_tile(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
     let c1 = sample_tile(tile_index2, in.uv, clamp_uv, phase_start);
     let c0_base = select(sample_tile_lod0(in.tile_index, in.uv, clamp_uv, phase_start), sample_avatar(in.tile_index, in.uv), is_avatar);
@@ -2295,17 +2279,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let n_dot_v = max(dot(Nf_view, V), 0.0);
     var albedo = color_linear;
     if (water_material_weight > 0.001) {
-        let water_depth_noise = surface_noise_value(in.world_pos * 2.2 + vec3<f32>(6.0, 13.0, 2.0), 89.0);
+        let water_depth_noise = material_noise_value(in.world_pos * 2.2 + vec3<f32>(6.0, 13.0, 2.0), 89.0);
         let water_absorb = vec3<f32>(0.46, 0.62, 0.70) * (0.86 + water_depth_noise * 0.16);
         albedo = mix(albedo, albedo * water_absorb + UBO.sky_color.xyz * 0.035, water_material_weight * (0.54 + paint_weight * 0.22));
     }
     if (wet_finish_weight > 0.001) {
-        let wet_grain = surface_noise_value(in.world_pos * 3.8 + N * 0.37 + vec3<f32>(2.0, 19.0, 5.0), 97.0);
+        let wet_grain = material_noise_value(in.world_pos * 3.8 + N * 0.37 + vec3<f32>(2.0, 19.0, 5.0), 97.0);
         let wet_absorb = vec3<f32>(0.72, 0.77, 0.80) * (0.92 + wet_grain * 0.13);
         albedo = mix(albedo, albedo * wet_absorb + UBO.sky_color.xyz * 0.018, wet_finish_weight * 0.42);
     }
     if (!is_avatar) {
-        let material_noise = surface_noise_value(in.world_pos * 3.35 + N * 0.19, 23.0) * 2.0 - 1.0;
+        let material_noise = material_noise_value(in.world_pos * 3.35 + N * 0.19, 23.0) * 2.0 - 1.0;
         albedo *= 1.0 + material_noise * matte_weight * 0.075;
         let albedo_luma = dot(albedo, vec3<f32>(0.2126, 0.7152, 0.0722));
         let matte_contrast = vec3<f32>(albedo_luma) + (albedo - vec3<f32>(albedo_luma)) * 1.08;
@@ -2407,7 +2391,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let semantic_sheen = clamp(material_traits1.x, 0.0, 1.0);
         let semantic_clearcoat = clamp(material_traits1.w, 0.0, 1.0);
         let grazing = pow(clamp(1.0 - n_dot_v, 0.0, 1.0), 2.6);
-        let glint_noise = surface_noise_value(in.world_pos * 10.0 + N * 1.7, 71.0);
+        let glint_noise = material_noise_value(in.world_pos * 10.0 + N * 1.7, 71.0);
         let finish_wet_sheen = wet_finish_weight * (0.060 + grazing * 0.115);
         let finish_polish_sheen = polished_finish_weight * (0.028 + grazing * 0.055);
         let wet_sheen = env_color * (wet_weight * 0.050 + translucent_weight * 0.065 + finish_wet_sheen + finish_polish_sheen)
@@ -2433,7 +2417,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
             * (0.035 + pow(max(1.0 - roughness, 0.0), 1.8) * 0.075 + grazing * 0.135)
             * (0.72 + glint_noise * 0.52)
             * material_style_strength;
-        let matte_tooth = (surface_noise_value(in.world_pos * 6.5 + vec3<f32>(13.0, 3.0, 7.0), 41.0) * 2.0 - 1.0)
+        let matte_tooth = (material_noise_value(in.world_pos * 6.5 + vec3<f32>(13.0, 3.0, 7.0), 41.0) * 2.0 - 1.0)
             * matte_weight
             * material_style_strength;
         lit_color += cool_shadow + matte_scatter + polish_env + wet_sheen + puddle_gloss + semantic_sss + semantic_fuzz_light + semantic_family_sheen + clearcoat_gloss;
@@ -2482,7 +2466,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let paint_uv = mix(wall_uv, floor_uv, floor_weight);
         let grid_frac = abs(fract(paint_uv) - vec2<f32>(0.5));
         let grid_dist = 0.5 - max(grid_frac.x, grid_frac.y);
-        let contact_noise = 0.72 + surface_noise_value(in.world_pos * 5.1 + vec3<f32>(5.0, 11.0, 17.0), 53.0) * 0.46;
+        let contact_noise = 0.72 + material_noise_value(in.world_pos * 5.1 + vec3<f32>(5.0, 11.0, 17.0), 53.0) * 0.46;
         let world_crease = (1.0 - smoothstep(0.010, 0.075, grid_dist))
             * contact_noise
             * (vertical_weight * 0.030 + floor_weight * 0.012)
@@ -7036,21 +7020,16 @@ impl VM {
                         },
                         wgpu::VertexAttribute {
                             offset: 64,
-                            shader_location: 13,
-                            format: wgpu::VertexFormat::Float32x4,
-                        },
-                        wgpu::VertexAttribute {
-                            offset: 80,
                             shader_location: 14,
                             format: wgpu::VertexFormat::Uint32x4,
                         },
                         wgpu::VertexAttribute {
-                            offset: 96,
+                            offset: 80,
                             shader_location: 10,
                             format: wgpu::VertexFormat::Float32x2,
                         },
                         wgpu::VertexAttribute {
-                            offset: 112,
+                            offset: 96,
                             shader_location: 11,
                             format: wgpu::VertexFormat::Uint32x4,
                         },
@@ -7140,21 +7119,16 @@ impl VM {
                             },
                             wgpu::VertexAttribute {
                                 offset: 64,
-                                shader_location: 13,
-                                format: wgpu::VertexFormat::Float32x4,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 80,
                                 shader_location: 14,
                                 format: wgpu::VertexFormat::Uint32x4,
                             },
                             wgpu::VertexAttribute {
-                                offset: 96,
+                                offset: 80,
                                 shader_location: 10,
                                 format: wgpu::VertexFormat::Float32x2,
                             },
                             wgpu::VertexAttribute {
-                                offset: 112,
+                                offset: 96,
                                 shader_location: 11,
                                 format: wgpu::VertexFormat::Uint32x4,
                             },
@@ -7247,21 +7221,16 @@ impl VM {
                             },
                             wgpu::VertexAttribute {
                                 offset: 64,
-                                shader_location: 13,
-                                format: wgpu::VertexFormat::Float32x4,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 80,
                                 shader_location: 14,
                                 format: wgpu::VertexFormat::Uint32x4,
                             },
                             wgpu::VertexAttribute {
-                                offset: 96,
+                                offset: 80,
                                 shader_location: 10,
                                 format: wgpu::VertexFormat::Float32x2,
                             },
                             wgpu::VertexAttribute {
-                                offset: 112,
+                                offset: 96,
                                 shader_location: 11,
                                 format: wgpu::VertexFormat::Uint32x4,
                             },
@@ -7351,21 +7320,16 @@ impl VM {
                             },
                             wgpu::VertexAttribute {
                                 offset: 64,
-                                shader_location: 13,
-                                format: wgpu::VertexFormat::Float32x4,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 80,
                                 shader_location: 14,
                                 format: wgpu::VertexFormat::Uint32x4,
                             },
                             wgpu::VertexAttribute {
-                                offset: 96,
+                                offset: 80,
                                 shader_location: 10,
                                 format: wgpu::VertexFormat::Float32x2,
                             },
                             wgpu::VertexAttribute {
-                                offset: 112,
+                                offset: 96,
                                 shader_location: 11,
                                 format: wgpu::VertexFormat::Uint32x4,
                             },
@@ -7631,21 +7595,16 @@ impl VM {
                             },
                             wgpu::VertexAttribute {
                                 offset: 64,
-                                shader_location: 13,
-                                format: wgpu::VertexFormat::Float32x4,
-                            },
-                            wgpu::VertexAttribute {
-                                offset: 80,
                                 shader_location: 14,
                                 format: wgpu::VertexFormat::Uint32x4,
                             },
                             wgpu::VertexAttribute {
-                                offset: 96,
+                                offset: 80,
                                 shader_location: 10,
                                 format: wgpu::VertexFormat::Float32x2,
                             },
                             wgpu::VertexAttribute {
-                                offset: 112,
+                                offset: 96,
                                 shader_location: 11,
                                 format: wgpu::VertexFormat::Uint32x4,
                             },
@@ -9488,10 +9447,6 @@ impl VM {
                         // Validate blend_weights length matches vertices
                         let has_valid_blend = poly.tile_id2.is_some()
                             && poly.blend_weights.len() == poly.vertices.len();
-                        let surface_noise = poly
-                            .surface_noise
-                            .map(|noise| [noise.scale, noise.amount, noise.seed, 1.0])
-                            .unwrap_or([0.0, 0.0, 0.0, 0.0]);
                         let paint_normal = poly_nrm
                             .iter()
                             .copied()
@@ -9538,7 +9493,6 @@ impl VM {
                                 opacity: poly.opacity,
                                 normal: [n[0], n[1], n[2]],
                                 _pad2: 0.0,
-                                surface_noise,
                                 paint_geo,
                                 paint_uv,
                                 _pad3: [0.0, 0.0],
@@ -9571,7 +9525,6 @@ impl VM {
                     opacity: 1.0,
                     normal: [0.0, 0.0, 1.0],
                     _pad2: 0.0,
-                    surface_noise: [0.0, 0.0, 0.0, 0.0],
                     paint_geo: [0, 0, 0, 0],
                     paint_uv: [0.0, 0.0],
                     _pad3: [0.0, 0.0],
@@ -9967,10 +9920,6 @@ impl VM {
                             }
                             let has_valid_blend = poly.tile_id2.is_some()
                                 && poly.blend_weights.len() == poly.vertices.len();
-                            let surface_noise = poly
-                                .surface_noise
-                                .map(|noise| [noise.scale, noise.amount, noise.seed, 1.0])
-                                .unwrap_or([0.0, 0.0, 0.0, 0.0]);
                             let paint_normal = poly_nrm
                                 .iter()
                                 .copied()
@@ -10017,7 +9966,6 @@ impl VM {
                                     opacity: poly.opacity,
                                     normal: [n[0], n[1], n[2]],
                                     _pad2: 0.0,
-                                    surface_noise,
                                     paint_geo,
                                     paint_uv,
                                     _pad3: [0.0, 0.0],
@@ -10143,7 +10091,6 @@ impl VM {
                         opacity,
                         normal: [normal_or_tint.x, normal_or_tint.y, normal_or_tint.z],
                         _pad2: 0.0,
-                        surface_noise: [0.0, 0.0, 0.0, 0.0],
                         paint_geo: [0, 0, 0, 0],
                         paint_uv: [0.0, 0.0],
                         _pad3: [0.0, 0.0],
@@ -10190,7 +10137,6 @@ impl VM {
                         opacity,
                         normal: [nn.x, nn.y, nn.z],
                         _pad2: 0.0,
-                        surface_noise: [0.0, 0.0, 0.0, 0.0],
                         paint_geo: [0, 0, 0, 0],
                         paint_uv: [0.0, 0.0],
                         _pad3: [0.0, 0.0],
@@ -10216,7 +10162,6 @@ impl VM {
                     opacity: 1.0,
                     normal: [0.0, 0.0, 1.0],
                     _pad2: 0.0,
-                    surface_noise: [0.0, 0.0, 0.0, 0.0],
                     paint_geo: [0, 0, 0, 0],
                     paint_uv: [0.0, 0.0],
                     _pad3: [0.0, 0.0],

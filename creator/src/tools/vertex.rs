@@ -370,7 +370,9 @@ impl Tool for VertexTool {
                 } else {
                     if ui.shift {
                         // Add a new vertex
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                        if let Some(render_view) =
+                            crate::utils::map_editor_render_view(ui, server_ctx)
+                        {
                             if server_ctx.editor_view_mode == EditorViewMode::D2 {
                                 let prev = map.clone();
                                 let dim = *render_view.dim();
@@ -560,7 +562,8 @@ impl Tool for VertexTool {
                         self.click_pos_3d = server_ctx.geo_hit_pos;
                     }
 
-                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
+                    {
                         let dim = *render_view.dim();
                         let screen_uv = [
                             coord.x as f32 / dim.width as f32,
@@ -594,7 +597,9 @@ impl Tool for VertexTool {
 
                     // Compute initial ray intersection on the drag plane at click time
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                        if let Some(render_view) = ui.get_render_view("PolyView") {
+                        if let Some(render_view) =
+                            crate::utils::map_editor_render_view(ui, server_ctx)
+                        {
                             let dim = *render_view.dim();
                             let screen_uv = [
                                 coord.x as f32 / dim.width as f32,
@@ -647,7 +652,8 @@ impl Tool for VertexTool {
 
                 if self.click_selected {
                     // If we selected a vertex, drag means we move all selected vertices
-                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
+                    {
                         let dim = *render_view.dim();
 
                         if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -706,7 +712,9 @@ impl Tool for VertexTool {
                                 }
                             };
 
-                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                            if let Some(render_view) =
+                                crate::utils::map_editor_render_view(ui, server_ctx)
+                            {
                                 let dim = *render_view.dim();
                                 let screen_uv = [
                                     coord.x as f32 / dim.width as f32,
@@ -784,7 +792,9 @@ impl Tool for VertexTool {
                             let plane = server_ctx.gizmo_mode;
 
                             // Get current mouse ray and intersect with drag plane
-                            if let Some(render_view) = ui.get_render_view("PolyView") {
+                            if let Some(render_view) =
+                                crate::utils::map_editor_render_view(ui, server_ctx)
+                            {
                                 let dim = *render_view.dim();
                                 let screen_uv = [
                                     coord.x as f32 / dim.width as f32,
@@ -887,7 +897,9 @@ impl Tool for VertexTool {
                             }
                         }
                     }
-                } else if let Some(render_view) = ui.get_render_view("PolyView") {
+                } else if let Some(render_view) =
+                    crate::utils::map_editor_render_view(ui, server_ctx)
+                {
                     if detail_mode_3d {
                         crate::editor::RUSTERIX.write().unwrap().set_dirty();
                         return None;
@@ -1010,7 +1022,8 @@ impl Tool for VertexTool {
                 }
 
                 if server_ctx.editor_view_mode == EditorViewMode::D2 {
-                    if let Some(render_view) = ui.get_render_view("PolyView") {
+                    if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
+                    {
                         let dim = *render_view.dim();
                         let h = server_ctx.geometry_at(
                             Vec2::new(dim.width as f32, dim.height as f32),
