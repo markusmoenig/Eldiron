@@ -33,6 +33,20 @@ struct U3D {
 @group(0) @binding(2) var atlas_tex: texture_2d<f32>;
 @group(0) @binding(3) var atlas_smp: sampler;
 @group(0) @binding(14) var prev_layer: texture_2d<f32>;
+struct MaterialTableBuf { data: array<vec4<f32>> };
+@group(0) @binding(15) var<storage, read> material_table: MaterialTableBuf;
+@group(0) @binding(16) var paint_color_tex: texture_2d<f32>;
+@group(0) @binding(17) var paint_material_tex: texture_2d<u32>;
+struct SurfacePaintEntry {
+  geo: vec4<u32>,
+  uv_origin: vec2<i32>,
+  uv_size: vec2<u32>,
+  atlas_rect: vec4<u32>,
+};
+// Paint-entry metadata and organic billboard data share one storage buffer so Compute3D stays
+// within the eight-storage-buffer limit exposed by baseline Metal/WebGPU adapters.
+struct Compute3DAuxData { data: array<u32> };
+@group(0) @binding(18) var<storage, read> compute3d_aux: Compute3DAuxData;
 
 struct LightWGSL {
   header:   vec4<u32>,  // [light_type, emitting, _, _]
@@ -210,7 +224,10 @@ struct Vert3D {
   tile_index2: u32,                         // offset 36, size 4 (secondary texture for blending)
   blend_factor: f32,                        // offset 40, size 4 (0.0=primary, 1.0=secondary)
   opacity: f32,                             // offset 44, size 4 (per-geometry fade)
-  normal: vec3<f32>, _pad2: f32             // offset 48, size 16
+  normal: vec3<f32>, _pad2: f32,            // offset 48, size 16
+  paint_geo: vec4<u32>,                     // offset 64, size 16
+  paint_uv: vec2<f32>, _pad3: vec2<f32>,    // offset 80, size 16
+  paint_geo_fallback: vec4<u32>              // offset 96, size 16
 };
 struct Verts3D { data: array<Vert3D> };
 struct Indices { data: array<u32> };
@@ -297,6 +314,15 @@ fn clamp_index_u(i: u32, len: u32) -> u32 {
     return select(0u, min(i, max(len, 1u) - 1u), len > 0u);
 }
 
+const TILE_INDEX_AVATAR_FLAG: u32 = 0x80000000u;
+const TILE_INDEX_CLAMP_UV_FLAG: u32 = 0x40000000u;
+const TILE_INDEX_BILLBOARD_FLAG: u32 = 0x20000000u;
+const TILE_INDEX_BLOCK_SUN_FLAG: u32 = 0x10000000u;
+const TILE_INDEX_PARTICLE_FLAG: u32 = 0x08000000u;
+const TILE_INDEX_FLAGS_MASK: u32 =
+  TILE_INDEX_AVATAR_FLAG | TILE_INDEX_CLAMP_UV_FLAG | TILE_INDEX_BILLBOARD_FLAG |
+  TILE_INDEX_BLOCK_SUN_FLAG | TILE_INDEX_PARTICLE_FLAG;
+
 // ---- UV wrapping helpers (GPU-side repeat inside atlas rect) ----
 // OBJECT-UV bary mapping into atlas
 fn sv_tile_frame(tile_index: u32) -> TileFrame {
@@ -304,7 +330,8 @@ fn sv_tile_frame(tile_index: u32) -> TileFrame {
   if (meta_len == 0u) {
     return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
   }
-  let idx = min(tile_index, meta_len - 1u);
+  let clean_tile_index = tile_index & (~TILE_INDEX_FLAGS_MASK);
+  let idx = min(clean_tile_index, meta_len - 1u);
   let anim = tile_anims.data[idx];
   let count = max(anim.frame_count, 1u);
   let frames_len = arrayLength(&tile_frames.data);
@@ -356,7 +383,8 @@ fn sv_tri_sample_rmoe(i0: u32, i1: u32, i2: u32, bu: f32, bv: f32) -> vec4<f32> 
 // Sample albedo for a specific tile (not triangle-based)
 fn sv_sample_tile_albedo(tile_index: u32, uv: vec2<f32>) -> vec4<f32> {
   let frame = sv_tile_frame(tile_index);
-  var uv_wrapped = fract(uv);
+  let clamp_uv = (tile_index & TILE_INDEX_CLAMP_UV_FLAG) != 0u;
+  var uv_wrapped = select(fract(uv), clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999)), clamp_uv);
   uv_wrapped.y = fract(1.0 - uv_wrapped.y);
   let uv_atlas = frame.ofs + uv_wrapped * frame.scale;
 
@@ -372,7 +400,8 @@ fn sv_sample_tile_albedo(tile_index: u32, uv: vec2<f32>) -> vec4<f32> {
 // Sample material (RMOE) for a specific tile
 fn sv_sample_tile_rmoe(tile_index: u32, uv: vec2<f32>) -> vec4<f32> {
   let frame = sv_tile_frame(tile_index);
-  var uv_wrapped = fract(uv);
+  let clamp_uv = (tile_index & TILE_INDEX_CLAMP_UV_FLAG) != 0u;
+  var uv_wrapped = select(fract(uv), clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999)), clamp_uv);
   uv_wrapped.y = fract(1.0 - uv_wrapped.y);
   let uv_atlas = frame.ofs + uv_wrapped * frame.scale;
 
@@ -382,7 +411,13 @@ fn sv_sample_tile_rmoe(tile_index: u32, uv: vec2<f32>) -> vec4<f32> {
   let uv_max = frame.ofs + frame.scale - pad_uv;
   let uv_clamped = clamp(uv_atlas, uv_min, uv_max);
 
-  return textureSampleLevel(atlas_mat_tex, atlas_smp, uv_clamped, 0.0);
+  // Material bytes contain exact semantic ids and packed normals; filtering corrupts markers.
+  let texel = vec2<i32>(clamp(
+    floor(uv_clamped * atlas_dims),
+    vec2<f32>(0.0),
+    atlas_dims - vec2<f32>(1.0)
+  ));
+  return textureLoad(atlas_mat_tex, texel, 0);
 }
 
 // Blend albedo between two textures based on vertex blend factors

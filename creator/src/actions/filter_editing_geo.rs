@@ -41,13 +41,8 @@ impl Action for FilterEditingGeo {
         ActionRole::Editor
     }
 
-    fn is_applicable(
-        &self,
-        _map: &Map,
-        _ctx: &mut TheContext,
-        _server_ctx: &ServerContext,
-    ) -> bool {
-        true
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+        !server_ctx.pc.is_prefab()
     }
 
     fn load_params_project(&mut self, _project: &Project, server_ctx: &mut ServerContext) {

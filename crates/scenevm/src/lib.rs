@@ -1254,10 +1254,11 @@ impl SceneVM {
                     });
 
                     // Begin render pass
-                    // First layer: clear surface to black (layer texture has background baked in)
+                    // First layer: clear to transparent. Ordinary base layers are opaque,
+                    // while dynamic-only bake overlays must preserve their alpha.
                     // Subsequent layers: load existing content and blend on top
                     let load_op = if i == 0 {
-                        wgpu::LoadOp::Clear(wgpu::Color::BLACK)
+                        wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
                     } else {
                         wgpu::LoadOp::Load
                     };
@@ -1490,6 +1491,116 @@ impl SceneVM {
     /// Returns whether a VM layer is enabled.
     pub fn is_layer_enabled(&self, index: usize) -> Option<bool> {
         self.vm_ref_by_index(index).map(|vm| vm.is_enabled())
+    }
+
+    /// Enable or suppress static Raster3D triangles while retaining the
+    /// layer's dynamic billboards, particles, and meshes.
+    pub fn set_layer_raster3d_static_geometry_enabled(
+        &mut self,
+        index: usize,
+        enabled: bool,
+    ) -> bool {
+        let Some(vm) = self.vm_mut_by_index(index) else {
+            return false;
+        };
+        vm.set_raster3d_static_geometry_enabled(enabled);
+        true
+    }
+
+    /// Install an RGBA8 frame as a frozen layer presentation. The layer keeps
+    /// compositing this texture while its normal renderer is paused, allowing
+    /// higher layers such as editor gizmos to remain live.
+    pub fn set_layer_frozen_rgba(
+        &mut self,
+        index: usize,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+    ) -> bool {
+        let Some(gpu) = self.gpu.as_ref() else {
+            return false;
+        };
+        let device = gpu.device.clone();
+        let queue = gpu.queue.clone();
+        let mut texture = Texture::new(width.max(1), height.max(1));
+        let needed = texture.width as usize * texture.height as usize * 4;
+        texture.data.resize(needed, 0);
+        let copy_len = rgba.len().min(needed);
+        texture.data[..copy_len].copy_from_slice(&rgba[..copy_len]);
+        texture.ensure_gpu_with(&device);
+        texture.upload_to_gpu_with(&device, &queue);
+        let Some(vm) = self.vm_mut_by_index(index) else {
+            return false;
+        };
+        vm.set_frozen_frame_texture(Some(texture));
+        true
+    }
+
+    /// Resume normal rendering for a layer while leaving its ordinary layer
+    /// resources intact.
+    pub fn clear_layer_frozen_rgba(&mut self, index: usize) -> bool {
+        let Some(vm) = self.vm_mut_by_index(index) else {
+            return false;
+        };
+        vm.set_frozen_frame_texture(None);
+        true
+    }
+
+    pub fn layer_has_frozen_rgba(&self, index: usize) -> bool {
+        self.vm_ref_by_index(index)
+            .map(|vm| vm.has_frozen_frame_texture())
+            .unwrap_or(false)
+    }
+
+    /// Select the deterministic progressive sample rendered by a layer.
+    pub fn set_layer_progressive_sample_index(
+        &mut self,
+        index: usize,
+        sample_index: Option<u32>,
+    ) -> bool {
+        let Some(vm) = self.vm_mut_by_index(index) else {
+            return false;
+        };
+        vm.set_progressive_sample_index(sample_index);
+        true
+    }
+
+    pub fn layer_progressive_sample_index(&self, index: usize) -> Option<u32> {
+        self.vm_ref_by_index(index)
+            .and_then(VM::progressive_sample_index)
+    }
+
+    pub fn layer_scene_bounds_3d(&self, index: usize) -> Option<(vek::Vec3<f32>, vek::Vec3<f32>)> {
+        self.vm_ref_by_index(index)?.scene_bounds_3d()
+    }
+
+    pub fn layer_scene_projected_bounds_3d(
+        &self,
+        index: usize,
+        right: vek::Vec3<f32>,
+        up: vek::Vec3<f32>,
+    ) -> Option<(f32, f32, f32, f32)> {
+        self.vm_ref_by_index(index)?
+            .scene_projected_bounds_3d(right, up)
+    }
+
+    /// Enable the layer's two-texture accumulation target.
+    pub fn set_layer_ping_pong_enabled(&mut self, index: usize, enabled: bool) -> bool {
+        let Some(vm) = self.vm_mut_by_index(index) else {
+            return false;
+        };
+        vm.set_ping_pong_enabled(enabled);
+        true
+    }
+
+    /// Read back the current composited texture of one layer. This is
+    /// synchronous on native and is intended for editor bake commits.
+    pub fn capture_layer_rgba(&mut self, index: usize) -> Option<(u32, u32, Vec<u8>)> {
+        let gpu = self.gpu.as_ref()?;
+        let device = gpu.device.clone();
+        let queue = gpu.queue.clone();
+        self.vm_mut_by_index(index)?
+            .download_composite_rgba(&device, &queue)
     }
 
     /// Toggle verbose per-layer logging for uploads/atlas/grid events.

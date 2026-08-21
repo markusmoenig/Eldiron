@@ -24,6 +24,8 @@ pub mod intodata;
 pub mod map;
 pub mod material_library;
 pub mod material_profile;
+#[cfg(feature = "graphics")]
+pub mod orthographic_bake;
 pub mod particleharness;
 pub mod procedural;
 pub mod rasterizer;
@@ -125,6 +127,10 @@ pub use crate::client::{
     parser::{MsgParser, Tok},
 };
 pub use crate::command::Command;
+#[cfg(feature = "graphics")]
+pub use crate::orthographic_bake::{
+    OrthographicBakeController, OrthographicBakeStatus, OrthographicBakeWork,
+};
 #[cfg(feature = "graphics")]
 pub use crate::render_settings::RenderSettings;
 #[cfg(feature = "graphics")]

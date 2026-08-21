@@ -4,17 +4,10 @@
 
 ### Creator
 
-- Added a resizable, tool-driven lower dock to the maximized **Prefabs** editor plus the standard action list.
-- Added a hierarchical Prefab / part / Geometry Object tree, stable part creation, selection, naming, safe removal, and pivot authoring.
-- Added editable Prefab part parenting with cycle protection, Geometry Object reassignment between stable parts, and precise pivots derived from selected vertices, faces, or objects.
-- Added the first custom-door authoring slice: bind a swinging **Door** component to a part, create a stable interaction target from selected faces, and preview open/closed states without changing source geometry.
-- Linked door instances now share source geometry and paint while keeping independent runtime open/closed state and rotating around the authored hinge pivot.
-- Added end-to-end 3D door interaction: rendered linked-instance face hits resolve to stable Prefab targets, advertise **Open** or **Close**, validate range and component bindings on the server, update only the selected instance, and incrementally rebuild affected visual and collision chunks.
-- Added **3D Paint** to the Prefab tool palette; selecting it switches the lower panel to the complete shared Paint UI and event implementation for source-local painting shared by linked instances.
+- Added the first complete **Prefab authoring workflow**: an isolated maximized editor with geometry and shared 3D Paint tools, a hierarchical part/object outliner, parenting, object reassignment, pivots, a full-width inspector, a grouped part/door toolbar, and the standard action list. Linked instances share source geometry and paint while retaining independent state; Door components support multi-face interaction targets, non-destructive previews, server-validated Open/Close interaction, and incremental visual and collision updates. Prefab mode also correctly scopes geometry selection and hides region-only geometry filters and Post/Lighting features, restoring the previous post-processing state on exit.
 - Added **Clear Surface Detail** to remove all surface-line guides from selected faces or from the host faces identified by selected guides in Edge mode, while preserving paint, materials, and generated geometry.
 - Added **C: Select Contour** in the 3D Edge Tool to expand a selected rim edge into its closed coplanar boundary, including irregular and arched openings.
 - Added **Create Fitted Geometry** to turn two selected opening contours and their reveal band into an independent capped solid with the opening's exact shape and depth.
-- Moved the Prefab part-action toolbar to the top of its editor panel.
 - Removed the obsolete **Surface Noise** action and its dedicated face data and renderer path; persistent surface detail now belongs to **3D Paint**.
 - Removed **Create Pattern**; surface patterns are authored through **3D Paint** instead of a specialized geometry action.
 - Removed **Cut Profile** to keep mesh editing centered on universal geometry operations rather than one-off shape actions.
@@ -25,10 +18,6 @@
 
 - Fixed **Clear Surface Detail** leaving stale guide lines visible until the next 3D overlay refresh.
 - Fixed **L: Edge Loop** treating selection expansion as a topology edit and unnecessarily rebuilding the scene.
-- Fixed Vertex, Edge, and Face selection and manipulation in the isolated **Prefabs** editor.
-- Hidden the region-only **Post** and **Lighting** preview actions while editing Prefabs.
-- Disabled editor post-processing while the isolated Prefab editor is open and restored its previous enabled state on exit.
-- Fixed **Preview Door** updating only the selection overlay instead of rebuilding the changed Prefab geometry in the isolated editor scene.
 
 ---
 

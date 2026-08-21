@@ -13,6 +13,9 @@ impl Default for ActionList {
 impl ActionList {
     pub fn new() -> Self {
         let actions: Vec<Box<dyn Action>> = vec![
+            Box::new(crate::actions::orthographic_bake::RenderOrthographicBake::new()),
+            Box::new(crate::actions::orthographic_bake::ToggleOrthographicBakeVisibility::new()),
+            Box::new(crate::actions::orthographic_bake::ClearOrthographicBake::new()),
             Box::new(crate::actions::editing_camera::EditingCamera::new()),
             Box::new(crate::actions::firstp_camera::FirstPCamera::new()),
             Box::new(crate::actions::iso_camera::IsoCamera::new()),

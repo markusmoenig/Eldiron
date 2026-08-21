@@ -780,6 +780,7 @@ pub mod make_sector_rectangular;
 pub mod minimize;
 pub mod new_tile;
 pub mod orbit_camera;
+pub mod orthographic_bake;
 pub mod prefabs;
 pub mod remap_tile;
 pub mod split;

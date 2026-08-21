@@ -89,53 +89,45 @@ impl PrefabsEditorDock {
         layout.set_background_color(None);
         layout.set_margin(Vec4::new(6, 2, 6, 2));
         layout.set_padding(5);
-        for (id, icon, text, status) in [
+        for (id, text, status) in [
             (
                 PART_CREATE,
-                Some("icon_role_add"),
                 fl!("prefab_editor_create_part"),
                 fl!("status_prefab_editor_create_part"),
             ),
             (
-                PART_SET_PIVOT,
-                None,
-                fl!("prefab_editor_set_pivot"),
-                fl!("status_prefab_editor_set_pivot"),
-            ),
-            (
                 PART_REMOVE,
-                Some("icon_role_remove"),
                 fl!("prefab_editor_remove_part"),
                 fl!("status_prefab_editor_remove_part"),
             ),
             (
+                PART_SET_PIVOT,
+                fl!("prefab_editor_set_pivot"),
+                fl!("status_prefab_editor_set_pivot"),
+            ),
+            (
                 PART_CONFIGURE_DOOR,
-                None,
                 fl!("prefab_editor_configure_door"),
                 fl!("status_prefab_editor_configure_door"),
             ),
             (
                 PART_CREATE_TARGET,
-                None,
                 fl!("prefab_editor_create_target"),
                 fl!("status_prefab_editor_create_target"),
             ),
             (
                 PART_PREVIEW_DOOR,
-                None,
                 fl!("prefab_editor_preview_door"),
                 fl!("status_prefab_editor_preview_door"),
             ),
         ] {
             let mut button = TheTraybarButton::new(TheId::named(id));
-            if let Some(icon) = icon {
-                button.set_icon_name(icon.to_string());
-            }
             button.set_text(text);
             button.set_status_text(&status);
             button.set_fixed_size(false);
             layout.add_widget(Box::new(button));
         }
+        layout.set_reverse_index(Some(3));
         canvas.set_layout(layout);
         canvas
     }
@@ -155,38 +147,45 @@ impl PrefabsEditorDock {
         inspector.set_text_align(TheHorizontalAlign::Right);
 
         let mut name = TheTextLineEdit::new(TheId::named(PART_NAME));
+        name.limiter_mut().set_max_width(i32::MAX);
         name.set_status_text(&fl!("status_prefab_editor_part_name"));
         inspector.add_pair(fl!("prefab_editor_part_name"), Box::new(name));
 
         let mut parent = TheDropdownMenu::new(TheId::named(PART_PARENT));
+        parent.limiter_mut().set_max_width(i32::MAX);
         parent.set_status_text(&fl!("status_prefab_editor_part_parent"));
         inspector.add_pair(fl!("prefab_editor_part_parent"), Box::new(parent));
 
         let mut assignment = TheDropdownMenu::new(TheId::named(PART_ASSIGNMENT));
+        assignment.limiter_mut().set_max_width(i32::MAX);
         assignment.set_status_text(&fl!("status_prefab_editor_part_assignment"));
         inspector.add_pair(fl!("prefab_editor_part_assignment"), Box::new(assignment));
 
         let mut pivot = TheTextLineEdit::new(TheId::named(PART_PIVOT));
+        pivot.limiter_mut().set_max_width(i32::MAX);
         pivot.set_disabled(true);
         inspector.add_pair(fl!("prefab_editor_part_pivot"), Box::new(pivot));
 
         let mut door_angle = TheTextLineEdit::new(TheId::named(PART_DOOR_ANGLE));
+        door_angle.limiter_mut().set_max_width(i32::MAX);
         door_angle.set_value(TheValue::Text("90".to_string()));
         door_angle.set_status_text(&fl!("status_prefab_editor_door_angle"));
         inspector.add_pair(fl!("prefab_editor_door_angle"), Box::new(door_angle));
 
         let mut behavior = TheTextLineEdit::new(TheId::named(PART_BEHAVIOR));
+        behavior.limiter_mut().set_max_width(i32::MAX);
         behavior.set_disabled(true);
         inspector.add_pair(fl!("prefab_editor_behavior"), Box::new(behavior));
 
         let mut targets = TheTextLineEdit::new(TheId::named(PART_TARGET_COUNT));
+        targets.limiter_mut().set_max_width(i32::MAX);
         targets.set_disabled(true);
         inspector.add_pair(fl!("prefab_editor_targets"), Box::new(targets));
 
         inspector_canvas.set_layout(inspector);
 
         let mut split = TheSharedHLayout::new(TheId::named("Prefab Parts Shared HLayout"));
-        split.set_shared_ratio(0.62);
+        split.set_shared_ratio(0.58);
         split.set_mode(TheSharedHLayoutMode::Shared);
         split.add_canvas(tree_canvas);
         split.add_canvas(inspector_canvas);
@@ -599,7 +598,7 @@ impl Dock for PrefabsEditorDock {
         lower_content.set_layout(stack);
 
         let mut lower = TheSharedHLayout::new(TheId::named("Prefab Editor Lower Shared HLayout"));
-        lower.set_shared_ratio(0.73);
+        lower.set_shared_ratio(0.77);
         lower.set_mode(TheSharedHLayoutMode::Shared);
         lower.add_canvas(lower_content);
         lower.add_canvas(crate::dockmanager::DockManager::action_canvas(

@@ -4477,6 +4477,7 @@ dependencies = [
 name = "rusterix"
 version = "0.93.0"
 dependencies = [
+ "base64",
  "bincode",
  "buildergraph",
  "bvh",

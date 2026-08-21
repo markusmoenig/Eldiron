@@ -9070,6 +9070,30 @@ impl TheTrait for Editor {
                                     dim.height as usize,
                                     editor_neutral_background,
                                 );
+                                if let Some(persisted) =
+                                    rusterix.take_orthographic_bake_persisted_update()
+                                {
+                                    region.map.orthographic_bake = persisted;
+                                    region.map.changed = region.map.changed.wrapping_add(1);
+                                    if self.active_session < self.sessions.len() {
+                                        self.sessions[self.active_session].dirty = true;
+                                    }
+                                }
+                                let bake_rendering = rusterix.orthographic_bake.is_rendering();
+                                let bake_progress = rusterix.orthographic_bake.progress_text();
+                                if bake_progress.is_some()
+                                    || self.server_ctx.background_progress.as_deref().is_some_and(
+                                        |text| {
+                                            text.starts_with("Bake")
+                                                || text.starts_with("Preparing orthographic bake")
+                                        },
+                                    )
+                                {
+                                    self.server_ctx.background_progress = bake_progress;
+                                }
+                                if bake_rendering {
+                                    ctx.ui.redraw_all = true;
+                                }
                             }
                         } else
                         // Draw the region map

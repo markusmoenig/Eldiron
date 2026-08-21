@@ -37,8 +37,7 @@ impl Action for ToggleEditingGeo {
     }
 
     fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
-        let _ = server_ctx;
-        true
+        !server_ctx.pc.is_prefab()
     }
 
     fn apply(

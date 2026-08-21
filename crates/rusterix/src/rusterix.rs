@@ -1,4 +1,7 @@
-use crate::{Command, EntityAction, PlayerCamera, SceneHandler, Surface, prelude::*};
+use crate::{
+    Command, EntityAction, OrthographicBakeController, PlayerCamera, SceneHandler, Surface,
+    prelude::*,
+};
 use indexmap::IndexMap;
 use scenevm::Atom;
 use theframework::prelude::*;
@@ -29,6 +32,9 @@ pub struct Rusterix {
 
     pub editor_preview_post_enabled: bool,
     pub editor_preview_lighting_enabled: bool,
+    pub orthographic_bake: OrthographicBakeController,
+    orthographic_bake_work_pixels: Vec<u8>,
+    orthographic_bake_overlay_pixels: Vec<u8>,
 }
 
 impl Default for Rusterix {
@@ -90,7 +96,45 @@ impl Rusterix {
             scene_handler,
             editor_preview_post_enabled: true,
             editor_preview_lighting_enabled: true,
+            orthographic_bake: OrthographicBakeController::default(),
+            orthographic_bake_work_pixels: Vec::new(),
+            orthographic_bake_overlay_pixels: Vec::new(),
         }
+    }
+
+    /// Start a progressive, world-tiled bake for an orthographic camera.
+    /// The previous committed frame remains available until the replacement
+    /// successfully completes.
+    pub fn request_orthographic_bake(&mut self, region_id: Uuid, samples: u32) {
+        self.scene_handler.vm.clear_layer_frozen_rgba(0);
+        self.scene_handler
+            .vm
+            .set_layer_progressive_sample_index(0, None);
+        self.scene_handler.vm.set_layer_ping_pong_enabled(0, false);
+        self.orthographic_bake.request_render(region_id, samples);
+    }
+
+    pub fn toggle_orthographic_bake_visibility(&mut self) -> Option<bool> {
+        let visible = self.orthographic_bake.toggle_visibility()?;
+        if !visible {
+            self.scene_handler.vm.clear_layer_frozen_rgba(0);
+        }
+        Some(visible)
+    }
+
+    pub fn clear_orthographic_bake(&mut self) {
+        self.orthographic_bake.clear();
+        self.scene_handler.vm.clear_layer_frozen_rgba(0);
+        self.scene_handler
+            .vm
+            .set_layer_progressive_sample_index(0, None);
+        self.scene_handler.vm.set_layer_ping_pong_enabled(0, false);
+    }
+
+    pub fn take_orthographic_bake_persisted_update(
+        &mut self,
+    ) -> Option<Option<crate::map::OrthographicBakeAsset>> {
+        self.orthographic_bake.take_persisted_update()
     }
 
     /// Set to 2D mode.
@@ -394,7 +438,136 @@ impl Rusterix {
         height: usize,
         editor_neutral_background: bool,
     ) {
-        self.apply_runtime_render_state(map, true);
+        // Baking always uses the authored/game lighting state. The editor's
+        // optional flat-lighting preview must not silently disable the sun in
+        // the persisted result.
+        let bake_rendering = self.orthographic_bake.is_rendering();
+        self.apply_runtime_render_state(map, !bake_rendering);
+
+        let camera = self
+            .client
+            .camera_d3
+            .as_scenevm_camera_for_surface(width as f32, height as f32);
+        self.orthographic_bake
+            .sync_persisted_asset(map.id, map.orthographic_bake.as_ref());
+        let scene_bounds = self.scene_handler.vm.layer_scene_projected_bounds_3d(
+            0,
+            camera.right.normalized(),
+            camera.up.normalized(),
+        );
+        let bake_work = self.orthographic_bake.prepare_work(
+            map.id,
+            width as u32,
+            height as u32,
+            camera,
+            scene_bounds,
+        );
+
+        let bake_work = match bake_work {
+            Ok(work) => work,
+            Err(error) => {
+                self.orthographic_bake.fail(error);
+                self.scene_handler
+                    .vm
+                    .set_layer_progressive_sample_index(0, None);
+                self.scene_handler.vm.set_layer_ping_pong_enabled(0, false);
+                None
+            }
+        };
+
+        if let Some(work) = bake_work {
+            self.scene_handler.vm.clear_layer_frozen_rgba(0);
+            self.scene_handler.vm.set_active_vm(0);
+            self.scene_handler.vm.execute(scenevm::Atom::ClearDynamics);
+            if work.sample == 0 {
+                self.scene_handler.vm.set_layer_ping_pong_enabled(0, true);
+            }
+            self.scene_handler
+                .vm
+                .set_layer_progressive_sample_index(0, Some(work.sample));
+
+            let tile_len = work.tile_size as usize * work.tile_size as usize * 4;
+            self.orthographic_bake_work_pixels.resize(tile_len, 0);
+
+            self.client.draw_d3_with_camera_override(
+                map,
+                &mut self.orthographic_bake_work_pixels,
+                work.tile_size as usize,
+                work.tile_size as usize,
+                &self.assets,
+                &mut self.scene_handler,
+                editor_neutral_background,
+                Some(work.camera),
+                true,
+                false,
+            );
+            // The bake deliberately excludes characters, editor preview icons,
+            // particles, and doors. Rebuild them for the next live overlay pass.
+            self.scene_handler.mark_dynamics_dirty();
+
+            if self.orthographic_bake.finish_sample() {
+                let captured = self.scene_handler.vm.capture_layer_rgba(0);
+                self.scene_handler
+                    .vm
+                    .set_layer_progressive_sample_index(0, None);
+                self.scene_handler.vm.set_layer_ping_pong_enabled(0, false);
+
+                match captured {
+                    Some((_width, _height, rgba)) => {
+                        if let Err(error) = self.orthographic_bake.commit_current_tile(rgba) {
+                            self.orthographic_bake.fail(error);
+                        }
+                    }
+                    None => self
+                        .orthographic_bake
+                        .fail("The rendered bake could not be read back from the GPU."),
+                }
+            }
+
+            if let Some(composed) =
+                self.orthographic_bake
+                    .compose_rgba(map.id, width as u32, height as u32, &camera)
+            {
+                let copy_len = pixels.len().min(composed.len());
+                pixels[..copy_len].copy_from_slice(&composed[..copy_len]);
+            } else {
+                // Do not leave the previous committed bake (and any old baked
+                // editor symbols) in the viewport before the first new tile is ready.
+                pixels.fill(0);
+            }
+            return;
+        }
+
+        if let Some(mut composed) =
+            self.orthographic_bake
+                .compose_rgba(map.id, width as u32, height as u32, &camera)
+        {
+            self.scene_handler.vm.clear_layer_frozen_rgba(0);
+            self.orthographic_bake_overlay_pixels
+                .resize(width.saturating_mul(height).saturating_mul(4), 0);
+            self.orthographic_bake_overlay_pixels.fill(0);
+            self.client.draw_d3_dynamic_overlay(
+                map,
+                &mut self.orthographic_bake_overlay_pixels,
+                width,
+                height,
+                &self.assets,
+                &mut self.scene_handler,
+            );
+            blend_rgba_over(&mut composed, &self.orthographic_bake_overlay_pixels);
+            let copy_len = pixels.len().min(composed.len());
+            pixels[..copy_len].copy_from_slice(&composed[..copy_len]);
+            self.scene_handler
+                .vm
+                .set_layer_raster3d_static_geometry_enabled(0, true);
+            return;
+        }
+
+        self.scene_handler.vm.clear_layer_frozen_rgba(0);
+        self.scene_handler
+            .vm
+            .set_layer_raster3d_static_geometry_enabled(0, true);
+
         self.client.draw_d3(
             map,
             pixels,
@@ -450,18 +623,7 @@ impl Rusterix {
         says: Vec<crate::server::Say>,
         choices: Vec<crate::MultipleChoice>,
     ) {
-        self.apply_runtime_render_state(map, false);
-        let open_container_requests = self.server.get_open_container_requests(&map.id);
-        self.client
-            .process_open_container_requests(open_container_requests);
-        self.client.process_messages(map, says);
-        self.client.draw_game(
-            map,
-            &self.assets,
-            messages,
-            choices,
-            &mut self.scene_handler,
-        );
+        self.draw_game_with_widget_overlays(map, messages, says, choices, |_, _| false, |_, _| {});
     }
 
     /// Draw the game as the client sees it, with a callback that can update the
@@ -493,8 +655,8 @@ impl Rusterix {
         messages: Vec<crate::server::Message>,
         says: Vec<crate::server::Say>,
         choices: Vec<crate::MultipleChoice>,
-        widget_overlay: F,
-        post_widget_overlay: G,
+        mut widget_overlay: F,
+        mut post_widget_overlay: G,
     ) where
         F: FnMut(&mut crate::client::widget::game::GameWidget, &mut SceneHandler) -> bool,
         G: FnMut(&mut crate::client::widget::game::GameWidget, &mut SceneHandler),
@@ -504,14 +666,60 @@ impl Rusterix {
         self.client
             .process_open_container_requests(open_container_requests);
         self.client.process_messages(map, says);
+        self.orthographic_bake
+            .sync_persisted_asset(map.id, map.orthographic_bake.as_ref());
+        let bake = &self.orthographic_bake;
+        let region_id = map.id;
         self.client.draw_game_with_widget_overlays(
             map,
             &self.assets,
             messages,
             choices,
             &mut self.scene_handler,
-            widget_overlay,
-            post_widget_overlay,
+            |widget, scene_handler| {
+                let result = widget_overlay(widget, scene_handler);
+                let dim = *widget.buffer.dim();
+                if dim.width > 0 && dim.height > 0 {
+                    let camera = widget
+                        .camera_d3
+                        .as_scenevm_camera_for_surface(dim.width as f32, dim.height as f32);
+                    if bake.can_compose(region_id, &camera) {
+                        scene_handler.vm.clear_layer_frozen_rgba(0);
+                        scene_handler
+                            .vm
+                            .set_layer_raster3d_static_geometry_enabled(0, false);
+                        scene_handler.vm.set_active_vm(0);
+                        scene_handler
+                            .vm
+                            .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Raster3D));
+                        scene_handler
+                            .vm
+                            .execute(scenevm::Atom::SetBackground(vek::Vec4::zero()));
+                    }
+                }
+                result
+            },
+            |widget, scene_handler| {
+                let dim = *widget.buffer.dim();
+                if dim.width > 0 && dim.height > 0 {
+                    let camera = widget
+                        .camera_d3
+                        .as_scenevm_camera_for_surface(dim.width as f32, dim.height as f32);
+                    if let Some(mut composed) =
+                        bake.compose_rgba(region_id, dim.width as u32, dim.height as u32, &camera)
+                    {
+                        let dynamics = widget.buffer.pixels().to_vec();
+                        blend_rgba_over(&mut composed, &dynamics);
+                        let pixels = widget.buffer.pixels_mut();
+                        let copy_len = pixels.len().min(composed.len());
+                        pixels[..copy_len].copy_from_slice(&composed[..copy_len]);
+                    }
+                }
+                scene_handler
+                    .vm
+                    .set_layer_raster3d_static_geometry_enabled(0, true);
+                post_widget_overlay(widget, scene_handler);
+            },
         );
     }
 
@@ -675,5 +883,38 @@ impl Rusterix {
 
     pub fn set_tile_groups(&mut self, tile_groups: IndexMap<Uuid, TileGroup>) {
         self.assets.set_tile_groups(tile_groups);
+    }
+}
+
+fn blend_rgba_over(base: &mut [u8], overlay: &[u8]) {
+    for (dst, src) in base.chunks_exact_mut(4).zip(overlay.chunks_exact(4)) {
+        let alpha = src[3] as f32 / 255.0;
+        if alpha <= 0.0 {
+            continue;
+        }
+        let inverse = 1.0 - alpha;
+        // SceneVM's layer compositor has already premultiplied RGB while
+        // rendering onto its transparent surface.
+        for channel in 0..3 {
+            dst[channel] = (src[channel] as f32 + dst[channel] as f32 * inverse)
+                .round()
+                .clamp(0.0, 255.0) as u8;
+        }
+        dst[3] = ((src[3] as f32) + dst[3] as f32 * inverse)
+            .round()
+            .clamp(0.0, 255.0) as u8;
+    }
+}
+
+#[cfg(test)]
+mod bake_overlay_tests {
+    use super::blend_rgba_over;
+
+    #[test]
+    fn blends_scenevm_premultiplied_overlay_over_bake() {
+        let mut base = [100, 100, 100, 255];
+        let overlay = [50, 25, 0, 128];
+        blend_rgba_over(&mut base, &overlay);
+        assert_eq!(base, [100, 75, 50, 255]);
     }
 }

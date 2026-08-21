@@ -29,6 +29,8 @@ const BILLBOARD_ALPHA_CUTOFF: f32 = 0.08;
 const AVATAR_ALPHA_CUTOFF: f32 = 0.5;
 const SHADOW_OPAQUE_THRESHOLD: f32 = 0.5;
 const BILLBOARD_DEPTH_EPS: f32 = 0.002;
+const VM_FLAG_PROGRESSIVE_ACCUMULATION: u32 = 1u;
+const VM_FLAG_ORGANIC_VISIBLE: u32 = 2u;
 // Debug isolation toggles for billboard artifact triage.
 const DEBUG_BB_FLAT_UNLIT: bool = false;
 const DEBUG_BB_NO_SHADOW_CAST: bool = false;
@@ -125,21 +127,31 @@ struct Material {
     _pad0: f32,  // pad to 32 bytes (16-byte aligned)
 };
 
+fn semantic_material_rmoe(material_id: u32) -> vec4<f32> {
+    let index = min(material_id, 255u) * 3u;
+    if (index >= arrayLength(&material_table.data)) {
+        return vec4<f32>(0.5, 0.0, 1.0, 0.0);
+    }
+    return material_table.data[index];
+}
+
 fn unpack_material(mats: vec4<f32>) -> Material {
     // Convert RGBA back to packed u32
-    let packed = u32(mats.x * 255.0) | (u32(mats.y * 255.0) << 8u) |
-                 (u32(mats.z * 255.0) << 16u) | (u32(mats.w * 255.0) << 24u);
+    let packed = u32(round(mats.x * 255.0)) | (u32(round(mats.y * 255.0)) << 8u) |
+                 (u32(round(mats.z * 255.0)) << 16u) | (u32(round(mats.w * 255.0)) << 24u);
 
-    // Lower 16 bits: materials (4 bits each)
+    // Lower 16 bits: legacy packed material, or 0xFE + semantic material id.
     let mat_bits = packed & 0xFFFFu;
-    let roughness = clamp(
-        max(f32(mat_bits & 0xFu) / 15.0, MIN_ROUGHNESS),
-        MIN_ROUGHNESS,
-        1.0
+    var rmoe = vec4<f32>(
+        f32(mat_bits & 0xFu) / 15.0,
+        f32((mat_bits >> 4u) & 0xFu) / 15.0,
+        f32((mat_bits >> 8u) & 0xFu) / 15.0,
+        f32((mat_bits >> 12u) & 0xFu) / 15.0
     );
-    let metallic = f32((mat_bits >> 4u) & 0xFu) / 15.0;
-    let opacity = f32((mat_bits >> 8u) & 0xFu) / 15.0;
-    let emissive = f32((mat_bits >> 12u) & 0xFu) / 15.0;
+    if ((packed & 0xFFu) == 254u) {
+        rmoe = semantic_material_rmoe((packed >> 8u) & 0xFFu);
+    }
+    let roughness = clamp(max(rmoe.x, MIN_ROUGHNESS), MIN_ROUGHNESS, 1.0);
 
     // Upper 16 bits: normal X,Y (8 bits each)
     let norm_bits = (packed >> 16u) & 0xFFFFu;
@@ -147,7 +159,143 @@ fn unpack_material(mats: vec4<f32>) -> Material {
     let ny = (f32((norm_bits >> 8u) & 0xFFu) / 255.0) * 2.0 - 1.0;
     let nz = sqrt(max(0.0, 1.0 - nx * nx - ny * ny));
 
-    return Material(roughness, metallic, opacity, emissive, vec3<f32>(nx, ny, nz), 0.0);
+    return Material(roughness, rmoe.y, rmoe.z, rmoe.w, vec3<f32>(nx, ny, nz), 0.0);
+}
+
+struct SurfacePaintSample {
+    overlay: vec4<f32>,
+    material: vec4<u32>,
+};
+
+fn compute3d_aux_word(index: u32) -> u32 {
+    if (index >= arrayLength(&compute3d_aux.data)) { return 0u; }
+    return compute3d_aux.data[index];
+}
+
+fn surface_paint_entry(index: u32) -> SurfacePaintEntry {
+    let base = compute3d_aux_word(0u) + index * 12u;
+    return SurfacePaintEntry(
+        vec4<u32>(
+            compute3d_aux_word(base), compute3d_aux_word(base + 1u),
+            compute3d_aux_word(base + 2u), compute3d_aux_word(base + 3u)
+        ),
+        vec2<i32>(
+            bitcast<i32>(compute3d_aux_word(base + 4u)),
+            bitcast<i32>(compute3d_aux_word(base + 5u))
+        ),
+        vec2<u32>(compute3d_aux_word(base + 6u), compute3d_aux_word(base + 7u)),
+        vec4<u32>(
+            compute3d_aux_word(base + 8u), compute3d_aux_word(base + 9u),
+            compute3d_aux_word(base + 10u), compute3d_aux_word(base + 11u)
+        )
+    );
+}
+
+fn surface_paint_entry_hash(paint_geo: vec4<u32>, origin: vec2<i32>) -> u32 {
+    var hash = 2166136261u;
+    hash = (hash ^ paint_geo.x) * 16777619u;
+    hash = (hash ^ paint_geo.y) * 16777619u;
+    hash = (hash ^ paint_geo.z) * 16777619u;
+    hash = (hash ^ paint_geo.w) * 16777619u;
+    hash = (hash ^ bitcast<u32>(origin.x)) * 16777619u;
+    hash = (hash ^ bitcast<u32>(origin.y)) * 16777619u;
+    return hash;
+}
+
+fn sample_surface_paint_nearest(paint_coord: vec2<f32>, paint_geo: vec4<u32>) -> SurfacePaintSample {
+    let empty = SurfacePaintSample(vec4<f32>(0.0), vec4<u32>(0u));
+    let count = compute3d_aux_word(1u);
+    if (count == 0u) { return empty; }
+    if (count == 1u && all(surface_paint_entry(0u).uv_size == vec2<u32>(0u))) { return empty; }
+    let paint_px = vec2<i32>(floor(paint_coord * 32.0));
+    let chunk_size = 64;
+    let remainder = ((paint_px % vec2<i32>(chunk_size)) + vec2<i32>(chunk_size)) % vec2<i32>(chunk_size);
+    let origin = paint_px - remainder;
+    let mask = count - 1u;
+    var index = surface_paint_entry_hash(paint_geo, origin) & mask;
+    for (var probe = 0u; probe < count; probe = probe + 1u) {
+        let entry = surface_paint_entry(index);
+        if (all(entry.uv_size == vec2<u32>(0u))) { return empty; }
+        if (all(entry.geo == paint_geo) && all(entry.uv_origin == origin)) {
+            let local = vec2<u32>(paint_px - entry.uv_origin);
+            if (all(local < entry.uv_size)) {
+                let atlas_px = vec2<i32>(entry.atlas_rect.xy + local);
+                return SurfacePaintSample(
+                    textureLoad(paint_color_tex, atlas_px, 0),
+                    textureLoad(paint_material_tex, atlas_px, 0)
+                );
+            }
+            return empty;
+        }
+        index = (index + 1u) & mask;
+    }
+    return empty;
+}
+
+fn surface_paint_coordinate(world_pos: vec3<f32>, paint_geo: vec4<u32>) -> vec2<f32> {
+    let axis = paint_geo.w & 3u;
+    if (axis == 0u) { return world_pos.xz; }
+    if (axis == 1u) { return world_pos.zy; }
+    return world_pos.xy;
+}
+
+struct OrganicPrimaryHit {
+    hit: bool,
+    t: f32,
+    color: vec3<f32>,
+    _pad0: f32,
+};
+
+fn organic_word(index: u32) -> u32 {
+    if (index >= compute3d_aux_word(3u)) { return 0u; }
+    return compute3d_aux_word(compute3d_aux_word(2u) + index);
+}
+
+fn organic_f32(index: u32) -> f32 {
+    return bitcast<f32>(organic_word(index));
+}
+
+fn sample_organic_sprite(sprite_index: u32, uv: vec2<f32>) -> vec4<f32> {
+    if (sprite_index >= organic_word(1u)) { return vec4<f32>(0.0); }
+    let meta_base = organic_word(4u) + sprite_index * 4u;
+    let pixel_offset = organic_word(meta_base + 0u);
+    let width = max(organic_word(meta_base + 1u), 1u);
+    let height = max(organic_word(meta_base + 2u), 1u);
+    let x = min(u32(floor(clamp(uv.x, 0.0, 0.9999) * f32(width))), width - 1u);
+    let y = min(u32(floor(clamp(uv.y, 0.0, 0.9999) * f32(height))), height - 1u);
+    return sd_unpack_rgba8(organic_word(organic_word(5u) + pixel_offset + y * width + x));
+}
+
+// Generated vegetation and paint stamps are camera-facing sprites in the online renderer.
+// Trace them for the primary camera ray without multiplying the AO and shadow-ray workload.
+fn trace_organic_primary(ro: vec3<f32>, rd: vec3<f32>, tmax: f32) -> OrganicPrimaryHit {
+    var result = OrganicPrimaryHit(false, tmax, vec3<f32>(0.0), 0.0);
+    if ((U.vm_flags & VM_FLAG_ORGANIC_VISIBLE) == 0u) { return result; }
+    let instance_count = organic_word(2u);
+    let right_dir = normalize(U.cam_right.xyz);
+    let up_dir = normalize(U.cam_up.xyz);
+    let normal = normalize(cross(right_dir, up_dir));
+    let denom = dot(normal, rd);
+    if (abs(denom) < 1e-5) { return result; }
+    for (var instance_index = 0u; instance_index < instance_count; instance_index = instance_index + 1u) {
+        let base = organic_word(3u) + instance_index * 8u;
+        let center = vec3<f32>(organic_f32(base), organic_f32(base + 1u), organic_f32(base + 2u));
+        let t = dot(center - ro, normal) / denom;
+        if (t <= 0.0 || t >= result.t) { continue; }
+        let half_width = max(organic_f32(base + 3u) * 0.5, 0.0005);
+        let half_height = max(organic_f32(base + 4u) * 0.5, 0.0005);
+        let rel = (ro + rd * t) - center;
+        let u = dot(rel, right_dir) / half_width;
+        let v = dot(rel, up_dir) / half_height;
+        if (abs(u) > 1.0 || abs(v) > 1.0) { continue; }
+        let texel = sample_organic_sprite(
+            organic_word(base + 5u),
+            vec2<f32>(u * 0.5 + 0.5, 0.5 - v * 0.5)
+        );
+        if (texel.a <= BILLBOARD_ALPHA_CUTOFF) { continue; }
+        result = OrganicPrimaryHit(true, t, texel.rgb, 0.0);
+    }
+    return result;
 }
 
 // ===== Unified Hit System =====
@@ -489,7 +637,35 @@ fn trace_unified_skip_billboards_with_hidden(
         albedo = vec4<f32>(pow(albedo.rgb, vec3<f32>(2.2)), albedo.a);
 
         let mat_data = sv_tri_sample_rmoe_blended(i0, i1, i2, geo_hit.u, geo_hit.v);
-        let mat = unpack_material(mat_data);
+        var mat = unpack_material(mat_data);
+        let paint_uv = v0.paint_uv * w + v1.paint_uv * geo_hit.u + v2.paint_uv * geo_hit.v;
+        var paint = sample_surface_paint_nearest(paint_uv, v0.paint_geo);
+        if (paint.overlay.a <= 0.00001 && paint.material.a == 0u &&
+            any(v0.paint_geo_fallback != vec4<u32>(0u))) {
+            paint = sample_surface_paint_nearest(
+                surface_paint_coordinate(P, v0.paint_geo_fallback),
+                v0.paint_geo_fallback
+            );
+        }
+        let paint_color_weight = clamp(paint.overlay.a, 0.0, 1.0);
+        if (paint_color_weight > 0.001) {
+            let paint_linear = pow(max(paint.overlay.rgb, vec3<f32>(0.0)), vec3<f32>(2.2));
+            albedo = vec4<f32>(mix(albedo.rgb, paint_linear, paint_color_weight), albedo.a);
+        }
+        let paint_material_weight = f32(paint.material.a) * (1.0 / 255.0);
+        if (paint.material.r == 254u && paint_material_weight > 0.001) {
+            let paint_rmoe = semantic_material_rmoe(paint.material.g);
+            let replace = paint.material.b > 0u;
+            let base_opacity = mat.opacity;
+            mat.roughness = mix(mat.roughness, max(paint_rmoe.x, MIN_ROUGHNESS), paint_material_weight);
+            mat.metallic = mix(mat.metallic, paint_rmoe.y, paint_material_weight);
+            mat.opacity = select(base_opacity, mix(base_opacity, paint_rmoe.z, paint_material_weight), replace);
+            mat.emissive = mix(mat.emissive, paint_rmoe.w, paint_material_weight);
+            if (replace) {
+                mat.normal = vec3<f32>(0.0, 0.0, 1.0);
+                albedo.a = paint_color_weight;
+            }
+        }
 
         // Apply bump mapping only when the normal map actually perturbs XY.
         let bump_strength = select(1.0, U.gp5.z, U.gp5.z >= 0.0);
@@ -859,10 +1035,13 @@ fn shade_surface(
     ambient_strength: f32
 ) -> vec3<f32> {
     let P = hit.position;
-    let N = hit.normal;
     let albedo = hit.albedo;
     let mat = hit.material;
     let V = -rd;
+    // Eldiron geometry is intentionally double-sided. Some generated surfaces use
+    // opposite winding, so orient the ray-traced shading normal toward the viewer,
+    // matching Raster3D instead of silently suppressing the sun on those faces.
+    let N = select(-hit.normal, hit.normal, dot(hit.normal, V) >= 0.0);
 
     if (DEBUG_BB_FLAT_UNLIT && hit.hit_type == HIT_TYPE_BILLBOARD) {
         return albedo.rgb;
@@ -872,7 +1051,12 @@ fn shade_surface(
         return albedo.rgb * 2.0;
     }
 
-    let ao = compute_ao(P, N, P + vec3<f32>(f32(px), f32(py), 0.0));
+    let progressive_seed = select(
+        0.0,
+        f32(U.anim_counter) * 0.61803398875,
+        (U.vm_flags & VM_FLAG_PROGRESSIVE_ACCUMULATION) != 0u
+    );
+    let ao = compute_ao(P, N, P + vec3<f32>(f32(px), f32(py), progressive_seed));
     var direct = pbr_lighting(P, N, V, albedo.rgb, mat);
 
     let ambient_color = U.gp3.xyz;
@@ -899,11 +1083,20 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let py = gid.y;
     if (px >= U.fb_size.x || py >= U.fb_size.y) { return; }
 
-    // Build camera ray
-    let cam_uv = vec2<f32>(
+    // Build camera ray. Bake sessions enable deterministic subpixel jitter and
+    // average successive results through the existing ping-pong target.
+    let display_uv = vec2<f32>(
         (f32(px) + 0.5) / f32(U.fb_size.x),
         (f32(py) + 0.5) / f32(U.fb_size.y)
     );
+    let progressive = (U.vm_flags & VM_FLAG_PROGRESSIVE_ACCUMULATION) != 0u;
+    let jitter_seed = vec3<f32>(f32(px), f32(py), f32(U.anim_counter));
+    let jitter = vec2<f32>(
+        hash13(jitter_seed + vec3<f32>(0.17, 1.73, 4.19)),
+        hash13(jitter_seed + vec3<f32>(7.31, 2.47, 0.83))
+    ) - vec2<f32>(0.5);
+    let jitter_uv = jitter / vec2<f32>(f32(U.fb_size.x), f32(U.fb_size.y));
+    let cam_uv = display_uv + select(vec2<f32>(0.0), jitter_uv, progressive);
     let ray = cam_ray(cam_uv);
     let ro = ray.ro;
     let rd = normalize(ray.rd);
@@ -919,6 +1112,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     var traveled = 0.0;
     var skip_mask: u32 = 0u;
     var skip_billboard_index: u32 = 0xFFFFFFFFu;
+    var organic_won = false;
 
     // Keep rays passing through fully transparent texels (e.g. cutout billboards).
     for (var iter: u32 = 0u; iter < 6u; iter = iter + 1u) {
@@ -954,7 +1148,15 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         traveled += hit.t + 0.001;
     }
 
-    if (has_surface) {
+    let organic_hit = trace_organic_primary(ro, rd, select(1e6, fog_distance, has_surface));
+    if (organic_hit.hit) {
+        final_color = organic_hit.color;
+        fog_distance = organic_hit.t;
+        has_surface = true;
+        organic_won = true;
+    }
+
+    if (has_surface && !organic_won) {
         let front_color = shade_surface(surface_hit, rd, px, py, sky_rgb, ambient_strength);
         let front_alpha = effective_alpha_for_hit(surface_hit);
         let front_opacity = clamp(front_alpha * surface_hit.material.opacity, 0.0, 1.0);
@@ -995,5 +1197,14 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     final_color = final_color / (final_color + vec3<f32>(1.0));
     final_color = pow(final_color, vec3<f32>(1.0 / 2.2));
 
-    sv_write(px, py, vec4<f32>(final_color, 1.0));
+    var output_color = final_color;
+    if (progressive) {
+        let sample_count = f32(U.anim_counter) + 1.0;
+        if (sample_count > 1.0) {
+            let previous = textureSampleLevel(prev_layer, atlas_smp, display_uv, 0.0).rgb;
+            output_color = previous + (final_color - previous) / sample_count;
+        }
+    }
+
+    sv_write(px, py, vec4<f32>(output_color, 1.0));
 }

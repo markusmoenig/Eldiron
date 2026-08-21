@@ -1497,9 +1497,61 @@ impl Client {
         pixels: &mut [u8],
         width: usize,
         height: usize,
+        assets: &Assets,
+        scene_handler: &mut SceneHandler,
+        editor_neutral_background: bool,
+    ) {
+        self.draw_d3_with_camera_override(
+            map,
+            pixels,
+            width,
+            height,
+            assets,
+            scene_handler,
+            editor_neutral_background,
+            None,
+            true,
+            false,
+        );
+    }
+
+    /// Draw live 3D dynamics and editor overlays over transparency while the
+    /// static world is supplied by a baked background.
+    pub fn draw_d3_dynamic_overlay(
+        &mut self,
+        map: &Map,
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
+        assets: &Assets,
+        scene_handler: &mut SceneHandler,
+    ) {
+        self.draw_d3_with_camera_override(
+            map,
+            pixels,
+            width,
+            height,
+            assets,
+            scene_handler,
+            false,
+            None,
+            false,
+            true,
+        );
+    }
+
+    pub fn draw_d3_with_camera_override(
+        &mut self,
+        map: &Map,
+        pixels: &mut [u8],
+        width: usize,
+        height: usize,
         _assets: &Assets,
         scene_handler: &mut SceneHandler,
         editor_neutral_background: bool,
+        camera_override: Option<scenevm::Camera3D>,
+        static_geometry_enabled: bool,
+        transparent_background: bool,
     ) {
         scene_handler.vm.set_active_vm(0);
         self.scene.animation_frame = self.animation_frame;
@@ -1522,16 +1574,31 @@ impl Client {
 
         scene_handler
             .vm
-            .execute(scenevm::Atom::SetBackground(Vec4::new(0.0, 0.0, 0.0, 1.0)));
+            .execute(scenevm::Atom::SetBackground(if transparent_background {
+                Vec4::zero()
+            } else {
+                Vec4::new(0.0, 0.0, 0.0, 1.0)
+            }));
 
-        scene_handler.vm.execute(scenevm::Atom::SetRenderMode(
-            scene_handler.settings.scenevm_mode_3d(),
-        ));
+        let base_render_mode = if !static_geometry_enabled {
+            scenevm::RenderMode::Raster3D
+        } else if scene_handler.vm.layer_progressive_sample_index(0).is_some() {
+            scenevm::RenderMode::Compute3D
+        } else {
+            scene_handler.settings.scenevm_mode_3d()
+        };
+        scene_handler
+            .vm
+            .execute(scenevm::Atom::SetRenderMode(base_render_mode));
+        scene_handler
+            .vm
+            .set_layer_raster3d_static_geometry_enabled(0, static_geometry_enabled);
 
         scene_handler.vm.execute(scenevm::Atom::SetCamera3D {
-            camera: self
-                .camera_d3
-                .as_scenevm_camera_for_surface(width as f32, height as f32),
+            camera: camera_override.unwrap_or_else(|| {
+                self.camera_d3
+                    .as_scenevm_camera_for_surface(width as f32, height as f32)
+            }),
         });
 
         // In 3D mode, enable overlay layers.

@@ -321,6 +321,8 @@ pub struct VMGpu {
     pub irradiance_grid_ssbo_size: usize,
     pub material_table_ssbo: Option<wgpu::Buffer>,
     pub material_table_ssbo_size: usize,
+    pub compute3d_aux_ssbo: Option<wgpu::Buffer>,
+    pub compute3d_aux_ssbo_size: usize,
     pub raster3d_paint_color_tex: Option<wgpu::Texture>,
     pub raster3d_paint_color_view: Option<wgpu::TextureView>,
     pub raster3d_paint_material_tex: Option<wgpu::Texture>,
@@ -3061,6 +3063,8 @@ pub struct VM {
     ping_pong_textures: Option<[crate::Texture; 2]>,
     ping_pong_front: usize,
     ping_pong_enabled: bool,
+    progressive_sample_index: Option<u32>,
+    frozen_frame_texture: Option<crate::Texture>,
     prev_dummy: Option<crate::Texture>,
     // --- Compute pipeline params (shared by 2D/3D)
     pub background: Vec4<f32>,
@@ -3155,6 +3159,7 @@ pub struct VM {
     cached_irradiance_grid_data: Vec<[f32; 4]>,
     raster_had_dynamics_last_frame: bool,
     organic_visible: bool,
+    raster3d_static_geometry_enabled: bool,
 
     // Camera
     pub camera3d: Camera3D,
@@ -3336,8 +3341,65 @@ impl VM {
         self.enabled = enabled;
     }
 
+    /// Select whether Raster3D emits cached static triangles. Dynamic objects
+    /// remain active so they can be composited over a pre-rendered background.
+    pub fn set_raster3d_static_geometry_enabled(&mut self, enabled: bool) {
+        self.raster3d_static_geometry_enabled = enabled;
+    }
+
+    fn raster3d_clear_alpha(&self) -> f32 {
+        if self.layer_index == 0 && self.raster3d_static_geometry_enabled {
+            1.0
+        } else {
+            self.background.w.clamp(0.0, 1.0)
+        }
+    }
+
     pub fn is_enabled(&self) -> bool {
         self.enabled
+    }
+
+    pub fn scene_bounds_3d(&self) -> Option<(Vec3<f32>, Vec3<f32>)> {
+        let vertices = if self.cached_static_v3.is_empty() {
+            &self.cached_v3
+        } else {
+            &self.cached_static_v3
+        };
+        let first = vertices.first()?;
+        let mut min = Vec3::from(first.pos);
+        let mut max = min;
+        for vertex in &vertices[1..] {
+            let point = Vec3::from(vertex.pos);
+            min = min.map2(point, f32::min);
+            max = max.map2(point, f32::max);
+        }
+        Some((min, max))
+    }
+
+    /// Exact bounds of the cached scene after projection onto a camera plane.
+    /// Projecting every vertex avoids the often much larger rectangle produced by
+    /// projecting the corners of a world-axis-aligned bounding box.
+    pub fn scene_projected_bounds_3d(
+        &self,
+        right: Vec3<f32>,
+        up: Vec3<f32>,
+    ) -> Option<(f32, f32, f32, f32)> {
+        let first = self.cached_v3.first()?;
+        let first = Vec3::from(first.pos);
+        let mut min_u = first.dot(right);
+        let mut max_u = min_u;
+        let mut min_v = first.dot(up);
+        let mut max_v = min_v;
+        for vertex in &self.cached_v3[1..] {
+            let point = Vec3::from(vertex.pos);
+            let u = point.dot(right);
+            let v = point.dot(up);
+            min_u = min_u.min(u);
+            max_u = max_u.max(u);
+            min_v = min_v.min(v);
+            max_v = max_v.max(v);
+        }
+        Some((min_u, max_u, min_v, max_v))
     }
 
     pub fn debug_stats(&self) -> VMDebugStats {
@@ -3380,6 +3442,41 @@ impl VM {
 
     pub fn ping_pong_enabled(&self) -> bool {
         self.ping_pong_enabled
+    }
+
+    /// Select a progressive sample index for Compute3D. While set, the default
+    /// 3D compute shader jitters and accumulates into the ping-pong layer target.
+    pub fn set_progressive_sample_index(&mut self, sample_index: Option<u32>) {
+        self.progressive_sample_index = sample_index;
+    }
+
+    pub fn progressive_sample_index(&self) -> Option<u32> {
+        self.progressive_sample_index
+    }
+
+    pub(crate) fn set_frozen_frame_texture(&mut self, texture: Option<crate::Texture>) {
+        self.frozen_frame_texture = texture;
+    }
+
+    pub(crate) fn has_frozen_frame_texture(&self) -> bool {
+        self.frozen_frame_texture.is_some()
+    }
+
+    pub(crate) fn download_composite_rgba(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Option<(u32, u32, Vec<u8>)> {
+        let texture = if let Some(texture) = self.frozen_frame_texture.as_mut() {
+            texture
+        } else if self.ping_pong_enabled {
+            let front = self.ping_pong_front;
+            self.ping_pong_textures.as_mut()?.get_mut(front)?
+        } else {
+            self.layer_texture.as_mut()?
+        };
+        texture.download_from_gpu_with(device, queue);
+        Some((texture.width, texture.height, texture.data.clone()))
     }
 
     /// Configure Raster3D avatar readability boost parameters.
@@ -3451,7 +3548,9 @@ impl VM {
 
     /// View for compositing (current front buffer)
     pub(crate) fn composite_texture(&self) -> Option<&crate::Texture> {
-        if self.ping_pong_enabled {
+        if let Some(texture) = self.frozen_frame_texture.as_ref() {
+            Some(texture)
+        } else if self.ping_pong_enabled {
             if self.activity_logging {
                 println!(
                     "[VM Layer {}] composite_texture: returning buffer[{}]",
@@ -3500,7 +3599,11 @@ impl VM {
             let write_view = pair[write_idx].gpu.as_ref().unwrap().view.clone();
 
             // Clear both buffers on the very first frame so the sampled prev layer is not garbage.
-            if self.animation_counter == 0 {
+            if self
+                .progressive_sample_index
+                .unwrap_or(self.animation_counter as u32)
+                == 0
+            {
                 let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("clear-pingpong-layers"),
                 });
@@ -4450,8 +4553,9 @@ impl VM {
     }
 
     fn vm_flags(&self) -> u32 {
-        // No flags needed - layer clearing handled by render pass
-        0
+        // Bit 0 enables progressive jitter/accumulation; bit 1 controls generated organic
+        // billboard visibility. Other shader families currently ignore these flags.
+        u32::from(self.progressive_sample_index.is_some()) | (u32::from(self.organic_visible) << 1)
     }
 
     fn atlas_dims(&self) -> (u32, u32) {
@@ -4780,6 +4884,49 @@ impl VM {
         self.raster3d_paint_overlay_dirty = false;
     }
 
+    fn upload_compute3d_aux_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        use wgpu::util::DeviceExt;
+
+        let dummy_surface_entry = Raster3DSurfacePaintEntry::zeroed();
+        let surface_entries = self
+            .raster3d_surface_paint
+            .as_ref()
+            .map(|paint| paint.entries.as_slice())
+            .filter(|entries| !entries.is_empty())
+            .unwrap_or(std::slice::from_ref(&dummy_surface_entry));
+        let organic_words = self.build_organic_billboard_words();
+
+        // Header: surface offset/count, organic offset/count. All offsets are u32 words.
+        let surface_offset = 4u32;
+        let surface_words: &[u32] = bytemuck::cast_slice(surface_entries);
+        let organic_offset = surface_offset + surface_words.len() as u32;
+        let mut words = Vec::with_capacity(4 + surface_words.len() + organic_words.len());
+        words.extend_from_slice(&[
+            surface_offset,
+            surface_entries.len() as u32,
+            organic_offset,
+            organic_words.len() as u32,
+        ]);
+        words.extend_from_slice(surface_words);
+        words.extend_from_slice(&organic_words);
+
+        let bytes: &[u8] = bytemuck::cast_slice(&words);
+        let byte_len = bytes.len().max(std::mem::size_of::<u32>());
+        let g = self.gpu.as_mut().unwrap();
+        if g.compute3d_aux_ssbo.is_none() || g.compute3d_aux_ssbo_size != byte_len {
+            g.compute3d_aux_ssbo = Some(device.create_buffer_init(
+                &wgpu::util::BufferInitDescriptor {
+                    label: Some("vm-compute3d-aux"),
+                    contents: bytes,
+                    usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                },
+            ));
+            g.compute3d_aux_ssbo_size = byte_len;
+        } else if let Some(buffer) = g.compute3d_aux_ssbo.as_ref() {
+            queue.write_buffer(buffer, 0, bytes);
+        }
+    }
+
     /// Create a VM with a fixed-size atlas (atlas_w x atlas_h).
     pub fn new(atlas_w: u32, atlas_h: u32) -> Self {
         Self::new_with_shared_atlas(SharedAtlas::new(atlas_w, atlas_h))
@@ -4817,6 +4964,8 @@ impl VM {
             ping_pong_textures: None,
             ping_pong_front: 0,
             ping_pong_enabled: false,
+            progressive_sample_index: None,
+            frozen_frame_texture: None,
             prev_dummy: None,
             background: Vec4::new(1.0, 0.8, 0.2, 1.0),
             palette: [[0.0; 4]; 256],
@@ -4904,6 +5053,7 @@ impl VM {
             cached_irradiance_grid_data: Self::disabled_irradiance_grid_data(),
             raster_had_dynamics_last_frame: false,
             organic_visible: true,
+            raster3d_static_geometry_enabled: true,
             camera3d: Camera3D::default(),
             enabled: true,
             layer_index: 0,
@@ -5834,6 +5984,8 @@ impl VM {
             irradiance_grid_ssbo_size: 0,
             material_table_ssbo: None,
             material_table_ssbo_size: 0,
+            compute3d_aux_ssbo: None,
+            compute3d_aux_ssbo_size: 0,
             raster3d_paint_color_tex: None,
             raster3d_paint_color_view: None,
             raster3d_paint_material_tex: None,
@@ -6223,6 +6375,46 @@ impl VM {
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 15,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 16,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 17,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Uint,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 18,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
                     count: None,
                 },
@@ -7828,6 +8020,9 @@ impl VM {
         }
 
         if static_tri_count >= tri_capacity {
+            if !self.raster3d_static_geometry_enabled {
+                return (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+            }
             return (
                 self.cached_static_raster_visible_indices.clone(),
                 self.cached_static_raster_opaque_indices.clone(),
@@ -7844,6 +8039,16 @@ impl VM {
             dynamic_transparent,
             dynamic_particles,
         ) = self.split_raster_visible_indices_range(camera, static_tri_count, tri_capacity);
+
+        if !self.raster3d_static_geometry_enabled {
+            return (
+                dynamic_visible,
+                dynamic_opaque,
+                dynamic_paint_alpha,
+                dynamic_transparent,
+                dynamic_particles,
+            );
+        }
 
         let mut visible = self.cached_static_raster_visible_indices.clone();
         visible.extend_from_slice(&dynamic_visible);
@@ -9037,7 +9242,6 @@ impl VM {
             self.init_gpu(device)?;
         }
         self.init_compute(device)?;
-        self.ensure_compute3d_pipeline(device)?;
         self.upload_tile_metadata_to_gpu(device);
         // Ensure layer texture exists and matches size
         let (write_view, prev_view, next_front) =
@@ -9317,7 +9521,11 @@ impl VM {
             self.init_gpu(device)?;
         }
         self.init_compute(device)?;
+        self.ensure_compute3d_pipeline(device)?;
         self.upload_tile_metadata_to_gpu(device);
+        self.upload_material_table_ssbo(device, queue);
+        self.upload_raster3d_paint_overlay(device, queue);
+        self.upload_compute3d_aux_ssbo(device, queue);
         let (write_view, prev_view, next_front) =
             self.prepare_layer_views(device, queue, fb_w, fb_h);
 
@@ -9344,7 +9552,9 @@ impl VM {
             mat3d_c3: [m[(0, 3)], m[(1, 3)], m[(2, 3)], m[(3, 3)]],
             lights_count: self.lights.len() as u32,
             vm_flags: self.vm_flags(),
-            anim_counter: self.animation_counter as u32,
+            anim_counter: self
+                .progressive_sample_index
+                .unwrap_or(self.animation_counter as u32),
             _pad_lights: 0,
             cam_pos: [c.pos.x, c.pos.y, c.pos.z, 0.0],
             cam_fwd: [c.forward.x, c.forward.y, c.forward.z, 0.0],
@@ -9768,6 +9978,26 @@ impl VM {
                         binding: 14,
                         resource: wgpu::BindingResource::TextureView(&prev_view),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 15,
+                        resource: g.material_table_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 16,
+                        resource: wgpu::BindingResource::TextureView(
+                            g.raster3d_paint_color_view.as_ref().unwrap(),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 17,
+                        resource: wgpu::BindingResource::TextureView(
+                            g.raster3d_paint_material_view.as_ref().unwrap(),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 18,
+                        resource: g.compute3d_aux_ssbo.as_ref().unwrap().as_entire_binding(),
+                    },
                 ],
             }));
         }
@@ -9778,11 +10008,16 @@ impl VM {
         });
         {
             let g = self.gpu.as_ref().unwrap();
+            let pipeline = g.compute3d_pipeline.as_ref().ok_or_else(|| {
+                crate::SceneVMError::ShaderCompilationFailed(
+                    "Compute3D pipeline was not initialized".into(),
+                )
+            })?;
             let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("vm-3d-cs-pass"),
                 timestamp_writes: None,
             });
-            cpass.set_pipeline(g.compute3d_pipeline.as_ref().unwrap());
+            cpass.set_pipeline(pipeline);
             cpass.set_bind_group(0, g.u3d_bg.as_ref().unwrap(), &[]);
             let gx = (fb_w + 7) / 8;
             let gy = (fb_h + 7) / 8;
@@ -10798,13 +11033,9 @@ impl VM {
             self.background
         };
         let sky_srgb = [sky.x.max(0.0), sky.y.max(0.0), sky.z.max(0.0)];
-        // Overlay VMs must preserve transparency when they clear.
-        // Base layer remains opaque by default.
-        let clear_alpha = if self.layer_index == 0 {
-            1.0
-        } else {
-            self.background.w.clamp(0.0, 1.0)
-        };
+        // Ordinary base rendering is opaque. A dynamic-only base pass must
+        // preserve transparency so it can be composited over baked geometry.
+        let clear_alpha = self.raster3d_clear_alpha();
         {
             let g = self.gpu.as_ref().unwrap();
             if g.i3d_raster_count > 0 && shadow_enabled {
@@ -13026,8 +13257,12 @@ impl VM {
         fb_w: u32,
         fb_h: u32,
     ) -> crate::SceneVMResult<()> {
-        // Skip rendering if this VM layer is disabled
+        // Skip rendering if this VM layer is disabled or presents a committed
+        // frozen frame. Frozen frames still participate in layer compositing.
         if !self.enabled {
+            return Ok(());
+        }
+        if self.frozen_frame_texture.is_some() {
             return Ok(());
         }
 
@@ -13376,6 +13611,25 @@ mod shader_tests {
     fn raster_shader_parses() {
         wgpu::naga::front::wgsl::parse_str(SCENEVM_3D_RASTER_WGSL)
             .expect("3D raster WGSL should parse");
+    }
+
+    #[test]
+    fn default_compute_3d_shader_parses() {
+        let source = format!(
+            "{}\n{}",
+            include_str!("../embedded/3d_header.wgsl"),
+            include_str!("../embedded/3d_body.wgsl")
+        );
+        wgpu::naga::front::wgsl::parse_str(&source).expect("default compute 3D WGSL should parse");
+    }
+
+    #[test]
+    fn dynamic_only_base_layer_clears_transparent() {
+        let mut vm = VM::new(16, 16);
+        vm.background.w = 0.0;
+        assert_eq!(vm.raster3d_clear_alpha(), 1.0);
+        vm.set_raster3d_static_geometry_enabled(false);
+        assert_eq!(vm.raster3d_clear_alpha(), 0.0);
     }
 
     #[test]

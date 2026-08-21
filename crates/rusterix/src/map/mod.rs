@@ -42,6 +42,34 @@ pub enum MapCamera {
     ThreeDFirstPerson,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct OrthographicBakeTile {
+    pub x: i32,
+    pub y: i32,
+    /// Lossless PNG bytes encoded as Base64 for portable JSON persistence.
+    pub color_png_base64: String,
+    /// Reserved for quantized depth data once the depth bake pass is connected.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth_base64: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct OrthographicBakeAsset {
+    pub version: u32,
+    pub tile_size: u32,
+    pub pixels_per_world_unit: f32,
+    /// Exact geometry extent in the baked camera plane: [min_u, max_u, min_v, max_v].
+    /// Version-one assets omitted this and remain readable through the zero default.
+    #[serde(default)]
+    pub projected_bounds: [f32; 4],
+    pub camera_forward: [f32; 3],
+    pub camera_right: [f32; 3],
+    pub camera_up: [f32; 3],
+    pub samples: u32,
+    #[serde(default)]
+    pub tiles: Vec<OrthographicBakeTile>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct GeometryPlacementFloor {
     pub height: f32,
@@ -176,6 +204,11 @@ pub struct Map {
     /// The shaders used in the map.
     #[serde(default)]
     pub shaders: IndexMap<Uuid, serde_json::Value>,
+
+    /// Camera-projected, world-aligned ray-traced tiles. Tile payloads are compressed binary
+    /// images embedded as Base64 strings so a project remains one portable JSON file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub orthographic_bake: Option<OrthographicBakeAsset>,
 
     // Change counter, right now only used for materials
     // to indicate when to refresh live updates
@@ -507,6 +540,7 @@ impl Map {
             surfaces: IndexMap::default(),
             profiles: FxHashMap::default(),
             shaders: IndexMap::default(),
+            orthographic_bake: None,
 
             changed: 0,
         }
@@ -2735,6 +2769,7 @@ impl Map {
             surfaces: IndexMap::default(),
             profiles: FxHashMap::default(),
             shaders: IndexMap::default(),
+            orthographic_bake: None,
 
             changed: 0,
         }
