@@ -797,12 +797,13 @@ pub enum ActionRole {
 }
 
 impl ActionRole {
-    pub fn to_color(&self) -> [u8; 4] {
+    /// Stable slot in the theme's action-group palette. New action groups should append slots so
+    /// existing projects and custom themes keep their color assignments.
+    pub fn palette_slot(&self) -> usize {
         match self {
-            ActionRole::Camera => [160, 175, 190, 255],
-            ActionRole::Editor => [195, 170, 150, 255],
-            ActionRole::Dock => [200, 195, 150, 255],
-            // ActionRole::Profile => [160, 185, 160, 255],
+            ActionRole::Camera => 0,
+            ActionRole::Editor => 1,
+            ActionRole::Dock => 2,
         }
     }
 }

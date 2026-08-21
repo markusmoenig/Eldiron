@@ -206,7 +206,7 @@ impl Sidebar {
 
         let mut ruleset_palette_label = TheTreeItem::new(TheId::named("Ruleset Palette Header"));
         ruleset_palette_label.set_text(fl!("ruleset_palette"));
-        ruleset_palette_label.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        ruleset_palette_label.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         palette_node.add_widget(Box::new(ruleset_palette_label));
 
         let mut ruleset_item = TheTreeIcons::new(TheId::named("Ruleset Palette Item"));
@@ -217,7 +217,7 @@ impl Sidebar {
 
         let mut art_palette_label = TheTreeItem::new(TheId::named("Art Palette Header"));
         art_palette_label.set_text(fl!("art_palette"));
-        art_palette_label.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
+        art_palette_label.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
         palette_node.add_widget(Box::new(art_palette_label));
 
         let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
@@ -231,47 +231,47 @@ impl Sidebar {
 
         let mut config_item = TheTreeItem::new(TheId::named("Project Settings"));
         config_item.set_text(fl!("settings"));
-        config_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        config_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(config_item));
 
         let mut world_code_item = TheTreeItem::new(TheId::named("World Code"));
         world_code_item.set_text("World / Eldrin Scripting".to_string());
-        world_code_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        world_code_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(world_code_item));
 
         let mut rules_item = TheTreeItem::new(TheId::named("Game Rules"));
         rules_item.set_text("Rules".to_string());
-        rules_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        rules_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(rules_item));
 
         let mut locales_item = TheTreeItem::new(TheId::named("Game Locales"));
         locales_item.set_text("Locales".to_string());
-        locales_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        locales_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(locales_item));
 
         let mut audio_fx_item = TheTreeItem::new(TheId::named("Game Audio FX"));
         audio_fx_item.set_text("Audio FX".to_string());
-        audio_fx_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        audio_fx_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(audio_fx_item));
 
         let mut authoring_item = TheTreeItem::new(TheId::named("Game Authoring"));
         authoring_item.set_text("Authoring".to_string());
-        authoring_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        authoring_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(authoring_item));
 
         let mut shortcuts_item = TheTreeItem::new(TheId::named("Game Shortcuts"));
         shortcuts_item.set_text("Shortcuts".to_string());
-        shortcuts_item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        shortcuts_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(shortcuts_item));
 
         let mut debug_log_item = TheTreeItem::new(TheId::named("Debug Log"));
         debug_log_item.set_text(fl!("debug_log"));
-        debug_log_item.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
+        debug_log_item.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
         config_node.add_widget(Box::new(debug_log_item));
 
         let mut console_item = TheTreeItem::new(TheId::named("Console"));
         console_item.set_text("Console".to_string());
-        console_item.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
+        console_item.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
         config_node.add_widget(Box::new(console_item));
 
         root.add_child(config_node);
@@ -4631,7 +4631,7 @@ impl Sidebar {
                                     format!("{} ( {} )", status_text, accel.description());
                             }
                             item.set_status_text(&status_text);
-                            item.set_background_color(TheColor::from(action.role().to_color()));
+                            item.set_background_palette(ActionGroups, action.role().palette_slot());
 
                             if is_current {
                                 found_current = true;

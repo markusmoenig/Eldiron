@@ -1,5 +1,28 @@
 use crate::prelude::*;
 
+fn draw_submenu_marker(
+    pixels: &mut [u8],
+    width: usize,
+    height: usize,
+    bounds: ThePixelRect,
+    color: RGBA,
+    painter: &mut ThePainter,
+) {
+    let Ok(mut surface) = TheSurfaceMut::new(pixels, width, height) else {
+        return;
+    };
+    surface.set_clip(bounds);
+
+    let center_x = bounds.x as f32 + bounds.width as f32 - 12.0;
+    let center_y = bounds.y as f32 + bounds.height as f32 * 0.5;
+    let mut path = ThePath::new();
+    path.move_to((center_x - 2.5, center_y - 4.0))
+        .line_to((center_x + 3.0, center_y))
+        .line_to((center_x - 2.5, center_y + 4.0))
+        .close();
+    painter.fill_path(&mut surface, &path, &ThePaint::solid(color));
+}
+
 // Item
 
 #[derive(Clone, Debug)]
@@ -355,26 +378,62 @@ impl TheContextMenu {
                     }
                 }
 
-                let mut alpha = if is_disabled { 0.3 } else { 0.8 };
-                let mut icon_name = "menu_sub";
-                if Some(item.id.clone()) == self.hovered {
-                    icon_name = "menu_sub_highlight";
-                    alpha = 0.5;
-                }
-
-                if let Some(icon) = ctx.ui.icon(icon_name) {
-                    let r = (
-                        rect.0 + rect.2 - 25,
-                        rect.1 + 4,
-                        icon.dim().width as usize,
-                        icon.dim().height as usize,
-                    );
-                    ctx.draw
-                        .blend_slice_alpha(pixels, icon.pixels(), &r, ctx.width, alpha);
-                }
+                let is_hovered = Some(item.id.clone()) == self.hovered;
+                let role = if is_disabled {
+                    ContextMenuTextDisabled
+                } else if is_hovered {
+                    ContextMenuTextHighlight
+                } else {
+                    ContextMenuTextNormal
+                };
+                let mut marker_color = *style.theme().color(role);
+                let alpha = if is_disabled {
+                    0.3
+                } else if is_hovered {
+                    0.8
+                } else {
+                    0.8
+                };
+                marker_color[3] = (marker_color[3] as f32 * alpha).round() as u8;
+                draw_submenu_marker(
+                    pixels,
+                    ctx.width,
+                    ctx.height,
+                    ThePixelRect::new(rect.0 as i32, rect.1 as i32, rect.2 as i32, rect.3 as i32),
+                    marker_color,
+                    &mut ctx.painter,
+                );
             }
 
             y += rect.3;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn procedural_submenu_marker_preserves_guard_bytes() {
+        const WIDTH: usize = 8;
+        const HEIGHT: usize = 7;
+        const GUARD: usize = 31;
+        const SENTINEL: u8 = 0xc5;
+
+        let body_len = WIDTH * HEIGHT * 4;
+        let mut pixels = vec![0; body_len + GUARD];
+        pixels[body_len..].fill(SENTINEL);
+        draw_submenu_marker(
+            &mut pixels,
+            WIDTH,
+            HEIGHT,
+            ThePixelRect::new(-20, -4, 32, 23),
+            [244, 247, 250, 255],
+            &mut ThePainter::new(),
+        );
+
+        assert!(pixels[..body_len].iter().any(|byte| *byte != 0));
+        assert!(pixels[body_len..].iter().all(|byte| *byte == SENTINEL));
     }
 }

@@ -1,5 +1,46 @@
 use crate::prelude::*;
 
+fn draw_snapper_chrome(
+    pixels: &mut [u8],
+    width: usize,
+    height: usize,
+    bounds: ThePixelRect,
+    radius: f32,
+    open: bool,
+    fill: &ThePaint,
+    border: &ThePaint,
+    marker: &ThePaint,
+    painter: &mut ThePainter,
+) {
+    let inner = ThePixelRect::new(
+        bounds.x.saturating_add(1),
+        bounds.y.saturating_add(1),
+        bounds.width.saturating_sub(2),
+        bounds.height.saturating_sub(2),
+    );
+    let Ok(mut surface) = TheSurfaceMut::new(pixels, width, height) else {
+        return;
+    };
+    surface.set_clip(bounds);
+    painter.fill_round_rect(&mut surface, bounds, radius, border);
+    painter.fill_round_rect(&mut surface, inner, (radius - 1.0).max(0.0), fill);
+
+    let center_y = bounds.y as f32 + bounds.height as f32 * 0.5;
+    let mut path = ThePath::new();
+    if open {
+        path.move_to((bounds.x as f32 + 8.0, center_y - 2.5))
+            .line_to((bounds.x as f32 + 18.0, center_y - 2.5))
+            .line_to((bounds.x as f32 + 13.0, center_y + 3.0))
+            .close();
+    } else {
+        path.move_to((bounds.x as f32 + 10.0, center_y - 4.5))
+            .line_to((bounds.x as f32 + 10.0, center_y + 4.5))
+            .line_to((bounds.x as f32 + 16.0, center_y))
+            .close();
+    }
+    painter.fill_path(&mut surface, &path, marker);
+}
+
 #[derive(Default)]
 pub struct TheSnapperbar {
     id: TheId,
@@ -15,6 +56,7 @@ pub struct TheSnapperbar {
     text: String,
     text_color: RGBA,
     background_color: Option<RGBA>,
+    background_palette: Option<(TheThemePalettes, usize)>,
     is_dirty: bool,
 
     layout_id: TheId,
@@ -44,6 +86,7 @@ impl TheWidget for TheSnapperbar {
             text: "".to_string(),
             text_color: WHITE,
             background_color: None,
+            background_palette: None,
             is_dirty: false,
 
             layout_id: TheId::empty(),
@@ -166,131 +209,90 @@ impl TheWidget for TheSnapperbar {
         }
 
         let stride = buffer.stride();
-        let mut utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
-
-        if self.root_mode {
-            let mut icon_state = if self.state == TheWidgetState::Clicked {
-                "clicked".to_string()
-            } else {
-                "normal".to_string()
-            };
-
-            let tint_color = if self.selected {
-                Some(*style.theme().color(DefaultSelection))
-            } else {
-                self.background_color
-            };
-
-            if self.state != TheWidgetState::Selected && self.id().equals(&ctx.ui.hover) {
-                icon_state = "hover".to_string()
-            }
-
-            if let Some(mut icon) = ctx
-                .ui
-                .icon(format!("dark_snapperbar_{}_front", icon_state).as_str())
-                .cloned()
-            {
-                if let Some(col) = tint_color {
-                    icon.multiply_by_pixel([100, 100, 100, 255], col);
-                }
-
-                let r = (utuple.0, utuple.1 + 1, 1, icon.dim().height as usize);
-                ctx.draw
-                    .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-
-                let r = (
-                    utuple.0 + utuple.2 - 1,
-                    utuple.1 + 1,
-                    1,
-                    icon.dim().height as usize,
-                );
-                ctx.draw
-                    .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-            }
-
-            if let Some(mut icon) = ctx
-                .ui
-                .icon(format!("dark_snapperbar_{}_middle", icon_state).as_str())
-                .cloned()
-            {
-                if let Some(col) = tint_color {
-                    icon.multiply_by_pixel([100, 100, 100, 255], col);
-                }
-
-                for x in 1..utuple.2 - 1 {
-                    let r = (utuple.0 + x, utuple.1, 1, icon.dim().height as usize);
-                    ctx.draw
-                        .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-                }
-            }
+        let hovered = self.state != TheWidgetState::Clicked && self.id().equals(&ctx.ui.hover);
+        let pressed = self.state == TheWidgetState::Clicked;
+        let bounds = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height.saturating_sub(1),
+        );
+        let fill = if self.selected {
+            style.theme().paint(SnapperSelected, bounds)
+        } else if let Some((palette, index)) = self.background_palette {
+            ThePaint::solid(style.theme().palette_color(palette, index))
+        } else if let Some(color) = self.background_color {
+            ThePaint::solid(color)
+        } else if pressed {
+            style.theme().paint(SnapperPressed, bounds)
+        } else if hovered {
+            style.theme().paint(SnapperHover, bounds)
         } else {
-            // --- No Gradient
-
-            utuple.3 -= 1;
-            let color = if self.selected {
-                *style.theme().color(ListItemSelected)
-            } else if let Some(col) = self.background_color {
-                col
-            } else {
-                *style.theme().color(ListItemNormal)
-            };
-
-            ctx.draw.rect_outline_border_open(
-                buffer.pixels_mut(),
-                &utuple,
-                stride,
-                &style.theme().color(ListItemIconBorder),
-                1,
-            );
-
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &(utuple.0, utuple.1 + 1, utuple.2, utuple.3 - 2),
-                stride,
-                &color,
-            );
-        }
-
-        // ---
-
-        if self.open {
-            if let Some(icon) = ctx.ui.icon("dark_snapperbar_open") {
-                let r = (
-                    utuple.0 + 6,
-                    utuple.1 + 9,
-                    icon.dim().width as usize,
-                    icon.dim().height as usize,
-                );
-                ctx.draw
-                    .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-            }
-        } else if let Some(icon) = ctx.ui.icon("dark_snapperbar_closed") {
-            let r = (
-                utuple.0 + 9,
-                utuple.1 + 6,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
-            );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-        }
+            style.theme().paint(SnapperNormal, bounds)
+        };
+        let border_role = if self.selected {
+            SelectedTextEditBorder1
+        } else if pressed {
+            ToolbarButtonClickedBorder
+        } else if hovered {
+            ToolbarButtonHoverBorder
+        } else if self.root_mode {
+            SectionbarHeaderBorder
+        } else {
+            ListItemIconBorder
+        };
+        let border = ThePaint::solid(*style.theme().color(border_role));
+        let marker = style.theme().paint(SnapperMarker, bounds);
+        let radius = if self.root_mode { 1.5 } else { 0.5 };
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        draw_snapper_chrome(
+            buffer.pixels_mut(),
+            width,
+            height,
+            bounds,
+            radius,
+            self.open,
+            &fill,
+            &border,
+            &marker,
+            &mut ctx.painter,
+        );
 
         let mut shrinker = TheDimShrinker::zero();
         shrinker.shrink_by(30, 1, 0, 0);
 
-        ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
-            &self.dim.to_buffer_shrunk_utuple(&shrinker),
-            stride,
-            &self.text,
-            TheFontSettings {
-                size: 13.5,
-                ..Default::default()
-            },
-            &self.text_color,
-            TheHorizontalAlign::Left,
-            TheVerticalAlign::Center,
-        );
+        let text_rect = ThePixelRect::new(
+            self.dim.buffer_x.saturating_add(shrinker.left),
+            self.dim.buffer_y.saturating_add(shrinker.top),
+            self.dim
+                .width
+                .saturating_sub(shrinker.left.saturating_add(shrinker.right)),
+            self.dim
+                .height
+                .saturating_sub(shrinker.top.saturating_add(shrinker.bottom)),
+        )
+        .intersection(ThePixelRect::new(0, 0, width as i32, height as i32));
+        if !text_rect.is_empty() {
+            ctx.draw.text_rect_blend(
+                buffer.pixels_mut(),
+                &(
+                    text_rect.x as usize,
+                    text_rect.y as usize,
+                    text_rect.width as usize,
+                    text_rect.height as usize,
+                ),
+                stride,
+                &self.text,
+                TheFontSettings {
+                    size: 13.5,
+                    ..Default::default()
+                },
+                &self.text_color,
+                TheHorizontalAlign::Left,
+                TheVerticalAlign::Center,
+            );
+        }
 
         self.is_dirty = false;
     }
@@ -310,6 +312,7 @@ pub trait TheSnapperbarTrait {
     fn set_root_mode(&mut self, root_mode: bool);
     fn set_text_color(&mut self, color: RGBA);
     fn set_background_color(&mut self, color: Option<RGBA>);
+    fn set_background_palette(&mut self, palette: TheThemePalettes, index: usize);
 }
 
 impl TheSnapperbarTrait for TheSnapperbar {
@@ -346,7 +349,48 @@ impl TheSnapperbarTrait for TheSnapperbar {
     fn set_background_color(&mut self, color: Option<RGBA>) {
         if self.background_color != color {
             self.background_color = color;
+            self.background_palette = None;
             self.is_dirty = true;
         }
+    }
+    fn set_background_palette(&mut self, palette: TheThemePalettes, index: usize) {
+        let value = Some((palette, index));
+        if self.background_palette != value {
+            self.background_color = None;
+            self.background_palette = value;
+            self.is_dirty = true;
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn procedural_chrome_clips_to_surface_and_preserves_guard_bytes() {
+        const WIDTH: usize = 8;
+        const HEIGHT: usize = 7;
+        const GUARD: usize = 32;
+        const SENTINEL: u8 = 0xa7;
+
+        let body_len = WIDTH * HEIGHT * 4;
+        let mut pixels = vec![0; body_len + GUARD];
+        pixels[body_len..].fill(SENTINEL);
+        draw_snapper_chrome(
+            &mut pixels,
+            WIDTH,
+            HEIGHT,
+            ThePixelRect::new(-11, -8, 30, 24),
+            1.5,
+            true,
+            &ThePaint::solid([42, 48, 57, 255]),
+            &ThePaint::solid([88, 96, 108, 255]),
+            &ThePaint::solid([235, 238, 241, 255]),
+            &mut ThePainter::new(),
+        );
+
+        assert!(pixels[..body_len].iter().any(|byte| *byte != 0));
+        assert!(pixels[body_len..].iter().all(|byte| *byte == SENTINEL));
     }
 }

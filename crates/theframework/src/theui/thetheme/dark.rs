@@ -145,6 +145,11 @@ impl TheTheme for TheDarkTheme {
         colors.insert(TimeSliderMarker, [202, 113, 230, 255]);
         colors.insert(TimeSliderPosition, [240, 240, 240, 255]);
 
+        colors.insert(NodeCanvasBackground, [128, 128, 128, 255]);
+        colors.insert(NodeCanvasGrid, [81, 81, 81, 255]);
+        colors.insert(NodeConnection, [90, 90, 90, 255]);
+        colors.insert(NodeCutConnection, [209, 42, 42, 255]);
+
         colors.insert(MenuHover, [40, 40, 40, 255]);
         colors.insert(MenuText, [200, 200, 200, 255]);
         colors.insert(MenuTextHighlighted, [244, 244, 244, 255]);

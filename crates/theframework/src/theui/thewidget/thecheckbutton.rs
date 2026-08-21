@@ -166,35 +166,72 @@ impl TheWidget for TheCheckButton {
     fn draw(
         &mut self,
         buffer: &mut TheRGBABuffer,
-        _style: &mut Box<dyn TheStyle>,
+        style: &mut Box<dyn TheStyle>,
         ctx: &mut TheContext,
     ) {
-        let stride = buffer.stride();
-
         if !self.dim().is_valid() {
             return;
         }
 
-        let mut icon_name = "dark_checkbutton_normal".to_string();
+        let highlighted =
+            !self.embedded && (self.id().equals(&ctx.ui.hover) || self.id().equals(&ctx.ui.focus));
+        let selected = self.state == TheWidgetState::Selected;
+        let size = self.dim.width.min(self.dim.height).min(14).max(0);
+        let box_rect = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim
+                .buffer_y
+                .saturating_add(self.dim.height.saturating_sub(size) / 2),
+            size,
+            size,
+        );
+        let inner = ThePixelRect::new(
+            box_rect.x.saturating_add(1),
+            box_rect.y.saturating_add(1),
+            box_rect.width.saturating_sub(2),
+            box_rect.height.saturating_sub(2),
+        );
+        let fill_role = if selected {
+            CheckboxSelected
+        } else if highlighted {
+            CheckboxHover
+        } else {
+            CheckboxNormal
+        };
+        let fill = style.theme().paint(fill_role, box_rect);
+        let mark = style.theme().paint(CheckboxMark, box_rect);
+        let border = if highlighted || selected {
+            *style.theme().color(SelectedTextEditBorder1)
+        } else {
+            *style.theme().color(TextEditBorder)
+        };
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            surface.set_clip(ThePixelRect::new(
+                self.dim.buffer_x,
+                self.dim.buffer_y,
+                self.dim.width,
+                self.dim.height,
+            ));
+            ctx.painter
+                .fill_round_rect(&mut surface, box_rect, 2.5, &ThePaint::solid(border));
+            ctx.painter.fill_round_rect(&mut surface, inner, 1.5, &fill);
 
-        if (self.id().equals(&ctx.ui.hover) || self.id().equals(&ctx.ui.focus)) && !self.embedded {
-            icon_name = "dark_checkbutton_focus".to_string();
-        }
-
-        if self.state == TheWidgetState::Selected {
-            icon_name += "_selected";
-        }
-
-        if let Some(icon) = ctx.ui.icon(icon_name.as_str()) {
-            let utuple = self.dim.to_buffer_utuple();
-            let r = (
-                utuple.0, //(utuple.0 + (utuple.2 - icon.dim().width as usize) / 2),
-                utuple.1 + 3,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
-            );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
+            if selected && size >= 8 {
+                let mut check = ThePath::new();
+                check
+                    .move_to((box_rect.x as f32 + 3.0, box_rect.y as f32 + 7.0))
+                    .line_to((box_rect.x as f32 + 5.5, box_rect.y as f32 + 9.5))
+                    .line_to((box_rect.x as f32 + 11.0, box_rect.y as f32 + 4.0));
+                ctx.painter.stroke_path(
+                    &mut surface,
+                    &check,
+                    &ThePathStroke::new(1.8, mark)
+                        .with_cap(TheLineCap::Round)
+                        .with_join(TheLineJoin::Round),
+                );
+            }
         }
 
         self.is_dirty = false;

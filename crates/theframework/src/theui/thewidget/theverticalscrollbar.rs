@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+use super::thescrollbarchrome::draw_scrollbar_chrome;
+
 pub struct TheVerticalScrollbar {
     id: TheId,
     limiter: TheSizeLimiter,
@@ -169,93 +171,30 @@ impl TheWidget for TheVerticalScrollbar {
             return;
         }
 
-        let stride = buffer.stride();
-
-        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &utuple,
-            stride,
-            style.theme().color(ScrollbarBackground),
+        let bounds = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
         );
-
-        let mut icon_name = if self.state == TheWidgetState::Clicked {
-            "dark_vertical_scrollbar_clicked_".to_string()
-        } else {
-            "dark_vertical_scrollbar_normal_".to_string()
-        };
-
-        if self.state != TheWidgetState::Clicked && self.id().equals(&ctx.ui.hover) {
-            icon_name = "dark_vertical_scrollbar_hover_".to_string()
-        }
-
-        let mut scroll_bar_height = self.scrollbar_thumb_height();
-        let mut offset = self.scrollbar_position() as usize;
-
-        if scroll_bar_height > self.dim.height {
-            offset = 0;
-            scroll_bar_height = self.dim.height;
-        }
-
-        let safe_utuple = self.dim.to_buffer_utuple();
-
-        if scroll_bar_height >= 5 {
-            if let Some(icon) = ctx.ui.icon(&(icon_name.clone() + "top")) {
-                let r = (
-                    utuple.0 as isize,
-                    (utuple.1 + offset) as isize,
-                    icon.dim().width as usize,
-                    icon.dim().height as usize,
-                );
-                ctx.draw.blend_slice_safe(
-                    buffer.pixels_mut(),
-                    icon.pixels(),
-                    &r,
-                    stride,
-                    &safe_utuple,
-                );
-            }
-        }
-
-        if scroll_bar_height > 10 {
-            if let Some(icon) = ctx.ui.icon(&(icon_name.clone() + "middle")) {
-                let mut r = (
-                    utuple.0 as isize,
-                    (utuple.1 + offset + 5) as isize,
-                    icon.dim().width as usize,
-                    icon.dim().height as usize,
-                );
-                for _ in 0..scroll_bar_height - 10 {
-                    ctx.draw.blend_slice_safe(
-                        buffer.pixels_mut(),
-                        icon.pixels(),
-                        &r,
-                        stride,
-                        &safe_utuple,
-                    );
-                    r.1 += 1;
-                }
-            }
-        }
-
-        if scroll_bar_height >= 10 {
-            if let Some(icon) = ctx.ui.icon(&(icon_name + "bottom")) {
-                let r = (
-                    utuple.0 as isize,
-                    (utuple.1 + offset + scroll_bar_height as usize - 5) as isize,
-                    icon.dim().width as usize,
-                    icon.dim().height as usize,
-                );
-                ctx.draw.blend_slice_safe(
-                    buffer.pixels_mut(),
-                    icon.pixels(),
-                    &r,
-                    stride,
-                    &safe_utuple,
-                );
-            }
-        }
+        let thumb_height = self.scrollbar_thumb_height().clamp(0, self.dim.height);
+        let max_offset = self.dim.height.saturating_sub(thumb_height);
+        let offset = (self.scrollbar_position().round() as i32).clamp(0, max_offset);
+        let thumb = ThePixelRect::new(
+            bounds.x.saturating_add(2),
+            bounds.y.saturating_add(offset),
+            bounds.width.saturating_sub(4),
+            thumb_height,
+        );
+        draw_scrollbar_chrome(
+            buffer,
+            bounds,
+            thumb,
+            self.id().equals(&ctx.ui.hover),
+            self.state == TheWidgetState::Clicked,
+            style,
+            ctx,
+        );
 
         self.is_dirty = false;
     }

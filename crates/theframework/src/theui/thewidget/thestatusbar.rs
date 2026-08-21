@@ -73,24 +73,21 @@ impl TheWidget for TheStatusbar {
             return;
         }
 
-        let stride = buffer.stride();
-        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &(utuple.0, utuple.1, 1, utuple.3),
-            stride,
-            style.theme().color(StatusbarStart),
+        let rect = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
         );
-
-        if let Some(icon) = ctx.ui.icon("dark_statusbar") {
-            for x in 1..utuple.2 {
-                let r = (utuple.0 + x, utuple.1, 1, icon.dim().height as usize);
-                ctx.draw
-                    .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-            }
+        let paint = style.theme().paint(StatusbarBackground, rect);
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            surface.set_clip(rect);
+            ctx.painter.fill_rect(&mut surface, rect, &paint);
         }
 
+        let stride = buffer.stride();
         let mut shrinker = TheDimShrinker::zero();
         shrinker.shrink_by(20, 1, 0, 0);
 

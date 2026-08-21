@@ -74,31 +74,33 @@ impl TheWidget for TheToolListBar {
             return;
         }
 
-        let stride = buffer.stride();
-        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &(utuple.0, utuple.1, utuple.2 - 1, 1),
-            stride,
-            style.theme().color(DefaultWidgetDarkBackground),
+        let rect = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
         );
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &(utuple.0 + utuple.2 - 1, utuple.1, 1, utuple.3),
-            stride,
-            style.theme().color(DefaultWidgetDarkBackground),
-        );
-
-        if let Some(icon) = ctx.ui.icon("dark_toollistbar") {
-            for x in 0..utuple.2 - 1 {
-                let r = (utuple.0 + x, utuple.1 + 1, 1, icon.dim().height as usize);
-                ctx.draw
-                    .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-            }
+        let paint = style.theme().paint(ToolListBarChrome, rect);
+        let border = *style.theme().color(DefaultWidgetDarkBackground);
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            surface.set_clip(rect);
+            ctx.painter.fill_rect(&mut surface, rect, &paint);
+            surface.fill_rect(ThePixelRect::new(rect.x, rect.y, rect.width, 1), border);
+            surface.fill_rect(
+                ThePixelRect::new(
+                    rect.x.saturating_add(rect.width.saturating_sub(1)),
+                    rect.y,
+                    1,
+                    rect.height,
+                ),
+                border,
+            );
         }
 
+        let stride = buffer.stride();
+        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
         ctx.draw.text_rect_blend(
             buffer.pixels_mut(),
             &utuple,

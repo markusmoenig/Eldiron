@@ -7621,6 +7621,7 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        ui.set_theme(Box::new(TheBlackBlueTheme::new()), ctx);
         RUSTERIX.write().unwrap().client.messages_font = ctx.ui.font.clone();
 
         // Embedded Icons
@@ -7839,6 +7840,7 @@ impl TheTrait for Editor {
 
         let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
         time_slider.set_status_text(&fl!("status_time_slider"));
+        time_slider.set_tall(true);
         time_slider.set_continuous(true);
         time_slider.limiter_mut().set_max_width(400);
         time_slider.set_value(TheValue::Time(TheTime::default()));

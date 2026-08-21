@@ -171,55 +171,78 @@ impl TheWidget for TheMenu {
         }
 
         let stride = buffer.stride();
-        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        let bounds = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
+        );
 
         if self.opaque {
-            if let Some(icon) = ctx.ui.icon("dark_menu") {
-                for x in 0..utuple.2 {
-                    let r = (utuple.0 + x, utuple.1, 1, icon.dim().height as usize);
-                    ctx.draw
-                        .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-                }
+            let fill = style.theme().paint(MenuBackground, bounds);
+            if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+                surface.set_clip(bounds);
+                ctx.painter.fill_rect(&mut surface, bounds, &fill);
             }
         }
 
-        let r = self.dim.to_buffer_utuple();
         for i in 0..self.menus.len() {
             let tr = self.menus_text[i];
-            let rect = (
-                r.0 + tr.x as usize,
-                r.1 + tr.y as usize,
-                tr.width as usize,
-                tr.height as usize,
+            let text_bounds = ThePixelRect::new(
+                self.dim.buffer_x.saturating_add(tr.x),
+                self.dim.buffer_y.saturating_add(tr.y),
+                tr.width,
+                tr.height,
             );
 
             if self.hovered == Some(i) || self.selected == Some(i) {
-                ctx.draw.rounded_rect(
-                    buffer.pixels_mut(),
-                    &(rect.0, rect.1 - 2, rect.2, rect.3 + 2),
-                    stride,
-                    style.theme().color(MenuHover),
-                    &(2.0, 2.0, 2.0, 2.0),
+                let item_bounds = ThePixelRect::new(
+                    text_bounds.x,
+                    text_bounds.y.saturating_sub(2),
+                    text_bounds.width,
+                    text_bounds.height.saturating_add(2),
                 );
+                let role = if self.selected == Some(i) {
+                    MenuItemSelected
+                } else {
+                    MenuItemHover
+                };
+                let fill = style.theme().paint(role, item_bounds);
+                if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+                    surface.set_clip(bounds);
+                    ctx.painter
+                        .fill_round_rect(&mut surface, item_bounds, 2.0, &fill);
+                }
             }
 
-            ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
-                &rect,
-                stride,
-                &self.menus[i].name,
-                TheFontSettings {
-                    size: 14.0,
-                    ..Default::default()
-                },
-                if self.selected == Some(i) {
-                    style.theme().color(MenuTextHighlighted)
-                } else {
-                    style.theme().color(MenuText)
-                },
-                TheHorizontalAlign::Center,
-                TheVerticalAlign::Center,
-            );
+            let text_bounds =
+                text_bounds.intersection(ThePixelRect::new(0, 0, width as i32, height as i32));
+            if !text_bounds.is_empty() {
+                ctx.draw.text_rect_blend(
+                    buffer.pixels_mut(),
+                    &(
+                        text_bounds.x as usize,
+                        text_bounds.y as usize,
+                        text_bounds.width as usize,
+                        text_bounds.height as usize,
+                    ),
+                    stride,
+                    &self.menus[i].name,
+                    TheFontSettings {
+                        size: 14.0,
+                        ..Default::default()
+                    },
+                    if self.selected == Some(i) {
+                        style.theme().color(MenuTextHighlighted)
+                    } else {
+                        style.theme().color(MenuText)
+                    },
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
         }
 
         self.is_dirty = false;

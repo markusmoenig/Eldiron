@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::theui::thewidget::thebuttonchrome::draw_button_chrome;
 
 pub struct TheMenubarButton {
     id: TheId,
@@ -176,42 +177,23 @@ impl TheWidget for TheMenubarButton {
 
         let is_disabled = ctx.ui.is_disabled(&self.id.name);
 
-        if self.state != TheWidgetState::None || self.id().equals(&ctx.ui.hover) && !is_disabled {
-            if self.state == TheWidgetState::Clicked {
-                ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
-                    &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                    stride,
-                    style.theme().color(MenubarButtonClickedBorder),
-                    1,
-                );
-
-                shrinker.shrink(1);
-
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                    stride,
-                    style.theme().color(MenubarButtonClicked),
-                );
-            } else if self.id().equals(&ctx.ui.hover) {
-                ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
-                    &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                    stride,
-                    style.theme().color(MenubarButtonHoverBorder),
-                    1,
-                );
-
-                shrinker.shrink(1);
-
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                    stride,
-                    style.theme().color(MenubarButtonHoverBorder),
-                );
-            }
+        let chrome = if !is_disabled && self.state == TheWidgetState::Clicked {
+            Some((MenubarButtonPressedChrome, MenubarButtonClickedBorder))
+        } else if !is_disabled && self.id().equals(&ctx.ui.hover) {
+            Some((MenubarButtonHoverChrome, MenubarButtonHoverBorder))
+        } else {
+            None
+        };
+        if let Some((paint_role, border_role)) = chrome {
+            let bounds = ThePixelRect::new(
+                self.dim.buffer_x,
+                self.dim.buffer_y,
+                self.dim.width,
+                self.dim.height,
+            );
+            let border = *style.theme().color(border_role);
+            draw_button_chrome(buffer, bounds, paint_role, border, style, ctx);
+            shrinker.shrink(1);
         }
 
         let alpha = if is_disabled { 0.3 } else { 1.0 };

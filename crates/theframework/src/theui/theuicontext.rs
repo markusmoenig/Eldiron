@@ -324,3 +324,31 @@ impl TheUIContext {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn embedded_icons_contain_actions_but_no_legacy_widget_chrome() {
+        let names: Vec<String> = Embedded::iter().map(|name| name.into_owned()).collect();
+        assert!(names.iter().any(|name| name == "icons/icon_role_add.png"));
+
+        let legacy: Vec<&String> = names
+            .iter()
+            .filter(|name| {
+                name.starts_with("icons/dark_")
+                    || matches!(
+                        name.as_str(),
+                        "icons/menu_sub.png"
+                            | "icons/menu_sub_highlight.png"
+                            | "icons/switchbar_icon.png"
+                    )
+            })
+            .collect();
+        assert!(
+            legacy.is_empty(),
+            "legacy PNG-backed widget chrome was reintroduced: {legacy:?}"
+        );
+    }
+}

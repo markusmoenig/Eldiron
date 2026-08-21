@@ -21,6 +21,7 @@ pub struct TheTreeNode {
     layout_id: Option<TheId>,
     text_color: Option<RGBA>,
     background_color: Option<RGBA>,
+    background_palette: Option<(TheThemePalettes, usize)>,
     selected_widget: Option<Uuid>,
     layout_dirty_flag: Arc<AtomicBool>,
 }
@@ -51,6 +52,7 @@ impl TheTreeNode {
             layout_id: None,
             text_color: None,
             background_color: None,
+            background_palette: None,
             selected_widget: None,
             layout_dirty_flag,
         }
@@ -93,8 +95,18 @@ impl TheTreeNode {
 
     pub fn set_background_color(&mut self, color: RGBA) {
         self.background_color = Some(color);
+        self.background_palette = None;
         if let Some(snapper) = self.widget.as_any().downcast_mut::<TheSnapperbar>() {
             snapper.set_background_color(Some(color));
+            self.mark_layout_dirty();
+        }
+    }
+
+    pub fn set_background_palette(&mut self, palette: TheThemePalettes, index: usize) {
+        self.background_color = None;
+        self.background_palette = Some((palette, index));
+        if let Some(snapper) = self.widget.as_any().downcast_mut::<TheSnapperbar>() {
+            snapper.set_background_palette(palette, index);
             self.mark_layout_dirty();
         }
     }
@@ -106,7 +118,9 @@ impl TheTreeNode {
             if let Some(color) = self.text_color {
                 snapper.set_text_color(color);
             }
-            if let Some(color) = self.background_color {
+            if let Some((palette, index)) = self.background_palette {
+                snapper.set_background_palette(palette, index);
+            } else if let Some(color) = self.background_color {
                 snapper.set_background_color(Some(color));
             }
         }

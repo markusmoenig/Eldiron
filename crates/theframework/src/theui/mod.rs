@@ -7,6 +7,7 @@ pub mod theflattenedmap;
 pub mod theid;
 pub mod thelayout;
 pub mod thenodeui;
+pub mod thepainter;
 pub mod thergbbuffer;
 pub mod thesdf;
 pub mod thesizelimiter;
@@ -70,6 +71,7 @@ pub mod prelude {
     pub use std::rc::Rc;
 
     pub use crate::theui::theid::TheId;
+    pub use crate::theui::thepainter::*;
 
     pub use crate::theui::thecanvas::*;
     pub use crate::theui::thecodehighlighter::{TheCodeHighlighter, TheCodeHighlighterTrait};
@@ -89,7 +91,10 @@ pub mod prelude {
     pub use crate::theui::thestyle::prelude::*;
 
     pub use crate::theui::thetheme::prelude::*;
-    pub use crate::theui::thetheme::{TheTheme, TheThemeColors, TheThemeColors::*};
+    pub use crate::theui::thetheme::{
+        TheTheme, TheThemeColors, TheThemeColors::*, TheThemeMetrics, TheThemeMetrics::*,
+        TheThemePaints, TheThemePaints::*, TheThemePalettes, TheThemePalettes::*,
+    };
 
     pub use crate::theui::thelayout::prelude::*;
     pub use crate::theui::thesdf::thepattern::ThePattern;
@@ -320,6 +325,13 @@ impl TheUI {
             right_mouse_down: false,
             mouse_capture_id: None,
         }
+    }
+
+    /// Replaces the active theme and invalidates the full UI for repainting.
+    pub fn set_theme(&mut self, theme: Box<dyn TheTheme>, ctx: &mut TheContext) {
+        self.style.set_theme(theme);
+        self.is_dirty = true;
+        ctx.ui.redraw_all = true;
     }
 
     pub fn init(&mut self, ctx: &mut TheContext) {

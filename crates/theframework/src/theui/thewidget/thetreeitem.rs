@@ -28,6 +28,7 @@ pub struct TheTreeItem {
     cursor_icon: Option<TheCursorIcon>,
 
     background: Option<TheColor>,
+    background_palette: Option<(TheThemePalettes, usize)>,
 }
 
 impl TheWidget for TheTreeItem {
@@ -65,6 +66,7 @@ impl TheWidget for TheTreeItem {
             cursor_icon: None,
 
             background: None,
+            background_palette: None,
         }
     }
 
@@ -428,6 +430,8 @@ impl TheWidget for TheTreeItem {
             } else {
                 *style.theme().color(ListItemSelected)
             }
+        } else if let Some((palette, index)) = self.background_palette {
+            style.theme().palette_color(palette, index)
         } else if let Some(background) = &self.background {
             background.to_u8_array()
         } else {
@@ -758,6 +762,7 @@ impl TheWidget for TheTreeItem {
 
 pub trait TheTreeItemTrait {
     fn set_background_color(&mut self, color: TheColor);
+    fn set_background_palette(&mut self, palette: TheThemePalettes, index: usize);
     fn set_text(&mut self, text: String);
     fn set_sub_text(&mut self, sub_text: String);
     fn set_associated_layout(&mut self, id: TheId);
@@ -772,6 +777,12 @@ pub trait TheTreeItemTrait {
 impl TheTreeItemTrait for TheTreeItem {
     fn set_background_color(&mut self, color: TheColor) {
         self.background = Some(color);
+        self.background_palette = None;
+        self.is_dirty = true;
+    }
+    fn set_background_palette(&mut self, palette: TheThemePalettes, index: usize) {
+        self.background = None;
+        self.background_palette = Some((palette, index));
         self.is_dirty = true;
     }
     fn set_text(&mut self, text: String) {

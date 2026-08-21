@@ -66,22 +66,25 @@ impl TheWidget for TheMenubar {
     fn draw(
         &mut self,
         buffer: &mut TheRGBABuffer,
-        _style: &mut Box<dyn TheStyle>,
+        style: &mut Box<dyn TheStyle>,
         ctx: &mut TheContext,
     ) {
         if !self.dim().is_valid() {
             return;
         }
 
-        let stride = buffer.stride();
-        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
-
-        if let Some(icon) = ctx.ui.icon("dark_menubar_large") {
-            for x in 0..utuple.2 {
-                let r = (utuple.0 + x, utuple.1, 1, icon.dim().height as usize);
-                ctx.draw
-                    .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-            }
+        let bounds = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
+        );
+        let fill = style.theme().paint(MenubarBackground, bounds);
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            surface.set_clip(bounds);
+            ctx.painter.fill_rect(&mut surface, bounds, &fill);
         }
 
         self.is_dirty = false;

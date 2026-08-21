@@ -64,33 +64,31 @@ impl TheWidget for TheMenubarSeparator {
         &mut self,
         buffer: &mut TheRGBABuffer,
         style: &mut Box<dyn TheStyle>,
-        ctx: &mut TheContext,
+        _ctx: &mut TheContext,
     ) {
-        let stride = buffer.stride();
-
         if !self.dim().is_valid() {
             return;
         }
 
-        let mut utuple = self.dim.to_buffer_utuple();
-        utuple.0 += 4;
-        utuple.2 = 1;
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &utuple,
-            stride,
-            style.theme().color(MenubarButtonSeparator1),
+        let first = ThePixelRect::new(
+            self.dim.buffer_x.saturating_add(4),
+            self.dim.buffer_y,
+            1,
+            self.dim.height,
         );
-
-        utuple.0 += 1;
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &utuple,
-            stride,
-            style.theme().color(MenubarButtonSeparator2),
-        );
+        let second = ThePixelRect::new(first.x.saturating_add(1), first.y, 1, first.height);
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            surface.set_clip(ThePixelRect::new(
+                self.dim.buffer_x,
+                self.dim.buffer_y,
+                self.dim.width,
+                self.dim.height,
+            ));
+            surface.fill_rect(first, *style.theme().color(MenubarButtonSeparator1));
+            surface.fill_rect(second, *style.theme().color(MenubarButtonSeparator2));
+        }
 
         self.is_dirty = false;
     }

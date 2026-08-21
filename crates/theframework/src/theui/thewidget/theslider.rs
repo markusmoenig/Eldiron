@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::theui::thewidget::thesliderchrome::{TheSliderChromeState, draw_slider_chrome};
 
 pub struct TheSlider {
     id: TheId,
@@ -273,137 +274,80 @@ impl TheWidget for TheSlider {
         }
 
         let stride = buffer.stride();
-        let mut shrinker = TheDimShrinker::zero();
-
-        shrinker.shrink_by(1, 5, 1, 0);
-
-        let mut r = self.dim.to_buffer_shrunk_utuple(&shrinker);
-        r.2 -= self.text_width as usize;
-        r.3 = 1;
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &r,
-            stride,
-            style.theme().color(SliderSmallColor1),
-        );
-
-        shrinker.reset();
-        shrinker.shrink_by(0, 6, 0, 0);
-        r = self.dim.to_buffer_shrunk_utuple(&shrinker);
-        r.2 -= self.text_width as usize;
-        r.3 = 1;
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &r,
-            stride,
-            style.theme().color(SliderSmallColor4),
-        );
-
-        shrinker.shrink_by(0, 1, 0, 0);
-        r = self.dim.to_buffer_shrunk_utuple(&shrinker);
-        r.2 -= self.text_width as usize;
-        r.3 = 1;
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &r,
-            stride,
-            style.theme().color(SliderSmallColor3),
-        );
-
-        shrinker.shrink_by(1, 1, 1, 0);
-        r = self.dim.to_buffer_shrunk_utuple(&shrinker);
-        r.2 -= self.text_width as usize;
-        r.3 = 1;
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &r,
-            stride,
-            style.theme().color(SliderSmallColor3),
-        );
-
-        shrinker.reset();
-        shrinker.shrink_by(1, 6, 1, 0);
-        r = self.dim.to_buffer_shrunk_utuple(&shrinker);
-        r.2 -= self.text_width as usize;
-        r.3 = 2;
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &r,
-            stride,
-            style.theme().color(SliderSmallColor2),
-        );
-
-        let mut icon_name = if self.state == TheWidgetState::Selected && !self.embedded {
-            "dark_slider_small_selected".to_string()
-        } else {
-            "dark_slider_small_normal".to_string()
-        };
-
-        if !self.embedded {
-            if self.state != TheWidgetState::Selected && self.id().equals(&ctx.ui.hover) {
-                icon_name = "dark_slider_small_selected".to_string()
-            }
-            if self.state != TheWidgetState::Selected && self.id().equals(&ctx.ui.focus) {
-                icon_name = "dark_slider_small_selected".to_string()
-            }
-        }
-        // Embedded sliders don't show focus styling since they have no background
-
+        let track_width = self.dim.width - self.text_width;
         let mut pos = 0;
         let mut text = "".to_string();
 
         if let Some(range_f32) = self.range.to_range_f32() {
             if let Some(value) = self.value.to_f32() {
-                let normalized =
-                    (value - range_f32.start()) / (range_f32.end() - range_f32.start());
-                pos = (normalized * (self.dim.width - self.text_width) as f32)
-                    .clamp(0.0, (self.dim.width - self.text_width) as f32)
-                    as usize;
+                let span = range_f32.end() - range_f32.start();
+                let normalized = if span.abs() > f32::EPSILON {
+                    (value - range_f32.start()) / span
+                } else {
+                    0.0
+                };
+                pos = (normalized * track_width as f32).clamp(0.0, track_width as f32) as i32;
                 text = format!("{:.2}", value);
             }
         } else if let Some(range_i32) = self.range.to_range_i32() {
             if let Some(value) = self.value.to_i32() {
                 let range_diff = range_i32.end() - range_i32.start();
-                let normalized =
-                    (value - range_i32.start()) * (self.dim.width - self.text_width) / range_diff;
-                pos = normalized.clamp(0, self.dim.width - self.text_width) as usize;
+                let normalized = if range_diff != 0 {
+                    (value - range_i32.start()) * track_width / range_diff
+                } else {
+                    0
+                };
+                pos = normalized.clamp(0, track_width);
                 text = format!("{:.2}", value);
             }
         }
 
-        if let Some(icon) = ctx.ui.icon(&icon_name) {
-            let utuple = self.dim.to_buffer_utuple();
-            let r = (
-                utuple.0 + pos,
-                utuple.1,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
-            );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-        }
-
-        shrinker.reset();
-        shrinker.shrink_by(self.dim.width - self.text_width + 10, 0, 0, 0);
-
-        ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
-            &self.dim.to_buffer_shrunk_utuple(&shrinker),
-            stride,
-            &text,
-            TheFontSettings {
-                size: 13.0,
-                ..Default::default()
-            },
-            &WHITE,
-            TheHorizontalAlign::Left,
-            TheVerticalAlign::Center,
+        let chrome_state = if !self.embedded && self.state == TheWidgetState::Selected {
+            TheSliderChromeState::Pressed
+        } else if !self.embedded
+            && (self.id().equals(&ctx.ui.hover) || self.id().equals(&ctx.ui.focus))
+        {
+            TheSliderChromeState::Hovered
+        } else {
+            TheSliderChromeState::Normal
+        };
+        let bounds = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
         );
+        draw_slider_chrome(buffer, bounds, track_width, pos, chrome_state, style, ctx);
+
+        let width = buffer.dim().width.max(0);
+        let height = buffer.dim().height.max(0);
+        let text_bounds = ThePixelRect::new(
+            self.dim.buffer_x.saturating_add(track_width + 10),
+            self.dim.buffer_y,
+            self.text_width.saturating_sub(10),
+            self.dim.height,
+        )
+        .intersection(ThePixelRect::new(0, 0, width, height));
+        if !text_bounds.is_empty() {
+            ctx.draw.text_rect_blend(
+                buffer.pixels_mut(),
+                &(
+                    text_bounds.x as usize,
+                    text_bounds.y as usize,
+                    text_bounds.width as usize,
+                    text_bounds.height as usize,
+                ),
+                stride,
+                &text,
+                TheFontSettings {
+                    size: 13.0,
+                    ..Default::default()
+                },
+                &WHITE,
+                TheHorizontalAlign::Left,
+                TheVerticalAlign::Center,
+            );
+        }
 
         self.is_dirty = false;
     }

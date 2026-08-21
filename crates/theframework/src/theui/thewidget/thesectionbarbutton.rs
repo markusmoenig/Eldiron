@@ -124,38 +124,46 @@ impl TheWidget for TheSectionbarButton {
             return;
         }
 
+        let rect = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
+        );
+        let hovered = self.state != TheWidgetState::Selected && self.id().equals(&ctx.ui.hover);
+        let (paint_role, border_role) = if self.state == TheWidgetState::Selected {
+            (SectionButtonSelected, ToolListButtonSelectedBorder)
+        } else if hovered {
+            (SectionButtonHover, ToolListButtonHoverBorder)
+        } else {
+            (SectionButtonNormal, ToolListButtonNormalBorder)
+        };
+        let paint = style.theme().paint(paint_role, rect);
+        let border = *style.theme().color(border_role);
+        let text_color = if self.state == TheWidgetState::Selected {
+            *style.theme().color(SectionbarSelectedTextColor)
+        } else {
+            *style.theme().color(SectionbarNormalTextColor)
+        };
+        let radius = style.theme().metric(ControlCornerRadius) + 1.0;
+        let inner = ThePixelRect::new(
+            rect.x.saturating_add(1),
+            rect.y.saturating_add(1),
+            rect.width.saturating_sub(2),
+            rect.height.saturating_sub(2),
+        );
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            surface.set_clip(rect);
+            ctx.painter
+                .fill_round_rect(&mut surface, rect, radius, &ThePaint::solid(border));
+            ctx.painter
+                .fill_round_rect(&mut surface, inner, (radius - 1.0).max(0.0), &paint);
+        }
+
         let stride = buffer.stride();
         let shrinker = TheDimShrinker::zero();
-
-        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
-
-        let mut icon_name = if self.state == TheWidgetState::Selected {
-            "dark_sectionbarbutton_selected".to_string()
-        } else {
-            "dark_sectionbarbutton_normal".to_string()
-        };
-
-        if self.state != TheWidgetState::Selected && self.id().equals(&ctx.ui.hover) {
-            icon_name = "dark_sectionbarbutton_hover".to_string()
-        }
-
-        let text_color = if self.state == TheWidgetState::Selected {
-            style.theme().color(SectionbarSelectedTextColor)
-        } else {
-            style.theme().color(SectionbarNormalTextColor)
-        };
-
-        if let Some(icon) = ctx.ui.icon(&icon_name) {
-            let r = (
-                utuple.0,
-                utuple.1,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
-            );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-        }
-
         ctx.draw.text_rect_blend(
             buffer.pixels_mut(),
             &self.dim.to_buffer_shrunk_utuple(&shrinker),
@@ -165,7 +173,7 @@ impl TheWidget for TheSectionbarButton {
                 size: 15.0,
                 ..Default::default()
             },
-            text_color,
+            &text_color,
             TheHorizontalAlign::Center,
             TheVerticalAlign::Center,
         );

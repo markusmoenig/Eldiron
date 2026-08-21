@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::theui::thewidget::thebuttonchrome::draw_button_chrome;
 
 pub struct TheTraybarButton {
     id: TheId,
@@ -221,86 +222,28 @@ impl TheWidget for TheTraybarButton {
             return;
         }
 
-        if self.is_disabled {
-            ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
-                &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                stride,
-                style.theme().color(TraybarButtonDisabledBorder),
-                1,
-            );
-
-            shrinker.shrink(1);
-
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                stride,
-                style.theme().color(TraybarButtonDisabledBackground),
-            );
-        }
-
-        if !self.is_disabled
-            && self.state == TheWidgetState::None
-            && !self.id().equals(&ctx.ui.hover)
-        {
-            ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
-                &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                stride,
-                style.theme().color(TraybarButtonNormalBorder),
-                1,
-            );
-
-            shrinker.shrink(1);
-
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                stride,
-                style.theme().color(TraybarButtonNormal),
-            );
-        }
-
-        if !self.is_disabled && self.state != TheWidgetState::None
-            || self.id().equals(&ctx.ui.hover)
-        {
-            if self.state == TheWidgetState::Clicked || self.state == TheWidgetState::Selected {
-                ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
-                    &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                    stride,
-                    style.theme().color(TraybarButtonClickedBorder),
-                    1,
-                );
-
-                shrinker.shrink(1);
-
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                    stride,
-                    style.theme().color(TraybarButtonClicked),
-                );
-            } else if self.id().equals(&ctx.ui.hover) {
-                ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
-                    &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                    stride,
-                    style.theme().color(TraybarButtonHover),
-                    1,
-                );
-
-                shrinker.shrink(1);
-
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                    stride,
-                    style.theme().color(TraybarButtonHoverBorder),
-                );
-            }
-        }
+        let (paint_role, border_role) = if self.is_disabled {
+            (TrayButtonDisabled, TraybarButtonDisabledBorder)
+        } else if self.state == TheWidgetState::Clicked || self.state == TheWidgetState::Selected {
+            (TrayButtonPressed, TraybarButtonClickedBorder)
+        } else if self.id().equals(&ctx.ui.hover) {
+            (TrayButtonHover, TraybarButtonHoverBorder)
+        } else {
+            (TrayButtonNormal, TraybarButtonNormalBorder)
+        };
+        let border = if self.is_disabled {
+            *style.theme().color_disabled(border_role)
+        } else {
+            *style.theme().color(border_role)
+        };
+        let bounds = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
+        );
+        draw_button_chrome(buffer, bounds, paint_role, border, style, ctx);
+        shrinker.shrink(1);
 
         if let Some(icon) = &self.icon {
             let utuple = self.dim.to_buffer_shrunk_utuple(&shrinker);

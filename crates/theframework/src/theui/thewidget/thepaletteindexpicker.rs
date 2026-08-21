@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::thecontext::TheCursorIcon;
+use crate::theui::thewidget::thedropdownchrome::{TheDropdownChromeState, draw_dropdown_chrome};
 
 pub struct ThePaletteIndexPicker {
     id: TheId,
@@ -241,46 +242,26 @@ impl TheWidget for ThePaletteIndexPicker {
             return;
         }
 
+        let interactive = !self.is_disabled && !self.embedded;
+        draw_dropdown_chrome(
+            buffer,
+            &self.dim,
+            TheDropdownChromeState {
+                disabled: self.is_disabled,
+                pressed: !self.embedded && self.state == TheWidgetState::Clicked,
+                hovered: interactive
+                    && self.state != TheWidgetState::Clicked
+                    && self.id().equals(&ctx.ui.hover),
+                focused: interactive
+                    && self.state != TheWidgetState::Clicked
+                    && self.id().equals(&ctx.ui.focus),
+            },
+            style,
+            ctx,
+        );
+
         let stride = buffer.stride();
         let utuple = self.dim.to_buffer_utuple();
-
-        let mut icon_name = if self.state == TheWidgetState::Clicked && !self.embedded {
-            "dark_dropdown_clicked".to_string()
-        } else {
-            "dark_dropdown_normal".to_string()
-        };
-        if !self.is_disabled && !self.embedded {
-            if self.state != TheWidgetState::Clicked && self.id().equals(&ctx.ui.hover) {
-                icon_name = "dark_dropdown_hover".to_string();
-            }
-            if self.state != TheWidgetState::Clicked && self.id().equals(&ctx.ui.focus) {
-                icon_name = "dark_dropdown_focus".to_string();
-            }
-        }
-
-        if let Some(icon) = ctx.ui.icon(&icon_name) {
-            let off = if icon.dim().width == 140 { 1 } else { 0 };
-            let r = (
-                utuple.0 + off,
-                utuple.1 + off,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
-            );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-        }
-
-        if let Some(icon) = ctx.ui.icon("dark_dropdown_marker") {
-            let r = (
-                utuple.0 + 129,
-                utuple.1 + 7,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
-            );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-        }
-
         let swatch_rect = (utuple.0 + 8, utuple.1 + 4, 16, 12);
         let color = self
             .palette

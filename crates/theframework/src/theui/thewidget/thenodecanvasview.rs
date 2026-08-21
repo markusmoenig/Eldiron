@@ -1,25 +1,9 @@
 use crate::prelude::*;
+use crate::theui::thewidget::thenodechrome::{TheNodeChromePaints, draw_node_chrome};
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex};
 use web_time::Instant;
 use zeno::{Mask, Stroke};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum TheNodeUIImages {
-    NormalTopLeft,
-    NormalTopMiddle,
-    NormalTopRight,
-    SelectedTopLeft,
-    SelectedTopMiddle,
-    SelectedTopRight,
-    NormalBottomLeft,
-    NormalBottomMiddle,
-    NormalBottomRight,
-    SelectedBottomLeft,
-    SelectedBottomMiddle,
-    SelectedBottomRight,
-    PreviewArea,
-}
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
 pub enum TheNodeAction {
@@ -29,8 +13,6 @@ pub enum TheNodeAction {
     ConnectingTerminal(usize, bool, u8),
     CutConnection,
 }
-
-use TheNodeUIImages::*;
 
 pub struct TheNodeCanvasView {
     id: TheId,
@@ -50,8 +32,6 @@ pub struct TheNodeCanvasView {
     dim: TheDim,
 
     is_dirty: bool,
-
-    node_ui_images: FxHashMap<TheNodeUIImages, TheRGBABuffer>,
 
     drag_start: Vec2<i32>,
     drag_offset: Vec2<i32>,
@@ -89,8 +69,6 @@ impl TheWidget for TheNodeCanvasView {
             dim: TheDim::zero(),
 
             is_dirty: false,
-
-            node_ui_images: FxHashMap::default(),
 
             drag_start: Vec2::zero(),
             drag_offset: Vec2::zero(),
@@ -496,14 +474,12 @@ impl TheWidget for TheNodeCanvasView {
             return;
         }
 
-        if self.node_ui_images.is_empty() {
-            self.fill_node_ui_images(ctx);
-        }
-
-        //self.render_buffer.fill([128, 128, 128, 255]);
-
         let width = self.render_buffer.dim().width as usize;
         let height = self.render_buffer.dim().height;
+        let canvas_background = *style.theme().color(NodeCanvasBackground);
+        let canvas_grid = *style.theme().color(NodeCanvasGrid);
+        let connection_color = *style.theme().color(NodeConnection);
+        let cut_connection_color = *style.theme().color(NodeCutConnection);
 
         let pixels = self.render_buffer.pixels_mut();
         pixels
@@ -525,7 +501,7 @@ impl TheWidget for TheNodeCanvasView {
                         ]
                     }
 
-                    let mut color = [128, 128, 128, 255];
+                    let mut color = canvas_background;
 
                     let xx = (i % width) as i32;
                     let yy = height - (i / width) as i32;
@@ -535,7 +511,7 @@ impl TheWidget for TheNodeCanvasView {
 
                     // if (m_x.abs() <= 1 && xx != -1) || (m_y.abs() <= 1 && yy != -1) {
                     if m_x == 0 || m_y == 0 {
-                        color = [81, 81, 81, 255];
+                        color = canvas_grid;
                     }
 
                     if self.overlay_tiled {
@@ -567,19 +543,38 @@ impl TheWidget for TheNodeCanvasView {
         let rbh = self.render_buffer.dim().height as usize;
 
         let node_width = self.canvas.node_width;
+        let terminal_text_color = *style.theme().color(ListItemText);
+        let terminal_border_color = *style.theme().color(NodeBorder);
+        let mut node_chrome_paints = Vec::with_capacity(self.canvas.nodes.len());
+        for (index, node) in self.canvas.nodes.iter().enumerate() {
+            let max_terminals = node.inputs.len().max(node.outputs.len()) as i32;
+            let body_height = 7 + max_terminals * 10 + (max_terminals - 1) * 4 + 7;
+            let preview_height = if node.supports_preview && node.preview_is_open {
+                118
+            } else {
+                0
+            };
+            let node_height = 19 + body_height + preview_height + 19;
+            node_chrome_paints.push(TheNodeChromePaints::resolve(
+                style,
+                node_width,
+                node_height,
+                preview_height,
+                Some(index) == self.canvas.selected_node,
+            ));
+        }
         let node_rects = Arc::new(Mutex::new(Vec::new()));
 
         // Draw a node
         let draw_node = |index: usize, node: &TheNode| {
             let max_terminals = node.inputs.len().max(node.outputs.len()) as i32;
-            let mut body_height = 7 + max_terminals * 10 + (max_terminals - 1) * 4 + 7;
+            let body_height = 7 + max_terminals * 10 + (max_terminals - 1) * 4 + 7;
             let mut node_height = 19 + body_height + 19;
             let mut preview_height = 0;
 
             if node.supports_preview && node.preview_is_open {
                 preview_height = 118;
                 node_height += preview_height;
-                body_height += preview_height;
             }
 
             let dim = TheDim::new(
@@ -591,39 +586,7 @@ impl TheWidget for TheNodeCanvasView {
 
             let mut nb = TheRGBABuffer::new(TheDim::sized(node_width, node_height));
 
-            let is_selected = Some(index) == self.canvas.selected_node;
-
-            // Header
-
-            if is_selected {
-                nb.copy_into(0, 0, self.node_ui_images.get(&SelectedTopLeft).unwrap());
-
-                for i in 0..(node_width - 18) {
-                    nb.copy_into(
-                        9 + i,
-                        0,
-                        self.node_ui_images.get(&SelectedTopMiddle).unwrap(),
-                    );
-                }
-
-                nb.copy_into(
-                    node_width - 9,
-                    0,
-                    self.node_ui_images.get(&SelectedTopRight).unwrap(),
-                );
-            } else {
-                nb.copy_into(2, 2, self.node_ui_images.get(&NormalTopLeft).unwrap());
-
-                for i in 0..(node_width - 18) {
-                    nb.copy_into(9 + i, 2, self.node_ui_images.get(&NormalTopMiddle).unwrap());
-                }
-
-                nb.copy_into(
-                    node_width - 9,
-                    2,
-                    self.node_ui_images.get(&NormalTopRight).unwrap(),
-                );
-            }
+            draw_node_chrome(&mut nb, preview_height, &node_chrome_paints[index]);
 
             if let Some(font) = &ctx.ui.font {
                 let title_color = node
@@ -635,7 +598,7 @@ impl TheWidget for TheNodeCanvasView {
                             .first()
                             .map(|terminal| self.color_for(&terminal.category_name).to_u8_array())
                     })
-                    .unwrap_or([188, 188, 188, 255]);
+                    .unwrap_or(terminal_text_color);
                 nb.draw_text(
                     Vec2::new(12, 4),
                     font,
@@ -645,50 +608,6 @@ impl TheWidget for TheNodeCanvasView {
                     TheHorizontalAlign::Left,
                     TheVerticalAlign::Top,
                 );
-            }
-
-            // Body
-            for _y in 0..body_height {
-                let y = _y + 19;
-                for x in 0..node_width {
-                    if x < 2 {
-                        if is_selected {
-                            if x == 0 {
-                                nb.set_pixel(x, y, &[255, 255, 255, 55]);
-                            } else {
-                                nb.set_pixel(x, y, &[255, 255, 255, 166]);
-                            }
-                        }
-                        continue;
-                    } else if x >= node_width - 2 {
-                        if is_selected {
-                            if x == node_width - 1 {
-                                nb.set_pixel(x, y, &[255, 255, 255, 55]);
-                            } else {
-                                nb.set_pixel(x, y, &[255, 255, 255, 166]);
-                            }
-                        }
-                        continue;
-                    }
-
-                    if x == node_width - 3 || _y == body_height - 1 {
-                        nb.set_pixel(x, y, &[44, 44, 44, 255]);
-                    } else if x == node_width - 4 && _y > 1 {
-                        nb.set_pixel(x, y, &[162, 162, 162, 255]);
-                    } else if x == 2 {
-                        nb.set_pixel(x, y, &[112, 112, 112, 255]);
-                    } else if x == 3 && _y > 0 {
-                        nb.set_pixel(x, y, &[137, 137, 137, 255]);
-                    } else if _y == 0 {
-                        nb.set_pixel(x, y, &[82, 82, 82, 255]);
-                    } else if _y == 1 {
-                        nb.set_pixel(x, y, &[137, 137, 137, 255]);
-                    } else if _y == body_height - 2 {
-                        nb.set_pixel(x, y, &[162, 162, 162, 255]);
-                    } else {
-                        nb.set_pixel(x, y, &[179, 179, 179, 255]);
-                    }
-                }
             }
 
             // Terminals
@@ -707,7 +626,7 @@ impl TheWidget for TheNodeCanvasView {
                         font,
                         &i.name,
                         9.5,
-                        [82, 82, 82, 255],
+                        terminal_text_color,
                         TheHorizontalAlign::Left,
                         TheVerticalAlign::Center,
                     );
@@ -718,7 +637,7 @@ impl TheWidget for TheNodeCanvasView {
                     &dim,
                     &self.color_for(&i.category_name).to_u8_array(),
                     1.0,
-                    &[105, 105, 105, 255],
+                    &terminal_border_color,
                 );
                 terminal_rects.0.push(dim);
                 y += 10 + 4;
@@ -736,7 +655,7 @@ impl TheWidget for TheNodeCanvasView {
                         font,
                         &o.name,
                         9.5,
-                        [82, 82, 82, 255],
+                        terminal_text_color,
                         TheHorizontalAlign::Right,
                         TheVerticalAlign::Center,
                     );
@@ -748,7 +667,7 @@ impl TheWidget for TheNodeCanvasView {
                     &dim,
                     &self.color_for(&o.category_name).to_u8_array(),
                     1.0,
-                    &[105, 105, 105, 255],
+                    &terminal_border_color,
                 );
                 terminal_rects.1.push(dim);
                 y += 10 + 4;
@@ -758,55 +677,11 @@ impl TheWidget for TheNodeCanvasView {
 
             if preview_height > 0 {
                 let mut y = node_height - 19 - preview_height;
-                nb.copy_into(2, y, self.node_ui_images.get(&PreviewArea).unwrap());
                 if node.preview.is_valid() {
                     let x = 3 + (node_width - 4 - node.preview.dim().width) / 2;
-                    y += (preview_height - node.preview.dim().height) / 2 - 1;
+                    y += (preview_height - node.preview.dim().height) / 2;
                     nb.blend_into(x, y, &node.preview);
                 }
-            }
-
-            // Footer
-            if is_selected {
-                nb.copy_into(
-                    0,
-                    node_height - 19,
-                    self.node_ui_images.get(&SelectedBottomLeft).unwrap(),
-                );
-
-                for i in 0..(node_width - 18) {
-                    nb.copy_into(
-                        9 + i,
-                        node_height - 19,
-                        self.node_ui_images.get(&SelectedBottomMiddle).unwrap(),
-                    );
-                }
-
-                nb.copy_into(
-                    node_width - 9,
-                    node_height - 19,
-                    self.node_ui_images.get(&SelectedBottomRight).unwrap(),
-                );
-            } else {
-                nb.copy_into(
-                    2,
-                    node_height - 19,
-                    self.node_ui_images.get(&NormalBottomLeft).unwrap(),
-                );
-
-                for i in 0..(node_width - 18) {
-                    nb.copy_into(
-                        9 + i,
-                        node_height - 19,
-                        self.node_ui_images.get(&NormalBottomMiddle).unwrap(),
-                    );
-                }
-
-                nb.copy_into(
-                    node_width - 9,
-                    node_height - 19,
-                    self.node_ui_images.get(&NormalBottomRight).unwrap(),
-                );
             }
 
             let mut node_rects = node_rects.lock().unwrap();
@@ -924,7 +799,7 @@ impl TheWidget for TheNodeCanvasView {
                 rbw,
                 &line_mask[..],
                 &(rbw, rbh),
-                &[90, 90, 90, 255],
+                &connection_color,
             );
         }
 
@@ -935,7 +810,7 @@ impl TheWidget for TheNodeCanvasView {
                 self.drag_start.y,
                 self.drag_offset.x,
                 self.drag_offset.y,
-                [209, 42, 42, 255],
+                cut_connection_color,
             );
         }
 
@@ -1054,73 +929,7 @@ impl TheNodeCanvasViewTrait for TheNodeCanvasView {
             self.is_dirty = true;
         }
     }
-    fn fill_node_ui_images(&mut self, ctx: &mut TheContext) {
-        self.node_ui_images.clear();
-        self.node_ui_images.insert(
-            SelectedTopLeft,
-            ctx.ui.icon("dark_node_selected_topleft").unwrap().clone(),
-        );
-        self.node_ui_images.insert(
-            SelectedTopMiddle,
-            ctx.ui.icon("dark_node_selected_topmiddle").unwrap().clone(),
-        );
-        self.node_ui_images.insert(
-            SelectedTopRight,
-            ctx.ui.icon("dark_node_selected_topright").unwrap().clone(),
-        );
-        self.node_ui_images.insert(
-            NormalTopLeft,
-            ctx.ui.icon("dark_node_normal_topleft").unwrap().clone(),
-        );
-        self.node_ui_images.insert(
-            NormalTopMiddle,
-            ctx.ui.icon("dark_node_normal_topmiddle").unwrap().clone(),
-        );
-        self.node_ui_images.insert(
-            NormalTopRight,
-            ctx.ui.icon("dark_node_normal_topright").unwrap().clone(),
-        );
-        self.node_ui_images.insert(
-            SelectedBottomLeft,
-            ctx.ui
-                .icon("dark_node_selected_bottomleft")
-                .unwrap()
-                .clone(),
-        );
-        self.node_ui_images.insert(
-            SelectedBottomMiddle,
-            ctx.ui
-                .icon("dark_node_selected_bottommiddle")
-                .unwrap()
-                .clone(),
-        );
-        self.node_ui_images.insert(
-            SelectedBottomRight,
-            ctx.ui
-                .icon("dark_node_selected_bottomright")
-                .unwrap()
-                .clone(),
-        );
-        self.node_ui_images.insert(
-            NormalBottomLeft,
-            ctx.ui.icon("dark_node_normal_bottomleft").unwrap().clone(),
-        );
-        self.node_ui_images.insert(
-            NormalBottomMiddle,
-            ctx.ui
-                .icon("dark_node_normal_bottommiddle")
-                .unwrap()
-                .clone(),
-        );
-        self.node_ui_images.insert(
-            NormalBottomRight,
-            ctx.ui.icon("dark_node_normal_bottomright").unwrap().clone(),
-        );
-        self.node_ui_images.insert(
-            PreviewArea,
-            ctx.ui.icon("dark_node_preview_area").unwrap().clone(),
-        );
-    }
+    fn fill_node_ui_images(&mut self, _ctx: &mut TheContext) {}
     fn node_index_at(&self, coord: &Vec2<i32>) -> Option<usize> {
         for (i, r) in self.node_rects.iter().enumerate().rev() {
             if r.contains(*coord) {

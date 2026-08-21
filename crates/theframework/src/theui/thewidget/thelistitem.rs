@@ -29,6 +29,7 @@ pub struct TheListItem {
     context_menu: Option<TheContextMenu>,
 
     background: Option<TheColor>,
+    background_palette: Option<(TheThemePalettes, usize)>,
 }
 
 impl TheWidget for TheListItem {
@@ -68,6 +69,7 @@ impl TheWidget for TheListItem {
             context_menu: None,
 
             background: None,
+            background_palette: None,
         }
     }
 
@@ -229,6 +231,8 @@ impl TheWidget for TheListItem {
             } else {
                 *style.theme().color(ListItemSelected)
             }
+        } else if let Some((palette, index)) = self.background_palette {
+            style.theme().palette_color(palette, index)
         } else if let Some(background) = &self.background {
             background.to_u8_array()
         } else {
@@ -414,6 +418,7 @@ impl TheWidget for TheListItem {
 
 pub trait TheListItemTrait {
     fn set_background_color(&mut self, color: TheColor);
+    fn set_background_palette(&mut self, palette: TheThemePalettes, index: usize);
     fn set_text(&mut self, text: String);
     fn set_sub_text(&mut self, sub_text: String);
     fn set_text_color(&mut self, color: RGBA);
@@ -430,6 +435,12 @@ pub trait TheListItemTrait {
 impl TheListItemTrait for TheListItem {
     fn set_background_color(&mut self, color: TheColor) {
         self.background = Some(color);
+        self.background_palette = None;
+        self.is_dirty = true;
+    }
+    fn set_background_palette(&mut self, palette: TheThemePalettes, index: usize) {
+        self.background = None;
+        self.background_palette = Some((palette, index));
         self.is_dirty = true;
     }
     fn set_text(&mut self, text: String) {

@@ -158,117 +158,80 @@ impl TheWidget for TheTabbar {
             return;
         }
 
-        let stride = buffer.stride();
-        let buffer_height = buffer.dim().height.max(0) as usize;
-
-        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &utuple,
-            stride,
-            style.theme().color(TabbarBackground),
+        let bar_rect = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
         );
+        let bar_paint = style.theme().paint(TabbarChrome, bar_rect);
+        let connector = *style.theme().color(TabbarConnector);
+        let text_color = *style.theme().color(TabbarText);
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        let buffer_bounds = ThePixelRect::new(0, 0, width as i32, height as i32);
+        let mut tab_rects = Vec::with_capacity(self.tabs.len());
 
-        let mut x = 0;
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            surface.set_clip(bar_rect);
+            ctx.painter.fill_rect(&mut surface, bar_rect, &bar_paint);
 
-        for (index, text) in self.tabs.iter().enumerate() {
-            let mut icon_name = if Some(index as i32) == self.selected_index {
-                "dark_tabbar_selected".to_string()
-            } else {
-                "dark_tabbar_normal".to_string()
-            };
-
-            if Some(index as i32) == self.hover_index && icon_name != "dark_tabbar_selected" {
-                icon_name = "dark_tabbar_hover".to_string()
-            }
-
-            if let Some(icon) = ctx.ui.icon(&icon_name) {
-                let icon_w = icon.dim().width as usize;
-                let icon_h = icon.dim().height as usize;
-                let draw_x = utuple.0 + x;
-                let draw_y = utuple.1;
-
-                // Guard against overflow when many tabs exceed available width/height.
-                if draw_x >= stride
-                    || draw_y >= buffer_height
-                    || draw_x + icon_w > stride
-                    || draw_y + icon_h > buffer_height
-                {
-                    break;
-                }
-
-                let r = (draw_x, draw_y, icon_w, icon_h);
-                ctx.draw
-                    .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-
-                ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
-                    &r,
-                    stride,
-                    text.as_str(),
-                    TheFontSettings {
-                        size: 12.5,
-                        ..Default::default()
-                    },
-                    style.theme().color(TabbarText),
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
-
-                x += icon_w;
-            } else {
-                // Fallback when tabbar skin icons are unavailable.
-                let tab_w = 142usize;
-                let tab_h = utuple.3.saturating_sub(1);
-                let draw_x = utuple.0 + x;
-                let draw_y = utuple.1;
-                if draw_x >= stride
-                    || draw_y >= buffer_height
-                    || draw_x + tab_w > stride
-                    || draw_y + tab_h > buffer_height
-                {
-                    break;
-                }
-
-                let selected = Some(index as i32) == self.selected_index;
-                let bg = if selected {
-                    style.theme().color(TabbarConnector)
+            let mut x = bar_rect.x;
+            for index in 0..self.tabs.len() {
+                let tab_rect =
+                    ThePixelRect::new(x, bar_rect.y, 142, bar_rect.height.saturating_sub(1));
+                let role = if Some(index as i32) == self.selected_index {
+                    TabSelectedChrome
+                } else if Some(index as i32) == self.hover_index {
+                    TabHoverChrome
                 } else {
-                    style.theme().color(TabbarBackground)
+                    TabNormalChrome
                 };
-                let r = (draw_x, draw_y, tab_w, tab_h);
-                ctx.draw.rect(buffer.pixels_mut(), &r, stride, bg);
-                ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
-                    &r,
-                    stride,
-                    text.as_str(),
-                    TheFontSettings {
-                        size: 12.5,
-                        ..Default::default()
-                    },
-                    style.theme().color(TabbarText),
-                    TheHorizontalAlign::Center,
-                    TheVerticalAlign::Center,
-                );
+                let paint = style.theme().paint(role, tab_rect);
+                ctx.painter.fill_rect(&mut surface, tab_rect, &paint);
+                tab_rects.push(tab_rect);
+                x = x.saturating_add(142);
 
-                x += tab_w;
+                if index + 1 < self.tabs.len() {
+                    surface.fill_rect(
+                        ThePixelRect::new(
+                            x,
+                            bar_rect.y.saturating_add(bar_rect.height.saturating_sub(1)),
+                            2,
+                            1,
+                        ),
+                        connector,
+                    );
+                    x = x.saturating_add(2);
+                }
             }
+        }
 
-            if index < self.tabs.len() - 1 {
-                // Connector
-
-                let r = (utuple.0 + x, utuple.1 + utuple.3 - 1, 2, 1);
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &r,
-                    stride,
-                    style.theme().color(TabbarConnector),
-                );
-
-                x += 2;
+        let stride = buffer.stride();
+        for (text, tab_rect) in self.tabs.iter().zip(tab_rects) {
+            let clipped = tab_rect.intersection(buffer_bounds).intersection(bar_rect);
+            if clipped.is_empty() {
+                continue;
             }
+            let text_rect = (
+                clipped.x as usize,
+                clipped.y as usize,
+                clipped.width as usize,
+                clipped.height as usize,
+            );
+            ctx.draw.text_rect_blend(
+                buffer.pixels_mut(),
+                &text_rect,
+                stride,
+                text,
+                TheFontSettings {
+                    size: 12.5,
+                    ..Default::default()
+                },
+                &text_color,
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
         }
 
         self.is_dirty = false;

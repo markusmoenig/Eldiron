@@ -1409,8 +1409,6 @@ impl TheTextRenderer {
         ctx: &mut TheContext,
         is_text_area: bool,
     ) {
-        let stride = buffer.stride();
-
         if border {
             if is_text_area {
                 style.draw_text_area_border(buffer, widget, shrinker, ctx, embedded, disabled);
@@ -1420,30 +1418,47 @@ impl TheTextRenderer {
         }
 
         if background {
-            if !disabled {
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &widget.dim().to_buffer_shrunk_utuple(shrinker),
-                    stride,
-                    &self
-                        .highlighter
-                        .as_ref()
-                        .and_then(|h| h.background())
-                        .map(|c| c.to_u8_array())
-                        .unwrap_or(*style.theme().color(TextEditBackground)),
-                );
+            let rect = ThePixelRect::new(
+                widget.dim().buffer_x.saturating_add(shrinker.left),
+                widget.dim().buffer_y.saturating_add(shrinker.top),
+                widget
+                    .dim()
+                    .width
+                    .saturating_sub(shrinker.left)
+                    .saturating_sub(shrinker.right),
+                widget
+                    .dim()
+                    .height
+                    .saturating_sub(shrinker.top)
+                    .saturating_sub(shrinker.bottom),
+            );
+            let paint = if let Some(background) = self
+                .highlighter
+                .as_ref()
+                .and_then(|highlighter| highlighter.background())
+            {
+                ThePaint::solid(background.to_u8_array())
             } else {
-                ctx.draw.blend_rect(
-                    buffer.pixels_mut(),
-                    &widget.dim().to_buffer_shrunk_utuple(shrinker),
-                    stride,
-                    &self
-                        .highlighter
-                        .as_ref()
-                        .and_then(|h| h.background())
-                        .map(|c| c.to_u8_array())
-                        .unwrap_or(*style.theme().color_disabled_t(TextEditBackground)),
-                );
+                let role = if disabled {
+                    TextInputDisabled
+                } else if widget.id().equals(&ctx.ui.focus) {
+                    TextInputFocused
+                } else {
+                    TextInputNormal
+                };
+                style.theme().paint(role, rect)
+            };
+            let radius = if is_text_area {
+                0.0
+            } else {
+                (style.theme().metric(ControlCornerRadius) - shrinker.left.max(0) as f32).max(0.0)
+            };
+            let width = buffer.dim().width.max(0) as usize;
+            let height = buffer.dim().height.max(0) as usize;
+            if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+                surface.set_clip(rect);
+                ctx.painter
+                    .fill_round_rect(&mut surface, rect, radius, &paint);
             }
         }
 

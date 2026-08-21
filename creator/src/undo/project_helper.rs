@@ -195,14 +195,14 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
-    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
     item.set_text(fl!("eldrin_scripting"));
     node.add_widget(Box::new(item));
 
     for (id, character) in &region.characters {
         let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
         item.add_value_column(200, TheValue::Text(fl!("character_instance")));
-        item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+        item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         item.set_text(character.name.clone());
         node.add_widget(Box::new(item));
     }
@@ -210,7 +210,7 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     for (id, item_) in &region.items {
         let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
         item.add_value_column(200, TheValue::Text(fl!("item_instance")));
-        item.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
+        item.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
         item.set_text(item_.name.clone());
         node.add_widget(Box::new(item));
     }
@@ -222,7 +222,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         TheTreeNode::new(TheId::named_with_id(&character.name, character.id));
     node.set_root_mode(false);
     if data_attr_bool(&character.data, "player") {
-        node.set_background_color(ActionRole::Camera.to_color());
+        node.set_background_palette(ActionGroups, ActionRole::Camera.palette_slot());
     }
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Character Item", character.id));
@@ -241,7 +241,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         "Character Item Code Edit",
         character.id,
     ));
-    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
     item.set_text(fl!("eldrin_scripting"));
     node.add_widget(Box::new(item));
 
@@ -249,7 +249,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         "Character Item Data Edit",
         character.id,
     ));
-    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
     item.set_text(fl!("attributes"));
     node.add_widget(Box::new(item));
 
@@ -257,7 +257,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         "Character Item Preview Rigging Edit",
         character.id,
     ));
-    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
     item.set_text(fl!("preview_rigging"));
     node.add_widget(Box::new(item));
 
@@ -269,9 +269,9 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&item_.name, item_.id));
     node.set_root_mode(false);
     if data_has_attr(&item_.data, "ruleset_path") {
-        node.set_background_color(ActionRole::Dock.to_color());
+        node.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
     } else if data_attr_bool(&item_.data, "is_spell") {
-        node.set_background_color(ActionRole::Editor.to_color());
+        node.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
     }
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item", item_.id));
@@ -284,12 +284,12 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
-    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
     item.set_text(fl!("eldrin_scripting"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Data Edit", item_.id));
-    item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+    item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
     item.set_text(fl!("attributes"));
     node.add_widget(Box::new(item));
 
@@ -592,7 +592,7 @@ pub fn gen_screen_tree_items(node: &mut TheTreeNode, screen: &Screen) {
                 screen.id,
             ));
             item.add_value_column(200, TheValue::Text("Widget".to_string()));
-            item.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+            item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
             item.set_text(sector.name.clone());
             node.add_widget(Box::new(item));
         }
@@ -751,7 +751,7 @@ pub fn apply_palette(
 
             let mut ruleset_label = TheTreeItem::new(TheId::named("Ruleset Palette Header"));
             ruleset_label.set_text(fl!("ruleset_palette"));
-            ruleset_label.set_background_color(TheColor::from(ActionRole::Dock.to_color()));
+            ruleset_label.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
             palette_node.add_widget(Box::new(ruleset_label));
 
             let mut ruleset_item = TheTreeIcons::new(TheId::named("Ruleset Palette Item"));
@@ -777,7 +777,7 @@ pub fn apply_palette(
 
             let mut art_label = TheTreeItem::new(TheId::named("Art Palette Header"));
             art_label.set_text(fl!("art_palette"));
-            art_label.set_background_color(TheColor::from(ActionRole::Editor.to_color()));
+            art_label.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
             palette_node.add_widget(Box::new(art_label));
 
             let mut art_item = TheTreeIcons::new(TheId::named("Palette Item"));

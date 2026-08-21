@@ -6,6 +6,7 @@ pub mod thedraw2d;
 pub mod thenodecanvas;
 pub mod thepalette;
 pub mod thergbabuffer;
+pub mod thesurface;
 pub mod thetime;
 pub mod thetrait;
 #[cfg(any(feature = "winit_app", feature = "winit_app_softbuffer"))]
@@ -89,6 +90,7 @@ pub mod prelude {
     pub use crate::thergbabuffer::{
         TheRGBABuffer, TheRGBARegion, TheRGBARegionSequence, TheRGBATile,
     };
+    pub use crate::thesurface::{ThePixelRect, TheSurfaceError, TheSurfaceMut};
 
     pub use rustc_hash::*;
     pub use uuid::Uuid;

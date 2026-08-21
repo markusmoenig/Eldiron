@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::theui::thewidget::thetimesliderchrome::draw_time_slider_chrome;
 
 pub struct TheTimeSlider {
     id: TheId,
@@ -20,6 +21,7 @@ pub struct TheTimeSlider {
     selected_marker: Option<TheTime>,
 
     text_width: i32,
+    tall: bool,
 }
 
 impl TheWidget for TheTimeSlider {
@@ -49,6 +51,7 @@ impl TheWidget for TheTimeSlider {
             continuous: false,
 
             text_width: 40,
+            tall: false,
 
             marker: vec![],
             selected_marker: None,
@@ -142,13 +145,13 @@ impl TheWidget for TheTimeSlider {
                     offset = 0;
                 }
 
-                if offset > self.dim.width - self.text_width {
-                    offset = self.dim.width - self.text_width;
+                let track_width = self.track_width();
+                if offset > track_width {
+                    offset = track_width;
                 }
 
                 for (time, _) in &self.marker {
-                    let marker_offset =
-                        time.to_widget_offset((self.dim.width - self.text_width) as u32) as i32;
+                    let marker_offset = time.to_widget_offset(track_width as u32) as i32;
 
                     if offset >= marker_offset && offset < marker_offset + 10 {
                         self.selected_marker = Some(*time);
@@ -160,7 +163,7 @@ impl TheWidget for TheTimeSlider {
 
                 self.value = TheValue::Time(TheTime::from_widget_offset(
                     offset as u32,
-                    (self.dim.width - self.text_width) as u32,
+                    track_width as u32,
                 ));
 
                 ctx.ui
@@ -174,13 +177,14 @@ impl TheWidget for TheTimeSlider {
                     offset = 0;
                 }
 
-                if offset > self.dim.width - self.text_width {
-                    offset = self.dim.width - self.text_width;
+                let track_width = self.track_width();
+                if offset > track_width {
+                    offset = track_width;
                 }
 
                 self.value = TheValue::Time(TheTime::from_widget_offset(
                     offset as u32,
-                    (self.dim.width - self.text_width) as u32,
+                    track_width as u32,
                 ));
 
                 if self.continuous {
@@ -214,14 +218,14 @@ impl TheWidget for TheTimeSlider {
                     offset = 0;
                 }
 
-                if offset > self.dim.width - self.text_width {
-                    offset = self.dim.width - self.text_width;
+                let track_width = self.track_width();
+                if offset > track_width {
+                    offset = track_width;
                 }
 
                 let mut hovered_marker = false;
                 for (time, names) in &self.marker {
-                    let marker_offset =
-                        time.to_widget_offset((self.dim.width - self.text_width) as u32) as i32;
+                    let marker_offset = time.to_widget_offset(track_width as u32) as i32;
 
                     if offset >= marker_offset && offset < marker_offset + 10 {
                         let text = format!("Marker at {}: {}.", time.to_time24(), names.join(", "));
@@ -254,101 +258,108 @@ impl TheWidget for TheTimeSlider {
         }
 
         let stride = buffer.stride();
-
-        let mut r = self.dim.to_buffer_utuple();
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &r,
-            stride,
-            style.theme().color(TimeSliderBackground),
+        let bounds = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
+        );
+        let track_width = self.visual_track_width();
+        let position_offset = if let TheValue::Time(time) = &self.value {
+            Some(time.to_widget_offset(track_width as u32) as i32)
+        } else {
+            None
+        };
+        let markers: Vec<(i32, bool)> = self
+            .marker
+            .iter()
+            .map(|(time, _)| {
+                (
+                    time.to_widget_offset(track_width as u32) as i32,
+                    self.selected_marker == Some(*time),
+                )
+            })
+            .collect();
+        draw_time_slider_chrome(
+            buffer,
+            bounds,
+            track_width,
+            position_offset,
+            &markers,
+            style,
+            ctx,
         );
 
-        ctx.draw.rect_outline(
-            buffer.pixels_mut(),
-            &r,
-            stride,
-            style.theme().color(TimeSliderBorder),
-        );
+        let buffer_bounds =
+            ThePixelRect::new(0, 0, buffer.dim().width.max(0), buffer.dim().height.max(0));
+        let text_color = *style.theme().color(TimeSliderText);
+        let position_color = *style.theme().color(TimeSliderPosition);
+        let font_size = if self.tall { 12.0 } else { 11.0 };
+        let text_space = (track_width / 12).max(1);
 
-        r.2 -= self.text_width as usize;
-        let marker_space = r.2 / 23;
-        let text_space = r.2 / 11;
-        let mut x = r.0;
-
-        for i in 0..=24 {
-            if i > 0 {
-                let marker_pos = (x, r.1 + r.3 - 4, 2, 2);
-                ctx.draw.rect(
+        for hour in (2..24).step_by(2) {
+            let center = bounds
+                .x
+                .saturating_add(track_width.saturating_mul(hour) / 24);
+            let text_bounds = ThePixelRect::new(
+                center.saturating_sub(text_space / 2),
+                bounds.y.saturating_add(if self.tall { 3 } else { 0 }),
+                text_space,
+                bounds.height.saturating_sub(1),
+            )
+            .intersection(bounds)
+            .intersection(buffer_bounds);
+            if !text_bounds.is_empty() {
+                ctx.draw.text_rect_blend(
                     buffer.pixels_mut(),
-                    &marker_pos,
+                    &(
+                        text_bounds.x as usize,
+                        text_bounds.y as usize,
+                        text_bounds.width as usize,
+                        text_bounds.height as usize,
+                    ),
                     stride,
-                    style.theme().color(TimeSliderLine),
+                    &hour.to_string(),
+                    TheFontSettings {
+                        size: font_size,
+                        ..Default::default()
+                    },
+                    &text_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Top,
                 );
-
-                if i % 2 == 0 && i < 24 {
-                    let text_pos = (x - text_space / 2, r.1, text_space, r.3 - 1);
-                    ctx.draw.text_rect_blend(
-                        buffer.pixels_mut(),
-                        &text_pos,
-                        stride,
-                        &i.to_string(),
-                        TheFontSettings {
-                            size: 11.0,
-                            ..Default::default()
-                        },
-                        style.theme().color(TimeSliderText),
-                        TheHorizontalAlign::Center,
-                        TheVerticalAlign::Top,
-                    );
-                }
             }
-            x += marker_space;
         }
 
         if let TheValue::Time(time) = &self.value {
-            let text_pos = (r.0 + r.2, r.1, self.text_width as usize - 3, r.3);
-            ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
-                &text_pos,
-                stride,
-                &time.to_time24(),
-                TheFontSettings {
-                    size: 11.0,
-                    ..Default::default()
-                },
-                style.theme().color(TimeSliderPosition),
-                TheHorizontalAlign::Right,
-                TheVerticalAlign::Center,
-            );
-
-            let offset = time.to_widget_offset(r.2 as u32) as usize;
-            let r = (r.0 + offset, r.1, 2, r.3);
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &r,
-                stride,
-                style.theme().color(TimeSliderPosition),
-            );
-        }
-
-        for (time, _) in &self.marker {
-            let offset = time.to_widget_offset(r.2 as u32) as usize;
-
-            let mut color = style.theme().color(TimeSliderMarker);
-
-            if let Some(selected) = &self.selected_marker {
-                if *selected == *time {
-                    color = style.theme().color(TimeSliderPosition);
-                }
+            let text_bounds = ThePixelRect::new(
+                bounds.x.saturating_add(track_width),
+                bounds.y,
+                bounds.width.saturating_sub(track_width).saturating_sub(3),
+                bounds.height,
+            )
+            .intersection(bounds)
+            .intersection(buffer_bounds);
+            if !text_bounds.is_empty() {
+                ctx.draw.text_rect_blend(
+                    buffer.pixels_mut(),
+                    &(
+                        text_bounds.x as usize,
+                        text_bounds.y as usize,
+                        text_bounds.width as usize,
+                        text_bounds.height as usize,
+                    ),
+                    stride,
+                    &time.to_time24(),
+                    TheFontSettings {
+                        size: font_size,
+                        ..Default::default()
+                    },
+                    &position_color,
+                    TheHorizontalAlign::Right,
+                    TheVerticalAlign::Center,
+                );
             }
-
-            let mut r = (r.0 + offset, r.1, 2, r.3);
-            ctx.draw.rect(buffer.pixels_mut(), &r, stride, color);
-
-            r.2 = 10;
-            r.3 = 12;
-            ctx.draw.rect(buffer.pixels_mut(), &r, stride, color);
         }
 
         self.is_dirty = false;
@@ -364,6 +375,8 @@ impl TheWidget for TheTimeSlider {
 }
 
 pub trait TheTimeSliderTrait: TheWidget {
+    /// Uses the taller 27px presentation intended for a 43px menubar.
+    fn set_tall(&mut self, tall: bool);
     fn set_continuous(&mut self, continuous: bool);
     fn clear_marker(&mut self);
     fn add_marker(&mut self, time: TheTime, names: Vec<String>);
@@ -371,6 +384,13 @@ pub trait TheTimeSliderTrait: TheWidget {
 }
 
 impl TheTimeSliderTrait for TheTimeSlider {
+    fn set_tall(&mut self, tall: bool) {
+        if self.tall != tall {
+            self.tall = tall;
+            self.limiter.set_max_height(if tall { 27 } else { 20 });
+            self.is_dirty = true;
+        }
+    }
     fn set_continuous(&mut self, continuous: bool) {
         self.continuous = continuous;
     }
@@ -385,5 +405,19 @@ impl TheTimeSliderTrait for TheTimeSlider {
     }
     fn remove_marker(&mut self, marker: TheTime) {
         self.marker.retain(|(time, _)| *time != marker);
+    }
+}
+
+impl TheTimeSlider {
+    fn track_width(&self) -> i32 {
+        self.dim.width.saturating_sub(self.text_width).max(1)
+    }
+
+    fn visual_track_width(&self) -> i32 {
+        self.dim
+            .width
+            .saturating_sub(self.text_width)
+            .max(0)
+            .min(self.dim.width.max(0))
     }
 }

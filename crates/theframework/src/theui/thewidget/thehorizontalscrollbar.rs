@@ -1,5 +1,7 @@
 use crate::prelude::*;
 
+use super::thescrollbarchrome::draw_scrollbar_chrome;
+
 pub struct TheHorizontalScrollbar {
     id: TheId,
     limiter: TheSizeLimiter,
@@ -168,77 +170,30 @@ impl TheWidget for TheHorizontalScrollbar {
             return;
         }
 
-        let stride = buffer.stride();
-        //let mut shrinker = TheDimShrinker::zero();
-
-        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
-
-        ctx.draw.rect(
-            buffer.pixels_mut(),
-            &utuple,
-            stride,
-            style.theme().color(ScrollbarBackground),
+        let bounds = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
         );
-
-        let mut icon_name = if self.state == TheWidgetState::Clicked {
-            "dark_horizontal_scrollbar_clicked_".to_string()
-        } else {
-            "dark_horizontal_scrollbar_normal_".to_string()
-        };
-
-        if self.state != TheWidgetState::Clicked && self.id().equals(&ctx.ui.hover) {
-            icon_name = "dark_horizontal_scrollbar_hover_".to_string()
-        }
-
-        let mut scroll_bar_width = self.scrollbar_thumb_width();
-        let mut offset = self.scrollbar_position() as usize;
-
-        if scroll_bar_width > self.dim.width {
-            offset = 0;
-            scroll_bar_width = self.dim.width;
-        }
-
-        if scroll_bar_width >= 5 {
-            if let Some(icon) = ctx.ui.icon(&(icon_name.clone() + "left")) {
-                let r = (
-                    utuple.0 + offset,
-                    utuple.1,
-                    icon.dim().width as usize,
-                    icon.dim().height as usize,
-                );
-                ctx.draw
-                    .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-            }
-        }
-
-        if scroll_bar_width > 10 {
-            if let Some(icon) = ctx.ui.icon(&(icon_name.clone() + "middle")) {
-                let mut r = (
-                    utuple.0 + offset + 5,
-                    utuple.1,
-                    icon.dim().width as usize,
-                    icon.dim().height as usize,
-                );
-                for _ in 0..scroll_bar_width - 10 {
-                    ctx.draw
-                        .copy_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-                    r.0 += 1;
-                }
-            }
-        }
-
-        if scroll_bar_width >= 10 {
-            if let Some(icon) = ctx.ui.icon(&(icon_name + "right")) {
-                let r = (
-                    utuple.0 + offset + scroll_bar_width as usize - 5,
-                    utuple.1,
-                    icon.dim().width as usize,
-                    icon.dim().height as usize,
-                );
-                ctx.draw
-                    .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-            }
-        }
+        let thumb_width = self.scrollbar_thumb_width().clamp(0, self.dim.width);
+        let max_offset = self.dim.width.saturating_sub(thumb_width);
+        let offset = (self.scrollbar_position().round() as i32).clamp(0, max_offset);
+        let thumb = ThePixelRect::new(
+            bounds.x.saturating_add(offset),
+            bounds.y.saturating_add(2),
+            thumb_width,
+            bounds.height.saturating_sub(4),
+        );
+        draw_scrollbar_chrome(
+            buffer,
+            bounds,
+            thumb,
+            self.id().equals(&ctx.ui.hover),
+            self.state == TheWidgetState::Clicked,
+            style,
+            ctx,
+        );
 
         self.is_dirty = false;
     }

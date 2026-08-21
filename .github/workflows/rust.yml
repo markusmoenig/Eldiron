@@ -62,6 +62,20 @@ jobs:
         working-directory: .
         run: cargo xtask recipe-language --check
 
+      - name: Test framework rendering safety and snapshots
+        if: runner.os == 'Linux' && matrix.working-directory == 'creator'
+        shell: bash
+        working-directory: .
+        run: cargo test -p theframework --features ui
+
+      - name: Upload rendering snapshot failures
+        if: failure() && runner.os == 'Linux' && matrix.working-directory == 'creator'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rendering-snapshot-failures
+          path: target/ui-snapshots
+          if-no-files-found: ignore
+
       # ────────────────────────────────────────────────────────────────────────────
       # 4. Build
       # ────────────────────────────────────────────────────────────────────────────
@@ -81,12 +95,3 @@ jobs:
         run: |
           rustup target add wasm32-unknown-unknown
           cargo build --verbose --target wasm32-unknown-unknown
-
-      # ────────────────────────────────────────────────────────────────────────────
-      # 6. (optional) tests
-      # ────────────────────────────────────────────────────────────────────────────
-      # - name: Run tests
-      #   shell: bash
-      #   working-directory: ${{ matrix.working-directory }}
-      #   run: |
-      #     cargo test --verbose

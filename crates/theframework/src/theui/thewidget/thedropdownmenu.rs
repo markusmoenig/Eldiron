@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::thecontext::TheCursorIcon;
+use crate::theui::thewidget::thedropdownchrome::{TheDropdownChromeState, draw_dropdown_chrome};
 
 pub struct TheDropdownMenu {
     id: TheId,
@@ -230,55 +231,30 @@ impl TheWidget for TheDropdownMenu {
             return;
         }
 
+        let interactive = !self.is_disabled && !self.embedded;
+        draw_dropdown_chrome(
+            buffer,
+            &self.dim,
+            TheDropdownChromeState {
+                disabled: self.is_disabled,
+                pressed: !self.embedded && self.state == TheWidgetState::Clicked,
+                hovered: interactive
+                    && self.state != TheWidgetState::Clicked
+                    && self.id().equals(&ctx.ui.hover),
+                focused: interactive
+                    && self.state != TheWidgetState::Clicked
+                    && self.id().equals(&ctx.ui.focus),
+            },
+            style,
+            ctx,
+        );
+        let text_color = if self.state == TheWidgetState::Selected {
+            *style.theme().color(SectionbarSelectedTextColor)
+        } else {
+            *style.theme().color(SectionbarNormalTextColor)
+        };
         let stride = buffer.stride();
         let mut shrinker = TheDimShrinker::zero();
-
-        let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
-
-        let mut icon_name = if self.state == TheWidgetState::Clicked && !self.embedded {
-            "dark_dropdown_clicked".to_string()
-        } else {
-            "dark_dropdown_normal".to_string()
-        };
-
-        if !self.is_disabled && !self.embedded {
-            if self.state != TheWidgetState::Clicked && self.id().equals(&ctx.ui.hover) {
-                icon_name = "dark_dropdown_hover".to_string()
-            }
-            if self.state != TheWidgetState::Clicked && self.id().equals(&ctx.ui.focus) {
-                icon_name = "dark_dropdown_focus".to_string()
-            }
-        }
-
-        let text_color = if self.state == TheWidgetState::Selected {
-            style.theme().color(SectionbarSelectedTextColor)
-        } else {
-            style.theme().color(SectionbarNormalTextColor)
-        };
-
-        if let Some(icon) = ctx.ui.icon(&icon_name) {
-            let off = if icon.dim().width == 140 { 1 } else { 0 };
-            let r = (
-                utuple.0 + off,
-                utuple.1 + off,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
-            );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-        }
-
-        if let Some(icon) = ctx.ui.icon("dark_dropdown_marker") {
-            let r = (
-                utuple.0 + 129,
-                utuple.1 + 7,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
-            );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-        }
-
         shrinker.shrink_by(8, 0, 12, 0);
 
         if !self.options.is_empty() {
@@ -291,7 +267,7 @@ impl TheWidget for TheDropdownMenu {
                     size: 12.5,
                     ..Default::default()
                 },
-                text_color,
+                &text_color,
                 TheHorizontalAlign::Left,
                 TheVerticalAlign::Center,
             );

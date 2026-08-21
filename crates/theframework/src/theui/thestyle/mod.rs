@@ -16,6 +16,11 @@ pub trait TheStyle: Send {
     /// Returns the current theme of the style
     fn theme(&mut self) -> &mut Box<dyn TheTheme>;
 
+    /// Replaces the current theme without changing the widget style implementation.
+    fn set_theme(&mut self, theme: Box<dyn TheTheme>) {
+        *self.theme() = theme;
+    }
+
     /// Draw the widget border
     fn draw_widget_border(
         &mut self,

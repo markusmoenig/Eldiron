@@ -46,6 +46,8 @@ pub struct TheContext {
 
     pub draw: TheDraw2D,
     #[cfg(feature = "ui")]
+    pub painter: ThePainter,
+    #[cfg(feature = "ui")]
     pub ui: TheUIContext,
 
     pub cursor_icon: TheCursorIcon,
@@ -61,6 +63,8 @@ impl TheContext {
             height,
             scale_factor,
             draw: TheDraw2D::new(),
+            #[cfg(feature = "ui")]
+            painter: ThePainter::new(),
             #[cfg(feature = "ui")]
             ui: TheUIContext::new(),
             cursor_icon: TheCursorIcon::Default,

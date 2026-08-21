@@ -126,102 +126,65 @@ impl TheWidget for TheToolListButton {
             return;
         }
 
-        let stride = buffer.stride();
-
-        let mut shrinker = TheDimShrinker::zero();
-        let utuple = self.dim.to_buffer_shrunk_utuple(&shrinker);
-
-        if self.state == TheWidgetState::None && self.id().equals(&ctx.ui.hover) {
-            ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
-                &utuple,
-                stride,
-                style.theme().color(ToolListButtonHoverBorder),
-                1,
-            );
-            shrinker.shrink(1);
-            let utuple = self.dim.to_buffer_shrunk_utuple(&shrinker);
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &utuple,
-                stride,
-                style.theme().color(ToolListButtonHoverBackground),
-            );
-        } else if self.state == TheWidgetState::None {
-            ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
-                &utuple,
-                stride,
-                style.theme().color(ToolListButtonNormalBorder),
-                1,
-            );
-        } else if self.state == TheWidgetState::Selected {
-            ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
-                &utuple,
-                stride,
-                style.theme().color(ToolListButtonSelectedBorder),
-                1,
-            );
-            shrinker.shrink(1);
-            let utuple = self.dim.to_buffer_shrunk_utuple(&shrinker);
-            ctx.draw.rect(
-                buffer.pixels_mut(),
-                &utuple,
-                stride,
-                style.theme().color(ToolListButtonSelectedBackground),
-            );
-        };
-
-        if let Some(icon) = ctx.ui.icon(&self.icon_name) {
-            ctx.draw.blend_slice(
-                buffer.pixels_mut(),
-                icon.pixels(),
-                &(
-                    utuple.0 + (utuple.2 - icon.dim().width as usize) / 2,
-                    utuple.1 + (utuple.3 - icon.dim().height as usize) / 2,
-                    icon.dim().width as usize,
-                    icon.dim().height as usize,
-                ),
-                stride,
-            );
-        }
-
-        /*
-        if self.state != TheWidgetState::Selected && self.id().equals(&ctx.ui.hover) {
-            icon_name = "dark_sectionbarbutton_hover".to_string()
-        }
-
-        let text_color = if self.state == TheWidgetState::Selected {
-            style.theme().color(SectionbarSelectedTextColor)
+        let rect = ThePixelRect::new(
+            self.dim.buffer_x,
+            self.dim.buffer_y,
+            self.dim.width,
+            self.dim.height,
+        );
+        let hovered = self.state == TheWidgetState::None && self.id().equals(&ctx.ui.hover);
+        let (paint_role, border_role) = if self.state == TheWidgetState::Selected {
+            (ControlPressed, ToolListButtonSelectedBorder)
+        } else if hovered {
+            (ControlHover, ToolListButtonHoverBorder)
         } else {
-            style.theme().color(SectionbarNormalTextColor)
+            (ControlNormal, ToolListButtonNormalBorder)
         };
-
-        if let Some(icon) = ctx.ui.icon(&icon_name) {
-            let r = (
-                utuple.0,
-                utuple.1,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
-            );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
+        let paint = style.theme().paint(paint_role, rect);
+        let border = *style.theme().color(border_role);
+        let radius = style.theme().metric(ControlCornerRadius);
+        let inner = ThePixelRect::new(
+            rect.x.saturating_add(1),
+            rect.y.saturating_add(1),
+            rect.width.saturating_sub(2),
+            rect.height.saturating_sub(2),
+        );
+        let width = buffer.dim().width.max(0) as usize;
+        let height = buffer.dim().height.max(0) as usize;
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            surface.set_clip(rect);
+            ctx.painter
+                .fill_round_rect(&mut surface, rect, radius, &ThePaint::solid(border));
+            ctx.painter
+                .fill_round_rect(&mut surface, inner, (radius - 1.0).max(0.0), &paint);
         }
 
-        if let Some(font) = &ctx.ui.font {
-            ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
-                &self.dim.to_buffer_shrunk_utuple(&shrinker),
-                stride,
-                font,
-                15.0,
-                &self.text,
-                text_color,
-                TheHorizontalAlign::Center,
-                TheVerticalAlign::Center,
-            );
-            }*/
+        let stride = buffer.stride();
+        if let Some(icon) = ctx.ui.icon(&self.icon_name) {
+            let icon_width = icon.dim().width.max(0);
+            let icon_height = icon.dim().height.max(0);
+            if icon_width <= rect.width && icon_height <= rect.height {
+                let icon_x = rect.x + (rect.width - icon_width) / 2;
+                let icon_y = rect.y + (rect.height - icon_height) / 2;
+                if icon_x >= 0
+                    && icon_y >= 0
+                    && icon_x + icon_width <= width as i32
+                    && icon_y + icon_height <= height as i32
+                {
+                    ctx.draw.blend_slice(
+                        buffer.pixels_mut(),
+                        icon.pixels(),
+                        &(
+                            icon_x as usize,
+                            icon_y as usize,
+                            icon_width as usize,
+                            icon_height as usize,
+                        ),
+                        stride,
+                    );
+                }
+            }
+        }
 
         self.is_dirty = false;
     }
@@ -239,5 +202,25 @@ impl TheToolListButtonTrait for TheToolListButton {
     fn set_icon_name(&mut self, icon_name: String) {
         self.icon_name = icon_name;
         self.is_dirty = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn procedural_chrome_clips_when_widget_extends_outside_buffer() {
+        let mut button = TheToolListButton::new(TheId::named("Clipped Tool"));
+        let mut ctx = TheContext::new(8, 8, 1.0);
+        button.set_dim(TheDim::rect(-5, -7, 46, 43), &mut ctx);
+        let mut style: Box<dyn TheStyle> = Box::new(TheClassicStyle::with_theme(Box::new(
+            TheBlackBlueTheme::new(),
+        )));
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(8, 8));
+
+        button.draw(&mut buffer, &mut style, &mut ctx);
+
+        assert!(buffer.pixels().chunks_exact(4).any(|pixel| pixel[3] != 0));
     }
 }
