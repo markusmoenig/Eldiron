@@ -528,23 +528,31 @@ impl TheCanvas {
             self.buffer
                 .copy_into(center.offset.x, center.offset.y, &center.buffer);
         } else {
-            // If a layout needs a redraw, make sure to redraw the widget as well as items in the layout may be transparent (text)
-
-            let mut force_widget_redraw = false;
-
-            if let Some(layout) = &mut self.layout {
-                force_widget_redraw = layout.needs_redraw();
-            }
+            // A widget and layout attached to the same canvas form one composited
+            // layer: the widget is the background and the layout is drawn over it.
+            // Redrawing only one half can either leave transparent layout pixels
+            // dirty or paint the background over unchanged overlay widgets.
+            let widget_needs_redraw = self
+                .widget
+                .as_mut()
+                .is_some_and(|widget| widget.needs_redraw());
+            let layout_needs_redraw = self
+                .layout
+                .as_mut()
+                .is_some_and(|layout| layout.needs_redraw());
+            let redraw_composite = ctx.ui.redraw_all
+                || (self.widget.is_some()
+                    && self.layout.is_some()
+                    && (widget_needs_redraw || layout_needs_redraw));
 
             if let Some(widget) = &mut self.widget {
-                let needs_redraw = widget.needs_redraw();
-                if ctx.ui.redraw_all || needs_redraw || force_widget_redraw {
+                if ctx.ui.redraw_all || widget_needs_redraw || redraw_composite {
                     // println!(
                     //     "drawing widget id: {}, widget.needs_redraw: {:?}, ui.redraw_all {}, force_widget_redraw {}",
                     //     widget.id().name,
-                    //     needs_redraw,
+                    //     widget_needs_redraw,
                     //     ctx.ui.redraw_all,
-                    //     force_widget_redraw
+                    //     redraw_composite
                     // );
                     widget.draw(&mut self.buffer, style, ctx);
                 }
@@ -552,7 +560,7 @@ impl TheCanvas {
 
             if let Some(layout) = &mut self.layout {
                 // println!("drawing layout {}, {:?}", layout.id().name, layout.dim());
-                if ctx.ui.redraw_all || layout.needs_redraw() {
+                if ctx.ui.redraw_all || layout_needs_redraw || redraw_composite {
                     //|| layout.widgets().is_empty() {
                     layout.draw(&mut self.buffer, style, ctx);
                 }

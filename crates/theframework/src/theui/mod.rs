@@ -27,6 +27,7 @@ use ::serde::ser::{self, Serializer};
 use flate2::{Compression, read::ZlibDecoder, write::ZlibEncoder};
 use std::io::{Read, Write};
 use std::sync::mpsc::{self, Receiver, Sender};
+use web_time::{Duration, Instant};
 
 fn compress<S>(data: &[u8], serializer: S) -> Result<S::Ok, S::Error>
 where
@@ -60,6 +61,39 @@ pub const TRANSPARENT: RGBA = [0, 0, 0, 0];
 pub const BLACK: RGBA = [0, 0, 0, 255];
 pub const WHITE: RGBA = [255, 255, 255, 255];
 
+/// Rasterizes SVG path data into a transparent, anti-aliased icon buffer.
+///
+/// `view_box_size` is the width/height of the source coordinate system. Most
+/// icon sets, including Phosphor, use a square view box.
+pub fn rasterize_svg_path_icon(
+    path: &str,
+    size: u32,
+    view_box_size: f32,
+    color: RGBA,
+) -> TheRGBABuffer {
+    if size == 0 || view_box_size <= 0.0 {
+        return TheRGBABuffer::empty();
+    }
+
+    let mut alpha = vec![0; (size * size) as usize];
+    let scale = size as f32 / view_box_size;
+    zeno::Mask::new(path)
+        .transform(Some(zeno::Transform::scale(scale, scale)))
+        .size(size, size)
+        .render_into(&mut alpha, None);
+
+    let mut pixels = Vec::with_capacity(alpha.len() * 4);
+    for coverage in alpha {
+        pixels.extend_from_slice(&[
+            color[0],
+            color[1],
+            color[2],
+            ((coverage as u16 * color[3] as u16) / 255) as u8,
+        ]);
+    }
+    TheRGBABuffer::from(pixels, size, size)
+}
+
 pub mod prelude {
     pub use serde::{Deserialize, Serialize};
 
@@ -76,10 +110,10 @@ pub mod prelude {
     pub use crate::theui::thecanvas::*;
     pub use crate::theui::thecodehighlighter::{TheCodeHighlighter, TheCodeHighlighterTrait};
 
-    pub use crate::theui::TheUI;
     pub use crate::theui::thergbbuffer::TheRGBBuffer;
     pub use crate::theui::thesizelimiter::TheSizeLimiter;
     pub use crate::theui::theuicontext::*;
+    pub use crate::theui::{TheUI, rasterize_svg_path_icon};
 
     pub use crate::theui::thevalue::{TheValue, TheValueAssignment, TheValueComparison};
     pub use crate::theui::thevent::TheEvent;
@@ -235,6 +269,14 @@ pub enum TheDialogButtonRole {
     Rename,
 }
 
+struct TheHoverHelp {
+    id: TheId,
+    text: String,
+    started_at: Instant,
+    anchor: Vec2<i32>,
+    visible: bool,
+}
+
 impl TheDialogButtonRole {
     pub fn to_string(self) -> &'static str {
         match self {
@@ -272,6 +314,9 @@ pub struct TheUI {
     app_state_events: FxHashMap<String, Sender<TheEvent>>,
 
     statusbar_name: Option<String>,
+
+    hover_help: Option<TheHoverHelp>,
+    hover_help_delay: Duration,
 
     pub context_menu: Option<TheContextMenu>,
     pub menu_widget_id: Option<TheId>,
@@ -312,6 +357,9 @@ impl TheUI {
 
             statusbar_name: None,
 
+            hover_help: None,
+            hover_help_delay: Duration::from_millis(1_250),
+
             context_menu: None,
             menu_widget_id: None,
             is_dirty: false,
@@ -350,6 +398,48 @@ impl TheUI {
 
     pub fn set_statusbar_name(&mut self, name: String) {
         self.statusbar_name = Some(name);
+    }
+
+    /// Sets how long the pointer must remain over a control before hover help appears.
+    pub fn set_hover_help_delay(&mut self, delay: Duration) {
+        self.hover_help_delay = delay;
+    }
+
+    fn schedule_hover_help(&mut self, id: TheId, text: String, ctx: &mut TheContext) {
+        if text.trim().is_empty() {
+            self.clear_hover_help(ctx);
+            return;
+        }
+
+        if self
+            .hover_help
+            .as_ref()
+            .is_some_and(|help| help.id.uuid == id.uuid && help.text == text && !help.visible)
+        {
+            return;
+        }
+
+        let was_visible = self.hover_help.as_ref().is_some_and(|help| help.visible);
+        self.hover_help = Some(TheHoverHelp {
+            id,
+            text,
+            started_at: Instant::now(),
+            anchor: self.mouse_coord,
+            visible: false,
+        });
+        if was_visible {
+            ctx.ui.redraw_all = true;
+            self.is_dirty = true;
+        }
+    }
+
+    fn clear_hover_help(&mut self, ctx: &mut TheContext) {
+        if self.hover_help.take().is_some_and(|help| help.visible) {
+            // Hover help is painted passively into the persistent canvas buffer.
+            // Redraw the underlying UI to erase it.
+            ctx.ui.redraw_all = true;
+            self.is_dirty = true;
+        }
     }
 
     pub fn relayout(&mut self, ctx: &mut TheContext) {
@@ -483,6 +573,7 @@ impl TheUI {
             self.draw_dialog(ctx);
         }
         self.canvas.draw_overlay(&mut self.style, ctx);
+        self.draw_hover_help(ctx);
         if let Some(drop) = &ctx.ui.drop {
             if let Some(position) = &drop.position {
                 self.canvas.buffer.blend_into(
@@ -501,9 +592,121 @@ impl TheUI {
         self.is_dirty = false;
     }
 
+    fn hover_help_rect(
+        anchor: Vec2<i32>,
+        content_width: i32,
+        content_height: i32,
+        window_width: i32,
+        window_height: i32,
+    ) -> TheDim {
+        let width = content_width.min((window_width - 8).max(1));
+        let height = content_height.min((window_height - 8).max(1));
+        let mut x = anchor.x + 12;
+        let mut y = anchor.y + 18;
+        if x + width + 4 > window_width {
+            x = (window_width - width - 4).max(0);
+        }
+        if y + height + 4 > window_height {
+            y = (anchor.y - height - 8).max(0);
+        }
+        x = x.clamp(0, (window_width - width).max(0));
+        y = y.clamp(0, (window_height - height).max(0));
+        TheDim::new(x, y, width, height)
+    }
+
+    fn draw_hover_help(&mut self, ctx: &mut TheContext) {
+        let Some(help) = self.hover_help.as_ref().filter(|help| help.visible) else {
+            return;
+        };
+
+        let mut lines = Vec::<String>::new();
+        for paragraph in help.text.lines() {
+            let mut line = String::new();
+            for word in paragraph.split_whitespace() {
+                let separator = usize::from(!line.is_empty());
+                if !line.is_empty() && line.chars().count() + separator + word.chars().count() > 48
+                {
+                    lines.push(std::mem::take(&mut line));
+                }
+                if !line.is_empty() {
+                    line.push(' ');
+                }
+                line.push_str(word);
+            }
+            if !line.is_empty() {
+                lines.push(line);
+            } else if paragraph.is_empty() {
+                lines.push(String::new());
+            }
+        }
+        if lines.is_empty() {
+            return;
+        }
+
+        let available_height = (ctx.height as i32 - 8).max(1);
+        let max_lines = ((available_height - 10) / 17).max(1) as usize;
+        lines.truncate(max_lines);
+        let longest = lines
+            .iter()
+            .map(|line| line.chars().count())
+            .max()
+            .unwrap_or(1);
+        let content_width = ((longest as i32) * 8 + 18).clamp(120, 360);
+        let content_height = lines.len() as i32 * 17 + 10;
+        let dim = Self::hover_help_rect(
+            help.anchor,
+            content_width,
+            content_height,
+            ctx.width as i32,
+            ctx.height as i32,
+        );
+        if !dim.is_valid() {
+            return;
+        }
+
+        let mut tooltip = TheRGBABuffer::new(TheDim::new(0, 0, dim.width, dim.height));
+        let stride = dim.width as usize;
+        ctx.draw.rect(
+            tooltip.pixels_mut(),
+            &(0, 0, dim.width as usize, dim.height as usize),
+            stride,
+            self.style.theme().color(ContextMenuBackground),
+        );
+        ctx.draw.rect_outline(
+            tooltip.pixels_mut(),
+            &(0, 0, dim.width as usize, dim.height as usize),
+            stride,
+            self.style.theme().color(ContextMenuBorder),
+        );
+        let text_color = *self.style.theme().color(ContextMenuTextNormal);
+        for (line_index, line) in lines.iter().enumerate() {
+            ctx.draw.text_rect_blend(
+                tooltip.pixels_mut(),
+                &(
+                    9,
+                    5 + line_index * 17,
+                    dim.width.saturating_sub(18) as usize,
+                    17,
+                ),
+                stride,
+                line,
+                TheFontSettings {
+                    size: 12.5,
+                    ..Default::default()
+                },
+                &text_color,
+                TheHorizontalAlign::Left,
+                TheVerticalAlign::Center,
+            );
+        }
+        self.canvas.buffer.blend_into(dim.x, dim.y, &tooltip);
+    }
+
     /// Processes widget state events, these are mostly send from TheUIContext based on state changes provided by the widgets.
     pub fn process_events(&mut self, ctx: &mut TheContext) {
-        if let Some(receiver) = &mut self.state_events_receiver {
+        // Temporarily own the receiver so event handlers can freely mutate the UI
+        // (for example when scheduling or clearing passive hover help).
+        if let Some(receiver) = self.state_events_receiver.take() {
             while let Ok(event) = receiver.try_recv() {
                 // Resend event to all app listeners
                 for (name, sender) in &self.app_state_events {
@@ -524,12 +727,14 @@ impl TheUI {
                         ctx.ui.send(TheEvent::ClipboardChanged);
                     }
                     TheEvent::ShowMenu(id, coord, mut menu) => {
+                        self.clear_hover_help(ctx);
                         menu.set_position(coord, ctx);
                         menu.id = id.clone();
                         self.context_menu = Some(menu);
                         self.menu_widget_id = Some(id.clone());
                     }
                     TheEvent::ShowContextMenu(id, coord, mut menu) => {
+                        self.clear_hover_help(ctx);
                         menu.set_position(coord, ctx);
                         menu.id = id;
                         self.context_menu = Some(menu);
@@ -675,6 +880,15 @@ impl TheUI {
                     }
                     TheEvent::GainedHover(id) => {
                         //println!("Gained hover {:?}", id);
+                        let hover_text = self
+                            .canvas
+                            .get_widget(None, Some(&id.uuid))
+                            .and_then(|widget| widget.status_text());
+                        if let Some(text) = hover_text {
+                            self.schedule_hover_help(id.clone(), text, ctx);
+                        } else {
+                            self.clear_hover_help(ctx);
+                        }
                         if let Some(statusbar_name) = &self.statusbar_name {
                             let mut status_text: Option<String> = None;
                             if let Some(widget) = self.canvas.get_widget(None, Some(&id.uuid)) {
@@ -695,6 +909,13 @@ impl TheUI {
                     }
                     TheEvent::LostHover(id) => {
                         //println!("Lost hover {:?}", id);
+                        if self
+                            .hover_help
+                            .as_ref()
+                            .is_some_and(|help| help.id.uuid == id.uuid)
+                        {
+                            self.clear_hover_help(ctx);
+                        }
                         if let Some(widget) = self.canvas.get_widget(None, Some(&id.uuid)) {
                             widget.on_event(&TheEvent::LostHover(widget.id().clone()), ctx);
                             widget.set_needs_redraw(true);
@@ -714,7 +935,16 @@ impl TheUI {
                             }
                         }
                     }
-                    TheEvent::SetStatusText(_id, text) => {
+                    TheEvent::SetStatusText(id, text) => {
+                        if !id.name.is_empty()
+                            && ctx
+                                .ui
+                                .hover
+                                .as_ref()
+                                .is_some_and(|hover| hover.uuid == id.uuid)
+                        {
+                            self.schedule_hover_help(id, text.clone(), ctx);
+                        }
                         if let Some(statusbar_name) = &self.statusbar_name {
                             if let Some(widget) = self.canvas.get_widget(Some(statusbar_name), None)
                             {
@@ -738,6 +968,7 @@ impl TheUI {
                     _ => {}
                 }
             }
+            self.state_events_receiver = Some(receiver);
         }
     }
 
@@ -769,6 +1000,13 @@ impl TheUI {
         }
 
         self.process_events(ctx);
+        if let Some(help) = &mut self.hover_help
+            && !help.visible
+            && help.started_at.elapsed() >= self.hover_help_delay
+        {
+            help.visible = true;
+            self.is_dirty = true;
+        }
         self.is_dirty
     }
 
@@ -787,6 +1025,8 @@ impl TheUI {
     pub fn touch_down(&mut self, x: f32, y: f32, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
         let coord = Vec2::new(x as i32, y as i32);
+
+        self.clear_hover_help(ctx);
 
         ctx.ui.send(TheEvent::MouseDown(coord));
 
@@ -869,6 +1109,8 @@ impl TheUI {
     pub fn touch_dragged(&mut self, x: f32, y: f32, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
         let coord = Vec2::new(x as i32, y as i32);
+
+        self.clear_hover_help(ctx);
 
         if let Some(context) = &mut self.context_menu {
             return redraw;
@@ -1023,6 +1265,8 @@ impl TheUI {
 
     pub fn mouse_wheel(&mut self, delta: (i32, i32), ctx: &mut TheContext) -> bool {
         let mut redraw = false;
+
+        self.clear_hover_help(ctx);
 
         let mut layout_id = None;
         if let Some(id) = self.get_layout_at_coord(self.mouse_coord) {
@@ -1711,5 +1955,54 @@ impl TheUI {
                 &dialog_canvas.buffer,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod hover_help_tests {
+    use super::*;
+
+    #[test]
+    fn vector_icon_rasterization_keeps_the_canvas_transparent() {
+        let icon =
+            rasterize_svg_path_icon("M32,32H224V224H32Z M64,64V192H192V64Z", 18, 256.0, WHITE);
+        assert_eq!((icon.dim().width, icon.dim().height), (18, 18));
+        assert_eq!(
+            icon.pixels()[3],
+            0,
+            "top-left canvas pixel must be transparent"
+        );
+        assert!(
+            icon.pixels().chunks_exact(4).any(|pixel| pixel[3] > 0),
+            "the path must produce covered pixels"
+        );
+    }
+
+    #[test]
+    fn hover_help_is_clamped_to_normal_and_tiny_windows() {
+        for (window_width, window_height) in [(220, 120), (3, 2)] {
+            let rect = TheUI::hover_help_rect(
+                Vec2::new(window_width - 1, window_height - 1),
+                360,
+                80,
+                window_width,
+                window_height,
+            );
+            assert!(rect.x >= 0);
+            assert!(rect.y >= 0);
+            assert!(rect.x + rect.width <= window_width);
+            assert!(rect.y + rect.height <= window_height);
+        }
+    }
+
+    #[test]
+    fn repeated_dynamic_help_does_not_restart_its_delay() {
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(320, 200, 1.0);
+        let id = TheId::named("Group");
+        ui.schedule_hover_help(id.clone(), "Camera".into(), &mut ctx);
+        let started_at = ui.hover_help.as_ref().unwrap().started_at;
+        ui.schedule_hover_help(id, "Camera".into(), &mut ctx);
+        assert_eq!(ui.hover_help.as_ref().unwrap().started_at, started_at);
     }
 }

@@ -3,7 +3,10 @@ use crate::prelude::*;
 use rusterix::Value;
 use vek::{Vec2, Vec3};
 
-fn geometry_selection_status_text(map: &Map, server_ctx: &ServerContext) -> Option<String> {
+pub(crate) fn geometry_selection_status_text(
+    map: &Map,
+    server_ctx: &ServerContext,
+) -> Option<String> {
     if server_ctx.editor_view_mode == EditorViewMode::D2 {
         return None;
     }

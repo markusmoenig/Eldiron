@@ -7,20 +7,40 @@ const WIDTH: usize = 160;
 const HEIGHT: usize = 112;
 
 // FNV-1a of the approved offscreen gallery. A mismatch writes an inspectable PNG under target/.
+// A few widgets contain platform-sensitive rasterization, so keep the Ubuntu CI baseline explicit
+// instead of treating a macOS-approved pixel hash as portable.
 const BLACK_BLUE_GALLERY_HASH: u64 = 0x2c4e55942b872e02;
 const CONVERTED_BARS_HASH: u64 = 0x92b7c2dd9f940125;
 const MIGRATED_NAVIGATION_BARS_HASH: u64 = 0xb9e662a442a6218f;
+#[cfg(not(target_os = "linux"))]
 const MIGRATED_SECTION_AND_TOOL_BUTTONS_HASH: u64 = 0xe35993c01dee13ee;
+#[cfg(target_os = "linux")]
+const MIGRATED_SECTION_AND_TOOL_BUTTONS_HASH: u64 = 0x2d6d6d263a9f04da;
+#[cfg(not(target_os = "linux"))]
 const MIGRATED_DROPDOWNS_HASH: u64 = 0x91e1b57fdee61a9b;
+#[cfg(target_os = "linux")]
+const MIGRATED_DROPDOWNS_HASH: u64 = 0xf169e2b9ddc2abe5;
 const MIGRATED_FORM_INPUTS_HASH: u64 = 0xcecf2ad3f0bf11c9;
 const MIGRATED_SCROLLBARS_AND_CHECKBOXES_HASH: u64 = 0x5ddaa670b2a75434;
+#[cfg(not(target_os = "linux"))]
 const ACTION_GROUP_PALETTE_HASH: u64 = 0xe46a0a6e5bab9f09;
+#[cfg(target_os = "linux")]
+const ACTION_GROUP_PALETTE_HASH: u64 = 0x4291d64b431c2ac7;
+#[cfg(not(target_os = "linux"))]
 const MIGRATED_SNAPPER_STATES_HASH: u64 = 0xf4ee3df45fa00697;
+#[cfg(target_os = "linux")]
+const MIGRATED_SNAPPER_STATES_HASH: u64 = 0x572f0a4fc15cfcf6;
+#[cfg(not(target_os = "linux"))]
 const MIGRATED_MENUS_AND_BUTTONS_HASH: u64 = 0x209e904869906b7d;
+#[cfg(target_os = "linux")]
+const MIGRATED_MENUS_AND_BUTTONS_HASH: u64 = 0x2f7650ebca1361b3;
 const MIGRATED_CONTEXT_MENU_HASH: u64 = 0x178ee60a508da471;
 const MIGRATED_SLIDER_STATES_HASH: u64 = 0xb601728df6cf6dba;
 const MIGRATED_TIME_SLIDER_STATES_HASH: u64 = 0xd6e3da09a3b8d64b;
+#[cfg(not(target_os = "linux"))]
 const MIGRATED_NODE_CANVAS_HASH: u64 = 0x26165750ca03396f;
+#[cfg(target_os = "linux")]
+const MIGRATED_NODE_CANVAS_HASH: u64 = 0xfa7a01ae4d6781fd;
 
 #[test]
 fn black_blue_theme_gallery_matches_snapshot() {

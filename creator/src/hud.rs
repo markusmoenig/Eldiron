@@ -33,6 +33,24 @@ pub struct Hud {
 
 impl Hud {
     const GRID_SUBDIVISIONS: [usize; 6] = [1, 2, 4, 8, 16, 32];
+    const SHORTCUT_GUIDANCE_HEIGHT: usize = 24;
+
+    fn shortcut_guidance_rect(
+        width: usize,
+        height: usize,
+        help: &str,
+    ) -> Option<(usize, usize, usize, usize)> {
+        if help.trim().is_empty() || width < 20 || height < Self::SHORTCUT_GUIDANCE_HEIGHT {
+            return None;
+        }
+
+        Some((
+            0,
+            height - Self::SHORTCUT_GUIDANCE_HEIGHT,
+            width,
+            Self::SHORTCUT_GUIDANCE_HEIGHT,
+        ))
+    }
 
     fn active_action_material_slots(
         &self,
@@ -872,6 +890,35 @@ impl Hud {
             }*/
         }
 
+        // Shortcut guidance belongs to the editor operation it describes. Keep it
+        // inside the viewport and only show it for tools/selections that provide
+        // contextual guidance, rather than reserving a global status-bar row.
+        if let Some(help) = crate::mapeditor::geometry_selection_status_text(map, server_ctx) {
+            if let Some(bar) = Self::shortcut_guidance_rect(width, height, &help) {
+                ctx.draw
+                    .rect(buffer.pixels_mut(), &bar, stride, &[24, 24, 26, 224]);
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &(bar.0, bar.1, bar.2, 1),
+                    stride,
+                    &[76, 78, 84, 255],
+                );
+                ctx.draw.text_rect_blend(
+                    buffer.pixels_mut(),
+                    &(bar.0 + 9, bar.1 + 1, bar.2 - 18, bar.3 - 2),
+                    stride,
+                    &help,
+                    TheFontSettings {
+                        size: 12.5,
+                        ..Default::default()
+                    },
+                    &[220, 220, 224, 255],
+                    TheHorizontalAlign::Left,
+                    TheVerticalAlign::Center,
+                );
+            }
+        }
+
         let _ = (width, height, stride);
     }
 
@@ -1137,6 +1184,20 @@ mod tests {
         assert_eq!(Hud::coord_precision(8.0), 3);
         assert_eq!(Hud::coord_precision(16.0), 4);
         assert_eq!(Hud::coord_precision(32.0), 5);
+    }
+
+    #[test]
+    fn shortcut_guidance_fills_and_touches_viewport_bottom() {
+        let rect = Hud::shortcut_guidance_rect(640, 480, "Shortcuts").unwrap();
+        assert_eq!(rect, (0, 456, 640, 24));
+        assert_eq!(rect.0 + rect.2, 640);
+        assert_eq!(rect.1 + rect.3, 480);
+    }
+
+    #[test]
+    fn shortcut_guidance_is_hidden_without_content() {
+        assert_eq!(Hud::shortcut_guidance_rect(640, 480, ""), None);
+        assert_eq!(Hud::shortcut_guidance_rect(640, 480, "   "), None);
     }
 
     #[test]

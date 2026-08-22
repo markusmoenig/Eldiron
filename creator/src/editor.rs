@@ -68,6 +68,42 @@ pub static ACTIONLIST: LazyLock<RwLock<ActionList>> =
 // pub static PANELS: LazyLock<RwLock<Panels>> = LazyLock::new(|| RwLock::new(Panels::new()));
 pub static PALETTE: LazyLock<RwLock<ThePalette>> =
     LazyLock::new(|| RwLock::new(ThePalette::default()));
+
+const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 6] = [
+    (
+        "project",
+        "M248.23,112.31A20,20,0,0,0,232,104H220V88a20,20,0,0,0-20-20H132L105.34,48a20.12,20.12,0,0,0-12-4H40A20,20,0,0,0,20,64V208a12,12,0,0,0,12,12H211.1a12,12,0,0,0,11.33-8l28.49-81.47.06-.17A20,20,0,0,0,248.23,112.31ZM92,68l28.8,21.6A12,12,0,0,0,128,92h68v12H69.77a20,20,0,0,0-18.94,13.58L44,137.15V68ZM202.59,196H48.89l23.72-68H226.37Z",
+    ),
+    (
+        "graph",
+        "M200,152a35.77,35.77,0,0,0-16.46,4l-21.39-16.64A35.49,35.49,0,0,0,164,128.65l10.35-3.44A36,36,0,1,0,164,100c0,1.11.06,2.21.16,3.3l-7.78,2.59A36,36,0,0,0,128,92c-1,0-1.88,0-2.81.12l-4.45-10A36,36,0,1,0,96,92c1,0,1.88,0,2.81-.12l4.45,10a35.91,35.91,0,0,0-8.59,39.7L73.39,160.49a36,36,0,1,0,15.94,17.93l21.28-18.91a35.91,35.91,0,0,0,36.8-1.21L167,173.56A36,36,0,1,0,200,152Zm0-64a12,12,0,1,1-12,12A12,12,0,0,1,200,88ZM84,56A12,12,0,1,1,96,68,12,12,0,0,1,84,56ZM56,204a12,12,0,1,1,12-12A12,12,0,0,1,56,204Zm60-76a12,12,0,1,1,12,12A12,12,0,0,1,116,128Zm84,72a12,12,0,1,1,12-12A12,12,0,0,1,200,200Z",
+    ),
+    (
+        "square",
+        "M208,28H48A20,20,0,0,0,28,48V208a20,20,0,0,0,20,20H208a20,20,0,0,0,20-20V48A20,20,0,0,0,208,28Zm-4,176H52V52H204Z",
+    ),
+    (
+        "perspective",
+        "M240,116H228V48a20,20,0,0,0-23.58-19.67l-160,29.09A20,20,0,0,0,28,77.09V116H16a12,12,0,0,0,0,24H28v38.91a20,20,0,0,0,16.42,19.67l160,29.09A20,20,0,0,0,228,208V140h12a12,12,0,0,0,0-24ZM52,80.43,204,52.8V116H52ZM204,203.2,52,175.57V140H204Z",
+    ),
+    (
+        "cube",
+        "M225.6,62.64l-88-48.17a19.91,19.91,0,0,0-19.2,0l-88,48.17A20,20,0,0,0,20,80.19v95.62a20,20,0,0,0,10.4,17.55l88,48.17a19.89,19.89,0,0,0,19.2,0l88-48.17A20,20,0,0,0,236,175.81V80.19A20,20,0,0,0,225.6,62.64ZM128,36.57,200,76,128,115.4,56,76ZM44,96.79l72,39.4v76.67L44,173.44Zm96,116.07V136.19l72-39.4v76.65Z",
+    ),
+    (
+        "camera",
+        "M208,52H182.42L170,33.34A12,12,0,0,0,160,28H96a12,12,0,0,0-10,5.34L73.57,52H48A28,28,0,0,0,20,80V192a28,28,0,0,0,28,28H208a28,28,0,0,0,28-28V80A28,28,0,0,0,208,52Zm4,140a4,4,0,0,1-4,4H48a4,4,0,0,1-4-4V80a4,4,0,0,1,4-4H80a12,12,0,0,0,10-5.34L102.42,52h51.15L166,70.66A12,12,0,0,0,176,76h32a4,4,0,0,1,4,4ZM128,84a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,84Zm0,72a24,24,0,1,1,24-24A24,24,0,0,1,128,156Z",
+    ),
+];
+
+fn register_compact_navigation_icons(ctx: &mut TheContext) {
+    for (name, path) in COMPACT_NAVIGATION_ICON_PATHS {
+        ctx.ui.add_icon(
+            name.to_string(),
+            rasterize_svg_path_icon(path, 18, 256.0, [242, 242, 242, 255]),
+        );
+    }
+}
 pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
     LazyLock::new(|| RwLock::new(Rusterix::default()));
 pub static CONFIGEDITOR: LazyLock<RwLock<ConfigEditor>> =
@@ -7652,9 +7688,12 @@ impl TheTrait for Editor {
             }
         }
 
-        // ---
+        // Compact navigation controls use SVG path data rasterized by Zeno at
+        // their exact draw size. This guarantees transparent backgrounds and
+        // avoids bitmap resampling artifacts on every frame.
+        register_compact_navigation_icons(ctx);
 
-        ui.set_statusbar_name("Statusbar".to_string());
+        // ---
 
         let mut top_canvas = TheCanvas::new();
         // Internal file/edit/game menu is hidden for the Xcode staticlib wrapper
@@ -7920,7 +7959,7 @@ impl TheTrait for Editor {
         self.sidebar.init_ui(ui, ctx, &mut self.server_ctx);
 
         // Docks
-        let bottom_panels = DOCKMANAGER.write().unwrap().init(ctx);
+        let bottom_panels = DOCKMANAGER.write().unwrap().init_docks(ctx);
 
         let mut editor_canvas: TheCanvas = TheCanvas::new();
 
@@ -7950,6 +7989,18 @@ impl TheTrait for Editor {
         let mut tabs = TheTabbar::new(TheId::named("Project Tabs"));
         tabs.limiter_mut().set_max_height(22);
         tabs_canvas.set_widget(tabs);
+
+        let mut project_strip_layout = TheHLayout::new(TheId::named("Project Strip Layout"));
+        project_strip_layout.set_background_color(None);
+        project_strip_layout.set_margin(Vec4::new(4, 1, 5, 1));
+        project_strip_layout.set_padding(2);
+        EDITCAMERA.write().unwrap().setup_toolbar(
+            &mut project_strip_layout,
+            ctx,
+            &mut self.project,
+            &mut self.server_ctx,
+        );
+        tabs_canvas.set_layout(project_strip_layout);
         shared_canvas.set_top(tabs_canvas);
 
         // Tool List
@@ -7982,13 +8033,6 @@ impl TheTrait for Editor {
         shared_canvas.set_left(tool_list_canvas);
 
         ui.canvas.set_center(shared_canvas);
-
-        let mut status_canvas = TheCanvas::new();
-        let mut statusbar = TheStatusbar::new(TheId::named("Statusbar"));
-        statusbar.set_text(fl!("info_welcome"));
-        status_canvas.set_widget(statusbar);
-
-        ui.canvas.set_bottom(status_canvas);
 
         // -
 
@@ -10144,12 +10188,10 @@ impl TheTrait for Editor {
                                     ))
                                     .unwrap();
                             } else {
-                                if let Some(statusbar) = ui.get_widget("Statusbar") {
-                                    statusbar
-                                        .as_statusbar()
-                                        .unwrap()
-                                        .set_text(fl!("info_update_check"));
-                                }
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    fl!("info_update_check"),
+                                ));
 
                                 let updater = Arc::clone(&self.self_updater);
                                 let tx = self.self_update_tx.clone();
@@ -10630,12 +10672,13 @@ impl TheTrait for Editor {
                 SelfUpdateEvent::UpdateCompleted(release) => {
                     Self::set_update_button(ui, ctx, None);
 
-                    if let Some(statusbar) = ui.get_widget("Statusbar") {
-                        statusbar.as_statusbar().unwrap().set_text(format!(
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        format!(
                             "Updated to version {}. Please restart the application to enjoy the new features.",
                             release.version
-                        ));
-                    }
+                        ),
+                    ));
                 }
                 SelfUpdateEvent::UpdateConfirm(release) => {
                     Self::set_update_button(ui, ctx, Some(&release));
@@ -10669,22 +10712,18 @@ impl TheTrait for Editor {
                 SelfUpdateEvent::UpdateError(err) => {
                     Self::set_update_button(ui, ctx, None);
 
-                    if let Some(statusbar) = ui.get_widget("Statusbar") {
-                        statusbar
-                            .as_statusbar()
-                            .unwrap()
-                            .set_text(format!("Failed to update Eldiron: {err}"));
-                    }
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        format!("Failed to update Eldiron: {err}"),
+                    ));
                 }
                 SelfUpdateEvent::UpdateStart(release) => {
                     Self::set_update_button(ui, ctx, None);
 
-                    if let Some(statusbar) = ui.get_widget("Statusbar") {
-                        statusbar
-                            .as_statusbar()
-                            .unwrap()
-                            .set_text(format!("Updating to version {}...", release.version));
-                    }
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        format!("Updating to version {}...", release.version),
+                    ));
                 }
             }
         }
@@ -10800,6 +10839,24 @@ impl TheTrait for Editor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compact_navigation_icons_are_transparent_at_their_runtime_draw_size() {
+        for (name, path) in COMPACT_NAVIGATION_ICON_PATHS {
+            let icon = rasterize_svg_path_icon(path, 18, 256.0, WHITE);
+            assert_eq!((icon.dim().width, icon.dim().height), (18, 18), "{name}");
+            let alpha = icon
+                .pixels()
+                .chunks_exact(4)
+                .map(|pixel| pixel[3])
+                .collect::<Vec<_>>();
+            assert!(alpha.iter().any(|value| *value > 0), "{name} is empty");
+            assert!(
+                alpha.iter().filter(|value| **value == 0).count() >= 18 * 18 / 4,
+                "{name} has an opaque block background"
+            );
+        }
+    }
 
     #[test]
     fn stopped_3d_editor_does_not_advance_the_dynamics_animation_frame() {

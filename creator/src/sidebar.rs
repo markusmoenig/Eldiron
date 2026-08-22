@@ -36,6 +36,39 @@ pub struct Sidebar {
 
 #[allow(clippy::new_without_default)]
 impl Sidebar {
+    const NAVIGATION_PAGE_COUNT: usize = 2;
+
+    fn next_navigation_page(current: usize, reverse: bool) -> usize {
+        if reverse {
+            (current + Self::NAVIGATION_PAGE_COUNT - 1) % Self::NAVIGATION_PAGE_COUNT
+        } else {
+            (current + 1) % Self::NAVIGATION_PAGE_COUNT
+        }
+    }
+
+    fn set_navigation_page(index: usize, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
+        if index >= Self::NAVIGATION_PAGE_COUNT {
+            return false;
+        }
+
+        let mut changed = false;
+        if let Some(stack) = ui.get_stack_layout("Sidebar Page Stack") {
+            changed = stack.index() != index;
+            stack.set_index(index);
+        }
+        if let Some(widget) = ui.get_widget("Sidebar Tabs")
+            && let Some(tabs) = widget.as_group_button()
+        {
+            tabs.set_index(index as i32);
+        }
+
+        if changed {
+            ctx.ui.relayout = true;
+            ctx.ui.redraw_all = true;
+        }
+        changed
+    }
+
     pub fn reset_for_project_switch(&mut self) {
         self.curr_tilemap_uuid = None;
         self.curr_tile_collection_uuid = None;
@@ -377,34 +410,13 @@ impl Sidebar {
         toolbar_canvas.set_layout(toolbar_hlayout);
         project_canvas.set_bottom(toolbar_canvas);
 
-        // Shared Layout
-
+        // Project page
         let mut stack_layout = TheStackLayout::new(TheId::named("Tree Stack Layout"));
         stack_layout.add_canvas(project_canvas);
-
-        // canvas.set_top(header);
-        // canvas.set_right(sectionbar_canvas);
-        // canvas.top_is_expanding = false;
-        // canvas.set_layout(stack_layout);
-
         canvas.set_layout(stack_layout);
 
-        // Multi functional footer canvas
-
-        let mut right_canvas = TheCanvas::new();
-
-        let mut shared_layout = TheSharedVLayout::new(TheId::named("Multi Shared"));
-
-        let mut nodes_minimap_canvas: TheCanvas = TheCanvas::default();
-        let mut nodes_minimap_shared = TheSharedVLayout::new(TheId::named("Multi Tab"));
-        nodes_minimap_shared.set_shared_ratio(0.5);
-        nodes_minimap_shared.set_mode(TheSharedVLayoutMode::Shared);
-
-        let mut minimap_canvas = TheCanvas::default();
-        let mut minimap = TheRenderView::new(TheId::named("MiniMap"));
-        minimap.limiter_mut().set_max_width(self.width);
-        minimap_canvas.set_widget(minimap);
-
+        // Action parameter page. The action list itself stays owned and
+        // populated by DockManager, but is mounted here in the sidebar.
         let mut action_params_canvas = TheCanvas::default();
         let mut action_stack = TheStackLayout::new(TheId::named("Sidebar Bottom Stack"));
 
@@ -458,27 +470,63 @@ impl Sidebar {
         action_stack.set_index(0);
         action_params_canvas.set_layout(action_stack);
 
-        // let mut header = TheCanvas::new();
-        // let mut switchbar = TheSwitchbar::new(TheId::named("Action Header"));
-        // switchbar.set_text("Settings".to_string());
-        // header.set_widget(switchbar);
+        let mut actions_canvas = TheCanvas::default();
+        let mut actions_shared = TheSharedVLayout::new(TheId::named("Sidebar Actions Shared"));
+        actions_shared.add_canvas(crate::dockmanager::DockManager::action_panel("Action List"));
+        actions_shared.add_canvas(action_params_canvas);
+        actions_shared.set_mode(TheSharedVLayoutMode::Shared);
+        actions_shared.set_shared_ratio(0.58);
+        actions_canvas.set_layout(actions_shared);
 
-        // nodes_minimap_canvas.set_top(header);
+        // Compact, icon-only navigation. A stack keeps this open-ended for
+        // additional sidebar modes without consuming header width with labels.
+        let mut sidebar_pages = TheStackLayout::new(TheId::named("Sidebar Page Stack"));
+        sidebar_pages.add_canvas(canvas);
+        sidebar_pages.add_canvas(actions_canvas);
+        sidebar_pages.set_index(0);
 
-        nodes_minimap_shared.add_canvas(action_params_canvas);
-        nodes_minimap_shared.add_canvas(minimap_canvas);
-        nodes_minimap_canvas.set_layout(nodes_minimap_shared);
+        let mut pages_canvas = TheCanvas::default();
+        pages_canvas.set_layout(sidebar_pages);
 
-        shared_layout.add_canvas(canvas);
-        shared_layout.add_canvas(nodes_minimap_canvas);
-        shared_layout.set_mode(TheSharedVLayoutMode::Shared);
-        shared_layout.set_shared_ratio(0.6);
-        shared_layout.limiter_mut().set_max_width(self.width);
+        let mut minimap_canvas = TheCanvas::default();
+        let mut minimap = TheRenderView::new(TheId::named("MiniMap"));
+        minimap.limiter_mut().set_max_width(self.width);
+        minimap_canvas.set_widget(minimap);
 
-        right_canvas.set_layout(shared_layout);
+        // The map remains visible independently of the selected sidebar page.
+        let mut sidebar_shared = TheSharedVLayout::new(TheId::named("Sidebar Map Shared"));
+        sidebar_shared.add_canvas(pages_canvas);
+        sidebar_shared.add_canvas(minimap_canvas);
+        sidebar_shared.set_mode(TheSharedVLayoutMode::Shared);
+        sidebar_shared.set_shared_ratio(0.78);
+        sidebar_shared.limiter_mut().set_max_width(self.width);
+
+        let mut right_canvas = TheCanvas::new();
+        right_canvas.set_layout(sidebar_shared);
+
+        let mut sidebar_tabs = TheGroupButton::new(TheId::named("Sidebar Tabs"));
+        sidebar_tabs.add_text_status_icon(
+            String::new(),
+            fl!("tooltip_sidebar_project"),
+            "project".to_string(),
+        );
+        sidebar_tabs.add_text_status_icon(
+            String::new(),
+            fl!("tooltip_sidebar_actions"),
+            "graph".to_string(),
+        );
+        sidebar_tabs.set_item_width(30);
+
+        let mut tab_layout = TheHLayout::new(TheId::named("Sidebar Tab Layout"));
+        tab_layout.set_background_color(None);
+        tab_layout.set_margin(Vec4::new(5, 2, 5, 2));
+        tab_layout.add_widget(Box::new(sidebar_tabs));
+
+        let mut tab_canvas = TheCanvas::default();
+        tab_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        tab_canvas.set_layout(tab_layout);
+        right_canvas.set_top(tab_canvas);
         right_canvas.top_is_expanding = false;
-
-        // --
 
         ui.canvas.set_right(right_canvas);
 
@@ -571,7 +619,9 @@ impl Sidebar {
                 }
             }
             TheEvent::IndexChanged(id, index) => {
-                if id.name == "Character Region Override" {
+                if id.name == "Sidebar Tabs" {
+                    redraw |= Self::set_navigation_page(*index, ui, ctx);
+                } else if id.name == "Character Region Override" {
                     server_ctx.character_region_override = *index == 1;
                 } else if id.name == "Item Region Override" {
                     server_ctx.item_region_override = *index == 1;
@@ -2262,7 +2312,21 @@ impl Sidebar {
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
-                if *code == TheKeyCode::Delete
+                if *code == TheKeyCode::Tab
+                    && !ui.ctrl
+                    && !ui.alt
+                    && !ui.logo
+                    && !ui.focus_widget_supports_text_input(ctx)
+                {
+                    let reverse = ui.shift;
+                    let current = ui
+                        .get_stack_layout("Sidebar Page Stack")
+                        .map(|stack| stack.index());
+                    if let Some(current) = current {
+                        let next = Self::next_navigation_page(current, reverse);
+                        redraw |= Self::set_navigation_page(next, ui, ctx);
+                    }
+                } else if *code == TheKeyCode::Delete
                     && let Some(focus_id) = &ctx.ui.focus
                     && (focus_id.name == "Palette Picker" || focus_id.name == "Palette Item")
                 {
@@ -4806,5 +4870,18 @@ impl Sidebar {
             TheId::named("Update Tilepicker"),
             TheValue::Empty,
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Sidebar;
+
+    #[test]
+    fn tab_navigation_wraps_in_both_directions() {
+        assert_eq!(Sidebar::next_navigation_page(0, false), 1);
+        assert_eq!(Sidebar::next_navigation_page(1, false), 0);
+        assert_eq!(Sidebar::next_navigation_page(0, true), 1);
+        assert_eq!(Sidebar::next_navigation_page(1, true), 0);
     }
 }

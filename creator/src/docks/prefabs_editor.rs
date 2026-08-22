@@ -601,7 +601,7 @@ impl Dock for PrefabsEditorDock {
         lower.set_shared_ratio(0.77);
         lower.set_mode(TheSharedHLayoutMode::Shared);
         lower.add_canvas(lower_content);
-        lower.add_canvas(crate::dockmanager::DockManager::action_canvas(
+        lower.add_canvas(crate::dockmanager::DockManager::action_panel(
             PREFAB_ACTION_LIST,
         ));
         let mut lower_canvas = TheCanvas::new();

@@ -65,11 +65,13 @@ impl TheWidget for TheGroupButton {
                     self.state = TheWidgetState::Selected;
                     ctx.ui.send_widget_state_changed(self.id(), self.state);
                 }
-                let index = coord.x as usize / (self.item_width + 1);
-                ctx.ui.send(TheEvent::IndexChanged(self.id.clone(), index));
-                self.selected_index = Some(index);
-                self.is_dirty = true;
-                redraw = true;
+                let index = coord.x.max(0) as usize / (self.item_width + 1);
+                if index < self.text.len() {
+                    ctx.ui.send(TheEvent::IndexChanged(self.id.clone(), index));
+                    self.selected_index = Some(index);
+                    self.is_dirty = true;
+                    redraw = true;
+                }
             }
             TheEvent::Hover(coord) => {
                 if !self.id().equals(&ctx.ui.hover) {
@@ -77,17 +79,13 @@ impl TheWidget for TheGroupButton {
                     ctx.ui.set_hover(self.id());
                     redraw = true;
                 }
-                let index = coord.x as usize / (self.item_width + 1);
-                if let Some(text) = self.status_text[index].clone() {
+                let index = coord.x.max(0) as usize / (self.item_width + 1);
+                if let Some(text) = self.status_text.get(index).and_then(Clone::clone) {
                     ctx.ui
                         .send(TheEvent::SetStatusText(self.id.clone(), text.clone()));
                 }
-                if Some(index) != self.hover_index {
-                    if Some(index) != self.selected_index {
-                        self.hover_index = Some(index);
-                    } else {
-                        self.hover_index = None;
-                    }
+                if index < self.text.len() && Some(index) != self.hover_index {
+                    self.hover_index = Some(index);
                     redraw = true;
                     self.is_dirty = true;
                 }
@@ -377,5 +375,22 @@ impl TheGroupButtonTrait for TheGroupButton {
     }
     fn index(&self) -> i32 {
         self.selected_index.unwrap_or(0) as i32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hover_and_click_outside_items_do_not_index_past_storage() {
+        let mut button = TheGroupButton::new(TheId::named("Group"));
+        button.add_text_status(String::new(), "Only item".to_string());
+        button.set_index(0);
+        let mut ctx = TheContext::new(320, 200, 1.0);
+
+        let _ = button.on_event(&TheEvent::Hover(Vec2::new(10_000, 2)), &mut ctx);
+        let _ = button.on_event(&TheEvent::MouseDown(Vec2::new(10_000, 2)), &mut ctx);
+        assert_eq!(button.index(), 0);
     }
 }

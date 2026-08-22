@@ -36,7 +36,11 @@ impl Default for DockManager {
 }
 
 impl DockManager {
-    pub(crate) fn action_canvas(list_id: &str) -> TheCanvas {
+    /// Builds an action panel backed by the global action model.
+    ///
+    /// The panel is intentionally independent from the dock canvas so hosts can
+    /// place it where it best fits their layout (the Creator sidebar uses it).
+    pub(crate) fn action_panel(list_id: &str) -> TheCanvas {
         let mut action_canvas = TheCanvas::new();
 
         let mut toolbar_canvas = TheCanvas::default();
@@ -125,15 +129,8 @@ impl DockManager {
         }
     }
 
-    pub fn init(&mut self, ctx: &mut TheContext) -> TheCanvas {
-        let mut canvas: TheCanvas = TheCanvas::new();
-
-        let mut shared_layout = TheSharedHLayout::new(TheId::named("Dock Shared Layout"));
-        shared_layout.set_shared_ratio(1.0 - 0.27);
-        shared_layout.set_mode(TheSharedHLayoutMode::Shared);
-
-        // Main Stack
-
+    /// Builds only the dock area. Action panels are mounted by their host.
+    pub fn init_docks(&mut self, ctx: &mut TheContext) -> TheCanvas {
         let mut dock_canvas = TheCanvas::new();
         let mut dock_stack = TheStackLayout::new(TheId::named("Dock Stack"));
 
@@ -143,18 +140,7 @@ impl DockManager {
         }
 
         dock_canvas.set_layout(dock_stack);
-        shared_layout.add_canvas(dock_canvas);
-
-        // Action Canvas
-        let action_canvas = Self::action_canvas("Action List");
-
-        // ---
-
-        shared_layout.add_canvas(action_canvas);
-
-        canvas.set_layout(shared_layout);
-
-        canvas
+        dock_canvas
     }
 
     pub fn set_dock(
@@ -180,15 +166,6 @@ impl DockManager {
             } else {
                 eprint!("Dock \"{}\" not found!", self.dock);
                 return;
-            }
-
-            // Turn actions off / on
-            if let Some(layout) = ui.get_sharedhlayout("Dock Shared Layout") {
-                if self.docks[self.index].supports_actions() {
-                    layout.set_mode(TheSharedHLayoutMode::Shared);
-                } else {
-                    layout.set_mode(TheSharedHLayoutMode::Left);
-                }
             }
 
             if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {

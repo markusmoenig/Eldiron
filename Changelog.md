@@ -4,6 +4,7 @@
 
 ### Creator
 
+- Added the new black-and-blue Creator theme and made it the default, replacing legacy image-based widget chrome with theme-driven rendering and extensible action-group colors. The UI pass also adds delayed localized hover help, compact sidebar and camera navigation, a taller menu-bar timeline option, contextual editor shortcut guidance, and clearer flat status surfaces.
 - Added the first complete **Prefab authoring workflow**: an isolated maximized editor with geometry and shared 3D Paint tools, a hierarchical part/object outliner, parenting, object reassignment, pivots, a full-width inspector, a grouped part/door toolbar, and the standard action list. Linked instances share source geometry and paint while retaining independent state; Door components support multi-face interaction targets, non-destructive previews, server-validated Open/Close interaction, and incremental visual and collision updates. Prefab mode also correctly scopes geometry selection and hides region-only geometry filters and Post/Lighting features, restoring the previous post-processing state on exit.
 - Added **Clear Surface Detail** to remove all surface-line guides from selected faces or from the host faces identified by selected guides in Edge mode, while preserving paint, materials, and generated geometry.
 - Added **C: Select Contour** in the 3D Edge Tool to expand a selected rim edge into its closed coplanar boundary, including irregular and arched openings.
