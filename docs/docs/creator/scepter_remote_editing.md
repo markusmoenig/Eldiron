@@ -83,6 +83,102 @@ Or ask for a command list:
 }
 ```
 
+The Lorebook is the source of truth for the Scepter protocol: command names,
+parameter schemas, capabilities, and examples. It is not a frozen copy of every
+action or tool installed in Creator. Use `action.list` and `tool.list` for that
+live runtime catalog, including contextual availability. The hand-written
+documentation explains concepts and workflows; automation clients should
+discover details from these machine-readable sources.
+
+## Creator Actions And Tools
+
+Creator distinguishes actions from tools:
+
+- an **action** is a contextual operation such as changing camera, extruding a
+  face, or starting a bake
+- a **tool** is a long-lived interaction mode such as Geometry, Vertex,
+  Linedef, Face, or 3D Paint
+
+Creator's interactive [Console](console) uses these same registries. Its short
+commands are intended for people at the editor, while Scepter provides the
+structured JSON boundary for external clients.
+
+The sidebar's visible action labels are localized and grouped, for example
+**Camera: 3D Iso Camera**. Automation uses stable, non-localized IDs such as
+`camera.isometric`; it must not depend on the visible label.
+
+List all actions, or only the currently applicable Face actions:
+
+```json
+{
+  "command": "action.list",
+  "params": {
+    "group": "face",
+    "applicable_only": true
+  }
+}
+```
+
+Run an action through its normal applicability, parameter, undo, and project
+hooks:
+
+```json
+{
+  "command": "action.run",
+  "params": {
+    "id": "face.extrude",
+    "parameters_toml": "amount = 2"
+  }
+}
+```
+
+Action parameters use the same TOML representation as the Actions sidebar.
+Omit `parameters_toml`, or send an empty string, for an action without
+parameters.
+
+List or select interaction tools:
+
+```json
+{
+  "command": "tool.list",
+  "params": {
+    "include_hidden": false
+  }
+}
+```
+
+```json
+{
+  "command": "tool.select",
+  "params": {
+    "id": "tool.geometry"
+  }
+}
+```
+
+`tool.select` uses the same deactivate/activate lifecycle as selecting a tool
+in the UI. An unavailable action or tool is rejected instead of bypassing the
+current editor context.
+
+For a sequence, Scepter can run a small Eldrin editor-automation script:
+
+```json
+{
+  "command": "action.run_script",
+  "params": {
+    "source": "editor_tool(\"tool.geometry\");\neditor_action(\"camera.isometric\", \"\");\neditor_action(\"face.extrude\", \"amount = 2\");"
+  }
+}
+```
+
+The operations execute in source order on Creator's UI thread. Each successful
+action keeps its normal undo entry, and execution stops at the first error. The
+script is therefore an ordered convenience layer, not an atomic transaction.
+
+The relevant Scepter capabilities are `action_read`, `action_execute`,
+`tool_read`, and `tool_select`. Commands that change project content also
+declare `project_write`.
+
 ## Project And Region Reads
 
 Clients should start by reading the project instead of guessing names and IDs:

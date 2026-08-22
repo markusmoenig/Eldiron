@@ -9,8 +9,10 @@ use crate::scepter::{ScepterEvent, ScepterRegionRequest, ScepterService};
 use crate::self_update::{SelfUpdateEvent, SelfUpdater};
 #[cfg(not(target_arch = "wasm32"))]
 use eldiron_scepter::{
-    AttributesGet, AttributesPatch, GridPoint, RegionPaintCells, RegionPaintRect, RegionRef,
-    RegionRenderPreview, ScriptGet, ScriptPatch, ScriptTarget, ScriptTargetKind, TileSelector,
+    ActionList as ScepterActionList, ActionRun, ActionRunScript, AttributesGet, AttributesPatch,
+    GridPoint, RegionPaintCells, RegionPaintRect, RegionRef, RegionRenderPreview, ScriptGet,
+    ScriptPatch, ScriptTarget, ScriptTargetKind, TileSelector, ToolList as ScepterToolList,
+    ToolSelect,
 };
 use rayon::prelude::*;
 use rusterix::render_settings::RendererBackend;
@@ -69,7 +71,7 @@ pub static ACTIONLIST: LazyLock<RwLock<ActionList>> =
 pub static PALETTE: LazyLock<RwLock<ThePalette>> =
     LazyLock::new(|| RwLock::new(ThePalette::default()));
 
-const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 6] = [
+const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 7] = [
     (
         "project",
         "M248.23,112.31A20,20,0,0,0,232,104H220V88a20,20,0,0,0-20-20H132L105.34,48a20.12,20.12,0,0,0-12-4H40A20,20,0,0,0,20,64V208a12,12,0,0,0,12,12H211.1a12,12,0,0,0,11.33-8l28.49-81.47.06-.17A20,20,0,0,0,248.23,112.31ZM92,68l28.8,21.6A12,12,0,0,0,128,92h68v12H69.77a20,20,0,0,0-18.94,13.58L44,137.15V68ZM202.59,196H48.89l23.72-68H226.37Z",
@@ -77,6 +79,10 @@ const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 6] = [
     (
         "graph",
         "M200,152a35.77,35.77,0,0,0-16.46,4l-21.39-16.64A35.49,35.49,0,0,0,164,128.65l10.35-3.44A36,36,0,1,0,164,100c0,1.11.06,2.21.16,3.3l-7.78,2.59A36,36,0,0,0,128,92c-1,0-1.88,0-2.81.12l-4.45-10A36,36,0,1,0,96,92c1,0,1.88,0,2.81-.12l4.45,10a35.91,35.91,0,0,0-8.59,39.7L73.39,160.49a36,36,0,1,0,15.94,17.93l21.28-18.91a35.91,35.91,0,0,0,36.8-1.21L167,173.56A36,36,0,1,0,200,152Zm0-64a12,12,0,1,1-12,12A12,12,0,0,1,200,88ZM84,56A12,12,0,1,1,96,68,12,12,0,0,1,84,56ZM56,204a12,12,0,1,1,12-12A12,12,0,0,1,56,204Zm60-76a12,12,0,1,1,12,12A12,12,0,0,1,116,128Zm84,72a12,12,0,1,1,12-12A12,12,0,0,1,200,200Z",
+    ),
+    (
+        "terminal-nav",
+        "M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,144H32V64H224ZM67.31,101.66a8,8,0,0,1,11.32,0l24,24a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L85.66,131.31,67.31,113a8,8,0,0,1,0-11.32ZM112,168a8,8,0,0,1,8-8h40a8,8,0,0,1,0,16H120A8,8,0,0,1,112,168Z",
     ),
     (
         "square",
@@ -287,6 +293,17 @@ impl Editor {
     const STARTER_PREVIEW_ID: &'static str = "Starter Project Preview";
     const STARTER_CREATE_ID: &'static str = "Starter Project Create";
     const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
+
+    /// Programmatic Eldrin entry point for editor automation and plugin hosts.
+    pub fn execute_eldrin_action_script(
+        &mut self,
+        source: &str,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> Result<usize, String> {
+        self.sidebar
+            .execute_action_script(source, ui, ctx, &mut self.project, &mut self.server_ctx)
+    }
 
     fn coalesce_polyview_hover_events(events: &mut Vec<TheEvent>) {
         let mut coalesced = Vec::with_capacity(events.len());
@@ -4265,9 +4282,7 @@ impl Editor {
         if let Some(action) = ACTIONLIST
             .read()
             .unwrap()
-            .actions
-            .iter()
-            .find(|action| action.id().name == fl!("action_edit_tile"))
+            .get_action_by_command_id("tile.edit_metadata")
         {
             self.server_ctx.curr_action_id = Some(action.id().uuid);
         }
@@ -4839,10 +4854,10 @@ impl Editor {
             })
             .unwrap_or(0);
         self.server_ctx.editor_view_mode = EditorViewMode::from_index(restored_view_index);
-        let restored_camera_action_name = match restored_view_index {
-            2 => fl!("action_iso_camera"),
-            3 => fl!("action_first_p_camera"),
-            _ => fl!("action_editing_camera"),
+        let restored_camera_command_id = match restored_view_index {
+            2 => "camera.isometric",
+            3 => "camera.first_person",
+            _ => "camera.editing",
         };
 
         self.sidebar
@@ -4855,11 +4870,7 @@ impl Editor {
         }
         {
             let mut actions = ACTIONLIST.write().unwrap();
-            if let Some(action) = actions
-                .actions
-                .iter_mut()
-                .find(|action| action.id().name == restored_camera_action_name)
-            {
+            if let Some(action) = actions.get_action_by_command_id_mut(restored_camera_command_id) {
                 self.server_ctx.curr_action_id = Some(action.id().uuid);
                 if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                     action.load_params(map);
@@ -5128,6 +5139,194 @@ impl Editor {
                 "assets": self.project.assets.len(),
             }
         })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_action_catalog(
+        &self,
+        command: &ScepterActionList,
+        ctx: &mut TheContext,
+    ) -> serde_json::Value {
+        let requested_group = command
+            .group
+            .as_deref()
+            .map(str::trim)
+            .filter(|group| !group.is_empty())
+            .map(str::to_ascii_lowercase);
+        let group_ids: Vec<&str> = ActionGroup::ALL.iter().map(|group| group.id()).collect();
+        if let Some(group) = &requested_group
+            && !group_ids.contains(&group.as_str())
+        {
+            return serde_json::json!({
+                "ok": false,
+                "command": "action.list",
+                "error": format!("Unknown action group '{group}'."),
+                "groups": group_ids,
+            });
+        }
+
+        let default_map = Map::default();
+        let map = self
+            .project
+            .get_map(&self.server_ctx)
+            .unwrap_or(&default_map);
+        let actions = ACTIONLIST.read().unwrap();
+        let entries: Vec<serde_json::Value> = actions
+            .actions
+            .iter()
+            .filter_map(|action| {
+                let descriptor = actions.descriptor_by_id(action.id().uuid)?;
+                if requested_group
+                    .as_deref()
+                    .is_some_and(|group| group != descriptor.group.id())
+                {
+                    return None;
+                }
+                let applicable = action.is_applicable(map, ctx, &self.server_ctx);
+                if command.applicable_only && !applicable {
+                    return None;
+                }
+                Some(serde_json::json!({
+                    "id": descriptor.command_id,
+                    "name": descriptor.group.qualified_name(&action.id().name),
+                    "action_name": action.id().name,
+                    "description": action.info(),
+                    "group": descriptor.group.id(),
+                    "group_name": descriptor.group.label(),
+                    "palette_slot": descriptor.group.palette_slot(),
+                    "role": action.role().id(),
+                    "applicable": applicable,
+                    "selected": self.server_ctx.curr_action_id == Some(action.id().uuid),
+                    "accelerator": action.accel().map(|accelerator| accelerator.description()),
+                }))
+            })
+            .collect();
+
+        serde_json::json!({
+            "ok": true,
+            "command": "action.list",
+            "count": entries.len(),
+            "groups": group_ids,
+            "actions": entries,
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_run_action(
+        &mut self,
+        command: ActionRun,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> serde_json::Value {
+        let request = EditorActionRequest {
+            command_id: command.id,
+            parameters_toml: command.parameters_toml,
+        };
+        match self.sidebar.execute_action_command(
+            &request,
+            ui,
+            ctx,
+            &mut self.project,
+            &mut self.server_ctx,
+        ) {
+            Ok(()) => serde_json::json!({
+                "ok": true,
+                "command": "action.run",
+                "action": request.command_id,
+                "executed": 1,
+                "dirty": self.active_session_has_changes(),
+            }),
+            Err(error) => serde_json::json!({
+                "ok": false,
+                "command": "action.run",
+                "action": request.command_id,
+                "error": error,
+            }),
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_run_action_script(
+        &mut self,
+        command: ActionRunScript,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> serde_json::Value {
+        match self.execute_eldrin_action_script(&command.source, ui, ctx) {
+            Ok(executed) => serde_json::json!({
+                "ok": true,
+                "command": "action.run_script",
+                "executed": executed,
+                "dirty": self.active_session_has_changes(),
+            }),
+            Err(error) => serde_json::json!({
+                "ok": false,
+                "command": "action.run_script",
+                "error": error,
+            }),
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_tool_catalog(&self, command: &ScepterToolList) -> serde_json::Value {
+        let tools = TOOLLIST.read().unwrap();
+        let entries: Vec<serde_json::Value> = tools
+            .game_tools
+            .iter()
+            .filter_map(|tool| {
+                let descriptor = tools.game_tool_descriptor_by_id(tool.id().uuid)?;
+                let available = tools.game_tool_is_available(&descriptor.command_id);
+                if !command.include_hidden && !available {
+                    return None;
+                }
+                Some(serde_json::json!({
+                    "id": descriptor.command_id,
+                    "name": tool.id().name,
+                    "description": tool.info(),
+                    "icon": tool.icon_name(),
+                    "accelerator": tool.accel().map(|accelerator| accelerator.to_string()),
+                    "available": available,
+                    "selected": tools.current_game_tool_command_id()
+                        == Some(descriptor.command_id.as_str()),
+                }))
+            })
+            .collect();
+
+        serde_json::json!({
+            "ok": true,
+            "command": "tool.list",
+            "count": entries.len(),
+            "tools": entries,
+        })
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn scepter_select_tool(
+        &mut self,
+        command: ToolSelect,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) -> serde_json::Value {
+        match self.sidebar.execute_tool_command(
+            &command.id,
+            ui,
+            ctx,
+            &mut self.project,
+            &mut self.server_ctx,
+        ) {
+            Ok(changed) => serde_json::json!({
+                "ok": true,
+                "command": "tool.select",
+                "tool": command.id,
+                "changed": changed,
+            }),
+            Err(error) => serde_json::json!({
+                "ok": false,
+                "command": "tool.select",
+                "tool": command.id,
+                "error": error,
+            }),
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -7349,118 +7548,6 @@ impl Editor {
     ) -> bool {
         server_state == rusterix::ServerState::Running || editor_view_mode == EditorViewMode::D2
     }
-
-    fn help_url_for_data_context(&self) -> String {
-        match self.server_ctx.pc {
-            ProjectContext::ProjectSettings => "docs/configuration/game".to_string(),
-            ProjectContext::GameRules | ProjectContext::GameLocales => "docs/rules".to_string(),
-            ProjectContext::GameAudioFx => "docs/audio".to_string(),
-            ProjectContext::GameAuthoring | ProjectContext::GameShortcuts => {
-                "docs/creator/tools/overview".to_string()
-            }
-            ProjectContext::RegionSettings(_) => "docs/building_maps/region_settings".to_string(),
-            ProjectContext::CharacterPreviewRigging(_) => "docs/characters_items/rigging".into(),
-            ProjectContext::Character(_)
-            | ProjectContext::CharacterData(_)
-            | ProjectContext::Item(_)
-            | ProjectContext::ItemData(_) => "docs/characters_items/attributes".to_string(),
-            ProjectContext::Screen(_)
-            | ProjectContext::ScreenWidget(_, _)
-            | ProjectContext::RegionCharacterInstance(_, _)
-            | ProjectContext::RegionItemInstance(_, _) => "docs/screens/widgets".to_string(),
-            _ => "docs/creator/docks/attribute_editor".to_string(),
-        }
-    }
-
-    fn help_url_for_widget_name(&self, widget_name: &str) -> Option<String> {
-        match widget_name {
-            "Tiles" | "Tilemap" | "Tile Editor Dock RGBA Layout View" | "Tile Editor Tree" => {
-                Some("docs/creator/docks/tile_picker_editor".into())
-            }
-            "Prefabs" => Some("docs/creator/tools/blocks".into()),
-            "Builder" => Some("docs/creator/tools/builder".into()),
-            "Palette" => Some("docs/creator/tools/palette".into()),
-            "3D Paint" => Some("docs/creator/tools/iso-paint".into()),
-            "3D Paint Tool" => Some("docs/creator/tools/iso-paint".into()),
-            "Object Tool" => Some("docs/creator/tools/object".into()),
-            "Vertex Tool" => Some("docs/creator/tools/vertex".into()),
-            "Linedef Tool" | "Linedef / Edge Tool" => Some("docs/creator/tools/linedef".into()),
-            "Sector Tool" | "Sector / Face Tool" => Some("docs/creator/tools/sector".into()),
-            "Rect Tool" => Some("docs/creator/tools/rect".into()),
-            "Entity Tool" => Some("docs/creator/tools/entity".into()),
-            "DockDataEditor" | "DockDataEditorMax" | "Data" => {
-                Some(self.help_url_for_data_context())
-            }
-            "DockCodeEditor" | "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
-            "PolyView" => {
-                if self.server_ctx.editor_view_mode == EditorViewMode::D2 {
-                    Some("docs/building_maps/creating_2d".into())
-                } else {
-                    Some("docs/building_maps/creating_3d_maps".into())
-                }
-            }
-            name if name.starts_with("Tile Editor ") => {
-                Some("docs/creator/docks/tile_picker_editor".into())
-            }
-            _ => None,
-        }
-    }
-
-    fn help_url_for_editor_event(&self, event: &TheEvent, ui: &mut TheUI) -> Option<String> {
-        let mut clicked = false;
-        let widget_name = match event {
-            TheEvent::StateChanged(id, state) if *state == TheWidgetState::Clicked => {
-                clicked = true;
-                Some(id.name.clone())
-            }
-            TheEvent::RenderViewClicked(id, _) => {
-                clicked = true;
-                Some(id.name.clone())
-            }
-            TheEvent::TilePicked(id, _) => {
-                clicked = true;
-                Some(id.name.clone())
-            }
-            TheEvent::TileEditorClicked(id, _) => {
-                clicked = true;
-                Some(id.name.clone())
-            }
-            TheEvent::MouseDown(coord) => {
-                clicked = true;
-                ui.get_widget_at_coord(*coord).map(|w| w.id().name.clone())
-            }
-            _ => None,
-        };
-
-        if let Some(widget_name) = widget_name
-            && let Some(url) = self.help_url_for_widget_name(&widget_name)
-        {
-            return Some(url);
-        }
-
-        if clicked {
-            let dm = DOCKMANAGER.read().unwrap();
-            if dm.state != DockManagerState::Minimized {
-                return match dm.dock.as_str() {
-                    "Tiles" => Some("docs/creator/docks/tile_picker_editor".into()),
-                    "Prefabs" => Some("docs/creator/tools/blocks".into()),
-                    "Builder" => Some("docs/creator/tools/builder".into()),
-                    "Palette" => Some("docs/creator/tools/palette".into()),
-                    "3D Paint" => Some("docs/creator/tools/iso-paint".into()),
-                    "3D Paint Tool" => Some("docs/creator/tools/iso-paint".into()),
-                    "Data" => Some(self.help_url_for_data_context()),
-                    "Code" => Some("docs/creator/docks/eldrin_script_editor".into()),
-                    _ => TOOLLIST
-                        .read()
-                        .unwrap()
-                        .game_tools
-                        .get(TOOLLIST.read().unwrap().curr_game_tool)
-                        .and_then(|tool| tool.help_url()),
-                };
-            }
-        }
-        None
-    }
 }
 
 impl TheTrait for Editor {
@@ -7658,6 +7745,10 @@ impl TheTrait for Editor {
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         ui.set_theme(Box::new(TheBlackBlueTheme::new()), ctx);
+        TOOLLIST
+            .write()
+            .unwrap()
+            .set_overlay_theme(ui.style.theme().as_ref());
         RUSTERIX.write().unwrap().client.messages_font = ctx.ui.font.clone();
 
         // Embedded Icons
@@ -7890,13 +7981,6 @@ impl TheTrait for Editor {
         // patreon_button.set_fixed_size(vec2i(36, 36));
         patreon_button.set_icon_offset(Vec2::new(-4, -2));
 
-        let mut help_button = TheMenubarButton::new(TheId::named("Help"));
-        help_button.set_status_text(&fl!("status_help_button"));
-        help_button.set_icon_name("question-mark".to_string());
-        help_button.set_has_state(true);
-        // patreon_button.set_fixed_size(vec2i(36, 36));
-        help_button.set_icon_offset(Vec2::new(-2, -2));
-
         #[cfg(all(
             feature = "self-update",
             any(target_os = "windows", target_os = "linux", target_os = "macos")
@@ -7937,8 +8021,7 @@ impl TheTrait for Editor {
         {
             hlayout.add_widget(Box::new(update_button));
             hlayout.add_widget(Box::new(patreon_button));
-            hlayout.add_widget(Box::new(help_button));
-            hlayout.set_reverse_index(Some(3));
+            hlayout.set_reverse_index(Some(2));
         }
 
         #[cfg(not(all(
@@ -7947,8 +8030,7 @@ impl TheTrait for Editor {
         )))]
         {
             hlayout.add_widget(Box::new(patreon_button));
-            hlayout.add_widget(Box::new(help_button));
-            hlayout.set_reverse_index(Some(2));
+            hlayout.set_reverse_index(Some(1));
         }
 
         top_canvas.set_widget(menubar);
@@ -8249,6 +8331,93 @@ impl TheTrait for Editor {
                         )
                     };
                     println!("{status}");
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    let _ = reply.send(result);
+                    redraw = true;
+                }
+                ScepterEvent::ActionList { command, reply } => {
+                    let _ = reply.send(self.scepter_action_catalog(&command, ctx));
+                }
+                ScepterEvent::ActionRun { command, reply } => {
+                    let result = self.scepter_run_action(command, ui, ctx);
+                    let ok = result
+                        .get("ok")
+                        .and_then(serde_json::Value::as_bool)
+                        .unwrap_or(false);
+                    let status = if ok {
+                        format!(
+                            "Scepter ran action {}.",
+                            result
+                                .get("action")
+                                .and_then(serde_json::Value::as_str)
+                                .unwrap_or("unknown")
+                        )
+                    } else {
+                        format!(
+                            "Scepter action failed: {}",
+                            result
+                                .get("error")
+                                .and_then(serde_json::Value::as_str)
+                                .unwrap_or("unknown error")
+                        )
+                    };
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    let _ = reply.send(result);
+                    redraw = true;
+                }
+                ScepterEvent::ActionRunScript { command, reply } => {
+                    let result = self.scepter_run_action_script(command, ui, ctx);
+                    let ok = result
+                        .get("ok")
+                        .and_then(serde_json::Value::as_bool)
+                        .unwrap_or(false);
+                    let status = if ok {
+                        format!(
+                            "Scepter ran {} scripted action(s).",
+                            result
+                                .get("executed")
+                                .and_then(serde_json::Value::as_u64)
+                                .unwrap_or_default()
+                        )
+                    } else {
+                        format!(
+                            "Scepter action script failed: {}",
+                            result
+                                .get("error")
+                                .and_then(serde_json::Value::as_str)
+                                .unwrap_or("unknown error")
+                        )
+                    };
+                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
+                    let _ = reply.send(result);
+                    redraw = true;
+                }
+                ScepterEvent::ToolList { command, reply } => {
+                    let _ = reply.send(self.scepter_tool_catalog(&command));
+                }
+                ScepterEvent::ToolSelect { command, reply } => {
+                    let result = self.scepter_select_tool(command, ui, ctx);
+                    let ok = result
+                        .get("ok")
+                        .and_then(serde_json::Value::as_bool)
+                        .unwrap_or(false);
+                    let status = if ok {
+                        format!(
+                            "Scepter selected tool {}.",
+                            result
+                                .get("tool")
+                                .and_then(serde_json::Value::as_str)
+                                .unwrap_or("unknown")
+                        )
+                    } else {
+                        format!(
+                            "Scepter tool selection failed: {}",
+                            result
+                                .get("error")
+                                .and_then(serde_json::Value::as_str)
+                                .unwrap_or("unknown error")
+                        )
+                    };
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
                     let _ = reply.send(result);
                     redraw = true;
@@ -8797,7 +8966,7 @@ impl TheTrait for Editor {
                         // and can therefore say Vertex while another toolbar
                         // tool is visibly active. This redraw is specifically
                         // owned by VertexTool, so query the actual selected tool.
-                        if tools.get_current_tool().id().name == "Vertex Tool" {
+                        if tools.current_game_tool_command_id() == Some("tool.vertex") {
                             tools.update_geometry_overlay_3d(
                                 &mut self.project,
                                 &mut self.server_ctx,
@@ -9443,21 +9612,12 @@ impl TheTrait for Editor {
         }
 
         for event in pending_events {
-            if self.server_ctx.help_mode
-                && let Some(url) = self.help_url_for_editor_event(&event, ui)
-            {
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Show Help"),
-                    TheValue::Text(url),
-                ));
-                redraw = true;
-                continue;
-            }
-
             if self.server_ctx.game_input_mode && !self.server_ctx.game_mode {
                 // In game input mode send events to the game tool
-                if let Some(game_tool) =
-                    TOOLLIST.write().unwrap().get_game_tool_of_name("Game Tool")
+                if let Some(game_tool) = TOOLLIST
+                    .write()
+                    .unwrap()
+                    .get_game_tool_by_command_id("tool.game")
                 {
                     redraw = game_tool.handle_event(
                         &event,
@@ -9516,16 +9676,7 @@ impl TheTrait for Editor {
                     }
                 }
                 TheEvent::Custom(id, value) => {
-                    if id.name == "Show Help" {
-                        if let TheValue::Text(url) = value {
-                            _ = open::that(format!("https://www.eldiron.com/{}", url));
-                            ctx.ui
-                                .set_widget_state("Help".to_string(), TheWidgetState::None);
-                            ctx.ui.clear_hover();
-                            self.server_ctx.help_mode = false;
-                            redraw = true;
-                        }
-                    } else if id.name == "Set Project Undo State" {
+                    if id.name == "Set Project Undo State" {
                         UNDOMANAGER.read().unwrap().set_undo_state_to_ui(ctx);
                     } else if id.name == "Pick Tile Source" {
                         if let TheValue::List(values) = value {
@@ -10060,9 +10211,6 @@ impl TheTrait for Editor {
                     }
                 }
                 TheEvent::StateChanged(id, state) => {
-                    if id.name == "Help" {
-                        self.server_ctx.help_mode = state == TheWidgetState::Clicked;
-                    }
                     if id.name == "GameInput" {
                         self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
                     } else if id.name == "Starter Project List Item"
@@ -10505,14 +10653,12 @@ impl TheTrait for Editor {
                         );
                         redraw = true;
                     } else if id.name == "Show Console" {
-                        set_project_context(
-                            ctx,
+                        redraw |= self.sidebar.show_console_page(
                             ui,
+                            ctx,
                             &self.project,
                             &mut self.server_ctx,
-                            ProjectContext::Console,
                         );
-                        redraw = true;
                     } else if id.name == "Undo" || id.name == "Redo" {
                         let mut refresh_action_ui = false;
                         if ui.focus_widget_supports_undo_redo(ctx) {

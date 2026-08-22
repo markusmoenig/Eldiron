@@ -3,11 +3,32 @@ title: "Actions"
 sidebar_position: 3
 ---
 
-Actions do the real work in the **Eldiron Creator**. From maximizing the dock widget to creating geometry or switching cameras. It is a centralized system which only displays actions which are currently applicable (depending on the selected geometry, project tree item and camera).
+Actions do the real work in **Eldiron Creator**, from maximizing a dock widget to creating geometry or switching cameras. The centralized action system only displays actions that are currently applicable to the selected geometry, project tree item, tool, and camera.
 
-Actions listed in blue represent camera based actions, red actions are applicable to the current content of the **geometry editor**, while yellow actions are applicable to the content of the **dock widget**.
+Open the **Actions** page in the right sidebar to see the available actions and the parameters of the selected action. Use `Tab` and `Shift+Tab` to move between sidebar pages when a text field is not being edited.
+
+A compact row between the action list and its parameters shows the selected action's keyboard shortcut. Actions without a registered shortcut display an em dash.
+
+Action rows are sorted into the **Camera**, **Bake**, **Face**, **Surface**, **Geometry**, **Map**, **Prefab**, **Procedural**, **Tile**, **Palette**, **View**, and **General** groups. Each group uses its own slot in the theme's modular action palette, so a custom theme can change the colors without changing action behavior.
+
+Frequently used camera actions are also exposed as icon shortcuts beside the project tabs. These shortcuts execute the same camera actions without requiring a switch to the Actions sidebar page.
 
 If the **Automatic** mode is enabled, selecting an action (or changing the parameter of an action) will automatically execute it. If the automatic mode is disabled, you need to click the **Apply** button manually to execute the action. Automatic mode is off by default.
+
+## Grouped Names And Stable IDs
+
+The sidebar qualifies localized action names with their group. For example, it can display **Camera: 3D Iso Camera** or **Face: Face Extrude**. Existing names that already contain a group, such as **Bake: Render**, are left unchanged instead of receiving a second prefix.
+
+This is a presentation change, not a rename of the underlying action or its saved UUID. Scripts, Scepter clients, shortcuts, and future plugins must use the stable, non-localized dotted ID instead of the visible label:
+
+| Sidebar label | Stable ID |
+| --- | --- |
+| Camera: 3D Iso Camera | `camera.isometric` |
+| Face: Face Extrude | `face.extrude` |
+| Bake: Render | `bake.render` |
+| Tile: Edit Tile Meta Data | `tile.edit_metadata` |
+
+Use the interactive Console's `actions` command or Scepter's `action.list` command to discover the live catalog, including group, display name, applicability, shortcut, and stable ID. This keeps automation compatible when a label is translated or refined. See [Console](console#actions-and-tools) and [Scepter: Remote Editing](scepter_remote_editing#creator-actions-and-tools).
 
 Tile assignment is handled by buttons in the **Tile Picker** dock and operates on either:
 

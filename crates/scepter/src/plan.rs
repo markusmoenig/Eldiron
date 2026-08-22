@@ -32,7 +32,8 @@ impl ScepterPlan {
 #[cfg(test)]
 mod tests {
     use crate::{
-        RegionPaintRect, RegionRef, ScepterCommand, ScepterLorebook, ScepterPlan, TileSelector,
+        ActionRun, ActionRunScript, RegionPaintRect, RegionRef, ScepterCommand, ScepterLorebook,
+        ScepterPlan, TileSelector, ToolSelect,
     };
 
     #[test]
@@ -70,6 +71,11 @@ mod tests {
             "tile_group.create",
             "tileset.import_batch",
             "script.validate",
+            "action.list",
+            "action.run",
+            "action.run_script",
+            "tool.list",
+            "tool.select",
             "geometry.create_room",
         ] {
             assert!(
@@ -82,6 +88,34 @@ mod tests {
         assert!(paint.previewable);
         assert!(paint.undoable);
         assert!(!paint.examples.is_empty());
+    }
+
+    #[test]
+    fn action_commands_round_trip_with_stable_protocol_names() {
+        let direct = ScepterCommand::ActionRun(ActionRun {
+            id: "face.extrude".to_string(),
+            parameters_toml: "amount = 2".to_string(),
+        });
+        let direct_json = serde_json::to_string(&direct).unwrap();
+        let decoded: ScepterCommand = serde_json::from_str(&direct_json).unwrap();
+        assert_eq!(decoded, direct);
+        assert_eq!(decoded.name(), "action.run");
+
+        let scripted = ScepterCommand::ActionRunScript(ActionRunScript {
+            source: r#"editor_action("camera.isometric", "");"#.to_string(),
+        });
+        let scripted_json = serde_json::to_string(&scripted).unwrap();
+        let decoded: ScepterCommand = serde_json::from_str(&scripted_json).unwrap();
+        assert_eq!(decoded, scripted);
+        assert_eq!(decoded.name(), "action.run_script");
+
+        let tool = ScepterCommand::ToolSelect(ToolSelect {
+            id: "tool.geometry".to_string(),
+        });
+        let tool_json = serde_json::to_string(&tool).unwrap();
+        let decoded: ScepterCommand = serde_json::from_str(&tool_json).unwrap();
+        assert_eq!(decoded, tool);
+        assert_eq!(decoded.name(), "tool.select");
     }
 
     #[test]

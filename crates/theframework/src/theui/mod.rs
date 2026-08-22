@@ -3,6 +3,7 @@ pub mod thecodehighlighter;
 pub mod thecollection;
 pub mod thecontextmenu;
 pub mod thedrop;
+pub mod thefeedback;
 pub mod theflattenedmap;
 pub mod theid;
 pub mod thelayout;
@@ -109,6 +110,7 @@ pub mod prelude {
 
     pub use crate::theui::thecanvas::*;
     pub use crate::theui::thecodehighlighter::{TheCodeHighlighter, TheCodeHighlighterTrait};
+    pub use crate::theui::thefeedback::*;
 
     pub use crate::theui::thergbbuffer::TheRGBBuffer;
     pub use crate::theui::thesizelimiter::TheSizeLimiter;
@@ -1532,6 +1534,14 @@ impl TheUI {
     pub fn get_icon_view(&mut self, name: &str) -> Option<&mut dyn TheIconViewTrait> {
         if let Some(text_line_edit) = self.get_widget_abs(Some(&name.to_string()), None) {
             return text_line_edit.as_icon_view();
+        }
+        None
+    }
+
+    /// Gets a given icon grid view by name.
+    pub fn get_icon_grid_view(&mut self, name: &str) -> Option<&mut dyn TheIconGridViewTrait> {
+        if let Some(icon_grid) = self.get_widget_abs(Some(&name.to_string()), None) {
+            return icon_grid.as_icon_grid_view();
         }
         None
     }

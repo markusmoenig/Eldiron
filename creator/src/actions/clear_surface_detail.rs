@@ -1,25 +1,38 @@
 use crate::editor::RUSTERIX;
 use crate::prelude::*;
 
-fn surface_detail_target_faces(map: &Map) -> Vec<(Uuid, usize)> {
-    let mut targets = map.selected_geometry_faces.clone();
-    targets.extend(
-        map.selected_geometry_surface_points
-            .iter()
-            .map(|(object_id, face_index, _)| (*object_id, *face_index)),
-    );
-    targets.extend(
-        map.selected_geometry_surface_segments
-            .iter()
-            .map(|(object_id, face_index, _)| (*object_id, *face_index)),
-    );
+fn surface_detail_target_faces(map: &Map, tool_type: MapToolType) -> Vec<(Uuid, usize)> {
+    let mut targets = Vec::new();
+    if tool_type == MapToolType::Selection {
+        for object_id in &map.selected_geometry_objects {
+            if let Some(object) = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)
+            {
+                targets.extend((0..object.faces.len()).map(|face_index| (*object_id, face_index)));
+            }
+        }
+    } else {
+        targets.extend(map.selected_geometry_faces.iter().copied());
+        targets.extend(
+            map.selected_geometry_surface_points
+                .iter()
+                .map(|(object_id, face_index, _)| (*object_id, *face_index)),
+        );
+        targets.extend(
+            map.selected_geometry_surface_segments
+                .iter()
+                .map(|(object_id, face_index, _)| (*object_id, *face_index)),
+        );
+    }
     targets.sort_unstable();
     targets.dedup();
     targets
 }
 
-fn surface_detail_targets_have_detail(map: &Map) -> bool {
-    surface_detail_target_faces(map)
+fn surface_detail_targets_have_detail(map: &Map, tool_type: MapToolType) -> bool {
+    surface_detail_target_faces(map, tool_type)
         .iter()
         .any(|(object_id, face_index)| {
             map.geometry_objects
@@ -32,8 +45,8 @@ fn surface_detail_targets_have_detail(map: &Map) -> bool {
         })
 }
 
-fn clear_selected_face_surface_detail(map: &mut Map) -> bool {
-    let selections = surface_detail_target_faces(map);
+fn clear_selected_surface_detail(map: &mut Map, tool_type: MapToolType) -> bool {
+    let selections = surface_detail_target_faces(map, tool_type);
 
     let mut changed = false;
     for (object_id, face_index) in &selections {
@@ -98,7 +111,7 @@ impl Action for ClearSurfaceDetail {
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
         server_ctx.get_map_context() == MapContext::Region
             && server_ctx.editor_view_mode != EditorViewMode::D2
-            && surface_detail_targets_have_detail(map)
+            && surface_detail_targets_have_detail(map, server_ctx.curr_map_tool_type)
     }
 
     fn apply(
@@ -109,7 +122,7 @@ impl Action for ClearSurfaceDetail {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         let prev = map.clone();
-        if !clear_selected_face_surface_detail(map) {
+        if !clear_selected_surface_detail(map, server_ctx.curr_map_tool_type) {
             return None;
         }
 
@@ -199,7 +212,7 @@ mod tests {
         map.selected_geometry_surface_segments
             .push((object_id, 0, 0));
 
-        assert!(clear_selected_face_surface_detail(&mut map));
+        assert!(clear_selected_surface_detail(&mut map, MapToolType::Sector));
         assert!(map.geometry_objects[0].faces[0].surface_points.is_empty());
         assert!(map.geometry_objects[0].faces[0].surface_segments.is_empty());
         assert_eq!(
@@ -222,10 +235,58 @@ mod tests {
         map.selected_geometry_surface_segments
             .push((object_id, 1, 0));
 
-        assert_eq!(surface_detail_target_faces(&map), vec![(object_id, 1)]);
-        assert!(clear_selected_face_surface_detail(&mut map));
+        assert_eq!(
+            surface_detail_target_faces(&map, MapToolType::Linedef),
+            vec![(object_id, 1)]
+        );
+        assert!(clear_selected_surface_detail(
+            &mut map,
+            MapToolType::Linedef
+        ));
         assert!(!map.geometry_objects[0].faces[0].surface_points.is_empty());
         assert!(map.geometry_objects[0].faces[1].surface_points.is_empty());
         assert!(map.geometry_objects[0].faces[1].surface_segments.is_empty());
+    }
+
+    #[test]
+    fn selected_object_clears_surface_detail_from_all_of_its_faces() {
+        let mut map = Map::default();
+        let mut selected = rusterix::GeometryObject::new("Selected");
+        selected.faces = vec![face_with_surface_detail(), face_with_surface_detail()];
+        let selected_id = selected.id;
+        let selected_paint_ids = selected
+            .faces
+            .iter()
+            .map(|face| face.paint_surface_id)
+            .collect::<Vec<_>>();
+        let mut other = rusterix::GeometryObject::new("Other");
+        other.faces = vec![face_with_surface_detail()];
+        map.geometry_objects.extend([selected, other]);
+        map.selected_geometry_objects.push(selected_id);
+
+        assert_eq!(
+            surface_detail_target_faces(&map, MapToolType::Selection),
+            vec![(selected_id, 0), (selected_id, 1)]
+        );
+        assert!(clear_selected_surface_detail(
+            &mut map,
+            MapToolType::Selection
+        ));
+        assert!(
+            map.geometry_objects[0]
+                .faces
+                .iter()
+                .all(|face| face.surface_points.is_empty() && face.surface_segments.is_empty())
+        );
+        assert_eq!(
+            map.geometry_objects[0]
+                .faces
+                .iter()
+                .map(|face| face.paint_surface_id)
+                .collect::<Vec<_>>(),
+            selected_paint_ids
+        );
+        assert!(!map.geometry_objects[1].faces[0].surface_points.is_empty());
+        assert_eq!(map.selected_geometry_objects, vec![selected_id]);
     }
 }

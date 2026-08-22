@@ -103,9 +103,6 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::log::LogDock::new());
         docks.insert("Log".into(), dock);
 
-        let dock: Box<dyn Dock> = Box::new(crate::docks::console::ConsoleDock::new());
-        docks.insert("Console".into(), dock);
-
         let dock: Box<dyn Dock> = Box::new(crate::docks::tilemap::TilemapDock::new());
         docks.insert("Tilemap".into(), dock);
 
@@ -391,7 +388,7 @@ impl DockManager {
             crate::utils::editor_scene_full_rebuild(project, server_ctx);
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Set Tool"),
-                TheValue::Text("Object Tool".to_string()),
+                TheValue::Text("tool.geometry".to_string()),
             ));
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),

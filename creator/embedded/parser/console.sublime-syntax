@@ -5,10 +5,10 @@ scope: source.eldironconsole
 
 contexts:
   main:
-    - match: ^(Console ready\.|Commands:.*|When the game is running,.*)$
+    - match: ^(Console ready\.|Game:.*|Editor:.*|Advanced:.*)$
       scope: comment.line.console
 
-    - match: ^(game:/[^\s]*)\s+(>)\s+(.+)$
+    - match: ^(.+?)\s+(>)\s+(.+)$
       captures:
         1: keyword.control.console
         2: punctuation.separator.console
@@ -33,8 +33,14 @@ contexts:
     - match: \b\d+\b
       scope: constant.numeric.console
 
-    - match: \b(help|list|focus|show|get|pwd|up|clear)\b
+    - match: \b(help|commands|list|focus|show|info|get|pwd|up|clear|actions|action|tools|tool|eldrin)\b
       scope: support.function.console
+
+    - match: \b(console_list|console_focus|console_show|console_get|console_pwd|console_up|editor_action|editor_tool)\b
+      scope: support.function.console
+
+    - match: \b(?:camera|bake|face|surface|geometry|map|prefab|procedural|tile|palette|view|general|tool)\.[a-z0-9_\.]+\b
+      scope: entity.name.function.console
 
     - match: \b(Name|Id|attributes|inventory|equipped|container|position|orientation|<none>|<empty>)\b
       scope: variable.language.console

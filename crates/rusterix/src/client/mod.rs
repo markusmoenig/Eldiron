@@ -1593,6 +1593,12 @@ impl Client {
         scene_handler
             .vm
             .set_layer_raster3d_static_geometry_enabled(0, static_geometry_enabled);
+        // Organic foliage/paint stamps are static baked content even though Raster3D draws
+        // them through a dedicated billboard pipeline. Do not draw them again in the live
+        // dynamic overlay.
+        scene_handler.vm.execute(scenevm::Atom::SetOrganicVisible {
+            visible: static_geometry_enabled,
+        });
 
         scene_handler.vm.execute(scenevm::Atom::SetCamera3D {
             camera: camera_override.unwrap_or_else(|| {

@@ -581,10 +581,6 @@ impl Tool for BlockTool {
         Some('B')
     }
 
-    fn help_url(&self) -> Option<String> {
-        Some("docs/creator/tools/blocks".to_string())
-    }
-
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,

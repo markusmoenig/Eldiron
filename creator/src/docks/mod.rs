@@ -8,6 +8,7 @@ pub mod console;
 pub mod data;
 pub mod data_editor;
 pub mod data_undo;
+pub mod help;
 pub mod iso_paint;
 pub mod log;
 pub mod palette;

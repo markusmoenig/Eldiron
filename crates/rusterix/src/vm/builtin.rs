@@ -18,6 +18,15 @@ impl Builtins {
         self.map.insert(name.into(), (arity, op));
     }
 
+    pub fn insert_host<S: Into<String>>(&mut self, name: S, arity: u8) {
+        let name = name.into();
+        self.insert(name.clone(), arity, NodeOp::HostCall { name, argc: arity });
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.map.contains_key(name)
+    }
+
     pub fn get(&self, name: &str) -> Option<(u8, NodeOp)> {
         self.map.get(name).cloned()
     }

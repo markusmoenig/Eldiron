@@ -693,6 +693,7 @@ fn presence_block(prefix: &str, names: &[String], color: Option<&TheColor>) -> T
         block.spans.push(TheTextViewSpan {
             text,
             style: style.clone(),
+            interaction: None,
         });
     };
 
@@ -764,6 +765,7 @@ fn append_block_plain_text(block: &mut TheTextViewBlock, text: &str) {
                 background: None,
                 underline: None,
             },
+            interaction: None,
         });
     }
 }

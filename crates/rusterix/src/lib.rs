@@ -129,7 +129,8 @@ pub use crate::client::{
 pub use crate::command::Command;
 #[cfg(feature = "graphics")]
 pub use crate::orthographic_bake::{
-    OrthographicBakeController, OrthographicBakeStatus, OrthographicBakeWork,
+    OrthographicBakeController, OrthographicBakeLighting, OrthographicBakeStatus,
+    OrthographicBakeWork,
 };
 #[cfg(feature = "graphics")]
 pub use crate::render_settings::RenderSettings;

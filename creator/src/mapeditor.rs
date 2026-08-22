@@ -11,6 +11,10 @@ pub(crate) fn geometry_selection_status_text(
         return None;
     }
 
+    if server_ctx.block_tool_active {
+        return Some(fl!("status_block_tool_active"));
+    }
+
     if !map.selected_block_prop_instances.is_empty() {
         let count = map.selected_block_prop_instances.len();
         return Some(fl!("status_prefab_instances_selected", count = count));

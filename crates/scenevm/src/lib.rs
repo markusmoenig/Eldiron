@@ -1507,6 +1507,15 @@ impl SceneVM {
         true
     }
 
+    /// Select an auxiliary Compute3D bake output for a layer.
+    pub fn set_layer_compute3d_bake_output(&mut self, index: usize, output: u32) -> bool {
+        let Some(vm) = self.vm_mut_by_index(index) else {
+            return false;
+        };
+        vm.set_compute3d_bake_output(output);
+        true
+    }
+
     /// Install an RGBA8 frame as a frozen layer presentation. The layer keeps
     /// compositing this texture while its normal renderer is paused, allowing
     /// higher layers such as editor gizmos to remain live.
@@ -1695,7 +1704,20 @@ impl SceneVM {
         let device = gpu.device.clone();
         let queue = gpu.queue.clone();
         self.active_vm_mut()
-            .paint_surface_buffer_gpu_with(&device, &queue, fb_w, fb_h, false)
+            .paint_surface_buffer_gpu_with(&device, &queue, fb_w, fb_h, false, false)
+    }
+
+    #[cfg(feature = "gpu")]
+    pub fn paint_surface_buffer_gpu_dynamic_only(
+        &mut self,
+        fb_w: u32,
+        fb_h: u32,
+    ) -> Option<PaintSurfaceBuffer> {
+        let gpu = self.gpu.as_ref()?;
+        let device = gpu.device.clone();
+        let queue = gpu.queue.clone();
+        self.active_vm_mut()
+            .paint_surface_buffer_gpu_with(&device, &queue, fb_w, fb_h, true, true)
     }
 
     pub fn set_raster3d_surface_paint(

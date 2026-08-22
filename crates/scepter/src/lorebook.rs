@@ -563,6 +563,100 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
         .capabilities(vec![ScriptRead, Preview])
         .previewable(),
         ScepterCommandMeta::new(
+            "action.list",
+            "List Creator actions using stable non-localized ids, groups, applicability, and UI metadata.",
+        )
+        .params(vec![
+            ScepterParamMeta::new(
+                "group",
+                "Optional stable group id such as camera, bake, face, or tile.",
+                false,
+                "string",
+            ),
+            ScepterParamMeta::new(
+                "applicable_only",
+                "Only return actions applicable to Creator's current context.",
+                false,
+                "boolean",
+            ),
+        ])
+        .capabilities(vec![ActionRead])
+        .examples(vec![json!({
+            "command": "action.list",
+            "params": { "group": "face", "applicable_only": true }
+        })]),
+        ScepterCommandMeta::new(
+            "action.run",
+            "Run one Creator action by stable id through its normal applicability, parameter, undo, and project hooks.",
+        )
+        .params(vec![
+            ScepterParamMeta::new(
+                "id",
+                "Stable action id returned by action.list.",
+                true,
+                "string",
+            ),
+            ScepterParamMeta::new(
+                "parameters_toml",
+                "Optional action parameters using the same TOML representation as Creator's sidebar.",
+                false,
+                "string",
+            ),
+        ])
+        .capabilities(vec![ActionExecute, ProjectWrite])
+        .undoable()
+        .examples(vec![json!({
+            "command": "action.run",
+            "params": {
+                "id": "face.extrude",
+                "parameters_toml": "amount = 2"
+            }
+        })]),
+        ScepterCommandMeta::new(
+            "action.run_script",
+            "Run an Eldrin editor-automation script containing editor_action(id, parameters_toml) and editor_tool(id) calls.",
+        )
+        .params(vec![ScepterParamMeta::new(
+            "source",
+            "Eldrin source executed by the Creator action host.",
+            true,
+            "string",
+        )])
+        .capabilities(vec![ActionExecute, ToolSelect, ScriptRead, ProjectWrite])
+        .undoable()
+        .examples(vec![json!({
+            "command": "action.run_script",
+            "params": {
+                "source": "editor_tool(\"tool.geometry\");\neditor_action(\"camera.isometric\", \"\");\neditor_action(\"face.extrude\", \"amount = 2\");"
+            }
+        })]),
+        ScepterCommandMeta::new(
+            "tool.list",
+            "List Creator's long-lived interaction tools using stable non-localized ids.",
+        )
+        .params(vec![ScepterParamMeta::new(
+            "include_hidden",
+            "Include tools that are currently unavailable in the active editor context.",
+            false,
+            "boolean",
+        )])
+        .capabilities(vec![ToolRead]),
+        ScepterCommandMeta::new(
+            "tool.select",
+            "Select a Creator interaction tool through its normal deactivate/activate lifecycle.",
+        )
+        .params(vec![ScepterParamMeta::new(
+            "id",
+            "Stable tool id returned by tool.list.",
+            true,
+            "string",
+        )])
+        .capabilities(vec![ToolSelect])
+        .examples(vec![json!({
+            "command": "tool.select",
+            "params": { "id": "tool.geometry" }
+        })]),
+        ScepterCommandMeta::new(
             "attributes.get",
             "Read TOML attributes from a character or item template/instance.",
         )

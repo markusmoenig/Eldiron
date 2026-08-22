@@ -462,11 +462,7 @@ impl PrefabsEditorDock {
 
     fn active_tool_mode() -> PrefabEditorMode {
         let tools = TOOLLIST.read().unwrap();
-        if tools
-            .game_tools
-            .get(tools.curr_game_tool)
-            .is_some_and(|tool| tool.id().name == "3D Paint Tool")
-        {
+        if tools.current_game_tool_command_id() == Some("tool.iso_paint") {
             PrefabEditorMode::Paint
         } else {
             PrefabEditorMode::Parts

@@ -37,10 +37,6 @@ impl Tool for GameTool {
         Some('K')
     }
 
-    fn help_url(&self) -> Option<String> {
-        Some("docs/creator/tools/overview".to_string())
-    }
-
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,

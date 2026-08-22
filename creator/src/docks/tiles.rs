@@ -262,34 +262,6 @@ impl Dock for TilesDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        if server_ctx.help_mode {
-            let open_tiles_help = match event {
-                TheEvent::RenderViewClicked(id, _) => Self::tab_from_view_name(&id.name).is_some(),
-                TheEvent::StateChanged(id, state) if *state == TheWidgetState::Clicked => {
-                    id.name == "Tiles"
-                        || Self::tab_from_view_name(&id.name).is_some()
-                        || id.name.starts_with("Blend #")
-                }
-                TheEvent::MouseDown(coord) => ui
-                    .get_widget_at_coord(*coord)
-                    .map(|w| {
-                        let name = &w.id().name;
-                        Self::tab_from_view_name(name).is_some()
-                            || name == "Tiles"
-                            || name.starts_with("Blend #")
-                    })
-                    .unwrap_or(false),
-                _ => false,
-            };
-            if open_tiles_help {
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Show Help"),
-                    TheValue::Text("docs/creator/docks/tile_picker_editor".into()),
-                ));
-                return true;
-            }
-        }
-
         let mut redraw = false;
 
         match event {
@@ -1240,9 +1212,7 @@ impl TilesDock {
         if let Some(action) = ACTIONLIST
             .read()
             .unwrap()
-            .actions
-            .iter()
-            .find(|action| action.id().name == fl!("action_edit_tile"))
+            .get_action_by_command_id("tile.edit_metadata")
         {
             server_ctx.curr_action_id = Some(action.id().uuid);
         }

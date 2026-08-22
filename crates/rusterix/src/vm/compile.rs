@@ -20,6 +20,7 @@ pub struct ASTFunction {
 pub struct CompileVisitor {
     pub environment: Environment,
     functions: FxHashMap<String, ASTFunction>,
+    builtins: Builtins,
 
     user_functions: IndexMap<String, (usize, IndexMap<String, Option<Vec<NodeOp>>>, usize, usize)>,
 
@@ -29,6 +30,29 @@ pub struct CompileVisitor {
 }
 
 impl CompileVisitor {
+    pub fn with_builtins(builtins: Builtins) -> Self {
+        let mut functions: FxHashMap<String, ASTFunction> = FxHashMap::default();
+        for (name, (arity, op)) in builtins.entries() {
+            functions.insert(
+                name.clone(),
+                ASTFunction {
+                    name: name.clone(),
+                    arguments: *arity as i32,
+                    op: op.clone(),
+                },
+            );
+        }
+
+        Self {
+            environment: Environment::default(),
+            functions,
+            builtins,
+            user_functions: IndexMap::default(),
+            locals: IndexSet::default(),
+            in_function: false,
+        }
+    }
+
     fn emit_debug_line(ctx: &mut Context, loc: &Location) {
         if loc.line > 0 {
             ctx.emit(NodeOp::DebugLine(loc.line));
@@ -83,25 +107,7 @@ impl Visitor for CompileVisitor {
     where
         Self: Sized,
     {
-        let mut functions: FxHashMap<String, ASTFunction> = FxHashMap::default();
-        for (name, (arity, op)) in Builtins::default().entries() {
-            functions.insert(
-                name.clone(),
-                ASTFunction {
-                    name: name.clone(),
-                    arguments: *arity as i32,
-                    op: op.clone(),
-                },
-            );
-        }
-
-        Self {
-            environment: Environment::default(),
-            functions,
-            user_functions: IndexMap::default(),
-            locals: IndexSet::default(),
-            in_function: false,
-        }
+        Self::with_builtins(Builtins::default())
     }
 
     fn print(
@@ -153,7 +159,7 @@ impl Visitor for CompileVisitor {
         // Execute the statements in the imported module
         if let Some(module) = module {
             ctx.imported_paths.push(module.path.clone());
-            let mut visitor = CompileVisitor::new();
+            let mut visitor = CompileVisitor::with_builtins(self.builtins.clone());
             for statement in module.stmts.clone() {
                 _ = statement.accept(&mut visitor, ctx);
             }

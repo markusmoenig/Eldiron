@@ -4,6 +4,7 @@ mod macros;
 
 pub mod actionlist;
 pub mod actions;
+pub mod actionscript;
 pub mod avatar_atlas;
 pub mod block_props;
 pub mod blocks;
@@ -56,6 +57,7 @@ pub mod prelude {
     pub use crate::misc::*;
     // pub use crate::previewview::*;
     pub use crate::actionlist::*;
+    pub use crate::actionscript::*;
     pub use crate::sidebar::*;
     pub use crate::textplay::*;
     pub use crate::toollist::*;

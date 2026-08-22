@@ -1,6 +1,8 @@
 use eldiron_scepter::{
-    AttributesGet, AttributesPatch, RegionPaintCells, RegionPaintRect, RegionRef,
-    RegionRenderPreview, ScepterCommand, ScepterLorebook, ScriptGet, ScriptPatch, ScriptValidate,
+    ActionList as ScepterActionList, ActionRun, ActionRunScript, AttributesGet, AttributesPatch,
+    RegionPaintCells, RegionPaintRect, RegionRef, RegionRenderPreview, ScepterCommand,
+    ScepterLorebook, ScriptGet, ScriptPatch, ScriptValidate, ToolList as ScepterToolList,
+    ToolSelect,
 };
 use serde_json::json;
 use std::io::{Read, Write};
@@ -60,6 +62,26 @@ pub enum ScepterEvent {
     },
     ScriptValidate {
         command: ScriptValidate,
+        reply: Sender<serde_json::Value>,
+    },
+    ActionList {
+        command: ScepterActionList,
+        reply: Sender<serde_json::Value>,
+    },
+    ActionRun {
+        command: ActionRun,
+        reply: Sender<serde_json::Value>,
+    },
+    ActionRunScript {
+        command: ActionRunScript,
+        reply: Sender<serde_json::Value>,
+    },
+    ToolList {
+        command: ScepterToolList,
+        reply: Sender<serde_json::Value>,
+    },
+    ToolSelect {
+        command: ToolSelect,
         reply: Sender<serde_json::Value>,
     },
     AttributesGet {
@@ -518,6 +540,48 @@ fn handle_command(command: ScepterCommand, stream: &mut TcpStream, tx: &Sender<S
             "Creator did not accept script validation request",
             "script validation timed out",
         ),
+        ScepterCommand::ActionList(command) => request_creator_snapshot(
+            stream,
+            tx,
+            "actions",
+            |reply| ScepterEvent::ActionList { command, reply },
+            "Creator did not accept action catalogue request",
+            "action catalogue request timed out",
+        ),
+        ScepterCommand::ActionRun(command) => request_creator_snapshot_with_timeout(
+            stream,
+            tx,
+            "result",
+            |reply| ScepterEvent::ActionRun { command, reply },
+            "Creator did not accept action run request",
+            "action run timed out",
+            Duration::from_secs(60),
+        ),
+        ScepterCommand::ActionRunScript(command) => request_creator_snapshot_with_timeout(
+            stream,
+            tx,
+            "result",
+            |reply| ScepterEvent::ActionRunScript { command, reply },
+            "Creator did not accept action script request",
+            "action script timed out",
+            Duration::from_secs(60),
+        ),
+        ScepterCommand::ToolList(command) => request_creator_snapshot(
+            stream,
+            tx,
+            "tools",
+            |reply| ScepterEvent::ToolList { command, reply },
+            "Creator did not accept tool catalogue request",
+            "tool catalogue request timed out",
+        ),
+        ScepterCommand::ToolSelect(command) => request_creator_snapshot(
+            stream,
+            tx,
+            "result",
+            |reply| ScepterEvent::ToolSelect { command, reply },
+            "Creator did not accept tool selection request",
+            "tool selection timed out",
+        ),
         ScepterCommand::AttributesGet(command) => request_creator_snapshot(
             stream,
             tx,
@@ -557,13 +621,33 @@ fn request_creator_snapshot(
     send_error: &str,
     timeout_error: &str,
 ) {
+    request_creator_snapshot_with_timeout(
+        stream,
+        tx,
+        response_key,
+        event,
+        send_error,
+        timeout_error,
+        Duration::from_secs(2),
+    );
+}
+
+fn request_creator_snapshot_with_timeout(
+    stream: &mut TcpStream,
+    tx: &Sender<ScepterEvent>,
+    response_key: &str,
+    event: impl FnOnce(Sender<serde_json::Value>) -> ScepterEvent,
+    send_error: &str,
+    timeout_error: &str,
+    timeout: Duration,
+) {
     let (reply_tx, reply_rx) = channel();
     if tx.send(event(reply_tx)).is_err() {
         let _ = write_json(stream, 500, json!({ "ok": false, "error": send_error }));
         return;
     }
 
-    match reply_rx.recv_timeout(Duration::from_secs(2)) {
+    match reply_rx.recv_timeout(timeout) {
         Ok(value) => {
             let mut body = json!({
                 "ok": true,

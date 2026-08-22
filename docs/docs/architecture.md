@@ -7,6 +7,12 @@ This page gives a high-level view of how Eldiron fits together.
 
 Many other pages document individual systems in detail. This page is the mental model first: what belongs where, how the main systems connect, and why the same game can be presented in 2D, 3D, or text.
 
+## Structured Application Feedback
+
+Creator subsystems can return renderer-independent feedback documents. These documents describe semantic blocks and spans—headings, notices, commands, lists, key/value data, source code, stable IDs, and typed values—rather than embedding UI colors or column spacing into strings.
+
+Views apply their own semantic palette and responsive layout. Interactions carry an event ID and payload instead of a callback, so the same document model can be used safely by Creator docks and, later, plugin-facing surfaces. Plain text is retained as a fallback for logs, copy/paste, and clients without a rich view.
+
 ## One World
 
 At the center of Eldiron is a single shared world model:
@@ -176,6 +182,41 @@ Different clients can then present the same project differently:
 - Creator play mode
 - graphical clients
 - terminal client
+
+## Creator Actions, Tools, And Automation
+
+Creator keeps presentation separate from execution. The Actions sidebar,
+interactive Console commands, Scepter commands, Eldrin editor automation, and
+a future plugin loader all meet at the same action and tool registries. From
+there, Creator uses the normal applicability checks, parameter handling,
+activation lifecycle, undo, dirty state, and project notifications.
+
+An action has three different kinds of identity:
+
+- a localized display name, which the sidebar can qualify with a group such as
+  **Face:** or **Camera:**
+- a stable dotted command ID, such as `face.extrude`, used by automation and
+  extensions
+- an internal UUID retained by the existing UI and action mechanics
+
+Grouping and theme palette slots are presentation/catalog metadata. They do not
+replace the older action role, which still controls behavior such as automatic
+camera application. Changing a group or its color therefore cannot silently
+change how an action executes.
+
+Tools use the same stable-ID principle, with IDs such as `tool.geometry`, but
+remain stateful interaction modes with normal deactivate/activate behavior.
+Actions remain one-shot contextual operations.
+
+The registries now accept runtime-provided boxed actions and tools, which is the
+extension boundary needed by plugins. This does not yet constitute a complete
+plugin product: manifest discovery, loading, permissions, isolation, versioning,
+and distribution still need to be designed around that boundary.
+
+For automation, the [Scepter Lorebook](./creator/scepter_remote_editing#lorebook)
+is authoritative for the command protocol, while `action.list` and `tool.list`
+are authoritative for the live registered catalog. The prose documentation is
+the conceptual guide rather than a duplicated static registry.
 
 ## Recommended Mental Model
 

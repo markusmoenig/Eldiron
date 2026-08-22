@@ -142,8 +142,22 @@ impl TheDraw2D {
         stride: usize,
         color: &[u8; 4],
     ) {
-        for y in rect.1..rect.1 + rect.3 {
-            for x in rect.0..rect.0 + rect.2 {
+        if stride == 0 || frame.len() < 4 {
+            return;
+        }
+
+        // Drawing code normally clips to its widget first, but this primitive is
+        // also the final boundary before indexing the raw frame. Keep it safe for
+        // partially visible rectangles and stale dimensions during relayout.
+        let frame_height = frame.len() / (stride * 4);
+        let right = rect.0.saturating_add(rect.2).min(stride);
+        let bottom = rect.1.saturating_add(rect.3).min(frame_height);
+        if rect.0 >= right || rect.1 >= bottom {
+            return;
+        }
+
+        for y in rect.1..bottom {
+            for x in rect.0..right {
                 let i = x * 4 + y * stride * 4;
 
                 let background = &[frame[i], frame[i + 1], frame[i + 2], frame[i + 3]];
@@ -1515,5 +1529,27 @@ impl TheDraw2D {
     // Length of a 2d vector
     pub fn length(&self, v: (f32, f32)) -> f32 {
         ((v.0).powf(2.0) + (v.1).powf(2.0)).sqrt()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blend_rect_clips_to_the_frame() {
+        let draw = TheDraw2D::default();
+        let mut frame = vec![0; 4 * 3 * 4];
+
+        draw.blend_rect(&mut frame, &(2, 2, 8, 8), 4, &[255, 0, 0, 255]);
+
+        assert_eq!(
+            &frame[(2 * 4 + 2) * 4..(2 * 4 + 2) * 4 + 4],
+            &[255, 0, 0, 255]
+        );
+        assert_eq!(
+            &frame[(2 * 4 + 3) * 4..(2 * 4 + 3) * 4 + 4],
+            &[255, 0, 0, 255]
+        );
     }
 }

@@ -7,7 +7,9 @@ use toml::{Table, Value};
 
 pub mod cli;
 mod formula;
+mod help;
 pub use formula::{evaluate_formula, formula_identifiers, formula_is_valid};
+pub use help::{RulesetHelpCommand, RulesetHelpResponse, execute_ruleset_help, ruleset_help_intro};
 
 pub const OFFICIAL_RULESET_ID: &str = "eldiron.official";
 pub const OFFICIAL_RULESET_VERSION: &str = "1.0.0";

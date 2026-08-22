@@ -63,6 +63,7 @@ pub struct TheTextAreaEdit {
     last_mouse_down_coord: Vec2<i32>,
     last_mouse_down_time: Instant,
     readonly: bool,
+    word_wrap: bool,
 
     // Cursor icon
     cursor_icon: Option<TheCursorIcon>,
@@ -134,6 +135,7 @@ impl TheWidget for TheTextAreaEdit {
             last_mouse_down_coord: Vec2::zero(),
             last_mouse_down_time: Instant::now(),
             readonly: false,
+            word_wrap: false,
 
             modifier_alt: false,
             modifier_ctrl: false,
@@ -1312,6 +1314,21 @@ impl TheWidget for TheTextAreaEdit {
         );
 
         if self.modified_since_last_tick || self.renderer.row_count() == 0 {
+            // Editable code keeps one renderer row per source row so cursor and
+            // line-number semantics stay unchanged. Soft wrapping is intended
+            // for read-only code/output views such as the Creator console.
+            let word_wrap = self.readonly && self.word_wrap;
+            self.renderer.max_width = if word_wrap {
+                Some(
+                    self.dim
+                        .to_buffer_shrunk_utuple(&shrinker)
+                        .2
+                        .saturating_sub(self.scrollbar_size)
+                        .max(1) as f32,
+                )
+            } else {
+                None
+            };
             self.renderer
                 .prepare(&self.state.to_text(), TheFontPreference::Code, &ctx.draw);
 
@@ -1384,6 +1401,7 @@ impl TheWidget for TheTextAreaEdit {
             } else {
                 (content_w > inner_w, content_h > inner_h)
             };
+            let is_hoverflow = !word_wrap && is_hoverflow;
             if is_hoverflow {
                 visible_area.3 = inner_h;
             }
@@ -1657,6 +1675,7 @@ pub trait TheTextAreaEditTrait: TheWidget {
     fn auto_scroll_to_cursor(&mut self, auto_scroll_to_cursor: bool);
     fn display_line_number(&mut self, display_line_number: bool);
     fn readonly(&mut self, readonly: bool);
+    fn set_word_wrap(&mut self, word_wrap: bool);
     fn use_statusbar(&mut self, use_statusbar: bool);
     fn use_global_statusbar(&mut self, use_global_statusbar: bool);
     fn set_matches(&mut self, matches: &[(usize, usize)]);
@@ -1735,8 +1754,18 @@ impl TheTextAreaEditTrait for TheTextAreaEdit {
         self.is_dirty = true;
     }
     fn readonly(&mut self, readonly: bool) {
-        self.readonly = readonly;
-        self.is_dirty = true;
+        if self.readonly != readonly {
+            self.readonly = readonly;
+            self.modified_since_last_tick = true;
+            self.is_dirty = true;
+        }
+    }
+    fn set_word_wrap(&mut self, word_wrap: bool) {
+        if self.word_wrap != word_wrap {
+            self.word_wrap = word_wrap;
+            self.modified_since_last_tick = true;
+            self.is_dirty = true;
+        }
     }
     fn use_statusbar(&mut self, use_statusbar: bool) {
         if use_statusbar {
@@ -1829,6 +1858,35 @@ impl TheTextAreaEdit {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn readonly_editor_wraps_highlighted_text_without_horizontal_overflow() {
+        let mut edit = TheTextAreaEdit::new(TheId::named("Wrapped Readonly"));
+        let source = "let very_long_console_value = \"a highlighted value that must wrap inside a narrow sidebar\";";
+        edit.set_text(source.to_string());
+        edit.set_code_type("Rust");
+        edit.readonly(true);
+        edit.set_word_wrap(true);
+
+        let mut ctx = TheContext::new(140, 120, 1.0);
+        edit.set_dim(TheDim::rect(0, 0, 140, 120), &mut ctx);
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(140, 120));
+        let mut style: Box<dyn TheStyle> = Box::new(TheClassicStyle::with_theme(Box::new(
+            TheBlackBlueTheme::new(),
+        )));
+
+        edit.draw(&mut buffer, &mut style, &mut ctx);
+
+        assert_eq!(edit.text(), source);
+        assert!(edit.renderer.row_count() > 1);
+        assert!(!edit.renderer.is_horizontal_overflow());
+        assert!(
+            edit.renderer
+                .row_info
+                .iter()
+                .any(|row| row.highlights.is_some())
+        );
+    }
 
     #[test]
     fn paste_uses_text_carried_by_event() {

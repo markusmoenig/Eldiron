@@ -52,6 +52,45 @@ impl Hud {
         ))
     }
 
+    pub(crate) fn draw_shortcut_guidance(
+        buffer: &mut TheRGBABuffer,
+        map: &Map,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        let Some(help) = crate::mapeditor::geometry_selection_status_text(map, server_ctx) else {
+            return;
+        };
+        let width = buffer.dim().width as usize;
+        let height = buffer.dim().height as usize;
+        let stride = buffer.stride();
+        let Some(bar) = Self::shortcut_guidance_rect(width, height, &help) else {
+            return;
+        };
+
+        ctx.draw
+            .rect(buffer.pixels_mut(), &bar, stride, &[24, 24, 26, 224]);
+        ctx.draw.rect(
+            buffer.pixels_mut(),
+            &(bar.0, bar.1, bar.2, 1),
+            stride,
+            &[76, 78, 84, 255],
+        );
+        ctx.draw.text_rect_blend(
+            buffer.pixels_mut(),
+            &(bar.0 + 9, bar.1 + 1, bar.2 - 18, bar.3 - 2),
+            stride,
+            &help,
+            TheFontSettings {
+                size: 12.5,
+                ..Default::default()
+            },
+            &[220, 220, 224, 255],
+            TheHorizontalAlign::Left,
+            TheVerticalAlign::Center,
+        );
+    }
+
     fn active_action_material_slots(
         &self,
         map: &Map,
@@ -888,35 +927,6 @@ impl Hud {
                     stride,
                 );
             }*/
-        }
-
-        // Shortcut guidance belongs to the editor operation it describes. Keep it
-        // inside the viewport and only show it for tools/selections that provide
-        // contextual guidance, rather than reserving a global status-bar row.
-        if let Some(help) = crate::mapeditor::geometry_selection_status_text(map, server_ctx) {
-            if let Some(bar) = Self::shortcut_guidance_rect(width, height, &help) {
-                ctx.draw
-                    .rect(buffer.pixels_mut(), &bar, stride, &[24, 24, 26, 224]);
-                ctx.draw.rect(
-                    buffer.pixels_mut(),
-                    &(bar.0, bar.1, bar.2, 1),
-                    stride,
-                    &[76, 78, 84, 255],
-                );
-                ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
-                    &(bar.0 + 9, bar.1 + 1, bar.2 - 18, bar.3 - 2),
-                    stride,
-                    &help,
-                    TheFontSettings {
-                        size: 12.5,
-                        ..Default::default()
-                    },
-                    &[220, 220, 224, 255],
-                    TheHorizontalAlign::Left,
-                    TheVerticalAlign::Center,
-                );
-            }
         }
 
         let _ = (width, height, stride);

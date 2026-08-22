@@ -26,9 +26,13 @@ impl Default for IdVerifier {
 
 impl IdVerifier {
     pub fn new() -> Self {
+        Self::with_builtins(&Builtins::default())
+    }
+
+    pub fn with_builtins(builtins: &Builtins) -> Self {
         let mut inbuilt = FxHashMap::default();
 
-        for (func, _) in Builtins::default().entries() {
+        for (func, _) in builtins.entries() {
             inbuilt.insert(
                 func.clone(),
                 Var {
@@ -41,7 +45,7 @@ impl IdVerifier {
             );
         }
 
-        IdVerifier {
+        Self {
             scopes: vec![inbuilt],
             var_counter: 0,
         }

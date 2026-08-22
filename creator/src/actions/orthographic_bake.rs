@@ -24,8 +24,8 @@ impl Action for RenderOrthographicBake {
             SAMPLE_COUNT_ID.into(),
             "".into(),
             "".into(),
-            16,
-            1..=64,
+            32,
+            1..=256,
             false,
         ));
         nodeui.add_item(TheNodeUIItem::Markdown(
@@ -64,8 +64,8 @@ impl Action for RenderOrthographicBake {
         let samples = self
             .nodeui
             .get_i32_value(SAMPLE_COUNT_ID)
-            .unwrap_or(16)
-            .clamp(1, 64) as u32;
+            .unwrap_or(32)
+            .clamp(1, 256) as u32;
         let progress = {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.set_dirty();

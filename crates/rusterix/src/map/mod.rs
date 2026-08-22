@@ -48,9 +48,18 @@ pub struct OrthographicBakeTile {
     pub y: i32,
     /// Lossless PNG bytes encoded as Base64 for portable JSON persistence.
     pub color_png_base64: String,
-    /// Reserved for quantized depth data once the depth bake pass is connected.
+    /// Camera-linear f32 depth values, little-endian and Base64 encoded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub depth_base64: Option<String>,
+    /// Linear primary-surface albedo encoded as a lossless RGBA PNG.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub albedo_png_base64: Option<String>,
+    /// World-space normals encoded from [-1, 1] to an RGBA PNG.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normal_png_base64: Option<String>,
+    /// Roughness, metallic, opacity and emission encoded as an RGBA PNG.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material_png_base64: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -65,6 +74,10 @@ pub struct OrthographicBakeAsset {
     pub camera_forward: [f32; 3],
     pub camera_right: [f32; 3],
     pub camera_up: [f32; 3],
+    /// The bake camera position projected onto `camera_forward`. Version-four depth tiles use
+    /// this to rebase their camera-linear values for the current orthographic camera.
+    #[serde(default)]
+    pub camera_forward_origin: f32,
     pub samples: u32,
     #[serde(default)]
     pub tiles: Vec<OrthographicBakeTile>,

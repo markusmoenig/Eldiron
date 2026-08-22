@@ -3160,6 +3160,7 @@ pub struct VM {
     raster_had_dynamics_last_frame: bool,
     organic_visible: bool,
     raster3d_static_geometry_enabled: bool,
+    compute3d_bake_output: u32,
 
     // Camera
     pub camera3d: Camera3D,
@@ -3347,6 +3348,13 @@ impl VM {
         self.raster3d_static_geometry_enabled = enabled;
     }
 
+    /// Select the auxiliary output produced by Compute3D while baking.
+    /// 0 is the path-traced beauty/indirect pass, 1 is albedo, 2 is material,
+    /// and 3 is the resolved world-space shading normal.
+    pub fn set_compute3d_bake_output(&mut self, output: u32) {
+        self.compute3d_bake_output = output.min(3);
+    }
+
     fn raster3d_clear_alpha(&self) -> f32 {
         if self.layer_index == 0 && self.raster3d_static_geometry_enabled {
             1.0
@@ -3384,13 +3392,18 @@ impl VM {
         right: Vec3<f32>,
         up: Vec3<f32>,
     ) -> Option<(f32, f32, f32, f32)> {
-        let first = self.cached_v3.first()?;
+        let vertices = if self.cached_static_v3.is_empty() {
+            &self.cached_v3
+        } else {
+            &self.cached_static_v3
+        };
+        let first = vertices.first()?;
         let first = Vec3::from(first.pos);
         let mut min_u = first.dot(right);
         let mut max_u = min_u;
         let mut min_v = first.dot(up);
         let mut max_v = min_v;
-        for vertex in &self.cached_v3[1..] {
+        for vertex in &vertices[1..] {
             let point = Vec3::from(vertex.pos);
             let u = point.dot(right);
             let v = point.dot(up);
@@ -4555,7 +4568,9 @@ impl VM {
     fn vm_flags(&self) -> u32 {
         // Bit 0 enables progressive jitter/accumulation; bit 1 controls generated organic
         // billboard visibility. Other shader families currently ignore these flags.
-        u32::from(self.progressive_sample_index.is_some()) | (u32::from(self.organic_visible) << 1)
+        u32::from(self.progressive_sample_index.is_some())
+            | (u32::from(self.organic_visible) << 1)
+            | (self.compute3d_bake_output << 2)
     }
 
     fn atlas_dims(&self) -> (u32, u32) {
@@ -5054,6 +5069,7 @@ impl VM {
             raster_had_dynamics_last_frame: false,
             organic_visible: true,
             raster3d_static_geometry_enabled: true,
+            compute3d_bake_output: 0,
             camera3d: Camera3D::default(),
             enabled: true,
             layer_index: 0,
@@ -11681,7 +11697,11 @@ impl VM {
         g.paint_surface_tex_size = (fb_w, fb_h);
     }
 
-    fn paint_surface_vertices(&self, include_dynamic: bool) -> Vec<PaintSurfaceVertPod> {
+    fn paint_surface_vertices(
+        &self,
+        include_dynamic: bool,
+        dynamic_only: bool,
+    ) -> Vec<PaintSurfaceVertPod> {
         const TILE_INDEX_PARTICLE_FLAG_CPU: u32 = 0x0800_0000u32;
         let (vertices, indices) = if include_dynamic {
             (self.cached_v3.as_slice(), self.cached_i3.as_slice())
@@ -11692,7 +11712,15 @@ impl VM {
             )
         };
         let mut out = Vec::new();
+        let first_triangle = if dynamic_only {
+            self.cached_static_i3.len() / 3
+        } else {
+            0
+        };
         for (tri_idx, tri) in indices.chunks_exact(3).enumerate() {
+            if tri_idx < first_triangle {
+                continue;
+            }
             let visible = if include_dynamic {
                 let word = tri_idx / 32;
                 let bit = tri_idx % 32;
@@ -11765,6 +11793,7 @@ impl VM {
         fb_w: u32,
         fb_h: u32,
         include_dynamic: bool,
+        dynamic_only: bool,
     ) -> Option<PaintSurfaceBuffer> {
         if fb_w == 0 || fb_h == 0 {
             return Some(PaintSurfaceBuffer::new(fb_w, fb_h));
@@ -11772,7 +11801,7 @@ impl VM {
         self.ensure_paint_surface_pipeline(device).ok()?;
         self.ensure_paint_surface_targets(device, fb_w, fb_h);
 
-        let vertices = self.paint_surface_vertices(include_dynamic);
+        let vertices = self.paint_surface_vertices(include_dynamic, dynamic_only);
         let geo_ids = if include_dynamic {
             self.cached_tri_geo_ids.as_slice()
         } else {
@@ -11945,22 +11974,32 @@ impl VM {
                     continue;
                 };
                 let index = y * fb_w as usize + x;
+                let world = [
+                    read_f32(world_base),
+                    read_f32(world_base + 4),
+                    read_f32(world_base + 8),
+                ];
                 buffer.pixels[index] = crate::core::PaintSurfacePixel {
                     valid: true,
                     geo_id,
-                    paint_geo: self
-                        .cached_static_i3
-                        .get(face_id * 3)
-                        .and_then(|vertex_index| self.cached_static_v3.get(*vertex_index as usize))
-                        .map(|vertex| vertex.paint_geo)
-                        .unwrap_or_else(|| Self::paint_geo_id_packed(geo_id)),
+                    paint_geo: (if include_dynamic {
+                        &self.cached_i3
+                    } else {
+                        &self.cached_static_i3
+                    })
+                    .get(face_id * 3)
+                    .and_then(|vertex_index| {
+                        if include_dynamic {
+                            self.cached_v3.get(*vertex_index as usize)
+                        } else {
+                            self.cached_static_v3.get(*vertex_index as usize)
+                        }
+                    })
+                    .map(|vertex| vertex.paint_geo)
+                    .unwrap_or_else(|| Self::paint_geo_id_packed(geo_id)),
                     face_id: face_id as u32,
-                    depth: read_f32(world_base + 12),
-                    world: [
-                        read_f32(world_base),
-                        read_f32(world_base + 4),
-                        read_f32(world_base + 8),
-                    ],
+                    depth: (Vec3::from(world) - c.pos).dot(c.forward),
+                    world,
                     normal: [0.0, 1.0, 0.0],
                     uv: [read_f32(meta_base), read_f32(meta_base + 4)],
                 };

@@ -55,10 +55,6 @@ impl Tool for PaletteTool {
         Some('P')
     }
 
-    fn help_url(&self) -> Option<String> {
-        Some("docs/creator/tools/palette".to_string())
-    }
-
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,

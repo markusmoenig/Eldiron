@@ -14,6 +14,10 @@ pub enum ScepterCapability {
     AttributeWrite,
     ScriptRead,
     ScriptWrite,
+    ActionRead,
+    ActionExecute,
+    ToolRead,
+    ToolSelect,
     Preview,
     Undo,
     Export,
@@ -371,6 +375,37 @@ pub struct ScriptValidate {
     pub source: String,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionList {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+    #[serde(default)]
+    pub applicable_only: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionRun {
+    pub id: String,
+    #[serde(default)]
+    pub parameters_toml: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActionRunScript {
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolList {
+    #[serde(default)]
+    pub include_hidden: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolSelect {
+    pub id: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AttributesGet {
     pub target: ScriptTarget,
@@ -476,6 +511,16 @@ pub enum ScepterCommand {
     ScriptPatch(ScriptPatch),
     #[serde(rename = "script.validate")]
     ScriptValidate(ScriptValidate),
+    #[serde(rename = "action.list")]
+    ActionList(ActionList),
+    #[serde(rename = "action.run")]
+    ActionRun(ActionRun),
+    #[serde(rename = "action.run_script")]
+    ActionRunScript(ActionRunScript),
+    #[serde(rename = "tool.list")]
+    ToolList(ToolList),
+    #[serde(rename = "tool.select")]
+    ToolSelect(ToolSelect),
     #[serde(rename = "attributes.get")]
     AttributesGet(AttributesGet),
     #[serde(rename = "attributes.patch")]
@@ -521,6 +566,11 @@ impl ScepterCommand {
             Self::ScriptGet(_) => "script.get",
             Self::ScriptPatch(_) => "script.patch",
             Self::ScriptValidate(_) => "script.validate",
+            Self::ActionList(_) => "action.list",
+            Self::ActionRun(_) => "action.run",
+            Self::ActionRunScript(_) => "action.run_script",
+            Self::ToolList(_) => "tool.list",
+            Self::ToolSelect(_) => "tool.select",
             Self::AttributesGet(_) => "attributes.get",
             Self::AttributesPatch(_) => "attributes.patch",
             Self::GeometryCreateRoom(_) => "geometry.create_room",

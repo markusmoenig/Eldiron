@@ -3,6 +3,7 @@ use super::{
     IdVerifier, Location, LogicalOperator, Module, ParseError, Scanner, Stmt, Token, TokenType,
     UnaryOperator, objectd::FunctionD,
 };
+use crate::vm::builtin::Builtins;
 use crate::zero_expr_float;
 use indexmap::IndexMap;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -20,6 +21,7 @@ pub struct Parser {
     current_line: usize,
     path: PathBuf,
     verifier: IdVerifier,
+    builtins: Builtins,
 
     scope: VariableScope,
 
@@ -41,12 +43,17 @@ impl Default for Parser {
 
 impl Parser {
     pub fn new() -> Self {
+        Self::with_builtins(Builtins::default())
+    }
+
+    pub fn with_builtins(builtins: Builtins) -> Self {
         Self {
             tokens: Vec::new(),
             current: 0,
             current_line: 0,
             path: PathBuf::new(),
-            verifier: IdVerifier::default(),
+            verifier: IdVerifier::with_builtins(&builtins),
+            builtins,
 
             scope: VariableScope::Global,
 
@@ -244,7 +251,7 @@ impl Parser {
 
         if let Ok(source) = std::fs::read_to_string(path.clone()) {
             if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                let mut parser = Parser::new();
+                let mut parser = Parser::with_builtins(self.builtins.clone());
                 let m = parser.compile_module(stem.to_string(), source, path)?;
 
                 // Add imported function names to the parser

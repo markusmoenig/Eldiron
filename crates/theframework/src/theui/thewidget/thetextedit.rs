@@ -1759,10 +1759,10 @@ impl TheTextRenderer {
         width: usize,
         height: usize,
     ) -> bool {
-        top > self.scroll_offset.y + self.height
-            || top + height < self.scroll_offset.y
-            || left > self.scroll_offset.x + self.width
-            || left + width < self.scroll_offset.x
+        top >= self.scroll_offset.y.saturating_add(self.height)
+            || top.saturating_add(height) <= self.scroll_offset.y
+            || left >= self.scroll_offset.x.saturating_add(self.width)
+            || left.saturating_add(width) <= self.scroll_offset.x
     }
 
     fn render_cursor(
@@ -2291,17 +2291,19 @@ impl TheTextRenderer {
                     let left = left + self.get_text_left(token_start).to_i32().unwrap();
                     let left = left.max(0).to_usize().unwrap().max(self.left);
 
-                    let top = top + self.row_height(row_number) as i32;
+                    let top = top + self.row_height(row_number) as i32 - 1;
                     let top = top.max(0).to_usize().unwrap().max(self.top);
 
                     let width = self.get_text_width(token_start, token_end - 1);
                     let right = (left + width).min(self.left + self.width);
-                    draw.blend_rect(
-                        buffer.pixels_mut(),
-                        &(left, top as usize, right - left, 1),
-                        stride,
-                        &color.to_u8_array(),
-                    );
+                    if top < self.top + self.height && right > left {
+                        draw.blend_rect(
+                            buffer.pixels_mut(),
+                            &(left, top, right - left, 1),
+                            stride,
+                            &color.to_u8_array(),
+                        );
+                    }
                 }
             }
 
@@ -2479,13 +2481,15 @@ impl TheTextRenderer {
         let left = left.max(0).to_usize().unwrap().max(self.left);
         let top = top.max(0).to_usize().unwrap().max(self.top);
 
-        let stride = buffer.stride();
-        draw.blend_rect(
-            buffer.pixels_mut(),
-            &(left, top, right - left, bottom - top),
-            stride,
-            color,
-        );
+        if right > left && bottom > top {
+            let stride = buffer.stride();
+            draw.blend_rect(
+                buffer.pixels_mut(),
+                &(left, top, right - left, bottom - top),
+                stride,
+                color,
+            );
+        }
     }
 
     fn row_height(&self, row_number: usize) -> usize {

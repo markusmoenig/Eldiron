@@ -53,6 +53,20 @@ fn event(event, value) {
 
 `is_hostile(value)` asks the active ruleset whether this character considers the nearby entity hostile. This keeps race relations and reputation in one place instead of encoding them as custom character attributes.
 
+## Host-Specific Functions
+
+The Eldrin virtual machine provides the language, while its host decides which functions are available. World, region, character, and item scripts receive gameplay functions and events. Creator's Scepter automation host additionally registers these editor-only functions:
+
+```eldrin
+editor_tool("tool.geometry");
+editor_action("camera.isometric", "");
+editor_action("face.extrude", "amount = 2");
+```
+
+`editor_tool(id)` selects a long-lived Creator tool. `editor_action(id, parameters_toml)` runs one contextual Creator action; the second argument is always a TOML string and can be empty. Both functions use stable, non-localized IDs rather than sidebar labels.
+
+These functions are available to Eldrin source submitted through Scepter's `action.run_script` and through the Creator [Console](/docs/creator/console). The Console host also provides game-information calls such as `console_list`, `console_focus`, and `console_get`. None of these editor/console functions are available in ordinary gameplay scripts unless that VM host explicitly registers them. See [Creator Actions And Tools](/docs/creator/scepter_remote_editing#creator-actions-and-tools).
+
 ## Events
 
 The behavior of characters and items is based on an **event** system. Characters and items are sent events of a certain type with a given value.

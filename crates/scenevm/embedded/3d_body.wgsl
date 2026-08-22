@@ -31,6 +31,7 @@ const SHADOW_OPAQUE_THRESHOLD: f32 = 0.5;
 const BILLBOARD_DEPTH_EPS: f32 = 0.002;
 const VM_FLAG_PROGRESSIVE_ACCUMULATION: u32 = 1u;
 const VM_FLAG_ORGANIC_VISIBLE: u32 = 2u;
+const VM_FLAG_BAKE_OUTPUT_SHIFT: u32 = 2u;
 // Debug isolation toggles for billboard artifact triage.
 const DEBUG_BB_FLAT_UNLIT: bool = false;
 const DEBUG_BB_NO_SHADOW_CAST: bool = false;
@@ -1076,6 +1077,80 @@ fn shade_surface(
     return direct + ambient + emissive;
 }
 
+// Sun-independent multi-bounce Monte Carlo transport used by orthographic
+// baking. Direct sun and authored point lights are deliberately absent: those
+// are resolved from the baked surface data at runtime.
+fn path_trace_indirect(
+    first_hit: UnifiedHit,
+    primary_rd: vec3<f32>,
+    px: u32,
+    py: u32,
+    sky_rgb: vec3<f32>
+) -> vec3<f32> {
+    var radiance = vec3<f32>(0.0);
+    var throughput = vec3<f32>(1.0);
+    var hit = first_hit;
+    var incoming = primary_rd;
+
+    for (var bounce: u32 = 0u; bounce < 5u; bounce = bounce + 1u) {
+        let V = -incoming;
+        let N = select(-hit.normal, hit.normal, dot(hit.normal, V) >= 0.0);
+        let albedo = max(hit.albedo.rgb, vec3<f32>(0.0));
+        let mat = hit.material;
+
+        if (mat.emissive > 0.0) {
+            radiance += throughput * albedo * mat.emissive * 2.0;
+        }
+
+        let seed = vec3<f32>(
+            f32(px) + f32(bounce) * 71.17,
+            f32(py) + f32(bounce) * 19.31,
+            f32(U.anim_counter) + f32(bounce) * 43.73
+        );
+        let xi0 = hash13(seed + vec3<f32>(0.13, 2.71, 5.19));
+        let xi1 = hash13(seed + vec3<f32>(7.37, 0.41, 3.11));
+        let xi2 = hash13(seed + vec3<f32>(1.97, 8.23, 0.67));
+        let onb = build_onb(N);
+        let diffuse_dir = normalize(onb * cosine_sample_hemisphere(xi0, xi1));
+
+        let F0 = mix(vec3<f32>(0.04), albedo, mat.metallic);
+        let fresnel = fresnel_schlick(max(dot(N, V), 0.0), F0);
+        let spec_probability = clamp(
+            max(fresnel.r, max(fresnel.g, fresnel.b)),
+            0.05,
+            0.95
+        );
+        var next_dir = diffuse_dir;
+        if (xi2 < spec_probability) {
+            let reflected = reflect(incoming, N);
+            next_dir = normalize(mix(reflected, diffuse_dir, mat.roughness * mat.roughness));
+            if (dot(next_dir, N) <= 0.0) {
+                next_dir = diffuse_dir;
+            }
+            throughput *= fresnel / spec_probability;
+        } else {
+            throughput *= albedo * (1.0 - mat.metallic) / (1.0 - spec_probability);
+        }
+
+        if (bounce >= 2u) {
+            let survive = clamp(max(throughput.r, max(throughput.g, throughput.b)), 0.08, 0.95);
+            let rr = hash13(seed + vec3<f32>(9.17, 4.29, 6.83));
+            if (rr > survive) { break; }
+            throughput /= survive;
+        }
+
+        let next = trace_geometry_only(hit.position + N * 0.002, next_dir, 0.001, 1e6, false);
+        if (next.hit_type == HIT_TYPE_NONE) {
+            radiance += throughput * sky_rgb;
+            break;
+        }
+        hit = next;
+        incoming = next_dir;
+    }
+
+    return radiance;
+}
+
 // ===== Main Compute Shader =====
 @compute @workgroup_size(8,8,1)
 fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -1156,8 +1231,42 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         organic_won = true;
     }
 
+    let bake_output = (U.vm_flags >> VM_FLAG_BAKE_OUTPUT_SHIFT) & 3u;
+    if (bake_output != 0u) {
+        var auxiliary = vec4<f32>(0.0);
+        if (organic_won && bake_output == 1u) {
+            auxiliary = vec4<f32>(organic_hit.color, 1.0);
+        } else if (has_surface && !organic_won) {
+            if (bake_output == 1u) {
+                auxiliary = vec4<f32>(surface_hit.albedo.rgb, 1.0);
+            } else if (bake_output == 2u) {
+                auxiliary = vec4<f32>(
+                    surface_hit.material.roughness,
+                    surface_hit.material.metallic,
+                    surface_hit.material.opacity,
+                    surface_hit.material.emissive
+                );
+            } else if (bake_output == 3u) {
+                let V = -rd;
+                let N = select(
+                    -surface_hit.normal,
+                    surface_hit.normal,
+                    dot(surface_hit.normal, V) >= 0.0
+                );
+                auxiliary = vec4<f32>(N * 0.5 + vec3<f32>(0.5), 1.0);
+            }
+        }
+        sv_write(px, py, auxiliary);
+        return;
+    }
+
     if (has_surface && !organic_won) {
-        let front_color = shade_surface(surface_hit, rd, px, py, sky_rgb, ambient_strength);
+        var front_color = vec3<f32>(0.0);
+        if (progressive) {
+            front_color = path_trace_indirect(surface_hit, rd, px, py, sky_rgb);
+        } else {
+            front_color = shade_surface(surface_hit, rd, px, py, sky_rgb, ambient_strength);
+        }
         let front_alpha = effective_alpha_for_hit(surface_hit);
         let front_opacity = clamp(front_alpha * surface_hit.material.opacity, 0.0, 1.0);
 

@@ -3,9 +3,11 @@ title: "Project Tree"
 sidebar_position: 2
 ---
 
-The project tree, located to the right of the *Eldiron Creator* contains all editable content of your game. Use the **+** and **-** buttons at the bottom of the tree to add or remove content, to the right of these buttons the current content context is displayed as well as **import** and **export** buttons.
+The project tree is available on the **Project** page of the right sidebar in *Eldiron Creator* and contains all editable content of your game. Use the **+** and **-** buttons at the bottom of the tree to add or remove content. To the right of these buttons, the current content context is displayed together with the **import** and **export** buttons.
 
-Selecting specific content in the project tree will display a corresponding editor dock widget.
+The compact sidebar tabs switch between the **Project** tree, the contextual **Actions** page, the **Console**, and **Help**. Console places wrapped, read-only runtime output above its command entry. Help uses the same layout for the upcoming ruleset-aware interactive help system. Use `Tab` to select the next sidebar page and `Shift+Tab` to select the previous one when a text field is not being edited; the same shortcuts also leave the Console and Help command fields. The minimap remains visible below every page.
+
+Selecting specific content in the project tree displays its corresponding editor dock widget. Camera shortcuts remain available as right-aligned icons beside the project tabs.
 
 ---
 

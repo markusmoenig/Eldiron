@@ -922,10 +922,11 @@ impl Widget {
         }
     }
 
-    pub(crate) fn item_generated_icon_square(
-        assets: &Assets,
-        item: &Item,
-    ) -> Option<(u32, Vec<u8>)> {
+    /// Render the same generated item icon used by runtime UI consumers.
+    ///
+    /// Editor surfaces such as ruleset Help use this entry point so previews
+    /// cannot drift from the icon chosen by the game client.
+    pub fn item_generated_icon_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
         if !AvatarRuntimeBuilder::item_allows_generated_icon(item, assets) {
             return None;
         }

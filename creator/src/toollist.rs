@@ -19,6 +19,11 @@ fn rect_stroke_streams_scene_update(tool_type: MapToolType, view_mode: EditorVie
     tool_type == MapToolType::Rect && view_mode == EditorViewMode::D2
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ToolDescriptor {
+    pub command_id: String,
+}
+
 pub struct ToolList {
     pub server_time: TheTime,
     pub render_button_text: String,
@@ -30,6 +35,8 @@ pub struct ToolList {
 
     pub game_tools: Vec<Box<dyn Tool>>,
     pub curr_game_tool: usize,
+    game_tool_descriptors: FxHashMap<Uuid, ToolDescriptor>,
+    game_tool_command_ids: FxHashMap<String, Uuid>,
     previous_non_game_tool: Option<usize>,
 
     // Editor tools for dock editors
@@ -41,6 +48,8 @@ pub struct ToolList {
     pub prefab_mode: bool,
     last_3d_hover_pick_at: Option<Instant>,
     last_3d_overlay_update_at: Option<Instant>,
+    prefab_preview_wire_rgb: [f32; 3],
+    prefab_grid_rgb: [f32; 3],
 }
 
 struct GeometryOwnerReplacementPlan {
@@ -129,14 +138,13 @@ mod tests {
 
     #[test]
     fn prefab_palette_contains_geometry_and_paint_tools() {
-        assert!(ToolList::is_prefab_tool("Object Tool"));
-        assert!(ToolList::is_prefab_tool("Vertex Tool"));
-        assert!(ToolList::is_prefab_tool("Linedef / Edge Tool"));
-        assert!(ToolList::is_prefab_tool("Sector / Face Tool"));
-        assert!(ToolList::is_prefab_tool("3D Paint Tool"));
-        assert!(!ToolList::is_prefab_tool("Entity Tool"));
-        assert!(!ToolList::is_prefab_tool("Prefab Tool"));
-        assert!(!ToolList::is_prefab_tool("Game Tool"));
+        assert!(ToolList::is_prefab_tool_command_id("tool.geometry"));
+        assert!(ToolList::is_prefab_tool_command_id("tool.vertex"));
+        assert!(ToolList::is_prefab_tool_command_id("tool.linedef"));
+        assert!(ToolList::is_prefab_tool_command_id("tool.sector"));
+        assert!(ToolList::is_prefab_tool_command_id("tool.iso_paint"));
+        assert!(!ToolList::is_prefab_tool_command_id("tool.entity"));
+        assert!(!ToolList::is_prefab_tool_command_id("tool.game"));
     }
 
     #[test]
@@ -152,6 +160,21 @@ mod tests {
             crate::utils::map_editor_render_view_name(&server_ctx),
             "PrefabView"
         );
+    }
+
+    #[test]
+    fn stable_tool_registry_covers_every_game_tool() {
+        let tools = ToolList::new();
+        assert_eq!(tools.game_tools.len(), tools.game_tool_descriptors.len());
+        assert_eq!(tools.game_tools.len(), tools.game_tool_command_ids.len());
+        for tool in &tools.game_tools {
+            let descriptor = tools.game_tool_descriptor_by_id(tool.id().uuid).unwrap();
+            assert!(validate_command_id(&descriptor.command_id).is_ok());
+            assert_eq!(
+                tools.get_game_tool_uuid_by_command_id(&descriptor.command_id),
+                Some(tool.id().uuid)
+            );
+        }
     }
 
     #[test]
@@ -276,22 +299,18 @@ impl ToolList {
         }
     }
 
-    fn shortcut_tool_name(action: ShortcutAction) -> &'static str {
+    fn shortcut_tool_command_id(action: ShortcutAction) -> &'static str {
         match action {
-            ShortcutAction::ToolObject => "Object Tool",
-            ShortcutAction::ToolVertex => "Vertex Tool",
-            ShortcutAction::ToolEdge => "Linedef / Edge Tool",
-            ShortcutAction::ToolFace => "Sector / Face Tool",
-            ShortcutAction::ToolIsoPaint => "3D Paint Tool",
+            ShortcutAction::ToolObject => "tool.geometry",
+            ShortcutAction::ToolVertex => "tool.vertex",
+            ShortcutAction::ToolEdge => "tool.linedef",
+            ShortcutAction::ToolFace => "tool.sector",
+            ShortcutAction::ToolIsoPaint => "tool.iso_paint",
         }
     }
 
     fn shortcut_tool_uuid(&self, action: ShortcutAction) -> Option<Uuid> {
-        let tool_name = Self::shortcut_tool_name(action);
-        self.game_tools
-            .iter()
-            .find(|tool| tool.id().name == tool_name)
-            .map(|tool| tool.id().uuid)
+        self.get_game_tool_uuid_by_command_id(Self::shortcut_tool_command_id(action))
     }
 
     fn set_tool_widget_state_by_uuid(&mut self, uuid: Uuid, ctx: &mut TheContext) {
@@ -1609,30 +1628,7 @@ impl ToolList {
     }
 
     pub fn new() -> Self {
-        let game_tools: Vec<Box<dyn Tool>> = vec![
-            Box::new(VertexTool::new()),
-            Box::new(LinedefTool::new()),
-            Box::new(SectorTool::new()),
-            Box::new(GeometryTool::new()),
-            Box::new(IsoPaintTool::new()),
-            Box::new(RectTool::new()),
-            Box::new(crate::tools::entity::EntityTool::new()),
-            Box::new(crate::tools::blocks::BlockTool::new()),
-            // Builder Tool is hidden while the block-driven workflow replaces it.
-            // Box::new(crate::tools::builder::BuilderTool::new()),
-            // Hidden for now: the collision probe route overlay still needs clearer UX
-            // before it deserves a visible tool slot again.
-            // Box::new(crate::tools::collision_probe::CollisionProbeTool::new()),
-            // Box::new(RenderTool::new()),
-            // Box::new(TerrainTool::new()),
-            // Box::new(CodeTool::new()),
-            // Box::new(DataTool::new()),
-            // Box::new(TilesetTool::new()),
-            // Box::new(ConfigTool::new()),
-            // Box::new(InfoTool::new()),
-            Box::new(GameTool::new()),
-        ];
-        Self {
+        let mut list = Self {
             server_time: TheTime::default(),
             render_button_text: "Finished".to_string(),
             authoring_mode: false,
@@ -1640,8 +1636,10 @@ impl ToolList {
             palette_mode: false,
             previous_sidebar_mode: None,
             previous_palette_dock: None,
-            game_tools,
+            game_tools: Vec::new(),
             curr_game_tool: 2,
+            game_tool_descriptors: FxHashMap::default(),
+            game_tool_command_ids: FxHashMap::default(),
             previous_non_game_tool: None,
 
             editor_tools: Vec::new(),
@@ -1650,7 +1648,67 @@ impl ToolList {
             prefab_mode: false,
             last_3d_hover_pick_at: None,
             last_3d_overlay_update_at: None,
+            prefab_preview_wire_rgb: [83.0 / 255.0, 151.0 / 255.0, 207.0 / 255.0],
+            prefab_grid_rgb: [57.0 / 255.0, 75.0 / 255.0, 105.0 / 255.0],
+        };
+
+        list.register_game_tool("tool.vertex", VertexTool::new());
+        list.register_game_tool("tool.linedef", LinedefTool::new());
+        list.register_game_tool("tool.sector", SectorTool::new());
+        list.register_game_tool("tool.geometry", GeometryTool::new());
+        list.register_game_tool("tool.iso_paint", IsoPaintTool::new());
+        list.register_game_tool("tool.rect", RectTool::new());
+        list.register_game_tool("tool.entity", crate::tools::entity::EntityTool::new());
+        list.register_game_tool("tool.blocks", crate::tools::blocks::BlockTool::new());
+        // Builder and collision probe remain hidden while their workflows are being revised.
+        list.register_game_tool("tool.game", GameTool::new());
+        list
+    }
+
+    /// Keep renderer-owned prefab overlays aligned with the active UI theme.
+    pub fn set_overlay_theme(&mut self, theme: &dyn TheTheme) {
+        self.prefab_preview_wire_rgb =
+            Self::normalized_theme_rgb(*theme.color(ToolListButtonSelectedBorder));
+        self.prefab_grid_rgb = Self::normalized_theme_rgb(*theme.color(DefaultSelection));
+    }
+
+    fn normalized_theme_rgb(color: RGBA) -> [f32; 3] {
+        [
+            color[0] as f32 / 255.0,
+            color[1] as f32 / 255.0,
+            color[2] as f32 / 255.0,
+        ]
+    }
+
+    fn overlay_color(rgb: [f32; 3], alpha: f32) -> [f32; 4] {
+        [rgb[0], rgb[1], rgb[2], alpha]
+    }
+
+    fn register_game_tool<T: Tool + 'static>(&mut self, command_id: &'static str, tool: T) {
+        self.register_boxed_game_tool(command_id, Box::new(tool))
+            .unwrap_or_else(|error| panic!("invalid built-in tool registration: {error}"));
+    }
+
+    /// Register a tool supplied by Creator or a runtime plugin.
+    pub fn register_boxed_game_tool(
+        &mut self,
+        command_id: impl Into<String>,
+        tool: Box<dyn Tool>,
+    ) -> Result<(), String> {
+        let command_id = command_id.into();
+        validate_command_id(&command_id)?;
+        if self.game_tool_command_ids.contains_key(&command_id) {
+            return Err(format!("Duplicate tool command id '{command_id}'."));
         }
+        let id = tool.id().uuid;
+        if self.game_tool_descriptors.contains_key(&id) {
+            return Err(format!("Duplicate tool UUID '{id}'."));
+        }
+        self.game_tool_command_ids.insert(command_id.clone(), id);
+        self.game_tool_descriptors
+            .insert(id, ToolDescriptor { command_id });
+        self.game_tools.push(tool);
+        Ok(())
     }
 
     fn should_refresh_3d_hover_pick(&mut self) -> bool {
@@ -1683,7 +1741,10 @@ impl ToolList {
         } else {
             // Show game tools
             for (index, tool) in self.game_tools.iter().enumerate() {
-                if self.prefab_mode && !Self::is_prefab_tool(tool.id().name.as_str()) {
+                let command_id = self
+                    .game_tool_descriptor_by_id(tool.id().uuid)
+                    .map(|descriptor| descriptor.command_id.as_str());
+                if self.prefab_mode && !command_id.is_some_and(Self::is_prefab_tool_command_id) {
                     continue;
                 }
                 let mut b = TheToolListButton::new(tool.id());
@@ -1755,14 +1816,10 @@ impl ToolList {
         }
     }
 
-    fn is_prefab_tool(name: &str) -> bool {
+    fn is_prefab_tool_command_id(command_id: &str) -> bool {
         matches!(
-            name,
-            "Object Tool"
-                | "Vertex Tool"
-                | "Linedef / Edge Tool"
-                | "Sector / Face Tool"
-                | "3D Paint Tool"
+            command_id,
+            "tool.geometry" | "tool.vertex" | "tool.linedef" | "tool.sector" | "tool.iso_paint"
         )
     }
 
@@ -2022,6 +2079,7 @@ impl ToolList {
         assets: &Assets,
     ) {
         self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx, assets);
+        crate::hud::Hud::draw_shortcut_guidance(buffer, map, ctx, server_ctx);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2313,7 +2371,7 @@ impl ToolList {
                     && !server_ctx.game_input_mode
                     && !server_ctx.text_game_mode
                     && !self.editor_mode
-                    && self.get_current_tool().id().name != "Game Tool"
+                    && !self.current_game_tool_is("tool.game")
                     && !server_ctx.game_mode
                 {
                     let shortcut_context =
@@ -2382,9 +2440,7 @@ impl ToolList {
                                 break;
                             }
                         }
-                    } else if self.get_current_tool().id().name != "Game Tool"
-                        && !server_ctx.game_mode
-                    {
+                    } else if !self.current_game_tool_is("tool.game") && !server_ctx.game_mode {
                         for tool in self.game_tools.iter() {
                             if let Some(acc) = tool.accel()
                                 && acc.to_ascii_lowercase() == c.to_ascii_lowercase()
@@ -2549,7 +2605,7 @@ impl ToolList {
                 }
 
                 let mut acc = !text_input_focused;
-                if self.get_current_tool().id().name == "Game Tool"
+                if self.current_game_tool_is("tool.game")
                     || ui.ctrl
                     || ui.logo
                     || ui.alt
@@ -2666,7 +2722,7 @@ impl ToolList {
                         },
                     );
 
-                    if self.get_current_tool().id().name == "Game Tool" && server_ctx.game_mode {
+                    if self.current_game_tool_is("tool.game") && server_ctx.game_mode {
                         if let Some(stack) = ui.get_stack_layout("Game Output Stack") {
                             stack.set_index(if self.text_game_mode { 1 } else { 0 });
                         }
@@ -2705,39 +2761,11 @@ impl ToolList {
                     redraw = true;
                 }
                 if id.name.contains("Tool") && *state == TheWidgetState::Selected {
-                    if server_ctx.help_mode {
-                        if self.editor_mode {
-                            for tool in self.editor_tools.iter() {
-                                if tool.id().uuid == id.uuid {
-                                    if let Some(url) = tool.help_url() {
-                                        ctx.ui.send(TheEvent::Custom(
-                                            TheId::named("Show Help"),
-                                            TheValue::Text(url),
-                                        ));
-                                    }
-                                }
-                            }
-                        } else {
-                            for tool in self.game_tools.iter() {
-                                if tool.id().uuid == id.uuid {
-                                    if tool.id().uuid == id.uuid {
-                                        if let Some(url) = tool.help_url() {
-                                            ctx.ui.send(TheEvent::Custom(
-                                                TheId::named("Show Help"),
-                                                TheValue::Text(url),
-                                            ));
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     redraw = self.set_tool(id.uuid, ui, ctx, project, server_ctx);
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
-                if self.game_tools[self.curr_game_tool].id().name == "Game Tool" {
+                if self.current_game_tool_is("tool.game") {
                     let key = match code {
                         TheKeyCode::Return => Some("enter"),
                         TheKeyCode::Delete => Some("backspace"),
@@ -3536,11 +3564,20 @@ impl ToolList {
             // }
             TheEvent::Custom(id, value) => {
                 if id.name == "Set Tool" {
-                    if let TheValue::Text(name) = value {
-                        if let Some(tool_id) = self.get_game_tool_uuid_of_name(name) {
+                    if let TheValue::Text(command_id) = value {
+                        if let Some(tool_id) = self
+                            .get_game_tool_uuid_by_command_id(command_id)
+                            .or_else(|| self.get_game_tool_uuid_of_name(command_id))
+                        {
                             self.set_tool(tool_id, ui, ctx, project, server_ctx);
-                            ctx.ui
-                                .set_widget_state(name.into(), TheWidgetState::Selected);
+                            if let Some(tool) = self
+                                .game_tools
+                                .iter()
+                                .find(|tool| tool.id().uuid == tool_id)
+                            {
+                                ctx.ui
+                                    .set_widget_state(tool.id().name, TheWidgetState::Selected);
+                            }
                         }
                     }
                 } else if id.name == "Update Geometry Overlay 3D" {
@@ -3601,21 +3638,23 @@ impl ToolList {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        if self.editor_mode || self.game_tools[self.curr_game_tool].id().name != "Game Tool" {
+        if self.editor_mode || !self.current_game_tool_is("tool.game") {
             server_ctx.game_mode = false;
             return false;
         }
 
+        let game_tool_id = self.get_game_tool_uuid_by_command_id("tool.game");
         let target = self
             .previous_non_game_tool
             .take()
             .filter(|index| {
-                *index < self.game_tools.len() && self.game_tools[*index].id().name != "Game Tool"
+                *index < self.game_tools.len()
+                    && Some(self.game_tools[*index].id().uuid) != game_tool_id
             })
             .or_else(|| {
                 self.game_tools
                     .iter()
-                    .position(|tool| tool.id().name != "Game Tool")
+                    .position(|tool| Some(tool.id().uuid) != game_tool_id)
             });
         let Some(target) = target else {
             self.game_tools[self.curr_game_tool].tool_event(
@@ -3690,8 +3729,8 @@ impl ToolList {
                 }
             }
             if switched_tool {
-                if self.game_tools[self.curr_game_tool].id().name == "Game Tool"
-                    && self.game_tools[old_tool_index].id().name != "Game Tool"
+                if self.current_game_tool_is("tool.game")
+                    && !self.game_tool_index_is(old_tool_index, "tool.game")
                 {
                     self.previous_non_game_tool = Some(old_tool_index);
                 }
@@ -3753,7 +3792,7 @@ impl ToolList {
                 && previous_geometry_selection
                     .as_ref()
                     .is_some_and(|snapshot| !snapshot.faces.is_empty());
-            let switched_to_game_tool = self.get_current_tool().id().name == "Game Tool";
+            let switched_to_game_tool = self.current_game_tool_is("tool.game");
             if switched_tool
                 && server_ctx.editor_view_mode != EditorViewMode::D2
                 && !switched_to_game_tool
@@ -3858,6 +3897,45 @@ impl ToolList {
     }
 
     // Return the uuid given game tool.
+    pub fn game_tool_descriptor_by_id(&self, id: Uuid) -> Option<&ToolDescriptor> {
+        self.game_tool_descriptors.get(&id)
+    }
+
+    fn game_tool_index_is(&self, index: usize, command_id: &str) -> bool {
+        self.game_tools
+            .get(index)
+            .and_then(|tool| self.game_tool_descriptor_by_id(tool.id().uuid))
+            .is_some_and(|descriptor| descriptor.command_id == command_id)
+    }
+
+    pub fn current_game_tool_command_id(&self) -> Option<&str> {
+        self.game_tools
+            .get(self.curr_game_tool)
+            .and_then(|tool| self.game_tool_descriptor_by_id(tool.id().uuid))
+            .map(|descriptor| descriptor.command_id.as_str())
+    }
+
+    pub fn game_tool_is_available(&self, command_id: &str) -> bool {
+        if self.editor_mode || !self.game_tool_command_ids.contains_key(command_id) {
+            return false;
+        }
+        !self.prefab_mode || Self::is_prefab_tool_command_id(command_id)
+    }
+
+    fn current_game_tool_is(&self, command_id: &str) -> bool {
+        self.current_game_tool_command_id() == Some(command_id)
+    }
+
+    pub fn get_game_tool_uuid_by_command_id(&self, command_id: &str) -> Option<Uuid> {
+        self.game_tool_command_ids.get(command_id).copied()
+    }
+
+    pub fn get_game_tool_by_command_id(&mut self, command_id: &str) -> Option<&mut Box<dyn Tool>> {
+        let id = self.get_game_tool_uuid_by_command_id(command_id)?;
+        self.game_tools.iter_mut().find(|tool| tool.id().uuid == id)
+    }
+
+    // Legacy display-name lookup retained for old project/UI events.
     pub fn get_game_tool_uuid_of_name(&self, name: &str) -> Option<Uuid> {
         for tool in self.game_tools.iter() {
             if tool.id().name == name {
@@ -3867,7 +3945,7 @@ impl ToolList {
         None
     }
 
-    // Return the tool of the given name
+    // Legacy display-name lookup retained for old call sites.
     pub fn get_game_tool_of_name(&mut self, name: &str) -> Option<&mut Box<dyn Tool>> {
         for tool in self.game_tools.iter_mut() {
             if tool.id().name == name {
@@ -3962,6 +4040,12 @@ impl ToolList {
             };
 
             let block_grid_active = server_ctx.block_tool_active;
+            let prefab_grid_minor = Self::overlay_color(self.prefab_grid_rgb, 0.42);
+            let prefab_grid_major = Self::overlay_color(self.prefab_grid_rgb, 0.58);
+            let prefab_grid_axis = Self::overlay_color(self.prefab_preview_wire_rgb, 0.72);
+            let prefab_preview_color = Self::overlay_color(self.prefab_preview_wire_rgb, 0.92);
+            let prefab_preview_footprint_color =
+                Self::overlay_color(self.prefab_preview_wire_rgb, 0.95);
             let grid_bbox = map.bbox().expanded(Vec2::new(16.0, 16.0));
             let grid_step = if block_grid_active {
                 server_ctx.block_grid_cell_size.max(0.05)
@@ -4001,9 +4085,9 @@ impl ToolList {
                     Vec3::new(x, grid_y, min_z),
                     Vec3::new(x, grid_y, max_z),
                     if block_grid_active && is_major {
-                        [0.12, 0.42, 0.42, 0.58]
+                        prefab_grid_major
                     } else if block_grid_active {
-                        [0.08, 0.34, 0.34, 0.42]
+                        prefab_grid_minor
                     } else if is_major {
                         [0.15, 0.15, 0.15, 0.36]
                     } else if is_whole {
@@ -4029,9 +4113,9 @@ impl ToolList {
                     Vec3::new(min_x, grid_y, z),
                     Vec3::new(max_x, grid_y, z),
                     if block_grid_active && is_major {
-                        [0.12, 0.42, 0.42, 0.58]
+                        prefab_grid_major
                     } else if block_grid_active {
-                        [0.08, 0.34, 0.34, 0.42]
+                        prefab_grid_minor
                     } else if is_major {
                         [0.15, 0.15, 0.15, 0.36]
                     } else if is_whole {
@@ -4049,7 +4133,7 @@ impl ToolList {
                 Vec3::new(min_x, grid_y + 0.004, 0.0),
                 Vec3::new(max_x, grid_y + 0.004, 0.0),
                 if block_grid_active {
-                    [0.16, 0.58, 0.58, 0.72]
+                    prefab_grid_axis
                 } else {
                     [0.15, 0.15, 0.15, 0.42]
                 },
@@ -4060,7 +4144,7 @@ impl ToolList {
                 Vec3::new(0.0, grid_y + 0.004, min_z),
                 Vec3::new(0.0, grid_y + 0.004, max_z),
                 if block_grid_active {
-                    [0.16, 0.58, 0.58, 0.72]
+                    prefab_grid_axis
                 } else {
                     [0.15, 0.15, 0.15, 0.42]
                 },
@@ -4107,7 +4191,7 @@ impl ToolList {
                     .or_else(|| crate::blocks::block_surface_base_y(server_ctx, grid_base_y))
                     .unwrap_or(grid_base_y);
                 let y = preview_base_y + 0.030;
-                let preview_color = [0.08, 0.72, 0.72, 0.92];
+                let preview_color = prefab_preview_color;
                 let preview_fill = rusterix.scene_handler.selected;
                 let erase_preview =
                     server_ctx.block_operation == crate::blocks::BLOCK_OPERATION_ERASE;
@@ -4142,7 +4226,7 @@ impl ToolList {
                             if erase_preview {
                                 [0.90, 0.22, 0.14, 0.95]
                             } else {
-                                [0.08, 0.72, 0.72, 0.95]
+                                prefab_preview_footprint_color
                             },
                             14,
                         );
@@ -4349,7 +4433,7 @@ impl ToolList {
                                     ),
                                     object.transform_point(*a) + cam_forward * -0.006,
                                     object.transform_point(*b) + cam_forward * -0.006,
-                                    [0.08, 0.72, 0.72, 0.95],
+                                    prefab_preview_footprint_color,
                                     15,
                                 );
                             }

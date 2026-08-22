@@ -654,9 +654,6 @@ pub struct ServerContext {
     /// Text gameplay mode inside the Creator Game Tool
     pub text_game_mode: bool,
 
-    /// Help mode state
-    pub help_mode: bool,
-
     /// The current editing context for texture editor tools.
     pub editing_ctx: PixelEditingContext,
 
@@ -814,8 +811,6 @@ impl ServerContext {
             editor_fly_nav_mouse_down: false,
             editor_fly_nav_space_down: false,
             text_game_mode: false,
-            help_mode: false,
-
             editing_ctx: PixelEditingContext::None,
             body_marker_color: None,
             avatar_anchor_slot: AvatarAnchorEditSlot::None,

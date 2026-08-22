@@ -796,7 +796,121 @@ pub enum ActionRole {
     Dock,
 }
 
+/// Presentation and command-catalog grouping for Creator actions.
+///
+/// `ActionRole` remains responsible for execution/UI behavior (for example camera actions are
+/// auto-applied). This enum is deliberately separate so reorganizing the action list cannot
+/// change action mechanics. Palette slots and sort order are stable public metadata for future
+/// script and plugin registrations.
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ActionGroup {
+    Camera,
+    Bake,
+    Face,
+    Surface,
+    Geometry,
+    Map,
+    Prefab,
+    Procedural,
+    Tile,
+    Palette,
+    View,
+    General,
+}
+
+impl ActionGroup {
+    pub const ALL: [Self; 12] = [
+        Self::Camera,
+        Self::Bake,
+        Self::Face,
+        Self::Surface,
+        Self::Geometry,
+        Self::Map,
+        Self::Prefab,
+        Self::Procedural,
+        Self::Tile,
+        Self::Palette,
+        Self::View,
+        Self::General,
+    ];
+
+    /// Stable slot in `TheThemePalettes::ActionGroups` and action-list sort order.
+    pub const fn palette_slot(self) -> usize {
+        match self {
+            Self::Camera => 0,
+            Self::Bake => 1,
+            Self::Face => 2,
+            Self::Surface => 3,
+            Self::Geometry => 4,
+            Self::Map => 5,
+            Self::Prefab => 6,
+            Self::Procedural => 7,
+            Self::Tile => 8,
+            Self::Palette => 9,
+            Self::View => 10,
+            Self::General => 11,
+        }
+    }
+
+    pub const fn id(self) -> &'static str {
+        match self {
+            Self::Camera => "camera",
+            Self::Bake => "bake",
+            Self::Face => "face",
+            Self::Surface => "surface",
+            Self::Geometry => "geometry",
+            Self::Map => "map",
+            Self::Prefab => "prefab",
+            Self::Procedural => "procedural",
+            Self::Tile => "tile",
+            Self::Palette => "palette",
+            Self::View => "view",
+            Self::General => "general",
+        }
+    }
+
+    pub fn label(self) -> String {
+        match self {
+            Self::Camera => fl!("action_group_camera"),
+            Self::Bake => fl!("action_group_bake"),
+            Self::Face => fl!("action_group_face"),
+            Self::Surface => fl!("action_group_surface"),
+            Self::Geometry => fl!("action_group_geometry"),
+            Self::Map => fl!("action_group_map"),
+            Self::Prefab => fl!("action_group_prefab"),
+            Self::Procedural => fl!("action_group_procedural"),
+            Self::Tile => fl!("action_group_tile"),
+            Self::Palette => fl!("action_group_palette"),
+            Self::View => fl!("action_group_view"),
+            Self::General => fl!("action_group_general"),
+        }
+    }
+
+    pub fn qualified_name(self, action_name: &str) -> String {
+        // Existing labels such as "Bake: Render" are already explicitly grouped. Keep them
+        // intact so translations introduced before the registry do not acquire two prefixes.
+        if action_name.contains(':') || action_name.contains('：') {
+            return action_name.to_string();
+        }
+        let label = self.label();
+        let prefix = format!("{label}:");
+        if action_name.starts_with(&prefix) {
+            action_name.to_string()
+        } else {
+            format!("{label}: {action_name}")
+        }
+    }
+}
+
 impl ActionRole {
+    pub const fn id(&self) -> &'static str {
+        match self {
+            ActionRole::Camera => "camera",
+            ActionRole::Editor => "editor",
+            ActionRole::Dock => "dock",
+        }
+    }
+
     /// Stable slot in the theme's action-group palette. New action groups should append slots so
     /// existing projects and custom themes keep their color assignments.
     pub fn palette_slot(&self) -> usize {

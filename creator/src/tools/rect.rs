@@ -76,10 +76,6 @@ impl Tool for RectTool {
         Some('R')
     }
 
-    fn help_url(&self) -> Option<String> {
-        Some("docs/creator/tools/rect".to_string())
-    }
-
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,

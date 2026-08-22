@@ -10,6 +10,7 @@ pub mod thedropdownmenu;
 pub mod thegroupbutton;
 pub mod thehdivider;
 pub mod thehorizontalscrollbar;
+pub mod theicongridview;
 pub mod theiconview;
 pub mod thelistitem;
 pub mod themarkdownview;
@@ -78,6 +79,9 @@ pub mod prelude {
     pub use crate::theui::thewidget::thehorizontalscrollbar::{
         TheHorizontalScrollbar, TheHorizontalScrollbarTrait,
     };
+    pub use crate::theui::thewidget::theicongridview::{
+        TheIconGridItem, TheIconGridView, TheIconGridViewTrait,
+    };
     pub use crate::theui::thewidget::thelistitem::{TheListItem, TheListItemTrait};
     pub use crate::theui::thewidget::therowlistitem::{TheRowListItem, TheRowListItemTrait};
     pub use crate::theui::thewidget::thescrollableiconrow::{
@@ -115,7 +119,7 @@ pub mod prelude {
     pub use crate::theui::thewidget::thetextedit::TheTextStyle;
     pub use crate::theui::thewidget::thetextlineedit::{TheTextLineEdit, TheTextLineEditTrait};
     pub use crate::theui::thewidget::thetextview::{
-        TheTextView, TheTextViewBlock, TheTextViewSpan, TheTextViewTrait,
+        TheTextView, TheTextViewBlock, TheTextViewInteraction, TheTextViewSpan, TheTextViewTrait,
     };
     pub use crate::theui::thewidget::thetraybar::TheTraybar;
     pub use crate::theui::thewidget::thetraybarbutton::{TheTraybarButton, TheTraybarButtonTrait};
@@ -373,6 +377,11 @@ pub trait TheWidget: Send {
 
     /// Attempts to cast to TheIconViewTrait. Only valid for TheIconView.
     fn as_icon_view(&mut self) -> Option<&mut dyn TheIconViewTrait> {
+        None
+    }
+
+    /// Attempts to cast to TheIconGridViewTrait. Only valid for TheIconGridView.
+    fn as_icon_grid_view(&mut self) -> Option<&mut dyn TheIconGridViewTrait> {
         None
     }
 

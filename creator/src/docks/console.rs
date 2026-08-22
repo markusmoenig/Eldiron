@@ -1,6 +1,11 @@
-use crate::editor::RUSTERIX;
+use crate::actionscript::{EDITOR_ACTION_FUNCTION, EDITOR_TOOL_FUNCTION, EditorActionRequest};
+use crate::editor::{ACTIONLIST, RUSTERIX, TOOLLIST};
 use crate::prelude::*;
-use rusterix::{Entity, Item, Value, server::ServerState};
+use rusterix::{
+    Entity, Item, Value,
+    server::ServerState,
+    vm::{Execution, HostHandler, VM, VMValue},
+};
 use theframework::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -10,8 +15,149 @@ enum ConsoleFocus {
     Item(u32),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConsoleListScope {
+    All,
+    Characters,
+    Items,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ConsoleRequest {
+    Help,
+    List(ConsoleListScope),
+    Focus(String),
+    Show,
+    Get(String),
+    Pwd,
+    Up,
+    Clear,
+    ListActions {
+        group: Option<String>,
+        include_unavailable: bool,
+    },
+    RunAction(EditorActionRequest),
+    ListTools {
+        include_unavailable: bool,
+    },
+    SelectTool {
+        command_id: String,
+    },
+}
+
+const CONSOLE_LIST_FUNCTION: &str = "console_list";
+const CONSOLE_FOCUS_FUNCTION: &str = "console_focus";
+const CONSOLE_SHOW_FUNCTION: &str = "console_show";
+const CONSOLE_GET_FUNCTION: &str = "console_get";
+const CONSOLE_PWD_FUNCTION: &str = "console_pwd";
+const CONSOLE_UP_FUNCTION: &str = "console_up";
+const CONSOLE_FEEDBACK_ACTION: &str = "Console Feedback Action";
+const CONSOLE_BACK: &str = "Console Back";
+const CONSOLE_FORWARD: &str = "Console Forward";
+const CONSOLE_OUTPUT: &str = "Console Output";
+const CONSOLE_INPUT: &str = "Console Input";
+
+#[derive(Default)]
+struct ConsoleScriptHost {
+    requests: Vec<ConsoleRequest>,
+    error: Option<String>,
+}
+
+impl ConsoleScriptHost {
+    fn string_arg<'a>(&mut self, args: &'a [VMValue], index: usize, name: &str) -> Option<&'a str> {
+        let value = args.get(index).and_then(VMValue::as_string);
+        if value.is_none() {
+            self.error = Some(format!("{name} argument {} must be a string", index + 1));
+        }
+        value
+    }
+}
+
+impl HostHandler for ConsoleScriptHost {
+    fn on_host_call(&mut self, name: &str, args: &[VMValue]) -> Option<VMValue> {
+        let request = match name {
+            CONSOLE_LIST_FUNCTION => {
+                let scope = self.string_arg(args, 0, name)?;
+                let scope = match scope.trim().to_ascii_lowercase().as_str() {
+                    "" | "all" => ConsoleListScope::All,
+                    "characters" | "character" | "chars" => ConsoleListScope::Characters,
+                    "items" | "item" => ConsoleListScope::Items,
+                    _ => {
+                        self.error =
+                            Some(format!("{name} scope must be all, characters, or items"));
+                        return Some(VMValue::from_bool(false));
+                    }
+                };
+                ConsoleRequest::List(scope)
+            }
+            CONSOLE_FOCUS_FUNCTION => {
+                let selector = self.string_arg(args, 0, name)?;
+                ConsoleRequest::Focus(selector.to_string())
+            }
+            CONSOLE_SHOW_FUNCTION => ConsoleRequest::Show,
+            CONSOLE_GET_FUNCTION => {
+                let key = self.string_arg(args, 0, name)?;
+                ConsoleRequest::Get(key.to_string())
+            }
+            CONSOLE_PWD_FUNCTION => ConsoleRequest::Pwd,
+            CONSOLE_UP_FUNCTION => ConsoleRequest::Up,
+            EDITOR_ACTION_FUNCTION => {
+                let command_id = self.string_arg(args, 0, name)?;
+                let parameters_toml = self.string_arg(args, 1, name)?;
+                ConsoleRequest::RunAction(EditorActionRequest {
+                    command_id: command_id.to_string(),
+                    parameters_toml: parameters_toml.to_string(),
+                })
+            }
+            EDITOR_TOOL_FUNCTION => {
+                let command_id = self.string_arg(args, 0, name)?;
+                ConsoleRequest::SelectTool {
+                    command_id: command_id.to_string(),
+                }
+            }
+            _ => return None,
+        };
+        self.requests.push(request);
+        Some(VMValue::from_bool(true))
+    }
+}
+
+fn collect_console_script_requests(source: &str) -> Result<Vec<ConsoleRequest>, String> {
+    let mut vm = VM::default();
+    for (name, arity) in [
+        (CONSOLE_LIST_FUNCTION, 1),
+        (CONSOLE_FOCUS_FUNCTION, 1),
+        (CONSOLE_SHOW_FUNCTION, 0),
+        (CONSOLE_GET_FUNCTION, 1),
+        (CONSOLE_PWD_FUNCTION, 0),
+        (CONSOLE_UP_FUNCTION, 0),
+        (EDITOR_ACTION_FUNCTION, 2),
+        (EDITOR_TOOL_FUNCTION, 1),
+    ] {
+        vm.register_host_function(name, arity)?;
+    }
+    let program = vm.prepare_str(source).map_err(|error| error.to_string())?;
+    let mut execution = Execution::new(program.globals);
+    let mut host = ConsoleScriptHost::default();
+    execution.execute_host(&program.body, &program, &mut host);
+    if let Some(error) = host.error {
+        Err(error)
+    } else {
+        Ok(host.requests)
+    }
+}
+
 pub struct ConsoleDock {
-    transcript: String,
+    document: TheFeedbackDocument,
+    focus: ConsoleFocus,
+    pending_requests: Vec<ConsoleRequest>,
+    history: Vec<ConsoleHistoryEntry>,
+    history_index: usize,
+}
+
+#[derive(Clone)]
+struct ConsoleHistoryEntry {
+    document: TheFeedbackDocument,
     focus: ConsoleFocus,
 }
 
@@ -27,29 +173,89 @@ struct RuntimeItem {
 
 impl ConsoleDock {
     fn console_input_id(ui: &mut TheUI) -> Option<TheId> {
-        ui.get_widget("Console Input")
+        ui.get_widget(CONSOLE_INPUT)
             .map(|widget| widget.id().clone())
     }
 
-    fn set_output(&mut self, text: String, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.transcript = text;
+    fn set_output(&mut self, document: TheFeedbackDocument, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.document = document;
         self.sync_output(ui, ctx);
     }
 
-    fn sync_output(&self, ui: &mut TheUI, ctx: &mut TheContext) {
-        ui.set_widget_value(
-            "Console Output",
-            ctx,
-            TheValue::Text(self.transcript.clone()),
-        );
+    fn sync_output(&self, ui: &mut TheUI, _ctx: &mut TheContext) {
+        if let Some(output) = ui.get_text_view(CONSOLE_OUTPUT) {
+            output.set_blocks(
+                self.document
+                    .to_text_view_blocks(&TheFeedbackPalette::default()),
+            );
+        }
+    }
+
+    fn history_entry(&self) -> ConsoleHistoryEntry {
+        ConsoleHistoryEntry {
+            document: self.document.clone(),
+            focus: self.focus,
+        }
+    }
+
+    fn sync_history_controls(&self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if let Some(back) = ui.get_widget(CONSOLE_BACK) {
+            back.set_disabled(self.history_index == 0);
+        }
+        if let Some(forward) = ui.get_widget(CONSOLE_FORWARD) {
+            forward.set_disabled(self.history_index + 1 >= self.history.len());
+        }
+        ctx.ui.redraw_all = true;
+    }
+
+    fn reset_history(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.history.clear();
+        self.history.push(self.history_entry());
+        self.history_index = 0;
+        self.sync_history_controls(ui, ctx);
+    }
+
+    fn record_history(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.history.truncate(self.history_index.saturating_add(1));
+        self.history.push(self.history_entry());
+        self.history_index = self.history.len() - 1;
+        self.sync_history_controls(ui, ctx);
+    }
+
+    fn refresh_current_history(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        let entry = self.history_entry();
+        if let Some(current) = self.history.get_mut(self.history_index) {
+            *current = entry;
+        } else {
+            self.history.push(entry);
+            self.history_index = self.history.len() - 1;
+        }
+        self.sync_history_controls(ui, ctx);
+    }
+
+    fn navigate_history(&mut self, offset: isize, ui: &mut TheUI, ctx: &mut TheContext) {
+        let target = self.history_index as isize + offset;
+        if target < 0 || target >= self.history.len() as isize {
+            return;
+        }
+        self.history_index = target as usize;
+        let entry = self.history[self.history_index].clone();
+        self.document = entry.document;
+        self.focus = entry.focus;
+        self.pending_requests.clear();
+        self.sync_output(ui, ctx);
+        if let Some(output) = ui.get_text_view(CONSOLE_OUTPUT) {
+            output.scroll_to_top();
+        }
+        self.sync_history_controls(ui, ctx);
     }
 
     fn set_input(&self, ui: &mut TheUI, ctx: &mut TheContext, text: &str) {
-        ui.set_widget_value("Console Input", ctx, TheValue::Text(text.to_string()));
+        ui.set_widget_value(CONSOLE_INPUT, ctx, TheValue::Text(text.to_string()));
     }
 
     fn clear_input(&self, ui: &mut TheUI) {
-        if let Some(widget) = ui.get_widget("Console Input")
+        if let Some(widget) = ui.get_widget(CONSOLE_INPUT)
             && let Some(edit) = widget.as_text_line_edit()
         {
             edit.set_text(String::new());
@@ -109,13 +315,101 @@ impl ConsoleDock {
         value.to_string()
     }
 
-    fn intro() -> String {
-        [
-            "Console ready.",
-            "Commands: help, list, focus <name|id>, show, get <key>, rules <query>, pwd, up, clear",
-            "When the game is running, `list` shows live characters and items for the current editor region.",
-        ]
-        .join("\n")
+    fn command(command: &str, description: &str) -> TheFeedbackCommand {
+        TheFeedbackCommand::new(command, description)
+            .interactive(CONSOLE_FEEDBACK_ACTION, TheValue::Text(command.to_string()))
+    }
+
+    fn command_with_input(command: String, description: String) -> TheFeedbackCommand {
+        TheFeedbackCommand::new(command.clone(), description)
+            .interactive(CONSOLE_FEEDBACK_ACTION, TheValue::Text(command))
+    }
+
+    fn value_span(value: impl Into<String>) -> TheFeedbackSpan {
+        let value = value.into();
+        let trimmed = value.trim();
+        let role = if trimmed.eq_ignore_ascii_case("true") || trimmed.eq_ignore_ascii_case("false")
+        {
+            TheFeedbackRole::BoolValue
+        } else if trimmed.parse::<f64>().is_ok()
+            || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+        {
+            TheFeedbackRole::NumberValue
+        } else {
+            TheFeedbackRole::StringValue
+        };
+        TheFeedbackSpan::new(value, role)
+    }
+
+    fn plain_document(text: impl Into<String>) -> TheFeedbackDocument {
+        TheFeedbackDocument::new(vec![TheFeedbackBlock::paragraph(text)])
+    }
+
+    pub fn success_document(text: impl Into<String>) -> TheFeedbackDocument {
+        TheFeedbackDocument::new(vec![TheFeedbackBlock::notice(
+            TheFeedbackNoticeKind::Success,
+            text,
+        )])
+    }
+
+    pub fn action_success_document(request: &EditorActionRequest) -> TheFeedbackDocument {
+        let mut document =
+            Self::success_document(format!("Executed action `{}`.", request.command_id));
+        let source = request.parameters_toml.trim();
+        if source.is_empty() {
+            return document;
+        }
+
+        if let Ok(table) = source.parse::<toml::Table>() {
+            document.push(TheFeedbackBlock::KeyValueList {
+                title: Some("Parameters".to_string()),
+                entries: table
+                    .into_iter()
+                    .map(|(key, value)| {
+                        TheFeedbackKeyValue::new(key, vec![Self::value_span(value.to_string())])
+                    })
+                    .collect(),
+            });
+        } else {
+            document.push(TheFeedbackBlock::Code {
+                language: Some("TOML".to_string()),
+                source: source.to_string(),
+            });
+        }
+        document
+    }
+
+    pub fn error_document(text: impl Into<String>) -> TheFeedbackDocument {
+        TheFeedbackDocument::new(vec![TheFeedbackBlock::notice(
+            TheFeedbackNoticeKind::Error,
+            text,
+        )])
+    }
+
+    fn intro() -> TheFeedbackDocument {
+        TheFeedbackDocument::new(vec![
+            TheFeedbackBlock::heading("Console"),
+            TheFeedbackBlock::notice(
+                TheFeedbackNoticeKind::Success,
+                "Ready for game inspection and editor operations.",
+            ),
+            TheFeedbackBlock::CommandList {
+                title: Some("Quick commands".to_string()),
+                entries: vec![
+                    Self::command("list", "List live characters and items"),
+                    Self::command("actions", "List actions applicable now"),
+                    Self::command("tools", "List available editor tools"),
+                    Self::command("help", "Show all Console and Eldrin commands"),
+                ],
+            },
+            TheFeedbackBlock::Paragraph(vec![
+                TheFeedbackSpan::new("Tip  ", TheFeedbackRole::Info),
+                TheFeedbackSpan::new(
+                    "Select an underlined command to put it in the input field.",
+                    TheFeedbackRole::Muted,
+                ),
+            ]),
+        ])
     }
 
     fn parse_id(text: &str) -> Option<u32> {
@@ -196,251 +490,164 @@ impl ConsoleDock {
         }
     }
 
-    fn focused_item<'a>(&self, items: &'a [RuntimeItem]) -> Option<&'a RuntimeItem> {
-        match self.focus {
-            ConsoleFocus::Item(id) => items.iter().find(|item| item.item.id == id),
-            _ => None,
-        }
+    fn list_root(&self, entities: &[RuntimeEntity], items: &[RuntimeItem]) -> TheFeedbackDocument {
+        let mut document = Self::list_characters(entities);
+        document.extend(Self::list_items(items));
+        document
     }
 
-    fn pad(value: &str, width: usize) -> String {
-        let mut out = String::new();
-        let mut count = 0usize;
-        for ch in value.chars() {
-            if count >= width {
-                break;
-            }
-            out.push(ch);
-            count += 1;
-        }
-        while count < width {
-            out.push(' ');
-            count += 1;
-        }
-        out
-    }
-
-    fn entry_cell(name: &str, id: u32, width: usize) -> String {
-        let label = Self::quoted(name);
-        let left = Self::pad(&label, width.saturating_sub(8));
-        format!("{} {:>6}", left, id)
-    }
-
-    fn push_item_tree(lines: &mut Vec<String>, item: &Item, depth: usize) {
-        let indent = "\t".repeat(depth);
-        lines.push(format!(
-            "{}{} {}",
-            indent,
-            Self::quoted(&Self::item_name(item)),
-            item.id
-        ));
-
+    fn item_tree_feedback(items: &mut Vec<Vec<TheFeedbackSpan>>, item: &Item, depth: usize) {
+        let command = format!("focus {}", item.id);
+        items.push(vec![
+            TheFeedbackSpan::new("  ".repeat(depth), TheFeedbackRole::Muted),
+            TheFeedbackSpan::new(Self::item_name(item), TheFeedbackRole::StringValue)
+                .interactive(CONSOLE_FEEDBACK_ACTION, TheValue::Text(command)),
+            TheFeedbackSpan::new(format!("  #{}", item.id), TheFeedbackRole::StableId),
+        ]);
         if let Some(container) = &item.container {
             for child in container {
-                Self::push_item_tree(lines, child, depth + 1);
+                Self::item_tree_feedback(items, child, depth + 1);
             }
         }
     }
 
-    fn push_equipped_tree(lines: &mut Vec<String>, slot: &str, item: &Item) {
-        lines.push(format!(
-            "{} = {} {}",
-            slot,
-            Self::quoted(&Self::item_name(item)),
-            item.id
-        ));
-        if let Some(container) = &item.container {
-            for child in container {
-                Self::push_item_tree(lines, child, 1);
+    fn list_entity(&self, entity: &RuntimeEntity) -> TheFeedbackDocument {
+        let mut attributes = Vec::new();
+        for key in entity.entity.attributes.keys_sorted() {
+            if key == "setup" || key == "_source_seq" {
+                continue;
+            }
+            if let Some(value) = entity.entity.attributes.get(key) {
+                attributes.push(TheFeedbackKeyValue::new(
+                    key.clone(),
+                    vec![Self::value_span(Self::format_value(value))],
+                ));
             }
         }
-    }
 
-    fn pair_row(
-        left: Option<String>,
-        right: Option<String>,
-        width: usize,
-        separator: &str,
-    ) -> String {
-        format!(
-            "{}{}{}",
-            Self::pad(left.as_deref().unwrap_or(""), width),
-            separator,
-            right.unwrap_or_default()
-        )
-    }
-
-    fn triple_row(
-        left: Option<String>,
-        middle: Option<String>,
-        right: Option<String>,
-        width: usize,
-        separator: &str,
-    ) -> String {
-        format!(
-            "{}{}{}{}{}",
-            Self::pad(left.as_deref().unwrap_or(""), width),
-            separator,
-            Self::pad(middle.as_deref().unwrap_or(""), width),
-            separator,
-            right.unwrap_or_default()
-        )
-    }
-
-    fn list_root(&self, entities: &[RuntimeEntity], items: &[RuntimeItem]) -> String {
-        let column_width = 38usize;
-        let separator = " | ";
-        let mut lines = vec![
-            Self::pair_row(
-                Some(format!("Characters ({})", entities.len())),
-                Some(format!("Items ({})", items.len())),
-                column_width,
-                separator,
-            ),
-            Self::pair_row(
-                Some("Name                               Id".to_string()),
-                Some("Name                               Id".to_string()),
-                column_width,
-                separator,
-            ),
-        ];
-
-        let row_count = entities.len().max(items.len()).max(1);
-        for index in 0..row_count {
-            let left = entities.get(index).map(|entity| {
-                Self::entry_cell(
-                    &Self::entity_name(&entity.entity),
-                    entity.entity.id,
-                    column_width,
-                )
-            });
-            let right = items.get(index).map(|item| {
-                Self::entry_cell(&Self::item_name(&item.item), item.item.id, column_width)
-            });
-            lines.push(Self::pair_row(left, right, column_width, separator));
-        }
-        lines.join("\n")
-    }
-
-    fn list_entity(&self, entity: &RuntimeEntity) -> String {
-        let mut lines = vec![
-            format!(
-                "Character {} {}",
-                Self::quoted(&Self::entity_name(&entity.entity)),
-                entity.entity.id
-            ),
-            format!(
-                "position = [{:.2}, {:.2}, {:.2}]",
-                entity.entity.position.x, entity.entity.position.y, entity.entity.position.z
-            ),
-            format!(
-                "orientation = [{:.2}, {:.2}]",
-                entity.entity.orientation.x, entity.entity.orientation.y
-            ),
-        ];
-
-        let mut attr_lines = Vec::new();
-        let keys = entity.entity.attributes.keys_sorted();
-        if keys.is_empty() {
-            attr_lines.push("<none>".to_string());
-        } else {
-            for key in keys {
-                if key == "setup" || key == "_source_seq" {
-                    continue;
-                }
-                if let Some(value) = entity.entity.attributes.get(key) {
-                    attr_lines.push(format!("{} = {}", key, Self::format_value(value)));
-                }
-            }
-        }
-        if attr_lines.is_empty() {
-            attr_lines.push("<none>".to_string());
-        }
-
-        let mut inventory_lines = Vec::new();
+        let mut inventory = Vec::new();
         for item in entity.entity.inventory.iter().flatten() {
-            Self::push_item_tree(&mut inventory_lines, item, 1);
-        }
-        if inventory_lines.is_empty() {
-            inventory_lines.push("<empty>".to_string());
+            Self::item_tree_feedback(&mut inventory, item, 0);
         }
 
-        let mut equipped_lines = Vec::new();
-        for (slot, item) in &entity.entity.equipped {
-            Self::push_equipped_tree(&mut equipped_lines, slot, item);
-        }
-        if equipped_lines.is_empty() {
-            equipped_lines.push("<empty>".to_string());
-        }
+        let equipped = entity
+            .entity
+            .equipped
+            .iter()
+            .map(|(slot, item)| {
+                TheFeedbackKeyValue::new(
+                    slot.clone(),
+                    vec![
+                        TheFeedbackSpan::new(Self::item_name(item), TheFeedbackRole::StringValue)
+                            .interactive(
+                                CONSOLE_FEEDBACK_ACTION,
+                                TheValue::Text(format!("focus {}", item.id)),
+                            ),
+                        TheFeedbackSpan::new(format!("  #{}", item.id), TheFeedbackRole::StableId),
+                    ],
+                )
+            })
+            .collect();
 
-        let column_width = 28;
-        let separator = " | ";
-        lines.push(Self::triple_row(
-            Some("attributes".to_string()),
-            Some("inventory".to_string()),
-            Some("equipped".to_string()),
-            column_width,
-            separator,
-        ));
-        let row_count = attr_lines
-            .len()
-            .max(inventory_lines.len())
-            .max(equipped_lines.len());
-        for index in 0..row_count {
-            lines.push(Self::triple_row(
-                attr_lines.get(index).cloned(),
-                inventory_lines.get(index).cloned(),
-                equipped_lines.get(index).cloned(),
-                column_width,
-                separator,
-            ));
-        }
-
-        lines.join("\n")
+        TheFeedbackDocument::new(vec![
+            TheFeedbackBlock::Heading {
+                level: 1,
+                spans: vec![
+                    TheFeedbackSpan::new("Character  ", TheFeedbackRole::Heading),
+                    TheFeedbackSpan::new(
+                        Self::entity_name(&entity.entity),
+                        TheFeedbackRole::StringValue,
+                    ),
+                    TheFeedbackSpan::new(
+                        format!("  #{}", entity.entity.id),
+                        TheFeedbackRole::StableId,
+                    ),
+                ],
+            },
+            TheFeedbackBlock::KeyValueList {
+                title: Some("Transform".to_string()),
+                entries: vec![
+                    TheFeedbackKeyValue::new(
+                        "position",
+                        vec![Self::value_span(format!(
+                            "[{:.2}, {:.2}, {:.2}]",
+                            entity.entity.position.x,
+                            entity.entity.position.y,
+                            entity.entity.position.z
+                        ))],
+                    ),
+                    TheFeedbackKeyValue::new(
+                        "orientation",
+                        vec![Self::value_span(format!(
+                            "[{:.2}, {:.2}]",
+                            entity.entity.orientation.x, entity.entity.orientation.y
+                        ))],
+                    ),
+                ],
+            },
+            TheFeedbackBlock::KeyValueList {
+                title: Some("Attributes".to_string()),
+                entries: attributes,
+            },
+            TheFeedbackBlock::List {
+                title: Some("Inventory".to_string()),
+                items: inventory,
+            },
+            TheFeedbackBlock::KeyValueList {
+                title: Some("Equipped".to_string()),
+                entries: equipped,
+            },
+        ])
     }
 
-    fn list_item(&self, item: &RuntimeItem) -> String {
-        let mut lines = vec![
-            format!(
-                "Item {} {}",
-                Self::quoted(&Self::item_name(&item.item)),
-                item.item.id
-            ),
-            format!(
-                "position = [{:.2}, {:.2}, {:.2}]",
-                item.item.position.x, item.item.position.y, item.item.position.z
-            ),
-            "attributes".to_string(),
-        ];
-
-        let keys = item.item.attributes.keys_sorted();
-        if keys.is_empty() {
-            lines.push("<none>".to_string());
-        } else {
-            for key in keys {
-                if key == "setup" || key == "_source_seq" {
-                    continue;
-                }
-                if let Some(value) = item.item.attributes.get(key) {
-                    lines.push(format!("{} = {}", key, Self::format_value(value)));
-                }
+    fn list_item(&self, item: &RuntimeItem) -> TheFeedbackDocument {
+        let mut attributes = Vec::new();
+        for key in item.item.attributes.keys_sorted() {
+            if key == "setup" || key == "_source_seq" {
+                continue;
+            }
+            if let Some(value) = item.item.attributes.get(key) {
+                attributes.push(TheFeedbackKeyValue::new(
+                    key.clone(),
+                    vec![Self::value_span(Self::format_value(value))],
+                ));
+            }
+        }
+        let mut container = Vec::new();
+        if let Some(items) = &item.item.container {
+            for child in items {
+                Self::item_tree_feedback(&mut container, child, 0);
             }
         }
 
-        lines.push("container".to_string());
-        if let Some(container) = &item.item.container {
-            if container.is_empty() {
-                lines.push("<empty>".to_string());
-            } else {
-                for child in container {
-                    Self::push_item_tree(&mut lines, child, 1);
-                }
-            }
-        } else {
-            lines.push("<none>".to_string());
-        }
-
-        lines.join("\n")
+        TheFeedbackDocument::new(vec![
+            TheFeedbackBlock::Heading {
+                level: 1,
+                spans: vec![
+                    TheFeedbackSpan::new("Item  ", TheFeedbackRole::Heading),
+                    TheFeedbackSpan::new(Self::item_name(&item.item), TheFeedbackRole::StringValue),
+                    TheFeedbackSpan::new(format!("  #{}", item.item.id), TheFeedbackRole::StableId),
+                ],
+            },
+            TheFeedbackBlock::KeyValueList {
+                title: Some("Transform".to_string()),
+                entries: vec![TheFeedbackKeyValue::new(
+                    "position",
+                    vec![Self::value_span(format!(
+                        "[{:.2}, {:.2}, {:.2}]",
+                        item.item.position.x, item.item.position.y, item.item.position.z
+                    ))],
+                )],
+            },
+            TheFeedbackBlock::KeyValueList {
+                title: Some("Attributes".to_string()),
+                entries: attributes,
+            },
+            TheFeedbackBlock::List {
+                title: Some("Container".to_string()),
+                items: container,
+            },
+        ])
     }
 
     fn runtime_snapshot(
@@ -486,367 +693,6 @@ impl ConsoleDock {
         Ok((runtime_entities, runtime_items))
     }
 
-    fn rules_usage() -> &'static str {
-        "Usage:\n\
-rules overview\n\
-rules validate\n\
-rules list [races|classes|weapons|armor|spells|abilities|actions]\n\
-rules show <ruleset.path>\n\
-rules class <class_id>\n\
-rules xp <level>\n\
-rules weapon <weapon_id> [ATTR=VALUE ...]\n\
-rules spell <spell_id> [ATTR=VALUE ...]\n\
-rules roll <ruleset.path.to.roll> [ATTR=VALUE ...]"
-    }
-
-    fn parse_rules_attributes(
-        args: &[&str],
-    ) -> Result<shared::rulesets::RulesetAttributeMap, String> {
-        let mut attributes = shared::rulesets::RulesetAttributeMap::new();
-        for raw in args {
-            let Some((key, value)) = raw.split_once('=') else {
-                return Err(format!("Attribute `{}` must use ATTR=VALUE syntax.", raw));
-            };
-            let key = key.trim();
-            if key.is_empty() {
-                return Err(format!("Attribute `{}` has an empty name.", raw));
-            }
-            let value = value
-                .trim()
-                .parse::<f32>()
-                .map_err(|_| format!("Attribute `{}` has a non-numeric value.", raw))?;
-            attributes.insert(key.to_string(), value);
-        }
-        Ok(attributes)
-    }
-
-    fn effective_rules_source(project: &Project) -> Result<String, String> {
-        shared::rulesets::resolve_project_rules(&project.config, &project.rules)
-    }
-
-    fn format_roll_summary(label: &str, summary: &shared::rulesets::RulesetRollSummary) -> String {
-        let attr_line = if let Some(attribute) = summary.spec.bonus_attribute.as_deref() {
-            format!(
-                "{}={} => +{} every {}",
-                attribute,
-                summary.attribute_value,
-                summary.attribute_bonus,
-                summary.spec.bonus_every
-            )
-        } else {
-            "none".into()
-        };
-        let kind_line = summary
-            .spec
-            .damage_kind
-            .as_deref()
-            .map(|kind| format!("\ndamage kind: {}", kind))
-            .unwrap_or_default();
-
-        format!(
-            "{}\nroll: {}\nbonus: {}\nattribute bonus: {}\ntotal bonus: {}\nmin: {}\nmax: {}\naverage: {:.2}{}",
-            label,
-            summary.spec.roll,
-            summary.spec.bonus,
-            attr_line,
-            summary.total_bonus,
-            summary.minimum,
-            summary.maximum,
-            summary.average,
-            kind_line
-        )
-    }
-
-    fn join_or_dash(values: &[String]) -> String {
-        if values.is_empty() {
-            "-".into()
-        } else {
-            values.join(", ")
-        }
-    }
-
-    fn format_ruleset_catalog(catalog: &shared::rulesets::RulesetCatalog) -> String {
-        format!(
-            "ruleset: {}@{}\nschema: {}\nsource: {}\nraces: {}\nclasses: {}\nweapons: {}\narmor: {}\nclothing: {}\nspells: {}\nabilities: {}\nactions: {}\nfx presets: {}\nitem templates: {}",
-            catalog.id.as_deref().unwrap_or("-"),
-            catalog.version.as_deref().unwrap_or("-"),
-            catalog.schema_version.as_deref().unwrap_or("-"),
-            catalog.source.as_deref().unwrap_or("-"),
-            catalog.races.len(),
-            catalog.classes.len(),
-            catalog.weapons.len(),
-            catalog.armor.len(),
-            catalog.clothing.len(),
-            catalog.spells.len(),
-            catalog.abilities.len(),
-            catalog.actions.len(),
-            catalog.fx_presets.len(),
-            catalog.item_templates.len(),
-        )
-    }
-
-    fn format_ruleset_list(label: &str, values: &[String]) -> String {
-        if values.is_empty() {
-            return format!("{}:\n-", label);
-        }
-
-        format!("{}:\n{}", label, values.join("\n"))
-    }
-
-    fn format_ruleset_validation(report: &shared::rulesets::RulesetValidationReport) -> String {
-        let mut lines = vec![format!(
-            "ruleset validation: {} error(s), {} warning(s)",
-            report.error_count(),
-            report.warning_count()
-        )];
-
-        if report.issues.is_empty() {
-            lines.push("OK".into());
-            return lines.join("\n");
-        }
-
-        for issue in &report.issues {
-            let severity = match issue.severity {
-                shared::rulesets::RulesetValidationSeverity::Error => "ERROR",
-                shared::rulesets::RulesetValidationSeverity::Warning => "WARN",
-            };
-            lines.push(format!("{} {}: {}", severity, issue.path, issue.message));
-        }
-
-        lines.join("\n")
-    }
-
-    fn execute_rules_command(&self, args: &[&str], project: &Project) -> String {
-        let Some(command) = args.first().copied() else {
-            return Self::rules_usage().to_string();
-        };
-
-        match command {
-            "overview" | "summary" | "catalog" | "info" => {
-                let rules = match Self::effective_rules_source(project) {
-                    Ok(rules) => rules,
-                    Err(err) => return err,
-                };
-                match shared::rulesets::ruleset_catalog_from_source(&rules) {
-                    Ok(catalog) => Self::format_ruleset_catalog(&catalog),
-                    Err(err) => err,
-                }
-            }
-            "validate" | "check" => {
-                let rules = match Self::effective_rules_source(project) {
-                    Ok(rules) => rules,
-                    Err(err) => return err,
-                };
-                match shared::rulesets::validate_ruleset_from_source(&rules) {
-                    Ok(report) => Self::format_ruleset_validation(&report),
-                    Err(err) => err,
-                }
-            }
-            "list" => {
-                let rules = match Self::effective_rules_source(project) {
-                    Ok(rules) => rules,
-                    Err(err) => return err,
-                };
-                if let Some(section) = args.get(1).copied() {
-                    return match shared::rulesets::ruleset_section_ids_from_source(&rules, section)
-                    {
-                        Ok(values) => Self::format_ruleset_list(section, &values),
-                        Err(err) => err,
-                    };
-                }
-
-                match shared::rulesets::ruleset_catalog_from_source(&rules) {
-                    Ok(catalog) => [
-                        Self::format_ruleset_list("races", &catalog.races),
-                        Self::format_ruleset_list("classes", &catalog.classes),
-                        Self::format_ruleset_list("weapons", &catalog.weapons),
-                        Self::format_ruleset_list("armor", &catalog.armor),
-                        Self::format_ruleset_list("clothing", &catalog.clothing),
-                        Self::format_ruleset_list("spells", &catalog.spells),
-                        Self::format_ruleset_list("abilities", &catalog.abilities),
-                        Self::format_ruleset_list("actions", &catalog.actions),
-                        Self::format_ruleset_list("fx presets", &catalog.fx_presets),
-                    ]
-                    .join("\n\n"),
-                    Err(err) => err,
-                }
-            }
-            "show" => {
-                let Some(path) = args.get(1).copied() else {
-                    return Self::rules_usage().to_string();
-                };
-                let path_parts = path
-                    .split('.')
-                    .map(str::trim)
-                    .filter(|part| !part.is_empty())
-                    .collect::<Vec<_>>();
-                if path_parts.is_empty() {
-                    return Self::rules_usage().to_string();
-                }
-                let rules = match Self::effective_rules_source(project) {
-                    Ok(rules) => rules,
-                    Err(err) => return err,
-                };
-                match shared::rulesets::ruleset_show_path_from_source(&rules, &path_parts) {
-                    Ok(Some(value)) => format!("{}:\n{}", path, value),
-                    Ok(None) => format!("Ruleset path '{}' was not found.", path),
-                    Err(err) => err,
-                }
-            }
-            "xp" => {
-                let Some(level) = args.get(1) else {
-                    return Self::rules_usage().to_string();
-                };
-                let Ok(level) = level.parse::<u32>() else {
-                    return format!("Level `{}` is not a positive integer.", level);
-                };
-                let rules = match Self::effective_rules_source(project) {
-                    Ok(rules) => rules,
-                    Err(err) => return err,
-                };
-                match shared::rulesets::ruleset_xp_for_level_from_source(&rules, level) {
-                    Ok(Some(xp)) => format!("level: {}\nrequired xp: {}", level, xp),
-                    Ok(None) => format!("No XP entry for level {}.", level),
-                    Err(err) => err,
-                }
-            }
-            "weapon" => {
-                let Some(weapon_id) = args.get(1).copied() else {
-                    return Self::rules_usage().to_string();
-                };
-                let attributes = match Self::parse_rules_attributes(&args[2..]) {
-                    Ok(attributes) => attributes,
-                    Err(err) => return err,
-                };
-                let rules = match Self::effective_rules_source(project) {
-                    Ok(rules) => rules,
-                    Err(err) => return err,
-                };
-                match shared::rulesets::summarize_weapon_damage_from_source(
-                    &rules,
-                    weapon_id,
-                    &attributes,
-                ) {
-                    Ok(summary) => {
-                        Self::format_roll_summary(&format!("weapon: {}", weapon_id), &summary)
-                    }
-                    Err(err) => err,
-                }
-            }
-            "spell" => {
-                let Some(spell_id) = args.get(1).copied() else {
-                    return Self::rules_usage().to_string();
-                };
-                let attributes = match Self::parse_rules_attributes(&args[2..]) {
-                    Ok(attributes) => attributes,
-                    Err(err) => return err,
-                };
-                let rules = match Self::effective_rules_source(project) {
-                    Ok(rules) => rules,
-                    Err(err) => return err,
-                };
-                match shared::rulesets::summarize_spell_roll_from_source(
-                    &rules,
-                    spell_id,
-                    &attributes,
-                ) {
-                    Ok((kind, summary)) => Self::format_roll_summary(
-                        &format!("spell: {} ({})", spell_id, kind.label()),
-                        &summary,
-                    ),
-                    Err(err) => err,
-                }
-            }
-            "roll" => {
-                let Some(path) = args.get(1).copied() else {
-                    return Self::rules_usage().to_string();
-                };
-                let path_parts = path
-                    .split('.')
-                    .map(str::trim)
-                    .filter(|part| !part.is_empty())
-                    .collect::<Vec<_>>();
-                if path_parts.is_empty() {
-                    return Self::rules_usage().to_string();
-                }
-                let attributes = match Self::parse_rules_attributes(&args[2..]) {
-                    Ok(attributes) => attributes,
-                    Err(err) => return err,
-                };
-                let rules = match Self::effective_rules_source(project) {
-                    Ok(rules) => rules,
-                    Err(err) => return err,
-                };
-                match shared::rulesets::summarize_roll_path_from_source(
-                    &rules,
-                    &path_parts,
-                    &attributes,
-                ) {
-                    Ok(summary) => Self::format_roll_summary(path, &summary),
-                    Err(err) => err,
-                }
-            }
-            "class" => {
-                let Some(class_id) = args.get(1).copied() else {
-                    return Self::rules_usage().to_string();
-                };
-                let rules = match Self::effective_rules_source(project) {
-                    Ok(rules) => rules,
-                    Err(err) => return err,
-                };
-                let summary = match shared::rulesets::summarize_class_from_source(&rules, class_id)
-                {
-                    Ok(summary) => summary,
-                    Err(err) => return err,
-                };
-                let mut attributes = summary
-                    .attributes
-                    .iter()
-                    .map(|(key, value)| format!("{}={}", key, value))
-                    .collect::<Vec<_>>();
-                attributes.sort();
-                let unlocks = summary
-                    .level_unlocks
-                    .iter()
-                    .map(|(level, values)| format!("{}: {}", level, Self::join_or_dash(values)))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                let loadout = summary
-                    .starting_loadout
-                    .iter()
-                    .map(|(category, values)| {
-                        format!("{}: {}", category, Self::join_or_dash(values))
-                    })
-                    .collect::<Vec<_>>()
-                    .join("\n");
-
-                format!(
-                    "class: {}\nrole: {}\ndescription: {}\nprimary attributes: {}\nallowed weapons: {}\nallowed armor: {}\nabilities: {}\nspells: {}\nattributes: {}\nunlocks:\n{}\nstarting loadout:\n{}",
-                    summary.id,
-                    summary.role.as_deref().unwrap_or("-"),
-                    summary.description.as_deref().unwrap_or("-"),
-                    Self::join_or_dash(&summary.primary_attributes),
-                    Self::join_or_dash(&summary.allowed_weapons),
-                    Self::join_or_dash(&summary.allowed_armor),
-                    Self::join_or_dash(&summary.abilities),
-                    Self::join_or_dash(&summary.spells),
-                    Self::join_or_dash(&attributes),
-                    if unlocks.is_empty() {
-                        "-".into()
-                    } else {
-                        unlocks
-                    },
-                    if loadout.is_empty() {
-                        "-".into()
-                    } else {
-                        loadout
-                    },
-                )
-            }
-            _ => Self::rules_usage().to_string(),
-        }
-    }
-
     fn focus_label(&self, entities: &[RuntimeEntity], items: &[RuntimeItem]) -> String {
         match self.focus {
             ConsoleFocus::Root => "root".to_string(),
@@ -869,236 +715,528 @@ rules roll <ruleset.path.to.roll> [ATTR=VALUE ...]"
         }
     }
 
-    fn execute_command(
-        &mut self,
-        command: &str,
-        project: &Project,
-        server_ctx: &ServerContext,
-    ) -> String {
+    fn help() -> TheFeedbackDocument {
+        TheFeedbackDocument::new(vec![
+            TheFeedbackBlock::heading("Console commands"),
+            TheFeedbackBlock::CommandList {
+                title: Some("Game information".to_string()),
+                entries: vec![
+                    Self::command("list [characters|items]", "List the current runtime scope"),
+                    Self::command("focus <name|id>", "Focus a live character or item"),
+                    Self::command("show", "Show the focused object"),
+                    Self::command("get <key>", "Show one focused attribute"),
+                    Self::command("pwd", "Show the current focus"),
+                    Self::command("up", "Reset focus to the region"),
+                ],
+            },
+            TheFeedbackBlock::CommandList {
+                title: Some("Editor operations".to_string()),
+                entries: vec![
+                    Self::command(
+                        "actions [all] [group]",
+                        "List applicable actions or the full catalog",
+                    ),
+                    Self::command("action <id> [TOML]", "Run an action by stable ID"),
+                    Self::command("tools [all]", "List available tools or the full catalog"),
+                    Self::command("tool <id>", "Select a tool by stable ID"),
+                    Self::command("clear", "Clear the Console output"),
+                ],
+            },
+            TheFeedbackBlock::CommandList {
+                title: Some("Eldrin automation".to_string()),
+                entries: vec![Self::command(
+                    "eldrin <source>",
+                    "Run ordered Console automation",
+                )],
+            },
+            TheFeedbackBlock::Code {
+                language: Some("Eldrin".to_string()),
+                source: [
+                    "console_list(\"all|characters|items\");",
+                    "console_focus(\"name|id\");",
+                    "console_show(); console_get(\"key\");",
+                    "console_pwd(); console_up();",
+                    "editor_action(\"face.extrude\", \"amount = 2\");",
+                    "editor_tool(\"tool.geometry\");",
+                ]
+                .join("\n"),
+            },
+        ])
+    }
+
+    fn unquote(text: &str) -> String {
+        let trimmed = text.trim();
+        if trimmed.len() >= 2
+            && ((trimmed.starts_with('"') && trimmed.ends_with('"'))
+                || (trimmed.starts_with('\'') && trimmed.ends_with('\'')))
+        {
+            trimmed[1..trimmed.len() - 1].to_string()
+        } else {
+            trimmed.to_string()
+        }
+    }
+
+    fn parse_command(command: &str) -> Result<Vec<ConsoleRequest>, String> {
         let trimmed = command.trim();
         if trimmed.is_empty() {
-            return String::new();
+            return Ok(Vec::new());
         }
 
-        if trimmed.eq_ignore_ascii_case("help") {
-            return [
-                "help  show available commands",
-                "list  list the current scope",
-                "focus <name|id>  focus a character or item from root",
-                "show  show the current character or item details",
-                "get <key>  show one attribute from the current character or item",
-                "rules overview  show active ruleset counts and metadata",
-                "rules validate  validate the effective ruleset",
-                "rules list [section]  list ruleset races, classes, weapons, armor, spells, abilities, or actions",
-                "rules show <path>  show a TOML value from the effective ruleset",
-                "rules class <class_id>  inspect a ruleset class",
-                "rules xp <level>  show required XP for a level",
-                "rules weapon <weapon_id> [ATTR=VALUE ...]  calculate weapon damage",
-                "rules spell <spell_id> [ATTR=VALUE ...]  calculate spell damage or healing",
-                "pwd  show the current console focus",
-                "up  go back to root",
-                "clear  clear the console output",
-            ]
-            .join("\n");
-        }
+        let (head, tail) = trimmed
+            .split_once(char::is_whitespace)
+            .map(|(head, tail)| (head.to_ascii_lowercase(), tail.trim()))
+            .unwrap_or_else(|| (trimmed.to_ascii_lowercase(), ""));
 
-        if trimmed.eq_ignore_ascii_case("clear") {
-            self.transcript.clear();
-            return String::new();
-        }
-
-        if let Some((head, tail)) = trimmed.split_once(' ')
-            && head.eq_ignore_ascii_case("rules")
-        {
-            let args = tail.split_whitespace().collect::<Vec<_>>();
-            return self.execute_rules_command(&args, project);
-        }
-        if trimmed.eq_ignore_ascii_case("rules") {
-            return Self::rules_usage().to_string();
-        }
-
-        let (entities, items) = match Self::runtime_snapshot(project, server_ctx) {
-            Ok(snapshot) => snapshot,
-            Err(err) => return err,
-        };
-        let focusable_items = Self::collect_focusable_items(&entities, &items);
-
-        match trimmed.split_once(' ') {
-            Some((head, tail))
-                if head.eq_ignore_ascii_case("focus") || head.eq_ignore_ascii_case("cd") =>
-            {
-                let needle = tail.trim();
-                if needle.is_empty() {
-                    return format!("Usage: {} <name|id>", head);
-                }
-                if needle == ".." || needle.eq_ignore_ascii_case("root") || needle == "/" {
-                    self.focus = ConsoleFocus::Root;
-                    return self.list_root(&entities, &items);
-                }
-
-                if let Some(id) = Self::parse_id(needle) {
-                    if entities.iter().any(|entity| entity.entity.id == id) {
-                        self.focus = ConsoleFocus::Entity(id);
-                        if let Some(entity) = entities.iter().find(|entity| entity.entity.id == id)
-                        {
-                            return self.list_entity(entity);
-                        }
-                    }
-                    if focusable_items.iter().any(|item| item.item.id == id) {
-                        self.focus = ConsoleFocus::Item(id);
-                        if let Some(item) = focusable_items.iter().find(|item| item.item.id == id) {
-                            return self.list_item(item);
-                        }
-                    }
-                }
-
-                let matching_entities: Vec<&RuntimeEntity> = entities
-                    .iter()
-                    .filter(|entity| Self::entity_matches(&entity.entity, needle))
-                    .collect();
-                let matching_items: Vec<&RuntimeItem> = focusable_items
-                    .iter()
-                    .filter(|item| Self::item_matches(&item.item, needle))
-                    .collect();
-
-                if matching_entities.len() + matching_items.len() > 1 {
-                    let mut lines = vec!["Multiple matches".to_string()];
-                    for entity in matching_entities {
-                        lines.push(format!(
-                            "character  {}  {}",
-                            Self::quoted(&Self::entity_name(&entity.entity)),
-                            entity.entity.id
-                        ));
-                    }
-                    for item in matching_items {
-                        lines.push(format!(
-                            "item       {}  {}",
-                            Self::quoted(&Self::item_name(&item.item)),
-                            item.item.id
-                        ));
-                    }
-                    return lines.join("\n");
-                }
-
-                if let Some(entity) = matching_entities.first() {
-                    self.focus = ConsoleFocus::Entity(entity.entity.id);
-                    return self.list_entity(entity);
-                }
-                if let Some(item) = matching_items.first() {
-                    self.focus = ConsoleFocus::Item(item.item.id);
-                    return self.list_item(item);
-                }
-
-                format!("No runtime character or item matched `{}`.", needle)
+        let request = match head.as_str() {
+            "help" | "commands" => ConsoleRequest::Help,
+            "list" | "ls" => {
+                let scope = match tail.to_ascii_lowercase().as_str() {
+                    "" | "all" => ConsoleListScope::All,
+                    "character" | "characters" | "char" | "chars" => ConsoleListScope::Characters,
+                    "item" | "items" => ConsoleListScope::Items,
+                    _ => return Err("Usage: list [characters|items]".to_string()),
+                };
+                ConsoleRequest::List(scope)
             }
-            Some((head, tail)) if head.eq_ignore_ascii_case("get") => {
-                let key = tail.trim();
-                if key.is_empty() {
-                    return "Usage: get <key>".to_string();
+            "focus" | "cd" => {
+                if tail.is_empty() {
+                    return Err(format!("Usage: {head} <name|id>"));
                 }
-                match self.focus {
-                    ConsoleFocus::Entity(_) => {
-                        if let Some(entity) = self.focused_entity(&entities) {
-                            if let Some(value) = entity.entity.attributes.get(key) {
-                                format!("{} = {}", key, Self::format_value(value))
-                            } else {
-                                format!("Attribute `{}` not found.", key)
-                            }
-                        } else {
-                            self.focus = ConsoleFocus::Root;
-                            "Focused character no longer exists.".to_string()
-                        }
-                    }
-                    ConsoleFocus::Item(_) => {
-                        if let Some(item) = self.focused_item(&items) {
-                            if let Some(item) = focusable_items
-                                .iter()
-                                .find(|candidate| candidate.item.id == item.item.id)
-                            {
-                                if let Some(value) = item.item.attributes.get(key) {
-                                    format!("{} = {}", key, Self::format_value(value))
-                                } else {
-                                    format!("Attribute `{}` not found.", key)
-                                }
-                            } else {
-                                self.focus = ConsoleFocus::Root;
-                                "Focused item no longer exists.".to_string()
-                            }
-                        } else if let Some(item) = focusable_items
-                            .iter()
-                            .find(|candidate| matches!(self.focus, ConsoleFocus::Item(id) if candidate.item.id == id))
-                        {
-                            if let Some(value) = item.item.attributes.get(key) {
-                                format!("{} = {}", key, Self::format_value(value))
-                            } else {
-                                format!("Attribute `{}` not found.", key)
-                            }
-                        } else {
-                            self.focus = ConsoleFocus::Root;
-                            "Focused item no longer exists.".to_string()
-                        }
-                    }
-                    ConsoleFocus::Root => "Focus a character or item first.".to_string(),
+                if tail == ".." || tail == "/" || tail.eq_ignore_ascii_case("root") {
+                    ConsoleRequest::Up
+                } else {
+                    ConsoleRequest::Focus(Self::unquote(tail))
                 }
             }
-            _ => match trimmed.to_ascii_lowercase().as_str() {
-                "ls" => "Use `list`.".to_string(),
-                "cd .." => {
-                    self.focus = ConsoleFocus::Root;
-                    self.list_root(&entities, &items)
+            "show" | "info" => ConsoleRequest::Show,
+            "get" => {
+                if tail.is_empty() {
+                    return Err("Usage: get <key>".to_string());
                 }
-                "list" => match self.focus {
-                    ConsoleFocus::Root => self.list_root(&entities, &items),
-                    ConsoleFocus::Entity(_) => {
-                        if let Some(entity) = self.focused_entity(&entities) {
-                            self.list_entity(entity)
-                        } else {
-                            self.focus = ConsoleFocus::Root;
-                            "Focused character no longer exists.".to_string()
-                        }
+                ConsoleRequest::Get(Self::unquote(tail))
+            }
+            "pwd" => ConsoleRequest::Pwd,
+            "up" => ConsoleRequest::Up,
+            "clear" => ConsoleRequest::Clear,
+            "actions" => {
+                let mut group = None;
+                let mut include_unavailable = false;
+                for argument in tail.split_whitespace() {
+                    if argument.eq_ignore_ascii_case("all") {
+                        include_unavailable = true;
+                    } else if group.is_none() {
+                        group = Some(argument.to_ascii_lowercase());
+                    } else {
+                        return Err("Usage: actions [all] [group]".to_string());
                     }
-                    ConsoleFocus::Item(_) => {
-                        if let Some(item) = focusable_items
-                            .iter()
-                            .find(|candidate| matches!(self.focus, ConsoleFocus::Item(id) if candidate.item.id == id))
-                        {
-                            self.list_item(item)
-                        } else {
-                            self.focus = ConsoleFocus::Root;
-                            "Focused item no longer exists.".to_string()
-                        }
-                    }
-                },
-                "show" | "info" => match self.focus {
-                    ConsoleFocus::Root => self.list_root(&entities, &items),
-                    ConsoleFocus::Entity(_) => {
-                        if let Some(entity) = self.focused_entity(&entities) {
-                            self.list_entity(entity)
-                        } else {
-                            self.focus = ConsoleFocus::Root;
-                            "Focused character no longer exists.".to_string()
-                        }
-                    }
-                    ConsoleFocus::Item(_) => {
-                        if let Some(item) = focusable_items
-                            .iter()
-                            .find(|candidate| matches!(self.focus, ConsoleFocus::Item(id) if candidate.item.id == id))
-                        {
-                            self.list_item(item)
-                        } else {
-                            self.focus = ConsoleFocus::Root;
-                            "Focused item no longer exists.".to_string()
-                        }
-                    }
-                },
-                "pwd" => self.focus_label(&entities, &items),
-                "up" => {
-                    self.focus = ConsoleFocus::Root;
-                    self.list_root(&entities, &items)
                 }
-                _ => format!("Unknown command `{}`. Type `help`.", trimmed),
+                ConsoleRequest::ListActions {
+                    group,
+                    include_unavailable,
+                }
+            }
+            "action" => {
+                let (id, parameters_toml) = tail
+                    .split_once(char::is_whitespace)
+                    .map(|(id, params)| (id.trim(), params.trim()))
+                    .unwrap_or((tail, ""));
+                if id.is_empty() {
+                    return Err("Usage: action <stable.id> [TOML parameters]".to_string());
+                }
+                ConsoleRequest::RunAction(EditorActionRequest {
+                    command_id: id.to_string(),
+                    parameters_toml: parameters_toml.to_string(),
+                })
+            }
+            "tools" => match tail.to_ascii_lowercase().as_str() {
+                "" => ConsoleRequest::ListTools {
+                    include_unavailable: false,
+                },
+                "all" => ConsoleRequest::ListTools {
+                    include_unavailable: true,
+                },
+                _ => return Err("Usage: tools [all]".to_string()),
             },
+            "tool" => {
+                if tail.is_empty() || tail.split_whitespace().count() != 1 {
+                    return Err("Usage: tool <stable.id>".to_string());
+                }
+                let command_id = if tail.contains('.') {
+                    tail.to_string()
+                } else {
+                    format!("tool.{tail}")
+                };
+                ConsoleRequest::SelectTool { command_id }
+            }
+            "eldrin" => {
+                if tail.is_empty() {
+                    return Err("Usage: eldrin <source>".to_string());
+                }
+                return collect_console_script_requests(tail);
+            }
+            _ => return Err(format!("Unknown command `{trimmed}`. Type `help`.")),
+        };
+        Ok(vec![request])
+    }
+
+    fn list_characters(entities: &[RuntimeEntity]) -> TheFeedbackDocument {
+        TheFeedbackDocument::new(vec![TheFeedbackBlock::List {
+            title: Some(format!("Characters  {}", entities.len())),
+            items: entities
+                .iter()
+                .map(|entity| {
+                    vec![
+                        TheFeedbackSpan::new(
+                            Self::entity_name(&entity.entity),
+                            TheFeedbackRole::StringValue,
+                        )
+                        .interactive(
+                            CONSOLE_FEEDBACK_ACTION,
+                            TheValue::Text(format!("focus {}", entity.entity.id)),
+                        ),
+                        TheFeedbackSpan::new(
+                            format!("  #{}", entity.entity.id),
+                            TheFeedbackRole::StableId,
+                        ),
+                    ]
+                })
+                .collect(),
+        }])
+    }
+
+    fn list_items(items: &[RuntimeItem]) -> TheFeedbackDocument {
+        TheFeedbackDocument::new(vec![TheFeedbackBlock::List {
+            title: Some(format!("Items  {}", items.len())),
+            items: items
+                .iter()
+                .map(|item| {
+                    vec![
+                        TheFeedbackSpan::new(
+                            Self::item_name(&item.item),
+                            TheFeedbackRole::StringValue,
+                        )
+                        .interactive(
+                            CONSOLE_FEEDBACK_ACTION,
+                            TheValue::Text(format!("focus {}", item.item.id)),
+                        ),
+                        TheFeedbackSpan::new(
+                            format!("  #{}", item.item.id),
+                            TheFeedbackRole::StableId,
+                        ),
+                    ]
+                })
+                .collect(),
+        }])
+    }
+
+    fn list_actions(
+        group: Option<&str>,
+        include_unavailable: bool,
+        project: &Project,
+        server_ctx: &ServerContext,
+        ctx: &mut TheContext,
+    ) -> Result<TheFeedbackDocument, String> {
+        let valid_groups = ActionGroup::ALL.map(ActionGroup::id);
+        if let Some(group) = group
+            && !valid_groups.contains(&group)
+        {
+            return Err(format!(
+                "Unknown action group `{group}`. Groups: {}",
+                valid_groups.join(", ")
+            ));
         }
+
+        let default_map = Map::default();
+        let map = project.get_map(server_ctx).unwrap_or(&default_map);
+        let actions = ACTIONLIST.read().unwrap();
+        let mut entries = actions
+            .actions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, action)| {
+                let descriptor = actions.descriptor_by_id(action.id().uuid)?;
+                if group.is_some_and(|group| group != descriptor.group.id()) {
+                    return None;
+                }
+                let applicable = action.is_applicable(map, ctx, server_ctx);
+                if !include_unavailable && !applicable {
+                    return None;
+                }
+                Some((
+                    descriptor.group.palette_slot(),
+                    index,
+                    descriptor.command_id.clone(),
+                    descriptor.group.qualified_name(&action.id().name),
+                    applicable,
+                ))
+            })
+            .collect::<Vec<_>>();
+        entries.sort_by_key(|(slot, index, _, _, _)| (*slot, *index));
+
+        let count = entries.len();
+        Ok(TheFeedbackDocument::new(vec![
+            TheFeedbackBlock::CommandList {
+                title: Some(format!("Actions  {count}")),
+                entries: entries
+                    .into_iter()
+                    .map(|(_, _, id, name, applicable)| {
+                        Self::command_with_input(format!("action {id}"), name).available(applicable)
+                    })
+                    .collect(),
+            },
+        ]))
+    }
+
+    fn list_tools(include_unavailable: bool) -> TheFeedbackDocument {
+        let tools = TOOLLIST.read().unwrap();
+        let mut entries = Vec::new();
+        for tool in &tools.game_tools {
+            let Some(descriptor) = tools.game_tool_descriptor_by_id(tool.id().uuid) else {
+                continue;
+            };
+            let available = tools.game_tool_is_available(&descriptor.command_id);
+            if !include_unavailable && !available {
+                continue;
+            }
+            let selected =
+                tools.current_game_tool_command_id() == Some(descriptor.command_id.as_str());
+            let description = if selected {
+                format!("{}  • selected", tool.id().name)
+            } else {
+                tool.id().name.clone()
+            };
+            entries.push(
+                Self::command_with_input(format!("tool {}", descriptor.command_id), description)
+                    .available(available),
+            );
+        }
+        TheFeedbackDocument::new(vec![TheFeedbackBlock::CommandList {
+            title: Some(format!("Tools  {}", entries.len())),
+            entries,
+        }])
+    }
+
+    pub fn execute_local_request(
+        &mut self,
+        request: &ConsoleRequest,
+        project: &Project,
+        server_ctx: &ServerContext,
+        ctx: &mut TheContext,
+    ) -> Result<TheFeedbackDocument, String> {
+        match request {
+            ConsoleRequest::Help => Ok(Self::help()),
+            ConsoleRequest::ListActions {
+                group,
+                include_unavailable,
+            } => Self::list_actions(
+                group.as_deref(),
+                *include_unavailable,
+                project,
+                server_ctx,
+                ctx,
+            ),
+            ConsoleRequest::ListTools {
+                include_unavailable,
+            } => Ok(Self::list_tools(*include_unavailable)),
+            ConsoleRequest::Clear => Ok(TheFeedbackDocument::default()),
+            ConsoleRequest::RunAction(_) | ConsoleRequest::SelectTool { .. } => {
+                Err("Editor request was not dispatched by the sidebar.".to_string())
+            }
+            request => {
+                let (entities, items) = Self::runtime_snapshot(project, server_ctx)?;
+                let focusable_items = Self::collect_focusable_items(&entities, &items);
+                match request {
+                    ConsoleRequest::List(ConsoleListScope::Characters) => {
+                        Ok(Self::list_characters(&entities))
+                    }
+                    ConsoleRequest::List(ConsoleListScope::Items) => Ok(Self::list_items(&items)),
+                    ConsoleRequest::List(ConsoleListScope::All) | ConsoleRequest::Show => {
+                        match self.focus {
+                            ConsoleFocus::Root => Ok(self.list_root(&entities, &items)),
+                            ConsoleFocus::Entity(_) => {
+                                if let Some(entity) = self.focused_entity(&entities) {
+                                    Ok(self.list_entity(entity))
+                                } else {
+                                    self.focus = ConsoleFocus::Root;
+                                    Err("Focused character no longer exists.".to_string())
+                                }
+                            }
+                            ConsoleFocus::Item(id) => {
+                                if let Some(item) =
+                                    focusable_items.iter().find(|item| item.item.id == id)
+                                {
+                                    Ok(self.list_item(item))
+                                } else {
+                                    self.focus = ConsoleFocus::Root;
+                                    Err("Focused item no longer exists.".to_string())
+                                }
+                            }
+                        }
+                    }
+                    ConsoleRequest::Focus(selector) => {
+                        let needle = selector.trim();
+                        if let Some(id) = Self::parse_id(needle) {
+                            if let Some(entity) =
+                                entities.iter().find(|entity| entity.entity.id == id)
+                            {
+                                self.focus = ConsoleFocus::Entity(id);
+                                return Ok(self.list_entity(entity));
+                            }
+                            if let Some(item) =
+                                focusable_items.iter().find(|item| item.item.id == id)
+                            {
+                                self.focus = ConsoleFocus::Item(id);
+                                return Ok(self.list_item(item));
+                            }
+                        }
+
+                        let matching_entities = entities
+                            .iter()
+                            .filter(|entity| Self::entity_matches(&entity.entity, needle))
+                            .collect::<Vec<_>>();
+                        let matching_items = focusable_items
+                            .iter()
+                            .filter(|item| Self::item_matches(&item.item, needle))
+                            .collect::<Vec<_>>();
+                        if matching_entities.len() + matching_items.len() > 1 {
+                            let mut matches = Vec::new();
+                            for entity in &matching_entities {
+                                matches.push(vec![
+                                    TheFeedbackSpan::new("Character  ", TheFeedbackRole::Muted),
+                                    TheFeedbackSpan::new(
+                                        Self::entity_name(&entity.entity),
+                                        TheFeedbackRole::StringValue,
+                                    )
+                                    .interactive(
+                                        CONSOLE_FEEDBACK_ACTION,
+                                        TheValue::Text(format!("focus {}", entity.entity.id)),
+                                    ),
+                                    TheFeedbackSpan::new(
+                                        format!("  #{}", entity.entity.id),
+                                        TheFeedbackRole::StableId,
+                                    ),
+                                ]);
+                            }
+                            for item in &matching_items {
+                                matches.push(vec![
+                                    TheFeedbackSpan::new("Item  ", TheFeedbackRole::Muted),
+                                    TheFeedbackSpan::new(
+                                        Self::item_name(&item.item),
+                                        TheFeedbackRole::StringValue,
+                                    )
+                                    .interactive(
+                                        CONSOLE_FEEDBACK_ACTION,
+                                        TheValue::Text(format!("focus {}", item.item.id)),
+                                    ),
+                                    TheFeedbackSpan::new(
+                                        format!("  #{}", item.item.id),
+                                        TheFeedbackRole::StableId,
+                                    ),
+                                ]);
+                            }
+                            return Ok(TheFeedbackDocument::new(vec![
+                                TheFeedbackBlock::notice(
+                                    TheFeedbackNoticeKind::Warning,
+                                    "Several runtime objects matched. Select one to focus it.",
+                                ),
+                                TheFeedbackBlock::List {
+                                    title: Some("Matches".to_string()),
+                                    items: matches,
+                                },
+                            ]));
+                        }
+                        if let Some(entity) = matching_entities.first() {
+                            self.focus = ConsoleFocus::Entity(entity.entity.id);
+                            return Ok(self.list_entity(entity));
+                        }
+                        if let Some(item) = matching_items.first() {
+                            self.focus = ConsoleFocus::Item(item.item.id);
+                            return Ok(self.list_item(item));
+                        }
+                        Err(format!("No runtime character or item matched `{needle}`."))
+                    }
+                    ConsoleRequest::Get(key) => match self.focus {
+                        ConsoleFocus::Entity(_) => self
+                            .focused_entity(&entities)
+                            .ok_or_else(|| "Focused character no longer exists.".to_string())
+                            .and_then(|entity| {
+                                entity
+                                    .entity
+                                    .attributes
+                                    .get(key)
+                                    .map(|value| {
+                                        TheFeedbackDocument::new(vec![
+                                            TheFeedbackBlock::KeyValueList {
+                                                title: None,
+                                                entries: vec![TheFeedbackKeyValue::new(
+                                                    key.clone(),
+                                                    vec![Self::value_span(Self::format_value(
+                                                        value,
+                                                    ))],
+                                                )],
+                                            },
+                                        ])
+                                    })
+                                    .ok_or_else(|| format!("Attribute `{key}` not found."))
+                            }),
+                        ConsoleFocus::Item(id) => focusable_items
+                            .iter()
+                            .find(|item| item.item.id == id)
+                            .ok_or_else(|| "Focused item no longer exists.".to_string())
+                            .and_then(|item| {
+                                item.item
+                                    .attributes
+                                    .get(key)
+                                    .map(|value| {
+                                        TheFeedbackDocument::new(vec![
+                                            TheFeedbackBlock::KeyValueList {
+                                                title: None,
+                                                entries: vec![TheFeedbackKeyValue::new(
+                                                    key.clone(),
+                                                    vec![Self::value_span(Self::format_value(
+                                                        value,
+                                                    ))],
+                                                )],
+                                            },
+                                        ])
+                                    })
+                                    .ok_or_else(|| format!("Attribute `{key}` not found."))
+                            }),
+                        ConsoleFocus::Root => Err("Focus a character or item first.".to_string()),
+                    },
+                    ConsoleRequest::Pwd => Ok(Self::plain_document(
+                        self.focus_label(&entities, &focusable_items),
+                    )),
+                    ConsoleRequest::Up => {
+                        self.focus = ConsoleFocus::Root;
+                        Ok(self.list_root(&entities, &items))
+                    }
+                    _ => unreachable!("non-runtime console request handled above"),
+                }
+            }
+        }
+    }
+
+    pub fn take_pending_requests(&mut self) -> Vec<ConsoleRequest> {
+        std::mem::take(&mut self.pending_requests)
+    }
+
+    pub fn complete_requests(
+        &mut self,
+        results: &[TheFeedbackDocument],
+        clear: bool,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        if clear {
+            self.document = TheFeedbackDocument::default();
+        } else {
+            for result in results.iter().filter(|result| !result.is_empty()) {
+                self.document.extend(result.clone());
+            }
+        }
+        self.sync_output(ui, ctx);
+        self.refresh_current_history(ui, ctx);
     }
 }
 
@@ -1107,39 +1245,58 @@ impl Dock for ConsoleDock {
     where
         Self: Sized,
     {
+        let document = Self::intro();
         Self {
-            transcript: Self::intro(),
+            history: vec![ConsoleHistoryEntry {
+                document: document.clone(),
+                focus: ConsoleFocus::Root,
+            }],
+            history_index: 0,
+            document,
             focus: ConsoleFocus::Root,
+            pending_requests: Vec::new(),
         }
     }
 
     fn setup(&mut self, _ctx: &mut TheContext) -> TheCanvas {
         let mut canvas = TheCanvas::new();
 
-        let mut output = TheTextAreaEdit::new(TheId::named("Console Output"));
-        if let Some(bytes) = crate::Embedded::get("parser/gruvbox-dark.tmTheme")
-            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
-        {
-            output.add_theme_from_string(source);
-            output.set_code_theme("Gruvbox Dark");
-        }
-        if let Some(bytes) = crate::Embedded::get("parser/console.sublime-syntax")
-            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
-        {
-            output.add_syntax_from_string(source);
-            output.set_code_type("Eldiron Console");
-        }
+        let mut output = TheTextView::new(TheId::named(CONSOLE_OUTPUT));
         output.set_font_size(13.0);
-        output.set_continuous(true);
-        output.display_line_number(false);
-        output.use_global_statusbar(true);
-        output.readonly(true);
-        output.set_supports_undo(false);
+        output.set_font_preference(TheFontPreference::Code);
+        output.set_word_wrap(true);
+        output.set_padding((10, 8, 10, 8));
+        output.set_selectable(true);
+        output.draw_background(true);
         canvas.set_widget(output);
 
+        let mut navigation_canvas = TheCanvas::default();
+        navigation_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        let mut navigation = TheHLayout::new(TheId::named("Console Navigation"));
+        navigation.set_background_color(None);
+        navigation.set_margin(Vec4::new(5, 1, 5, 1));
+        navigation.set_padding(3);
+
+        let mut back = TheTraybarButton::new(TheId::named(CONSOLE_BACK));
+        back.set_text("<".to_string());
+        back.set_fixed_size(true);
+        back.set_status_text(&fl!("status_console_back"));
+        back.limiter_mut().set_max_size(Vec2::new(24, 20));
+        navigation.add_widget(Box::new(back));
+
+        let mut forward = TheTraybarButton::new(TheId::named(CONSOLE_FORWARD));
+        forward.set_text(">".to_string());
+        forward.set_fixed_size(true);
+        forward.set_status_text(&fl!("status_console_forward"));
+        forward.limiter_mut().set_max_size(Vec2::new(24, 20));
+        navigation.add_widget(Box::new(forward));
+
+        navigation_canvas.set_layout(navigation);
+        canvas.set_top(navigation_canvas);
+
         let mut input_canvas = TheCanvas::default();
-        let mut input = TheTextLineEdit::new(TheId::named("Console Input"));
-        input.set_status_text("Enter a console command and press Return.");
+        let mut input = TheTextLineEdit::new(TheId::named(CONSOLE_INPUT));
+        input.set_status_text(&fl!("status_console_input"));
         input.set_font_size(12.5);
         input.limiter_mut().set_max_height(24);
         input_canvas.set_widget(input);
@@ -1155,10 +1312,13 @@ impl Dock for ConsoleDock {
         _project: &Project,
         _server_ctx: &mut ServerContext,
     ) {
-        if self.transcript.is_empty() {
-            self.transcript = Self::intro();
+        if self.document.is_empty() {
+            self.document = Self::intro();
+            self.focus = ConsoleFocus::Root;
+            self.reset_history(ui, ctx);
         }
         self.sync_output(ui, ctx);
+        self.sync_history_controls(ui, ctx);
         self.set_input(ui, ctx, "");
         if let Some(id) = Self::console_input_id(ui) {
             ctx.ui.set_focus(&id);
@@ -1173,8 +1333,31 @@ impl Dock for ConsoleDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if let TheEvent::StateChanged(id, TheWidgetState::Clicked) = event {
+            if id.name == CONSOLE_BACK {
+                self.navigate_history(-1, ui, ctx);
+                self.clear_input(ui);
+                return true;
+            }
+            if id.name == CONSOLE_FORWARD {
+                self.navigate_history(1, ui, ctx);
+                self.clear_input(ui);
+                return true;
+            }
+        }
+
+        if let TheEvent::Custom(id, TheValue::Text(command)) = event
+            && id.name == CONSOLE_FEEDBACK_ACTION
+        {
+            self.set_input(ui, ctx, command);
+            if let Some(input_id) = Self::console_input_id(ui) {
+                ctx.ui.set_focus(&input_id);
+            }
+            return true;
+        }
+
         if let TheEvent::ValueChanged(id, value) = event
-            && id.name == "Console Input"
+            && id.name == CONSOLE_INPUT
         {
             let command = value.to_string().unwrap_or_default();
             let command = command.trim().to_string();
@@ -1183,13 +1366,24 @@ impl Dock for ConsoleDock {
                 return false;
             }
 
-            let mut output = format!("{} > {}", self.prompt(project, server_ctx), command);
-            let result = self.execute_command(&command, project, server_ctx);
-            if !result.is_empty() {
-                output.push('\n');
-                output.push_str(&result);
+            let prompt = self.prompt(project, server_ctx);
+            let mut output = TheFeedbackDocument::new(vec![TheFeedbackBlock::Paragraph(vec![
+                TheFeedbackSpan::new(format!("{prompt}  ›  "), TheFeedbackRole::Muted),
+                TheFeedbackSpan::new(command.clone(), TheFeedbackRole::Command),
+            ])]);
+            match Self::parse_command(&command) {
+                Ok(requests) => {
+                    self.pending_requests = requests;
+                    self.set_output(output, ui, ctx);
+                    self.record_history(ui, ctx);
+                }
+                Err(error) => {
+                    self.pending_requests.clear();
+                    output.extend(Self::error_document(error));
+                    self.set_output(output, ui, ctx);
+                    self.record_history(ui, ctx);
+                }
             }
-            self.set_output(output, ui, ctx);
             self.clear_input(ui);
             if let Some(focus_id) = Self::console_input_id(ui) {
                 ctx.ui.focus = Some(focus_id.clone());
@@ -1205,5 +1399,61 @@ impl Dock for ConsoleDock {
 
     fn supports_actions(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn concise_editor_commands_use_stable_ids() {
+        assert_eq!(
+            ConsoleDock::parse_command("action face.extrude amount = 2").unwrap(),
+            vec![ConsoleRequest::RunAction(EditorActionRequest {
+                command_id: "face.extrude".to_string(),
+                parameters_toml: "amount = 2".to_string(),
+            })]
+        );
+        assert_eq!(
+            ConsoleDock::parse_command("tool geometry").unwrap(),
+            vec![ConsoleRequest::SelectTool {
+                command_id: "tool.geometry".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn concise_game_queries_remain_small() {
+        assert_eq!(
+            ConsoleDock::parse_command("list chars").unwrap(),
+            vec![ConsoleRequest::List(ConsoleListScope::Characters)]
+        );
+        assert_eq!(
+            ConsoleDock::parse_command("focus \"Old Smuggler\"").unwrap(),
+            vec![ConsoleRequest::Focus("Old Smuggler".to_string())]
+        );
+        assert!(ConsoleDock::parse_command("rules overview").is_err());
+    }
+
+    #[test]
+    fn eldrin_console_scripts_emit_ordered_typed_requests() {
+        let requests = ConsoleDock::parse_command(
+            r#"eldrin console_list("characters"); editor_tool("tool.geometry"); editor_action("camera.isometric", "");"#,
+        )
+        .unwrap();
+        assert_eq!(
+            requests,
+            vec![
+                ConsoleRequest::List(ConsoleListScope::Characters),
+                ConsoleRequest::SelectTool {
+                    command_id: "tool.geometry".to_string(),
+                },
+                ConsoleRequest::RunAction(EditorActionRequest {
+                    command_id: "camera.isometric".to_string(),
+                    parameters_toml: String::new(),
+                }),
+            ]
+        );
     }
 }

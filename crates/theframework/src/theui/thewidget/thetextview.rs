@@ -14,6 +14,14 @@ use super::thetextedit::{TheTextEditState, TheTextRenderer};
 pub struct TheTextViewSpan {
     pub text: String,
     pub style: TheTextStyle,
+    pub interaction: Option<TheTextViewInteraction>,
+}
+
+#[derive(Clone, Debug)]
+pub struct TheTextViewInteraction {
+    pub id: TheId,
+    pub value: TheValue,
+    pub hover_background: Option<TheColor>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -38,6 +46,8 @@ pub struct TheTextView {
     // Text render
     renderer: TheTextRenderer,
     styled_ranges: Vec<(Range<usize>, TheTextStyle)>,
+    interactive_ranges: Vec<(Range<usize>, TheTextViewInteraction)>,
+    hovered_interaction: Option<usize>,
     background_override: Option<TheColor>,
     scrollbar_size: usize,
     draw_background: bool,
@@ -49,6 +59,7 @@ pub struct TheTextView {
     drag_start_index: usize,
     hover_coord: Vec2<i32>,
     is_clicking_on_selection: bool,
+    is_clicking_interaction: bool,
     last_mouse_down_coord: Vec2<i32>,
     last_mouse_down_time: Instant,
     selectable: bool,
@@ -99,6 +110,8 @@ impl TheWidget for TheTextView {
 
             renderer: TheTextRenderer::default(),
             styled_ranges: Vec::new(),
+            interactive_ranges: Vec::new(),
+            hovered_interaction: None,
             background_override: None,
             scrollbar_size: 13,
             draw_border: false,
@@ -109,6 +122,7 @@ impl TheWidget for TheTextView {
             drag_start_index: 0,
             hover_coord: Vec2::zero(),
             is_clicking_on_selection: false,
+            is_clicking_interaction: false,
             last_mouse_down_coord: Vec2::zero(),
             last_mouse_down_time: Instant::now(),
             selectable: true,
@@ -179,6 +193,14 @@ impl TheWidget for TheTextView {
         true
     }
 
+    fn cursor_icon(&self) -> Option<TheCursorIcon> {
+        Some(if self.hovered_interaction.is_some() {
+            TheCursorIcon::Hand
+        } else {
+            TheCursorIcon::Text
+        })
+    }
+
     fn supports_text_input(&self) -> bool {
         true
     }
@@ -208,6 +230,7 @@ impl TheWidget for TheTextView {
                 self.modifier_ctrl = *ctrl;
             }
             TheEvent::MouseDown(coord) => {
+                self.is_clicking_interaction = false;
                 if !self.state.is_empty() {
                     let global_coord = coord + Vec2::new(self.dim.buffer_x, self.dim.buffer_y);
                     if self.renderer.is_horizontal_overflow()
@@ -227,7 +250,26 @@ impl TheWidget for TheTextView {
                             ctx,
                         );
                     } else if self.renderer.dim().contains(global_coord) {
-                        self.drag_start_index = self.renderer.find_cursor_index(&coord);
+                        let cursor_index = self.renderer.find_cursor_index(coord);
+                        let clicked_interaction = self
+                            .interactive_ranges
+                            .iter()
+                            .position(|(range, _)| range.contains(&cursor_index));
+                        if let Some(index) = clicked_interaction
+                            && let Some((_, interaction)) = self.interactive_ranges.get(index)
+                        {
+                            self.is_clicking_interaction = true;
+                            ctx.ui.send(TheEvent::Custom(
+                                interaction.id.clone(),
+                                interaction.value.clone(),
+                            ));
+                            self.state.reset_selection();
+                            self.is_clicking_on_selection = false;
+                            self.is_dirty = true;
+                            return true;
+                        }
+
+                        self.drag_start_index = cursor_index;
                         let (cursor_row, cursor_column) =
                             self.state.find_row_col_of_index(self.drag_start_index);
                         self.state
@@ -262,6 +304,9 @@ impl TheWidget for TheTextView {
                 self.last_mouse_down_time = Instant::now();
             }
             TheEvent::MouseDragged(coord) => {
+                if self.is_clicking_interaction {
+                    return false;
+                }
                 self.is_dirty = true;
 
                 if !self.state.is_empty() {
@@ -375,6 +420,7 @@ impl TheWidget for TheTextView {
                 redraw = true;
 
                 self.is_clicking_on_selection = false;
+                self.is_clicking_interaction = false;
                 self.is_hscrollbar_clicked = false;
                 self.is_vscrollbar_clicked = false;
                 self.drag_start_index = 0;
@@ -432,6 +478,20 @@ impl TheWidget for TheTextView {
                     redraw = true;
                 }
 
+                let hovered_interaction = if self.renderer.dim().contains(global_coord) {
+                    let cursor_index = self.renderer.find_cursor_index(coord);
+                    self.interactive_ranges
+                        .iter()
+                        .position(|(range, _)| range.contains(&cursor_index))
+                } else {
+                    None
+                };
+                if self.hovered_interaction != hovered_interaction {
+                    self.hovered_interaction = hovered_interaction;
+                    self.is_dirty = true;
+                    redraw = true;
+                }
+
                 self.hover_coord = *coord;
             }
             _ => {}
@@ -449,12 +509,18 @@ impl TheWidget for TheTextView {
             TheValue::Empty => {
                 self.state.reset();
                 self.styled_ranges.clear();
+                self.interactive_ranges.clear();
+                self.hovered_interaction = None;
+                self.is_clicking_interaction = false;
                 self.is_dirty = true;
             }
             TheValue::Text(text) => {
                 self.state.reset();
                 self.state.set_text(text);
                 self.styled_ranges.clear();
+                self.interactive_ranges.clear();
+                self.hovered_interaction = None;
+                self.is_clicking_interaction = false;
                 self.is_dirty = true;
             }
             _ => {}
@@ -606,7 +672,7 @@ impl TheWidget for TheTextView {
             }
         }
 
-        if self.styled_ranges.is_empty() {
+        if self.styled_ranges.is_empty() && self.hovered_interaction.is_none() {
             self.renderer.render_text(
                 &self.state,
                 ctx.ui.has_focus(self.id()),
@@ -617,6 +683,13 @@ impl TheWidget for TheTextView {
                 &ctx.draw,
             );
         } else {
+            let mut styled_ranges = self.styled_ranges.clone();
+            if let Some(index) = self.hovered_interaction
+                && let Some((range, interaction)) = self.interactive_ranges.get(index)
+                && let Some(background) = &interaction.hover_background
+            {
+                apply_interaction_background(&mut styled_ranges, range, background);
+            }
             self.renderer.render_text_with_styles(
                 &self.state,
                 ctx.ui.has_focus(self.id()),
@@ -624,7 +697,7 @@ impl TheWidget for TheTextView {
                 buffer,
                 style,
                 self.font_preference.clone(),
-                &self.styled_ranges,
+                &styled_ranges,
                 &ctx.draw,
             );
         }
@@ -679,6 +752,7 @@ pub trait TheTextViewTrait: TheWidget {
     fn set_word_wrap(&mut self, word_wrap: bool);
     fn set_padding(&mut self, padding: (usize, usize, usize, usize));
     fn set_background_override(&mut self, color: Option<TheColor>);
+    fn scroll_to_top(&mut self);
     fn scroll_to_bottom(&mut self);
     fn draw_background(&mut self, draw_background: bool);
     fn draw_border(&mut self, draw_border: bool);
@@ -690,12 +764,16 @@ impl TheTextViewTrait for TheTextView {
     }
     fn set_text(&mut self, text: String) {
         self.styled_ranges.clear();
+        self.interactive_ranges.clear();
+        self.hovered_interaction = None;
         self.state.set_text(text);
         self.is_dirty = true;
     }
     fn set_blocks(&mut self, blocks: Vec<TheTextViewBlock>) {
         self.state.reset();
         self.styled_ranges.clear();
+        self.interactive_ranges.clear();
+        self.hovered_interaction = None;
 
         let mut merged = String::new();
         let mut cursor = 0usize;
@@ -711,6 +789,7 @@ impl TheTextViewTrait for TheTextView {
                 );
             } else {
                 for span in block.spans {
+                    let start = cursor;
                     append_styled_segment(
                         &mut merged,
                         &mut cursor,
@@ -718,6 +797,11 @@ impl TheTextViewTrait for TheTextView {
                         &span.text,
                         &span.style,
                     );
+                    if let Some(interaction) = span.interaction
+                        && cursor > start
+                    {
+                        self.interactive_ranges.push((start..cursor, interaction));
+                    }
                 }
             }
         }
@@ -760,6 +844,11 @@ impl TheTextViewTrait for TheTextView {
         self.background_override = color;
         self.is_dirty = true;
     }
+    fn scroll_to_top(&mut self) {
+        self.renderer.scroll_offset = Vec2::zero();
+        self.pending_scroll_to_bottom = false;
+        self.is_dirty = true;
+    }
     fn scroll_to_bottom(&mut self) {
         self.pending_scroll_to_bottom = true;
         self.is_dirty = true;
@@ -799,5 +888,51 @@ fn append_styled_segment(
     }
     if end > start {
         styled_ranges.push((start..end, style.clone()));
+    }
+}
+
+fn apply_interaction_background(
+    styled_ranges: &mut Vec<(Range<usize>, TheTextStyle)>,
+    interaction_range: &Range<usize>,
+    background: &TheColor,
+) {
+    if let Some((_, style)) = styled_ranges
+        .iter_mut()
+        .find(|(range, _)| range == interaction_range)
+    {
+        style.background = Some(background.clone());
+    } else {
+        styled_ranges.push((
+            interaction_range.clone(),
+            TheTextStyle {
+                background: Some(background.clone()),
+                ..Default::default()
+            },
+        ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hover_background_preserves_interactive_foreground() {
+        let range = 4..11;
+        let mut styles = vec![(
+            range.clone(),
+            TheTextStyle {
+                foreground: Some(TheColor::from_hex("#78DCE8")),
+                background: None,
+                underline: Some(TheColor::from_hex("#78DCE8")),
+            },
+        )];
+
+        apply_interaction_background(&mut styles, &range, &TheColor::from_hex("#313A43"));
+
+        assert_eq!(styles.len(), 1);
+        assert!(styles[0].1.foreground.is_some());
+        assert!(styles[0].1.background.is_some());
+        assert!(styles[0].1.underline.is_some());
     }
 }

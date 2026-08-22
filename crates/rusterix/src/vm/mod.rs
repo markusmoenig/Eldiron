@@ -46,6 +46,7 @@ pub struct VM {
     path: PathBuf,
     pub context: Context,
     defaults: Option<Module>,
+    builtins: builtin::Builtins,
 }
 
 impl Default for VM {
@@ -56,17 +57,45 @@ impl Default for VM {
 
 impl VM {
     pub fn new() -> Self {
+        Self::with_builtins(builtin::Builtins::default())
+    }
+
+    pub fn with_builtins(builtins: builtin::Builtins) -> Self {
         Self {
             path: PathBuf::new(),
             context: Context::new(FxHashMap::default()),
             defaults: None,
+            builtins,
         }
+    }
+
+    /// Register a function implemented by the current Eldrin host.
+    ///
+    /// This makes host APIs extensible without adding every editor, plugin, or game-specific
+    /// function to Eldrin's global built-in list. Registration must happen before parsing.
+    pub fn register_host_function(&mut self, name: &str, arity: u8) -> Result<(), String> {
+        let valid = !name.is_empty()
+            && name
+                .chars()
+                .next()
+                .is_some_and(|ch| ch == '_' || ch.is_ascii_alphabetic())
+            && name
+                .chars()
+                .all(|ch| ch == '_' || ch.is_ascii_alphanumeric());
+        if !valid {
+            return Err(format!("Invalid Eldrin host function name '{name}'."));
+        }
+        if self.builtins.contains(name) {
+            return Err(format!("Eldrin function '{name}' is already registered."));
+        }
+        self.builtins.insert_host(name, arity);
+        Ok(())
     }
 
     // Parse the source code into a module.
     pub fn parse(&mut self, path: PathBuf) -> Result<Module, ParseError> {
         self.path = path.clone();
-        let mut parser = Parser::new();
+        let mut parser = Parser::with_builtins(self.builtins.clone());
         let module = parser.compile(path.clone())?;
 
         Ok(module)
@@ -75,7 +104,7 @@ impl VM {
     // Parse the source code into a module.
     pub fn parse_str(&mut self, str: &str) -> Result<Module, ParseError> {
         self.path = PathBuf::from("string_based.shpz");
-        let mut parser: Parser = Parser::new();
+        let mut parser = Parser::with_builtins(self.builtins.clone());
 
         let module = parser.compile_module("main".into(), str.into(), self.path.clone())?;
 
@@ -84,7 +113,7 @@ impl VM {
 
     // Compile the source code
     pub fn compile(&mut self, module: &Module) -> Result<(), RuntimeError> {
-        let mut visitor: CompileVisitor = CompileVisitor::new();
+        let mut visitor = CompileVisitor::with_builtins(self.builtins.clone());
         self.context = Context::new(module.globals.clone());
 
         // Add default materials
@@ -171,6 +200,44 @@ mod tests {
         let mut script = VM::default();
         let result = script.execute_string("let a = 2; a + 2;".into(), &ThePalette::default());
         assert_eq!(result.unwrap().x, 4.0);
+    }
+
+    #[test]
+    fn host_functions_can_be_registered_per_vm() {
+        #[derive(Default)]
+        struct EditorHost {
+            calls: Vec<(String, Vec<VMValue>)>,
+        }
+
+        impl HostHandler for EditorHost {
+            fn on_host_call(&mut self, name: &str, args: &[VMValue]) -> Option<VMValue> {
+                self.calls.push((name.to_string(), args.to_vec()));
+                Some(VMValue::from_bool(true))
+            }
+        }
+
+        let mut script = VM::default();
+        script.register_host_function("editor_action", 2).unwrap();
+        let program = script
+            .prepare_str(r#"editor_action("face.extrude", "amount = 2");"#)
+            .unwrap();
+        let mut execution = Execution::new(program.globals);
+        let mut host = EditorHost::default();
+        execution.execute_host(&program.body, &program, &mut host);
+
+        assert_eq!(host.calls.len(), 1);
+        assert_eq!(host.calls[0].0, "editor_action");
+        assert_eq!(host.calls[0].1[0].as_string(), Some("face.extrude"));
+        assert_eq!(host.calls[0].1[1].as_string(), Some("amount = 2"));
+    }
+
+    #[test]
+    fn host_function_registration_rejects_invalid_or_duplicate_names() {
+        let mut script = VM::default();
+        assert!(script.register_host_function("editor.action", 1).is_err());
+        assert!(script.register_host_function("print", 1).is_err());
+        script.register_host_function("editor_action", 2).unwrap();
+        assert!(script.register_host_function("editor_action", 2).is_err());
     }
 
     #[test]

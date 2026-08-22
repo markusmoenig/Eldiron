@@ -425,10 +425,6 @@ impl Tool for IsoPaintTool {
         Some('I')
     }
 
-    fn help_url(&self) -> Option<String> {
-        Some("docs/creator/tools/iso-paint".to_string())
-    }
-
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,

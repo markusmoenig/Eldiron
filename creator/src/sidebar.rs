@@ -25,6 +25,8 @@ pub enum SidebarMode {
 
 pub struct Sidebar {
     pub width: i32,
+    console: crate::docks::console::ConsoleDock,
+    help: crate::docks::help::HelpDock,
 
     curr_tilemap_uuid: Option<Uuid>,
     curr_tile_collection_uuid: Option<Uuid>,
@@ -36,7 +38,7 @@ pub struct Sidebar {
 
 #[allow(clippy::new_without_default)]
 impl Sidebar {
-    const NAVIGATION_PAGE_COUNT: usize = 2;
+    const NAVIGATION_PAGE_COUNT: usize = 4;
 
     fn next_navigation_page(current: usize, reverse: bool) -> usize {
         if reverse {
@@ -69,6 +71,31 @@ impl Sidebar {
         changed
     }
 
+    fn activate_navigation_page(
+        &mut self,
+        index: usize,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let changed = Self::set_navigation_page(index, ui, ctx);
+        if index == 2 {
+            self.console.activate(ui, ctx, project, server_ctx);
+        } else if index == 3 {
+            self.help.activate(ui, ctx, project, server_ctx);
+        } else if ctx
+            .ui
+            .focus
+            .as_ref()
+            .is_some_and(|id| id.name == "Console Input" || id.name == "Help Input")
+        {
+            ctx.ui.clear_focus();
+            ctx.ui.keyboard_focus = None;
+        }
+        changed
+    }
+
     pub fn reset_for_project_switch(&mut self) {
         self.curr_tilemap_uuid = None;
         self.curr_tile_collection_uuid = None;
@@ -93,60 +120,11 @@ impl Sidebar {
         }
     }
 
-    fn action_help_anchor(name: &str) -> String {
-        let lower = name.trim().to_ascii_lowercase();
-        let compact = lower.replace(['_', '-'], " ");
-
-        if compact.contains("editing camera") {
-            return "editing-camera".to_string();
-        }
-        if compact.contains("orbit camera") {
-            return "orbit-camera".to_string();
-        }
-        if compact.contains("iso camera") || compact.contains("3d iso camera") {
-            return "iso-camera".to_string();
-        }
-        if compact.contains("firstp camera")
-            || compact.contains("first p camera")
-            || compact.contains("first person camera")
-        {
-            return "first-person-camera".to_string();
-        }
-        if compact.contains("toggle rect geo") || compact.contains("toggle rect geometry") {
-            return "toggle-rect-geometry".to_string();
-        }
-        if compact.contains("toggle editing geo") || compact.contains("toggle editing geometry") {
-            return "toggle-editing-geometry".to_string();
-        }
-        if compact.contains("gate") && compact.contains("door") {
-            return "gate--door".to_string();
-        }
-        if compact.contains("edit maximize") {
-            return "edit--maximize".to_string();
-        }
-        // Generic slug fallback.
-        let normalized = lower
-            .replace('_', "-")
-            .strip_prefix("action-")
-            .unwrap_or(&lower)
-            .to_string();
-        let mut slug = String::with_capacity(normalized.len());
-        let mut prev_dash = false;
-        for ch in normalized.chars() {
-            if ch.is_ascii_alphanumeric() {
-                slug.push(ch.to_ascii_lowercase());
-                prev_dash = false;
-            } else if !prev_dash {
-                slug.push('-');
-                prev_dash = true;
-            }
-        }
-        slug.trim_matches('-').to_string()
-    }
-
     pub fn new() -> Self {
         Self {
             width: 380,
+            console: crate::docks::console::ConsoleDock::new(),
+            help: crate::docks::help::HelpDock::new(),
 
             curr_tilemap_uuid: None,
             curr_tile_collection_uuid: None,
@@ -301,11 +279,6 @@ impl Sidebar {
         debug_log_item.set_text(fl!("debug_log"));
         debug_log_item.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
         config_node.add_widget(Box::new(debug_log_item));
-
-        let mut console_item = TheTreeItem::new(TheId::named("Console"));
-        console_item.set_text("Console".to_string());
-        console_item.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
-        config_node.add_widget(Box::new(console_item));
 
         root.add_child(config_node);
 
@@ -470,6 +443,27 @@ impl Sidebar {
         action_stack.set_index(0);
         action_params_canvas.set_layout(action_stack);
 
+        let mut shortcut_label = TheText::new(TheId::named("Action Shortcut Label"));
+        shortcut_label.set_text(fl!("action_shortcut"));
+        shortcut_label.set_text_size(12.0);
+
+        let mut shortcut_value = TheText::new(TheId::named("Action Shortcut Value"));
+        shortcut_value.set_text("—".to_string());
+        shortcut_value.set_text_size(12.0);
+
+        let mut shortcut_layout = TheHLayout::new(TheId::named("Action Shortcut Layout"));
+        shortcut_layout.set_background_color(None);
+        shortcut_layout.set_margin(Vec4::new(10, 2, 10, 2));
+        shortcut_layout.add_widget(Box::new(shortcut_label));
+        shortcut_layout.add_widget(Box::new(shortcut_value));
+        shortcut_layout.set_reverse_index(Some(1));
+
+        let mut shortcut_canvas = TheCanvas::default();
+        shortcut_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        shortcut_canvas.set_layout(shortcut_layout);
+        action_params_canvas.set_top(shortcut_canvas);
+        action_params_canvas.top_is_expanding = false;
+
         let mut actions_canvas = TheCanvas::default();
         let mut actions_shared = TheSharedVLayout::new(TheId::named("Sidebar Actions Shared"));
         actions_shared.add_canvas(crate::dockmanager::DockManager::action_panel("Action List"));
@@ -483,6 +477,8 @@ impl Sidebar {
         let mut sidebar_pages = TheStackLayout::new(TheId::named("Sidebar Page Stack"));
         sidebar_pages.add_canvas(canvas);
         sidebar_pages.add_canvas(actions_canvas);
+        sidebar_pages.add_canvas(self.console.setup(ctx));
+        sidebar_pages.add_canvas(self.help.setup(ctx));
         sidebar_pages.set_index(0);
 
         let mut pages_canvas = TheCanvas::default();
@@ -515,6 +511,16 @@ impl Sidebar {
             fl!("tooltip_sidebar_actions"),
             "graph".to_string(),
         );
+        sidebar_tabs.add_text_status_icon(
+            String::new(),
+            fl!("tooltip_sidebar_console"),
+            "terminal-nav".to_string(),
+        );
+        sidebar_tabs.add_text_status_icon(
+            String::new(),
+            fl!("tooltip_sidebar_help"),
+            "question-mark".to_string(),
+        );
         sidebar_tabs.set_item_width(30);
 
         let mut tab_layout = TheHLayout::new(TheId::named("Sidebar Tab Layout"));
@@ -543,7 +549,55 @@ impl Sidebar {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        let mut redraw = false;
+        let mut redraw = self
+            .console
+            .handle_event(event, ui, ctx, project, server_ctx);
+        redraw |= self.help.handle_event(event, ui, ctx, project, server_ctx);
+
+        let console_requests = self.console.take_pending_requests();
+        if !console_requests.is_empty() {
+            let mut results = Vec::new();
+            let mut clear = false;
+            for request in console_requests {
+                let result = match request {
+                    crate::docks::console::ConsoleRequest::RunAction(request) => self
+                        .execute_action_command(&request, ui, ctx, project, server_ctx)
+                        .map(|_| {
+                            crate::docks::console::ConsoleDock::action_success_document(&request)
+                        }),
+                    crate::docks::console::ConsoleRequest::SelectTool { command_id } => self
+                        .execute_tool_command(&command_id, ui, ctx, project, server_ctx)
+                        .map(|changed| {
+                            if changed {
+                                crate::docks::console::ConsoleDock::success_document(format!(
+                                    "Selected tool `{command_id}`."
+                                ))
+                            } else {
+                                crate::docks::console::ConsoleDock::success_document(format!(
+                                    "Tool `{command_id}` is already selected."
+                                ))
+                            }
+                        }),
+                    crate::docks::console::ConsoleRequest::Clear => {
+                        clear = true;
+                        Ok(TheFeedbackDocument::default())
+                    }
+                    request => self
+                        .console
+                        .execute_local_request(&request, project, server_ctx, ctx),
+                };
+
+                match result {
+                    Ok(result) => results.push(result),
+                    Err(error) => {
+                        results.push(crate::docks::console::ConsoleDock::error_document(error));
+                        break;
+                    }
+                }
+            }
+            self.console.complete_requests(&results, clear, ui, ctx);
+            redraw = true;
+        }
 
         match event {
             TheEvent::SnapperStateChanged(id, _layout_id, open) => {
@@ -620,7 +674,7 @@ impl Sidebar {
             }
             TheEvent::IndexChanged(id, index) => {
                 if id.name == "Sidebar Tabs" {
-                    redraw |= Self::set_navigation_page(*index, ui, ctx);
+                    redraw |= self.activate_navigation_page(*index, ui, ctx, project, server_ctx);
                 } else if id.name == "Character Region Override" {
                     server_ctx.character_region_override = *index == 1;
                 } else if id.name == "Item Region Override" {
@@ -2312,11 +2366,16 @@ impl Sidebar {
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
+                let navigation_input_focused = ctx
+                    .ui
+                    .focus
+                    .as_ref()
+                    .is_some_and(|id| id.name == "Console Input" || id.name == "Help Input");
                 if *code == TheKeyCode::Tab
                     && !ui.ctrl
                     && !ui.alt
                     && !ui.logo
-                    && !ui.focus_widget_supports_text_input(ctx)
+                    && (!ui.focus_widget_supports_text_input(ctx) || navigation_input_focused)
                 {
                     let reverse = ui.shift;
                     let current = ui
@@ -2324,7 +2383,7 @@ impl Sidebar {
                         .map(|stack| stack.index());
                     if let Some(current) = current {
                         let next = Self::next_navigation_page(current, reverse);
-                        redraw |= Self::set_navigation_page(next, ui, ctx);
+                        redraw |= self.activate_navigation_page(next, ui, ctx, project, server_ctx);
                     }
                 } else if *code == TheKeyCode::Delete
                     && let Some(focus_id) = &ctx.ui.focus
@@ -2394,16 +2453,6 @@ impl Sidebar {
                 if let Some(action) =
                     ACTIONLIST.write().unwrap().get_action_by_id_mut(id.uuid)
                 {
-                    if server_ctx.help_mode {
-                        let anchor = Self::action_help_anchor(&action.id().name);
-                        let url = format!("docs/creator/actions/#{}", anchor);
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Show Help"),
-                            TheValue::Text(url),
-                        ));
-                        return true;
-                    }
-
                     server_ctx.curr_action_id = Some(action.id().uuid);
 
                     //layout.clear();
@@ -3506,9 +3555,6 @@ impl Sidebar {
                 } else if id.name == "Debug Log" {
                     set_project_context(ctx, ui, project, server_ctx, ProjectContext::DebugLog);
                     redraw = true;
-                } else if id.name == "Console" {
-                    set_project_context(ctx, ui, project, server_ctx, ProjectContext::Console);
-                    redraw = true;
                 } else if id.name == "Tileset Item" {
                     // Display the tileset editor
                     if let Some(t) = project.get_tilemap(id.references) {
@@ -4436,6 +4482,7 @@ impl Sidebar {
     }
 
     fn show_empty_action_toml(&self, ui: &mut TheUI, _ctx: &mut TheContext) {
+        self.show_action_shortcut(ui, None);
         if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
             stack.set_index(0);
         }
@@ -4579,6 +4626,7 @@ impl Sidebar {
         _server_ctx: &ServerContext,
         action: &dyn Action,
     ) {
+        self.show_action_shortcut(ui, action.accel());
         if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
             stack.set_index(0);
         }
@@ -4604,6 +4652,15 @@ impl Sidebar {
                 state.selection.reset();
                 TheTextAreaEditTrait::set_state(edit, state);
             }
+        }
+    }
+
+    fn show_action_shortcut(&self, ui: &mut TheUI, accelerator: Option<TheAccelerator>) {
+        if let Some(widget) = ui.get_widget("Action Shortcut Value") {
+            let text = accelerator
+                .map(|accelerator| accelerator.description())
+                .unwrap_or_else(|| "—".to_string());
+            widget.set_value(TheValue::Text(text));
         }
     }
 
@@ -4652,6 +4709,160 @@ impl Sidebar {
         changed
     }
 
+    fn set_action_toml_params(
+        &self,
+        action: &mut Box<dyn Action>,
+        source: &str,
+        project: &mut Project,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> Result<(), String> {
+        if source.trim().is_empty() {
+            return Ok(());
+        }
+
+        let mut nodeui = action.params();
+        apply_toml_to_nodeui(&mut nodeui, source)?;
+        if action.set_params_from_nodeui(nodeui.clone()) {
+            return Ok(());
+        }
+
+        for (key, value) in nodeui_to_value_pairs(&nodeui) {
+            let event = TheEvent::ValueChanged(TheId::named(&key), value);
+            action.handle_event(&event, project, ui, ctx, server_ctx);
+        }
+        Ok(())
+    }
+
+    /// Execute one stable editor command through the normal Action implementation.
+    ///
+    /// This is the shared boundary for Eldrin scripts and future plugins. It intentionally uses
+    /// the existing parameter, apply, project-apply, undo, and scene-rebuild machinery instead of
+    /// introducing a parallel mutation path.
+    pub fn execute_action_command(
+        &mut self,
+        request: &EditorActionRequest,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> Result<(), String> {
+        let mut actions = ACTIONLIST.write().unwrap();
+        let action = actions
+            .get_action_by_command_id_mut(&request.command_id)
+            .ok_or_else(|| format!("Unknown editor action '{}'.", request.command_id))?;
+
+        let applicable = project
+            .get_map(server_ctx)
+            .map(|map| action.is_applicable(map, ctx, server_ctx))
+            .unwrap_or(false);
+        if !applicable {
+            return Err(format!(
+                "Editor action '{}' is not applicable in the current context.",
+                request.command_id
+            ));
+        }
+
+        server_ctx.curr_action_id = Some(action.id().uuid);
+        if let Some(map) = project.get_map(server_ctx) {
+            action.load_params(map);
+        }
+        action.load_params_project(project, server_ctx);
+        self.set_action_toml_params(
+            action,
+            &request.parameters_toml,
+            project,
+            ui,
+            ctx,
+            server_ctx,
+        )?;
+        self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
+
+        let mut needs_scene_redraw = false;
+        if let Some(map) = project.get_map_mut(server_ctx) {
+            needs_scene_redraw = self.apply_action(action, map, ui, ctx, server_ctx, false);
+        }
+        action.apply_project(project, ui, ctx, server_ctx);
+
+        if needs_scene_redraw {
+            crate::utils::editor_scene_full_rebuild(project, server_ctx);
+            TOOLLIST
+                .write()
+                .unwrap()
+                .update_geometry_overlay_3d(project, server_ctx);
+        }
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Update Action List"),
+            TheValue::Empty,
+        ));
+        Ok(())
+    }
+
+    /// Select one stable tool through its normal deactivate/activate lifecycle.
+    pub fn execute_tool_command(
+        &mut self,
+        command_id: &str,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> Result<bool, String> {
+        let resolved = {
+            let tools = TOOLLIST.read().unwrap();
+            tools
+                .get_game_tool_uuid_by_command_id(command_id)
+                .and_then(|id| {
+                    tools
+                        .game_tools
+                        .iter()
+                        .find(|tool| tool.id().uuid == id)
+                        .map(|tool| (id, tool.id().name, tools.game_tool_is_available(command_id)))
+                })
+        };
+        let Some((tool_id, tool_name, available)) = resolved else {
+            return Err(format!("Unknown tool '{command_id}'."));
+        };
+        if !available {
+            return Err(format!(
+                "Tool '{command_id}' is unavailable in the current editor context."
+            ));
+        }
+
+        let changed = TOOLLIST
+            .write()
+            .unwrap()
+            .set_tool(tool_id, ui, ctx, project, server_ctx);
+        ctx.ui.set_widget_state(tool_name, TheWidgetState::Selected);
+        Ok(changed)
+    }
+
+    /// Run an Eldrin script containing `editor_action(id, TOML)` and `editor_tool(id)` calls.
+    /// Requests execute sequentially on the Creator UI thread and each successful action keeps its
+    /// regular undo entry. Tool requests retain the normal activation lifecycle.
+    pub fn execute_action_script(
+        &mut self,
+        source: &str,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> Result<usize, String> {
+        let requests = collect_editor_automation_requests(source)?;
+        for (index, request) in requests.iter().enumerate() {
+            let result = match request {
+                EditorAutomationRequest::Action(request) => {
+                    self.execute_action_command(request, ui, ctx, project, server_ctx)
+                }
+                EditorAutomationRequest::SelectTool { command_id } => self
+                    .execute_tool_command(command_id, ui, ctx, project, server_ctx)
+                    .map(|_| ()),
+            };
+            result.map_err(|error| format!("Editor operation {} failed: {}", index + 1, error))?;
+        }
+        Ok(requests.len())
+    }
+
     /// Shows the filtered actions for the current selection.
     pub fn show_actions(
         &mut self,
@@ -4669,18 +4880,24 @@ impl Sidebar {
                 let actions = ACTIONLIST.read().unwrap();
                 let mut found_current = false;
 
-                let mut camera_actions: Vec<TheListItem> = vec![];
-                let mut editor_actions: Vec<TheListItem> = vec![];
-                let mut dock_actions: Vec<TheListItem> = vec![];
+                let mut visible_actions: Vec<(usize, usize, TheListItem)> = vec![];
+                let hide_camera_actions =
+                    DOCKMANAGER.read().unwrap().get_state() == DockManagerState::Editor;
 
                 if let Some(map) = project.get_map(server_ctx).or(Some(&Map::default())) {
-                    for action in &actions.actions {
+                    for (registration_index, action) in actions.actions.iter().enumerate() {
                         let is_current = Some(action.id().uuid) == server_ctx.curr_action_id;
                         let keep_current_action_slots =
                             is_current && action.preserves_hud_material_slots();
                         if action.is_applicable(map, ctx, server_ctx) || keep_current_action_slots {
+                            if hide_camera_actions && action.role() == ActionRole::Camera {
+                                continue;
+                            }
+                            let descriptor = actions
+                                .descriptor_by_id(action.id().uuid)
+                                .expect("registered action descriptor");
                             let mut item = TheListItem::new(action.id().clone());
-                            item.set_text(action.id().name.clone());
+                            item.set_text(descriptor.group.qualified_name(&action.id().name));
 
                             // let mut accel_text = String::new();
                             // if let Some(accel) = action.accel() {
@@ -4695,33 +4912,29 @@ impl Sidebar {
                                     format!("{} ( {} )", status_text, accel.description());
                             }
                             item.set_status_text(&status_text);
-                            item.set_background_palette(ActionGroups, action.role().palette_slot());
+                            item.set_background_palette(
+                                ActionGroups,
+                                descriptor.group.palette_slot(),
+                            );
 
                             if is_current {
                                 found_current = true;
                                 item.set_state(TheWidgetState::Selected);
                             }
 
-                            if action.role() == ActionRole::Camera {
-                                camera_actions.push(item);
-                            } else if action.role() == ActionRole::Editor {
-                                editor_actions.push(item);
-                            } else {
-                                dock_actions.push(item);
-                            }
+                            visible_actions.push((
+                                descriptor.group.palette_slot(),
+                                registration_index,
+                                item,
+                            ));
                         }
                     }
                 }
 
-                if DOCKMANAGER.read().unwrap().get_state() != DockManagerState::Editor {
-                    for item in camera_actions {
-                        list_layout.add_item(item, ctx);
-                    }
-                }
-                for item in editor_actions {
-                    list_layout.add_item(item, ctx);
-                }
-                for item in dock_actions {
+                visible_actions.sort_by_key(|(group_order, registration_index, _)| {
+                    (*group_order, *registration_index)
+                });
+                for (_, _, item) in visible_actions {
                     list_layout.add_item(item, ctx);
                 }
 
@@ -4871,6 +5084,16 @@ impl Sidebar {
             TheValue::Empty,
         ));
     }
+
+    pub fn show_console_page(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        self.activate_navigation_page(2, ui, ctx, project, server_ctx)
+    }
 }
 
 #[cfg(test)]
@@ -4880,8 +5103,12 @@ mod tests {
     #[test]
     fn tab_navigation_wraps_in_both_directions() {
         assert_eq!(Sidebar::next_navigation_page(0, false), 1);
-        assert_eq!(Sidebar::next_navigation_page(1, false), 0);
-        assert_eq!(Sidebar::next_navigation_page(0, true), 1);
+        assert_eq!(Sidebar::next_navigation_page(1, false), 2);
+        assert_eq!(Sidebar::next_navigation_page(2, false), 3);
+        assert_eq!(Sidebar::next_navigation_page(3, false), 0);
+        assert_eq!(Sidebar::next_navigation_page(0, true), 3);
+        assert_eq!(Sidebar::next_navigation_page(3, true), 2);
+        assert_eq!(Sidebar::next_navigation_page(2, true), 1);
         assert_eq!(Sidebar::next_navigation_page(1, true), 0);
     }
 }

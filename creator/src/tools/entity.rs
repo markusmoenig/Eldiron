@@ -75,10 +75,6 @@ impl Tool for EntityTool {
         Some('Y')
     }
 
-    fn help_url(&self) -> Option<String> {
-        Some("docs/creator/tools/entity".to_string())
-    }
-
     fn tool_event(
         &mut self,
         tool_event: ToolEvent,

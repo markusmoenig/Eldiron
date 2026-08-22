@@ -49,7 +49,7 @@ Click an existing surface-line point or segment to select just that point or seg
 
 Press **Cmd/Ctrl + Shift + C** with surface-line segments selected to set them to straight lines or configurable arcs. You can also select two points on the same connected guide to curve the shortest path between them, which makes arch and rounded-detail guides possible without adding one-off arch tools. Positive and negative amounts bend the arc in opposite directions.
 
-When the selected shape is a closed loop, the status bar shows that **Create Cutout** and **Create Face** are available. Open or closed selected shapes can be used for **Create Ridge** and **Create Groove**.
+When the selected shape is a closed loop, the contextual shortcut overlay at the bottom of the geometry editor shows that **Create Cutout** and **Create Face** are available. Open or closed selected shapes can be used for **Create Ridge** and **Create Groove**.
 
 Surface lines are editor geometry attached to the face. They do not cut or deform the mesh by themselves. Use actions to commit selected lines into real geometry:
 
