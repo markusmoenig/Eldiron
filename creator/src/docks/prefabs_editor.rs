@@ -18,7 +18,6 @@ const PART_CREATE: &str = "Prefab Editor Create Part";
 const PART_SET_PIVOT: &str = "Prefab Editor Set Pivot";
 const PART_REMOVE: &str = "Prefab Editor Remove Part";
 const PART_CONFIGURE_DOOR: &str = "Prefab Editor Configure Door";
-const PART_CREATE_TARGET: &str = "Prefab Editor Create Interaction Target";
 const PART_PREVIEW_DOOR: &str = "Prefab Editor Preview Door";
 const PREFAB_ACTION_LIST: &str = "Prefab Action List";
 
@@ -111,11 +110,6 @@ impl PrefabsEditorDock {
                 fl!("status_prefab_editor_configure_door"),
             ),
             (
-                PART_CREATE_TARGET,
-                fl!("prefab_editor_create_target"),
-                fl!("status_prefab_editor_create_target"),
-            ),
-            (
                 PART_PREVIEW_DOOR,
                 fl!("prefab_editor_preview_door"),
                 fl!("status_prefab_editor_preview_door"),
@@ -127,7 +121,7 @@ impl PrefabsEditorDock {
             button.set_fixed_size(false);
             layout.add_widget(Box::new(button));
         }
-        layout.set_reverse_index(Some(3));
+        layout.set_reverse_index(Some(2));
         canvas.set_layout(layout);
         canvas
     }
@@ -424,7 +418,6 @@ impl PrefabsEditorDock {
             ui.set_enabled(PART_REMOVE, ctx);
             ui.set_enabled(PART_DOOR_ANGLE, ctx);
             ui.set_enabled(PART_CONFIGURE_DOOR, ctx);
-            ui.set_enabled(PART_CREATE_TARGET, ctx);
             ui.set_enabled(PART_PREVIEW_DOOR, ctx);
         } else {
             ui.set_disabled(PART_NAME, ctx);
@@ -434,7 +427,6 @@ impl PrefabsEditorDock {
             ui.set_disabled(PART_REMOVE, ctx);
             ui.set_disabled(PART_DOOR_ANGLE, ctx);
             ui.set_disabled(PART_CONFIGURE_DOOR, ctx);
-            ui.set_disabled(PART_CREATE_TARGET, ctx);
             ui.set_disabled(PART_PREVIEW_DOOR, ctx);
         }
     }
@@ -449,7 +441,6 @@ impl PrefabsEditorDock {
             PART_SET_PIVOT,
             PART_REMOVE,
             PART_CONFIGURE_DOOR,
-            PART_CREATE_TARGET,
             PART_PREVIEW_DOOR,
         ] {
             if parts {
@@ -877,35 +868,6 @@ impl Dock for PrefabsEditorDock {
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
                             fl!("status_prefab_door_configured"),
-                        ));
-                    }
-                    Err(message) => ctx
-                        .ui
-                        .send(TheEvent::SetStatusText(TheId::empty(), message)),
-                }
-                true
-            }
-            TheEvent::StateChanged(id, TheWidgetState::Clicked)
-                if id.name == PART_CREATE_TARGET =>
-            {
-                let Some(part_id) = self.selected_part_id else {
-                    return false;
-                };
-                self.close_door_preview(project, asset_id, server_ctx);
-                let before = project.clone();
-                match crate::block_props::create_prefab_interaction_target_from_selected_faces(
-                    project,
-                    asset_id,
-                    part_id,
-                    fl!("prefab_editor_default_door_target"),
-                ) {
-                    Ok(_) => {
-                        Self::push_project_undo(before, project, ctx);
-                        Self::sync_prefab_runtime(project);
-                        self.sync_part_inspector(ui, ctx, project, asset_id);
-                        ctx.ui.send(TheEvent::SetStatusText(
-                            TheId::empty(),
-                            fl!("status_prefab_target_created"),
                         ));
                     }
                     Err(message) => ctx

@@ -12,7 +12,3 @@ contexts:
     # Warn lines
     - match: (?i)^\s*\[(warn|warning)\].*$
       scope: keyword.other.warning.log
-
-    # Default log lines
-    - match: ^.*$
-      scope: variable.other.log

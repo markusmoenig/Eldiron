@@ -35,12 +35,15 @@ The Authoring dock edits player-facing TOML metadata for:
 
 - selected sectors
 - selected linedefs
+- selected 3D Geometry Objects
+- selected linked Prefab instances
 - selected character templates
 - selected item templates
 
 Important:
 
-- sectors and linedefs are authored from the current region selection
+- sectors, linedefs, and Geometry Objects are authored from the current region selection
+- linked Prefab instances edit the shared Prefab asset authoring used by every linked instance
 - characters and items are authored on their templates, not on placed instances
 - gameplay/mechanical TOML still belongs in the normal `Data` dock
 

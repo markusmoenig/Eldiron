@@ -3175,28 +3175,13 @@ impl VM {
     /// triangles and repeated tile geometry on the same physical plane intentionally resolve
     /// to one group; separate floor/wall planes do not. The low two bits remain reserved for
     /// the projection axis.
-    fn paint_surface_group_id(poly: &Poly3D, normal: [f32; 3], point: [f32; 3]) -> u32 {
-        let mut hasher = rustc_hash::FxHasher::default();
-        poly.id.hash(&mut hasher);
-        poly.layer.hash(&mut hasher);
-        let mut normal = normal;
-        let dominant = if normal[0].abs() >= normal[1].abs() && normal[0].abs() >= normal[2].abs() {
-            normal[0]
-        } else if normal[1].abs() >= normal[2].abs() {
-            normal[1]
-        } else {
-            normal[2]
-        };
-        if dominant < 0.0 {
-            normal = [-normal[0], -normal[1], -normal[2]];
-        }
-        for value in normal {
-            ((value * 4096.0).round() as i32).hash(&mut hasher);
-        }
-        let plane_offset = normal[0] * point[0] + normal[1] * point[1] + normal[2] * point[2];
-        ((plane_offset * 1024.0).round() as i64).hash(&mut hasher);
-        let hash = hasher.finish();
-        (((hash as u32) ^ ((hash >> 32) as u32)) & 0x3fff_ffff) << 2
+    fn paint_surface_group_id(
+        poly: &Poly3D,
+        paint_id: GeoId,
+        normal: [f32; 3],
+        point: [f32; 3],
+    ) -> u32 {
+        crate::core::legacy_raster3d_paint_surface_id(paint_id, poly.layer, normal, point)[3] & !0x3
     }
 
     fn paint_projection_axis(normal: [f32; 3]) -> u32 {
@@ -3213,11 +3198,7 @@ impl VM {
     }
 
     fn paint_surface_coordinate(world: [f32; 3], paint_geo: [u32; 4]) -> [f32; 2] {
-        match paint_geo[3] & 0x3 {
-            0 => [world[0], world[2]],
-            1 => [world[2], world[1]],
-            _ => [world[0], world[1]],
-        }
+        crate::core::legacy_raster3d_paint_surface_uv(world, paint_geo)
     }
 
     /// Resolve a persistent paint coordinate back onto the geometry's current world-space
@@ -9680,13 +9661,15 @@ impl VM {
                                 normal[0].abs() + normal[1].abs() + normal[2].abs() > 1e-6
                             })
                             .unwrap_or([0.0, 1.0, 0.0]);
+                        let paint_id = poly.paint_source_id.unwrap_or(poly.id);
                         let paint_surface_group = Self::paint_surface_group_id(
                             poly,
+                            paint_id,
                             paint_normal,
                             poly_pos.first().copied().unwrap_or([0.0; 3]),
                         );
                         let paint_axis = Self::paint_projection_axis(paint_normal);
-                        let mut legacy_paint_geo = Self::paint_geo_id_packed(poly.id);
+                        let mut legacy_paint_geo = Self::paint_geo_id_packed(paint_id);
                         legacy_paint_geo[3] = paint_surface_group | paint_axis;
 
                         for (i, p) in poly_pos.iter().enumerate() {
@@ -10178,13 +10161,15 @@ impl VM {
                                     normal[0].abs() + normal[1].abs() + normal[2].abs() > 1e-6
                                 })
                                 .unwrap_or([0.0, 1.0, 0.0]);
+                            let paint_id = poly.paint_source_id.unwrap_or(poly.id);
                             let paint_surface_group = Self::paint_surface_group_id(
                                 poly,
+                                paint_id,
                                 paint_normal,
                                 poly_pos.first().copied().unwrap_or([0.0; 3]),
                             );
                             let paint_axis = Self::paint_projection_axis(paint_normal);
-                            let mut legacy_paint_geo = Self::paint_geo_id_packed(poly.id);
+                            let mut legacy_paint_geo = Self::paint_geo_id_packed(paint_id);
                             legacy_paint_geo[3] = paint_surface_group | paint_axis;
 
                             for (i, p) in poly_pos.iter().enumerate() {
@@ -12253,9 +12238,11 @@ impl VM {
                         }
 
                         let normal_vec = triangle_normal(a, b, c).unwrap_or_else(Vec3::unit_y);
-                        let mut legacy_paint_geo = Self::paint_geo_id_packed(poly.id);
+                        let paint_id = poly.paint_source_id.unwrap_or(poly.id);
+                        let mut legacy_paint_geo = Self::paint_geo_id_packed(paint_id);
                         legacy_paint_geo[3] = Self::paint_surface_group_id(
                             poly,
+                            paint_id,
                             [normal_vec.x, normal_vec.y, normal_vec.z],
                             a,
                         ) | Self::paint_projection_axis([
@@ -13745,6 +13732,7 @@ mod shader_tests {
             0,
             true,
             surface_id,
+            None,
             vec![[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
         );
         let mut vm = VM::new(64, 64);

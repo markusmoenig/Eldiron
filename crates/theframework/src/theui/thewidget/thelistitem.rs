@@ -126,7 +126,7 @@ impl TheWidget for TheListItem {
                 }
             }
             TheEvent::Hover(_coord) => {
-                if self.state != TheWidgetState::Selected && !self.id().equals(&ctx.ui.hover) {
+                if !self.id().equals(&ctx.ui.hover) {
                     self.is_dirty = true;
                     ctx.ui.set_hover(self.id());
                     redraw = true;
@@ -482,5 +482,22 @@ impl TheListItemTrait for TheListItem {
     }
     fn add_value_column(&mut self, width: i32, value: TheValue) {
         self.values.push((width, value));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selected_item_still_claims_hover_for_help() {
+        let id = TheId::named("Selected Action");
+        let mut item = TheListItem::new(id.clone());
+        item.set_state(TheWidgetState::Selected);
+        let mut ctx = TheContext::new(320, 200, 1.0);
+
+        item.on_event(&TheEvent::Hover(Vec2::zero()), &mut ctx);
+
+        assert!(id.equals(&ctx.ui.hover));
     }
 }

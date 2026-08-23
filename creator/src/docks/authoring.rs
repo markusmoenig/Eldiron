@@ -7,16 +7,20 @@ use theframework::theui::thewidget::thetextedit::TheTextEditState;
 enum EntityKey {
     RegionSector(Uuid, Uuid),
     RegionLinedef(Uuid, Uuid),
+    RegionGeometryObject(Uuid, Uuid),
     CharacterTemplate(Uuid),
     ItemTemplate(Uuid),
+    PrefabAsset(Uuid),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AuthoringTarget {
     Sector(Uuid, u32, Uuid),
     Linedef(Uuid, u32, Uuid),
+    GeometryObject(Uuid, Uuid),
     CharacterTemplate(Uuid),
     ItemTemplate(Uuid),
+    PrefabAsset(Uuid),
 }
 
 impl AuthoringTarget {
@@ -28,8 +32,12 @@ impl AuthoringTarget {
             Self::Linedef(region_id, _, creator_id) => {
                 EntityKey::RegionLinedef(region_id, creator_id)
             }
+            Self::GeometryObject(region_id, object_id) => {
+                EntityKey::RegionGeometryObject(region_id, object_id)
+            }
             Self::CharacterTemplate(id) => EntityKey::CharacterTemplate(id),
             Self::ItemTemplate(id) => EntityKey::ItemTemplate(id),
+            Self::PrefabAsset(id) => EntityKey::PrefabAsset(id),
         }
     }
 
@@ -37,15 +45,19 @@ impl AuthoringTarget {
         match self {
             Self::Sector(_, id, _) => format!("{} {}", fl!("authoring_target_sector"), id),
             Self::Linedef(_, id, _) => format!("{} {}", fl!("authoring_target_linedef"), id),
+            Self::GeometryObject(_, _) => fl!("authoring_target_geometry_object"),
             Self::CharacterTemplate(_) => fl!("authoring_target_character"),
             Self::ItemTemplate(_) => fl!("authoring_target_item"),
+            Self::PrefabAsset(_) => fl!("authoring_target_prefab"),
         }
     }
 
     fn region_id(self) -> Option<Uuid> {
         match self {
-            Self::Sector(region_id, ..) | Self::Linedef(region_id, ..) => Some(region_id),
-            Self::CharacterTemplate(_) | Self::ItemTemplate(_) => None,
+            Self::Sector(region_id, ..)
+            | Self::Linedef(region_id, ..)
+            | Self::GeometryObject(region_id, ..) => Some(region_id),
+            Self::CharacterTemplate(_) | Self::ItemTemplate(_) | Self::PrefabAsset(_) => None,
         }
     }
 }
@@ -311,6 +323,9 @@ impl AuthoringDock {
                 "title = \"\"\ndescription = \"\"\"\n\"\"\"\n\n[state.off]\ndescription = \"\"\"\n\"\"\"\n\n[state.on]\ndescription = \"\"\"\n\"\"\"\n"
                     .to_string()
             }
+            AuthoringTarget::PrefabAsset(..) => {
+                "title = \"\"\ndescription = \"\"\"\n\"\"\"\n".to_string()
+            }
             _ => "title = \"\"\ndescription = \"\"\"\n\"\"\"\n".to_string(),
         }
     }
@@ -320,8 +335,45 @@ impl AuthoringDock {
         project: &Project,
         server_ctx: &ServerContext,
     ) -> Option<AuthoringTarget> {
+        // Linked Prefab geometry is rendered with derived object IDs and is not
+        // stored in `map.geometry_objects`. The Geometry tool records the
+        // owning instance instead, so resolve that selection back to the shared
+        // source asset whose authoring data all linked instances use.
+        if let Some(region) = project.get_region(&server_ctx.curr_region)
+            && let Some(instance_id) = region.map.selected_block_prop_instances.first()
+            && let Some(instance) = region
+                .map
+                .block_prop_instances
+                .iter()
+                .find(|instance| instance.id == *instance_id)
+            && project.block_props.contains_key(&instance.asset_id)
+        {
+            return Some(AuthoringTarget::PrefabAsset(instance.asset_id));
+        }
+
+        if server_ctx.block_tool_active
+            && let Some(asset_id) = server_ctx.curr_block_asset_id
+            && project.block_props.contains_key(&asset_id)
+        {
+            return Some(AuthoringTarget::PrefabAsset(asset_id));
+        }
+
         let region = project.get_region(&server_ctx.curr_region)?;
         let map = &region.map;
+
+        // A 3D object selection is the most specific map authoring target. It
+        // must win over stale 2D selections when switching editor views.
+        if let Some(object_id) = map.selected_geometry_objects.first().copied()
+            && map
+                .geometry_objects
+                .iter()
+                .any(|object| object.id == object_id)
+        {
+            return Some(AuthoringTarget::GeometryObject(
+                server_ctx.curr_region,
+                object_id,
+            ));
+        }
 
         if let Some(sector_id) = map.selected_sectors.first().copied()
             && let Some(sector) = map.find_sector(sector_id)
@@ -408,6 +460,13 @@ impl AuthoringDock {
                 .map
                 .find_linedef(id)
                 .map(|linedef| linedef.properties.get_str_default("data", "".into())),
+            AuthoringTarget::GeometryObject(_, object_id) => project
+                .get_region(&target.region_id()?)?
+                .map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == object_id)
+                .map(|object| object.properties.get_str_default("data", "".into())),
             AuthoringTarget::CharacterTemplate(id) => project
                 .characters
                 .get(&id)
@@ -415,6 +474,10 @@ impl AuthoringDock {
             AuthoringTarget::ItemTemplate(id) => {
                 project.items.get(&id).map(|item| item.authoring.clone())
             }
+            AuthoringTarget::PrefabAsset(id) => project
+                .block_props
+                .get(&id)
+                .map(|asset| asset.authoring.clone()),
         }?;
 
         if text.trim().is_empty() {
@@ -438,6 +501,18 @@ impl AuthoringDock {
                 .map(|linedef| linedef.name.clone())
                 .filter(|name| !name.trim().is_empty())
                 .unwrap_or_else(|| target.title()),
+            AuthoringTarget::GeometryObject(_, object_id) => project
+                .get_region(&target.region_id().unwrap())
+                .and_then(|region| {
+                    region
+                        .map
+                        .geometry_objects
+                        .iter()
+                        .find(|object| object.id == object_id)
+                })
+                .map(|object| object.name.clone())
+                .filter(|name| !name.trim().is_empty())
+                .unwrap_or_else(|| target.title()),
             AuthoringTarget::CharacterTemplate(id) => project
                 .characters
                 .get(&id)
@@ -448,6 +523,12 @@ impl AuthoringDock {
                 .items
                 .get(&id)
                 .map(|item| item.name.clone())
+                .filter(|name| !name.trim().is_empty())
+                .unwrap_or_else(|| target.title()),
+            AuthoringTarget::PrefabAsset(id) => project
+                .block_props
+                .get(&id)
+                .map(|asset| asset.name.clone())
                 .filter(|name| !name.trim().is_empty())
                 .unwrap_or_else(|| target.title()),
         }
@@ -473,6 +554,17 @@ impl AuthoringDock {
                     linedef.properties.set("data".into(), Value::Str(text));
                 }
             }
+            AuthoringTarget::GeometryObject(_, object_id) => {
+                if let Some(region) = project.get_region_mut(&target.region_id().unwrap())
+                    && let Some(object) = region
+                        .map
+                        .geometry_objects
+                        .iter_mut()
+                        .find(|object| object.id == object_id)
+                {
+                    object.properties.set("data".into(), Value::Str(text));
+                }
+            }
             AuthoringTarget::CharacterTemplate(id) => {
                 if let Some(character) = project.characters.get_mut(&id) {
                     character.authoring = text;
@@ -481,6 +573,11 @@ impl AuthoringDock {
             AuthoringTarget::ItemTemplate(id) => {
                 if let Some(item) = project.items.get_mut(&id) {
                     item.authoring = text;
+                }
+            }
+            AuthoringTarget::PrefabAsset(id) => {
+                if let Some(asset) = project.block_props.get_mut(&id) {
+                    asset.authoring = text;
                 }
             }
         }
@@ -557,5 +654,88 @@ impl AuthoringDock {
             }
             self.set_undo_state_to_ui(ctx);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn project_with_selected_geometry_object() -> (Project, ServerContext, Uuid) {
+        let mut project = Project::default();
+        let region = &mut project.regions[0];
+        let region_id = region.id;
+        let object = rusterix::GeometryObject::box_("Ancient Pillar", Vec3::zero(), Vec3::one());
+        let object_id = object.id;
+        region.map.geometry_objects.push(object);
+        region.map.selected_geometry_objects = vec![object_id];
+
+        let mut server_ctx = ServerContext::default();
+        server_ctx.curr_region = region_id;
+        server_ctx.pc = ProjectContext::Region(region_id);
+        (project, server_ctx, object_id)
+    }
+
+    #[test]
+    fn selected_geometry_object_is_an_authoring_target() {
+        let (project, server_ctx, object_id) = project_with_selected_geometry_object();
+        let dock = AuthoringDock::new();
+
+        assert_eq!(
+            dock.current_target(&project, &server_ctx),
+            Some(AuthoringTarget::GeometryObject(
+                server_ctx.curr_region,
+                object_id
+            ))
+        );
+    }
+
+    #[test]
+    fn geometry_object_authoring_uses_its_data_property() {
+        let (mut project, server_ctx, object_id) = project_with_selected_geometry_object();
+        let dock = AuthoringDock::new();
+        let target = AuthoringTarget::GeometryObject(server_ctx.curr_region, object_id);
+
+        assert_eq!(
+            dock.read_target_text(&project, target),
+            Some(dock.template_for_target(target))
+        );
+
+        let authored = "title = \"Pillar\"\ndescription = \"Weathered stone.\"\n".to_string();
+        dock.write_current(&mut project, &server_ctx, authored.clone());
+
+        assert_eq!(dock.read_target_text(&project, target), Some(authored));
+        assert_eq!(
+            dock.target_display_title(&project, target),
+            "Ancient Pillar"
+        );
+    }
+
+    #[test]
+    fn selected_linked_prefab_instance_targets_shared_asset_authoring() {
+        let mut project = Project::default();
+        let region_id = project.regions[0].id;
+        let source = rusterix::GeometryObject::box_("Source", Vec3::zero(), Vec3::one());
+        let asset = rusterix::BlockPropAsset::new_authored("Linked Pillar", vec![source]);
+        let asset_id = asset.id;
+        project.block_props.insert(asset_id, asset);
+
+        let instance = rusterix::BlockPropInstance::new(asset_id);
+        let instance_id = instance.id;
+        project.regions[0].map.block_prop_instances.push(instance);
+        project.regions[0].map.selected_block_prop_instances = vec![instance_id];
+
+        let mut server_ctx = ServerContext::default();
+        server_ctx.curr_region = region_id;
+        let dock = AuthoringDock::new();
+
+        assert_eq!(
+            dock.current_target(&project, &server_ctx),
+            Some(AuthoringTarget::PrefabAsset(asset_id))
+        );
+
+        let authored = "title = \"Pillar\"\ndescription = \"Shared.\"\n".to_string();
+        dock.write_current(&mut project, &server_ctx, authored.clone());
+        assert_eq!(project.block_props[&asset_id].authoring, authored);
     }
 }

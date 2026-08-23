@@ -118,7 +118,11 @@ function ToolsSection({ section }) {
 function AnnouncementSection({ section }) {
   return (
     <section className={styles.announcementSection}>
-      <div className={styles.announcementPanel}>
+      <div
+        className={`${styles.announcementPanel} ${
+          section.thumbnail ? "" : styles.announcementPanelTextOnly
+        }`}
+      >
         <div className={styles.announcementCopy}>
           <p className={styles.announcementEyebrow}>{section.eyebrow}</p>
           <h2>{section.title}</h2>

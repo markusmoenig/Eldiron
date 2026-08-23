@@ -446,6 +446,22 @@ mod ffi {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_project_sidebar() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Project Sidebar"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_actions_sidebar() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Actions Sidebar"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn rust_show_debug_log() {
         CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
             TheId::named("Show Debug Log"),
@@ -457,6 +473,14 @@ mod ffi {
     pub extern "C" fn rust_show_console() {
         CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
             TheId::named("Show Console"),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_show_help_sidebar() {
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named("Show Help Sidebar"),
             TheWidgetState::Clicked,
         ));
     }

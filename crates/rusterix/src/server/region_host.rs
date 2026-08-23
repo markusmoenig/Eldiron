@@ -357,7 +357,7 @@ fn rebuild_procedural_region(ctx: &mut RegionCtx, seed_arg: i64) -> bool {
             ctx.check_player_for_section_change_id(entity_id);
         } else {
             ctx.send_log_message(format!(
-                "[Procedural] {}: no walkable entrance position found for retained player id={}",
+                "[warning] [Procedural] {}: no walkable entrance position found for retained player id={}",
                 ctx.map.name, entity_id
             ));
         }

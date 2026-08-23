@@ -828,6 +828,7 @@ impl GeometryObjectBuilder {
                         paint_object_id,
                         crate::geometry_face_effective_paint_surface_id(face),
                     ),
+                    Some(GeoId::GeometryObject(paint_object_id)),
                     paint_uvs,
                 );
             }
@@ -962,6 +963,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         paint_object_id,
                         crate::geometry_face_effective_paint_surface_id(face),
                     ),
+                    Some(GeoId::GeometryObject(paint_object_id)),
                     paint_uvs.iter().map(|uv| [uv.x, uv.y]).collect(),
                 );
             }
@@ -1264,7 +1266,10 @@ mod tests {
         assert!(
             vmchunk.polys3d_map[&GeoId::GeometryObject(instance_object_id)]
                 .iter()
-                .any(|poly| poly.paint_surface_id == Some(expected))
+                .any(|poly| {
+                    poly.paint_surface_id == Some(expected)
+                        && poly.paint_source_id == Some(GeoId::GeometryObject(source_object_id))
+                })
         );
     }
 

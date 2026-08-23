@@ -294,7 +294,7 @@ const config = {
             position: "right",
             value: `
               <a href="https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA" class="navbar-icon" title="Eldiron YouTube Channel">
-                <img src="https://img.shields.io/youtube/channel/subscribers/UCCmrO356zLQv_m8dPEqBUfA?style=flat&color=458588&logo=youtube&label=Subscribe" alt="YouTube subscribers"/>
+                <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.socialcounts.org%2Fyoutube-live-subscriber-count%2FUCCmrO356zLQv_m8dPEqBUfA&amp;query=%24.counters.api.subscriberCount&amp;style=flat&amp;color=458588&amp;logo=youtube&amp;label=YouTube&amp;cacheSeconds=300" alt="Eldiron YouTube subscribers"/>
               </a>
             `,
           },

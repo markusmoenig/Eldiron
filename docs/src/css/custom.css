@@ -499,6 +499,33 @@ table {
 }
 
 /* Search */
+.navbar__search {
+    margin-left: 0.5rem;
+}
+
+.navbar__search-input {
+    width: 10rem;
+    height: 1.625rem;
+    padding-left: 1.9rem;
+    border-radius: 0.4rem;
+    background-position: 0.6rem center;
+    background-size: 0.9rem 0.9rem;
+    font-size: 0.875rem;
+}
+
+@media screen and (max-width: 996px) {
+    .navbar__search-input {
+        width: 9rem;
+    }
+}
+
+@media screen and (max-width: 576px) {
+    .navbar__search-input:not(:focus) {
+        width: 2rem;
+        padding-right: 0;
+    }
+}
+
 .DocSearch {
     --docsearch-text-color: var(--ifm-font-color-base);
     --docsearch-muted-color: var(--ifm-font-color-secondary);

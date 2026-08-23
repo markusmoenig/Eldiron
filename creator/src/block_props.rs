@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BlockPropCreateMode {
@@ -386,12 +387,25 @@ pub fn set_prefab_part_pivot_from_selection(
     let center = prefab_selection_center(project)
         .ok_or_else(|| fl!("status_prefab_part_select_pivot_geometry"))?;
     let pivot = [center.x, center.y, center.z];
-    let part = project
+    let asset = project
         .block_props
         .get_mut(&asset_id)
-        .and_then(|asset| asset.parts.iter_mut().find(|part| part.id == part_id))
+        .ok_or_else(|| fl!("status_prefab_part_missing"))?;
+    let part = asset
+        .parts
+        .iter_mut()
+        .find(|part| part.id == part_id)
         .ok_or_else(|| fl!("status_prefab_part_missing"))?;
     part.pivot = pivot;
+    for target in asset
+        .interaction_targets
+        .iter_mut()
+        .filter(|target| target.part_id == part_id)
+    {
+        if matches!(&target.shape, rusterix::BlockPropSemanticShape::Part) {
+            target.interaction_anchor = pivot;
+        }
+    }
     Ok(pivot)
 }
 
@@ -408,10 +422,11 @@ pub fn configure_prefab_door(
         .block_props
         .get_mut(&asset_id)
         .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?;
-    if asset.find_part(part_id).is_none() {
-        return Err(fl!("status_prefab_part_missing"));
-    }
-    if let Some(component) = asset.components.iter_mut().find(|component| {
+    let pivot = asset
+        .find_part(part_id)
+        .map(|part| part.pivot)
+        .ok_or_else(|| fl!("status_prefab_part_missing"))?;
+    let component_id = if let Some(component) = asset.components.iter_mut().find(|component| {
         component.kind == "Door" && component.properties.get_id("part_id") == Some(part_id)
     }) {
         component
@@ -422,94 +437,63 @@ pub fn configure_prefab_door(
                 .properties
                 .set("interaction_range", Value::Float(3.0));
         }
-        return Ok(component.id);
-    }
-
-    let mut component = rusterix::BlockPropComponent::new("Door");
-    component.properties.set("part_id", Value::Id(part_id));
-    component
-        .properties
-        .set("motion", Value::Str("Swing".to_string()));
-    component
-        .properties
-        .set("angle_degrees", Value::Float(angle_degrees));
-    component.properties.set("duration", Value::Float(0.35));
-    component
-        .properties
-        .set("interaction_range", Value::Float(3.0));
-    let component_id = component.id;
-    asset.components.push(component);
+        component.id
+    } else {
+        let mut component = rusterix::BlockPropComponent::new("Door");
+        component.properties.set("part_id", Value::Id(part_id));
+        component
+            .properties
+            .set("motion", Value::Str("Swing".to_string()));
+        component
+            .properties
+            .set("angle_degrees", Value::Float(angle_degrees));
+        component.properties.set("duration", Value::Float(0.35));
+        component
+            .properties
+            .set("interaction_range", Value::Float(3.0));
+        let component_id = component.id;
+        asset.components.push(component);
+        component_id
+    };
     if asset.default_state.get("open").is_none() {
         asset.default_state.set("open", Value::Bool(false));
     }
-    Ok(component_id)
-}
 
-pub fn create_prefab_interaction_target_from_selected_faces(
-    project: &mut Project,
-    asset_id: Uuid,
-    part_id: Uuid,
-    name: impl Into<String>,
-) -> Result<Uuid, String> {
-    let component_id = project
-        .block_props
-        .get(&asset_id)
-        .and_then(|asset| {
-            asset.components.iter().find(|component| {
-                component.kind == "Door" && component.properties.get_id("part_id") == Some(part_id)
-            })
-        })
-        .map(|component| component.id)
-        .ok_or_else(|| fl!("status_prefab_door_required"))?;
-    let map = project
-        .prefab_editor_map
-        .as_ref()
-        .ok_or_else(|| fl!("error_prefab_editor_not_open"))?;
-    if map.selected_geometry_faces.is_empty() {
-        return Err(fl!("status_prefab_target_select_faces"));
-    }
-    let mut faces = Vec::new();
-    for (object_id, face_index) in &map.selected_geometry_faces {
-        if project.prefab_editor_part_by_object.get(object_id) != Some(&part_id) {
-            return Err(fl!("status_prefab_target_wrong_part"));
-        }
-        let object = map
-            .geometry_objects
-            .iter()
-            .find(|object| object.id == *object_id)
-            .ok_or_else(|| fl!("status_prefab_target_face_missing"))?;
-        let face = object
-            .faces
-            .get(*face_index)
-            .ok_or_else(|| fl!("status_prefab_target_face_missing"))?;
-        faces.push(rusterix::BlockPropFaceRef {
-            object_id: *object_id,
-            face_id: face.id,
-        });
-    }
-    let pivot = project
-        .block_props
-        .get(&asset_id)
-        .and_then(|asset| asset.find_part(part_id))
-        .map(|part| part.pivot)
-        .ok_or_else(|| fl!("status_prefab_part_missing"))?;
-    let target = rusterix::BlockPropInteractionTarget {
-        id: Uuid::new_v4(),
-        name: name.into(),
-        part_id,
-        shape: rusterix::BlockPropSemanticShape::Faces(faces),
-        interaction_anchor: pivot,
-        facing_direction: [0.0, 0.0, 1.0],
-        component_id: Some(component_id),
-    };
-    let target_id = target.id;
-    project
-        .block_props
-        .get_mut(&asset_id)
-        .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?
+    // A standard Door is interactive through every Geometry Object in its part.
+    // Reconfigure the first legacy target and discard duplicates created by the
+    // former face-selection workflow.
+    let existing_target_id = asset
         .interaction_targets
-        .push(target);
-    Ok(target_id)
+        .iter()
+        .find(|target| target.component_id == Some(component_id))
+        .map(|target| target.id);
+    if let Some(target_id) = existing_target_id {
+        if let Some(target) = asset
+            .interaction_targets
+            .iter_mut()
+            .find(|target| target.id == target_id)
+        {
+            target.part_id = part_id;
+            target.shape = rusterix::BlockPropSemanticShape::Part;
+            target.interaction_anchor = pivot;
+        }
+        asset
+            .interaction_targets
+            .retain(|target| target.component_id != Some(component_id) || target.id == target_id);
+    } else {
+        asset
+            .interaction_targets
+            .push(rusterix::BlockPropInteractionTarget {
+                id: Uuid::new_v4(),
+                name: "Door Interaction".to_string(),
+                part_id,
+                shape: rusterix::BlockPropSemanticShape::Part,
+                interaction_anchor: pivot,
+                facing_direction: [0.0, 0.0, 1.0],
+                component_id: Some(component_id),
+            });
+    }
+    Ok(component_id)
 }
 
 /// Add each visible Prefab source paint layer used by a map to the layer that
@@ -518,16 +502,36 @@ pub fn create_prefab_interaction_target_from_selected_faces(
 pub fn merge_prefab_paint_for_map(
     target: &mut IsoPaintLayer,
     map: &Map,
+    assets: &IndexMap<Uuid, rusterix::BlockPropAsset>,
     paint_catalog: &IndexMap<Uuid, IsoPaintLayer>,
 ) {
+    target.surface_instance_owners.clear();
     if !target.visible {
         target.chunks.clear();
         target.baked_chunks.clear();
         target.surface_commit_strokes.clear();
     }
     let mut asset_ids = FxHashSet::default();
+    let mut instance_owner_ids = FxHashSet::default();
     for instance in &map.block_prop_instances {
         asset_ids.insert(instance.asset_id);
+        if paint_catalog
+            .get(&instance.asset_id)
+            .is_some_and(|paint| paint.visible)
+            && let Some(asset) = assets.get(&instance.asset_id)
+        {
+            for part in &asset.parts {
+                for object in part.geometry_source.geometry_objects() {
+                    let rendered_id =
+                        rusterix::block_prop_instance_object_id(instance.id, part.id, object.id);
+                    if instance_owner_ids.insert(rendered_id) {
+                        target
+                            .surface_instance_owners
+                            .push(IsoPaintOwner::GeometryObject(rendered_id));
+                    }
+                }
+            }
+        }
     }
     for asset_id in asset_ids {
         let Some(source) = paint_catalog.get(&asset_id).filter(|paint| paint.visible) else {
@@ -568,6 +572,250 @@ fn selected_geometry(map: &Map) -> Vec<rusterix::GeometryObject> {
                 .cloned()
         })
         .collect()
+}
+
+fn paint_owner_is_selected(owner: Option<&IsoPaintOwner>, selected: &FxHashSet<Uuid>) -> bool {
+    matches!(owner, Some(IsoPaintOwner::GeometryObject(object_id)) if selected.contains(object_id))
+}
+
+fn persistent_geometry_paint_id(object_id: Uuid, surface_id: Uuid) -> [u32; 4] {
+    let value = surface_id.as_u128() ^ object_id.as_u128().rotate_left(1);
+    [
+        value as u32,
+        (value >> 32) as u32,
+        (value >> 64) as u32,
+        (value >> 96) as u32,
+    ]
+}
+
+fn baked_paint_chunk_key(paint_geo: [u32; 4], origin: [i32; 2]) -> String {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    paint_geo.hash(&mut hasher);
+    format!("{:016x}:{},{}", hasher.finish(), origin[0], origin[1])
+}
+
+fn selected_geometry_paint_ids(
+    layer: &IsoPaintLayer,
+    selected: &FxHashSet<Uuid>,
+) -> FxHashSet<[u32; 4]> {
+    let mut ids = FxHashSet::default();
+    for chunk in layer.chunks.values() {
+        for point in chunk.strokes.iter().flat_map(|stroke| stroke.points.iter()) {
+            if paint_owner_is_selected(point.owner.as_ref(), selected)
+                && let Some(paint_geo) = point.paint_geo
+            {
+                ids.insert(paint_geo);
+            }
+        }
+        for stamp in &chunk.stamps {
+            if paint_owner_is_selected(stamp.owner.as_ref(), selected)
+                && let Some(paint_geo) = stamp.paint_geo
+            {
+                ids.insert(paint_geo);
+            }
+        }
+    }
+    for chunk in layer.baked_chunks.values() {
+        if paint_owner_is_selected(Some(&chunk.owner), selected) {
+            ids.insert(chunk.paint_geo);
+        }
+    }
+    ids
+}
+
+/// Give legacy world-projected paint a persistent surface identity before its
+/// Geometry Objects become linked instances. The fixed UVs intentionally retain
+/// the original projection, so all later instances sample the same authored pixels.
+fn stabilize_selected_geometry_paint(
+    map: &mut Map,
+    selected: &FxHashSet<Uuid>,
+    painted_ids: &FxHashSet<[u32; 4]>,
+) -> FxHashMap<[u32; 4], [u32; 4]> {
+    let mut remap = FxHashMap::default();
+    for object in map
+        .geometry_objects
+        .iter_mut()
+        .filter(|object| selected.contains(&object.id))
+    {
+        let mut surface_ids = FxHashMap::<[u32; 4], Uuid>::default();
+        for face_index in 0..object.faces.len() {
+            let has_persistent_uvs =
+                object.faces[face_index].paint_uvs.len() == object.faces[face_index].indices.len();
+            let local_points = object.faces[face_index]
+                .indices
+                .iter()
+                .filter_map(|index| object.vertices.get(*index).copied())
+                .collect::<Vec<_>>();
+            let points = local_points
+                .iter()
+                .copied()
+                .map(|point| object.transform_point(point))
+                .collect::<Vec<_>>();
+            if points.len() < 3 {
+                continue;
+            }
+            let mut normal = Vec3::<f32>::zero();
+            for index in 1..points.len() - 1 {
+                normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+            }
+            let Some(normal) = normal.try_normalized() else {
+                continue;
+            };
+            let legacy_id = scenevm::core::legacy_raster3d_paint_surface_id(
+                scenevm::GeoId::GeometryObject(object.id),
+                0,
+                [normal.x, normal.y, normal.z],
+                [points[0].x, points[0].y, points[0].z],
+            );
+            let face = &mut object.faces[face_index];
+            let original_surface_id = rusterix::geometry_face_effective_paint_surface_id(face);
+            let original_stable_id = persistent_geometry_paint_id(object.id, original_surface_id);
+            if painted_ids.contains(&legacy_id) && !painted_ids.contains(&original_stable_id) {
+                let surface_id = *surface_ids.entry(legacy_id).or_insert(original_surface_id);
+                let stable_id = persistent_geometry_paint_id(object.id, surface_id);
+                face.paint_surface_id = Some(surface_id);
+                face.paint_uvs = points
+                    .iter()
+                    .map(|point| {
+                        let uv = scenevm::core::legacy_raster3d_paint_surface_uv(
+                            [point.x, point.y, point.z],
+                            legacy_id,
+                        );
+                        Vec2::new(uv[0], uv[1])
+                    })
+                    .collect();
+                remap.insert(legacy_id, stable_id);
+            } else if !has_persistent_uvs {
+                face.paint_uvs = rusterix::geometry_face_paint_uvs(&local_points);
+            }
+        }
+    }
+    remap
+}
+
+fn remap_selected_geometry_paint(
+    layer: &mut IsoPaintLayer,
+    selected: &FxHashSet<Uuid>,
+    remap: &FxHashMap<[u32; 4], [u32; 4]>,
+) {
+    if remap.is_empty() {
+        return;
+    }
+    for chunk in layer.chunks.values_mut() {
+        for stroke in &mut chunk.strokes {
+            for point in &mut stroke.points {
+                if paint_owner_is_selected(point.owner.as_ref(), selected)
+                    && let Some(stable_id) = point.paint_geo.and_then(|id| remap.get(&id))
+                {
+                    point.paint_geo = Some(*stable_id);
+                }
+            }
+        }
+        for stamp in &mut chunk.stamps {
+            if paint_owner_is_selected(stamp.owner.as_ref(), selected)
+                && let Some(stable_id) = stamp.paint_geo.and_then(|id| remap.get(&id))
+            {
+                stamp.paint_geo = Some(*stable_id);
+            }
+        }
+    }
+
+    let baked_chunks = std::mem::take(&mut layer.baked_chunks);
+    for (_, mut chunk) in baked_chunks {
+        if paint_owner_is_selected(Some(&chunk.owner), selected)
+            && let Some(stable_id) = remap.get(&chunk.paint_geo)
+        {
+            chunk.paint_geo = *stable_id;
+        }
+        let key = baked_paint_chunk_key(chunk.paint_geo, chunk.origin);
+        layer.baked_chunks.insert(key, chunk);
+    }
+}
+
+/// Removes paint belonging to the selected geometry objects from a region layer and returns it
+/// as an independent Prefab paint layer. Geometry paint is surface-clipped by default, so a
+/// persistent stroke belongs to the object owning its first point. Baked chunks and stamps carry
+/// that same stable owner explicitly.
+fn take_geometry_object_paint(
+    source: &mut IsoPaintLayer,
+    selected: &FxHashSet<Uuid>,
+) -> IsoPaintLayer {
+    let mut extracted = source.clone();
+    extracted.chunks.clear();
+    extracted.screen_chunks.clear();
+    extracted.baked_chunks.clear();
+    extracted.surface_commit_strokes.clear();
+    extracted.surface_instance_owners.clear();
+
+    let committed: FxHashSet<Uuid> = source.surface_commit_strokes.iter().copied().collect();
+    let mut moved_stroke_ids = FxHashSet::default();
+    let mut empty_chunk_keys = Vec::new();
+
+    for (key, chunk) in &mut source.chunks {
+        let mut moved = chunk.clone();
+        moved.strokes.clear();
+        moved.stamps.clear();
+
+        let mut retained_strokes = Vec::with_capacity(chunk.strokes.len());
+        for stroke in chunk.strokes.drain(..) {
+            if paint_owner_is_selected(
+                stroke.points.first().and_then(|point| point.owner.as_ref()),
+                selected,
+            ) {
+                moved_stroke_ids.insert(stroke.id);
+                moved.strokes.push(stroke);
+            } else {
+                retained_strokes.push(stroke);
+            }
+        }
+        chunk.strokes = retained_strokes;
+
+        let mut retained_stamps = Vec::with_capacity(chunk.stamps.len());
+        for stamp in chunk.stamps.drain(..) {
+            if paint_owner_is_selected(stamp.owner.as_ref(), selected) {
+                moved.stamps.push(stamp);
+            } else {
+                retained_stamps.push(stamp);
+            }
+        }
+        chunk.stamps = retained_stamps;
+
+        if !moved.strokes.is_empty() || !moved.stamps.is_empty() {
+            extracted.chunks.insert(key.clone(), moved);
+            chunk.revision = chunk.revision.wrapping_add(1);
+            chunk.stamp_revision = chunk.stamp_revision.wrapping_add(1);
+        }
+        if chunk.strokes.is_empty() && chunk.stamps.is_empty() {
+            empty_chunk_keys.push(key.clone());
+        }
+    }
+    for key in empty_chunk_keys {
+        source.chunks.shift_remove(&key);
+    }
+
+    let baked_keys = source
+        .baked_chunks
+        .iter()
+        .filter_map(|(key, chunk)| {
+            paint_owner_is_selected(Some(&chunk.owner), selected).then(|| key.clone())
+        })
+        .collect::<Vec<_>>();
+    for key in baked_keys {
+        if let Some(chunk) = source.baked_chunks.shift_remove(&key) {
+            extracted.baked_chunks.insert(key, chunk);
+        }
+    }
+
+    extracted.surface_commit_strokes = moved_stroke_ids
+        .iter()
+        .filter(|stroke_id| committed.contains(stroke_id))
+        .copied()
+        .collect();
+    source
+        .surface_commit_strokes
+        .retain(|stroke_id| !moved_stroke_ids.contains(stroke_id));
+
+    extracted
 }
 
 fn bottom_center(objects: &[rusterix::GeometryObject]) -> Option<Vec3<f32>> {
@@ -708,6 +956,20 @@ pub fn create_authored_block_prop(
         .get_map(server_ctx)
         .cloned()
         .ok_or_else(|| fl!("error_prefab_needs_editable_map"))?;
+    let selected: FxHashSet<Uuid> = map.selected_geometry_objects.iter().copied().collect();
+    if mode == BlockPropCreateMode::ReplaceSelection
+        && !server_ctx.pc.is_prefab()
+        && server_ctx.get_map_context() == MapContext::Region
+    {
+        let painted_ids = project
+            .get_region_ctx(server_ctx)
+            .map(|region| selected_geometry_paint_ids(&region.iso_paint, &selected))
+            .unwrap_or_default();
+        let paint_remap = stabilize_selected_geometry_paint(&mut map, &selected, &painted_ids);
+        if let Some(region) = project.get_region_ctx_mut(server_ctx) {
+            remap_selected_geometry_paint(&mut region.iso_paint, &selected, &paint_remap);
+        }
+    }
     let source_objects = selected_geometry(&map);
     if source_objects.is_empty() {
         return Err(fl!("error_prefab_select_geometry"));
@@ -726,7 +988,13 @@ pub fn create_authored_block_prop(
     project.block_props.insert(asset_id, asset);
 
     let instance_id = if mode == BlockPropCreateMode::ReplaceSelection {
-        let selected: FxHashSet<Uuid> = map.selected_geometry_objects.iter().copied().collect();
+        if !server_ctx.pc.is_prefab()
+            && server_ctx.get_map_context() == MapContext::Region
+            && let Some(region) = project.get_region_ctx_mut(server_ctx)
+        {
+            let prefab_paint = take_geometry_object_paint(&mut region.iso_paint, &selected);
+            project.block_prop_paint.insert(asset_id, prefab_paint);
+        }
         map.geometry_objects
             .retain(|object| !selected.contains(&object.id));
         map.clear_selection();
@@ -967,6 +1235,142 @@ mod tests {
     }
 
     #[test]
+    fn create_linked_prefab_moves_only_selected_object_paint_into_asset() {
+        let (mut project, server_ctx, object_id) = project_with_selected_box();
+        let (paint_world, legacy_paint_geo, legacy_paint_uv, painted_face_id) = {
+            let object = project
+                .get_map(&server_ctx)
+                .unwrap()
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == object_id)
+                .unwrap();
+            let face = &object.faces[0];
+            let points = face
+                .indices
+                .iter()
+                .map(|index| object.transform_point(object.vertices[*index]))
+                .collect::<Vec<_>>();
+            let normal = (points[1] - points[0])
+                .cross(points[2] - points[0])
+                .normalized();
+            let world = points[0];
+            let paint_geo = scenevm::core::legacy_raster3d_paint_surface_id(
+                scenevm::GeoId::GeometryObject(object_id),
+                0,
+                [normal.x, normal.y, normal.z],
+                [world.x, world.y, world.z],
+            );
+            let paint_uv = scenevm::core::legacy_raster3d_paint_surface_uv(
+                [world.x, world.y, world.z],
+                paint_geo,
+            );
+            (world, paint_geo, paint_uv, face.id)
+        };
+        let other_object = rusterix::GeometryObject::box_from_bounds(
+            "Other",
+            Vec3::new(10.0, 0.0, 10.0),
+            Vec3::new(11.0, 1.0, 11.0),
+        );
+        let other_object_id = other_object.id;
+        let region = project.get_region_ctx_mut(&server_ctx).unwrap();
+        region.map.geometry_objects.push(other_object);
+
+        let selected_stroke = region.iso_paint.begin_stroke(
+            IsoPaintPoint::new(
+                [10, 10],
+                Some(paint_world),
+                Some(IsoPaintOwner::GeometryObject(object_id)),
+            )
+            .with_surface_uv(Some(Vec2::new(legacy_paint_uv[0], legacy_paint_uv[1])))
+            .with_paint_geo(Some(legacy_paint_geo)),
+        );
+        let other_stroke = region.iso_paint.begin_stroke(
+            IsoPaintPoint::new(
+                [20, 20],
+                None,
+                Some(IsoPaintOwner::GeometryObject(other_object_id)),
+            )
+            .with_surface_uv(Some(Vec2::new(0.5, 0.5)))
+            .with_paint_geo(Some([5, 6, 7, 8])),
+        );
+        region
+            .iso_paint
+            .surface_commit_strokes
+            .extend([selected_stroke, other_stroke]);
+
+        let created = create_authored_block_prop(
+            &mut project,
+            &server_ctx,
+            "Painted Table",
+            BlockPropCreateMode::ReplaceSelection,
+        )
+        .unwrap();
+
+        let prefab_paint = &project.block_prop_paint[&created.asset_id];
+        let source_object = project.block_props[&created.asset_id].parts[0]
+            .geometry_source
+            .geometry_objects()
+            .iter()
+            .find(|object| object.id == object_id)
+            .unwrap();
+        let painted_face = source_object
+            .faces
+            .iter()
+            .find(|face| face.id == painted_face_id)
+            .unwrap();
+        let stable_paint_geo = persistent_geometry_paint_id(
+            object_id,
+            painted_face
+                .paint_surface_id
+                .expect("persistent paint surface"),
+        );
+        assert_eq!(painted_face.paint_uvs.len(), painted_face.indices.len());
+        assert_ne!(stable_paint_geo, legacy_paint_geo);
+        assert_eq!(
+            prefab_paint.stroke_first_owner(selected_stroke),
+            Some(IsoPaintOwner::GeometryObject(object_id))
+        );
+        assert!(prefab_paint.chunks.values().any(|chunk| {
+            chunk.strokes.iter().any(|stroke| {
+                stroke.id == selected_stroke && stroke.points[0].paint_geo == Some(stable_paint_geo)
+            })
+        }));
+        assert!(prefab_paint.stroke_first_owner(other_stroke).is_none());
+        assert!(
+            prefab_paint
+                .surface_commit_strokes
+                .contains(&selected_stroke)
+        );
+        assert!(!prefab_paint.surface_commit_strokes.contains(&other_stroke));
+        assert!(
+            prefab_paint
+                .baked_chunks
+                .values()
+                .all(|chunk| chunk.owner == IsoPaintOwner::GeometryObject(object_id))
+        );
+
+        let region_paint = &project.get_region_ctx(&server_ctx).unwrap().iso_paint;
+        assert!(region_paint.stroke_first_owner(selected_stroke).is_none());
+        assert_eq!(
+            region_paint.stroke_first_owner(other_stroke),
+            Some(IsoPaintOwner::GeometryObject(other_object_id))
+        );
+        assert!(
+            !region_paint
+                .surface_commit_strokes
+                .contains(&selected_stroke)
+        );
+        assert!(region_paint.surface_commit_strokes.contains(&other_stroke));
+        assert!(
+            region_paint
+                .baked_chunks
+                .values()
+                .all(|chunk| chunk.owner == IsoPaintOwner::GeometryObject(other_object_id))
+        );
+    }
+
+    #[test]
     fn create_and_keep_preserves_source_geometry() {
         let (mut project, server_ctx, object_id) = project_with_selected_box();
         let created = create_authored_block_prop(
@@ -1043,7 +1447,7 @@ mod tests {
     }
 
     #[test]
-    fn door_authoring_keeps_stable_hierarchy_pivot_and_face_target() {
+    fn door_authoring_keeps_stable_hierarchy_pivot_and_part_target() {
         let mut project = Project::default();
         let frame = rusterix::GeometryObject::box_from_bounds(
             "Frame",
@@ -1080,15 +1484,30 @@ mod tests {
 
         let component_id =
             configure_prefab_door(&mut project, asset_id, leaf_part_id, 95.0).unwrap();
-        let map = project.prefab_editor_map.as_mut().unwrap();
-        map.selected_geometry_faces = vec![(leaf_object_id, 0), (leaf_object_id, 1)];
-        let target_id = create_prefab_interaction_target_from_selected_faces(
-            &mut project,
-            asset_id,
-            leaf_part_id,
-            "Door Interaction",
-        )
-        .unwrap();
+        let target_id = project.block_props[&asset_id].interaction_targets[0].id;
+        {
+            let asset = project.block_props.get_mut(&asset_id).unwrap();
+            let face_id = asset
+                .find_part(leaf_part_id)
+                .unwrap()
+                .geometry_source
+                .geometry_objects()[0]
+                .faces[0]
+                .id;
+            let mut duplicate = {
+                let target = &mut asset.interaction_targets[0];
+                target.shape =
+                    rusterix::BlockPropSemanticShape::Faces(vec![rusterix::BlockPropFaceRef {
+                        object_id: leaf_object_id,
+                        face_id,
+                    }]);
+                target.clone()
+            };
+            duplicate.id = Uuid::new_v4();
+            asset.interaction_targets.push(duplicate);
+        }
+        let configured_again =
+            configure_prefab_door(&mut project, asset_id, leaf_part_id, 100.0).unwrap();
 
         let asset = &project.block_props[&asset_id];
         assert_eq!(
@@ -1096,12 +1515,14 @@ mod tests {
             Some(root_id)
         );
         assert_eq!(asset.components[0].id, component_id);
+        assert_eq!(configured_again, component_id);
+        assert_eq!(asset.interaction_targets.len(), 1);
         let target = asset.find_interaction_target(target_id).unwrap();
         assert_eq!(target.part_id, leaf_part_id);
         assert_eq!(target.component_id, Some(component_id));
         assert!(matches!(
             &target.shape,
-            rusterix::BlockPropSemanticShape::Faces(faces) if faces.len() == 2
+            rusterix::BlockPropSemanticShape::Part
         ));
     }
 
@@ -1121,10 +1542,20 @@ mod tests {
         catalog.insert(asset_id, source);
         let mut target = IsoPaintLayer::default();
 
-        merge_prefab_paint_for_map(&mut target, &map, &catalog);
+        let object = rusterix::GeometryObject::box_from_bounds(
+            "Painted Prefab Geometry",
+            Vec3::zero(),
+            Vec3::broadcast(1.0),
+        );
+        let mut asset = rusterix::BlockPropAsset::new_authored("Painted Prefab", vec![object]);
+        asset.id = asset_id;
+        let mut assets = IndexMap::default();
+        assets.insert(asset_id, asset);
+        merge_prefab_paint_for_map(&mut target, &map, &assets, &catalog);
 
         assert_eq!(target.chunks.len(), 1);
         assert!(target.chunks.contains_key("surface"));
+        assert_eq!(target.surface_instance_owners.len(), 2);
     }
 
     #[test]

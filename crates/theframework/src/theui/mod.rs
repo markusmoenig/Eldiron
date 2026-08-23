@@ -279,6 +279,11 @@ struct TheHoverHelp {
     visible: bool,
 }
 
+const HOVER_HELP_HORIZONTAL_PADDING: usize = 18;
+// Text rendering ellipsizes at an exact-width boundary, so reserve a small
+// amount beyond the measured glyph width.
+const HOVER_HELP_FIT_SLACK: usize = 2;
+
 impl TheDialogButtonRole {
     pub fn to_string(self) -> &'static str {
         match self {
@@ -616,24 +621,29 @@ impl TheUI {
         TheDim::new(x, y, width, height)
     }
 
-    fn draw_hover_help(&mut self, ctx: &mut TheContext) {
-        let Some(help) = self.hover_help.as_ref().filter(|help| help.visible) else {
-            return;
-        };
-
+    fn wrap_hover_help_lines(
+        text: &str,
+        max_text_width: usize,
+        draw: &TheDraw2D,
+        font_settings: &TheFontSettings,
+    ) -> Vec<String> {
         let mut lines = Vec::<String>::new();
-        for paragraph in help.text.lines() {
+        for paragraph in text.lines() {
             let mut line = String::new();
             for word in paragraph.split_whitespace() {
-                let separator = usize::from(!line.is_empty());
-                if !line.is_empty() && line.chars().count() + separator + word.chars().count() > 48
+                let candidate = if line.is_empty() {
+                    word.to_string()
+                } else {
+                    format!("{line} {word}")
+                };
+                if !line.is_empty()
+                    && draw.get_text_size(&candidate, font_settings).0 > max_text_width
                 {
                     lines.push(std::mem::take(&mut line));
+                    line.push_str(word);
+                } else {
+                    line = candidate;
                 }
-                if !line.is_empty() {
-                    line.push(' ');
-                }
-                line.push_str(word);
             }
             if !line.is_empty() {
                 lines.push(line);
@@ -641,6 +651,29 @@ impl TheUI {
                 lines.push(String::new());
             }
         }
+        lines
+    }
+
+    fn hover_help_content_width(longest_line: usize, max_box_width: usize) -> usize {
+        (longest_line + HOVER_HELP_HORIZONTAL_PADDING + HOVER_HELP_FIT_SLACK)
+            .clamp(120.min(max_box_width), max_box_width)
+    }
+
+    fn draw_hover_help(&mut self, ctx: &mut TheContext) {
+        let Some(help) = self.hover_help.as_ref().filter(|help| help.visible) else {
+            return;
+        };
+
+        let font_settings = TheFontSettings {
+            size: 12.5,
+            ..Default::default()
+        };
+        let max_box_width = ctx.width.saturating_sub(8).clamp(1, 360);
+        let max_text_width = max_box_width
+            .saturating_sub(HOVER_HELP_HORIZONTAL_PADDING + HOVER_HELP_FIT_SLACK)
+            .max(1);
+        let mut lines =
+            Self::wrap_hover_help_lines(&help.text, max_text_width, &ctx.draw, &font_settings);
         if lines.is_empty() {
             return;
         }
@@ -650,10 +683,10 @@ impl TheUI {
         lines.truncate(max_lines);
         let longest = lines
             .iter()
-            .map(|line| line.chars().count())
+            .map(|line| ctx.draw.get_text_size(line, &font_settings).0)
             .max()
             .unwrap_or(1);
-        let content_width = ((longest as i32) * 8 + 18).clamp(120, 360);
+        let content_width = Self::hover_help_content_width(longest, max_box_width) as i32;
         let content_height = lines.len() as i32 * 17 + 10;
         let dim = Self::hover_help_rect(
             help.anchor,
@@ -687,13 +720,15 @@ impl TheUI {
                 &(
                     9,
                     5 + line_index * 17,
-                    dim.width.saturating_sub(18) as usize,
+                    dim.width
+                        .saturating_sub(HOVER_HELP_HORIZONTAL_PADDING as i32)
+                        as usize,
                     17,
                 ),
                 stride,
                 line,
                 TheFontSettings {
-                    size: 12.5,
+                    size: font_settings.size,
                     ..Default::default()
                 },
                 &text_color,
@@ -2014,5 +2049,36 @@ mod hover_help_tests {
         let started_at = ui.hover_help.as_ref().unwrap().started_at;
         ui.schedule_hover_help(id, "Camera".into(), &mut ctx);
         assert_eq!(ui.hover_help.as_ref().unwrap().started_at, started_at);
+    }
+
+    #[test]
+    fn hover_help_wraps_to_measured_pixel_width() {
+        let draw = TheDraw2D::new();
+        let settings = TheFontSettings {
+            size: 12.5,
+            ..Default::default()
+        };
+        let max_width = 150;
+        let lines = TheUI::wrap_hover_help_lines(
+            "Runtime diagnostics use the available tooltip width without an estimated character gutter.",
+            max_width,
+            &draw,
+            &settings,
+        );
+
+        assert!(lines.len() > 1);
+        assert!(lines.iter().all(|line| {
+            draw.get_text_size(line, &settings).0 <= max_width
+                || line.split_whitespace().count() == 1
+        }));
+
+        let longest = lines
+            .iter()
+            .map(|line| draw.get_text_size(line, &settings).0)
+            .max()
+            .unwrap();
+        let content_width = TheUI::hover_help_content_width(longest, 360);
+        let text_rect_width = content_width - HOVER_HELP_HORIZONTAL_PADDING;
+        assert!(longest < text_rect_width);
     }
 }

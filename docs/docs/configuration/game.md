@@ -40,7 +40,7 @@ client_mode = "terminal"       # Source/tool play target: "terminal", "2d", or "
 terminal_mode = "text"         # Terminal client mode: "text" or "roguelike".
 play_screen = ""               # Optional screen shown after game.start.
 click_intents_2d = false       # Target 2D intents with mouse clicks while keeping WASD movement.
-persistent_intents = false     # Keep a selected intent active after targeting in every camera.
+persistent_intents = false     # Keep selected intents active in 2D; 3D intents are always persistent.
 auto_walk_2d = false           # In walk mode, clicking terrain in 2D makes the player path-walk there.
 locale = "en"                    # Active locale used for localized strings and rules-based messages.
 
@@ -161,10 +161,10 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
   - Default: `false`.
 
 - **`persistent_intents`**
-  - Keeps the selected intent or targeted rules action active after a successful or failed target interaction.
-  - Applies in every camera mode, including `iso`, `firstp`, and `firstp_grid`.
+  - Keeps the selected intent or targeted rules action active in `2d` and `2d_grid`.
+  - `iso`, `firstp`, and `firstp_grid` intents are persistent by default and do not require this option.
   - The mode remains selected until the player chooses another targeting command or returns to Walk/default mode.
-  - Useful for frequent actions such as Attack, where pressing the action button before every strike would be cumbersome.
+  - When disabled, classic 2D directional intents are one-shot.
   - Default: `false`.
 
 - **`auto_walk_2d`**

@@ -174,9 +174,10 @@ pub use crate::{
             BlockPropInteractionHit, BlockPropInteractionTarget, BlockPropOccupancyPolicy,
             BlockPropOccupant, BlockPropPart, BlockPropPlacementProfile, BlockPropSemanticShape,
             BlockPropSupportSurface, BlockPropSurfacePlacement, BlockPropTransform,
-            block_prop_door_is_open, block_prop_interaction_verb,
-            block_prop_interaction_world_anchor, identity_block_prop_transform,
-            multiply_block_prop_transforms, resolve_block_prop_asset, resolve_block_prop_geometry,
+            block_prop_door_is_open, block_prop_instance_object_id, block_prop_interaction_verb,
+            block_prop_interaction_world_anchor, block_prop_part_world_anchor,
+            identity_block_prop_transform, multiply_block_prop_transforms,
+            resolve_block_prop_asset, resolve_block_prop_geometry,
             resolve_block_prop_interaction_hit, resolve_block_prop_preview_geometry,
             set_block_prop_door_open,
         },
@@ -278,7 +279,7 @@ pub mod prelude {
         SoftRigAnimator, Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature,
         TileGeometryOperation, TileGroup, TileGroupMemberRef, TileLightEffect, TileNicheGeometry,
         TileParticleEffect, TileRole, TileSource, Vertex, block_prop_interaction_verb,
-        default_organic_bush_clusters, default_organic_vine_strokes,
+        block_prop_part_world_anchor, default_organic_bush_clusters, default_organic_vine_strokes,
         resolve_block_prop_interaction_hit,
     };
     #[cfg(feature = "graphics")]

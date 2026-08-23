@@ -163,11 +163,13 @@ pub enum EntityAction {
     ItemClicked(u32, f32, Option<String>, Option<u32>),
     // Entity clicked, entity id, click distance and optional explicit intent
     EntityClicked(u32, f32, Option<String>),
-    /// Interact with a stable target on one linked Block / Prop instance.
+    /// Apply an intent to one linked Prefab, with optional component metadata.
     BlockPropInteract {
         instance_id: Uuid,
-        target_id: Uuid,
+        part_id: Uuid,
+        target_id: Option<Uuid>,
         verb: String,
+        explicit: bool,
     },
     // Terrain clicked
     TerrainClicked(Vec2<f32>),

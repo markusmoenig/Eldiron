@@ -662,11 +662,27 @@ mod ruleset_progression_tests {
     }
 
     #[test]
-    fn persistent_intents_apply_to_first_person() {
+    fn three_d_intents_are_persistent_and_option_controls_two_d() {
         let mut ctx = RegionCtx::default();
         let player = player_with_intent(PlayerCamera::D3FirstP);
 
-        assert!(!RegionInstance::should_keep_player_intent(&ctx, &player));
+        assert!(RegionInstance::should_keep_player_intent(&ctx, &player));
+        assert!(RegionInstance::should_keep_player_intent(
+            &ctx,
+            &player_with_intent(PlayerCamera::D3FirstPGrid)
+        ));
+        assert!(RegionInstance::should_keep_player_intent(
+            &ctx,
+            &player_with_intent(PlayerCamera::D3Iso)
+        ));
+        assert!(!RegionInstance::should_keep_player_intent(
+            &ctx,
+            &player_with_intent(PlayerCamera::D2)
+        ));
+        assert!(!RegionInstance::should_keep_player_intent(
+            &ctx,
+            &player_with_intent(PlayerCamera::D2Grid)
+        ));
 
         ctx.config = toml::from_str::<toml::Table>(
             r#"
@@ -676,10 +692,13 @@ mod ruleset_progression_tests {
         )
         .unwrap();
 
-        assert!(RegionInstance::should_keep_player_intent(&ctx, &player));
         assert!(RegionInstance::should_keep_player_intent(
             &ctx,
-            &player_with_intent(PlayerCamera::D3FirstPGrid)
+            &player_with_intent(PlayerCamera::D2)
+        ));
+        assert!(RegionInstance::should_keep_player_intent(
+            &ctx,
+            &player_with_intent(PlayerCamera::D2Grid)
         ));
 
         let mut npc = player;
@@ -3143,7 +3162,8 @@ mod ruleset_progression_tests {
             distance,
             Some(actor),
             Some(target),
-            None
+            None,
+            None,
         ));
 
         let rules = intent_rule_config(&ctx, 1, "action:basic_attack");
@@ -3164,7 +3184,8 @@ mod ruleset_progression_tests {
             distance,
             Some(actor),
             Some(target),
-            None
+            None,
+            None,
         ));
     }
 
@@ -3643,6 +3664,7 @@ mod ruleset_progression_tests {
 
         let object = crate::GeometryObject::box_("Leaf", Vec3::zero(), Vec3::one());
         let mut asset = crate::BlockPropAsset::new_authored("Door", vec![object]);
+        asset.authoring = "description = \"A heavy oak door.\"".into();
         let part_id = asset.parts[0].id;
         let mut component = crate::BlockPropComponent::new("Door");
         component.properties.set("part_id", Value::Id(part_id));
@@ -3664,20 +3686,48 @@ mod ruleset_progression_tests {
                     axis_v: [0.0, 1.0, 0.0],
                     size: [1.0, 1.0],
                 },
-                interaction_anchor: [0.0, 0.0, 0.0],
+                // Range checks are ground-plane checks. A handle or part pivot may be
+                // well above the player's origin without making the door unreachable.
+                interaction_anchor: [0.0, 8.0, 0.0],
                 facing_direction: [0.0, 0.0, 1.0],
                 component_id: Some(component_id),
             });
         let asset_id = asset.id;
         ctx.assets.block_props.insert(asset_id, asset.clone());
-        let first = crate::BlockPropInstance::new(asset_id);
+        let mut first = crate::BlockPropInstance::new(asset_id);
         let first_id = first.id;
+        first.world_transform[3][0] = 2.5;
         let mut second = crate::BlockPropInstance::new(asset_id);
         second.world_transform[3][0] = 10.0;
         ctx.map.block_prop_instances.extend([first, second]);
 
-        assert!(RegionInstance::apply_block_prop_interaction(
-            &mut ctx, 1, first_id, target_id, "open"
+        assert!(RegionInstance::apply_block_prop_authoring_interaction(
+            &mut ctx,
+            1,
+            first_id,
+            part_id,
+            Some(target_id),
+            "look",
+            true,
+        ));
+        assert_eq!(
+            crate::block_prop_door_is_open(&asset, &ctx.map.block_prop_instances[0], component_id),
+            Some(false)
+        );
+        assert!(matches!(
+            from_receiver.try_recv(),
+            Ok(RegionMessage::Message(_, _, _, 1, message, _))
+                if message == "A heavy oak door."
+        ));
+
+        assert!(RegionInstance::apply_block_prop_authoring_interaction(
+            &mut ctx,
+            1,
+            first_id,
+            part_id,
+            Some(target_id),
+            "use",
+            true,
         ));
         assert_eq!(
             crate::block_prop_door_is_open(&asset, &ctx.map.block_prop_instances[0], component_id),
@@ -3701,6 +3751,44 @@ mod ruleset_progression_tests {
             crate::block_prop_door_is_open(&asset, &ctx.map.block_prop_instances[0], component_id),
             Some(true)
         );
+    }
+
+    #[test]
+    fn look_intent_uses_authoring_for_prefab_without_components() {
+        let (from_sender, from_receiver) = unbounded();
+        let mut ctx = RegionCtx::default();
+        ctx.region_id = 7;
+        let _ = ctx.from_sender.set(from_sender);
+        let mut player = Entity::new();
+        player.id = 1;
+        player.position = Vec3::zero();
+        player.set_attribute("player", Value::Bool(true));
+        ctx.map.entities.push(player);
+
+        let object = crate::GeometryObject::box_("Table", Vec3::zero(), Vec3::one());
+        let mut asset = crate::BlockPropAsset::new_authored("Table", vec![object]);
+        asset.authoring = "description = \"An old table covered in knife marks.\"".into();
+        let asset_id = asset.id;
+        let part_id = asset.parts[0].id;
+        ctx.assets.block_props.insert(asset_id, asset);
+        let instance = crate::BlockPropInstance::new(asset_id);
+        let instance_id = instance.id;
+        ctx.map.block_prop_instances.push(instance);
+
+        assert!(RegionInstance::apply_block_prop_authoring_interaction(
+            &mut ctx,
+            1,
+            instance_id,
+            part_id,
+            None,
+            "look",
+            true,
+        ));
+        assert!(matches!(
+            from_receiver.try_recv(),
+            Ok(RegionMessage::Message(_, _, _, 1, message, _))
+                if message == "An old table covered in knife marks."
+        ));
     }
 }
 
@@ -4083,7 +4171,7 @@ impl RegionInstance {
             .properties
             .get_float_default("interaction_range", 3.0)
             .max(0.0);
-        if (actor_position - anchor).magnitude() > interaction_range {
+        if Self::world_interaction_distance(actor_position, anchor) > interaction_range {
             send_message(ctx, actor_id, "{system.too_far_away}".into(), "warning");
             return false;
         }
@@ -4123,6 +4211,181 @@ impl RegionInstance {
                 .ok()
         });
         true
+    }
+
+    /// Route a whole-Prefab click through the same intent/rules layer used by
+    /// characters and items, then apply a component's built-in fallback when
+    /// the resolved semantic intent supports it.
+    fn apply_block_prop_authoring_interaction(
+        ctx: &mut RegionCtx,
+        actor_id: u32,
+        instance_id: Uuid,
+        part_id: Uuid,
+        target_id: Option<Uuid>,
+        raw_intent: &str,
+        explicit: bool,
+    ) -> bool {
+        if !explicit {
+            return target_id.is_some_and(|target_id| {
+                Self::apply_block_prop_interaction(
+                    ctx,
+                    actor_id,
+                    instance_id,
+                    target_id,
+                    raw_intent,
+                )
+            });
+        }
+        let Some(actor) = ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == actor_id && entity.is_player())
+            .cloned()
+        else {
+            return false;
+        };
+        let keep_intent = Self::should_keep_player_intent(ctx, &actor);
+        let Some(instance) = ctx
+            .map
+            .block_prop_instances
+            .iter()
+            .find(|instance| instance.id == instance_id)
+            .cloned()
+        else {
+            return false;
+        };
+        let Some(asset) = ctx.assets.block_props.get(&instance.asset_id).cloned() else {
+            return false;
+        };
+        if asset.find_part(part_id).is_none() {
+            return false;
+        }
+        let anchor = target_id
+            .and_then(|target_id| {
+                crate::block_prop_interaction_world_anchor(&asset, &instance, target_id)
+            })
+            .or_else(|| crate::block_prop_part_world_anchor(&asset, &instance, part_id));
+        let Some(anchor) = anchor else {
+            return false;
+        };
+        let distance = Self::world_interaction_distance(actor.position, anchor);
+        let authored_distance_limit = target_id.and_then(|target_id| {
+            let target = asset.find_interaction_target(target_id)?;
+            let component_id = target.component_id?;
+            let component = asset
+                .components
+                .iter()
+                .find(|component| component.id == component_id)?;
+            Some(
+                component
+                    .properties
+                    .get_float_default("interaction_range", 3.0)
+                    .max(0.0),
+            )
+        });
+        let Some(resolved_intent) =
+            resolve_ruleset_invocation_intent(ctx, actor_id, raw_intent.trim())
+        else {
+            return false;
+        };
+
+        let rules_action_id = resolved_intent
+            .strip_prefix("action:")
+            .map(str::trim)
+            .filter(|id| !id.is_empty());
+        let semantic_intent = if let Some(action_id) = rules_action_id {
+            let Ok(Some(action)) = resolved_ruleset_action(ctx, action_id) else {
+                _ = execute_ruleset_action_with_target(ctx, actor_id, action_id, None);
+                return false;
+            };
+            let semantic = action
+                .intent
+                .clone()
+                .unwrap_or_else(|| action_id.to_string());
+            let target = RulesetActionTarget::Prefab {
+                instance_id,
+                asset_id: asset.id,
+                part_id,
+                position: anchor,
+            };
+            if !execute_ruleset_action_with_target(ctx, actor_id, action_id, Some(target)) {
+                return false;
+            }
+            semantic
+        } else {
+            let semantic = resolved_intent.trim().to_string();
+            let rules = intent_rule_config(ctx, actor_id, &semantic.to_ascii_lowercase());
+            let distance_limit = authored_distance_limit
+                .unwrap_or_else(|| intent_distance_limit(ctx, actor_id, &semantic, &rules));
+            if distance > distance_limit {
+                send_message(ctx, actor_id, "{system.too_far_away}".into(), "warning");
+                if let Some(entity) = get_entity_mut(&mut ctx.map, actor_id)
+                    && !keep_intent
+                {
+                    entity.set_attribute("intent", Value::Str(String::new()));
+                }
+                return false;
+            }
+            if !intent_allowed(
+                ctx,
+                &rules,
+                distance,
+                Some(&actor),
+                None,
+                None,
+                Some("prefab"),
+            ) {
+                send_message(
+                    ctx,
+                    actor_id,
+                    rules
+                        .deny_message
+                        .clone()
+                        .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
+                    "warning",
+                );
+                if let Some(entity) = get_entity_mut(&mut ctx.map, actor_id)
+                    && !keep_intent
+                {
+                    entity.set_attribute("intent", Value::Str(String::new()));
+                }
+                return false;
+            }
+            semantic
+        };
+
+        let semantic = semantic_intent.trim().to_ascii_lowercase();
+        let handled = match semantic.as_str() {
+            "look" => {
+                let message = prefab_look_description(&asset, &instance)
+                    .unwrap_or_else(|| asset.name.clone());
+                send_message(ctx, actor_id, message, "system");
+                true
+            }
+            "use" | "open" | "close" => target_id.is_some_and(|target_id| {
+                Self::apply_block_prop_interaction(ctx, actor_id, instance_id, target_id, &semantic)
+            }),
+            _ => {
+                ctx.to_execute_entity.push((
+                    actor_id,
+                    "intent".to_string(),
+                    VMValue::new_with_string(anchor.x, anchor.y, anchor.z, &semantic_intent),
+                ));
+                true
+            }
+        };
+
+        if rules_action_id.is_none() {
+            let rules = intent_rule_config(ctx, actor_id, &semantic);
+            queue_intent_cooldown(ctx, actor_id, &semantic, rules.cooldown_seconds);
+        }
+        if let Some(entity) = get_entity_mut(&mut ctx.map, actor_id)
+            && !keep_intent
+        {
+            entity.set_attribute("intent", Value::Str(String::new()));
+        }
+        handled
     }
 
     fn probe_dynamic_collisions_in_ctx(
@@ -4231,20 +4494,17 @@ impl RegionInstance {
             return false;
         }
 
-        if get_config_bool_default(ctx, "game", "persistent_intents", false) {
-            return true;
+        match entity.attributes.get("player_camera") {
+            Some(Value::PlayerCamera(
+                PlayerCamera::D3Iso | PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid,
+            )) => true,
+            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid)) | None => {
+                get_config_bool_default(ctx, "game", "persistent_intents", false)
+                    || get_config_bool_default(ctx, "game", "click_intents_2d", false)
+                    || get_config_bool_default(ctx, "game", "persistent_2d_intents", false)
+            }
+            _ => false,
         }
-
-        if !get_config_bool_default(ctx, "game", "click_intents_2d", false)
-            && !get_config_bool_default(ctx, "game", "persistent_2d_intents", false)
-        {
-            return false;
-        }
-
-        matches!(
-            entity.attributes.get("player_camera"),
-            Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid))
-        )
     }
 
     fn is_movement_input_action(action: &EntityAction) -> bool {
@@ -4294,6 +4554,10 @@ impl RegionInstance {
             .find(|e| e.id == target_entity_id)
             .map(|e| e.get_pos_xz())?;
         Some(actor_pos.distance(target_pos))
+    }
+
+    fn world_interaction_distance(actor_position: Vec3<f32>, anchor: Vec3<f32>) -> f32 {
+        Vec2::new(actor_position.x, actor_position.z).distance(Vec2::new(anchor.x, anchor.z))
     }
 
     fn item_click_distance(
@@ -8340,16 +8604,20 @@ impl RegionInstance {
                         }
                         BlockPropInteract {
                             instance_id,
+                            part_id,
                             target_id,
                             verb,
+                            explicit,
                         } => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                                Self::apply_block_prop_interaction(
+                                Self::apply_block_prop_authoring_interaction(
                                     ctx,
                                     entity_id,
                                     instance_id,
+                                    part_id,
                                     target_id,
                                     &verb,
+                                    explicit,
                                 );
                             });
                         }
@@ -8474,6 +8742,7 @@ impl RegionInstance {
                                         distance,
                                         subject,
                                         target_entity,
+                                        None,
                                         None,
                                     )
                                 {
@@ -8695,6 +8964,7 @@ impl RegionInstance {
                                         subject,
                                         None,
                                         target_item,
+                                        None,
                                     )
                                 {
                                     send_message(
@@ -9349,14 +9619,22 @@ impl RegionInstance {
                         },
                         _ => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
-                                let click_intents_2d =
-                                    get_config_bool_default(ctx, "game", "click_intents_2d", false)
-                                        || get_config_bool_default(
-                                            ctx,
-                                            "game",
-                                            "persistent_2d_intents",
-                                            false,
-                                        );
+                                let click_intents_2d = get_config_bool_default(
+                                    ctx,
+                                    "game",
+                                    "persistent_intents",
+                                    false,
+                                ) || get_config_bool_default(
+                                    ctx,
+                                    "game",
+                                    "click_intents_2d",
+                                    false,
+                                ) || get_config_bool_default(
+                                    ctx,
+                                    "game",
+                                    "persistent_2d_intents",
+                                    false,
+                                );
                                 if let Some(entity) = ctx
                                     .map
                                     .entities
@@ -9555,7 +9833,8 @@ impl RegionInstance {
             let turn_speed_deg_per_sec =
                 get_config_i32_default(ctx, "game", "turn_speed_deg_per_sec", 120).max(1) as f32;
             turn_step_deg = turn_speed_deg_per_sec * sim_dt;
-            click_intents_2d = get_config_bool_default(ctx, "game", "click_intents_2d", false)
+            click_intents_2d = get_config_bool_default(ctx, "game", "persistent_intents", false)
+                || get_config_bool_default(ctx, "game", "click_intents_2d", false)
                 || get_config_bool_default(ctx, "game", "persistent_2d_intents", false);
         });
 
@@ -11924,7 +12203,7 @@ impl RegionInstance {
                         entity.mark_all_dirty();
                     } else {
                         ctx.send_log_message(format!(
-                            "[Procedural] {}: spawning player '{}' but no entrance sector was found",
+                            "[warning] [Procedural] {}: spawning player '{}' but no entrance sector was found",
                             ctx.map.name, class_name
                         ));
                     }
@@ -12214,6 +12493,7 @@ impl RegionInstance {
                     Some(entity),
                     target_entity,
                     target_item,
+                    None,
                 )
             {
                 send_message(
@@ -16141,7 +16421,10 @@ fn resolved_runtime_action_target_allowed(
         ResolvedActionTarget::WorldPosition => {
             matches!(target, Some(RulesetActionTarget::Position(_)))
         }
-        ResolvedActionTarget::Custom(_) => false,
+        ResolvedActionTarget::Custom(kind) => {
+            kind.eq_ignore_ascii_case("prefab")
+                && matches!(target, Some(RulesetActionTarget::Prefab { .. }))
+        }
     }
 }
 
@@ -16174,6 +16457,7 @@ fn ruleset_action_target_position(
             .iter()
             .find(|entity| entity.id == *owner_id)
             .map(entity_ruleset_fx_position),
+        RulesetActionTarget::Prefab { position, .. } => Some(*position),
         RulesetActionTarget::Position(position) => Some(*position),
         RulesetActionTarget::Unknown(_) => None,
     }
@@ -16199,6 +16483,9 @@ fn ruleset_action_target_payload(
             source_item_id,
             action_id,
         ),
+        Some(RulesetActionTarget::Prefab { position, .. }) => {
+            VMValue::new_with_string(position.x, position.y, position.z, action_id)
+        }
         Some(RulesetActionTarget::Position(position)) => {
             VMValue::new_with_string(position.x, position.y, position.z, action_id)
         }
@@ -16266,6 +16553,12 @@ pub(crate) enum RulesetActionTarget {
     Item {
         item_id: u32,
         owner_entity_id: Option<u32>,
+    },
+    Prefab {
+        instance_id: Uuid,
+        asset_id: Uuid,
+        part_id: Uuid,
+        position: Vec3<f32>,
     },
     Position(Vec3<f32>),
     Unknown(u32),
@@ -19001,7 +19294,9 @@ fn merge_resolved_action_intent_config(config: &mut IntentRuleConfig, action: &R
         ResolvedActionTarget::WorldPosition => {
             config.allowed_target_kinds = vec!["position".into()];
         }
-        ResolvedActionTarget::Custom(_) => {}
+        ResolvedActionTarget::Custom(kind) => {
+            config.allowed_target_kinds = vec![kind.to_ascii_lowercase()];
+        }
     }
 
     match &action.range {
@@ -19277,6 +19572,7 @@ fn structured_intent_allowed(
     subject: Option<&Entity>,
     target_entity: Option<&Entity>,
     target_item: Option<&Item>,
+    target_kind_override: Option<&str>,
 ) -> Option<bool> {
     let has_target_kind_rule = !rules.allowed_target_kinds.is_empty();
     let has_disposition_rule = !rules.allowed_dispositions.is_empty();
@@ -19285,13 +19581,15 @@ fn structured_intent_allowed(
     }
 
     if has_target_kind_rule {
-        let target_kind = if target_entity.is_some() {
-            "entity"
-        } else if target_item.is_some() {
-            "item"
-        } else {
-            "none"
-        };
+        let target_kind = target_kind_override.unwrap_or_else(|| {
+            if target_entity.is_some() {
+                "entity"
+            } else if target_item.is_some() {
+                "item"
+            } else {
+                "none"
+            }
+        });
         if !rules
             .allowed_target_kinds
             .iter()
@@ -19328,10 +19626,16 @@ fn intent_allowed(
     subject: Option<&Entity>,
     target_entity: Option<&Entity>,
     target_item: Option<&Item>,
+    target_kind_override: Option<&str>,
 ) -> bool {
-    if let Some(allowed) =
-        structured_intent_allowed(ctx, rules, subject, target_entity, target_item)
-    {
+    if let Some(allowed) = structured_intent_allowed(
+        ctx,
+        rules,
+        subject,
+        target_entity,
+        target_item,
+        target_kind_override,
+    ) {
         return allowed;
     }
 
@@ -19528,6 +19832,18 @@ fn entity_look_description(ctx: &RegionCtx, entity: &Entity) -> Option<String> {
     let data = ctx.entity_authoring_data.get(&class_name)?;
     let mode = entity.get_attr_string("mode");
     authored_description_from_data(data, mode.as_deref(), None)
+}
+
+fn prefab_look_description(
+    asset: &crate::BlockPropAsset,
+    instance: &crate::BlockPropInstance,
+) -> Option<String> {
+    let state = instance
+        .runtime_state
+        .get_str("state")
+        .map(str::trim)
+        .filter(|state| !state.is_empty());
+    authored_description_from_data(&asset.authoring, None, state)
 }
 
 fn item_look_description(ctx: &RegionCtx, item: &Item) -> Option<String> {

@@ -7,6 +7,8 @@ use crate::prelude::*;
 use crate::undo::project_helper::*;
 use rusterix::{AudioEngine, Texture, TileRole};
 
+pub(crate) const SIDEBAR_NAVIGATION_SHORTCUTS: [char; 5] = ['f', 'g', 'h', 'j', 'k'];
+
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum SidebarMode {
     Region,
@@ -26,6 +28,7 @@ pub enum SidebarMode {
 pub struct Sidebar {
     pub width: i32,
     console: crate::docks::console::ConsoleDock,
+    debug: crate::docks::log::LogDock,
     help: crate::docks::help::HelpDock,
 
     curr_tilemap_uuid: Option<Uuid>,
@@ -38,7 +41,15 @@ pub struct Sidebar {
 
 #[allow(clippy::new_without_default)]
 impl Sidebar {
-    const NAVIGATION_PAGE_COUNT: usize = 4;
+    const NAVIGATION_PAGE_COUNT: usize = 5;
+
+    fn navigation_page_status(status: String, index: usize) -> String {
+        let accelerator = TheAccelerator::new(
+            TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT,
+            SIDEBAR_NAVIGATION_SHORTCUTS[index],
+        );
+        format!("{status} ({})", accelerator.description())
+    }
 
     fn next_navigation_page(current: usize, reverse: bool) -> usize {
         if reverse {
@@ -83,13 +94,12 @@ impl Sidebar {
         if index == 2 {
             self.console.activate(ui, ctx, project, server_ctx);
         } else if index == 3 {
+            self.debug.activate(ui, ctx, project, server_ctx);
+        } else if index == 4 {
             self.help.activate(ui, ctx, project, server_ctx);
-        } else if ctx
-            .ui
-            .focus
-            .as_ref()
-            .is_some_and(|id| id.name == "Console Input" || id.name == "Help Input")
-        {
+        } else if ctx.ui.focus.as_ref().is_some_and(|id| {
+            id.name == "Console Input" || id.name == "LogEdit" || id.name == "Help Input"
+        }) {
             ctx.ui.clear_focus();
             ctx.ui.keyboard_focus = None;
         }
@@ -124,6 +134,7 @@ impl Sidebar {
         Self {
             width: 380,
             console: crate::docks::console::ConsoleDock::new(),
+            debug: crate::docks::log::LogDock::new(),
             help: crate::docks::help::HelpDock::new(),
 
             curr_tilemap_uuid: None,
@@ -274,11 +285,6 @@ impl Sidebar {
         shortcuts_item.set_text("Shortcuts".to_string());
         shortcuts_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(shortcuts_item));
-
-        let mut debug_log_item = TheTreeItem::new(TheId::named("Debug Log"));
-        debug_log_item.set_text(fl!("debug_log"));
-        debug_log_item.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
-        config_node.add_widget(Box::new(debug_log_item));
 
         root.add_child(config_node);
 
@@ -478,6 +484,7 @@ impl Sidebar {
         sidebar_pages.add_canvas(canvas);
         sidebar_pages.add_canvas(actions_canvas);
         sidebar_pages.add_canvas(self.console.setup(ctx));
+        sidebar_pages.add_canvas(self.debug.setup(ctx));
         sidebar_pages.add_canvas(self.help.setup(ctx));
         sidebar_pages.set_index(0);
 
@@ -503,22 +510,27 @@ impl Sidebar {
         let mut sidebar_tabs = TheGroupButton::new(TheId::named("Sidebar Tabs"));
         sidebar_tabs.add_text_status_icon(
             String::new(),
-            fl!("tooltip_sidebar_project"),
+            Self::navigation_page_status(fl!("tooltip_sidebar_project"), 0),
             "project".to_string(),
         );
         sidebar_tabs.add_text_status_icon(
             String::new(),
-            fl!("tooltip_sidebar_actions"),
+            Self::navigation_page_status(fl!("tooltip_sidebar_actions"), 1),
             "graph".to_string(),
         );
         sidebar_tabs.add_text_status_icon(
             String::new(),
-            fl!("tooltip_sidebar_console"),
+            Self::navigation_page_status(fl!("tooltip_sidebar_console"), 2),
             "terminal-nav".to_string(),
         );
         sidebar_tabs.add_text_status_icon(
             String::new(),
-            fl!("tooltip_sidebar_help"),
+            Self::navigation_page_status(fl!("tooltip_sidebar_debug"), 3),
+            "diagnostics-nav".to_string(),
+        );
+        sidebar_tabs.add_text_status_icon(
+            String::new(),
+            Self::navigation_page_status(fl!("tooltip_sidebar_help"), 4),
             "question-mark".to_string(),
         );
         sidebar_tabs.set_item_width(30);
@@ -552,6 +564,7 @@ impl Sidebar {
         let mut redraw = self
             .console
             .handle_event(event, ui, ctx, project, server_ctx);
+        redraw |= self.debug.handle_event(event, ui, ctx, project, server_ctx);
         redraw |= self.help.handle_event(event, ui, ctx, project, server_ctx);
 
         let console_requests = self.console.take_pending_requests();
@@ -2366,11 +2379,9 @@ impl Sidebar {
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
-                let navigation_input_focused = ctx
-                    .ui
-                    .focus
-                    .as_ref()
-                    .is_some_and(|id| id.name == "Console Input" || id.name == "Help Input");
+                let navigation_input_focused = ctx.ui.focus.as_ref().is_some_and(|id| {
+                    id.name == "Console Input" || id.name == "LogEdit" || id.name == "Help Input"
+                });
                 if *code == TheKeyCode::Tab
                     && !ui.ctrl
                     && !ui.alt
@@ -3551,9 +3562,6 @@ impl Sidebar {
                         server_ctx,
                         ProjectContext::GameShortcuts,
                     );
-                    redraw = true;
-                } else if id.name == "Debug Log" {
-                    set_project_context(ctx, ui, project, server_ctx, ProjectContext::DebugLog);
                     redraw = true;
                 } else if id.name == "Tileset Item" {
                     // Display the tileset editor
@@ -4908,8 +4916,7 @@ impl Sidebar {
 
                             let mut status_text = action.info().to_string();
                             if let Some(accel) = action.accel() {
-                                status_text =
-                                    format!("{} ( {} )", status_text, accel.description());
+                                status_text = format!("{} ({})", status_text, accel.description());
                             }
                             item.set_status_text(&status_text);
                             item.set_background_palette(
@@ -5094,21 +5101,75 @@ impl Sidebar {
     ) -> bool {
         self.activate_navigation_page(2, ui, ctx, project, server_ctx)
     }
+
+    pub fn show_project_page(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        self.activate_navigation_page(0, ui, ctx, project, server_ctx)
+    }
+
+    pub fn show_actions_page(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        self.activate_navigation_page(1, ui, ctx, project, server_ctx)
+    }
+
+    pub fn show_debug_page(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        self.activate_navigation_page(3, ui, ctx, project, server_ctx)
+    }
+
+    pub fn show_help_page(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        self.activate_navigation_page(4, ui, ctx, project, server_ctx)
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::Sidebar;
+    use super::*;
 
     #[test]
     fn tab_navigation_wraps_in_both_directions() {
         assert_eq!(Sidebar::next_navigation_page(0, false), 1);
         assert_eq!(Sidebar::next_navigation_page(1, false), 2);
         assert_eq!(Sidebar::next_navigation_page(2, false), 3);
-        assert_eq!(Sidebar::next_navigation_page(3, false), 0);
-        assert_eq!(Sidebar::next_navigation_page(0, true), 3);
+        assert_eq!(Sidebar::next_navigation_page(3, false), 4);
+        assert_eq!(Sidebar::next_navigation_page(4, false), 0);
+        assert_eq!(Sidebar::next_navigation_page(0, true), 4);
+        assert_eq!(Sidebar::next_navigation_page(4, true), 3);
         assert_eq!(Sidebar::next_navigation_page(3, true), 2);
         assert_eq!(Sidebar::next_navigation_page(2, true), 1);
         assert_eq!(Sidebar::next_navigation_page(1, true), 0);
+    }
+
+    #[test]
+    fn navigation_help_includes_its_direct_shortcut() {
+        let help = Sidebar::navigation_page_status("Project".to_string(), 0);
+        let expected = TheAccelerator::new(
+            TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT,
+            SIDEBAR_NAVIGATION_SHORTCUTS[0],
+        )
+        .description();
+
+        assert!(help.contains(&expected));
     }
 }

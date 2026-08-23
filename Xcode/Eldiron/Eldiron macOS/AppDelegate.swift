@@ -140,6 +140,33 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let showRoot = NSMenuItem(title: "Show", action: nil, keyEquivalent: "")
         let showMenu = NSMenu(title: "Show")
 
+        let projectSidebar = NSMenuItem(title: "Project Sidebar", action: #selector(showProjectSidebarMenu), keyEquivalent: "f")
+        projectSidebar.keyEquivalentModifierMask = [.command, .shift]
+        projectSidebar.target = self
+        showMenu.addItem(projectSidebar)
+
+        let actionsSidebar = NSMenuItem(title: "Actions Sidebar", action: #selector(showActionsSidebarMenu), keyEquivalent: "g")
+        actionsSidebar.keyEquivalentModifierMask = [.command, .shift]
+        actionsSidebar.target = self
+        showMenu.addItem(actionsSidebar)
+
+        let console = NSMenuItem(title: "Console", action: #selector(showConsoleMenu), keyEquivalent: "h")
+        console.keyEquivalentModifierMask = [.command, .shift]
+        console.target = self
+        showMenu.addItem(console)
+
+        let debug = NSMenuItem(title: "Debug", action: #selector(showDebugLogMenu), keyEquivalent: "j")
+        debug.keyEquivalentModifierMask = [.command, .shift]
+        debug.target = self
+        showMenu.addItem(debug)
+
+        let help = NSMenuItem(title: "Help", action: #selector(showHelpSidebarMenu), keyEquivalent: "k")
+        help.keyEquivalentModifierMask = [.command, .shift]
+        help.target = self
+        showMenu.addItem(help)
+
+        showMenu.addItem(NSMenuItem.separator())
+
         let settings = NSMenuItem(title: "Settings", action: #selector(showSettingsMenu), keyEquivalent: "")
         settings.target = self
         showMenu.addItem(settings)
@@ -159,14 +186,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let authoring = NSMenuItem(title: "Authoring", action: #selector(showAuthoringMenu), keyEquivalent: "")
         authoring.target = self
         showMenu.addItem(authoring)
-
-        let debugLog = NSMenuItem(title: "Debug Log", action: #selector(showDebugLogMenu), keyEquivalent: "")
-        debugLog.target = self
-        showMenu.addItem(debugLog)
-
-        let console = NSMenuItem(title: "Console", action: #selector(showConsoleMenu), keyEquivalent: "")
-        console.target = self
-        showMenu.addItem(console)
 
         gameMenu.addItem(showRoot)
         gameMenu.setSubmenu(showMenu, for: showRoot)
@@ -232,12 +251,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         rust_show_authoring()
     }
 
+    @objc private func showProjectSidebarMenu() {
+        rust_show_project_sidebar()
+    }
+
+    @objc private func showActionsSidebarMenu() {
+        rust_show_actions_sidebar()
+    }
+
     @objc private func showDebugLogMenu() {
         rust_show_debug_log()
     }
 
     @objc private func showConsoleMenu() {
         rust_show_console()
+    }
+
+    @objc private func showHelpSidebarMenu() {
+        rust_show_help_sidebar()
     }
 
     @objc private func openDocs() {
@@ -279,8 +310,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         setMenuIcon("Rules", "scroll")
         setMenuIcon("Locales", "globe")
         setMenuIcon("Audio FX", "waveform")
-        setMenuIcon("Debug Log", "ladybug")
+        setMenuIcon("Project Sidebar", "folder")
+        setMenuIcon("Actions Sidebar", "bolt")
         setMenuIcon("Console", "terminal")
+        setMenuIcon("Debug", "exclamationmark.triangle")
+        setMenuIcon("Help", "questionmark.circle")
         setMenuIcon("Eldiron Docs", "book")
     }
 

@@ -270,6 +270,9 @@ impl TheContextMenu {
             if let Some(accel) = item.accel {
                 ctx.ui.accelerators.insert(item.id.clone(), accel);
             }
+            if let Some(sub_menu) = &item.sub_menu {
+                sub_menu.register_accel(ctx);
+            }
         }
     }
 
@@ -413,6 +416,28 @@ impl TheContextMenu {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn submenu_accelerators_are_registered_recursively() {
+        let item_id = TheId::named("Nested Command");
+        let mut submenu = TheContextMenu::named("Nested".to_string());
+        submenu.add(TheContextMenuItem::new_with_accel(
+            "Command".to_string(),
+            item_id.clone(),
+            TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'f'),
+        ));
+        let mut menu = TheContextMenu::named("Root".to_string());
+        menu.add(TheContextMenuItem::new_submenu(
+            "Nested".to_string(),
+            TheId::named("Nested"),
+            submenu,
+        ));
+        let mut ctx = TheContext::new(100, 100, 1.0);
+
+        menu.register_accel(&mut ctx);
+
+        assert!(ctx.ui.accelerators.contains_key(&item_id));
+    }
 
     #[test]
     fn procedural_submenu_marker_preserves_guard_bytes() {

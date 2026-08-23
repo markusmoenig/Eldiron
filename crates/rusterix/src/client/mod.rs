@@ -1960,7 +1960,8 @@ impl Client {
         self.target_fps = self.get_config_i32_default("game", "target_fps", 30);
         self.game_tick_ms = self.get_config_i32_default("game", "game_tick_ms", 250);
         self.firstp_eye_level = self.get_config_f32_default("game", "firstp_eye_level", 1.7);
-        self.click_intents_2d = self.get_config_bool_default("game", "click_intents_2d", false)
+        self.click_intents_2d = self.get_config_bool_default("game", "persistent_intents", false)
+            || self.get_config_bool_default("game", "click_intents_2d", false)
             || self.get_config_bool_default("game", "persistent_2d_intents", false);
         self.grid_size = viewport_grid_size as f32;
         self.upscale_mode = self.get_config_string_default("viewport", "upscale", "none");
@@ -5098,15 +5099,14 @@ impl Client {
                         .block_props
                         .get(&instance.asset_id)
                         .and_then(|asset| {
-                            block_prop_interaction_verb(asset, instance, hit.target_id)
+                            hit.target_id.and_then(|target_id| {
+                                block_prop_interaction_verb(asset, instance, target_id)
+                            })
                         })
                 })
                 .map(str::to_string);
             let verb = match explicit_intent.as_deref() {
-                Some(intent) => {
-                    let intent = intent.trim().to_ascii_lowercase();
-                    matches!(intent.as_str(), "open" | "close" | "use").then_some(intent)
-                }
+                Some(intent) => Some(intent.trim().to_string()),
                 None => contextual_verb,
             };
             if let Some(verb) = verb {
@@ -5115,8 +5115,10 @@ impl Client {
                 }
                 return Some(EntityAction::BlockPropInteract {
                     instance_id: hit.instance_id,
+                    part_id: hit.part_id,
                     target_id: hit.target_id,
                     verb,
+                    explicit: explicit_intent.is_some(),
                 });
             }
         }

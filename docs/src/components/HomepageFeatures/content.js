@@ -41,6 +41,16 @@ export const homepageContent = {
       type: "announcement",
     },
     {
+      key: "artists-call",
+      eyebrow: "Artists wanted",
+      title: "Help shape the look of Eldiron",
+      description:
+        "Showing Eldiron at its best is becoming increasingly difficult without more high-quality artwork. I'm especially looking for artists who can contribute 2D artwork for sample projects and rulesets, as well as 3D artists interested in offering design guidance or creating models directly within Eldiron. If you would like to help, please get in touch on Discord. Contributors will receive visible credit here on the website.",
+      href: "https://discord.gg/ZrNj6baSZU",
+      linkLabel: "Get in touch on Discord",
+      type: "announcement",
+    },
+    {
       key: "news",
       eyebrow: "News",
       title: "What changed recently",

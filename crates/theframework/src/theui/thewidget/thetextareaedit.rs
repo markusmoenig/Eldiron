@@ -48,6 +48,7 @@ pub struct TheTextAreaEdit {
 
     // Text render
     renderer: TheTextRenderer,
+    highlight_source: Option<String>,
     ln_area_dim: Option<TheDim>,
     scrollbar_size: usize,
     statusbar_type: StatusbarType,
@@ -121,6 +122,7 @@ impl TheWidget for TheTextAreaEdit {
             modified_since_last_tick: false,
 
             renderer: TheTextRenderer::default(),
+            highlight_source: None,
             ln_area_dim: None,
             scrollbar_size: 13,
             statusbar_type: StatusbarType::None,
@@ -1275,12 +1277,14 @@ impl TheWidget for TheTextAreaEdit {
         match value {
             TheValue::Empty => {
                 self.state.reset();
+                self.highlight_source = None;
                 self.modified_since_last_tick = true;
                 self.is_dirty = true;
             }
             TheValue::Text(text) => {
                 self.state.reset();
                 self.state.set_text(text);
+                self.highlight_source = None;
                 self.modified_since_last_tick = true;
                 self.is_dirty = true;
             }
@@ -1329,8 +1333,12 @@ impl TheWidget for TheTextAreaEdit {
             } else {
                 None
             };
-            self.renderer
-                .prepare(&self.state.to_text(), TheFontPreference::Code, &ctx.draw);
+            self.renderer.prepare_with_highlight_source(
+                &self.state.to_text(),
+                self.highlight_source.as_deref(),
+                TheFontPreference::Code,
+                &ctx.draw,
+            );
 
             shrinker.shrink_by(
                 -(self.renderer.padding.0 as i32),
@@ -1663,6 +1671,7 @@ impl TheWidget for TheTextAreaEdit {
 pub trait TheTextAreaEditTrait: TheWidget {
     fn text(&self) -> String;
     fn set_text(&mut self, text: String);
+    fn set_highlight_source(&mut self, source: Option<String>);
     fn set_font_size(&mut self, font_size: f32);
     fn set_embedded(&mut self, embedded: bool);
     fn set_continuous(&mut self, continuous: bool);
@@ -1698,6 +1707,12 @@ impl TheTextAreaEditTrait for TheTextAreaEdit {
     }
     fn set_text(&mut self, text: String) {
         self.state.set_text(text);
+        self.highlight_source = None;
+        self.modified_since_last_tick = true;
+        self.is_dirty = true;
+    }
+    fn set_highlight_source(&mut self, source: Option<String>) {
+        self.highlight_source = source;
         self.modified_since_last_tick = true;
         self.is_dirty = true;
     }
@@ -1880,12 +1895,7 @@ mod tests {
         assert_eq!(edit.text(), source);
         assert!(edit.renderer.row_count() > 1);
         assert!(!edit.renderer.is_horizontal_overflow());
-        assert!(
-            edit.renderer
-                .row_info
-                .iter()
-                .any(|row| row.highlights.is_some())
-        );
+        assert!(edit.renderer.highlighted_rows_cover_text());
     }
 
     #[test]

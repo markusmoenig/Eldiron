@@ -233,12 +233,7 @@ For a readable action bar overlay, place a `role = "deco"` widget behind the but
 
 ### Isometric / First-Person
 
-In isometric and first-person play, intents can behave like a **persistent interaction mode** when the project enables:
-
-```toml
-[game]
-persistent_intents = true
-```
+In isometric and first-person play, intents behave like a **persistent interaction mode** by default:
 
 1. select an intent like `use`, `attack`, or `spell`
 2. move the cursor over an entity or item
@@ -246,8 +241,8 @@ persistent_intents = true
 
 The selected mode remains active after targeting, so repeated attacks do not
 require reselecting Attack. Choosing another targeting command or the
-Walk/default button replaces it. Without `persistent_intents`, the server clears
-the intent after use.
+Walk/default button replaces it. The `persistent_intents` option only enables
+the same persistence in 2D modes; it is not needed in 3D.
 
 The active intent can also change the cursor if the corresponding button widget
 defines intent cursor tiles.

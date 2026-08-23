@@ -72,8 +72,11 @@ void rust_show_rules();
 void rust_show_locales();
 void rust_show_audio_fx();
 void rust_show_authoring();
+void rust_show_project_sidebar();
+void rust_show_actions_sidebar();
 void rust_show_debug_log();
 void rust_show_console();
+void rust_show_help_sidebar();
 
 void rust_undo();
 void rust_redo();

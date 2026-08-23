@@ -132,6 +132,62 @@ pub fn pack_raster3d_paint_geo_id(geo_id: GeoId) -> [u32; 4] {
     }
 }
 
+/// Reconstruct the pre-persistent-surface paint identity for one planar 3D
+/// surface. This remains public so editors can migrate authored paint without
+/// changing its visible placement.
+pub fn legacy_raster3d_paint_surface_id(
+    geo_id: GeoId,
+    layer: i32,
+    normal: [f32; 3],
+    point: [f32; 3],
+) -> [u32; 4] {
+    let mut hasher = rustc_hash::FxHasher::default();
+    geo_id.hash(&mut hasher);
+    layer.hash(&mut hasher);
+    let mut normal = normal;
+    let dominant = if normal[0].abs() >= normal[1].abs() && normal[0].abs() >= normal[2].abs() {
+        normal[0]
+    } else if normal[1].abs() >= normal[2].abs() {
+        normal[1]
+    } else {
+        normal[2]
+    };
+    if dominant < 0.0 {
+        normal = [-normal[0], -normal[1], -normal[2]];
+    }
+    for value in normal {
+        ((value * 4096.0).round() as i32).hash(&mut hasher);
+    }
+    let plane_offset = normal[0] * point[0] + normal[1] * point[1] + normal[2] * point[2];
+    ((plane_offset * 1024.0).round() as i64).hash(&mut hasher);
+    let hash = hasher.finish();
+    let group = (((hash as u32) ^ ((hash >> 32) as u32)) & 0x3fff_ffff) << 2;
+    let axis = {
+        let x = normal[0].abs();
+        let y = normal[1].abs();
+        let z = normal[2].abs();
+        if y >= x && y >= z {
+            0
+        } else if x >= z {
+            1
+        } else {
+            2
+        }
+    };
+    let mut paint_geo = pack_raster3d_paint_geo_id(geo_id);
+    paint_geo[3] = group | axis;
+    paint_geo
+}
+
+/// World-projected coordinates used by legacy planar 3D paint.
+pub fn legacy_raster3d_paint_surface_uv(world: [f32; 3], paint_geo: [u32; 4]) -> [f32; 2] {
+    match paint_geo[3] & 0x3 {
+        0 => [world[0], world[2]],
+        1 => [world[2], world[1]],
+        _ => [world[0], world[1]],
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Raster3DPaintGpuStroke {
     pub brush_width: u32,

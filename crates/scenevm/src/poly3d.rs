@@ -17,6 +17,9 @@ pub struct Poly3D {
     pub blend_weights: Vec<f32>,      // Per-vertex blend factor (0.0=primary, 1.0=secondary)
     /// Optional persistent surface identity supplied by editable geometry.
     pub paint_surface_id: Option<[u32; 4]>,
+    /// Optional source identity used to keep legacy object-local paint attached
+    /// when the rendered geometry has an instance-specific ID.
+    pub paint_source_id: Option<GeoId>,
     /// Per-vertex paint coordinates, independent from material UVs.
     pub paint_uvs: Vec<[f32; 2]>,
 }
@@ -43,6 +46,7 @@ impl Poly3D {
             tile_id2: None,
             blend_weights: Vec::new(),
             paint_surface_id: None,
+            paint_source_id: None,
             paint_uvs: Vec::new(),
         }
     }
@@ -115,6 +119,7 @@ impl Poly3D {
             tile_id2: None,
             blend_weights: Vec::new(),
             paint_surface_id: None,
+            paint_source_id: None,
             paint_uvs: Vec::new(),
         }
     }
@@ -197,6 +202,7 @@ impl Poly3D {
             tile_id2: None,
             blend_weights: Vec::new(),
             paint_surface_id: None,
+            paint_source_id: None,
             paint_uvs: Vec::new(),
         }
     }
@@ -259,6 +265,7 @@ impl Poly3D {
             tile_id2: None,
             blend_weights: Vec::new(),
             paint_surface_id: None,
+            paint_source_id: None,
             paint_uvs: Vec::new(),
         }
     }

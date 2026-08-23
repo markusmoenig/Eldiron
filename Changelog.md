@@ -4,8 +4,10 @@
 
 ### Creator
 
+- The **Authoring** tool now supports selected 3D Geometry Objects and linked Prefab instances. Object metadata is stored independently, while linked instances edit their shared Prefab authoring.
 - Added the new black-and-blue Creator theme and made it the default, replacing legacy image-based widget chrome with theme-driven rendering and extensible action-group colors. The UI pass also adds delayed localized hover help, compact sidebar and camera navigation, a taller menu-bar timeline option, contextual editor shortcut guidance, and clearer flat status surfaces.
-- Added the first complete **Prefab authoring workflow**: an isolated maximized editor with geometry and shared 3D Paint tools, a hierarchical part/object outliner, parenting, object reassignment, pivots, a full-width inspector, a grouped part/door toolbar, and the standard action list. Linked instances share source geometry and paint while retaining independent state; Door components support multi-face interaction targets, non-destructive previews, server-validated Open/Close interaction, and incremental visual and collision updates. Prefab mode also correctly scopes geometry selection and hides region-only geometry filters and Post/Lighting features, restoring the previous post-processing state on exit.
+- Consolidated the Creator sidebar into **Project**, **Actions**, **Console**, **Debug**, and **Help** pages. Runtime diagnostics now live in the dedicated Debug page, `Tab` / `Shift+Tab` cycle all pages, and direct sidebar shortcuts are available from the **Game > Show** menu.
+- Added the first complete **Prefab authoring workflow**, with dedicated geometry and paint editing, hierarchical parts and components, and linked instances that share authored content while retaining independent state. Prefabs also integrate with the existing Look and rules-action system, including contextual Door interactions.
 - Added **Clear Surface Detail** to remove all surface-line guides from every face of selected Geometry Objects in Object mode, from selected faces in Face mode, or from the host faces identified by selected guides in Edge mode, while preserving paint, materials, and generated geometry.
 - Added **C: Select Contour** in the 3D Edge Tool to expand a selected rim edge into its closed coplanar boundary, including irregular and arched openings.
 - Added **Create Fitted Geometry** to turn two selected opening contours and their reveal band into an independent capped solid with the opening's exact shape and depth.
@@ -18,6 +20,7 @@
 ### Creator
 
 - Fixed **L: Edge Loop** treating selection expansion as a topology edit and unnecessarily rebuilding the scene.
+- Fixed hover help sizing and truncation, added direct shortcuts to sidebar-tab help, made help available while hovering the selected action, clarified the Debug icon, and corrected semantic Debug output colors across wrapped lines while hiding redundant severity labels.
 
 ---
 

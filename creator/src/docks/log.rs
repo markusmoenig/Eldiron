@@ -4,6 +4,44 @@ use theframework::prelude::*;
 
 pub struct LogDock;
 
+impl LogDock {
+    fn display_text(log: &str) -> String {
+        log.split_inclusive('\n')
+            .map(|line| {
+                let (line, newline) = line
+                    .strip_suffix('\n')
+                    .map_or((line, ""), |line| (line, "\n"));
+                let trimmed = line.trim_start();
+                let indentation = &line[..line.len() - trimmed.len()];
+                let marker_len = ["[warning]", "[warn]", "[error]", "[err]"]
+                    .into_iter()
+                    .find(|marker| {
+                        trimmed
+                            .get(..marker.len())
+                            .is_some_and(|prefix| prefix.eq_ignore_ascii_case(marker))
+                    })
+                    .map_or(0, str::len);
+
+                if marker_len == 0 {
+                    format!("{line}{newline}")
+                } else {
+                    format!(
+                        "{indentation}{}{newline}",
+                        trimmed[marker_len..].trim_start()
+                    )
+                }
+            })
+            .collect()
+    }
+
+    pub(crate) fn set_output(log: &str, ui: &mut TheUI, _ctx: &mut TheContext) {
+        if let Some(output) = ui.get_text_area_edit("LogEdit") {
+            output.set_value(TheValue::Text(Self::display_text(log)));
+            output.set_highlight_source(Some(log.to_string()));
+        }
+    }
+}
+
 impl Dock for LogDock {
     fn new() -> Self
     where
@@ -32,10 +70,10 @@ impl Dock for LogDock {
         }
 
         textedit.set_continuous(true);
-        textedit.display_line_number(true);
+        textedit.display_line_number(false);
         textedit.use_global_statusbar(true);
-        textedit.set_font_size(14.0);
-        textedit.readonly(true);
+        textedit.set_font_size(12.5);
+        textedit.set_word_wrap(true);
         // Handled manually, but this dock is read-only
         textedit.set_supports_undo(false);
         textedit.readonly(true);
@@ -47,14 +85,31 @@ impl Dock for LogDock {
 
     fn activate(
         &mut self,
-        _ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
         _project: &Project,
         _server_ctx: &mut ServerContext,
     ) {
+        if let Some(widget) = ui.get_widget("LogEdit") {
+            ctx.ui.set_focus(widget.id());
+        }
     }
 
     fn supports_actions(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn severity_markers_are_not_part_of_displayed_log_text() {
+        let raw = "Started\n[warning] Missing entrance\n  [ERROR] Setup failed\n";
+        assert_eq!(
+            LogDock::display_text(raw),
+            "Started\nMissing entrance\n  Setup failed\n"
+        );
     }
 }

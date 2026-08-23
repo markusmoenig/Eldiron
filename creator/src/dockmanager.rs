@@ -100,9 +100,6 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::data::DataDock::new());
         docks.insert("Data".into(), dock);
 
-        let dock: Box<dyn Dock> = Box::new(crate::docks::log::LogDock::new());
-        docks.insert("Log".into(), dock);
-
         let dock: Box<dyn Dock> = Box::new(crate::docks::tilemap::TilemapDock::new());
         docks.insert("Tilemap".into(), dock);
 
@@ -546,6 +543,13 @@ impl DockManager {
                         group.set_index(view_mode.to_index());
                     }
                     crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                    // Prefab editing reuses the regular geometry and paint tools. Their
+                    // selection is editor-local state and must not leak back into the
+                    // region workspace when the isolated editor is closed.
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Set Tool"),
+                        TheValue::Text("tool.blocks".to_string()),
+                    ));
                 }
 
                 // Editor-only docks have no corresponding lower canvas. Put

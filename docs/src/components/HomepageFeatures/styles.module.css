@@ -188,6 +188,10 @@
   box-shadow: 0 18px 40px rgba(60, 56, 54, 0.08);
 }
 
+.announcementPanelTextOnly {
+  grid-template-columns: 1fr;
+}
+
 .announcementEyebrow {
   display: inline-block;
   margin: 0 0 0.65rem;

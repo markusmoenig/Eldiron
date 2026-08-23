@@ -607,6 +607,12 @@ pub struct IsoPaintLayer {
     pub baked_version: u8,
     #[serde(skip)]
     pub surface_commit_strokes: Vec<Uuid>,
+    /// Runtime geometry owners that sample an asset-local surface layer. Linked Prefab instances
+    /// use derived object IDs, while their paint surface IDs intentionally stay source-local.
+    /// This transient expansion lets translucent surface paint route every rendered instance
+    /// through the alpha pass without duplicating the persistent paint chunks.
+    #[serde(skip)]
+    pub surface_instance_owners: Vec<IsoPaintOwner>,
     #[serde(default = "default_operation")]
     pub active_operation: String,
     #[serde(default = "default_brush")]
@@ -663,6 +669,7 @@ impl Default for IsoPaintLayer {
             baked_chunks: IndexMap::default(),
             baked_version: ISO_PAINT_BAKE_VERSION,
             surface_commit_strokes: Vec::new(),
+            surface_instance_owners: Vec::new(),
             active_operation: default_operation(),
             active_brush: default_brush(),
             active_brush_shape: default_brush_shape(),

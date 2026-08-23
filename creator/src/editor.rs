@@ -71,7 +71,7 @@ pub static ACTIONLIST: LazyLock<RwLock<ActionList>> =
 pub static PALETTE: LazyLock<RwLock<ThePalette>> =
     LazyLock::new(|| RwLock::new(ThePalette::default()));
 
-const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 7] = [
+const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 8] = [
     (
         "project",
         "M248.23,112.31A20,20,0,0,0,232,104H220V88a20,20,0,0,0-20-20H132L105.34,48a20.12,20.12,0,0,0-12-4H40A20,20,0,0,0,20,64V208a12,12,0,0,0,12,12H211.1a12,12,0,0,0,11.33-8l28.49-81.47.06-.17A20,20,0,0,0,248.23,112.31ZM92,68l28.8,21.6A12,12,0,0,0,128,92h68v12H69.77a20,20,0,0,0-18.94,13.58L44,137.15V68ZM202.59,196H48.89l23.72-68H226.37Z",
@@ -82,7 +82,11 @@ const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 7] = [
     ),
     (
         "terminal-nav",
-        "M224,48H32A16,16,0,0,0,16,64V192a16,16,0,0,0,16,16H224a16,16,0,0,0,16-16V64A16,16,0,0,0,224,48Zm0,144H32V64H224ZM67.31,101.66a8,8,0,0,1,11.32,0l24,24a8,8,0,0,1,0,11.32l-24,24a8,8,0,0,1-11.32-11.32L85.66,131.31,67.31,113a8,8,0,0,1,0-11.32ZM112,168a8,8,0,0,1,8-8h40a8,8,0,0,1,0,16H120A8,8,0,0,1,112,168Z",
+        "M72.5,150.63,100.79,128,72.5,105.37a12,12,0,1,1,15-18.74l40,32a12,12,0,0,1,0,18.74l-40,32a12,12,0,0,1-15-18.74ZM144,172h32a12,12,0,0,0,0-24H144a12,12,0,0,0,0,24ZM236,56V200a20,20,0,0,1-20,20H40a20,20,0,0,1-20-20V56A20,20,0,0,1,40,36H216A20,20,0,0,1,236,56Zm-24,4H44V196H212Z",
+    ),
+    (
+        "diagnostics-nav",
+        "M140,88a16,16,0,1,1,16,16A16,16,0,0,1,140,88ZM100,72a16,16,0,1,0,16,16A16,16,0,0,0,100,72Zm120,72a91.84,91.84,0,0,1-2.34,20.64L236.81,173a12,12,0,0,1-9.62,22l-18-7.85a92,92,0,0,1-162.46,0l-18,7.85a12,12,0,1,1-9.62-22l19.15-8.36A91.84,91.84,0,0,1,36,144v-4H16a12,12,0,0,1,0-24H36v-4a91.84,91.84,0,0,1,2.34-20.64L19.19,83a12,12,0,0,1,9.62-22l18,7.85a92,92,0,0,1,162.46,0l18-7.85a12,12,0,1,1,9.62,22l-19.15,8.36A91.84,91.84,0,0,1,220,112v4h20a12,12,0,0,1,0,24H220ZM60,116H196v-4a68,68,0,0,0-136,0Zm56,94.92V140H60v4A68.1,68.1,0,0,0,116,210.92ZM196,144v-4H140v70.92A68.1,68.1,0,0,0,196,144Z",
     ),
     (
         "square",
@@ -7874,6 +7878,47 @@ impl TheTrait for Editor {
             ));
             game_menu.add_separator();
             let mut show_menu = TheContextMenu::named("Show".to_string());
+            show_menu.add(TheContextMenuItem::new_with_accel(
+                "Project Sidebar".to_string(),
+                TheId::named("Show Project Sidebar"),
+                TheAccelerator::new(
+                    TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT,
+                    crate::sidebar::SIDEBAR_NAVIGATION_SHORTCUTS[0],
+                ),
+            ));
+            show_menu.add(TheContextMenuItem::new_with_accel(
+                "Actions Sidebar".to_string(),
+                TheId::named("Show Actions Sidebar"),
+                TheAccelerator::new(
+                    TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT,
+                    crate::sidebar::SIDEBAR_NAVIGATION_SHORTCUTS[1],
+                ),
+            ));
+            show_menu.add(TheContextMenuItem::new_with_accel(
+                "Console".to_string(),
+                TheId::named("Show Console"),
+                TheAccelerator::new(
+                    TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT,
+                    crate::sidebar::SIDEBAR_NAVIGATION_SHORTCUTS[2],
+                ),
+            ));
+            show_menu.add(TheContextMenuItem::new_with_accel(
+                "Debug".to_string(),
+                TheId::named("Show Debug Log"),
+                TheAccelerator::new(
+                    TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT,
+                    crate::sidebar::SIDEBAR_NAVIGATION_SHORTCUTS[3],
+                ),
+            ));
+            show_menu.add(TheContextMenuItem::new_with_accel(
+                "Help".to_string(),
+                TheId::named("Show Help Sidebar"),
+                TheAccelerator::new(
+                    TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT,
+                    crate::sidebar::SIDEBAR_NAVIGATION_SHORTCUTS[4],
+                ),
+            ));
+            show_menu.add_separator();
             show_menu.add(TheContextMenuItem::new(
                 "Settings".to_string(),
                 TheId::named("Show Settings"),
@@ -7893,14 +7938,6 @@ impl TheTrait for Editor {
             show_menu.add(TheContextMenuItem::new(
                 "Authoring".to_string(),
                 TheId::named("Show Authoring"),
-            ));
-            show_menu.add(TheContextMenuItem::new(
-                "Debug Log".to_string(),
-                TheId::named("Show Debug Log"),
-            ));
-            show_menu.add(TheContextMenuItem::new(
-                "Console".to_string(),
-                TheId::named("Show Console"),
             ));
             game_menu.add(TheContextMenuItem::new_submenu(
                 "Show".to_string(),
@@ -8815,7 +8852,7 @@ impl TheTrait for Editor {
                     }
                     if rusterix.server.log_changed {
                         let log_text = rusterix.server.get_log();
-                        ui.set_widget_value("LogEdit", ctx, TheValue::Text(log_text.clone()));
+                        crate::docks::log::LogDock::set_output(&log_text, ui, ctx);
 
                         // Auto-open Debug Log only when new log content contains warning/error.
                         let mut start = if log_text.len() < self.last_processed_log_len {
@@ -8829,7 +8866,7 @@ impl TheTrait for Editor {
                         let new_segment = &log_text[start..];
                         if Self::log_segment_has_warning_or_error(new_segment) {
                             ctx.ui.send(TheEvent::StateChanged(
-                                TheId::named("Debug Log"),
+                                TheId::named("Show Debug Log"),
                                 TheWidgetState::Clicked,
                             ));
                         }
@@ -8999,6 +9036,7 @@ impl TheTrait for Editor {
                                 crate::block_props::merge_prefab_paint_for_map(
                                     &mut iso_paint,
                                     &r.map,
+                                    &rusterix.assets.block_props,
                                     &prefab_paint_catalog,
                                 );
                                 let has_iso_paint = iso_paint.visible
@@ -9221,6 +9259,7 @@ impl TheTrait for Editor {
                                 crate::block_props::merge_prefab_paint_for_map(
                                     &mut combined_iso_paint,
                                     &region.map,
+                                    &rusterix.assets.block_props,
                                     &prefab_paint_catalog,
                                 );
                                 let has_iso_paint = combined_iso_paint.visible
@@ -10525,7 +10564,7 @@ impl TheTrait for Editor {
                                     TheId::empty(),
                                     "Server has been started.".to_string(),
                                 ));
-                                ui.set_widget_value("LogEdit", ctx, TheValue::Text(String::new()));
+                                crate::docks::log::LogDock::set_output("", ui, ctx);
                                 self.last_processed_log_len = 0;
                                 RUSTERIX.write().unwrap().player_camera = PlayerCamera::D2;
                             }
@@ -10643,17 +10682,36 @@ impl TheTrait for Editor {
                             ProjectContext::GameAuthoring,
                         );
                         redraw = true;
-                    } else if id.name == "Show Debug Log" {
-                        set_project_context(
-                            ctx,
+                    } else if id.name == "Show Project Sidebar" {
+                        redraw |= self.sidebar.show_project_page(
                             ui,
+                            ctx,
                             &self.project,
                             &mut self.server_ctx,
-                            ProjectContext::DebugLog,
                         );
-                        redraw = true;
+                    } else if id.name == "Show Actions Sidebar" {
+                        redraw |= self.sidebar.show_actions_page(
+                            ui,
+                            ctx,
+                            &self.project,
+                            &mut self.server_ctx,
+                        );
                     } else if id.name == "Show Console" {
                         redraw |= self.sidebar.show_console_page(
+                            ui,
+                            ctx,
+                            &self.project,
+                            &mut self.server_ctx,
+                        );
+                    } else if id.name == "Show Debug Log" {
+                        redraw |= self.sidebar.show_debug_page(
+                            ui,
+                            ctx,
+                            &self.project,
+                            &mut self.server_ctx,
+                        );
+                    } else if id.name == "Show Help Sidebar" {
+                        redraw |= self.sidebar.show_help_page(
                             ui,
                             ctx,
                             &self.project,
@@ -11093,6 +11151,19 @@ mod tests {
     fn selecting_the_active_project_tab_does_not_reload_its_snapshot() {
         assert!(!Editor::session_switch_required(1, 1));
         assert!(Editor::session_switch_required(1, 0));
+    }
+
+    #[test]
+    fn debug_log_severity_detection_requires_an_explicit_marker() {
+        assert!(Editor::log_segment_has_warning_or_error(
+            "[warning] missing entrance"
+        ));
+        assert!(Editor::log_segment_has_warning_or_error(
+            "[ERROR] setup failed"
+        ));
+        assert!(!Editor::log_segment_has_warning_or_error(
+            "StartScene: Startup with 0 errors."
+        ));
     }
 
     #[test]

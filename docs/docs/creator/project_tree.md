@@ -5,7 +5,7 @@ sidebar_position: 2
 
 The project tree is available on the **Project** page of the right sidebar in *Eldiron Creator* and contains all editable content of your game. Use the **+** and **-** buttons at the bottom of the tree to add or remove content. To the right of these buttons, the current content context is displayed together with the **import** and **export** buttons.
 
-The compact sidebar tabs switch between the **Project** tree, the contextual **Actions** page, the **Console**, and **Help**. Console places wrapped, read-only runtime output above its command entry. Help uses the same layout for the upcoming ruleset-aware interactive help system. Use `Tab` to select the next sidebar page and `Shift+Tab` to select the previous one when a text field is not being edited; the same shortcuts also leave the Console and Help command fields. The minimap remains visible below every page.
+The compact sidebar tabs switch between the **Project** tree, the contextual **Actions** page, the **Console**, **Debug**, and **Help**. Console presents structured runtime output above its command entry. [Debug](debug) contains live server diagnostics, automatically opens when new warnings or errors arrive, and works with the script editor's runtime workflow visualization. Help uses the same sidebar area for the ruleset-aware interactive help system. Use `Tab` and `Shift+Tab` to cycle. The direct shortcuts are `Ctrl/Cmd+Shift+F` (Project), `G` (Actions), `H` (Console), `J` (Debug), and `K` (Help). The minimap remains visible below every page.
 
 Selecting specific content in the project tree displays its corresponding editor dock widget. Camera shortcuts remain available as right-aligned icons beside the project tabs.
 
@@ -121,7 +121,6 @@ In the game section you can select:
 - **Rules**. Edit project-wide gameplay rules and formulas in a TOML-based data editor, see [Rules](../rules).
 - **Locales**. Edit shared localization tables like `[en]` and `[de]` in a TOML-based data editor, see [Localization](../localization).
 - **Audio FX**. Edit generated micro sound effects in a TOML-based data editor with built-in preview, see [Audio](../audio).
-- **Debug Log**. Displays state during game play, important especially to diagnose server startup or runtime errors. Shown by default after starting the game server.
 
 Use the **world** scripts for global state that should survive across regions, and use the **region** scripts for state and behavior local to one map.
 

@@ -203,7 +203,6 @@ pub enum ProjectContext {
     GameAudioFx,
     GameAuthoring,
     GameShortcuts,
-    DebugLog,
     Console,
 }
 
@@ -218,7 +217,6 @@ impl ProjectContext {
             | ProjectContext::GameAudioFx
             | ProjectContext::GameAuthoring
             | ProjectContext::GameShortcuts
-            | ProjectContext::DebugLog
             | ProjectContext::Console => None,
             ProjectContext::Region(id)
             | ProjectContext::RegionSettings(id)

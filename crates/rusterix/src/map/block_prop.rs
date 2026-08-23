@@ -148,7 +148,7 @@ fn door_part_motion(
     )
 }
 
-fn derived_instance_object_id(instance_id: Uuid, part_id: Uuid, object_id: Uuid) -> Uuid {
+pub fn block_prop_instance_object_id(instance_id: Uuid, part_id: Uuid, object_id: Uuid) -> Uuid {
     let mut value = instance_id.as_u128()
         ^ part_id.as_u128().rotate_left(41)
         ^ object_id.as_u128().rotate_left(83);
@@ -165,7 +165,8 @@ fn placeholder_object(instance: &BlockPropInstance) -> GeometryObject {
         Vec3::new(-0.5, 0.0, -0.5),
         Vec3::new(0.5, 1.0, 0.5),
     );
-    object.id = derived_instance_object_id(instance.id, instance.asset_id, placeholder_source_id);
+    object.id =
+        block_prop_instance_object_id(instance.id, instance.asset_id, placeholder_source_id);
     object.kind = GeometryObjectKind::Generated;
     object.solid = false;
     object.transform = instance.world_transform;
@@ -194,6 +195,10 @@ fn default_footprint() -> [u32; 3] {
 pub struct BlockPropAsset {
     pub id: Uuid,
     pub name: String,
+    /// TOML-authored presentation and interaction metadata shared by every
+    /// linked instance of this Prefab.
+    #[serde(default)]
+    pub authoring: String,
     #[serde(default)]
     pub alias: String,
     #[serde(default)]
@@ -221,6 +226,7 @@ impl BlockPropAsset {
         Self {
             id: Uuid::new_v4(),
             name: name.into(),
+            authoring: String::new(),
             alias: String::new(),
             category: String::new(),
             tags: Vec::new(),
@@ -425,6 +431,8 @@ pub struct BlockPropFaceRef {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum BlockPropSemanticShape {
+    /// Every rendered Geometry Object owned by the semantic overlay's part.
+    Part,
     Faces(Vec<BlockPropFaceRef>),
     Plane {
         origin: [f32; 3],
@@ -569,8 +577,8 @@ pub struct BlockPropInteractionHit {
     pub instance_id: Uuid,
     pub asset_id: Uuid,
     pub part_id: Uuid,
-    pub target_id: Uuid,
-    pub component_id: Uuid,
+    pub target_id: Option<Uuid>,
+    pub component_id: Option<Uuid>,
 }
 
 fn resolved_part_transform(
@@ -625,9 +633,9 @@ fn resolved_part_transform(
     transform
 }
 
-/// Resolve a rendered object/face pick back to its linked Prefab interaction target.
-/// Face targets require an exact persistent source-face match; other semantic target
-/// shapes match their owning part.
+/// Resolve a rendered object/face pick back to its linked Prefab. Every rendered
+/// part resolves so general intents such as Look can target any Prefab. Component
+/// targets remain optional metadata used by built-in behaviors such as Door.
 pub fn resolve_block_prop_interaction_hit(
     instances: &[BlockPropInstance],
     assets: &IndexMap<Uuid, BlockPropAsset>,
@@ -640,11 +648,19 @@ pub fn resolve_block_prop_interaction_hit(
         };
         for part in &asset.parts {
             for source_object in part.geometry_source.geometry_objects() {
-                if derived_instance_object_id(instance.id, part.id, source_object.id)
+                if block_prop_instance_object_id(instance.id, part.id, source_object.id)
                     != rendered_object_id
                 {
                     continue;
                 }
+
+                let generic_hit = BlockPropInteractionHit {
+                    instance_id: instance.id,
+                    asset_id: asset.id,
+                    part_id: part.id,
+                    target_id: None,
+                    component_id: None,
+                };
 
                 for target in asset
                     .interaction_targets
@@ -654,53 +670,75 @@ pub fn resolve_block_prop_interaction_hit(
                     let Some(component_id) = target.component_id else {
                         continue;
                     };
-                    let component_matches = asset.components.iter().any(|component| {
+                    let Some(component) = asset.components.iter().find(|component| {
                         component.id == component_id
                             && component.properties.get_id("part_id") == Some(part.id)
-                    });
-                    if !component_matches {
+                    }) else {
                         continue;
-                    }
-                    let shape_matches = match &target.shape {
-                        BlockPropSemanticShape::Faces(faces) => {
-                            let Some(picked_surface_id) = paint_surface_id else {
-                                continue;
-                            };
-                            faces.iter().any(|face_ref| {
-                                if face_ref.object_id != source_object.id {
-                                    return false;
-                                }
-                                source_object
-                                    .faces
-                                    .iter()
-                                    .find(|face| face.id == face_ref.face_id)
-                                    .map(|face| {
-                                        block_prop_paint_surface_id(
-                                            source_object.id,
-                                            crate::geometry_face_effective_paint_surface_id(face),
-                                        ) == picked_surface_id
-                                    })
-                                    .unwrap_or(false)
-                            })
-                        }
-                        BlockPropSemanticShape::Plane { .. }
-                        | BlockPropSemanticShape::Box { .. }
-                        | BlockPropSemanticShape::NamedOutput(_) => true,
                     };
+                    let shape_matches = component.kind == "Door"
+                        || match &target.shape {
+                            BlockPropSemanticShape::Part => true,
+                            BlockPropSemanticShape::Faces(faces) => {
+                                let Some(picked_surface_id) = paint_surface_id else {
+                                    continue;
+                                };
+                                faces.iter().any(|face_ref| {
+                                    if face_ref.object_id != source_object.id {
+                                        return false;
+                                    }
+                                    source_object
+                                        .faces
+                                        .iter()
+                                        .find(|face| face.id == face_ref.face_id)
+                                        .map(|face| {
+                                            block_prop_paint_surface_id(
+                                                source_object.id,
+                                                crate::geometry_face_effective_paint_surface_id(
+                                                    face,
+                                                ),
+                                            ) == picked_surface_id
+                                        })
+                                        .unwrap_or(false)
+                                })
+                            }
+                            BlockPropSemanticShape::Plane { .. }
+                            | BlockPropSemanticShape::Box { .. }
+                            | BlockPropSemanticShape::NamedOutput(_) => true,
+                        };
                     if shape_matches {
                         return Some(BlockPropInteractionHit {
                             instance_id: instance.id,
                             asset_id: asset.id,
                             part_id: part.id,
-                            target_id: target.id,
-                            component_id,
+                            target_id: Some(target.id),
+                            component_id: Some(component_id),
                         });
                     }
                 }
+                return Some(generic_hit);
             }
         }
     }
     None
+}
+
+/// World-space anchor for whole-Prefab authoring interactions. The selected
+/// part pivot provides a stable, server-verifiable point even when no component
+/// interaction target exists.
+pub fn block_prop_part_world_anchor(
+    asset: &BlockPropAsset,
+    instance: &BlockPropInstance,
+    part_id: Uuid,
+) -> Option<Vec3<f32>> {
+    let part = asset.find_part(part_id)?;
+    let mut diagnostics = Vec::new();
+    let part_transform = resolved_part_transform(asset, instance, part, &mut diagnostics);
+    if !diagnostics.is_empty() {
+        return None;
+    }
+    let world_transform = multiply_block_prop_transforms(part_transform, instance.world_transform);
+    Some(transform_block_prop_point(world_transform, part.pivot))
 }
 
 /// Context-sensitive default verb for a target on one linked instance.
@@ -769,7 +807,7 @@ pub fn resolve_block_prop_geometry(
 
             for source_object in part.geometry_source.geometry_objects() {
                 let mut object = source_object.clone();
-                object.id = derived_instance_object_id(instance.id, part.id, source_object.id);
+                object.id = block_prop_instance_object_id(instance.id, part.id, source_object.id);
                 object.kind = GeometryObjectKind::Prop;
                 object.transform = multiply_block_prop_transforms(
                     source_object.transform,
@@ -980,7 +1018,7 @@ mod tests {
     }
 
     #[test]
-    fn rendered_face_pick_resolves_stable_door_target_and_context_verb() {
+    fn legacy_door_face_target_resolves_whole_part_and_context_verb() {
         let object = GeometryObject::box_("Leaf", Vec3::zero(), Vec3::one());
         let source_object_id = object.id;
         let source_face_id = object.faces[0].id;
@@ -1007,7 +1045,8 @@ mod tests {
         });
         let mut instance = BlockPropInstance::new(asset.id);
         instance.world_transform[3][0] = 4.0;
-        let rendered_object_id = derived_instance_object_id(instance.id, part_id, source_object_id);
+        let rendered_object_id =
+            block_prop_instance_object_id(instance.id, part_id, source_object_id);
         let paint_surface_id = block_prop_paint_surface_id(source_object_id, effective_face_id);
         let assets = IndexMap::from([(asset.id, asset.clone())]);
 
@@ -1019,7 +1058,7 @@ mod tests {
         )
         .expect("face hit should resolve");
         assert_eq!(hit.instance_id, instance.id);
-        assert_eq!(hit.target_id, target_id);
+        assert_eq!(hit.target_id, Some(target_id));
         assert_eq!(
             block_prop_interaction_verb(&asset, &instance, target_id),
             Some("open")
@@ -1041,8 +1080,68 @@ mod tests {
                 rendered_object_id,
                 Some([0; 4]),
             )
-            .is_none()
+            .is_some()
         );
+    }
+
+    #[test]
+    fn rendered_object_pick_resolves_whole_part_door_target() {
+        let object = GeometryObject::box_("Leaf", Vec3::zero(), Vec3::one());
+        let source_object_id = object.id;
+        let mut asset = BlockPropAsset::new_authored("Door", vec![object]);
+        let part_id = asset.parts[0].id;
+        let mut component = BlockPropComponent::new("Door");
+        component.properties.set("part_id", Value::Id(part_id));
+        let component_id = component.id;
+        asset.components.push(component);
+        let target_id = Uuid::new_v4();
+        asset.interaction_targets.push(BlockPropInteractionTarget {
+            id: target_id,
+            name: "Door Interaction".to_string(),
+            part_id,
+            shape: BlockPropSemanticShape::Part,
+            interaction_anchor: [0.0, 0.0, 0.0],
+            facing_direction: [0.0, 0.0, 1.0],
+            component_id: Some(component_id),
+        });
+        let instance = BlockPropInstance::new(asset.id);
+        let rendered_object_id =
+            block_prop_instance_object_id(instance.id, part_id, source_object_id);
+        let assets = IndexMap::from([(asset.id, asset)]);
+
+        let hit = resolve_block_prop_interaction_hit(
+            std::slice::from_ref(&instance),
+            &assets,
+            rendered_object_id,
+            None,
+        )
+        .expect("any object in the Door part should resolve");
+        assert_eq!(hit.target_id, Some(target_id));
+        assert_eq!(hit.component_id, Some(component_id));
+    }
+
+    #[test]
+    fn rendered_object_pick_resolves_prefab_without_interaction_component() {
+        let object = GeometryObject::box_("Table", Vec3::zero(), Vec3::one());
+        let source_object_id = object.id;
+        let asset = BlockPropAsset::new_authored("Table", vec![object]);
+        let part_id = asset.parts[0].id;
+        let instance = BlockPropInstance::new(asset.id);
+        let rendered_object_id =
+            block_prop_instance_object_id(instance.id, part_id, source_object_id);
+        let assets = IndexMap::from([(asset.id, asset)]);
+
+        let hit = resolve_block_prop_interaction_hit(
+            std::slice::from_ref(&instance),
+            &assets,
+            rendered_object_id,
+            None,
+        )
+        .expect("any linked Prefab geometry should resolve for authoring intents");
+        assert_eq!(hit.instance_id, instance.id);
+        assert_eq!(hit.part_id, part_id);
+        assert_eq!(hit.target_id, None);
+        assert_eq!(hit.component_id, None);
     }
 
     #[test]

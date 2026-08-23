@@ -24,6 +24,9 @@ lazy_static! {
         let loader: FluentLanguageLoader = fluent_language_loader!();
 
         loader.load_fallback_language(&Localizations).unwrap();
+        // TheFramework's bitmap text renderer does not interpret Fluent's invisible
+        // bidirectional-isolation markers and renders them as missing glyphs instead.
+        loader.set_use_isolating(false);
 
         loader
     };
@@ -59,11 +62,15 @@ pub fn select_locales(
         .filter_map(|raw| raw.parse().ok())
         .collect();
 
-    i18n_embed::select(&*LANGUAGE_LOADER, &Localizations, &requested_languages)
+    let selected = i18n_embed::select(&*LANGUAGE_LOADER, &Localizations, &requested_languages)?;
+    LANGUAGE_LOADER.set_use_isolating(false);
+    Ok(selected)
 }
 
 pub fn select_system_locales() -> Result<Vec<LanguageIdentifier>, I18nEmbedError> {
     let requested_languages = DesktopLanguageRequester::requested_languages();
 
-    i18n_embed::select(&*LANGUAGE_LOADER, &Localizations, &requested_languages)
+    let selected = i18n_embed::select(&*LANGUAGE_LOADER, &Localizations, &requested_languages)?;
+    LANGUAGE_LOADER.set_use_isolating(false);
+    Ok(selected)
 }

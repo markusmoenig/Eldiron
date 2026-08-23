@@ -348,12 +348,11 @@ impl IsoPaintRenderer {
         Some((width, height, color, material, entries))
     }
 
-    fn surface_paint_alpha_geo_ids(
-        baked_chunks: &IndexMap<String, IsoPaintBakedChunk>,
-    ) -> Vec<scenevm::GeoId> {
+    fn surface_paint_alpha_geo_ids(layer: &IsoPaintLayer) -> Vec<scenevm::GeoId> {
         let mut seen = HashSet::new();
         let mut geo_ids = Vec::new();
-        for chunk in baked_chunks.values() {
+        let mut has_alpha_paint = false;
+        for chunk in layer.baked_chunks.values() {
             let needs_alpha = chunk.material_rgba.chunks_exact(4).any(|pixel| {
                 if pixel[0] != 254 || pixel[3] == 0 || pixel[2] == 0 {
                     return false;
@@ -363,7 +362,16 @@ impl IsoPaintRenderer {
                 replace_opacity < 254 || Self::iso_paint_material_is_translucent(material_id)
             });
             if needs_alpha {
+                has_alpha_paint = true;
                 let geo_id = Self::iso_paint_owner_geo_id(&chunk.owner);
+                if seen.insert(geo_id) {
+                    geo_ids.push(geo_id);
+                }
+            }
+        }
+        if has_alpha_paint {
+            for owner in &layer.surface_instance_owners {
+                let geo_id = Self::iso_paint_owner_geo_id(owner);
                 if seen.insert(geo_id) {
                     geo_ids.push(geo_id);
                 }
@@ -427,6 +435,7 @@ impl IsoPaintRenderer {
             chunk.origin.hash(&mut hasher);
             chunk.revision.hash(&mut hasher);
         }
+        layer.surface_instance_owners.hash(&mut hasher);
         let surface_key = hasher.finish();
         if !layer.visible || layer.baked_chunks.is_empty() {
             if render_cache.surface_uploaded_key.take().is_some() {
@@ -443,7 +452,7 @@ impl IsoPaintRenderer {
         else {
             return false;
         };
-        let paint_alpha_geo_ids = Self::surface_paint_alpha_geo_ids(&layer.baked_chunks);
+        let paint_alpha_geo_ids = Self::surface_paint_alpha_geo_ids(layer);
         vm.set_raster3d_surface_paint(
             width,
             height,
@@ -6359,7 +6368,7 @@ mod tests {
             })
         );
         assert_eq!(
-            IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer.baked_chunks),
+            IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer),
             vec![scenevm::GeoId::Sector(7)]
         );
     }
@@ -6376,7 +6385,7 @@ mod tests {
             .with_paint_geo(Some([7, 0, 0, 1]));
         layer.begin_stroke(point);
 
-        assert!(IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer.baked_chunks).is_empty());
+        assert!(IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer).is_empty());
     }
 
     #[test]
@@ -6406,9 +6415,33 @@ mod tests {
                 .any(|pixel| { pixel[0] == 254 && pixel[1] == 0 && pixel[2] == 1 && pixel[3] > 0 })
         );
         assert_eq!(
-            IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer.baked_chunks),
+            IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer),
             vec![scenevm::GeoId::Sector(7)]
         );
+    }
+
+    #[test]
+    fn translucent_prefab_paint_routes_rendered_instance_owner_through_alpha_pass() {
+        let source_id = Uuid::new_v4();
+        let instance_id = Uuid::new_v4();
+        let mut layer = IsoPaintLayer::default();
+        layer.active_material_mode = "replace".to_string();
+        layer.active_opacity = 0.5;
+        let point = IsoPaintPoint::new(
+            [10, 12],
+            None,
+            Some(IsoPaintOwner::GeometryObject(source_id)),
+        )
+        .with_surface_uv(Some(Vec2::new(0.25, 0.25)))
+        .with_paint_geo(Some([7, 0, 0, 1]));
+        layer.begin_stroke(point);
+        layer
+            .surface_instance_owners
+            .push(IsoPaintOwner::GeometryObject(instance_id));
+
+        let owners = IsoPaintRenderer::surface_paint_alpha_geo_ids(&layer);
+        assert!(owners.contains(&scenevm::GeoId::GeometryObject(source_id)));
+        assert!(owners.contains(&scenevm::GeoId::GeometryObject(instance_id)));
     }
 
     #[test]

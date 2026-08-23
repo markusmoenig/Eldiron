@@ -57,6 +57,7 @@ pub mod prelude {
             Atom, GeoId, LayerBlendMode, LineStrip2D, OrganicBillboardInstance,
             OrganicBillboardSprite, PaintSurfaceBuffer, PaintSurfacePixel, PaletteRemap2DMode,
             Raster3DPaintGpuStroke, Raster3DPaintGpuSurface, RenderMode, VMDebugStats,
+            legacy_raster3d_paint_surface_id, legacy_raster3d_paint_surface_uv,
             pack_raster3d_paint_geo_id,
         },
         dynamic::{AlphaMode, DynamicKind, DynamicMeshVertex, DynamicObject, RepeatMode},

@@ -1186,6 +1186,22 @@ impl TheTextRenderer {
     }
 
     pub fn prepare(&mut self, text: &str, font_preference: TheFontPreference, draw: &TheDraw2D) {
+        self.prepare_with_highlight_source(text, None, font_preference, draw);
+    }
+
+    /// Prepares visible text while allowing syntax highlighting to use a parallel source.
+    ///
+    /// This lets presentation-only output keep control markers in the highlight source without
+    /// exposing them in rendered, selected, or copied text. Both strings should contain the same
+    /// number of logical lines. When they differ, each source line's dominant syntax style is
+    /// projected over the corresponding visible line.
+    pub fn prepare_with_highlight_source(
+        &mut self,
+        text: &str,
+        highlight_source: Option<&str>,
+        font_preference: TheFontPreference,
+        draw: &TheDraw2D,
+    ) {
         self.actual_size = Vec2::zero();
         self.glyphs.clear();
         self.row_info.clear();
@@ -1275,59 +1291,78 @@ impl TheTextRenderer {
                 highlighter.syntect_theme(),
             );
 
-            let mut highlighted_lines = text
-                .split('\n')
-                .map(|line| highlighter.highlight_line(line, &mut h))
-                .flatten()
-                .into_iter();
-
+            let mut highlighted_lines = Vec::new();
+            if let Some(source) = highlight_source {
+                let mut source_lines = source.split('\n');
+                for visible_segment in text.split_inclusive('\n') {
+                    let visible_line = visible_segment
+                        .strip_suffix('\n')
+                        .unwrap_or(visible_segment);
+                    let source_line = source_lines.next().unwrap_or(visible_line);
+                    let source_highlights = highlighter.highlight_line(source_line, &mut h);
+                    if let Some((foreground, background, _)) =
+                        source_highlights.into_iter().max_by_key(|(_, _, len)| *len)
+                    {
+                        highlighted_lines.push((
+                            foreground,
+                            background,
+                            visible_segment.graphemes(true).count(),
+                        ));
+                    } else if visible_segment.ends_with('\n') {
+                        highlighted_lines.push((
+                            TheColor::default(),
+                            highlighter.background().unwrap_or_default(),
+                            1,
+                        ));
+                    }
+                }
+            } else {
+                for segment in text.split_inclusive('\n') {
+                    let line = segment.strip_suffix('\n').unwrap_or(segment);
+                    let mut line_highlights = highlighter.highlight_line(line, &mut h);
+                    if segment.ends_with('\n') {
+                        let (foreground, background) = line_highlights
+                            .last()
+                            .map(|(foreground, background, _)| {
+                                (foreground.clone(), background.clone())
+                            })
+                            .unwrap_or_else(|| {
+                                (
+                                    TheColor::default(),
+                                    highlighter.background().unwrap_or_default(),
+                                )
+                            });
+                        line_highlights.push((foreground, background, 1));
+                    }
+                    highlighted_lines.extend(line_highlights);
+                }
+            }
+            let mut highlighted_lines = highlighted_lines.into_iter();
             let mut leftover: Option<(TheColor, TheColor, usize)> = None;
 
             for row_info in &mut self.row_info {
-                // Skip empty line
-                if row_info.glyph_start == row_info.glyph_end {
-                    continue;
-                }
-
-                let mut cursor = row_info.glyph_start;
+                let mut remaining = row_info.glyph_end + 1 - row_info.glyph_start;
                 let mut highlights = vec![];
 
-                if let Some(leftover) = leftover.take() {
-                    cursor += leftover.2;
-                    highlights.push(leftover);
-                }
-
-                while let Some((fg_color, bg_color, token_len)) = highlighted_lines.next() {
-                    cursor += token_len;
-                    if cursor > row_info.glyph_end + 1 {
-                        highlights.push((
-                            fg_color.clone(),
-                            bg_color.clone(),
-                            token_len + row_info.glyph_end - cursor,
-                        ));
-                        leftover = Some((fg_color, bg_color, cursor - row_info.glyph_end));
-
+                while remaining > 0 {
+                    let Some((fg_color, bg_color, token_len)) =
+                        leftover.take().or_else(|| highlighted_lines.next())
+                    else {
                         break;
-                    } else {
-                        highlights.push((fg_color, bg_color, token_len));
-
-                        if cursor == row_info.glyph_end {
-                            break;
-                        }
+                    };
+                    let visible_len = token_len.min(remaining);
+                    if visible_len > 0 {
+                        highlights.push((fg_color.clone(), bg_color.clone(), visible_len));
+                        remaining -= visible_len;
+                    }
+                    if token_len > visible_len {
+                        leftover = Some((fg_color, bg_color, token_len - visible_len));
                     }
                 }
 
                 if !highlights.is_empty() {
                     row_info.highlights = Some(highlights);
                 }
-            }
-
-            if let Some(highlight) = highlighted_lines.next() {
-                let last_row = self.row_info.last_mut().unwrap();
-                if last_row.highlights.is_none() {
-                    last_row.highlights = Some(vec![]);
-                }
-                last_row.highlights.as_mut().unwrap().push(highlight);
             }
         }
 
@@ -1476,6 +1511,17 @@ impl TheTextRenderer {
 
     pub fn row_count(&self) -> usize {
         self.row_info.len()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn highlighted_rows_cover_text(&self) -> bool {
+        self.row_info.iter().all(|row| {
+            row.highlights
+                .as_ref()
+                .map(|highlights| highlights.iter().map(|(_, _, len)| len).sum::<usize>())
+                .unwrap_or(0)
+                == row.glyph_end + 1 - row.glyph_start
+        })
     }
 
     pub fn scroll(&mut self, delta: &Vec2<i32>, visible_constrained: bool) -> bool {
