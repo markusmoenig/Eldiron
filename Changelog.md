@@ -5,12 +5,15 @@
 ### Creator
 
 - The **Authoring** tool now supports selected 3D Geometry Objects and linked Prefab instances. Object metadata is stored independently, while linked instances edit their shared Prefab authoring.
+- Maximized **Prefab** editing now includes a Prefab-only **Tile Picker** tool alongside geometry and 3D Paint tools.
+- The Creator now starts with the **Object** tool selected instead of the Face tool.
 - Added the new black-and-blue Creator theme and made it the default, replacing legacy image-based widget chrome with theme-driven rendering and extensible action-group colors. The UI pass also adds delayed localized hover help, compact sidebar and camera navigation, a taller menu-bar timeline option, contextual editor shortcut guidance, and clearer flat status surfaces.
 - Consolidated the Creator sidebar into **Project**, **Actions**, **Console**, **Debug**, and **Help** pages. Runtime diagnostics now live in the dedicated Debug page, `Tab` / `Shift+Tab` cycle all pages, and direct sidebar shortcuts are available from the **Game > Show** menu.
 - Added the first complete **Prefab authoring workflow**, with dedicated geometry and paint editing, hierarchical parts and components, and linked instances that share authored content while retaining independent state. Prefabs also integrate with the existing Look and rules-action system, including contextual Door interactions.
 - Added **Clear Surface Detail** to remove all surface-line guides from every face of selected Geometry Objects in Object mode, from selected faces in Face mode, or from the host faces identified by selected guides in Edge mode, while preserving paint, materials, and generated geometry.
 - Added **C: Select Contour** in the 3D Edge Tool to expand a selected rim edge into its closed coplanar boundary, including irregular and arched openings.
-- Added **Create Fitted Geometry** to turn two selected opening contours and their reveal band into an independent capped solid with the opening's exact shape and depth.
+- **Create Fitted Geometry** now supports centered custom depth, single or split leaves, and solid or barred gate construction.
+- Prefab Doors now support single and split Swing or Slide motion with shared interaction state.
 - Removed the obsolete **Surface Noise** action and its dedicated face data and renderer path; persistent surface detail now belongs to **3D Paint**.
 - Removed **Create Pattern**; surface patterns are authored through **3D Paint** instead of a specialized geometry action.
 - Removed **Cut Profile** to keep mesh editing centered on universal geometry operations rather than one-off shape actions.

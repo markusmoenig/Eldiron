@@ -1318,6 +1318,7 @@ impl TheUI {
                 if layout.supports_mouse_wheel() {
                     layout.mouse_wheel_scroll(Vec2::new(delta.0, delta.1));
                     processed = true;
+                    redraw = true;
                 }
             }
         }

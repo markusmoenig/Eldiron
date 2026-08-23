@@ -1197,16 +1197,16 @@ impl TheWidget for IsoPaintBrushBoard {
                     palette,
                     IsoPaintPreviewMode::Paint,
                 );
-                if self.selected == index {
-                    ctx.draw
-                        .rect_outline_border(buffer.pixels_mut(), &outer, stride, &WHITE, 1);
-                }
-
-                let text_color = if self.selected == index {
-                    [252, 252, 252, 255]
+                let border = if self.selected == index {
+                    style.theme().color(DefaultSelection)
+                } else if self.hovered == Some(index) {
+                    style.theme().color(ListItemHover)
                 } else {
-                    [226, 226, 226, 255]
+                    style.theme().color(ListItemIconBorder)
                 };
+                ctx.draw
+                    .rect_outline_border(buffer.pixels_mut(), &outer, stride, border, 1);
+
                 ctx.draw.text_rect_blend(
                     buffer.pixels_mut(),
                     &(
@@ -1221,7 +1221,7 @@ impl TheWidget for IsoPaintBrushBoard {
                         size: 10.5,
                         ..Default::default()
                     },
-                    &text_color,
+                    style.theme().color(ListItemText),
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
                 );
@@ -1533,18 +1533,15 @@ impl TheWidget for IsoPaintPresetStrip {
                     IsoPaintPreviewMode::Paint
                 },
             );
-            if self.selected == index {
-                ctx.draw.rect_outline_border(
-                    tile_buffer.pixels_mut(),
-                    &outer,
-                    tile_stride,
-                    &WHITE,
-                    1,
-                );
+            let border = if self.selected == index {
+                style.theme().color(DefaultSelection)
             } else if self.hovered == Some(index) {
-                ctx.draw
-                    .rect_outline_border(tile_buffer.pixels_mut(), &outer, tile_stride, bg, 1);
-            }
+                style.theme().color(ListItemHover)
+            } else {
+                style.theme().color(ListItemIconBorder)
+            };
+            ctx.draw
+                .rect_outline_border(tile_buffer.pixels_mut(), &outer, tile_stride, border, 1);
             buffer.copy_into(utuple.0 as i32 + x, utuple.1 as i32 + y, &tile_buffer);
             self.rectangles.push((index, local_rect));
         }
@@ -1769,9 +1766,9 @@ impl TheWidget for IsoPaintBrushShapeStrip {
             let bg = if self.selected == index {
                 style.theme().color(ListItemSelected)
             } else if self.hovered == Some(index) {
-                &[96, 96, 96, 255]
+                style.theme().color(ListItemHover)
             } else {
-                &[56, 56, 56, 255]
+                style.theme().color(ListItemNormal)
             };
             ctx.draw.rect(buffer.pixels_mut(), &outer, stride, bg);
             let icon = (
@@ -1791,9 +1788,11 @@ impl TheWidget for IsoPaintBrushShapeStrip {
                 &outer,
                 stride,
                 if self.selected == index {
-                    &WHITE
+                    style.theme().color(DefaultSelection)
+                } else if self.hovered == Some(index) {
+                    style.theme().color(ListItemHover)
                 } else {
-                    &[36, 36, 36, 255]
+                    style.theme().color(ListItemIconBorder)
                 },
                 1,
             );
@@ -2035,7 +2034,7 @@ impl TheWidget for IsoPaintBrushEditor {
             buffer.pixels_mut(),
             &preview_panel,
             stride,
-            &[38, 38, 38, 255],
+            style.theme().color(ListItemIconBorder),
             1,
         );
 
@@ -2134,24 +2133,6 @@ impl IsoPaintMaterialStrip {
             })
             .map(str::to_string)
             .collect()
-    }
-
-    fn neutral_chip_color(selected: bool, hovered: bool) -> [u8; 4] {
-        if selected {
-            [122, 122, 122, 255]
-        } else if hovered {
-            [96, 96, 96, 255]
-        } else {
-            [74, 74, 74, 255]
-        }
-    }
-
-    fn chip_text_color(selected: bool) -> [u8; 4] {
-        if selected {
-            [250, 250, 250, 255]
-        } else {
-            [218, 218, 218, 255]
-        }
     }
 
     fn finish_labels_short() -> Vec<String> {
@@ -2323,17 +2304,23 @@ impl TheWidget for IsoPaintMaterialStrip {
             );
             let selected = self.material_preset == index;
             let hovered = self.hovered == Some(("preset", index));
-            let color = Self::neutral_chip_color(selected, hovered);
-            ctx.draw.rect(buffer.pixels_mut(), &global, stride, &color);
-            let border = if selected {
-                WHITE
+            let color = if selected {
+                style.theme().color(GroupButtonSelectedBackground)
             } else if hovered {
-                [210, 210, 210, 255]
+                style.theme().color(GroupButtonHoverBackground)
             } else {
-                [38, 38, 38, 255]
+                style.theme().color(GroupButtonNormalBackground)
+            };
+            ctx.draw.rect(buffer.pixels_mut(), &global, stride, color);
+            let border = if selected {
+                style.theme().color(GroupButtonSelectedBorder)
+            } else if hovered {
+                style.theme().color(GroupButtonHoverBorder)
+            } else {
+                style.theme().color(GroupButtonNormalBorder)
             };
             ctx.draw
-                .rect_outline_border(buffer.pixels_mut(), &global, stride, &border, 1);
+                .rect_outline_border(buffer.pixels_mut(), &global, stride, border, 1);
             ctx.draw.text_rect_blend(
                 buffer.pixels_mut(),
                 &(global.0 + 1, global.1, global.2.saturating_sub(2), global.3),
@@ -2343,7 +2330,7 @@ impl TheWidget for IsoPaintMaterialStrip {
                     size: 9.5,
                     ..Default::default()
                 },
-                &Self::chip_text_color(selected),
+                style.theme().color(ListItemText),
                 TheHorizontalAlign::Center,
                 TheVerticalAlign::Center,
             );
@@ -2367,17 +2354,23 @@ impl TheWidget for IsoPaintMaterialStrip {
             );
             let selected = self.material_finish == index;
             let hovered = self.hovered == Some(("finish", index));
-            let color = Self::neutral_chip_color(selected, hovered);
-            ctx.draw.rect(buffer.pixels_mut(), &global, stride, &color);
-            let border = if selected {
-                WHITE
+            let color = if selected {
+                style.theme().color(GroupButtonSelectedBackground)
             } else if hovered {
-                [210, 210, 210, 255]
+                style.theme().color(GroupButtonHoverBackground)
             } else {
-                [38, 38, 38, 255]
+                style.theme().color(GroupButtonNormalBackground)
+            };
+            ctx.draw.rect(buffer.pixels_mut(), &global, stride, color);
+            let border = if selected {
+                style.theme().color(GroupButtonSelectedBorder)
+            } else if hovered {
+                style.theme().color(GroupButtonHoverBorder)
+            } else {
+                style.theme().color(GroupButtonNormalBorder)
             };
             ctx.draw
-                .rect_outline_border(buffer.pixels_mut(), &global, stride, &border, 1);
+                .rect_outline_border(buffer.pixels_mut(), &global, stride, border, 1);
             ctx.draw.text_rect_blend(
                 buffer.pixels_mut(),
                 &(global.0 + 2, global.1, global.2.saturating_sub(4), global.3),
@@ -2387,7 +2380,7 @@ impl TheWidget for IsoPaintMaterialStrip {
                     size: 10.0,
                     ..Default::default()
                 },
-                &Self::chip_text_color(selected),
+                style.theme().color(ListItemText),
                 TheHorizontalAlign::Center,
                 TheVerticalAlign::Center,
             );

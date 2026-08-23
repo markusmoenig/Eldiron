@@ -26,6 +26,8 @@ pub struct TheTextLayout {
     background: Option<TheThemeColors>,
 
     text_align: TheHorizontalAlign,
+    is_dirty: bool,
+    layout_dirty: bool,
 }
 
 impl TheLayout for TheTextLayout {
@@ -59,6 +61,8 @@ impl TheLayout for TheTextLayout {
 
             background: Some(TextLayoutBackground),
             text_align: TheHorizontalAlign::Left,
+            is_dirty: true,
+            layout_dirty: true,
         }
     }
 
@@ -68,14 +72,32 @@ impl TheLayout for TheTextLayout {
 
     fn set_margin(&mut self, margin: Vec4<i32>) {
         self.margin = margin;
+        self.layout_dirty = true;
+        self.is_dirty = true;
     }
 
     fn set_padding(&mut self, padding: i32) {
         self.padding = padding;
+        self.layout_dirty = true;
+        self.is_dirty = true;
     }
 
     fn set_background_color(&mut self, color: Option<TheThemeColors>) {
         self.background = color;
+        self.is_dirty = true;
+    }
+
+    fn supports_mouse_wheel(&self) -> bool {
+        self.vertical_scrollbar_visible
+    }
+
+    fn mouse_wheel_scroll(&mut self, delta: Vec2<i32>) {
+        if !self.vertical_scrollbar_visible {
+            return;
+        }
+        if let Some(scroll_bar) = self.vertical_scrollbar.as_vertical_scrollbar() {
+            scroll_bar.scroll_by(-delta.y);
+        }
     }
 
     fn widgets(&mut self) -> &mut Vec<Box<dyn TheWidget>> {
@@ -123,7 +145,7 @@ impl TheLayout for TheTextLayout {
             }
         }
 
-        if self.text.is_empty() { true } else { false }
+        self.is_dirty
     }
 
     fn dim(&self) -> &TheDim {
@@ -135,7 +157,7 @@ impl TheLayout for TheTextLayout {
     }
 
     fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
-        if self.dim != dim || ctx.ui.relayout {
+        if self.dim != dim || ctx.ui.relayout || self.layout_dirty {
             self.dim = dim;
 
             let x = self.margin.x;
@@ -161,6 +183,10 @@ impl TheLayout for TheTextLayout {
             if let Some(scroll_bar) = self.vertical_scrollbar.as_vertical_scrollbar() {
                 scroll_bar.set_total_height(total_height);
                 self.vertical_scrollbar_visible = scroll_bar.needs_scrollbar();
+
+                let max_offset = (total_height - dim.height).max(0);
+                let clamped_offset = scroll_bar.scroll_offset().clamp(0, max_offset);
+                scroll_bar.set_scroll_offset(clamped_offset);
             }
 
             y = self.margin.y;
@@ -218,8 +244,8 @@ impl TheLayout for TheTextLayout {
                 // }
 
                 texts_rect.push((
-                    (self.dim.buffer_x + x) as usize,
-                    (self.dim.buffer_y + y) as usize,
+                    x as usize,
+                    y as usize,
                     text_width
                         - if text_width > self.text_margin as usize {
                             self.text_margin as usize
@@ -235,17 +261,13 @@ impl TheLayout for TheTextLayout {
                         TheDim::new(dim.x + x + offset, dim.y + y, width, height),
                         ctx,
                     );
-                    w.dim_mut()
-                        .set_buffer_offset(self.dim.buffer_x + x + offset, self.dim.buffer_y + y);
+                    w.dim_mut().set_buffer_offset(x + offset, y);
                 } else {
                     w.set_dim(
                         TheDim::new(dim.x + x + text_width as i32, dim.y + y, width, height),
                         ctx,
                     );
-                    w.dim_mut().set_buffer_offset(
-                        self.dim.buffer_x + x + text_width as i32,
-                        self.dim.buffer_y + y,
-                    );
+                    w.dim_mut().set_buffer_offset(x + text_width as i32, y);
                 }
 
                 y += height + self.padding;
@@ -267,6 +289,8 @@ impl TheLayout for TheTextLayout {
                 .set_dim(TheDim::new(0, 0, width, total_height));
 
             self.text_rect = texts_rect;
+            self.layout_dirty = false;
+            self.is_dirty = true;
         }
     }
 
@@ -284,6 +308,9 @@ impl TheLayout for TheTextLayout {
         style: &mut Box<dyn TheStyle>,
         ctx: &mut TheContext,
     ) {
+        if self.layout_dirty {
+            self.set_dim(self.dim, ctx);
+        }
         if !self.dim().is_valid() {
             return;
         }
@@ -364,8 +391,11 @@ impl TheLayout for TheTextLayout {
                     range,
                 );
             }
-        } else if let Some(scroll_bar) = self.vertical_scrollbar.as_vertical_scrollbar() {
-            let range = 0..scroll_bar.total_height();
+        } else {
+            // The offscreen buffer is at least as tall as the viewport. Copy the full
+            // viewport so that switching from a longer layout cannot leave stale rows
+            // below shorter content.
+            let range = 0..self.dim.height;
             buffer.copy_vertical_range_into(
                 self.dim.buffer_x,
                 self.dim.buffer_y,
@@ -383,6 +413,8 @@ impl TheLayout for TheTextLayout {
                 style.theme().color(TextLayoutBorder),
             );
         }
+
+        self.is_dirty = false;
     }
 
     fn as_text_layout(&mut self) -> Option<&mut dyn TheTextLayoutTrait> {
@@ -410,21 +442,87 @@ impl TheTextLayoutTrait for TheTextLayout {
     fn clear(&mut self) {
         self.text.clear();
         self.widgets.clear();
+        self.text_rect.clear();
+        if let Some(scroll_bar) = self.vertical_scrollbar.as_vertical_scrollbar() {
+            scroll_bar.set_total_height(0);
+            scroll_bar.set_scroll_offset(0);
+        }
+        self.vertical_scrollbar_visible = false;
+        self.layout_dirty = true;
+        self.is_dirty = true;
     }
     fn add_pair(&mut self, text: String, widget: Box<dyn TheWidget>) {
         self.text.push(text);
         self.widgets.push(widget);
+        self.layout_dirty = true;
+        self.is_dirty = true;
     }
     fn set_fixed_text_width(&mut self, text_width: i32) {
         self.fixed_text_width = Some(text_width);
+        self.layout_dirty = true;
+        self.is_dirty = true;
     }
     fn set_text_size(&mut self, text_size: f32) {
         self.text_size = text_size;
+        self.layout_dirty = true;
+        self.is_dirty = true;
     }
     fn set_text_margin(&mut self, text_margin: i32) {
         self.text_margin = text_margin;
+        self.layout_dirty = true;
+        self.is_dirty = true;
     }
     fn set_text_align(&mut self, align: TheHorizontalAlign) {
         self.text_align = align;
+        self.is_dirty = true;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixed_height_text(name: &str, height: i32) -> Box<dyn TheWidget> {
+        let mut text = TheText::new(TheId::named(name));
+        text.limiter_mut().set_min_height(height);
+        text.limiter_mut().set_max_height(height);
+        Box::new(text)
+    }
+
+    #[test]
+    fn touchpad_scroll_is_clamped_when_reusing_the_layout() {
+        let mut ctx = TheContext::new(120, 60, 1.0);
+        let mut layout = TheTextLayout::new(TheId::named("Scrollable Text Layout"));
+        layout.set_margin(Vec4::new(0, 0, 0, 0));
+        layout.set_padding(0);
+
+        for index in 0..5 {
+            layout.add_pair(
+                String::new(),
+                fixed_height_text(&format!("Row {index}"), 24),
+            );
+        }
+        layout.set_dim(TheDim::sized(120, 60), &mut ctx);
+        assert!(layout.supports_mouse_wheel());
+
+        layout.mouse_wheel_scroll(Vec2::new(0, -18));
+        let offset = layout
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|scrollbar| scrollbar.scroll_offset())
+            .unwrap_or_default();
+        assert_eq!(offset, 18);
+
+        layout.clear();
+        layout.add_pair(String::new(), fixed_height_text("Short Row", 24));
+        layout.set_dim(TheDim::sized(120, 60), &mut ctx);
+
+        assert!(!layout.supports_mouse_wheel());
+        let offset = layout
+            .vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|scrollbar| scrollbar.scroll_offset())
+            .unwrap_or_default();
+        assert_eq!(offset, 0);
     }
 }

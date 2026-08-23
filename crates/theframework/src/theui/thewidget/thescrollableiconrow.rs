@@ -269,7 +269,7 @@ impl TheWidget for TheScrollableIconRow {
                         size: 10.0,
                         ..Default::default()
                     },
-                    &[230, 230, 230, 255],
+                    style.theme().color(ListItemText),
                     TheHorizontalAlign::Center,
                     TheVerticalAlign::Center,
                 );
@@ -279,9 +279,11 @@ impl TheWidget for TheScrollableIconRow {
                 &outer,
                 tile_stride,
                 if self.selected == index {
-                    &WHITE
+                    style.theme().color(DefaultSelection)
+                } else if self.hovered == Some(index) {
+                    style.theme().color(ListItemHover)
                 } else {
-                    &[28, 28, 28, 255]
+                    style.theme().color(ListItemIconBorder)
                 },
                 1,
             );

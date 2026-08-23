@@ -1,4 +1,5 @@
 use crate::docks::iso_paint::IsoPaintDock;
+use crate::docks::tiles::TilesDock;
 use crate::editor::{RUSTERIX, SCENEMANAGER, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
 
@@ -11,7 +12,11 @@ const PART_NAME: &str = "Prefab Editor Part Name";
 const PART_PARENT: &str = "Prefab Editor Part Parent";
 const PART_ASSIGNMENT: &str = "Prefab Editor Object Assignment";
 const PART_PIVOT: &str = "Prefab Editor Part Pivot";
+const PART_DOOR_LAYOUT: &str = "Prefab Editor Door Layout";
+const PART_DOOR_MOTION: &str = "Prefab Editor Door Motion";
 const PART_DOOR_ANGLE: &str = "Prefab Editor Door Angle";
+const PART_DOOR_SLIDE_DISTANCE: &str = "Prefab Editor Door Slide Distance";
+const PART_DOOR_USAGE_DISTANCE: &str = "Prefab Editor Door Usage Distance";
 const PART_BEHAVIOR: &str = "Prefab Editor Part Behavior";
 const PART_TARGET_COUNT: &str = "Prefab Editor Part Target Count";
 const PART_CREATE: &str = "Prefab Editor Create Part";
@@ -19,13 +24,13 @@ const PART_SET_PIVOT: &str = "Prefab Editor Set Pivot";
 const PART_REMOVE: &str = "Prefab Editor Remove Part";
 const PART_CONFIGURE_DOOR: &str = "Prefab Editor Configure Door";
 const PART_PREVIEW_DOOR: &str = "Prefab Editor Preview Door";
-const PREFAB_ACTION_LIST: &str = "Prefab Action List";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum PrefabEditorMode {
     #[default]
     Parts,
     Paint,
+    Tiles,
 }
 
 impl PrefabEditorMode {
@@ -33,6 +38,7 @@ impl PrefabEditorMode {
         match self {
             Self::Parts => 0,
             Self::Paint => 1,
+            Self::Tiles => 2,
         }
     }
 }
@@ -41,8 +47,8 @@ impl PrefabEditorMode {
 ///
 /// Geometry tools still consume the established PolyView event contract. The
 /// dedicated canvas translates its input at the dock boundary, keeping the
-/// region canvas and its visual state completely separate. Its lower split is
-/// owned by the Prefab editor and therefore remains available in maximized mode.
+/// region canvas and its visual state completely separate. Its lower controls
+/// are owned by the Prefab editor and therefore remain available in maximized mode.
 pub struct PrefabsEditorDock {
     mode: PrefabEditorMode,
     selected_part_id: Option<Uuid>,
@@ -50,6 +56,7 @@ pub struct PrefabsEditorDock {
     assignment_options: Vec<Uuid>,
     door_preview_open: bool,
     paint_dock: IsoPaintDock,
+    tiles_dock: TilesDock,
 }
 
 impl PrefabsEditorDock {
@@ -137,7 +144,7 @@ impl PrefabsEditorDock {
         inspector.set_margin(Vec4::new(10, 8, 10, 8));
         inspector.set_padding(7);
         inspector.set_text_margin(8);
-        inspector.set_fixed_text_width(88);
+        inspector.set_fixed_text_width(120);
         inspector.set_text_align(TheHorizontalAlign::Right);
 
         let mut name = TheTextLineEdit::new(TheId::named(PART_NAME));
@@ -166,6 +173,29 @@ impl PrefabsEditorDock {
         door_angle.set_status_text(&fl!("status_prefab_editor_door_angle"));
         inspector.add_pair(fl!("prefab_editor_door_angle"), Box::new(door_angle));
 
+        let mut door_layout = TheDropdownMenu::new(TheId::named(PART_DOOR_LAYOUT));
+        door_layout.add_option("Single".to_string());
+        door_layout.add_option("Split".to_string());
+        door_layout.limiter_mut().set_max_width(i32::MAX);
+        inspector.add_pair("Leaves".to_string(), Box::new(door_layout));
+
+        let mut door_motion = TheDropdownMenu::new(TheId::named(PART_DOOR_MOTION));
+        door_motion.add_option("Swing".to_string());
+        door_motion.add_option("Slide".to_string());
+        door_motion.limiter_mut().set_max_width(i32::MAX);
+        inspector.add_pair("Motion".to_string(), Box::new(door_motion));
+
+        let mut slide_distance = TheTextLineEdit::new(TheId::named(PART_DOOR_SLIDE_DISTANCE));
+        slide_distance.limiter_mut().set_max_width(i32::MAX);
+        slide_distance.set_value(TheValue::Text("1".to_string()));
+        inspector.add_pair("Slide Distance".to_string(), Box::new(slide_distance));
+
+        let mut usage_distance = TheTextLineEdit::new(TheId::named(PART_DOOR_USAGE_DISTANCE));
+        usage_distance.limiter_mut().set_max_width(i32::MAX);
+        usage_distance.set_value(TheValue::Text("3".to_string()));
+        usage_distance.set_status_text("Maximum horizontal distance for using this prefab.");
+        inspector.add_pair("Usage Distance".to_string(), Box::new(usage_distance));
+
         let mut behavior = TheTextLineEdit::new(TheId::named(PART_BEHAVIOR));
         behavior.limiter_mut().set_max_width(i32::MAX);
         behavior.set_disabled(true);
@@ -179,7 +209,7 @@ impl PrefabsEditorDock {
         inspector_canvas.set_layout(inspector);
 
         let mut split = TheSharedHLayout::new(TheId::named("Prefab Parts Shared HLayout"));
-        split.set_shared_ratio(0.58);
+        split.set_shared_ratio(0.52);
         split.set_mode(TheSharedHLayoutMode::Shared);
         split.add_canvas(tree_canvas);
         split.add_canvas(inspector_canvas);
@@ -371,8 +401,9 @@ impl PrefabsEditorDock {
 
         let door_component = asset.and_then(|asset| {
             asset.components.iter().find(|component| {
-                component.kind == "Door"
-                    && component.properties.get_id("part_id") == self.selected_part_id
+                self.selected_part_id.is_some_and(|part_id| {
+                    rusterix::block_prop_door_controls_part(component, part_id)
+                })
             })
         });
         let door_angle = door_component
@@ -386,6 +417,74 @@ impl PrefabsEditorDock {
             PART_DOOR_ANGLE,
             ctx,
             TheValue::Text(format!("{door_angle:.1}")),
+        );
+        ui.set_widget_value(
+            PART_DOOR_LAYOUT,
+            ctx,
+            TheValue::Int(
+                if door_component.is_some_and(|component| {
+                    component.properties.get_id("secondary_part_id").is_some()
+                }) {
+                    1
+                } else {
+                    0
+                },
+            ),
+        );
+        ui.set_widget_value(
+            PART_DOOR_MOTION,
+            ctx,
+            TheValue::Int(
+                if door_component.is_some_and(|component| {
+                    component
+                        .properties
+                        .get_str("motion")
+                        .is_some_and(|motion| motion.eq_ignore_ascii_case("Slide"))
+                }) {
+                    1
+                } else {
+                    0
+                },
+            ),
+        );
+        ui.set_widget_value(
+            PART_DOOR_SLIDE_DISTANCE,
+            ctx,
+            TheValue::Text(format!(
+                "{:.3}",
+                door_component
+                    .map(|component| component
+                        .properties
+                        .get_float_default("slide_distance", 1.0))
+                    .or_else(|| {
+                        project.prefab_editor_map.as_ref().and_then(|map| {
+                            map.geometry_objects
+                                .iter()
+                                .find(|object| {
+                                    project.prefab_editor_part_by_object.get(&object.id)
+                                        == self.selected_part_id.as_ref()
+                                })
+                                .and_then(|object| {
+                                    object.properties.get_float("fitted_slide_distance")
+                                })
+                        })
+                    })
+                    .unwrap_or(1.0)
+            )),
+        );
+        ui.set_widget_value(
+            PART_DOOR_USAGE_DISTANCE,
+            ctx,
+            TheValue::Text(format!(
+                "{:.3}",
+                door_component
+                    .map(|component| {
+                        component
+                            .properties
+                            .get_float_default("interaction_range", 3.0)
+                    })
+                    .unwrap_or(3.0)
+            )),
         );
         ui.set_widget_value(
             PART_BEHAVIOR,
@@ -416,7 +515,11 @@ impl PrefabsEditorDock {
             ui.set_enabled(PART_ASSIGNMENT, ctx);
             ui.set_enabled(PART_SET_PIVOT, ctx);
             ui.set_enabled(PART_REMOVE, ctx);
+            ui.set_enabled(PART_DOOR_LAYOUT, ctx);
+            ui.set_enabled(PART_DOOR_MOTION, ctx);
             ui.set_enabled(PART_DOOR_ANGLE, ctx);
+            ui.set_enabled(PART_DOOR_SLIDE_DISTANCE, ctx);
+            ui.set_enabled(PART_DOOR_USAGE_DISTANCE, ctx);
             ui.set_enabled(PART_CONFIGURE_DOOR, ctx);
             ui.set_enabled(PART_PREVIEW_DOOR, ctx);
         } else {
@@ -425,7 +528,11 @@ impl PrefabsEditorDock {
             ui.set_disabled(PART_ASSIGNMENT, ctx);
             ui.set_disabled(PART_SET_PIVOT, ctx);
             ui.set_disabled(PART_REMOVE, ctx);
+            ui.set_disabled(PART_DOOR_LAYOUT, ctx);
+            ui.set_disabled(PART_DOOR_MOTION, ctx);
             ui.set_disabled(PART_DOOR_ANGLE, ctx);
+            ui.set_disabled(PART_DOOR_SLIDE_DISTANCE, ctx);
+            ui.set_disabled(PART_DOOR_USAGE_DISTANCE, ctx);
             ui.set_disabled(PART_CONFIGURE_DOOR, ctx);
             ui.set_disabled(PART_PREVIEW_DOOR, ctx);
         }
@@ -453,10 +560,10 @@ impl PrefabsEditorDock {
 
     fn active_tool_mode() -> PrefabEditorMode {
         let tools = TOOLLIST.read().unwrap();
-        if tools.current_game_tool_command_id() == Some("tool.iso_paint") {
-            PrefabEditorMode::Paint
-        } else {
-            PrefabEditorMode::Parts
+        match tools.current_game_tool_command_id() {
+            Some("tool.iso_paint") => PrefabEditorMode::Paint,
+            Some("tool.tile_picker") => PrefabEditorMode::Tiles,
+            _ => PrefabEditorMode::Parts,
         }
     }
 
@@ -477,10 +584,7 @@ impl PrefabsEditorDock {
             asset
                 .components
                 .iter()
-                .find(|component| {
-                    component.kind == "Door"
-                        && component.properties.get_id("part_id") == Some(part_id)
-                })
+                .find(|component| rusterix::block_prop_door_controls_part(component, part_id))
                 .map(|component| component.id)
         })
     }
@@ -563,6 +667,7 @@ impl Dock for PrefabsEditorDock {
             assignment_options: Vec::new(),
             door_preview_open: false,
             paint_dock: IsoPaintDock::new_prefab(),
+            tiles_dock: TilesDock::new_prefab(),
         }
     }
 
@@ -582,18 +687,12 @@ impl Dock for PrefabsEditorDock {
         let mut stack = TheStackLayout::new(TheId::named(MODE_STACK));
         stack.add_canvas(Self::parts_canvas());
         stack.add_canvas(self.paint_dock.setup(ctx));
+        stack.add_canvas(self.tiles_dock.setup(ctx));
         lower_content.set_layout(stack);
 
-        let mut lower = TheSharedHLayout::new(TheId::named("Prefab Editor Lower Shared HLayout"));
-        lower.set_shared_ratio(0.77);
-        lower.set_mode(TheSharedHLayoutMode::Shared);
-        lower.add_canvas(lower_content);
-        lower.add_canvas(crate::dockmanager::DockManager::action_panel(
-            PREFAB_ACTION_LIST,
-        ));
-        let mut lower_canvas = TheCanvas::new();
-        lower_canvas.set_layout(lower);
-        split.add_canvas(lower_canvas);
+        // Actions live in the global sidebar. Keeping another action list here
+        // duplicated controls and unnecessarily narrowed the Prefab inspector.
+        split.add_canvas(lower_content);
 
         canvas.set_layout(split);
         canvas
@@ -618,6 +717,13 @@ impl Dock for PrefabsEditorDock {
             TheId::named("Update Action List"),
             TheValue::Empty,
         ));
+    }
+
+    fn minimized(&mut self, _ui: &mut TheUI, _ctx: &mut TheContext) {
+        // The preview only replaces geometry in the isolated editor map. Mark
+        // it closed as soon as that editor goes away so no preview lifecycle
+        // state survives into a later maximize session.
+        self.door_preview_open = false;
     }
 
     fn handle_event(
@@ -645,6 +751,23 @@ impl Dock for PrefabsEditorDock {
         {
             return true;
         }
+        if self.mode == PrefabEditorMode::Tiles {
+            let edits_prefab = self.tiles_dock.edits_map_for_event(event);
+            let redraw = self
+                .tiles_dock
+                .handle_event(event, ui, ctx, project, server_ctx);
+            if edits_prefab {
+                match crate::block_props::sync_prefab_editor(project, asset_id) {
+                    Ok(()) => Self::sync_prefab_runtime(project),
+                    Err(message) => ctx
+                        .ui
+                        .send(TheEvent::SetStatusText(TheId::empty(), message)),
+                }
+            }
+            if redraw || edits_prefab {
+                return true;
+            }
+        }
 
         match event {
             TheEvent::Custom(id, _) if id.name == "Tool Changed" => {
@@ -653,6 +776,8 @@ impl Dock for PrefabsEditorDock {
                 self.sync_mode(ui, ctx);
                 if self.mode == PrefabEditorMode::Paint {
                     self.paint_dock.activate(ui, ctx, project, server_ctx);
+                } else if self.mode == PrefabEditorMode::Tiles {
+                    self.tiles_dock.activate(ui, ctx, project, server_ctx);
                 }
                 ctx.ui.redraw_all = true;
                 true
@@ -848,7 +973,7 @@ impl Dock for PrefabsEditorDock {
             TheEvent::StateChanged(id, TheWidgetState::Clicked)
                 if id.name == PART_CONFIGURE_DOOR =>
             {
-                let Some(part_id) = self.selected_part_id else {
+                let Some(selected_part_id) = self.selected_part_id else {
                     return false;
                 };
                 self.close_door_preview(project, asset_id, server_ctx);
@@ -859,12 +984,97 @@ impl Dock for PrefabsEditorDock {
                         _ => None,
                     })
                     .unwrap_or(90.0);
+                let slide_distance = ui
+                    .get_widget_value(PART_DOOR_SLIDE_DISTANCE)
+                    .and_then(|value| match value {
+                        TheValue::Text(text) => text.trim().parse::<f32>().ok(),
+                        _ => None,
+                    })
+                    .unwrap_or(1.0);
+                let usage_distance = ui
+                    .get_widget_value(PART_DOOR_USAGE_DISTANCE)
+                    .and_then(|value| match value {
+                        TheValue::Text(text) => text.trim().parse::<f32>().ok(),
+                        _ => None,
+                    })
+                    .unwrap_or(3.0);
+                let split = ui
+                    .get_widget_value(PART_DOOR_LAYOUT)
+                    .and_then(|value| value.to_i32())
+                    .unwrap_or(0)
+                    == 1;
+                let motion = if ui
+                    .get_widget_value(PART_DOOR_MOTION)
+                    .and_then(|value| value.to_i32())
+                    .unwrap_or(0)
+                    == 1
+                {
+                    crate::block_props::PrefabDoorMotion::Slide
+                } else {
+                    crate::block_props::PrefabDoorMotion::Swing
+                };
                 let before = project.clone();
-                match crate::block_props::configure_prefab_door(project, asset_id, part_id, angle) {
+                let existing_component = project.block_props.get(&asset_id).and_then(|asset| {
+                    asset
+                        .components
+                        .iter()
+                        .find(|component| {
+                            rusterix::block_prop_door_controls_part(component, selected_part_id)
+                        })
+                        .cloned()
+                });
+                let prepared = if split {
+                    if let Some(component) = existing_component.as_ref()
+                        && let (Some(primary), Some(secondary)) = (
+                            component.properties.get_id("part_id"),
+                            component.properties.get_id("secondary_part_id"),
+                        )
+                    {
+                        Ok((
+                            primary,
+                            secondary,
+                            component
+                                .properties
+                                .get_vec3_default("slide_axis", [1.0, 0.0, 0.0]),
+                        ))
+                    } else {
+                        crate::block_props::prepare_prefab_split_door_parts(project, asset_id)
+                    }
+                } else {
+                    let axis = project
+                        .prefab_editor_map
+                        .as_ref()
+                        .and_then(|map| {
+                            map.geometry_objects.iter().find(|object| {
+                                project.prefab_editor_part_by_object.get(&object.id)
+                                    == Some(&selected_part_id)
+                            })
+                        })
+                        .and_then(|object| object.properties.get_vec3("fitted_motion_axis"))
+                        .unwrap_or([1.0, 0.0, 0.0]);
+                    Ok((selected_part_id, Uuid::nil(), axis))
+                };
+                let result = prepared.and_then(|(part_id, secondary_part_id, slide_axis)| {
+                    self.selected_part_id = Some(part_id);
+                    crate::block_props::configure_prefab_door_with_options(
+                        project,
+                        asset_id,
+                        part_id,
+                        crate::block_props::PrefabDoorOptions {
+                            secondary_part_id: split.then_some(secondary_part_id),
+                            motion,
+                            angle_degrees: angle,
+                            slide_distance,
+                            interaction_range: usage_distance,
+                            slide_axis,
+                        },
+                    )
+                });
+                match result {
                     Ok(_) => {
                         Self::push_project_undo(before, project, ctx);
                         Self::sync_prefab_runtime(project);
-                        self.sync_part_inspector(ui, ctx, project, asset_id);
+                        self.sync_part_tree(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
                             fl!("status_prefab_door_configured"),
@@ -931,10 +1141,30 @@ impl Dock for PrefabsEditorDock {
             TheEvent::Custom(id, _) if id.name == crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT => {
                 self.sync_part_tree(ui, ctx, project, asset_id);
                 self.paint_dock.activate(ui, ctx, project, server_ctx);
+                if self.mode == PrefabEditorMode::Tiles {
+                    self.tiles_dock.activate(ui, ctx, project, server_ctx);
+                }
                 true
             }
             _ => false,
         }
+    }
+
+    fn draw_minimap(
+        &self,
+        buffer: &mut TheRGBABuffer,
+        project: &Project,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) -> bool {
+        self.mode == PrefabEditorMode::Tiles
+            && self
+                .tiles_dock
+                .draw_minimap(buffer, project, ctx, server_ctx)
+    }
+
+    fn supports_minimap_animation(&self) -> bool {
+        self.mode == PrefabEditorMode::Tiles && self.tiles_dock.supports_minimap_animation()
     }
 }
 
@@ -957,5 +1187,6 @@ mod tests {
     fn prefab_editor_modes_have_stable_stack_indices() {
         assert_eq!(PrefabEditorMode::Parts.index(), 0);
         assert_eq!(PrefabEditorMode::Paint.index(), 1);
+        assert_eq!(PrefabEditorMode::Tiles.index(), 2);
     }
 }

@@ -4158,7 +4158,7 @@ impl RegionInstance {
         let Some(component) = asset.components.iter().find(|component| {
             component.id == component_id
                 && component.kind == "Door"
-                && component.properties.get_id("part_id") == Some(target.part_id)
+                && crate::block_prop_door_controls_part(component, target.part_id)
         }) else {
             return false;
         };

@@ -482,11 +482,15 @@ impl BlocksDock {
                     .iter()
                     .map(|part| part.geometry_source.geometry_objects().len())
                     .sum::<usize>();
-                layout.add_pair(fl!("prefab_label_prefab"), Self::text(asset.name.clone()));
+                layout.add_pair(fl!("name"), Self::text(asset.name.clone()));
                 layout.add_pair(
                     fl!("prefab_label_source"),
+                    Self::text(fl!("prefab_project_source")),
+                );
+                layout.add_pair(
+                    fl!("prefab_label_geometry"),
                     Self::text(fl!(
-                        "prefab_project_source",
+                        "prefab_geometry_summary",
                         part_count = asset.parts.len(),
                         object_count = object_count
                     )),
@@ -502,6 +506,10 @@ impl BlocksDock {
                 layout.add_pair(
                     fl!("prefab_label_placement"),
                     Self::text(fl!("prefab_linked_placement")),
+                );
+                layout.add_pair(
+                    fl!("prefab_label_shortcut"),
+                    Self::text(fl!("prefab_rotate_shortcut")),
                 );
             }
             ctx.ui.relayout = true;
@@ -581,15 +589,15 @@ impl Dock for BlocksDock {
         center.set_center(board_canvas);
 
         let mut inspector_canvas = TheCanvas::new();
-        inspector_canvas.limiter_mut().set_min_width(290);
-        inspector_canvas.limiter_mut().set_max_width(290);
+        inspector_canvas.limiter_mut().set_min_width(360);
+        inspector_canvas.limiter_mut().set_max_width(360);
         let mut inspector = TheTextLayout::new(TheId::named(BLOCKS_DOCK_INSPECTOR));
-        inspector.limiter_mut().set_min_width(290);
-        inspector.limiter_mut().set_max_width(290);
+        inspector.limiter_mut().set_min_width(360);
+        inspector.limiter_mut().set_max_width(360);
         inspector.set_margin(Vec4::new(10, 8, 10, 8));
         inspector.set_padding(6);
         inspector.set_text_margin(10);
-        inspector.set_fixed_text_width(64);
+        inspector.set_fixed_text_width(92);
         inspector.set_text_align(TheHorizontalAlign::Right);
         inspector_canvas.set_layout(inspector);
         center.set_right(inspector_canvas);

@@ -294,12 +294,25 @@ pub fn remove_prefab_part(
     asset
         .support_surfaces
         .retain(|surface| surface.part_id != part_id);
-    asset
-        .interaction_targets
-        .retain(|target| target.part_id != part_id);
-    asset
+    let removed_component_ids = asset
         .components
-        .retain(|component| component.properties.get_id("part_id") != Some(part_id));
+        .iter()
+        .filter(|component| {
+            component.properties.get_id("part_id") == Some(part_id)
+                || component.properties.get_id("secondary_part_id") == Some(part_id)
+        })
+        .map(|component| component.id)
+        .collect::<FxHashSet<_>>();
+    asset.interaction_targets.retain(|target| {
+        target.part_id != part_id
+            && target
+                .component_id
+                .is_none_or(|component_id| !removed_component_ids.contains(&component_id))
+    });
+    asset.components.retain(|component| {
+        component.properties.get_id("part_id") != Some(part_id)
+            && component.properties.get_id("secondary_part_id") != Some(part_id)
+    });
     for owner in project.prefab_editor_part_by_object.values_mut() {
         if *owner == part_id {
             *owner = fallback_id;
@@ -409,48 +422,369 @@ pub fn set_prefab_part_pivot_from_selection(
     Ok(pivot)
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PrefabDoorMotion {
+    Swing,
+    Slide,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct PrefabDoorOptions {
+    pub secondary_part_id: Option<Uuid>,
+    pub motion: PrefabDoorMotion,
+    pub angle_degrees: f32,
+    pub slide_distance: f32,
+    pub interaction_range: f32,
+    pub slide_axis: [f32; 3],
+}
+
+/// Turn the two selected fitted objects into independently moving Prefab
+/// parts. Fitted Geometry stores stable left/right, hinge, and slide-axis
+/// hints on each object; ordinary pairs fall back to their projected centers.
+pub fn prepare_prefab_split_door_parts(
+    project: &mut Project,
+    asset_id: Uuid,
+) -> Result<(Uuid, Uuid, [f32; 3]), String> {
+    let map = project
+        .prefab_editor_map
+        .as_ref()
+        .ok_or_else(|| fl!("error_prefab_editor_not_open"))?;
+    if map.selected_geometry_objects.len() != 2 {
+        return Err("Select exactly two fitted leaf objects for a split door.".to_string());
+    }
+    let mut leaves = map
+        .selected_geometry_objects
+        .iter()
+        .filter_map(|object_id| {
+            let object = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *object_id)?;
+            let mut center = Vec3::zero();
+            for vertex in &object.vertices {
+                center += object.transform_point(*vertex);
+            }
+            if object.vertices.is_empty() {
+                return None;
+            }
+            center /= object.vertices.len() as f32;
+            Some((
+                object.id,
+                object
+                    .properties
+                    .get_str("fitted_leaf")
+                    .unwrap_or("")
+                    .to_string(),
+                center,
+                object.properties.get_vec3("fitted_motion_axis"),
+            ))
+        })
+        .collect::<Vec<_>>();
+    if leaves.len() != 2 {
+        return Err("The split door selection contains invalid geometry.".to_string());
+    }
+    let axis = leaves
+        .iter()
+        .find_map(|leaf| leaf.3)
+        .unwrap_or([1.0, 0.0, 0.0]);
+    let motion_axis = Vec3::new(axis[0], axis[1], axis[2])
+        .try_normalized()
+        .unwrap_or(Vec3::unit_x());
+    let axis = [motion_axis.x, motion_axis.y, motion_axis.z];
+    leaves.sort_by(|a, b| {
+        let side_order = |side: &str| match side {
+            "Left" => 0,
+            "Right" => 2,
+            _ => 1,
+        };
+        side_order(&a.1).cmp(&side_order(&b.1)).then_with(|| {
+            let projection =
+                |center: Vec3<f32>| center.x * axis[0] + center.y * axis[1] + center.z * axis[2];
+            projection(a.2).total_cmp(&projection(b.2))
+        })
+    });
+    let pivots = leaves
+        .iter()
+        .enumerate()
+        .map(|(leaf_index, leaf)| {
+            let object = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == leaf.0)
+                .ok_or_else(|| "The split door selection contains invalid geometry.".to_string())?;
+            let extreme = object
+                .vertices
+                .iter()
+                .map(|vertex| object.transform_point(*vertex).dot(motion_axis))
+                .reduce(if leaf_index == 0 { f32::min } else { f32::max })
+                .ok_or_else(|| "The split door selection contains invalid geometry.".to_string())?;
+            let pivot = leaf.2 + motion_axis * (extreme - leaf.2.dot(motion_axis));
+            Ok([pivot.x, pivot.y, pivot.z])
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    let owners = leaves
+        .iter()
+        .map(|leaf| project.prefab_editor_part_by_object.get(&leaf.0).copied())
+        .collect::<Vec<_>>();
+    let (left_part_id, right_part_id) = if let (Some(left_owner), Some(right_owner)) =
+        (owners[0], owners[1])
+        && left_owner != right_owner
+    {
+        (left_owner, right_owner)
+    } else {
+        let parent_part_id = owners[0].or(owners[1]);
+        let mut left_part = rusterix::BlockPropPart::new_authored("Door Left", Vec::new());
+        left_part.parent_part_id = parent_part_id;
+        let left_part_id = left_part.id;
+        let mut right_part = rusterix::BlockPropPart::new_authored("Door Right", Vec::new());
+        right_part.parent_part_id = parent_part_id;
+        let right_part_id = right_part.id;
+        let asset = project
+            .block_props
+            .get_mut(&asset_id)
+            .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?;
+        asset.parts.extend([left_part, right_part]);
+        if let Some(parent_part_id) = parent_part_id
+            && let Some(component) = asset.components.iter_mut().find(|component| {
+                component.kind == "Door"
+                    && component.properties.get_id("part_id") == Some(parent_part_id)
+                    && component.properties.get_id("secondary_part_id").is_none()
+            })
+        {
+            component.properties.set("part_id", Value::Id(left_part_id));
+            component
+                .properties
+                .set("secondary_part_id", Value::Id(right_part_id));
+        }
+        project
+            .prefab_editor_part_by_object
+            .insert(leaves[0].0, left_part_id);
+        project
+            .prefab_editor_part_by_object
+            .insert(leaves[1].0, right_part_id);
+        (left_part_id, right_part_id)
+    };
+
+    {
+        let asset = project
+            .block_props
+            .get_mut(&asset_id)
+            .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?;
+        for (part_id, pivot) in [(left_part_id, pivots[0]), (right_part_id, pivots[1])] {
+            if let Some(part) = asset.parts.iter_mut().find(|part| part.id == part_id) {
+                part.pivot = pivot;
+            }
+        }
+    }
+    sync_prefab_editor(project, asset_id)?;
+    Ok((left_part_id, right_part_id, axis))
+}
+
+impl Default for PrefabDoorOptions {
+    fn default() -> Self {
+        Self {
+            secondary_part_id: None,
+            motion: PrefabDoorMotion::Swing,
+            angle_degrees: 90.0,
+            slide_distance: 1.0,
+            interaction_range: 3.0,
+            slide_axis: [1.0, 0.0, 0.0],
+        }
+    }
+}
+
 pub fn configure_prefab_door(
     project: &mut Project,
     asset_id: Uuid,
     part_id: Uuid,
     angle_degrees: f32,
 ) -> Result<Uuid, String> {
-    if !angle_degrees.is_finite() || angle_degrees.abs() < 1.0 || angle_degrees.abs() > 180.0 {
+    configure_prefab_door_with_options(
+        project,
+        asset_id,
+        part_id,
+        PrefabDoorOptions {
+            angle_degrees,
+            ..Default::default()
+        },
+    )
+}
+
+fn fitted_part_outer_pivot(
+    part: &rusterix::BlockPropPart,
+    motion_axis: Vec3<f32>,
+    use_minimum: bool,
+) -> Option<[f32; 3]> {
+    let objects = part.geometry_source.geometry_objects();
+    if !objects
+        .iter()
+        .any(|object| object.properties.get_str("fitted_leaf").is_some())
+    {
+        return None;
+    }
+    let points = objects
+        .iter()
+        .flat_map(|object| {
+            object
+                .vertices
+                .iter()
+                .map(|vertex| object.transform_point(*vertex))
+        })
+        .collect::<Vec<_>>();
+    if points.is_empty() {
+        return None;
+    }
+    let center = points
+        .iter()
+        .copied()
+        .fold(Vec3::zero(), |sum, point| sum + point)
+        / points.len() as f32;
+    let extreme = points
+        .iter()
+        .map(|point| point.dot(motion_axis))
+        .reduce(if use_minimum { f32::min } else { f32::max })?;
+    let pivot = center + motion_axis * (extreme - center.dot(motion_axis));
+    Some([pivot.x, pivot.y, pivot.z])
+}
+
+pub fn configure_prefab_door_with_options(
+    project: &mut Project,
+    asset_id: Uuid,
+    part_id: Uuid,
+    options: PrefabDoorOptions,
+) -> Result<Uuid, String> {
+    if options.motion == PrefabDoorMotion::Swing
+        && (!options.angle_degrees.is_finite()
+            || options.angle_degrees.abs() < 1.0
+            || options.angle_degrees.abs() > 180.0)
+    {
         return Err(fl!("status_prefab_door_angle_invalid"));
+    }
+    let axis_magnitude = (options.slide_axis[0] * options.slide_axis[0]
+        + options.slide_axis[1] * options.slide_axis[1]
+        + options.slide_axis[2] * options.slide_axis[2])
+        .sqrt();
+    if options.motion == PrefabDoorMotion::Slide
+        && (!options.slide_distance.is_finite()
+            || options.slide_distance.abs() < 0.01
+            || axis_magnitude <= f32::EPSILON)
+    {
+        return Err(fl!("status_prefab_door_angle_invalid"));
+    }
+    if !options.interaction_range.is_finite() || options.interaction_range <= 0.0 {
+        return Err("Usage Distance must be greater than zero.".to_string());
     }
     let asset = project
         .block_props
         .get_mut(&asset_id)
         .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?;
-    let pivot = asset
+    if let Some(secondary_part_id) = options.secondary_part_id
+        && let Some(motion_axis) = Vec3::new(
+            options.slide_axis[0],
+            options.slide_axis[1],
+            options.slide_axis[2],
+        )
+        .try_normalized()
+    {
+        let fitted_pivots = asset
+            .find_part(part_id)
+            .and_then(|part| fitted_part_outer_pivot(part, motion_axis, true))
+            .zip(
+                asset
+                    .find_part(secondary_part_id)
+                    .and_then(|part| fitted_part_outer_pivot(part, motion_axis, false)),
+            );
+        if let Some((primary_pivot, secondary_pivot)) = fitted_pivots {
+            for part in &mut asset.parts {
+                if part.id == part_id {
+                    part.pivot = primary_pivot;
+                } else if part.id == secondary_part_id {
+                    part.pivot = secondary_pivot;
+                }
+            }
+        }
+    }
+    let primary_pivot = asset
         .find_part(part_id)
         .map(|part| part.pivot)
         .ok_or_else(|| fl!("status_prefab_part_missing"))?;
-    let component_id = if let Some(component) = asset.components.iter_mut().find(|component| {
-        component.kind == "Door" && component.properties.get_id("part_id") == Some(part_id)
-    }) {
-        component
-            .properties
-            .set("angle_degrees", Value::Float(angle_degrees));
-        if component.properties.get("interaction_range").is_none() {
+    let secondary_pivot = options
+        .secondary_part_id
+        .map(|secondary_part_id| {
+            asset
+                .find_part(secondary_part_id)
+                .map(|part| part.pivot)
+                .ok_or_else(|| fl!("status_prefab_part_missing"))
+        })
+        .transpose()?;
+    let component_id = if let Some(component) = asset
+        .components
+        .iter_mut()
+        .find(|component| rusterix::block_prop_door_controls_part(component, part_id))
+    {
+        component.properties.set("part_id", Value::Id(part_id));
+        if let Some(secondary_part_id) = options.secondary_part_id {
             component
                 .properties
-                .set("interaction_range", Value::Float(3.0));
+                .set("secondary_part_id", Value::Id(secondary_part_id));
+        } else {
+            component.properties.remove("secondary_part_id");
         }
+        component.properties.set(
+            "motion",
+            Value::Str(
+                match options.motion {
+                    PrefabDoorMotion::Swing => "Swing",
+                    PrefabDoorMotion::Slide => "Slide",
+                }
+                .to_string(),
+            ),
+        );
+        component
+            .properties
+            .set("angle_degrees", Value::Float(options.angle_degrees));
+        component
+            .properties
+            .set("slide_distance", Value::Float(options.slide_distance));
+        component
+            .properties
+            .set("slide_axis", Value::Vec3(options.slide_axis));
+        component
+            .properties
+            .set("interaction_range", Value::Float(options.interaction_range));
         component.id
     } else {
         let mut component = rusterix::BlockPropComponent::new("Door");
         component.properties.set("part_id", Value::Id(part_id));
+        if let Some(secondary_part_id) = options.secondary_part_id {
+            component
+                .properties
+                .set("secondary_part_id", Value::Id(secondary_part_id));
+        }
+        component.properties.set(
+            "motion",
+            Value::Str(
+                match options.motion {
+                    PrefabDoorMotion::Swing => "Swing",
+                    PrefabDoorMotion::Slide => "Slide",
+                }
+                .to_string(),
+            ),
+        );
         component
             .properties
-            .set("motion", Value::Str("Swing".to_string()));
+            .set("angle_degrees", Value::Float(options.angle_degrees));
         component
             .properties
-            .set("angle_degrees", Value::Float(angle_degrees));
+            .set("slide_distance", Value::Float(options.slide_distance));
+        component
+            .properties
+            .set("slide_axis", Value::Vec3(options.slide_axis));
         component.properties.set("duration", Value::Float(0.35));
         component
             .properties
-            .set("interaction_range", Value::Float(3.0));
+            .set("interaction_range", Value::Float(options.interaction_range));
         let component_id = component.id;
         asset.components.push(component);
         component_id
@@ -459,39 +793,40 @@ pub fn configure_prefab_door(
         asset.default_state.set("open", Value::Bool(false));
     }
 
-    // A standard Door is interactive through every Geometry Object in its part.
-    // Reconfigure the first legacy target and discard duplicates created by the
-    // former face-selection workflow.
-    let existing_target_id = asset
-        .interaction_targets
+    // Each controlled leaf is pickable, but both targets resolve to the same
+    // component and therefore share one open/closed state.
+    let controlled_parts = std::iter::once((part_id, primary_pivot))
+        .chain(options.secondary_part_id.zip(secondary_pivot))
+        .collect::<Vec<_>>();
+    let controlled_ids = controlled_parts
         .iter()
-        .find(|target| target.component_id == Some(component_id))
-        .map(|target| target.id);
-    if let Some(target_id) = existing_target_id {
-        if let Some(target) = asset
-            .interaction_targets
-            .iter_mut()
-            .find(|target| target.id == target_id)
-        {
-            target.part_id = part_id;
+        .map(|(part_id, _)| *part_id)
+        .collect::<FxHashSet<_>>();
+    let mut kept_target_parts = FxHashSet::default();
+    asset.interaction_targets.retain(|target| {
+        target.component_id != Some(component_id)
+            || (controlled_ids.contains(&target.part_id)
+                && kept_target_parts.insert(target.part_id))
+    });
+    for (controlled_part_id, pivot) in controlled_parts {
+        if let Some(target) = asset.interaction_targets.iter_mut().find(|target| {
+            target.component_id == Some(component_id) && target.part_id == controlled_part_id
+        }) {
             target.shape = rusterix::BlockPropSemanticShape::Part;
             target.interaction_anchor = pivot;
+        } else {
+            asset
+                .interaction_targets
+                .push(rusterix::BlockPropInteractionTarget {
+                    id: Uuid::new_v4(),
+                    name: "Door Interaction".to_string(),
+                    part_id: controlled_part_id,
+                    shape: rusterix::BlockPropSemanticShape::Part,
+                    interaction_anchor: pivot,
+                    facing_direction: [0.0, 0.0, 1.0],
+                    component_id: Some(component_id),
+                });
         }
-        asset
-            .interaction_targets
-            .retain(|target| target.component_id != Some(component_id) || target.id == target_id);
-    } else {
-        asset
-            .interaction_targets
-            .push(rusterix::BlockPropInteractionTarget {
-                id: Uuid::new_v4(),
-                name: "Door Interaction".to_string(),
-                part_id,
-                shape: rusterix::BlockPropSemanticShape::Part,
-                interaction_anchor: pivot,
-                facing_direction: [0.0, 0.0, 1.0],
-                component_id: Some(component_id),
-            });
     }
     Ok(component_id)
 }
@@ -850,6 +1185,16 @@ fn localize_at_bottom_center(
         object.transform[3][0] -= origin.x;
         object.transform[3][1] -= origin.y;
         object.transform[3][2] -= origin.z;
+        if let Some(pivot) = object.properties.get_vec3("fitted_hinge_pivot") {
+            object.properties.set(
+                "fitted_hinge_pivot",
+                Value::Vec3([
+                    pivot[0] - origin.x,
+                    pivot[1] - origin.y,
+                    pivot[2] - origin.z,
+                ]),
+            );
+        }
         object.kind = rusterix::GeometryObjectKind::Prop;
     }
     Ok((objects, origin))
@@ -916,6 +1261,13 @@ fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> FxHash
             && let Some(remapped) = part_ids.get(&part_id)
         {
             component.properties.set("part_id", Value::Id(*remapped));
+        }
+        if let Some(part_id) = component.properties.get_id("secondary_part_id")
+            && let Some(remapped) = part_ids.get(&part_id)
+        {
+            component
+                .properties
+                .set("secondary_part_id", Value::Id(*remapped));
         }
         component.id = component_ids[&component.id];
     }
@@ -1235,6 +1587,29 @@ mod tests {
     }
 
     #[test]
+    fn prefab_localization_also_localizes_fitted_hinge_metadata() {
+        let mut object = rusterix::GeometryObject::box_from_bounds(
+            "Gate Leaf",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(2.0, 3.0, 4.0),
+        );
+        object.transform[3][0] = 10.0;
+        object.transform[3][1] = 2.0;
+        object.transform[3][2] = 20.0;
+        object
+            .properties
+            .set("fitted_hinge_pivot", Value::Vec3([10.0, 3.0, 22.0]));
+
+        let (localized, origin) = localize_at_bottom_center(vec![object]).unwrap();
+
+        assert_eq!(origin, Vec3::new(11.0, 2.0, 22.0));
+        assert_eq!(
+            localized[0].properties.get_vec3("fitted_hinge_pivot"),
+            Some([-1.0, 1.0, 0.0])
+        );
+    }
+
+    #[test]
     fn create_linked_prefab_moves_only_selected_object_paint_into_asset() {
         let (mut project, server_ctx, object_id) = project_with_selected_box();
         let (paint_world, legacy_paint_geo, legacy_paint_uv, painted_face_id) = {
@@ -1524,6 +1899,113 @@ mod tests {
             &target.shape,
             rusterix::BlockPropSemanticShape::Part
         ));
+    }
+
+    #[test]
+    fn fitted_pair_configures_one_split_sliding_door_component() {
+        let mut project = Project::default();
+        let mut left = rusterix::GeometryObject::box_from_bounds(
+            "Left",
+            Vec3::new(-2.0, 0.0, -0.1),
+            Vec3::new(0.0, 2.0, 0.1),
+        );
+        left.properties
+            .set("fitted_leaf", Value::Str("Left".to_string()));
+        left.properties
+            .set("fitted_hinge_pivot", Value::Vec3([-2.0, 1.0, 0.0]));
+        left.properties
+            .set("fitted_motion_axis", Value::Vec3([1.0, 0.0, 0.0]));
+        let left_object_id = left.id;
+        let mut right = rusterix::GeometryObject::box_from_bounds(
+            "Right",
+            Vec3::new(0.0, 0.0, -0.1),
+            Vec3::new(2.0, 2.0, 0.1),
+        );
+        right
+            .properties
+            .set("fitted_leaf", Value::Str("Right".to_string()));
+        right
+            .properties
+            .set("fitted_hinge_pivot", Value::Vec3([2.0, 1.0, 0.0]));
+        right
+            .properties
+            .set("fitted_motion_axis", Value::Vec3([1.0, 0.0, 0.0]));
+        let right_object_id = right.id;
+        let asset = rusterix::BlockPropAsset::new_authored("Gate", vec![left, right]);
+        let asset_id = asset.id;
+        let original_part_id = asset.parts[0].id;
+        project.block_props.insert(asset_id, asset);
+        let original_component_id =
+            configure_prefab_door(&mut project, asset_id, original_part_id, 90.0).unwrap();
+        begin_prefab_editor(&mut project, asset_id).unwrap();
+        project
+            .prefab_editor_map
+            .as_mut()
+            .unwrap()
+            .selected_geometry_objects = vec![left_object_id, right_object_id];
+
+        let (left_part_id, right_part_id, axis) =
+            prepare_prefab_split_door_parts(&mut project, asset_id).unwrap();
+        let component_id = configure_prefab_door_with_options(
+            &mut project,
+            asset_id,
+            left_part_id,
+            PrefabDoorOptions {
+                secondary_part_id: Some(right_part_id),
+                motion: PrefabDoorMotion::Slide,
+                angle_degrees: 90.0,
+                slide_distance: 2.0,
+                interaction_range: 4.5,
+                slide_axis: axis,
+            },
+        )
+        .unwrap();
+
+        let asset = &project.block_props[&asset_id];
+        assert_eq!(component_id, original_component_id);
+        assert_eq!(asset.components.len(), 1);
+        let component = asset
+            .components
+            .iter()
+            .find(|component| component.id == component_id)
+            .unwrap();
+        assert_eq!(component.properties.get_id("part_id"), Some(left_part_id));
+        assert_eq!(
+            component.properties.get_id("secondary_part_id"),
+            Some(right_part_id)
+        );
+        assert_eq!(
+            component.properties.get_float("interaction_range"),
+            Some(4.5)
+        );
+        assert_eq!(component.properties.get_str("motion"), Some("Slide"));
+        assert_eq!(asset.interaction_targets.len(), 2);
+        assert_eq!(
+            asset.find_part(left_part_id).unwrap().pivot,
+            [-2.0, 1.0, 0.0]
+        );
+        assert_eq!(
+            asset.find_part(right_part_id).unwrap().pivot,
+            [2.0, 1.0, 0.0]
+        );
+        assert_eq!(
+            asset
+                .find_part(left_part_id)
+                .unwrap()
+                .geometry_source
+                .geometry_objects()
+                .len(),
+            1
+        );
+        assert_eq!(
+            asset
+                .find_part(right_part_id)
+                .unwrap()
+                .geometry_source
+                .geometry_objects()
+                .len(),
+            1
+        );
     }
 
     #[test]

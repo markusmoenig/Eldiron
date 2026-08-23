@@ -53,6 +53,15 @@ fn door_runtime_key(component_id: Uuid) -> String {
     format!("door_{component_id}_open")
 }
 
+/// Whether a Door component controls this authored part. Legacy doors only
+/// have `part_id`; split doors add `secondary_part_id` while keeping the same
+/// component and runtime state for both leaves.
+pub fn block_prop_door_controls_part(component: &BlockPropComponent, part_id: Uuid) -> bool {
+    component.kind == "Door"
+        && (component.properties.get_id("part_id") == Some(part_id)
+            || component.properties.get_id("secondary_part_id") == Some(part_id))
+}
+
 fn block_prop_paint_surface_id(object_id: Uuid, face_id: Uuid) -> [u32; 4] {
     let value = face_id.as_u128() ^ object_id.as_u128().rotate_left(1);
     [
@@ -98,8 +107,11 @@ pub fn block_prop_door_is_open(
         .components
         .iter()
         .find(|component| component.id == component_id && component.kind == "Door")?;
-    let part_id = component.properties.get_id("part_id")?;
-    asset.find_part(part_id)?;
+    let primary_part_id = component.properties.get_id("part_id")?;
+    asset.find_part(primary_part_id)?;
+    if let Some(secondary_part_id) = component.properties.get_id("secondary_part_id") {
+        asset.find_part(secondary_part_id)?;
+    }
     Some(
         instance
             .runtime_state
@@ -114,9 +126,11 @@ fn door_part_motion(
     instance: &BlockPropInstance,
     part: &BlockPropPart,
 ) -> BlockPropTransform {
-    let Some(component) = asset.components.iter().find(|component| {
-        component.kind == "Door" && component.properties.get_id("part_id") == Some(part.id)
-    }) else {
+    let Some(component) = asset
+        .components
+        .iter()
+        .find(|component| block_prop_door_controls_part(component, part.id))
+    else {
         return identity_block_prop_transform();
     };
     let open = instance
@@ -133,14 +147,47 @@ fn door_part_motion(
         return identity_block_prop_transform();
     }
 
+    let secondary_part_id = component.properties.get_id("secondary_part_id");
+    let is_split = secondary_part_id.is_some();
+    let leaf_sign = if is_split {
+        if secondary_part_id == Some(part.id) {
+            1.0
+        } else {
+            -1.0
+        }
+    } else {
+        1.0
+    };
+    let motion = component.properties.get_str("motion").unwrap_or("Swing");
+    if motion.eq_ignore_ascii_case("Slide") {
+        let axis = component
+            .properties
+            .get_vec3("slide_axis")
+            .unwrap_or([1.0, 0.0, 0.0]);
+        let magnitude = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt();
+        if magnitude <= f32::EPSILON {
+            return identity_block_prop_transform();
+        }
+        let distance = component
+            .properties
+            .get_float_default("slide_distance", 1.0)
+            * open_amount
+            * leaf_sign;
+        return translation_block_prop_transform(
+            axis[0] / magnitude * distance,
+            axis[1] / magnitude * distance,
+            axis[2] / magnitude * distance,
+        );
+    }
+
     let pivot = part.pivot;
     let to_origin = translation_block_prop_transform(-pivot[0], -pivot[1], -pivot[2]);
-    let rotation = rotation_y_block_prop_transform(
-        component
-            .properties
-            .get_float_default("angle_degrees", 90.0)
-            * open_amount,
-    );
+    let angle = component
+        .properties
+        .get_float_default("angle_degrees", 90.0)
+        * open_amount
+        * leaf_sign;
+    let rotation = rotation_y_block_prop_transform(angle);
     let from_origin = translation_block_prop_transform(pivot[0], pivot[1], pivot[2]);
     multiply_block_prop_transforms(
         multiply_block_prop_transforms(to_origin, rotation),
@@ -672,7 +719,7 @@ pub fn resolve_block_prop_interaction_hit(
                     };
                     let Some(component) = asset.components.iter().find(|component| {
                         component.id == component_id
-                            && component.properties.get_id("part_id") == Some(part.id)
+                            && block_prop_door_controls_part(component, part.id)
                     }) else {
                         continue;
                     };
@@ -1015,6 +1062,73 @@ mod tests {
         assert_eq!(resolution.geometry_objects[0].transform[3][0], 1.0);
         assert!((resolution.geometry_objects[1].transform[3][0] - 10.0).abs() < 0.001);
         assert!((resolution.geometry_objects[1].transform[3][2] + 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn split_door_leaves_share_state_and_move_in_opposite_directions() {
+        let left =
+            GeometryObject::box_("Left", Vec3::new(-0.5, 1.0, 0.0), Vec3::new(1.0, 2.0, 0.2));
+        let right =
+            GeometryObject::box_("Right", Vec3::new(0.5, 1.0, 0.0), Vec3::new(1.0, 2.0, 0.2));
+        let mut asset = BlockPropAsset::new("Split Door");
+        let left_part = BlockPropPart::new_authored("Left", vec![left]);
+        let left_part_id = left_part.id;
+        let right_part = BlockPropPart::new_authored("Right", vec![right]);
+        let right_part_id = right_part.id;
+        asset.parts.extend([left_part, right_part]);
+        let mut door = BlockPropComponent::new("Door");
+        door.properties.set("part_id", Value::Id(left_part_id));
+        door.properties
+            .set("secondary_part_id", Value::Id(right_part_id));
+        door.properties
+            .set("motion", Value::Str("Slide".to_string()));
+        door.properties
+            .set("slide_axis", Value::Vec3([1.0, 0.0, 0.0]));
+        door.properties.set("slide_distance", Value::Float(2.0));
+        let door_id = door.id;
+        asset.components.push(door);
+        let mut instance = BlockPropInstance::new(asset.id);
+        set_block_prop_door_open(&mut instance, door_id, true);
+
+        let assets = IndexMap::from([(asset.id, asset)]);
+        let resolution = resolve_block_prop_geometry(&[instance], &assets);
+        assert_eq!(resolution.geometry_objects.len(), 2);
+        assert!((resolution.geometry_objects[0].transform[3][0] + 2.0).abs() < 0.001);
+        assert!((resolution.geometry_objects[1].transform[3][0] - 2.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn split_swing_uses_opposite_angles() {
+        let mut asset = BlockPropAsset::new("Split Gate");
+        let mut left = BlockPropPart::new_authored(
+            "Left",
+            vec![GeometryObject::box_("Left", Vec3::zero(), Vec3::one())],
+        );
+        left.pivot = [-1.0, 0.0, 0.0];
+        let left_id = left.id;
+        let mut right = BlockPropPart::new_authored(
+            "Right",
+            vec![GeometryObject::box_("Right", Vec3::zero(), Vec3::one())],
+        );
+        right.pivot = [1.0, 0.0, 0.0];
+        let right_id = right.id;
+        asset.parts.extend([left, right]);
+        let mut door = BlockPropComponent::new("Door");
+        door.properties.set("part_id", Value::Id(left_id));
+        door.properties
+            .set("secondary_part_id", Value::Id(right_id));
+        door.properties
+            .set("motion", Value::Str("Swing".to_string()));
+        door.properties.set("angle_degrees", Value::Float(90.0));
+        let door_id = door.id;
+        asset.components.push(door);
+        let mut instance = BlockPropInstance::new(asset.id);
+        set_block_prop_door_open(&mut instance, door_id, true);
+
+        let assets = IndexMap::from([(asset.id, asset)]);
+        let resolution = resolve_block_prop_geometry(&[instance], &assets);
+        assert!(resolution.geometry_objects[0].transform[0][2] > 0.9);
+        assert!(resolution.geometry_objects[1].transform[0][2] < -0.9);
     }
 
     #[test]

@@ -519,39 +519,6 @@ impl DockManager {
                 ctx.ui.redraw_all = true;
                 self.state = DockManagerState::Minimized;
 
-                if self.dock == "Prefabs"
-                    && let Some((pc, view_mode, region_id)) = self.prefab_return_context.take()
-                {
-                    if let Some((center, distance)) = self.prefab_return_orbit.take() {
-                        let mut camera = crate::editor::EDITCAMERA.write().unwrap();
-                        camera.orbit_camera.center = center;
-                        camera.orbit_camera.distance = distance;
-                    }
-                    server_ctx.pc = pc;
-                    server_ctx.editor_view_mode = view_mode;
-                    server_ctx.curr_region = region_id;
-                    if let Some(enabled) = self.prefab_return_preview_post.take() {
-                        crate::editor::RUSTERIX
-                            .write()
-                            .unwrap()
-                            .editor_preview_post_enabled = enabled;
-                    }
-                    if let Some(group) = ui
-                        .get_widget("Editor View Switch")
-                        .and_then(|widget| widget.as_group_button())
-                    {
-                        group.set_index(view_mode.to_index());
-                    }
-                    crate::utils::editor_scene_full_rebuild(project, server_ctx);
-                    // Prefab editing reuses the regular geometry and paint tools. Their
-                    // selection is editor-local state and must not leak back into the
-                    // region workspace when the isolated editor is closed.
-                    ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Set Tool"),
-                        TheValue::Text("tool.blocks".to_string()),
-                    ));
-                }
-
                 // Editor-only docks have no corresponding lower canvas. Put
                 // the manager back on the regular dock whose stack index was
                 // preserved when the editor opened.
@@ -567,6 +534,61 @@ impl DockManager {
             }
 
             self.set_supports_undo(self.docks[self.index].supports_undo(), ctx);
+        }
+
+        // Restore an isolated Prefab workspace whenever one is pending. Do not
+        // key this off the currently selected dock: tool and sidebar events can
+        // change the dock before the minimize event reaches this manager, which
+        // used to leave `server_ctx.pc` pointing at the hidden PrefabView.
+        if let Some((pc, view_mode, region_id)) = self.prefab_return_context.take() {
+            if let Some((center, distance)) = self.prefab_return_orbit.take() {
+                let mut camera = crate::editor::EDITCAMERA.write().unwrap();
+                camera.orbit_camera.center = center;
+                camera.orbit_camera.distance = distance;
+            }
+            server_ctx.pc = if pc.is_prefab() {
+                // A Prefab context is editor-only and can never be a useful
+                // return target for the regular viewport. This also recovers a
+                // workspace left behind by an interrupted earlier close.
+                ProjectContext::Region(region_id)
+            } else {
+                pc
+            };
+            server_ctx.editor_view_mode = view_mode;
+            server_ctx.curr_region = region_id;
+
+            {
+                let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                if let Some(enabled) = self.prefab_return_preview_post.take() {
+                    rusterix.editor_preview_post_enabled = enabled;
+                }
+                rusterix.scene_handler.vm.set_active_vm(0);
+                rusterix.scene_handler.clear_runtime_scene();
+                rusterix.scene_handler.build_index.clear();
+                rusterix.client.scene.d3_overlay.clear();
+                rusterix.scene_handler.clear_overlay();
+                rusterix.scene_handler.set_overlay();
+            }
+
+            if let Some(group) = ui
+                .get_widget("Editor View Switch")
+                .and_then(|widget| widget.as_group_button())
+            {
+                group.set_index(view_mode.to_index());
+            }
+            crate::utils::editor_scene_full_rebuild(project, server_ctx);
+            // Prefab editing reuses the regular geometry and paint tools. Their
+            // selection and preview are editor-local state and must not leak
+            // back into the region workspace when the isolated editor closes.
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Set Tool"),
+                TheValue::Text("tool.blocks".to_string()),
+            ));
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Geometry Overlay 3D"),
+                TheValue::Empty,
+            ));
+            ctx.ui.redraw_all = true;
         }
     }
 
@@ -705,6 +727,9 @@ impl DockManager {
         self.auto_text_play_prev_dock = None;
         self.auto_text_play_active = false;
         self.supports_undo = false;
+        self.prefab_return_context = None;
+        self.prefab_return_orbit = None;
+        self.prefab_return_preview_post = None;
     }
 
     pub fn apply_eldrin_debug_data(

@@ -80,28 +80,25 @@ impl PaletteDockBoard {
         const PAD_X: i32 = 10;
         const PAD_Y: i32 = 8;
         const SPACING: i32 = 1;
-        const MIN_CELL: i32 = 14;
-
         let count = self.visible_count();
-        let aw = (self.dim.width - PAD_X * 2).max(MIN_CELL);
-        let ah = (self.dim.height - PAD_Y * 2).max(MIN_CELL);
-        let max_cols = ((aw + SPACING) / (MIN_CELL + SPACING))
-            .max(1)
-            .min(count as i32);
-
-        let mut best = (1, count as i32, MIN_CELL);
-        for cols in 1..=max_cols {
+        let aw = (self.dim.width - PAD_X * 2).max(1);
+        let ah = (self.dim.height - PAD_Y * 2).max(1);
+        let mut best = (1, count as i32, 0);
+        for cols in 1..=count as i32 {
             let rows = (count as i32 + cols - 1) / cols;
-            let cell_w = (aw - (cols - 1) * SPACING) / cols;
-            let cell_h = (ah - (rows - 1) * SPACING) / rows;
-            let cell = cell_w.min(cell_h);
-            if cell < MIN_CELL {
+            let available_width = aw - (cols - 1) * SPACING;
+            let available_height = ah - (rows - 1) * SPACING;
+            if available_width <= 0 || available_height <= 0 {
                 continue;
             }
+            let cell_w = available_width / cols;
+            let cell_h = available_height / rows;
+            let cell = cell_w.min(cell_h);
             if cell > best.2 || (cell == best.2 && cols > best.0) {
                 best = (cols, rows, cell);
             }
         }
+        best.2 = best.2.max(1);
         best
     }
 }
@@ -236,6 +233,15 @@ impl TheWidget for PaletteDockBoard {
 
         let utuple = self.dim.to_buffer_utuple();
         let stride = buffer.stride();
+        let buffer_width = buffer.dim().width as usize;
+        let buffer_height = buffer.dim().height as usize;
+        if utuple.0 >= buffer_width
+            || utuple.1 >= buffer_height
+            || utuple.0 + utuple.2 > buffer_width
+            || utuple.1 + utuple.3 > buffer_height
+        {
+            return;
+        }
         ctx.draw.rect(
             buffer.pixels_mut(),
             &utuple,
@@ -274,18 +280,48 @@ impl TheWidget for PaletteDockBoard {
                     (item_width as usize).saturating_sub(4),
                     (item_width as usize).saturating_sub(4),
                 );
-                if self.index == index {
+                let in_bounds = |rect: &(usize, usize, usize, usize)| {
+                    rect.0 < buffer_width
+                        && rect.1 < buffer_height
+                        && rect.0 + rect.2 <= buffer_width
+                        && rect.1 + rect.3 <= buffer_height
+                        && rect.0 + rect.2 <= utuple.0 + utuple.2
+                        && rect.1 + rect.3 <= utuple.1 + utuple.3
+                };
+                if (self.index == index || self.hovered_index == Some(index))
+                    && in_bounds(&outer_rect)
+                {
+                    let border = if self.index == index {
+                        style.theme().color(DefaultSelection)
+                    } else {
+                        style.theme().color(ListItemHover)
+                    };
                     ctx.draw
-                        .rect_outline(buffer.pixels_mut(), &outer_rect, stride, &WHITE);
+                        .rect_outline(buffer.pixels_mut(), &outer_rect, stride, border);
                 }
-                ctx.draw
-                    .rect_outline(buffer.pixels_mut(), &inner_border_rect, stride, &BLACK);
-                if let Some(Some(color)) = self.palette.colors.get(index) {
+                if in_bounds(&inner_border_rect) {
+                    ctx.draw.rect_outline(
+                        buffer.pixels_mut(),
+                        &inner_border_rect,
+                        stride,
+                        style.theme().color(ListItemIconBorder),
+                    );
+                }
+                if let Some(Some(color)) = self.palette.colors.get(index)
+                    && in_bounds(&fill_rect)
+                {
                     ctx.draw.rect(
                         buffer.pixels_mut(),
                         &fill_rect,
                         stride,
                         &color.to_u8_array(),
+                    );
+                } else if in_bounds(&fill_rect) {
+                    ctx.draw.rect(
+                        buffer.pixels_mut(),
+                        &fill_rect,
+                        stride,
+                        style.theme().color(DefaultWidgetDarkBackground),
                     );
                 }
                 self.rectangles.push((
@@ -385,7 +421,7 @@ impl PaletteDock {
         let mut nodeui = TheNodeUI::default();
         nodeui.add_item(TheNodeUIItem::Text(
             PALETTE_DOCK_HEX.into(),
-            "Hex".into(),
+            fl!("palette_hex"),
             "".into(),
             "".into(),
             None,
@@ -735,17 +771,19 @@ impl Dock for PaletteDock {
         apply.set_status_text(&fl!("status_palette_apply_color"));
         let mut new_button = TheTraybarButton::new(TheId::named("Palette Dock New"));
         new_button.set_text(fl!("new"));
+        new_button.set_status_text(&fl!("status_palette_new"));
         top_layout.add_widget(Box::new(new_button));
 
         let mut clone_button = TheTraybarButton::new(TheId::named("Palette Dock Clone"));
         clone_button.set_text(fl!("action_duplicate"));
+        clone_button.set_status_text(&fl!("status_palette_duplicate"));
         top_layout.add_widget(Box::new(clone_button));
 
         top_layout.add_widget(Box::new(apply));
 
         let mut clear = TheTraybarButton::new(TheId::named("Palette Dock Clear Color"));
         clear.set_text(fl!("clear"));
-        clear.set_status_text(&fl!("status_tiles_clear_tile"));
+        clear.set_status_text(&fl!("status_palette_clear"));
         top_layout.add_widget(Box::new(clear));
         top_layout.set_reverse_index(Some(2));
         top_canvas.set_layout(top_layout);
@@ -758,10 +796,10 @@ impl Dock for PaletteDock {
         center.set_center(picker_canvas);
 
         let mut inspector_canvas = TheCanvas::new();
-        inspector_canvas.limiter_mut().set_min_width(300);
+        inspector_canvas.limiter_mut().set_min_width(220);
         inspector_canvas.limiter_mut().set_max_width(300);
         let mut inspector = TheTextLayout::new(TheId::named("Palette Dock Inspector Layout"));
-        inspector.limiter_mut().set_min_width(300);
+        inspector.limiter_mut().set_min_width(220);
         inspector.limiter_mut().set_max_width(300);
         inspector.set_text_margin(20);
         inspector.set_text_align(TheHorizontalAlign::Right);

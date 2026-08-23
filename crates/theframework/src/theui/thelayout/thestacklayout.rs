@@ -10,6 +10,7 @@ pub struct TheStackLayout {
     widgets: Vec<Box<dyn TheWidget>>,
     layouts: Vec<Box<dyn TheLayout>>,
     index: usize,
+    is_dirty: bool,
 }
 
 impl TheLayout for TheStackLayout {
@@ -27,6 +28,7 @@ impl TheLayout for TheStackLayout {
             widgets: vec![],
             layouts: vec![],
             index: 0,
+            is_dirty: true,
         }
     }
 
@@ -53,10 +55,11 @@ impl TheLayout for TheStackLayout {
     }
 
     fn needs_redraw(&mut self) -> bool {
-        for canvas in &mut self.canvas {
-            if canvas.needs_redraw() {
-                return true;
-            }
+        if self.is_dirty {
+            return true;
+        }
+        if self.index < self.canvas.len() && self.canvas[self.index].needs_redraw() {
+            return true;
         }
 
         false
@@ -124,6 +127,7 @@ impl TheLayout for TheStackLayout {
     fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
         if self.dim != dim || ctx.ui.relayout {
             self.dim = dim;
+            self.is_dirty = true;
             // if !self.canvas.is_empty() && self.index < self.canvas.len() {
             //     self.canvas[self.index].set_dim(dim, ctx);
             // }
@@ -159,6 +163,7 @@ impl TheLayout for TheStackLayout {
                 self.canvas[self.index].buffer(),
             );
         }
+        self.is_dirty = false;
     }
 
     /// Convert to the stack layout trait
@@ -186,6 +191,7 @@ impl TheStackLayoutTrait for TheStackLayout {
     fn add_canvas(&mut self, canvas: TheCanvas) -> usize {
         let index = self.canvas.len();
         self.canvas.push(canvas);
+        self.is_dirty = true;
         index
     }
 
@@ -194,7 +200,10 @@ impl TheStackLayoutTrait for TheStackLayout {
     }
 
     fn set_index(&mut self, index: usize) {
-        self.index = index;
+        if self.index != index {
+            self.index = index;
+            self.is_dirty = true;
+        }
     }
 
     fn canvas_at_mut(&mut self, index: usize) -> Option<&mut TheCanvas> {

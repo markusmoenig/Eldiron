@@ -5,6 +5,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 const TILES_TAB_LAYOUT: &str = "Tiles Dock Tabs";
 const TILE_VIEW_PREFIX: &str = "Tiles Dock View ";
+const PREFAB_TILES_PREFIX: &str = "Prefab Editor ";
 const TILE_BOARD_COLS: i32 = 12;
 const TILE_BOARD_EXTRA_COLS: i32 = 1;
 const TILE_BOARD_EXTRA_ROWS: i32 = 1;
@@ -50,6 +51,7 @@ impl TileTabSpec {
 }
 
 pub struct TilesDock {
+    widget_prefix: &'static str,
     pub filter: String,
     pub filter_role: u8,
     pub zoom: f32,
@@ -87,6 +89,7 @@ impl Dock for TilesDock {
         Self: Sized,
     {
         Self {
+            widget_prefix: "",
             filter: String::new(),
             filter_role: 0,
             zoom: 1.5,
@@ -128,7 +131,8 @@ impl Dock for TilesDock {
         toolbar_hlayout.set_margin(Vec4::new(10, 1, 5, 1));
         toolbar_hlayout.set_padding(3);
 
-        let mut filter_edit = TheTextLineEdit::new(TheId::named("Tiles Dock Filter Edit"));
+        let mut filter_edit =
+            TheTextLineEdit::new(TheId::named(&self.widget_name("Tiles Dock Filter Edit")));
         filter_edit.set_text(String::new());
         filter_edit.limiter_mut().set_max_size(Vec2::new(120, 18));
         filter_edit.set_font_size(12.5);
@@ -136,7 +140,8 @@ impl Dock for TilesDock {
         filter_edit.set_continuous(true);
         toolbar_hlayout.add_widget(Box::new(filter_edit));
 
-        let mut drop_down = TheDropdownMenu::new(TheId::named("Tiles Dock Filter Role"));
+        let mut drop_down =
+            TheDropdownMenu::new(TheId::named(&self.widget_name("Tiles Dock Filter Role")));
         drop_down.add_option(fl!("all"));
         for dir in TileRole::iterator() {
             drop_down.add_option(dir.to_string().to_string());
@@ -148,43 +153,47 @@ impl Dock for TilesDock {
         toolbar_hlayout.add_widget(Box::new(spacer));
         toolbar_hlayout.add_widget(Box::new(TheHDivider::new(TheId::empty())));
 
-        let mut add_button = TheTraybarButton::new(TheId::named("Tiles Dock Add"));
+        let mut add_button =
+            TheTraybarButton::new(TheId::named(&self.widget_name("Tiles Dock Add")));
         add_button.set_text("New".to_string());
         add_button.set_status_text(&fl!("status_tiles_new_group"));
         add_button.set_context_menu(Some(TheContextMenu {
             items: vec![TheContextMenuItem::new(
                 "Tile Group".to_string(),
-                TheId::named("Tiles Dock Add Tile Group"),
+                TheId::named(&self.widget_name("Tiles Dock Add Tile Group")),
             )],
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(add_button));
 
-        let mut collection_button = TheTraybarButton::new(TheId::named("Tiles Dock Collections"));
+        let mut collection_button =
+            TheTraybarButton::new(TheId::named(&self.widget_name("Tiles Dock Collections")));
         collection_button.set_text("Collections".to_string());
         collection_button
             .set_status_text("Manage collection membership for the selected tile or group.");
         toolbar_hlayout.add_widget(Box::new(collection_button));
 
-        let mut apply_button = TheTraybarButton::new(TheId::named("Tiles Dock Apply Tile"));
+        let mut apply_button =
+            TheTraybarButton::new(TheId::named(&self.widget_name("Tiles Dock Apply Tile")));
         apply_button.set_text(fl!("action_apply_tile"));
         apply_button.set_status_text(&fl!("status_tiles_apply_tile"));
         apply_button.set_context_menu(Some(TheContextMenu {
             items: vec![
                 TheContextMenuItem::new(
                     "Repeat".to_string(),
-                    TheId::named("Tiles Dock Apply Tile Repeat"),
+                    TheId::named(&self.widget_name("Tiles Dock Apply Tile Repeat")),
                 ),
                 TheContextMenuItem::new(
                     "Scale".to_string(),
-                    TheId::named("Tiles Dock Apply Tile Scale"),
+                    TheId::named(&self.widget_name("Tiles Dock Apply Tile Scale")),
                 ),
             ],
             ..Default::default()
         }));
         toolbar_hlayout.add_widget(Box::new(apply_button));
 
-        let mut clear_button = TheTraybarButton::new(TheId::named("Tiles Dock Clear Tile"));
+        let mut clear_button =
+            TheTraybarButton::new(TheId::named(&self.widget_name("Tiles Dock Clear Tile")));
         clear_button.set_text("Clear".to_string());
         clear_button.set_status_text(&fl!("status_tiles_clear_tile"));
         toolbar_hlayout.add_widget(Box::new(clear_button));
@@ -193,10 +202,10 @@ impl Dock for TilesDock {
         toolbar_canvas.set_layout(toolbar_hlayout);
         canvas.set_top(toolbar_canvas);
 
-        let mut tab_layout = TheTabLayout::new(TheId::named(TILES_TAB_LAYOUT));
+        let mut tab_layout = TheTabLayout::new(TheId::named(&self.tab_layout_name()));
         for tab in 0..2 {
             let mut tab_canvas = TheCanvas::new();
-            let render_view = TheRenderView::new(TheId::named(&format!("{TILE_VIEW_PREFIX}{tab}")));
+            let render_view = TheRenderView::new(TheId::named(&self.view_name(tab)));
             tab_canvas.set_widget(render_view);
             tab_layout.add_canvas(
                 if tab == 0 { "Project" } else { "Treasury" }.to_string(),
@@ -266,13 +275,13 @@ impl Dock for TilesDock {
 
         match event {
             TheEvent::WidgetResized(id, _) => {
-                if Self::tab_from_view_name(&id.name).is_some() {
+                if self.tab_from_view_name(&id.name).is_some() {
                     self.render_views(ui, ctx, project);
                     redraw = true;
                 }
             }
             TheEvent::IndexChanged(id, index) => {
-                if id.name == format!("{TILES_TAB_LAYOUT} Tabbar") {
+                if id.name == format!("{} Tabbar", self.tab_layout_name()) {
                     self.active_tab = *index;
                     self.sync_collection_menu(ui, project);
                     self.sync_sidebar(ctx, project);
@@ -281,35 +290,36 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::ContextMenuSelected(widget_id, item_id) => {
-                if widget_id.name == "Tiles Dock Add" {
-                    if item_id.name == "Tiles Dock Add Tile Group" {
+                if widget_id.name == self.widget_name("Tiles Dock Add") {
+                    if item_id.name == self.widget_name("Tiles Dock Add Tile Group") {
                         self.create_empty_group(project, ui, ctx, server_ctx);
                         self.render_views(ui, ctx, project);
                         redraw = true;
                     }
-                } else if widget_id.name == "Tiles Dock Collections" {
-                    if item_id.name == "Tiles Dock New Collection" {
+                } else if widget_id.name == self.widget_name("Tiles Dock Collections") {
+                    if item_id.name == self.widget_name("Tiles Dock New Collection") {
                         self.create_collection(project, ui, ctx);
                         self.sync_collection_menu(ui, project);
                         self.sync_sidebar(ctx, project);
                         self.render_views(ui, ctx, project);
                         redraw = true;
-                    } else if item_id.name == "Tiles Dock Import Collection" {
+                    } else if item_id.name == self.widget_name("Tiles Dock Import Collection") {
                         ctx.ui.open_file_requester(
-                            TheId::named("Tiles Dock Import Collection"),
+                            TheId::named(&self.widget_name("Tiles Dock Import Collection")),
                             "Import Tile Collection".into(),
                             TheFileExtension::new(
                                 "Eldiron Tile Collection".into(),
                                 vec!["eldiron_tiles".to_string(), "json".to_string()],
                             ),
                         );
-                    } else if item_id.name == "Tiles Dock Export Current Collection"
+                    } else if item_id.name
+                        == self.widget_name("Tiles Dock Export Current Collection")
                         && let TileTabKind::Collection(collection_id) =
                             self.current_tab_kind(project)
                     {
                         ctx.ui.save_file_requester(
                             TheId::named_with_id(
-                                "Tiles Dock Export Current Collection",
+                                &self.widget_name("Tiles Dock Export Current Collection"),
                                 collection_id,
                             ),
                             "Export Tile Collection".into(),
@@ -318,7 +328,8 @@ impl Dock for TilesDock {
                                 vec!["eldiron_tiles".to_string()],
                             ),
                         );
-                    } else if item_id.name == "Tiles Dock Export Current Collection To Treasury"
+                    } else if item_id.name
+                        == self.widget_name("Tiles Dock Export Current Collection To Treasury")
                         && let TileTabKind::Collection(collection_id) =
                             self.current_tab_kind(project)
                     {
@@ -351,7 +362,7 @@ impl Dock for TilesDock {
                                 ));
                             }
                         }
-                    } else if item_id.name == "Tiles Dock Add To Collection" {
+                    } else if item_id.name == self.widget_name("Tiles Dock Add To Collection") {
                         if let Some(source) = self.curr_source {
                             project.add_source_to_collection(&item_id.uuid, source);
                             let target_tab = self
@@ -368,7 +379,9 @@ impl Dock for TilesDock {
                             self.render_views(ui, ctx, project);
                             redraw = true;
                         }
-                    } else if item_id.name == "Tiles Dock Remove From Current Collection" {
+                    } else if item_id.name
+                        == self.widget_name("Tiles Dock Remove From Current Collection")
+                    {
                         if let Some(source) = self.curr_source
                             && let TileTabKind::Collection(collection_id) =
                                 self.current_tab_kind(project)
@@ -392,7 +405,8 @@ impl Dock for TilesDock {
                             self.render_views(ui, ctx, project);
                             redraw = true;
                         }
-                    } else if item_id.name == "Tiles Dock Delete Current Collection"
+                    } else if item_id.name
+                        == self.widget_name("Tiles Dock Delete Current Collection")
                         && let TileTabKind::Collection(collection_id) =
                             self.current_tab_kind(project)
                     {
@@ -404,8 +418,8 @@ impl Dock for TilesDock {
                         self.render_views(ui, ctx, project);
                         redraw = true;
                     }
-                } else if widget_id.name == "Tiles Dock Apply Tile" {
-                    if item_id.name == "Tiles Dock Apply Tile Repeat" {
+                } else if widget_id.name == self.widget_name("Tiles Dock Apply Tile") {
+                    if item_id.name == self.widget_name("Tiles Dock Apply Tile Repeat") {
                         self.apply_tile_mode = 1;
                         let mut undo_atom: Option<ProjectUndoAtom> = None;
                         let mut needs_scene_redraw = false;
@@ -476,7 +490,7 @@ impl Dock for TilesDock {
                             widget_id.clone(),
                             "Apply tile with repeating UVs.".to_string(),
                         ));
-                    } else if item_id.name == "Tiles Dock Apply Tile Scale" {
+                    } else if item_id.name == self.widget_name("Tiles Dock Apply Tile Scale") {
                         self.apply_tile_mode = 0;
                         let mut undo_atom: Option<ProjectUndoAtom> = None;
                         let mut needs_scene_redraw = false;
@@ -551,7 +565,7 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::FileRequesterResult(id, paths) => {
-                if id.name == "Tiles Dock Import Collection" {
+                if id.name == self.widget_name("Tiles Dock Import Collection") {
                     let mut last_collection_id = None;
                     for path in paths {
                         match import_tile_collection_package(project, path) {
@@ -578,7 +592,7 @@ impl Dock for TilesDock {
                         self.render_views(ui, ctx, project);
                         redraw = true;
                     }
-                } else if id.name == "Tiles Dock Export Current Collection"
+                } else if id.name == self.widget_name("Tiles Dock Export Current Collection")
                     && let Some(path) = paths.first()
                 {
                     match export_tile_collection_package(project, id.uuid, path) {
@@ -612,7 +626,7 @@ impl Dock for TilesDock {
                         server_ctx.rect_blend_preset = VertexBlendPreset::from_index(index)
                             .unwrap_or(VertexBlendPreset::Solid);
                     }
-                } else if id.name == "Tiles Dock Apply Tile" {
+                } else if id.name == self.widget_name("Tiles Dock Apply Tile") {
                     if let Some(TileSource::Procedural(package_id)) = self.curr_source
                         && let Some(package) = self
                             .treasury_packages
@@ -795,7 +809,7 @@ impl Dock for TilesDock {
                             ));
                         }
                     }
-                } else if id.name == "Tiles Dock Clear Tile" {
+                } else if id.name == self.widget_name("Tiles Dock Clear Tile") {
                     let mut cleared_action_slot = false;
                     let mut undo_atom: Option<ProjectUndoAtom> = None;
                     let mut needs_scene_redraw = false;
@@ -933,7 +947,7 @@ impl Dock for TilesDock {
                 redraw = true;
             }
             TheEvent::RenderViewClicked(id, coord) => {
-                if let Some(tab) = Self::tab_from_view_name(&id.name) {
+                if let Some(tab) = self.tab_from_view_name(&id.name) {
                     if self.entered_group.is_none()
                         && let Some(top_level_source) = self.pick_top_level_source(tab, *coord)
                     {
@@ -989,7 +1003,7 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::RenderViewDragged(id, coord) => {
-                if let Some(tab) = Self::tab_from_view_name(&id.name) {
+                if let Some(tab) = self.tab_from_view_name(&id.name) {
                     if self.entered_group.is_none()
                         && let Some((drag_tab, _source, _start_cell, grab_offset)) = self.drag_item
                         && drag_tab == tab
@@ -1014,7 +1028,7 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::RenderViewUp(id, coord) => {
-                if Self::tab_from_view_name(&id.name).is_some() {
+                if self.tab_from_view_name(&id.name).is_some() {
                     if self.entered_group.is_none()
                         && let Some((tab, source, start_cell, _grab_offset)) = self.drag_item
                     {
@@ -1053,7 +1067,7 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::RenderViewHoverChanged(id, coord) => {
-                if let Some(tab) = Self::tab_from_view_name(&id.name) {
+                if let Some(tab) = self.tab_from_view_name(&id.name) {
                     self.tile_hover_source = self.pick_source(project, tab, *coord);
                     self.tile_preview_mode = self.tile_hover_source.is_some();
                     if let Some(source) = self.tile_hover_source {
@@ -1071,7 +1085,7 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::RenderViewLostHover(id) => {
-                if Self::tab_from_view_name(&id.name).is_some() {
+                if self.tab_from_view_name(&id.name).is_some() {
                     self.drag_pan = None;
                     self.drag_item = None;
                     self.drag_drop_cell = None;
@@ -1087,11 +1101,15 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::RenderViewScrollBy(id, delta) => {
-                if let Some(tab) = Self::tab_from_view_name(&id.name) {
+                if let Some(tab) = self.tab_from_view_name(&id.name) {
                     if ui.ctrl || ui.logo {
                         let zoom_delta = (delta.y as f32) * 0.05;
                         self.zoom = (self.zoom + zoom_delta).clamp(1.0, 3.0);
-                        ui.set_widget_value("Tiles Dock Zoom", ctx, TheValue::Float(self.zoom));
+                        ui.set_widget_value(
+                            &self.widget_name("Tiles Dock Zoom"),
+                            ctx,
+                            TheValue::Float(self.zoom),
+                        );
                     } else {
                         self.tab_offset[tab].x = (self.tab_offset[tab].x + delta.x).max(0);
                         self.tab_offset[tab].y = (self.tab_offset[tab].y + delta.y).max(0);
@@ -1153,19 +1171,19 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Tiles Dock Filter Edit" {
+                if id.name == self.widget_name("Tiles Dock Filter Edit") {
                     if let TheValue::Text(filter) = value {
                         self.filter = filter.to_lowercase();
                         self.render_views(ui, ctx, project);
                         redraw = true;
                     }
-                } else if id.name == "Tiles Dock Filter Role" {
+                } else if id.name == self.widget_name("Tiles Dock Filter Role") {
                     if let TheValue::Int(filter) = value {
                         self.filter_role = *filter as u8;
                         self.render_views(ui, ctx, project);
                         redraw = true;
                     }
-                } else if id.name == "Tiles Dock Zoom"
+                } else if id.name == self.widget_name("Tiles Dock Zoom")
                     && let TheValue::Float(zoom) = value
                 {
                     self.zoom = *zoom;
@@ -1199,6 +1217,44 @@ impl Dock for TilesDock {
 }
 
 impl TilesDock {
+    pub(crate) fn new_prefab() -> Self {
+        let mut dock = <Self as Dock>::new();
+        dock.widget_prefix = PREFAB_TILES_PREFIX;
+        dock
+    }
+
+    fn widget_name(&self, base: &str) -> String {
+        format!("{}{}", self.widget_prefix, base)
+    }
+
+    /// Returns true for picker events which can edit the map currently being
+    /// authored. `handle_event` returns whether the view needs redrawing, not
+    /// whether an event was consumed, so an embedded editor must not use that
+    /// return value to decide whether its backing asset needs to be synced.
+    pub(crate) fn edits_map_for_event(&self, event: &TheEvent) -> bool {
+        match event {
+            TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
+                id.name == self.widget_name("Tiles Dock Apply Tile")
+                    || id.name == self.widget_name("Tiles Dock Clear Tile")
+            }
+            TheEvent::ContextMenuSelected(widget_id, item_id)
+                if widget_id.name == self.widget_name("Tiles Dock Apply Tile") =>
+            {
+                item_id.name == self.widget_name("Tiles Dock Apply Tile Repeat")
+                    || item_id.name == self.widget_name("Tiles Dock Apply Tile Scale")
+            }
+            _ => false,
+        }
+    }
+
+    fn tab_layout_name(&self) -> String {
+        self.widget_name(TILES_TAB_LAYOUT)
+    }
+
+    fn view_name(&self, tab: usize) -> String {
+        format!("{}{TILE_VIEW_PREFIX}{tab}", self.widget_prefix)
+    }
+
     fn particle_preview_time(&self) -> f32 {
         const PREVIEW_FPS: f32 = 15.0;
         (self.particle_preview_time * PREVIEW_FPS).floor() / PREVIEW_FPS
@@ -1333,9 +1389,7 @@ impl TilesDock {
         let names: Vec<String> = specs.iter().map(|spec| spec.name(project)).collect();
         self.ensure_tab_state(specs.len());
         if self.tab_names == names {
-            if let Some(layout) = ui
-                .canvas
-                .get_layout(Some(&TILES_TAB_LAYOUT.to_string()), None)
+            if let Some(layout) = ui.canvas.get_layout(Some(&self.tab_layout_name()), None)
                 && let Some(tab_layout) = layout.as_tab_layout()
             {
                 tab_layout.set_index(self.active_tab.min(specs.len().saturating_sub(1)));
@@ -1343,16 +1397,13 @@ impl TilesDock {
             return;
         }
         self.tab_names = names.clone();
-        if let Some(layout) = ui
-            .canvas
-            .get_layout(Some(&TILES_TAB_LAYOUT.to_string()), None)
+        if let Some(layout) = ui.canvas.get_layout(Some(&self.tab_layout_name()), None)
             && let Some(tab_layout) = layout.as_tab_layout()
         {
             tab_layout.clear();
             for (index, name) in names.iter().enumerate() {
                 let mut tab_canvas = TheCanvas::new();
-                let render_view =
-                    TheRenderView::new(TheId::named(&format!("{TILE_VIEW_PREFIX}{index}")));
+                let render_view = TheRenderView::new(TheId::named(&self.view_name(index)));
                 tab_canvas.set_widget(render_view);
                 tab_layout.add_canvas(name.clone(), tab_canvas);
             }
@@ -1365,11 +1416,11 @@ impl TilesDock {
     fn sync_collection_menu(&mut self, ui: &mut TheUI, project: &Project) {
         let mut items = vec![TheContextMenuItem::new(
             "New Collection".to_string(),
-            TheId::named("Tiles Dock New Collection"),
+            TheId::named(&self.widget_name("Tiles Dock New Collection")),
         )];
         items.push(TheContextMenuItem::new(
             "Import Collection...".to_string(),
-            TheId::named("Tiles Dock Import Collection"),
+            TheId::named(&self.widget_name("Tiles Dock Import Collection")),
         ));
 
         if let Some(source) = self.curr_source
@@ -1378,7 +1429,10 @@ impl TilesDock {
             for collection in project.tile_collections.values() {
                 items.push(TheContextMenuItem::new(
                     format!("Add To {}", collection.name),
-                    TheId::named_with_id("Tiles Dock Add To Collection", collection.id),
+                    TheId::named_with_id(
+                        &self.widget_name("Tiles Dock Add To Collection"),
+                        collection.id,
+                    ),
                 ));
             }
 
@@ -1387,7 +1441,7 @@ impl TilesDock {
             {
                 items.push(TheContextMenuItem::new(
                     "Remove From Current".to_string(),
-                    TheId::named("Tiles Dock Remove From Current Collection"),
+                    TheId::named(&self.widget_name("Tiles Dock Remove From Current Collection")),
                 ));
             }
         }
@@ -1395,19 +1449,19 @@ impl TilesDock {
         if matches!(self.current_tab_kind(project), TileTabKind::Collection(_)) {
             items.push(TheContextMenuItem::new(
                 "Export Current...".to_string(),
-                TheId::named("Tiles Dock Export Current Collection"),
+                TheId::named(&self.widget_name("Tiles Dock Export Current Collection")),
             ));
             items.push(TheContextMenuItem::new(
                 "Export Current To Treasury".to_string(),
-                TheId::named("Tiles Dock Export Current Collection To Treasury"),
+                TheId::named(&self.widget_name("Tiles Dock Export Current Collection To Treasury")),
             ));
             items.push(TheContextMenuItem::new(
                 "Delete Current Collection".to_string(),
-                TheId::named("Tiles Dock Delete Current Collection"),
+                TheId::named(&self.widget_name("Tiles Dock Delete Current Collection")),
             ));
         }
 
-        if let Some(widget) = ui.get_widget("Tiles Dock Collections") {
+        if let Some(widget) = ui.get_widget(&self.widget_name("Tiles Dock Collections")) {
             widget.set_context_menu(Some(TheContextMenu {
                 items,
                 ..Default::default()
@@ -1469,9 +1523,7 @@ impl TilesDock {
     ) {
         self.active_tab = tab;
         self.sync_tabs(ui, ctx, project);
-        if let Some(layout) = ui
-            .canvas
-            .get_layout(Some(&TILES_TAB_LAYOUT.to_string()), None)
+        if let Some(layout) = ui.canvas.get_layout(Some(&self.tab_layout_name()), None)
             && let Some(tab_layout) = layout.as_tab_layout()
         {
             tab_layout.set_index(tab);
@@ -1534,9 +1586,7 @@ impl TilesDock {
         project.set_tile_board_position(TileSource::TileGroup(group_id), pos);
         if self.active_tab != create_tab {
             self.active_tab = create_tab;
-            if let Some(layout) = ui
-                .canvas
-                .get_layout(Some(&TILES_TAB_LAYOUT.to_string()), None)
+            if let Some(layout) = ui.canvas.get_layout(Some(&self.tab_layout_name()), None)
                 && let Some(tab_layout) = layout.as_tab_layout()
             {
                 tab_layout.set_index(create_tab);
@@ -1607,7 +1657,7 @@ impl TilesDock {
         cell_pos: Vec2<i32>,
         cell_span: Vec2<i32>,
     ) {
-        let Some(render_view) = ui.get_render_view(&format!("{TILE_VIEW_PREFIX}{tab}")) else {
+        let Some(render_view) = ui.get_render_view(&self.view_name(tab)) else {
             return;
         };
         let dim = *render_view.dim();
@@ -1657,12 +1707,12 @@ impl TilesDock {
         ctx.ui
             .focus
             .as_ref()
-            .is_some_and(|id| Self::tab_from_view_name(&id.name).is_some())
+            .is_some_and(|id| self.tab_from_view_name(&id.name).is_some())
             || ctx
                 .ui
                 .hover
                 .as_ref()
-                .is_some_and(|id| Self::tab_from_view_name(&id.name).is_some())
+                .is_some_and(|id| self.tab_from_view_name(&id.name).is_some())
     }
 
     fn delete_source(
@@ -1885,7 +1935,7 @@ impl TilesDock {
         let specs = self.tab_specs(project);
         self.ensure_tab_state(specs.len());
         for tab in 0..specs.len() {
-            let Some(render_view) = ui.get_render_view(&format!("{TILE_VIEW_PREFIX}{tab}")) else {
+            let Some(render_view) = ui.get_render_view(&self.view_name(tab)) else {
                 continue;
             };
             let dim = *render_view.dim();
@@ -3279,8 +3329,46 @@ impl TilesDock {
         filter_ok && role_ok
     }
 
-    fn tab_from_view_name(name: &str) -> Option<usize> {
-        name.strip_prefix(TILE_VIEW_PREFIX)
+    fn tab_from_view_name(&self, name: &str) -> Option<usize> {
+        name.strip_prefix(&format!("{}{}", self.widget_prefix, TILE_VIEW_PREFIX))
             .and_then(|index| index.parse::<usize>().ok())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prefab_picker_widget_ids_do_not_collide_with_regular_tiles_dock() {
+        let regular = <TilesDock as Dock>::new();
+        let prefab = TilesDock::new_prefab();
+
+        assert_ne!(regular.tab_layout_name(), prefab.tab_layout_name());
+        assert_ne!(regular.view_name(0), prefab.view_name(0));
+        assert_eq!(regular.tab_from_view_name(&regular.view_name(2)), Some(2));
+        assert_eq!(prefab.tab_from_view_name(&prefab.view_name(2)), Some(2));
+        assert_eq!(regular.tab_from_view_name(&prefab.view_name(2)), None);
+    }
+
+    #[test]
+    fn prefab_picker_identifies_surface_edit_events() {
+        let prefab = TilesDock::new_prefab();
+        let apply = TheEvent::StateChanged(
+            TheId::named("Prefab Editor Tiles Dock Apply Tile"),
+            TheWidgetState::Clicked,
+        );
+        let clear = TheEvent::StateChanged(
+            TheId::named("Prefab Editor Tiles Dock Clear Tile"),
+            TheWidgetState::Clicked,
+        );
+        let select = TheEvent::RenderViewClicked(
+            TheId::named("Prefab Editor Tiles Dock View 0"),
+            Vec2::zero(),
+        );
+
+        assert!(prefab.edits_map_for_event(&apply));
+        assert!(prefab.edits_map_for_event(&clear));
+        assert!(!prefab.edits_map_for_event(&select));
     }
 }

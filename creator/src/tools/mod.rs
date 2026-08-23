@@ -16,6 +16,7 @@ pub mod palette;
 pub mod rect;
 // pub mod render;
 pub mod sector;
+pub mod tile_picker;
 // pub mod terrain;
 // pub mod tileset;
 pub mod entity;

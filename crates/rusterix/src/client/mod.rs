@@ -3917,7 +3917,8 @@ impl Client {
         let payload = format!("action:{}", action_id);
         self.intent = payload.clone();
         self.apply_intent_button_activation(&payload);
-        Some(EntityAction::Intent(payload))
+        self.immediate_2d_intent_mode()
+            .then_some(EntityAction::Intent(payload))
     }
 
     fn close_floaters(&mut self) -> bool {
@@ -4388,16 +4389,50 @@ impl Client {
         }
     }
 
+    /// Intent input contract:
+    ///
+    /// - Classic 2D selects and immediately emits an intent for directional use.
+    /// - 3D, and 2D with `persistent_intents`, only select the intent. They must
+    ///   not emit `EntityAction::Intent`; the later target interaction carries it.
+    ///
+    /// Every shortcut, screen button, and action-catalog selection must use this
+    /// decision. See the `three_d_intent_*_selects_without_emitting_action`
+    /// regression tests before changing this behavior.
     fn immediate_2d_intent_mode(&self) -> bool {
-        let camera = self
-            .active_player_camera
-            .clone()
-            .or_else(|| self.active_game_widget_camera_mode());
-        Self::is_immediate_2d_intent_camera(camera, self.click_intents_2d)
+        Self::is_immediate_2d_intent_mode(
+            self.active_player_camera.clone(),
+            self.active_game_widget_camera_mode(),
+            self.click_intents_2d,
+        )
     }
 
     fn is_immediate_2d_intent_camera(camera: Option<PlayerCamera>, click_intents_2d: bool) -> bool {
         matches!(camera, Some(PlayerCamera::D2 | PlayerCamera::D2Grid)) && !click_intents_2d
+    }
+
+    fn is_immediate_2d_intent_mode(
+        player_camera: Option<PlayerCamera>,
+        widget_camera: Option<PlayerCamera>,
+        click_intents_2d: bool,
+    ) -> bool {
+        if click_intents_2d {
+            return false;
+        }
+
+        // Camera changes originate in the player script and can reach the
+        // runtime map and game widget on adjacent frames. If either side is
+        // already 3D, never let a stale 2D value turn targeting into a one-shot.
+        if player_camera
+            .as_ref()
+            .is_some_and(|camera| !Self::is_2d_camera(camera))
+            || widget_camera
+                .as_ref()
+                .is_some_and(|camera| !Self::is_2d_camera(camera))
+        {
+            return false;
+        }
+
+        Self::is_immediate_2d_intent_camera(player_camera.or(widget_camera), click_intents_2d)
     }
 
     fn is_movement_action(action: &EntityAction) -> bool {
@@ -4908,6 +4943,7 @@ impl Client {
         let mut render_camera_switches: Vec<(Option<String>, PlayerCamera)> = Vec::new();
         let mut selected_walk_button_id = None;
         let mut selected_targeting_button_id = None;
+        let immediate_2d_intent = self.immediate_2d_intent_mode();
         let mut pending_ui_command = None;
         let mut bound_state_update: Option<(String, String, bool, String, Option<usize>)> = None;
         let active_intent = self.get_current_intent_for_action();
@@ -5234,14 +5270,18 @@ impl Client {
                             } else {
                                 self.intent = payload.clone();
                                 selected_targeting_button_id = Some(*id);
-                                action = Some(EntityAction::Intent(payload));
+                                if immediate_2d_intent {
+                                    action = Some(EntityAction::Intent(payload));
+                                }
                             }
                         }
                         ClientCommandBinding::RulesAction(rules_action) => {
                             let payload = format!("action:{}", rules_action);
                             self.intent = payload.clone();
                             selected_targeting_button_id = Some(*id);
-                            action = Some(EntityAction::Intent(payload));
+                            if immediate_2d_intent {
+                                action = Some(EntityAction::Intent(payload));
+                            }
                         }
                         ClientCommandBinding::Screen(_) | ClientCommandBinding::Game(_) => {
                             self.pending_runtime_commands.push(binding);
@@ -5792,13 +5832,17 @@ impl Client {
         // ---
 
         let is_key_down = event == "key_down";
-        let action = self.client_action.lock().unwrap().user_event(event, value);
+        let mut action = self.client_action.lock().unwrap().user_event(event, value);
 
         if is_key_down {
             if let EntityAction::Intent(intent_name) = &action {
                 self.apply_intent_button_activation(intent_name);
-                // The server also needs the selected intent for the next directional
-                // input in classic 2D mode; the next target/move consumes it.
+                if !immediate_2d_intent {
+                    // In 3D (and persistent-target 2D), choosing an intent only
+                    // changes targeting state. The server receives it with the
+                    // later explicit target click/interact event.
+                    action = EntityAction::Off;
+                }
             }
         }
 
@@ -8254,6 +8298,21 @@ mod tests {
             Some(PlayerCamera::D2),
             true
         ));
+        assert!(Client::is_immediate_2d_intent_mode(
+            Some(PlayerCamera::D2),
+            Some(PlayerCamera::D2Grid),
+            false,
+        ));
+        assert!(!Client::is_immediate_2d_intent_mode(
+            Some(PlayerCamera::D2),
+            Some(PlayerCamera::D3FirstP),
+            false,
+        ));
+        assert!(!Client::is_immediate_2d_intent_mode(
+            Some(PlayerCamera::D3Iso),
+            Some(PlayerCamera::D2),
+            false,
+        ));
     }
 
     #[test]
@@ -8336,6 +8395,73 @@ mod tests {
     }
 
     #[test]
+    fn three_d_intent_shortcut_selects_without_emitting_action() {
+        let mut assets = Assets::default();
+        assets.entities.insert(
+            "Player".into(),
+            (
+                String::new(),
+                r#"
+                    [input]
+                    u = "intent.use"
+                "#
+                .into(),
+            ),
+        );
+        let mut d3_client = Client::new();
+        d3_client
+            .client_action
+            .lock()
+            .unwrap()
+            .init("Player".into(), &assets);
+        d3_client.button_widgets.insert(
+            1,
+            Widget {
+                name: "Intent Use".into(),
+                id: 1,
+                command: Some("intent.use".into()),
+                ..Default::default()
+            },
+        );
+        d3_client.active_player_camera = Some(PlayerCamera::D3FirstP);
+
+        assert_eq!(
+            d3_client.user_event("key_down".into(), Value::Str("u".into())),
+            EntityAction::Off
+        );
+        assert_eq!(d3_client.get_current_intent().as_deref(), Some("use"));
+        assert!(d3_client.activated_widgets.contains(&1));
+    }
+
+    #[test]
+    fn three_d_intent_button_selects_without_emitting_action() {
+        let mut client = Client::new();
+        client.active_player_camera = Some(PlayerCamera::D3FirstP);
+        client.button_widgets.insert(
+            1,
+            Widget {
+                name: "Intent Use".into(),
+                id: 1,
+                rect: Rect::new(0.0, 0.0, 64.0, 64.0),
+                command: Some("intent.use".into()),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(
+            client.touch_down(
+                Vec2::new(16, 16),
+                &Map::default(),
+                &Assets::default(),
+                &mut SceneHandler::default(),
+            ),
+            None
+        );
+        assert_eq!(client.get_current_intent().as_deref(), Some("use"));
+        assert!(client.activated_widgets.contains(&1));
+    }
+
+    #[test]
     fn actions_shortcut_opens_ruleset_grouped_catalogue() {
         let mut assets = Assets::default();
         assets.entities.insert(
@@ -8411,7 +8537,7 @@ mod tests {
     }
 
     #[test]
-    fn actions_panel_selection_uses_normal_rules_targeting() {
+    fn three_d_intent_catalog_selects_without_emitting_action() {
         let mut assets = Assets::default();
         assets.rules = r#"
             [identity.defaults]
@@ -8434,13 +8560,14 @@ mod tests {
 
         let mut client = Client::new();
         client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+        client.active_player_camera = Some(PlayerCamera::D3FirstP);
         client.actions_panel_open = true;
         client.draw_actions_panel(&map, &assets);
         let entry = client.actions_panel_entries[0].clone();
 
         assert_eq!(
             client.activate_actions_panel_command(&map, &assets, &entry.command),
-            Some(EntityAction::Intent("action:minor_heal".into()))
+            None
         );
         assert_eq!(
             client.get_current_intent().as_deref(),

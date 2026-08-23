@@ -12,6 +12,51 @@ enum FittedGeometryError {
     Contours,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FittedConstruction {
+    Solid,
+    Barred,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum FittedLeaves {
+    Single,
+    Split,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct FittedOptions {
+    construction: FittedConstruction,
+    leaves: FittedLeaves,
+    depth: f32,
+    bar_width: f32,
+    bar_spacing: f32,
+    rail_width: f32,
+}
+
+impl Default for FittedOptions {
+    fn default() -> Self {
+        Self {
+            construction: FittedConstruction::Solid,
+            leaves: FittedLeaves::Single,
+            depth: 1.0,
+            bar_width: 0.08,
+            bar_spacing: 0.35,
+            rail_width: 0.1,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct FittedFrame {
+    center: Vec3<f32>,
+    depth_axis: Vec3<f32>,
+    horizontal_axis: Vec3<f32>,
+    vertical_axis: Vec3<f32>,
+    polygon: Vec<Vec2<f32>>,
+    original_depth: f32,
+}
+
 struct FittedSelection {
     object_index: usize,
     band_faces: BTreeSet<usize>,
@@ -75,44 +120,99 @@ fn closed_boundary_loops(edges: &BTreeSet<Edge>) -> Option<Vec<Vec<usize>>> {
     Some(loops)
 }
 
-fn fitted_selection(map: &Map) -> Result<FittedSelection, FittedGeometryError> {
-    let selected_by_object = map.selected_geometry_vertices.iter().fold(
-        BTreeMap::<Uuid, BTreeSet<usize>>::new(),
-        |mut out, selection| {
-            out.entry(selection.0).or_default().insert(selection.1);
-            out
-        },
-    );
-    if selected_by_object.len() != 1 {
-        return Err(FittedGeometryError::Selection);
+fn local_face_normal(vertices: &[Vec3<f32>], face: &rusterix::GeometryFace) -> Option<Vec3<f32>> {
+    let first = *vertices.get(*face.indices.first()?)?;
+    let mut normal = Vec3::zero();
+    for index in 1..face.indices.len().saturating_sub(1) {
+        let a = *vertices.get(face.indices[index])? - first;
+        let b = *vertices.get(face.indices[index + 1])? - first;
+        normal += a.cross(b);
     }
-    let (object_id, selected) = selected_by_object.into_iter().next().unwrap();
-    if selected.len() < 6 {
-        return Err(FittedGeometryError::Selection);
+    normal.try_normalized()
+}
+
+fn selected_plane_normal(vertices: &[Vec3<f32>], selected: &BTreeSet<usize>) -> Option<Vec3<f32>> {
+    if selected.len() < 3 {
+        return None;
     }
-    let Some(object_index) = map
-        .geometry_objects
-        .iter()
-        .position(|object| object.id == object_id)
-    else {
-        return Err(FittedGeometryError::Selection);
-    };
-    let object = &map.geometry_objects[object_index];
-    if selected.iter().any(|index| *index >= object.vertices.len()) {
-        return Err(FittedGeometryError::Selection);
+    let indices = selected.iter().copied().collect::<Vec<_>>();
+    let mut widest = None;
+    for a in 0..indices.len() {
+        for b in a + 1..indices.len() {
+            let delta = *vertices.get(indices[b])? - *vertices.get(indices[a])?;
+            let distance = delta.magnitude_squared();
+            if widest.is_none_or(|(_, _, best)| distance > best) {
+                widest = Some((indices[a], indices[b], distance));
+            }
+        }
+    }
+    let (a_index, b_index, _) = widest?;
+    let a = *vertices.get(a_index)?;
+    let direction = *vertices.get(b_index)? - a;
+    indices
+        .into_iter()
+        .filter(|index| *index != a_index && *index != b_index)
+        .filter_map(|index| {
+            let cross = direction.cross(*vertices.get(index)? - a);
+            Some((cross.magnitude_squared(), cross.try_normalized()?))
+        })
+        .max_by(|left, right| left.0.total_cmp(&right.0))
+        .map(|(_, normal)| normal)
+}
+
+fn ordered_edge_chains(edges: &BTreeSet<Edge>) -> Option<Vec<Vec<usize>>> {
+    let mut adjacency = BTreeMap::<usize, Vec<usize>>::new();
+    for (a, b) in edges {
+        adjacency.entry(*a).or_default().push(*b);
+        adjacency.entry(*b).or_default().push(*a);
+    }
+    if adjacency.is_empty() || adjacency.values().any(|neighbors| neighbors.len() > 2) {
+        return None;
     }
 
-    // After C followed by L, the reveal faces are the faces for which every vertex is selected.
-    // Their boundary is exactly the pair of contours on either side of the opening.
-    let band_faces = object
-        .faces
-        .iter()
-        .enumerate()
-        .filter_map(|(face_index, face)| {
-            (face.indices.len() >= 3 && face.indices.iter().all(|index| selected.contains(index)))
-                .then_some(face_index)
-        })
-        .collect::<BTreeSet<_>>();
+    let mut remaining = edges.clone();
+    let mut chains = Vec::new();
+    while let Some(first_edge) = remaining.first().copied() {
+        let start = adjacency
+            .iter()
+            .find_map(|(vertex, neighbors)| {
+                (neighbors.len() == 1
+                    && remaining.contains(&normalized_edge(*vertex, neighbors[0])))
+                .then_some(*vertex)
+            })
+            .unwrap_or(first_edge.0);
+        let mut chain = vec![start];
+        let mut current = start;
+        let mut previous = None;
+        loop {
+            let next = adjacency.get(&current)?.iter().copied().find(|neighbor| {
+                Some(*neighbor) != previous
+                    && remaining.contains(&normalized_edge(current, *neighbor))
+            });
+            let Some(next) = next else {
+                break;
+            };
+            remaining.remove(&normalized_edge(current, next));
+            previous = Some(current);
+            current = next;
+            if current == start {
+                break;
+            }
+            chain.push(current);
+        }
+        if chain.len() < 2 {
+            return None;
+        }
+        chains.push(chain);
+    }
+    Some(chains)
+}
+
+fn fitted_selection_from_band(
+    object_index: usize,
+    object: &rusterix::GeometryObject,
+    band_faces: BTreeSet<usize>,
+) -> Result<FittedSelection, FittedGeometryError> {
     if band_faces.is_empty() {
         return Err(FittedGeometryError::Contours);
     }
@@ -162,30 +262,179 @@ fn fitted_selection(map: &Map) -> Result<FittedSelection, FittedGeometryError> {
     })
 }
 
-fn local_face_normal(vertices: &[Vec3<f32>], face: &rusterix::GeometryFace) -> Option<Vec3<f32>> {
-    let first = *vertices.get(*face.indices.first()?)?;
-    let mut normal = Vec3::zero();
-    for index in 1..face.indices.len().saturating_sub(1) {
-        let a = *vertices.get(face.indices[index])? - first;
-        let b = *vertices.get(face.indices[index + 1])? - first;
-        normal += a.cross(b);
+fn infer_reveal_band_from_rim(
+    object_index: usize,
+    object: &rusterix::GeometryObject,
+    selected: &BTreeSet<usize>,
+) -> Result<FittedSelection, FittedGeometryError> {
+    let selected_edges = object
+        .faces
+        .iter()
+        .flat_map(face_edges)
+        .filter(|(a, b)| selected.contains(a) && selected.contains(b))
+        .collect::<BTreeSet<_>>();
+    let rim_normal =
+        selected_plane_normal(&object.vertices, selected).ok_or(FittedGeometryError::Contours)?;
+
+    // A ground-level doorway is an open profile embedded in the larger closed
+    // boundary of the wall face. Collect every side/reveal face adjacent to the
+    // selected boundary, separate those faces into strips, then choose the
+    // shortest valid strip. This selects the doorway reveal rather than the
+    // building's outer shell.
+    let mut candidate_faces = BTreeSet::new();
+    for rim_edge in &selected_edges {
+        if let Some((face_index, _)) = object
+            .faces
+            .iter()
+            .enumerate()
+            .filter(|(_, face)| face_edges(face).any(|edge| edge == *rim_edge))
+            .filter_map(|(face_index, face)| {
+                let alignment = local_face_normal(&object.vertices, face)?
+                    .dot(rim_normal)
+                    .abs();
+                (alignment < 0.8).then_some((face_index, alignment))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+        {
+            candidate_faces.insert(face_index);
+        }
     }
-    normal.try_normalized()
+
+    let face_edge_sets = candidate_faces
+        .iter()
+        .map(|face_index| {
+            (
+                *face_index,
+                face_edges(&object.faces[*face_index]).collect::<BTreeSet<_>>(),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    let mut remaining_faces = candidate_faces;
+    let mut valid_bands = Vec::<(f32, FittedSelection)>::new();
+    while let Some(seed) = remaining_faces.first().copied() {
+        let mut band_faces = BTreeSet::new();
+        let mut queue = VecDeque::from([seed]);
+        while let Some(face_index) = queue.pop_front() {
+            if !remaining_faces.remove(&face_index) {
+                continue;
+            }
+            band_faces.insert(face_index);
+            let edges = &face_edge_sets[&face_index];
+            let neighbors = remaining_faces
+                .iter()
+                .copied()
+                .filter(|neighbor| {
+                    face_edge_sets[neighbor]
+                        .iter()
+                        .any(|edge| edges.contains(edge))
+                })
+                .collect::<Vec<_>>();
+            queue.extend(neighbors);
+        }
+
+        let near_edges = selected_edges
+            .iter()
+            .copied()
+            .filter(|edge| {
+                band_faces
+                    .iter()
+                    .any(|face_index| face_edge_sets[face_index].contains(edge))
+            })
+            .collect::<BTreeSet<_>>();
+        let Some(mut near_chains) = ordered_edge_chains(&near_edges) else {
+            continue;
+        };
+        if near_chains.len() != 1 || near_chains[0].len() < 3 {
+            continue;
+        }
+        let near = near_chains.pop().unwrap();
+
+        let mut edge_counts = BTreeMap::<Edge, usize>::new();
+        for face_index in &band_faces {
+            for edge in &face_edge_sets[face_index] {
+                *edge_counts.entry(*edge).or_default() += 1;
+            }
+        }
+        let far_edges = edge_counts
+            .into_iter()
+            .filter_map(|(edge, count)| {
+                (count == 1 && !selected.contains(&edge.0) && !selected.contains(&edge.1))
+                    .then_some(edge)
+            })
+            .collect::<BTreeSet<_>>();
+        let Some(mut far_chains) = ordered_edge_chains(&far_edges) else {
+            continue;
+        };
+        if far_chains.len() != 1 || far_chains[0].len() < 3 {
+            continue;
+        }
+        let far = far_chains.pop().unwrap();
+        let length = near_edges
+            .iter()
+            .map(|(a, b)| (object.vertices[*a] - object.vertices[*b]).magnitude())
+            .sum::<f32>();
+        valid_bands.push((
+            length,
+            FittedSelection {
+                object_index,
+                band_faces,
+                loops: [near, far],
+            },
+        ));
+    }
+
+    valid_bands
+        .into_iter()
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, selection)| selection)
+        .ok_or(FittedGeometryError::Contours)
 }
 
-fn polygon_normal(points: &[Vec3<f32>]) -> Option<Vec3<f32>> {
-    if points.len() < 3 {
-        return None;
+fn fitted_selection(map: &Map) -> Result<FittedSelection, FittedGeometryError> {
+    let selected_by_object = map.selected_geometry_vertices.iter().fold(
+        BTreeMap::<Uuid, BTreeSet<usize>>::new(),
+        |mut out, selection| {
+            out.entry(selection.0).or_default().insert(selection.1);
+            out
+        },
+    );
+    if selected_by_object.len() != 1 {
+        return Err(FittedGeometryError::Selection);
     }
-    let mut normal = Vec3::zero();
-    for index in 0..points.len() {
-        let current = points[index];
-        let next = points[(index + 1) % points.len()];
-        normal.x += (current.y - next.y) * (current.z + next.z);
-        normal.y += (current.z - next.z) * (current.x + next.x);
-        normal.z += (current.x - next.x) * (current.y + next.y);
+    let (object_id, selected) = selected_by_object.into_iter().next().unwrap();
+    if selected.len() < 3 {
+        return Err(FittedGeometryError::Selection);
     }
-    normal.try_normalized()
+    let Some(object_index) = map
+        .geometry_objects
+        .iter()
+        .position(|object| object.id == object_id)
+    else {
+        return Err(FittedGeometryError::Selection);
+    };
+    let object = &map.geometry_objects[object_index];
+    if selected.iter().any(|index| *index >= object.vertices.len()) {
+        return Err(FittedGeometryError::Selection);
+    }
+
+    // Preserve the old C-then-L workflow when the whole reveal band is selected.
+    // A single C-selected rim falls through to automatic reveal inference.
+    let band_faces = object
+        .faces
+        .iter()
+        .enumerate()
+        .filter_map(|(face_index, face)| {
+            (face.indices.len() >= 3 && face.indices.iter().all(|index| selected.contains(index)))
+                .then_some(face_index)
+        })
+        .collect::<BTreeSet<_>>();
+    if !band_faces.is_empty()
+        && let Ok(selection) = fitted_selection_from_band(object_index, object, band_faces)
+    {
+        return Ok(selection);
+    }
+
+    infer_reveal_band_from_rim(object_index, object, &selected)
 }
 
 fn loop_center(vertices: &[Vec3<f32>], indices: &[usize]) -> Option<Vec3<f32>> {
@@ -196,30 +445,256 @@ fn loop_center(vertices: &[Vec3<f32>], indices: &[usize]) -> Option<Vec3<f32>> {
     Some(center / indices.len() as f32)
 }
 
-fn source_face_for_loop<'a>(
-    object: &'a rusterix::GeometryObject,
-    band_faces: &BTreeSet<usize>,
-    loop_indices: &[usize],
-) -> Option<&'a rusterix::GeometryFace> {
-    for index in 0..loop_indices.len() {
-        let edge = normalized_edge(
-            loop_indices[index],
-            loop_indices[(index + 1) % loop_indices.len()],
-        );
-        if let Some(face) = object
-            .faces
-            .iter()
-            .enumerate()
-            .find_map(|(face_index, face)| {
-                (!band_faces.contains(&face_index)
-                    && face_edges(face).any(|candidate| candidate == edge))
-                .then_some(face)
-            })
-        {
-            return Some(face);
-        }
+fn polygon_area(polygon: &[Vec2<f32>]) -> f32 {
+    polygon
+        .iter()
+        .enumerate()
+        .map(|(index, point)| {
+            let next = polygon[(index + 1) % polygon.len()];
+            point.x * next.y - next.x * point.y
+        })
+        .sum::<f32>()
+        * 0.5
+}
+
+fn fitted_frame(
+    source: &rusterix::GeometryObject,
+    loops: &[Vec<usize>; 2],
+) -> Result<FittedFrame, FittedGeometryError> {
+    let centers = [
+        loop_center(&source.vertices, &loops[0]).ok_or(FittedGeometryError::Contours)?,
+        loop_center(&source.vertices, &loops[1]).ok_or(FittedGeometryError::Contours)?,
+    ];
+    let delta = centers[1] - centers[0];
+    let original_depth = delta.magnitude();
+    let depth_axis = delta
+        .try_normalized()
+        .ok_or(FittedGeometryError::Contours)?;
+    let mut vertical_axis = Vec3::unit_y() - depth_axis * depth_axis.dot(Vec3::unit_y());
+    if vertical_axis.magnitude_squared() <= 1e-6 {
+        vertical_axis = Vec3::unit_z() - depth_axis * depth_axis.dot(Vec3::unit_z());
     }
-    None
+    let vertical_axis = vertical_axis
+        .try_normalized()
+        .ok_or(FittedGeometryError::Contours)?;
+    let horizontal_axis = vertical_axis
+        .cross(depth_axis)
+        .try_normalized()
+        .ok_or(FittedGeometryError::Contours)?;
+    let center = (centers[0] + centers[1]) * 0.5;
+    let mut polygon = loops[0]
+        .iter()
+        .filter_map(|index| source.vertices.get(*index).copied())
+        .map(|point| {
+            let local = point - center;
+            Vec2::new(local.dot(horizontal_axis), local.dot(vertical_axis))
+        })
+        .collect::<Vec<_>>();
+    if polygon.len() != loops[0].len() || polygon.len() < 3 {
+        return Err(FittedGeometryError::Contours);
+    }
+    if polygon_area(&polygon) < 0.0 {
+        polygon.reverse();
+    }
+    Ok(FittedFrame {
+        center,
+        depth_axis,
+        horizontal_axis,
+        vertical_axis,
+        polygon,
+        original_depth,
+    })
+}
+
+fn clip_polygon_half_plane(
+    polygon: &[Vec2<f32>],
+    inside: impl Fn(Vec2<f32>) -> bool,
+    intersection: impl Fn(Vec2<f32>, Vec2<f32>) -> Vec2<f32>,
+) -> Vec<Vec2<f32>> {
+    let mut output = Vec::new();
+    let Some(mut previous) = polygon.last().copied() else {
+        return output;
+    };
+    let mut previous_inside = inside(previous);
+    for current in polygon.iter().copied() {
+        let current_inside = inside(current);
+        if current_inside != previous_inside {
+            output.push(intersection(previous, current));
+        }
+        if current_inside {
+            output.push(current);
+        }
+        previous = current;
+        previous_inside = current_inside;
+    }
+    output
+}
+
+fn clip_polygon_x_min(polygon: &[Vec2<f32>], min_x: f32) -> Vec<Vec2<f32>> {
+    clip_polygon_half_plane(
+        polygon,
+        |point| point.x >= min_x - 1e-5,
+        |a, b| {
+            let t = (min_x - a.x) / (b.x - a.x);
+            a + (b - a) * t
+        },
+    )
+}
+
+fn clip_polygon_x_max(polygon: &[Vec2<f32>], max_x: f32) -> Vec<Vec2<f32>> {
+    clip_polygon_half_plane(
+        polygon,
+        |point| point.x <= max_x + 1e-5,
+        |a, b| {
+            let t = (max_x - a.x) / (b.x - a.x);
+            a + (b - a) * t
+        },
+    )
+}
+
+fn clip_polygon_y_min(polygon: &[Vec2<f32>], min_y: f32) -> Vec<Vec2<f32>> {
+    clip_polygon_half_plane(
+        polygon,
+        |point| point.y >= min_y - 1e-5,
+        |a, b| {
+            let t = (min_y - a.y) / (b.y - a.y);
+            a + (b - a) * t
+        },
+    )
+}
+
+fn clip_polygon_y_max(polygon: &[Vec2<f32>], max_y: f32) -> Vec<Vec2<f32>> {
+    clip_polygon_half_plane(
+        polygon,
+        |point| point.y <= max_y + 1e-5,
+        |a, b| {
+            let t = (max_y - a.y) / (b.y - a.y);
+            a + (b - a) * t
+        },
+    )
+}
+
+fn clip_polygon_rect(polygon: &[Vec2<f32>], min: Vec2<f32>, max: Vec2<f32>) -> Vec<Vec2<f32>> {
+    let polygon = clip_polygon_x_min(polygon, min.x);
+    let polygon = clip_polygon_x_max(&polygon, max.x);
+    let polygon = clip_polygon_y_min(&polygon, min.y);
+    clip_polygon_y_max(&polygon, max.y)
+}
+
+fn append_extruded_polygon(
+    output: &mut rusterix::GeometryObject,
+    polygon: &[Vec2<f32>],
+    frame: &FittedFrame,
+    depth: f32,
+    source_face: Option<&rusterix::GeometryFace>,
+) -> bool {
+    if polygon.len() < 3 || depth <= 1e-5 {
+        return false;
+    }
+    let flat = polygon
+        .iter()
+        .flat_map(|point| [point.x as f64, point.y as f64])
+        .collect::<Vec<_>>();
+    let Ok(triangles) = earcut(&flat, &[], 2) else {
+        return false;
+    };
+    if triangles.is_empty() {
+        return false;
+    }
+
+    let base = output.vertices.len();
+    for depth_offset in [-depth * 0.5, depth * 0.5] {
+        output.vertices.extend(polygon.iter().map(|point| {
+            frame.center
+                + frame.horizontal_axis * point.x
+                + frame.vertical_axis * point.y
+                + frame.depth_axis * depth_offset
+        }));
+    }
+    let count = polygon.len();
+    for index in 0..count {
+        let next = (index + 1) % count;
+        output.faces.push(new_face(
+            vec![
+                base + index,
+                base + next,
+                base + count + next,
+                base + count + index,
+            ],
+            source_face,
+        ));
+    }
+    for triangle in triangles.chunks_exact(3) {
+        output.faces.push(new_face(
+            vec![base + triangle[2], base + triangle[1], base + triangle[0]],
+            source_face,
+        ));
+        output.faces.push(new_face(
+            vec![
+                base + count + triangle[0],
+                base + count + triangle[1],
+                base + count + triangle[2],
+            ],
+            source_face,
+        ));
+    }
+    true
+}
+
+fn transformed_vector(object: &rusterix::GeometryObject, vector: Vec3<f32>) -> Vec3<f32> {
+    (object.transform_point(vector) - object.transform_point(Vec3::zero()))
+        .try_normalized()
+        .unwrap_or(vector)
+}
+
+fn add_fitted_metadata(
+    object: &mut rusterix::GeometryObject,
+    source: &rusterix::GeometryObject,
+    frame: &FittedFrame,
+    leaf: &str,
+    hinge_x: f32,
+    slide_distance: f32,
+    construction: FittedConstruction,
+) {
+    let motion_axis = transformed_vector(source, frame.horizontal_axis);
+    let hinge = source.transform_point(frame.center + frame.horizontal_axis * hinge_x);
+    object
+        .properties
+        .set("fitted_leaf", Value::Str(leaf.to_string()));
+    object.properties.set(
+        "fitted_construction",
+        Value::Str(
+            match construction {
+                FittedConstruction::Solid => "Solid",
+                FittedConstruction::Barred => "Barred",
+            }
+            .to_string(),
+        ),
+    );
+    object.properties.set(
+        "fitted_motion_axis",
+        Value::Vec3([motion_axis.x, motion_axis.y, motion_axis.z]),
+    );
+    object.properties.set(
+        "fitted_hinge_pivot",
+        Value::Vec3([hinge.x, hinge.y, hinge.z]),
+    );
+    object
+        .properties
+        .set("fitted_slide_distance", Value::Float(slide_distance));
+}
+
+fn polygon_bounds(polygon: &[Vec2<f32>]) -> Option<(Vec2<f32>, Vec2<f32>)> {
+    let mut min = Vec2::broadcast(f32::INFINITY);
+    let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+    for point in polygon {
+        min.x = min.x.min(point.x);
+        min.y = min.y.min(point.y);
+        max.x = max.x.max(point.x);
+        max.y = max.y.max(point.y);
+    }
+    (min.x.is_finite() && min.y.is_finite() && max.x.is_finite() && max.y.is_finite())
+        .then_some((min, max))
 }
 
 fn new_face(
@@ -243,127 +718,68 @@ fn new_face(
     }
 }
 
-fn append_cap(
-    output: &mut rusterix::GeometryObject,
-    source_object: &rusterix::GeometryObject,
-    old_loop: &[usize],
-    remap: &BTreeMap<usize, usize>,
-    desired_normal: Vec3<f32>,
+fn build_fitted_leaf(
+    source: &rusterix::GeometryObject,
     source_face: Option<&rusterix::GeometryFace>,
-) -> bool {
-    let points = old_loop
-        .iter()
-        .filter_map(|index| source_object.vertices.get(*index).copied())
-        .collect::<Vec<_>>();
-    if points.len() != old_loop.len() {
-        return false;
+    frame: &FittedFrame,
+    polygon: Vec<Vec2<f32>>,
+    full_bounds: (Vec2<f32>, Vec2<f32>),
+    options: FittedOptions,
+    name: &str,
+    leaf: &str,
+    hinge_x: f32,
+) -> Result<rusterix::GeometryObject, FittedGeometryError> {
+    if polygon.len() < 3 {
+        return Err(FittedGeometryError::Contours);
     }
-    let Some(normal) = polygon_normal(&points) else {
-        return false;
-    };
-    let tangent = (points[1] - points[0])
-        .try_normalized()
-        .or_else(|| (points[2] - points[0]).try_normalized());
-    let Some(tangent) = tangent else {
-        return false;
-    };
-    let Some(bitangent) = normal.cross(tangent).try_normalized() else {
-        return false;
-    };
-    let origin = points[0];
-    let flat = points
-        .iter()
-        .flat_map(|point| {
-            let local = *point - origin;
-            [local.dot(tangent) as f64, local.dot(bitangent) as f64]
-        })
-        .collect::<Vec<_>>();
-    let Ok(triangles) = earcut(&flat, &[], 2) else {
-        return false;
-    };
-    if triangles.is_empty() {
-        return false;
-    }
-
-    for triangle in triangles.chunks_exact(3) {
-        let mut indices = triangle
-            .iter()
-            .filter_map(|index| remap.get(&old_loop[*index]).copied())
-            .collect::<Vec<_>>();
-        if indices.len() != 3 {
-            return false;
-        }
-        let a = output.vertices[indices[0]];
-        let b = output.vertices[indices[1]];
-        let c = output.vertices[indices[2]];
-        if (b - a).cross(c - a).dot(desired_normal) < 0.0 {
-            indices.reverse();
-        }
-        output.faces.push(new_face(indices, source_face));
-    }
-    true
-}
-
-fn create_fitted_geometry(map: &mut Map) -> Result<Uuid, FittedGeometryError> {
-    let selection = fitted_selection(map)?;
-    let source = map.geometry_objects[selection.object_index].clone();
-    let selected_vertices = selection
-        .band_faces
-        .iter()
-        .flat_map(|face_index| source.faces[*face_index].indices.iter().copied())
-        .collect::<BTreeSet<_>>();
-
-    let mut fitted = rusterix::GeometryObject::new("Fitted Geometry");
+    let mut fitted = rusterix::GeometryObject::new(name);
     fitted.kind = rusterix::GeometryObjectKind::Prop;
     fitted.transform = source.transform;
-    let mut remap = BTreeMap::new();
-    for old_index in selected_vertices {
-        let Some(vertex) = source.vertices.get(old_index).copied() else {
-            return Err(FittedGeometryError::Selection);
-        };
-        remap.insert(old_index, fitted.vertices.len());
-        fitted.vertices.push(vertex);
-    }
 
-    // The wall reveal points into the wall. Reversing it gives the fitted solid the matching
-    // inward-facing side winding while retaining the reveal's material properties.
-    for face_index in &selection.band_faces {
-        let source_face = &source.faces[*face_index];
-        let mut indices = source_face
-            .indices
-            .iter()
-            .filter_map(|index| remap.get(index).copied())
-            .collect::<Vec<_>>();
-        if indices.len() != source_face.indices.len() {
-            return Err(FittedGeometryError::Selection);
+    let changed = match options.construction {
+        FittedConstruction::Solid => {
+            append_extruded_polygon(&mut fitted, &polygon, frame, options.depth, source_face)
         }
-        indices.reverse();
-        fitted.faces.push(new_face(indices, Some(source_face)));
-    }
+        FittedConstruction::Barred => {
+            let (full_min, full_max) = full_bounds;
+            let width = options.bar_width.max(0.01);
+            let spacing = options.bar_spacing.max(width);
+            let mut changed = false;
 
-    let centers = [
-        loop_center(&source.vertices, &selection.loops[0]).ok_or(FittedGeometryError::Contours)?,
-        loop_center(&source.vertices, &selection.loops[1]).ok_or(FittedGeometryError::Contours)?,
-    ];
-    for loop_index in 0..2 {
-        let source_face =
-            source_face_for_loop(&source, &selection.band_faces, &selection.loops[loop_index]);
-        let fallback = (centers[1 - loop_index] - centers[loop_index])
-            .try_normalized()
-            .ok_or(FittedGeometryError::Contours)?;
-        let desired_normal = source_face
-            .and_then(|face| local_face_normal(&source.vertices, face))
-            .unwrap_or(fallback);
-        if !append_cap(
-            &mut fitted,
-            &source,
-            &selection.loops[loop_index],
-            &remap,
-            desired_normal,
-            source_face,
-        ) {
-            return Err(FittedGeometryError::Contours);
+            let mut bar_centers = vec![full_min.x + width * 0.5, full_max.x - width * 0.5];
+            let mut x = full_min.x + spacing;
+            while x < full_max.x - spacing * 0.25 {
+                bar_centers.push(x);
+                x += spacing;
+            }
+            bar_centers.sort_by(|a, b| a.total_cmp(b));
+            bar_centers.dedup_by(|a, b| (*a - *b).abs() < width * 0.25);
+            for x in bar_centers {
+                let bar = clip_polygon_rect(
+                    &polygon,
+                    Vec2::new(x - width * 0.5, full_min.y),
+                    Vec2::new(x + width * 0.5, full_max.y),
+                );
+                changed |=
+                    append_extruded_polygon(&mut fitted, &bar, frame, options.depth, source_face);
+            }
+
+            let rail_width = options.rail_width.max(0.01);
+            let height = full_max.y - full_min.y;
+            for y in [full_min.y + height * 0.22, full_min.y + height * 0.78] {
+                let rail = clip_polygon_rect(
+                    &polygon,
+                    Vec2::new(full_min.x, y - rail_width * 0.5),
+                    Vec2::new(full_max.x, y + rail_width * 0.5),
+                );
+                changed |=
+                    append_extruded_polygon(&mut fitted, &rail, frame, options.depth, source_face);
+            }
+            changed
         }
+    };
+    if !changed {
+        return Err(FittedGeometryError::Contours);
     }
 
     for face_index in 0..fitted.faces.len() {
@@ -371,17 +787,91 @@ fn create_fitted_geometry(map: &mut Map) -> Result<Uuid, FittedGeometryError> {
         fitted.faces[face_index].uvs = face_uvs_for_indices(&fitted, &indices);
     }
     fitted.ensure_face_paint_data();
+    add_fitted_metadata(
+        &mut fitted,
+        source,
+        frame,
+        leaf,
+        hinge_x,
+        if leaf == "Single" {
+            full_bounds.1.x - full_bounds.0.x
+        } else {
+            (full_bounds.1.x - full_bounds.0.x) * 0.5
+        },
+        options.construction,
+    );
+    Ok(fitted)
+}
 
-    let fitted_id = fitted.id;
-    let face_count = fitted.faces.len();
-    map.geometry_objects.push(fitted);
+fn create_fitted_geometry(
+    map: &mut Map,
+    mut options: FittedOptions,
+) -> Result<Vec<Uuid>, FittedGeometryError> {
+    let selection = fitted_selection(map)?;
+    let source = map.geometry_objects[selection.object_index].clone();
+    let frame = fitted_frame(&source, &selection.loops)?;
+    if !options.depth.is_finite() || options.depth <= 0.0 {
+        options.depth = frame.original_depth.max(0.01);
+    }
+    let full_bounds = polygon_bounds(&frame.polygon).ok_or(FittedGeometryError::Contours)?;
+    let split_x = (full_bounds.0.x + full_bounds.1.x) * 0.5;
+    let source_face = selection
+        .band_faces
+        .first()
+        .and_then(|face_index| source.faces.get(*face_index));
+    let leaves = match options.leaves {
+        FittedLeaves::Single => vec![build_fitted_leaf(
+            &source,
+            source_face,
+            &frame,
+            frame.polygon.clone(),
+            full_bounds,
+            options,
+            if options.construction == FittedConstruction::Barred {
+                "Fitted Barred Gate"
+            } else {
+                "Fitted Geometry"
+            },
+            "Single",
+            full_bounds.0.x,
+        )?],
+        FittedLeaves::Split => vec![
+            build_fitted_leaf(
+                &source,
+                source_face,
+                &frame,
+                clip_polygon_x_max(&frame.polygon, split_x),
+                full_bounds,
+                options,
+                "Fitted Left Leaf",
+                "Left",
+                full_bounds.0.x,
+            )?,
+            build_fitted_leaf(
+                &source,
+                source_face,
+                &frame,
+                clip_polygon_x_min(&frame.polygon, split_x),
+                full_bounds,
+                options,
+                "Fitted Right Leaf",
+                "Right",
+                full_bounds.1.x,
+            )?,
+        ],
+    };
+
+    let fitted_ids = leaves.iter().map(|leaf| leaf.id).collect::<Vec<_>>();
+    let fitted_faces = leaves
+        .iter()
+        .flat_map(|leaf| (0..leaf.faces.len()).map(move |face_index| (leaf.id, face_index)))
+        .collect::<Vec<_>>();
+    map.geometry_objects.extend(leaves);
     map.clear_selection();
-    map.selected_geometry_objects.push(fitted_id);
-    map.selected_geometry_faces = (0..face_count)
-        .map(|face_index| (fitted_id, face_index))
-        .collect();
+    map.selected_geometry_objects = fitted_ids.clone();
+    map.selected_geometry_faces = fitted_faces;
     map.changed = map.changed.wrapping_add(1);
-    Ok(fitted_id)
+    Ok(fitted_ids)
 }
 
 pub struct CreateFittedGeometry {
@@ -398,6 +888,52 @@ impl Action for CreateFittedGeometry {
         nodeui.add_item(TheNodeUIItem::Markdown(
             "desc".into(),
             fl!("action_create_fitted_geometry_desc"),
+        ));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            "actionFittedConstruction".into(),
+            "Construction".into(),
+            "Create a solid panel or an iron gate made from bars and rails.".into(),
+            vec!["Solid".into(), "Barred".into()],
+            0,
+        ));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            "actionFittedLeaves".into(),
+            "Leaves".into(),
+            "Create one fitted object or two independently moving center-split leaves.".into(),
+            vec!["Single".into(), "Center Split".into()],
+            0,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionFittedDepth".into(),
+            "Depth".into(),
+            "The generated depth, centered between the opening's front and back contours.".into(),
+            1.0,
+            0.01..=256.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionFittedBarWidth".into(),
+            "Bar Width".into(),
+            "Width of vertical bars when Construction is Barred.".into(),
+            0.08,
+            0.01..=16.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionFittedBarSpacing".into(),
+            "Bar Spacing".into(),
+            "Center-to-center spacing of vertical bars.".into(),
+            0.35,
+            0.02..=64.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            "actionFittedRailWidth".into(),
+            "Rail Width".into(),
+            "Width of the two horizontal gate rails.".into(),
+            0.1,
+            0.01..=16.0,
+            false,
         ));
         Self {
             id: TheId::named(&fl!("action_create_fitted_geometry")),
@@ -423,6 +959,16 @@ impl Action for CreateFittedGeometry {
             && fitted_selection(map).is_ok()
     }
 
+    fn load_params(&mut self, map: &Map) {
+        if let Ok(selection) = fitted_selection(map) {
+            let source = &map.geometry_objects[selection.object_index];
+            if let Ok(frame) = fitted_frame(source, &selection.loops) {
+                self.nodeui
+                    .set_f32_value("actionFittedDepth", frame.original_depth.max(0.01));
+            }
+        }
+    }
+
     fn apply(
         &self,
         map: &mut Map,
@@ -431,7 +977,40 @@ impl Action for CreateFittedGeometry {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         let previous = map.clone();
-        if create_fitted_geometry(map).is_err() {
+        let options = FittedOptions {
+            construction: if self
+                .nodeui
+                .get_i32_value("actionFittedConstruction")
+                .unwrap_or(0)
+                == 1
+            {
+                FittedConstruction::Barred
+            } else {
+                FittedConstruction::Solid
+            },
+            leaves: if self.nodeui.get_i32_value("actionFittedLeaves").unwrap_or(0) == 1 {
+                FittedLeaves::Split
+            } else {
+                FittedLeaves::Single
+            },
+            depth: self
+                .nodeui
+                .get_f32_value("actionFittedDepth")
+                .unwrap_or(1.0),
+            bar_width: self
+                .nodeui
+                .get_f32_value("actionFittedBarWidth")
+                .unwrap_or(0.08),
+            bar_spacing: self
+                .nodeui
+                .get_f32_value("actionFittedBarSpacing")
+                .unwrap_or(0.35),
+            rail_width: self
+                .nodeui
+                .get_f32_value("actionFittedRailWidth")
+                .unwrap_or(0.1),
+        };
+        if create_fitted_geometry(map, options).is_err() {
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),
                 fl!("status_create_fitted_geometry_failed"),
@@ -525,11 +1104,102 @@ mod tests {
     }
 
     #[test]
+    fn infers_reveal_band_from_one_selected_rim() {
+        let (mut map, object_id) = opening_band_map();
+        let object = &mut map.geometry_objects[0];
+        object.vertices.extend([
+            Vec3::new(-2.0, -2.0, 0.0),
+            Vec3::new(2.0, -2.0, 0.0),
+            Vec3::new(2.0, 2.0, 0.0),
+            Vec3::new(-2.0, 2.0, 0.0),
+        ]);
+        object.faces.extend([
+            face(vec![8, 9, 1, 0]),
+            face(vec![9, 10, 2, 1]),
+            face(vec![10, 11, 3, 2]),
+            face(vec![11, 8, 0, 3]),
+        ]);
+        map.selected_geometry_vertices = (0..4).map(|index| (object_id, index)).collect();
+
+        let selection = fitted_selection(&map).expect("one closed rim should be sufficient");
+
+        assert_eq!(selection.band_faces.len(), 4);
+        assert_eq!(selection.loops.len(), 2);
+        assert!(
+            selection
+                .loops
+                .iter()
+                .all(|loop_indices| loop_indices.len() == 4)
+        );
+    }
+
+    #[test]
+    fn isolates_ground_level_opening_from_larger_wall_contour() {
+        let mut map = Map::new();
+        let mut object = rusterix::GeometryObject::new("Wall with ground-level opening");
+        object.vertices = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 4.0, 0.0),
+            Vec3::new(0.0, 4.0, 6.0),
+            Vec3::new(0.0, 0.0, 6.0),
+            Vec3::new(0.0, 0.0, 2.0),
+            Vec3::new(0.0, 3.0, 2.0),
+            Vec3::new(0.0, 3.0, 4.0),
+            Vec3::new(0.0, 0.0, 4.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 4.0, 0.0),
+            Vec3::new(1.0, 4.0, 6.0),
+            Vec3::new(1.0, 0.0, 6.0),
+            Vec3::new(1.0, 0.0, 2.0),
+            Vec3::new(1.0, 3.0, 2.0),
+            Vec3::new(1.0, 3.0, 4.0),
+            Vec3::new(1.0, 0.0, 4.0),
+        ];
+        object.faces = vec![
+            face(vec![0, 1, 5, 4]),
+            face(vec![1, 2, 6, 5]),
+            face(vec![2, 3, 7, 6]),
+            face(vec![8, 12, 13, 9]),
+            face(vec![9, 13, 14, 10]),
+            face(vec![10, 14, 15, 11]),
+            face(vec![0, 8, 9, 1]),
+            face(vec![1, 9, 10, 2]),
+            face(vec![2, 10, 11, 3]),
+            face(vec![4, 5, 13, 12]),
+            face(vec![5, 6, 14, 13]),
+            face(vec![6, 7, 15, 14]),
+        ];
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_vertices = (0..8).map(|index| (object_id, index)).collect();
+
+        let selection = fitted_selection(&map).expect("the doorway reveal should be inferred");
+
+        assert_eq!(selection.band_faces, BTreeSet::from([9, 10, 11]));
+        assert_eq!(
+            selection.loops[0].iter().copied().collect::<BTreeSet<_>>(),
+            BTreeSet::from([4, 5, 6, 7])
+        );
+        assert_eq!(
+            selection.loops[1].iter().copied().collect::<BTreeSet<_>>(),
+            BTreeSet::from([12, 13, 14, 15])
+        );
+    }
+
+    #[test]
     fn creates_independent_capped_solid_without_changing_source() {
         let (mut map, source_id) = opening_band_map();
         let source = map.geometry_objects[0].clone();
 
-        let fitted_id = create_fitted_geometry(&mut map).expect("fitted solid should be created");
+        let fitted_ids = create_fitted_geometry(
+            &mut map,
+            FittedOptions {
+                depth: 1.0,
+                ..Default::default()
+            },
+        )
+        .expect("fitted solid should be created");
+        let fitted_id = fitted_ids[0];
 
         assert_eq!(map.geometry_objects.len(), 2);
         assert_eq!(map.geometry_objects[0], source);
@@ -550,5 +1220,75 @@ mod tests {
         assert!(edge_counts.values().all(|count| *count == 2));
         assert_eq!(map.selected_geometry_objects, vec![fitted_id]);
         assert_eq!(map.selected_geometry_faces.len(), fitted.faces.len());
+    }
+
+    #[test]
+    fn custom_depth_stays_centered_in_the_opening() {
+        let (mut map, _) = opening_band_map();
+        let fitted_ids = create_fitted_geometry(
+            &mut map,
+            FittedOptions {
+                depth: 0.4,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let fitted = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == fitted_ids[0])
+            .unwrap();
+        let min_z = fitted
+            .vertices
+            .iter()
+            .map(|vertex| vertex.z)
+            .fold(f32::INFINITY, f32::min);
+        let max_z = fitted
+            .vertices
+            .iter()
+            .map(|vertex| vertex.z)
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!((min_z - 0.3).abs() < 0.001);
+        assert!((max_z - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn split_barred_output_creates_two_independent_watertight_leaves() {
+        let (mut map, _) = opening_band_map();
+        let fitted_ids = create_fitted_geometry(
+            &mut map,
+            FittedOptions {
+                construction: FittedConstruction::Barred,
+                leaves: FittedLeaves::Split,
+                depth: 0.2,
+                bar_width: 0.08,
+                bar_spacing: 0.4,
+                rail_width: 0.1,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(fitted_ids.len(), 2);
+        assert_eq!(map.selected_geometry_objects, fitted_ids);
+        for (index, fitted_id) in fitted_ids.iter().enumerate() {
+            let fitted = map
+                .geometry_objects
+                .iter()
+                .find(|object| object.id == *fitted_id)
+                .unwrap();
+            assert!(!fitted.vertices.is_empty());
+            assert!(!fitted.faces.is_empty());
+            assert_eq!(
+                fitted.properties.get_str("fitted_leaf"),
+                Some(if index == 0 { "Left" } else { "Right" })
+            );
+            let mut edge_counts = BTreeMap::<Edge, usize>::new();
+            for face in &fitted.faces {
+                for edge in face_edges(face) {
+                    *edge_counts.entry(edge).or_default() += 1;
+                }
+            }
+            assert!(edge_counts.values().all(|count| *count == 2));
+        }
     }
 }

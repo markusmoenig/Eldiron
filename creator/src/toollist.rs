@@ -143,8 +143,17 @@ mod tests {
         assert!(ToolList::is_prefab_tool_command_id("tool.linedef"));
         assert!(ToolList::is_prefab_tool_command_id("tool.sector"));
         assert!(ToolList::is_prefab_tool_command_id("tool.iso_paint"));
+        assert!(ToolList::is_prefab_tool_command_id("tool.tile_picker"));
         assert!(!ToolList::is_prefab_tool_command_id("tool.entity"));
         assert!(!ToolList::is_prefab_tool_command_id("tool.game"));
+    }
+
+    #[test]
+    fn tile_picker_tool_is_only_available_in_prefab_mode() {
+        let mut tools = ToolList::new();
+        assert!(!tools.game_tool_is_available("tool.tile_picker"));
+        tools.prefab_mode = true;
+        assert!(tools.game_tool_is_available("tool.tile_picker"));
     }
 
     #[test]
@@ -178,6 +187,12 @@ mod tests {
     }
 
     #[test]
+    fn creator_starts_with_the_sector_face_tool() {
+        let tools = ToolList::new();
+        assert_eq!(tools.current_game_tool_command_id(), Some("tool.sector"));
+    }
+
+    #[test]
     fn d2_rect_undo_invalidates_added_and_removed_cell_chunks() {
         let empty = Map::default();
         let painted = map_with_rect_cell(-33.0, -33.0);
@@ -199,6 +214,7 @@ impl ToolList {
     const AUTHORING_BUTTON_NAME: &'static str = "Authoring";
     const TEXT_PLAY_BUTTON_NAME: &'static str = "Text Play";
     const PALETTE_BUTTON_NAME: &'static str = "Palette Mode";
+    const DEFAULT_GAME_TOOL_COMMAND_ID: &'static str = "tool.sector";
     const GRID_SUBDIVISIONS: [f32; 6] = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
 
     pub fn reset_for_project_switch(&mut self, ctx: &mut TheContext) {
@@ -1637,7 +1653,7 @@ impl ToolList {
             previous_sidebar_mode: None,
             previous_palette_dock: None,
             game_tools: Vec::new(),
-            curr_game_tool: 2,
+            curr_game_tool: 0,
             game_tool_descriptors: FxHashMap::default(),
             game_tool_command_ids: FxHashMap::default(),
             previous_non_game_tool: None,
@@ -1657,11 +1673,23 @@ impl ToolList {
         list.register_game_tool("tool.sector", SectorTool::new());
         list.register_game_tool("tool.geometry", GeometryTool::new());
         list.register_game_tool("tool.iso_paint", IsoPaintTool::new());
+        list.register_game_tool(
+            "tool.tile_picker",
+            crate::tools::tile_picker::TilePickerTool::new(),
+        );
         list.register_game_tool("tool.rect", RectTool::new());
         list.register_game_tool("tool.entity", crate::tools::entity::EntityTool::new());
         list.register_game_tool("tool.blocks", crate::tools::blocks::BlockTool::new());
         // Builder and collision probe remain hidden while their workflows are being revised.
         list.register_game_tool("tool.game", GameTool::new());
+        let default_tool_id = list
+            .get_game_tool_uuid_by_command_id(Self::DEFAULT_GAME_TOOL_COMMAND_ID)
+            .expect("default Creator tool must be registered");
+        list.curr_game_tool = list
+            .game_tools
+            .iter()
+            .position(|tool| tool.id().uuid == default_tool_id)
+            .expect("default Creator tool must have an index");
         list
     }
 
@@ -1744,6 +1772,9 @@ impl ToolList {
                 let command_id = self
                     .game_tool_descriptor_by_id(tool.id().uuid)
                     .map(|descriptor| descriptor.command_id.as_str());
+                if !self.prefab_mode && command_id == Some("tool.tile_picker") {
+                    continue;
+                }
                 if self.prefab_mode && !command_id.is_some_and(Self::is_prefab_tool_command_id) {
                     continue;
                 }
@@ -1819,7 +1850,12 @@ impl ToolList {
     fn is_prefab_tool_command_id(command_id: &str) -> bool {
         matches!(
             command_id,
-            "tool.geometry" | "tool.vertex" | "tool.linedef" | "tool.sector" | "tool.iso_paint"
+            "tool.geometry"
+                | "tool.vertex"
+                | "tool.linedef"
+                | "tool.sector"
+                | "tool.iso_paint"
+                | "tool.tile_picker"
         )
     }
 
@@ -3918,6 +3954,9 @@ impl ToolList {
     pub fn game_tool_is_available(&self, command_id: &str) -> bool {
         if self.editor_mode || !self.game_tool_command_ids.contains_key(command_id) {
             return false;
+        }
+        if command_id == "tool.tile_picker" {
+            return self.prefab_mode;
         }
         !self.prefab_mode || Self::is_prefab_tool_command_id(command_id)
     }
