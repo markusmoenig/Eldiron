@@ -17,6 +17,7 @@ In 3D views, the same tool becomes the edge/surface-line editing tool for direct
 - **Click + Drag**: Move selected linedefs in 2D.
 - **Click + Drag onto another edge/vertex**: Auto-merge moved 3D edge vertices when they land on existing vertices.
 - **Click + Drag (Empty Area)**: Select a rectangular area of linedefs in 2D.
+- **B in 3D Orbit, then drag**: Perform one-shot rectangle selection of Geometry Object edges. **Shift** adds, **Alt/Option** removes, and **Escape** cancels.
 - **Delete Key**: Remove selected linedefs in 2D.
 - **Escape Key**: Clear the selection in 2D/edge selection, or end the current 3D surface-line polyline while drawing.
 

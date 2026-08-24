@@ -14,6 +14,28 @@ Design screens with the same map tools you already use:
 
 Each **sector** shows up as an item in the project tree; selecting it opens the widget editor where you can set the **role** and configure widget **attributes** (see [widgets](widgets)).
 
+## Screen Settings and Responsive Layout
+
+Select **Settings** below a Screen in the project tree to edit its screen-level TOML. Screens use the legacy fixed canvas unless they explicitly enable responsive layout:
+
+```toml
+[layout]
+mode = "responsive"
+```
+
+On a responsive screen, an existing `role = "game"` widget automatically fills the current client window. Widget roles are lowercase identifiers, so use `role = "game"`, not `role = "Game"`. Eldiron does not create a game widget automatically: a responsive screen without one is a valid UI-only screen.
+
+Other widgets can anchor their authored size to the runtime window:
+
+```toml
+[layout]
+anchor = "bottom_center"
+x = 0
+y = -20
+```
+
+Supported anchors are `top_left`, `top_center`, `top_right`, `center_left`, `center`, `center_right`, `bottom_left`, `bottom_center`, and `bottom_right`. The optional `x` and `y` values are offsets from the anchor. Without an anchor, the authored widget rectangle is retained.
+
 ## Eldiron Source Screens
 
 Eldiron Source projects can define the same screen widgets in `.els` files.

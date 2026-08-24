@@ -1100,7 +1100,8 @@ impl Dock for TilesDock {
                     redraw = true;
                 }
             }
-            TheEvent::RenderViewScrollBy(id, delta) => {
+            TheEvent::RenderViewScrollBy(id, delta)
+            | TheEvent::RenderViewPreciseScrollBy(id, delta) => {
                 if let Some(tab) = self.tab_from_view_name(&id.name) {
                     if ui.ctrl || ui.logo {
                         let zoom_delta = (delta.y as f32) * 0.05;

@@ -357,6 +357,12 @@ impl SceneVMApp for EldironPlayerApp {
         self.window_scale = scale.max(0.0001);
     }
 
+    fn resize(&mut self, _vm: &mut SceneVM, size: (u32, u32)) {
+        if self.initialized {
+            self.rusterix.resize_client_surface(size);
+        }
+    }
+
     fn render(&mut self, _vm: &mut SceneVM, ctx: &mut dyn SceneVMRenderCtx) {
         if !self.initialized {
             return;
@@ -382,6 +388,7 @@ impl SceneVMApp for EldironPlayerApp {
         }
 
         let size = ctx.size();
+        self.rusterix.resize_client_surface(size);
         let current_map = self.rusterix.client.current_map.clone();
         if let Some(region_index) = self
             .project
@@ -522,7 +529,42 @@ impl SceneVMApp for EldironPlayerApp {
                     debug_present_ms = start.elapsed().as_secs_f64() * 1000.0;
                 }
             } else {
-                self.rusterix.scene_handler.vm.clear_rgba_overlay();
+                // UI-only screens are valid: the absence of a game widget must
+                // not suppress their screen overlay.
+                let overlay_size = (
+                    self.rusterix.client.viewport.x.max(1) as u32,
+                    self.rusterix.client.viewport.y.max(1) as u32,
+                );
+                let (scale, offset_x, offset_y) =
+                    self.rusterix.presentation_transform_for_surface(size);
+                let messages = std::mem::take(&mut self.pending_messages);
+                let choices = std::mem::take(&mut self.pending_choices);
+                let map = &self.project.regions[region_index].map;
+                let overlay = self.rusterix.draw_ui_overlay_only(
+                    map,
+                    messages,
+                    choices,
+                    overlay_size.0,
+                    overlay_size.1,
+                );
+                let src = overlay.pixels();
+                self.ui_overlay_pixels.resize(src.len(), 0);
+                self.ui_overlay_pixels.copy_from_slice(src);
+                let display_rect = [
+                    offset_x * self.window_scale,
+                    offset_y * self.window_scale,
+                    overlay_size.0 as f32 * scale * self.window_scale,
+                    overlay_size.1 as f32 * scale * self.window_scale,
+                ];
+                self.rusterix.scene_handler.vm.set_rgba_overlay_bytes(
+                    overlay_size.0,
+                    overlay_size.1,
+                    &self.ui_overlay_pixels,
+                    display_rect,
+                );
+                self.ui_overlay_size = overlay_size;
+                self.ui_overlay_display_rect = display_rect;
+                let _ = ctx.present(&mut self.rusterix.scene_handler.vm);
             }
         } else {
             self.rusterix.scene_handler.vm.clear_rgba_overlay();

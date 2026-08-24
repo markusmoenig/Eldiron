@@ -160,6 +160,40 @@ impl TheWidget for TheRenderView {
                         .send(TheEvent::RenderViewScrollBy(self.id().clone(), d));
                 }
             }
+            TheEvent::PreciseScroll(delta) => {
+                let scale_factor = self.wheel_scale;
+                let aspect_ratio = self.dim().width as f32 / self.dim().height as f32;
+                let scale_x = if aspect_ratio > 1.0 {
+                    1.0 / aspect_ratio
+                } else {
+                    1.0
+                };
+                let scale_y = if aspect_ratio < 1.0 {
+                    aspect_ratio
+                } else {
+                    1.0
+                };
+
+                self.accumulated_wheel_delta.x += delta.x * scale_factor * scale_x;
+                self.accumulated_wheel_delta.y += delta.y * scale_factor * scale_y;
+
+                if self.accumulated_wheel_delta.x.abs() > 2.0
+                    || self.accumulated_wheel_delta.y.abs() > 2.0
+                {
+                    let d = Vec2::new(
+                        self.accumulated_wheel_delta.x as i32,
+                        self.accumulated_wheel_delta.y as i32,
+                    );
+                    self.accumulated_wheel_delta = Vec2::zero();
+                    ctx.ui
+                        .send(TheEvent::RenderViewPreciseScrollBy(self.id().clone(), d));
+                }
+            }
+            TheEvent::Pinch(delta) => {
+                ctx.ui
+                    .send(TheEvent::RenderViewZoomBy(self.id().clone(), *delta));
+                redraw = true;
+            }
             TheEvent::Drop(coord, drop) => {
                 ctx.ui.send(TheEvent::RenderViewDrop(
                     self.id.clone(),

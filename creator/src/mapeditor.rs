@@ -48,7 +48,13 @@ pub(crate) fn geometry_selection_status_text(
         MapToolType::Selection
         | MapToolType::Sector
         | MapToolType::Vertex
-        | MapToolType::Linedef => Some(fl!("status_geometry_empty_selection")),
+        | MapToolType::Linedef => {
+            if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+                Some(fl!("status_geometry_empty_selection_orbit"))
+            } else {
+                Some(fl!("status_geometry_empty_selection"))
+            }
+        }
         _ => None,
     }
 }
@@ -486,17 +492,17 @@ impl MapEditor {
         let mut view_mode_gb = TheGroupButton::new(TheId::named("Map Editor Camera"));
         view_mode_gb.add_text_status_icon(
             "".to_string(),
-            "2D Camera".to_string(),
+            fl!("tooltip_camera_2d"),
             "square".to_string(),
         );
         view_mode_gb.add_text_status_icon(
             "".to_string(),
-            "3D Camera: Iso".to_string(),
+            fl!("tooltip_camera_iso"),
             "cube".to_string(),
         );
         view_mode_gb.add_text_status_icon(
             "".to_string(),
-            "3D Camera: First person".to_string(),
+            fl!("tooltip_camera_firstp"),
             "camera".to_string(),
         );
         view_mode_gb.set_item_width(26);
@@ -751,8 +757,11 @@ impl MapEditor {
                 // }
                 //crate::editor::RUSTERIX.write().unwrap().set_dirty();
             }
-            TheEvent::RenderViewScrollBy(id, coord) => {
+            TheEvent::RenderViewScrollBy(id, coord)
+            | TheEvent::RenderViewPreciseScrollBy(id, coord) => {
                 if id.name == "PolyView" {
+                    let precise_trackpad_scroll =
+                        matches!(event, TheEvent::RenderViewPreciseScrollBy(_, _));
                     let is_running = crate::editor::RUSTERIX.read().unwrap().server.state
                         == rusterix::ServerState::Running;
                     if is_running && server_ctx.game_mode {
@@ -785,20 +794,59 @@ impl MapEditor {
                             {
                             } else {
                                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                    if ui.shift {
-                                        if let Some(region) =
-                                            project.get_region_mut(&server_ctx.curr_region)
+                                    if precise_trackpad_scroll && ui.logo {
+                                        EDITCAMERA
+                                            .write()
+                                            .unwrap()
+                                            .scroll_by(coord.y as f32, server_ctx);
+                                    } else if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                                        && (precise_trackpad_scroll || ui.shift)
+                                    {
+                                        // First-person navigation has no orbit
+                                        // target to pan. WASD owns translation;
+                                        // pinch or Command-scroll owns FOV.
+                                    } else if precise_trackpad_scroll || ui.shift {
+                                        if let Some(render_view) =
+                                            crate::utils::map_editor_render_view(ui, server_ctx)
                                         {
-                                            if let Some(render_view) =
-                                                ui.get_render_view("PolyView")
+                                            let dim = *render_view.dim();
+                                            let view_size = Vec2::new(dim.width, dim.height);
+                                            let pan_speed =
+                                                if precise_trackpad_scroll { 1.75 } else { 1.0 };
+                                            let pan_delta =
+                                                coord.map(|value| value as f32 * pan_speed);
+                                            #[cfg(target_os = "macos")]
+                                            let pan_delta = if precise_trackpad_scroll
+                                                && server_ctx.editor_view_mode
+                                                    == EditorViewMode::Orbit
                                             {
-                                                let dim = *render_view.dim();
-                                                EDITCAMERA.read().unwrap().pan_3d_by_delta(
-                                                    region,
-                                                    server_ctx,
-                                                    *coord,
-                                                    Vec2::new(dim.x, dim.y),
-                                                );
+                                                Vec2::new(-pan_delta.x, -pan_delta.y)
+                                            } else {
+                                                pan_delta
+                                            };
+                                            if server_ctx.pc.is_prefab() {
+                                                EDITCAMERA
+                                                    .write()
+                                                    .unwrap()
+                                                    .pan_prefab_by_delta(pan_delta, view_size);
+                                            } else if let Some(region) =
+                                                project.get_region_mut(&server_ctx.curr_region)
+                                            {
+                                                if precise_trackpad_scroll
+                                                    && server_ctx.editor_view_mode
+                                                        == EditorViewMode::Orbit
+                                                {
+                                                    EDITCAMERA
+                                                        .read()
+                                                        .unwrap()
+                                                        .pan_orbit_screen_by_delta(
+                                                            region, pan_delta, view_size,
+                                                        );
+                                                } else {
+                                                    EDITCAMERA.read().unwrap().pan_3d_by_delta_f32(
+                                                        region, server_ctx, pan_delta, view_size,
+                                                    );
+                                                }
                                             }
                                         }
                                     } else if ui.alt {
@@ -812,6 +860,19 @@ impl MapEditor {
                                             .unwrap()
                                             .scroll_by(coord.y as f32, server_ctx);
                                     }
+                                    if server_ctx.pc.is_prefab() {
+                                        let camera =
+                                            EDITCAMERA.read().unwrap().orbit_camera.clone();
+                                        RUSTERIX
+                                            .write()
+                                            .unwrap()
+                                            .client
+                                            .set_camera_d3(Box::new(camera));
+                                        ctx.ui.send(TheEvent::Custom(
+                                            TheId::named("Update Geometry Overlay 3D"),
+                                            TheValue::Empty,
+                                        ));
+                                    }
                                     redraw = true;
                                 }
                             }
@@ -823,6 +884,37 @@ impl MapEditor {
                             }
                         }
                     }
+                }
+            }
+            TheEvent::RenderViewZoomBy(id, delta) => {
+                if id.name == "PolyView"
+                    && !server_ctx.world_mode
+                    && server_ctx.editor_view_mode != EditorViewMode::D2
+                    && server_ctx.get_map_context() == MapContext::Region
+                {
+                    // NSEvent magnification is a small relative value. Scale it
+                    // into the same useful range as the established wheel zoom.
+                    EDITCAMERA
+                        .write()
+                        .unwrap()
+                        .scroll_by(*delta * 20.0, server_ctx);
+                    if server_ctx.pc.is_prefab() {
+                        let camera = EDITCAMERA.read().unwrap().orbit_camera.clone();
+                        RUSTERIX
+                            .write()
+                            .unwrap()
+                            .client
+                            .set_camera_d3(Box::new(camera));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Geometry Overlay 3D"),
+                            TheValue::Empty,
+                        ));
+                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Soft Update Minimap"),
+                        TheValue::Empty,
+                    ));
+                    redraw = true;
                 }
             }
             TheEvent::IndexChanged(id, index) => {

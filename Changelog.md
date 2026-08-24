@@ -4,12 +4,16 @@
 
 ### Creator
 
+- Added per-screen **Settings** TOML and responsive screen layouts. Responsive screens follow the resizable client window, existing game widgets fill the available area, UI widgets can anchor to window edges or the center, and UI-only screens remain supported. Fixed screens retain their existing layout behavior.
 - The **Authoring** tool now supports selected 3D Geometry Objects and linked Prefab instances. Object metadata is stored independently, while linked instances edit their shared Prefab authoring.
 - Maximized **Prefab** editing now includes a Prefab-only **Tile Picker** tool alongside geometry and 3D Paint tools.
 - The Creator now starts with the **Object** tool selected instead of the Face tool.
+- Added **Create Unit Box**, which places a fixed 1 × 1 × 1 modeling primitive centered on the selected surface without fitting its dimensions to that surface.
+- Added a shared, camera-synchronized **Orbit ViewCube** to the region and Prefab editors; clicking a visible face aligns the camera to that axis.
+- Refined 3D navigation with explicit **B: Box Select** in Orbit mode and always-available **WASD** movement in a focused First Person viewport; right mouse and Space now control looking without enabling panning.
 - Added the new black-and-blue Creator theme and made it the default, replacing legacy image-based widget chrome with theme-driven rendering and extensible action-group colors. The UI pass also adds delayed localized hover help, compact sidebar and camera navigation, a taller menu-bar timeline option, contextual editor shortcut guidance, and clearer flat status surfaces.
 - Consolidated the Creator sidebar into **Project**, **Actions**, **Console**, **Debug**, and **Help** pages. Runtime diagnostics now live in the dedicated Debug page, `Tab` / `Shift+Tab` cycle all pages, and direct sidebar shortcuts are available from the **Game > Show** menu.
-- Added the first complete **Prefab authoring workflow**, with dedicated geometry and paint editing, hierarchical parts and components, and linked instances that share authored content while retaining independent state. Prefabs also integrate with the existing Look and rules-action system, including contextual Door interactions.
+- Added the first complete **Prefab authoring workflow**, with dedicated geometry and paint editing, hierarchical parts and components, direct asset renaming, normal transform shortcuts, camera-synchronized editing handles, and linked instances that share authored content while retaining independent state. Prefabs also integrate with the existing Look and rules-action system, including contextual Door interactions.
 - Added **Clear Surface Detail** to remove all surface-line guides from every face of selected Geometry Objects in Object mode, from selected faces in Face mode, or from the host faces identified by selected guides in Edge mode, while preserving paint, materials, and generated geometry.
 - Added **C: Select Contour** in the 3D Edge Tool to expand a selected rim edge into its closed coplanar boundary, including irregular and arched openings.
 - **Create Fitted Geometry** now supports centered custom depth, single or split leaves, and solid or barred gate construction.
@@ -22,6 +26,7 @@
 
 ### Creator
 
+- Fixed scaled or rotated planar tiles breaking along triangulation seams on solid fitted Prefab geometry.
 - Fixed **L: Edge Loop** treating selection expansion as a topology edit and unnecessarily rebuilding the scene.
 - Fixed hover help sizing and truncation, added direct shortcuts to sidebar-tab help, made help available while hovering the selected action, clarified the Debug icon, and corrected semantic Debug output colors across wrapped lines while hiding redundant severity labels.
 

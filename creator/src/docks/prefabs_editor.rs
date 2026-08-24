@@ -1,4 +1,5 @@
 use crate::docks::iso_paint::IsoPaintDock;
+use crate::docks::palette::PaletteDock;
 use crate::docks::tiles::TilesDock;
 use crate::editor::{RUSTERIX, SCENEMANAGER, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
@@ -8,6 +9,7 @@ const MAP_VIEW: &str = "PolyView";
 const MODE_STACK: &str = "Prefab Editor Mode Stack";
 const PART_TREE: &str = "Prefab Editor Part Tree";
 const PART_OBJECT_ITEM: &str = "Prefab Editor Geometry Object";
+const PREFAB_NAME: &str = "Prefab Editor Prefab Name";
 const PART_NAME: &str = "Prefab Editor Part Name";
 const PART_PARENT: &str = "Prefab Editor Part Parent";
 const PART_ASSIGNMENT: &str = "Prefab Editor Object Assignment";
@@ -31,6 +33,7 @@ enum PrefabEditorMode {
     Parts,
     Paint,
     Tiles,
+    Palette,
 }
 
 impl PrefabEditorMode {
@@ -39,6 +42,7 @@ impl PrefabEditorMode {
             Self::Parts => 0,
             Self::Paint => 1,
             Self::Tiles => 2,
+            Self::Palette => 3,
         }
     }
 }
@@ -57,6 +61,7 @@ pub struct PrefabsEditorDock {
     door_preview_open: bool,
     paint_dock: IsoPaintDock,
     tiles_dock: TilesDock,
+    palette_dock: PaletteDock,
 }
 
 impl PrefabsEditorDock {
@@ -77,6 +82,12 @@ impl PrefabsEditorDock {
             }
             TheEvent::RenderViewScrollBy(id, coord) if id.name == PREFAB_VIEW => {
                 Some(TheEvent::RenderViewScrollBy(map_id(), *coord))
+            }
+            TheEvent::RenderViewPreciseScrollBy(id, coord) if id.name == PREFAB_VIEW => {
+                Some(TheEvent::RenderViewPreciseScrollBy(map_id(), *coord))
+            }
+            TheEvent::RenderViewZoomBy(id, delta) if id.name == PREFAB_VIEW => {
+                Some(TheEvent::RenderViewZoomBy(map_id(), *delta))
             }
             TheEvent::RenderViewUp(id, coord) if id.name == PREFAB_VIEW => {
                 Some(TheEvent::RenderViewUp(map_id(), *coord))
@@ -146,6 +157,11 @@ impl PrefabsEditorDock {
         inspector.set_text_margin(8);
         inspector.set_fixed_text_width(120);
         inspector.set_text_align(TheHorizontalAlign::Right);
+
+        let mut prefab_name = TheTextLineEdit::new(TheId::named(PREFAB_NAME));
+        prefab_name.limiter_mut().set_max_width(i32::MAX);
+        prefab_name.set_status_text(&fl!("status_prefab_editor_prefab_name"));
+        inspector.add_pair(fl!("prefab_editor_prefab_name"), Box::new(prefab_name));
 
         let mut name = TheTextLineEdit::new(TheId::named(PART_NAME));
         name.limiter_mut().set_max_width(i32::MAX);
@@ -338,6 +354,11 @@ impl PrefabsEditorDock {
         let part = self
             .selected_part_id
             .and_then(|part_id| asset.and_then(|asset| asset.find_part(part_id)));
+        ui.set_widget_value(
+            PREFAB_NAME,
+            ctx,
+            TheValue::Text(asset.map(|asset| asset.name.clone()).unwrap_or_default()),
+        );
         ui.set_widget_value(
             PART_NAME,
             ctx,
@@ -560,6 +581,9 @@ impl PrefabsEditorDock {
 
     fn active_tool_mode() -> PrefabEditorMode {
         let tools = TOOLLIST.read().unwrap();
+        if tools.palette_mode_active() {
+            return PrefabEditorMode::Palette;
+        }
         match tools.current_game_tool_command_id() {
             Some("tool.iso_paint") => PrefabEditorMode::Paint,
             Some("tool.tile_picker") => PrefabEditorMode::Tiles,
@@ -668,6 +692,7 @@ impl Dock for PrefabsEditorDock {
             door_preview_open: false,
             paint_dock: IsoPaintDock::new_prefab(),
             tiles_dock: TilesDock::new_prefab(),
+            palette_dock: PaletteDock::new_prefab(),
         }
     }
 
@@ -688,6 +713,7 @@ impl Dock for PrefabsEditorDock {
         stack.add_canvas(Self::parts_canvas());
         stack.add_canvas(self.paint_dock.setup(ctx));
         stack.add_canvas(self.tiles_dock.setup(ctx));
+        stack.add_canvas(self.palette_dock.setup(ctx));
         lower_content.set_layout(stack);
 
         // Actions live in the global sidebar. Keeping another action list here
@@ -768,6 +794,13 @@ impl Dock for PrefabsEditorDock {
                 return true;
             }
         }
+        if self.mode == PrefabEditorMode::Palette
+            && self
+                .palette_dock
+                .handle_event(event, ui, ctx, project, server_ctx)
+        {
+            return true;
+        }
 
         match event {
             TheEvent::Custom(id, _) if id.name == "Tool Changed" => {
@@ -778,6 +811,8 @@ impl Dock for PrefabsEditorDock {
                     self.paint_dock.activate(ui, ctx, project, server_ctx);
                 } else if self.mode == PrefabEditorMode::Tiles {
                     self.tiles_dock.activate(ui, ctx, project, server_ctx);
+                } else if self.mode == PrefabEditorMode::Palette {
+                    self.palette_dock.activate(ui, ctx, project, server_ctx);
                 }
                 ctx.ui.redraw_all = true;
                 true
@@ -909,6 +944,49 @@ impl Dock for PrefabsEditorDock {
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
                     TheValue::Empty,
+                ));
+                true
+            }
+            TheEvent::ValueChanged(id, TheValue::Text(name)) if id.name == PREFAB_NAME => {
+                let current = project
+                    .block_props
+                    .get(&asset_id)
+                    .map(|asset| asset.name.as_str());
+                if current == Some(name.trim()) {
+                    return true;
+                }
+                if name.trim().is_empty() {
+                    self.sync_part_inspector(ui, ctx, project, asset_id);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        fl!("status_prefab_name_required"),
+                    ));
+                    return true;
+                }
+                self.close_door_preview(project, asset_id, server_ctx);
+                let before = project.clone();
+                if let Err(message) =
+                    crate::block_props::rename_prefab_asset(project, asset_id, name.clone())
+                {
+                    ctx.ui
+                        .send(TheEvent::SetStatusText(TheId::empty(), message));
+                    self.sync_part_inspector(ui, ctx, project, asset_id);
+                    return true;
+                }
+                server_ctx.curr_block_asset_name = project
+                    .block_props
+                    .get(&asset_id)
+                    .map(|asset| asset.name.clone());
+                Self::push_project_undo(before, project, ctx);
+                Self::sync_prefab_runtime(project);
+                self.sync_part_tree(ui, ctx, project, asset_id);
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
+                    TheValue::Empty,
+                ));
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    fl!("status_prefab_renamed"),
                 ));
                 true
             }
@@ -1143,6 +1221,8 @@ impl Dock for PrefabsEditorDock {
                 self.paint_dock.activate(ui, ctx, project, server_ctx);
                 if self.mode == PrefabEditorMode::Tiles {
                     self.tiles_dock.activate(ui, ctx, project, server_ctx);
+                } else if self.mode == PrefabEditorMode::Palette {
+                    self.palette_dock.activate(ui, ctx, project, server_ctx);
                 }
                 true
             }
@@ -1188,5 +1268,6 @@ mod tests {
         assert_eq!(PrefabEditorMode::Parts.index(), 0);
         assert_eq!(PrefabEditorMode::Paint.index(), 1);
         assert_eq!(PrefabEditorMode::Tiles.index(), 2);
+        assert_eq!(PrefabEditorMode::Palette.index(), 3);
     }
 }

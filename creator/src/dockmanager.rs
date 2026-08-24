@@ -431,7 +431,10 @@ impl DockManager {
                 }
 
                 if self.dock == "Prefabs" {
-                    TOOLLIST.write().unwrap().set_prefab_tools(ui, ctx);
+                    TOOLLIST
+                        .write()
+                        .unwrap()
+                        .set_prefab_tools(ui, ctx, server_ctx);
                 }
 
                 if let Some(supports_undo) = supports_undo {
@@ -508,6 +511,9 @@ impl DockManager {
                 }
                 if restore_game_tools {
                     TOOLLIST.write().unwrap().set_game_tools(ui, ctx);
+                    if self.dock == "Prefabs" {
+                        server_ctx.palette_tool_active = false;
+                    }
                 }
                 if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                     stack.set_index(0);

@@ -26,7 +26,9 @@ The 3D workflow is direct and mesh-like while using the same tool vocabulary as 
 
 The 3D shortcut resolver is context-aware: selected-geometry commands such as vertex fill with **F**, edge-loop selection with **L**, object rotation with **R**, and tile application with **T** keep priority over tool switching. Defaults can be changed from **Game / Shortcuts**.
 
-Drag an empty part of the 3D view to rectangle-select in the active tool mode. Rectangle selection can collect whole Geometry Objects, faces, edges, or vertices. Hold **Shift** while dragging to add to the current selection, or **Alt/Option** to remove from it.
+In **Orbit** mode, press **B** to arm a one-shot Box Select, then drag a rectangle in the active Object, Face, Edge, or Vertex mode. Hold **Shift** while dragging to add to the current selection, or **Alt/Option** to remove from it; press **Escape** to cancel. Box Select is an Orbit-only shortcut because macOS primary dragging on empty space or the ViewCube is used for orbiting. Outside Orbit, **B** retains its normal Prefab Tool shortcut.
+
+The Orbit ViewCube follows the camera. Click one of its visible faces to align the camera to that axis; in the macOS primary-drag path, click-dragging the cube or empty viewport space orbits instead.
 
 ## Creating The First Object
 
@@ -40,6 +42,8 @@ The created box becomes normal editable geometry:
 - duplicate it with **Cmd / Ctrl + D**
 
 Create Box remembers the last box size. When a face is selected, Create Box can attach a new box to that face and match the selected face size on the in-plane axes. When a horizontal floor edge is selected in edge mode, Create Box finds the face below that edge and attaches a wall box to it. In this edge workflow, wall thickness is recalculated from the current grid step each time instead of reusing the previously remembered box thickness.
+
+Use **Create Unit Box** when you want the same surface attachment but a predictable `1 × 1 × 1` primitive. It remains centered on the selected surface and does not stretch to match that surface.
 
 ## Object Editing
 
@@ -171,9 +175,17 @@ Faces can either repeat a tile in 1x1 world units or scale the source across the
 
 Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Explicit face selections take priority, so selecting one face on an object edits only that face; selecting the object edits every face. Parameter changes update the 3D view immediately. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly. For selected textured faces, the arrow shortcuts can also adjust offset, rotation, and scale without opening the action parameters.
 
+## Reusable Prefabs
+
+Select one or more Geometry Objects in Object mode and run **Create Linked Prefab** to create a reusable source asset and replace the selection with a linked instance. Use **Create Prefab Copy** when the source asset should be created without replacing the original geometry. Every Prefab has a stable UUID; linked instances share source geometry and paint while keeping independent placement and runtime state.
+
+The **Prefab Tool** opens the **Prefabs** dock for browsing and placing linked assets. Selecting a project Prefab and maximizing the dock opens the isolated Prefab editor, where the normal Object, Face, Edge, Vertex, camera, undo, and 3D Paint tools edit the shared source. The lower editor panel contains the hierarchical Prefab / part / Geometry Object tree, part properties, pivots, and Prefab-specific controls.
+
+Use **Make Prefab Unique** when one linked instance needs its own source, or **Unpack Prefab** to convert an instance back into ordinary Geometry Objects. **Update Prefab Source** replaces the shared source from selected Geometry Objects without changing its UUID or existing links.
+
 ## Suggested Blockout Workflow
 
-1. Use **Create Box** for the first block.
+1. Use **Create Box** for the first fitted block, or **Create Unit Box** for a centered unit primitive.
 2. Resize and duplicate boxes with the **Object Tool**.
 3. Select faces with the **Sector / Face Tool** and extrude them to build connected walls, floors, ledges, and rooms.
 4. Subdivide faces with **Cmd/Ctrl+U** or inset them with **Cmd/Ctrl+I** when you need smaller editable regions.

@@ -17,7 +17,8 @@ In 3D views, the Vertex Tool selects vertices on direct geometry objects.
 - **Alt (Mac: Option) + Click**: Remove vertices from the selection.
 - **Click + Drag**: Move selected vertices. In 3D, moved vertices snap to absolute grid positions.
 - **Click + Drag onto another vertex**: Auto-merge moved 3D vertices when they land on the same grid position.
-- **Click + Drag (Empty Area)**: Select a rectangular area of vertices.
+- **Click + Drag (Empty Area)**: Select a rectangular area of vertices in 2D and non-Orbit editing views.
+- **B in 3D Orbit, then drag**: Perform one-shot rectangle selection of Geometry Object vertices. **Shift** adds, **Alt/Option** removes, and **Escape** cancels.
 - **Delete Key**: Remove selected vertices.
 - **Escape Key**: Clear the selection.
 

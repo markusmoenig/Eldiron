@@ -13,7 +13,7 @@ Some tools are specifically designed for **map editing** and display a common **
 - **Linedef / Edge Tool**
 - **Sector / Face Tool**
 - **Rect Tool**
-- **Block Tool**
+- **Prefab Tool**
 - **3D Paint Tool**
 
 The tool strip also contains **mode toggles** below the main map tools:
@@ -31,11 +31,16 @@ The tool strip also contains **mode toggles** below the main map tools:
 
 ### Navigation
 
-You can navigate the map using:
-- **Trackpad**: Swipe to move around.
-- **Arrow keys**: Move the view in any direction.
-- **Mini-map**: Click on the mini-map in the **Region** section to jump to a location.
-- **Mouse wheel / Trackpad + Ctrl (Mac: Command)**: Zoom in and out.
+Navigation depends on the active camera:
+
+- **Physical mouse on every platform**: the existing wheel, right-drag, modifier-drag, and arrow-key controls remain unchanged.
+- **macOS trackpad in Orbit**: two-finger scroll pans, pinch zooms, and primary click-drag on empty space or the ViewCube orbits. `Command` + two-finger scroll is a zoom fallback.
+- **macOS trackpad in Iso**: two-finger scroll pans and pinch zooms.
+- **First Person**: `WASD` moves whenever the viewport is focused; hold right mouse to look or press `Space` to toggle touchpad look. First Person does not pan.
+- **ViewCube in Orbit**: click a visible face to align the camera to that axis.
+- **Mini-map**: click the mini-map in the **Region** section to jump to a location.
+
+See [Camera Actions](../actions#camera-actions) for the complete per-camera controls.
 
 ### HUD Overview
 
@@ -63,7 +68,7 @@ In 3D geometry views you can also use:
 - `V`: Vertex Tool
 - `E`: Linedef / Edge Tool
 - `F`: Sector / Face Tool
-- `B`: Block Tool
+- `B`: one-shot Box Select in Orbit mode; Prefab Tool in Iso and First Person
 - `M`: Move object gizmo
 - `S`: Size object gizmo
 
@@ -73,6 +78,7 @@ The **Game / Shortcuts** document stores overrides by stable action id:
 
 ```toml
 [shortcuts]
+"selection.box" = "B"
 "tool.object" = "O"
 "tool.vertex" = "V"
 "tool.edge" = "E"
@@ -99,13 +105,13 @@ With the [3D Paint Tool](iso_paint), the lower picker area shows the **3D Paint*
 - Art Palette color slots
 - material, finish, shape, and pattern settings for surface-space paint strokes
 
-With the [Block Tool](blocks), the lower picker area shows the **Blocks** dock instead:
+With the [Prefab Tool](blocks), the lower picker area shows the **Prefabs** dock instead:
 
-- rendered 3D previews for block stamps
+- rendered previews for project Prefabs and built-in construction stamps
 - Place / Replace / Erase operation controls
 - Clean / Damaged stamping controls
 - Line / Rect drag-stamping controls
-- compact selected-block state and shortcut guidance
+- compact selected-asset state and shortcut guidance
 - practical stamps such as floor+wall, floor+corner, floor+doorway, stairs, ceilings, faceted columns, and solids
 
 ## Direct 3D Geometry Editing
@@ -141,13 +147,13 @@ Palette mode is used for:
 
 For the full workflow, see [Palette Tool](palette).
 
-## Block Building
+## Prefabs And Block Building
 
-The **Block Tool** builds 3D rooms, corridors, dungeon layouts, houses, and blockouts from modular editable Geometry Object stamps.
+The **Prefab Tool** browses and places reusable linked project Prefabs and also retains the built-in construction-stamp workflow for rooms, corridors, dungeon layouts, houses, and blockouts.
 
-It uses a dedicated block grid in 3D views, supports click placement, line and rectangle drag stamping, whole-instance replace/erase, clean or damaged stamping, 90-degree rotation, stack levels, and component-aware height/width shortcuts. Floors ignore height changes, walls and posts can grow taller, columns stamp as faceted cylinder geometry, and widened doorways grow their opening instead of thickening the side posts.
+Project Prefabs are UUID-backed shared sources: editing the source updates linked instances, while each placement keeps its own transform and runtime state. Built-in construction stamps still use the dedicated block grid, click/line/rectangle placement, whole-instance replace/erase, clean or damaged variants, rotation, stack levels, and component-aware sizing.
 
-For the full workflow, see [Block Tool](blocks).
+For the full workflow, see [Prefab Tool](blocks).
 
 ## 3D Paint Mode
 

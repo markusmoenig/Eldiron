@@ -1301,6 +1301,22 @@ impl TheUI {
     }
 
     pub fn mouse_wheel(&mut self, delta: (i32, i32), ctx: &mut TheContext) -> bool {
+        self.mouse_wheel_with_event((delta.0 as f32, delta.1 as f32), false, ctx)
+    }
+
+    /// Routes precise scrolling as a distinct event only when it lands on a
+    /// render view. Scrollable UI layouts and all other widgets retain their
+    /// established mouse-wheel behavior.
+    pub fn precise_scroll(&mut self, delta: (f32, f32), ctx: &mut TheContext) -> bool {
+        self.mouse_wheel_with_event(delta, true, ctx)
+    }
+
+    fn mouse_wheel_with_event(
+        &mut self,
+        delta: (f32, f32),
+        precise: bool,
+        ctx: &mut TheContext,
+    ) -> bool {
         let mut redraw = false;
 
         self.clear_hover_help(ctx);
@@ -1316,7 +1332,7 @@ impl TheUI {
         if let Some(layout_id) = layout_id {
             if let Some(layout) = self.get_layout(&layout_id.name) {
                 if layout.supports_mouse_wheel() {
-                    layout.mouse_wheel_scroll(Vec2::new(delta.0, delta.1));
+                    layout.mouse_wheel_scroll(Vec2::new(delta.0 as i32, delta.1 as i32));
                     processed = true;
                     redraw = true;
                 }
@@ -1327,12 +1343,34 @@ impl TheUI {
             // If not processed, call the widget directly.
             if let Some(id) = &ctx.ui.hover {
                 if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
-                    redraw =
-                        widget.on_event(&TheEvent::MouseWheel(Vec2::new(delta.0, delta.1)), ctx);
+                    let is_render_view = widget.as_render_view().is_some();
+                    let event = if precise && is_render_view {
+                        TheEvent::PreciseScroll(Vec2::new(delta.0, delta.1))
+                    } else {
+                        TheEvent::MouseWheel(Vec2::new(delta.0 as i32, delta.1 as i32))
+                    };
+                    redraw = widget.on_event(&event, ctx);
                     self.process_events(ctx);
                 }
             }
         }
+        redraw
+    }
+
+    /// Sends a pinch gesture only to the render view under the pointer.
+    pub fn pinch(&mut self, delta: f32, ctx: &mut TheContext) -> bool {
+        self.clear_hover_help(ctx);
+        let Some(id) = &ctx.ui.hover else {
+            return false;
+        };
+        let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) else {
+            return false;
+        };
+        if widget.as_render_view().is_none() {
+            return false;
+        }
+        let redraw = widget.on_event(&TheEvent::Pinch(delta), ctx);
+        self.process_events(ctx);
         redraw
     }
 

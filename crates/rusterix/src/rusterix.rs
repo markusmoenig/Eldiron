@@ -882,6 +882,12 @@ impl Rusterix {
             .prepare_scenevm_direct(map, &self.assets, &mut self.scene_handler, size)
     }
 
+    /// Inform the client about the current logical output surface. Responsive
+    /// screens adopt it; fixed screens keep their authored viewport.
+    pub fn resize_client_surface(&mut self, size: (u32, u32)) {
+        self.client.resize_surface(size.0, size.1, &self.assets);
+    }
+
     /// Render only UI/screen widgets into a transparent overlay RGBA buffer.
     pub fn draw_ui_overlay_only(
         &mut self,

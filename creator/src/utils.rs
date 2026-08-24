@@ -496,6 +496,112 @@ fn geometry_face_auto_uvs(points: &[Vec3<f32>]) -> Vec<Vec2<f32>> {
         .collect()
 }
 
+fn geometry_face_plane(
+    object: &rusterix::GeometryObject,
+    face: &rusterix::GeometryFace,
+) -> Option<(Vec3<f32>, f32)> {
+    let points = face
+        .indices
+        .iter()
+        .map(|index| object.vertices.get(*index).copied())
+        .collect::<Option<Vec<_>>>()?;
+    if points.len() < 3 {
+        return None;
+    }
+    let mut normal = Vec3::<f32>::zero();
+    for index in 1..points.len() - 1 {
+        normal += (points[index] - points[0]).cross(points[index + 1] - points[0]);
+    }
+    let mut normal = normal.try_normalized()?;
+    let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+    let dominant = if abs.x >= abs.y && abs.x >= abs.z {
+        normal.x
+    } else if abs.y >= abs.z {
+        normal.y
+    } else {
+        normal.z
+    };
+    if dominant < 0.0 {
+        normal = -normal;
+    }
+    Some((normal, normal.dot(points[0])))
+}
+
+/// Scale-to-fit is one projection across a physical planar surface, not one
+/// independent 0..1 island per triangulated face. Rebuild the selected face's
+/// coplanar peers together so fitted doors and other irregular caps stay
+/// continuous along their internal triangulation seams.
+fn project_scaled_geometry_surface(
+    object: &mut rusterix::GeometryObject,
+    face_index: usize,
+) -> bool {
+    let Some(target_face) = object.faces.get(face_index) else {
+        return false;
+    };
+    let Some((target_normal, target_distance)) = geometry_face_plane(object, target_face) else {
+        return false;
+    };
+    let grouped_faces = object
+        .faces
+        .iter()
+        .enumerate()
+        .filter_map(|(index, face)| {
+            let (normal, distance) = geometry_face_plane(object, face)?;
+            (normal.dot(target_normal) >= 0.999 && (distance - target_distance).abs() <= 0.001)
+                .then_some(index)
+        })
+        .collect::<Vec<_>>();
+    if grouped_faces.is_empty() {
+        return false;
+    }
+
+    let mut projected_by_face = Vec::with_capacity(grouped_faces.len());
+    let mut min = Vec2::broadcast(f32::INFINITY);
+    let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+    for index in grouped_faces {
+        let face = &object.faces[index];
+        let points = face
+            .indices
+            .iter()
+            .filter_map(|vertex_index| object.vertices.get(*vertex_index).copied())
+            .collect::<Vec<_>>();
+        if points.len() != face.indices.len() {
+            continue;
+        }
+        let projected = geometry_face_auto_uvs(&points);
+        for uv in &projected {
+            min.x = min.x.min(uv.x);
+            min.y = min.y.min(uv.y);
+            max.x = max.x.max(uv.x);
+            max.y = max.y.max(uv.y);
+        }
+        projected_by_face.push((index, projected));
+    }
+    if projected_by_face.is_empty()
+        || !min.x.is_finite()
+        || !min.y.is_finite()
+        || !max.x.is_finite()
+        || !max.y.is_finite()
+    {
+        return false;
+    }
+    let size = Vec2::new((max.x - min.x).max(1e-4), (max.y - min.y).max(1e-4));
+    let mut changed = false;
+    for (index, projected) in projected_by_face {
+        let uvs = projected
+            .into_iter()
+            .map(|uv| Vec2::new((uv.x - min.x) / size.x, (uv.y - min.y) / size.y))
+            .collect::<Vec<_>>();
+        let face = &mut object.faces[index];
+        if face.uvs != uvs || face.auto_uv {
+            face.uvs = uvs;
+            face.auto_uv = false;
+            changed = true;
+        }
+    }
+    changed
+}
+
 pub fn apply_surface_source_to_geometry_face(
     map: &mut Map,
     object_id: Uuid,
@@ -511,14 +617,18 @@ pub fn apply_surface_source_to_geometry_face(
         return false;
     };
 
-    let Some(face) = object.faces.get_mut(face_index) else {
-        return false;
-    };
-
     match source {
         SurfaceApplySource::Direct(pixel_source) => {
             let auto_uv = tile_mode.unwrap_or(1) != 0;
-            let changed = face.tile.as_ref() != Some(pixel_source)
+            let mut changed = if auto_uv {
+                false
+            } else {
+                project_scaled_geometry_surface(object, face_index)
+            };
+            let Some(face) = object.faces.get_mut(face_index) else {
+                return changed;
+            };
+            changed |= face.tile.as_ref() != Some(pixel_source)
                 || !face.tiles.is_empty()
                 || face.auto_uv != auto_uv;
             if changed {
@@ -529,6 +639,9 @@ pub fn apply_surface_source_to_geometry_face(
             changed
         }
         SurfaceApplySource::TileGroup { group, flip_y } => {
+            let Some(face) = object.faces.get_mut(face_index) else {
+                return false;
+            };
             if group.width == 0 || group.height == 0 || group.members.is_empty() {
                 return false;
             }
@@ -617,6 +730,46 @@ pub fn apply_surface_source_to_geometry_object(
             apply_surface_source_to_geometry_face(map, object_id, face_index, source, tile_mode);
     }
     changed
+}
+
+#[cfg(test)]
+mod scaled_geometry_projection_tests {
+    use super::*;
+
+    fn triangle(indices: Vec<usize>) -> rusterix::GeometryFace {
+        rusterix::GeometryFace {
+            id: Uuid::new_v4(),
+            paint_surface_id: None,
+            indices,
+            uvs: vec![Vec2::zero(); 3],
+            paint_uvs: Vec::new(),
+            auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::one(),
+            texture_rotation: 0.0,
+            tile: None,
+            tiles: Default::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn scale_projection_reuses_uvs_at_fitted_cap_seams() {
+        let mut object = rusterix::GeometryObject::new("Triangulated fitted cap");
+        object.vertices = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 0.0),
+            Vec3::new(2.0, 2.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        ];
+        object.faces = vec![triangle(vec![0, 1, 2]), triangle(vec![0, 2, 3])];
+
+        assert!(project_scaled_geometry_surface(&mut object, 0));
+        assert_eq!(object.faces[0].uvs[0], object.faces[1].uvs[0]);
+        assert_eq!(object.faces[0].uvs[2], object.faces[1].uvs[1]);
+        assert_eq!(object.faces[0].uvs[1], Vec2::new(1.0, 0.0));
+    }
 }
 
 pub fn clear_surface_source_on_geometry_face(

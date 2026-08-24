@@ -9,6 +9,7 @@ static LAST_GEOMETRY_DUPLICATE_OFFSET: Mutex<Option<Vec3<f32>>> = Mutex::new(Non
 pub struct Duplicate {
     id: TheId,
     nodeui: TheNodeUI,
+    duplicated_geometry_pairs: Mutex<Vec<(Uuid, Uuid)>>,
 }
 
 impl Duplicate {
@@ -51,15 +52,34 @@ impl Duplicate {
 
     fn last_geometry_offset() -> Option<Vec3<f32>> {
         LAST_GEOMETRY_DUPLICATE_OFFSET
-            .lock()
+            .try_lock()
             .ok()
             .and_then(|offset| *offset)
     }
 
     fn remember_geometry_offset(offset: Vec3<f32>) {
-        if let Ok(mut last_offset) = LAST_GEOMETRY_DUPLICATE_OFFSET.lock() {
+        if let Ok(mut last_offset) = LAST_GEOMETRY_DUPLICATE_OFFSET.try_lock() {
             *last_offset = Some(offset);
         }
+    }
+
+    fn clear_duplicated_geometry_pairs(&self) {
+        if let Ok(mut pairs) = self.duplicated_geometry_pairs.lock() {
+            pairs.clear();
+        }
+    }
+
+    fn remember_duplicated_geometry_pairs(&self, pairs: Vec<(Uuid, Uuid)>) {
+        if let Ok(mut pending) = self.duplicated_geometry_pairs.lock() {
+            *pending = pairs;
+        }
+    }
+
+    fn take_duplicated_geometry_pairs(&self) -> Vec<(Uuid, Uuid)> {
+        self.duplicated_geometry_pairs
+            .lock()
+            .map(|mut pairs| std::mem::take(&mut *pairs))
+            .unwrap_or_default()
     }
 }
 
@@ -109,6 +129,7 @@ impl Action for Duplicate {
                 Uuid::parse_str(DUPLICATE_ACTION_ID).unwrap(),
             ),
             nodeui,
+            duplicated_geometry_pairs: Mutex::new(Vec::new()),
         }
     }
 
@@ -162,6 +183,7 @@ impl Action for Duplicate {
         _ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        self.clear_duplicated_geometry_pairs();
         if map.selected_vertices.is_empty()
             && map.selected_linedefs.is_empty()
             && map.selected_sectors.is_empty()
@@ -230,6 +252,7 @@ impl Action for Duplicate {
         let mut new_linedefs = Vec::new();
         let mut new_sectors = Vec::new();
         let mut new_geometry_objects = Vec::new();
+        let mut duplicated_geometry_pairs = Vec::new();
         let mut sector_map: FxHashMap<u32, u32> = FxHashMap::default();
 
         for object_id in map.selected_geometry_objects.clone() {
@@ -241,6 +264,7 @@ impl Action for Duplicate {
             {
                 let mut new_object = object;
                 new_object.id = Uuid::new_v4();
+                duplicated_geometry_pairs.push((object_id, new_object.id));
                 new_object.name = if new_object.name.is_empty() {
                     "Copy".to_string()
                 } else {
@@ -403,6 +427,7 @@ impl Action for Duplicate {
 
         if duplicate_geometry && !new_geometry_objects.is_empty() {
             Self::remember_geometry_offset(Vec3::new(offset_x, offset_y, offset_z));
+            self.remember_duplicated_geometry_pairs(duplicated_geometry_pairs);
         }
 
         map.vertices.extend(new_vertices.clone());
@@ -465,6 +490,56 @@ impl Action for Duplicate {
             Box::new(prev),
             Box::new(map.clone()),
         ))
+    }
+
+    fn apply_project(
+        &self,
+        project: &mut Project,
+        _ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
+        let duplicated_pairs = self.take_duplicated_geometry_pairs();
+        if duplicated_pairs.is_empty() {
+            return;
+        }
+        let ProjectContext::Prefab(asset_id) = server_ctx.pc else {
+            return;
+        };
+
+        // A duplicated object belongs to the same stable Prefab part as its
+        // source. Without this mapping, syncing falls back to the root part and
+        // briefly leaves the isolated editor and asset hierarchy inconsistent.
+        for (source_id, duplicate_id) in duplicated_pairs {
+            if let Some(part_id) = project
+                .prefab_editor_part_by_object
+                .get(&source_id)
+                .copied()
+            {
+                project
+                    .prefab_editor_part_by_object
+                    .insert(duplicate_id, part_id);
+            }
+        }
+
+        if let Err(message) = crate::block_props::sync_prefab_editor(project, asset_id) {
+            ctx.ui
+                .send(TheEvent::SetStatusText(TheId::empty(), message));
+            return;
+        }
+        let prefabs = project.block_props.clone();
+        crate::editor::RUSTERIX
+            .write()
+            .unwrap()
+            .set_block_props(prefabs.clone());
+        crate::editor::SCENEMANAGER
+            .write()
+            .unwrap()
+            .set_block_props(prefabs);
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Map Selection Changed"),
+            TheValue::Empty,
+        ));
     }
 
     fn params(&self) -> TheNodeUI {

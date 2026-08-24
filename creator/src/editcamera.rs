@@ -261,6 +261,34 @@ impl EditCamera {
         self.last_mouse = Some(curr);
     }
 
+    /// Natural horizontal orbit direction for macOS primary-button viewport
+    /// navigation. Established mouse/Alt orbit paths continue to use
+    /// `mouse_dragged_orbit` unchanged.
+    #[cfg(target_os = "macos")]
+    pub fn mouse_dragged_orbit_macos_primary(&mut self, coord: &Vec2<i32>) {
+        let curr = *coord;
+        if let Some(prev) = self.last_mouse {
+            let delta = Vec2::new((prev.x - curr.x) as f32, (curr.y - prev.y) as f32);
+            self.mouse_delta_orbit(delta);
+        }
+        self.last_mouse = Some(curr);
+    }
+
+    /// ViewCube dragging should feel more direct than orbiting across the full
+    /// viewport. Keep the established direction but amplify its short drags.
+    #[cfg(target_os = "macos")]
+    pub fn mouse_dragged_viewcube_macos_primary(&mut self, coord: &Vec2<i32>) {
+        const VIEWCUBE_DRAG_ACCELERATION: f32 = 2.5;
+
+        let curr = *coord;
+        if let Some(prev) = self.last_mouse {
+            let delta = Vec2::new((prev.x - curr.x) as f32, (curr.y - prev.y) as f32)
+                * VIEWCUBE_DRAG_ACCELERATION;
+            self.mouse_delta_orbit(delta);
+        }
+        self.last_mouse = Some(curr);
+    }
+
     pub fn mouse_delta_orbit(&mut self, delta: Vec2<f32>) {
         self.orbit_camera.rotate(delta);
     }
@@ -286,14 +314,35 @@ impl EditCamera {
         let curr = *coord;
         if let Some(prev) = self.last_mouse {
             let delta = Vec2::new((curr.x - prev.x) as f32, (curr.y - prev.y) as f32);
-            let viewport_h = view_size.y.max(1) as f32;
-            let distance = self.orbit_camera.distance();
-            let world_per_pixel =
-                2.0 * distance * (self.orbit_camera.fov.to_radians() * 0.5).tan() / viewport_h;
-            let (_forward, right, up) = self.orbit_camera.basis_vectors();
-            self.orbit_camera.center += (-right * delta.x + up * delta.y) * world_per_pixel;
+            self.pan_prefab_by_delta(delta, view_size);
         }
         self.last_mouse = Some(curr);
+    }
+
+    pub fn pan_prefab_by_delta(&mut self, delta: Vec2<f32>, view_size: Vec2<i32>) {
+        let viewport_h = view_size.y.max(1) as f32;
+        let distance = self.orbit_camera.distance();
+        let world_per_pixel =
+            2.0 * distance * (self.orbit_camera.fov.to_radians() * 0.5).tan() / viewport_h;
+        let (_forward, right, up) = self.orbit_camera.basis_vectors();
+        self.orbit_camera.center += (-right * delta.x + up * delta.y) * world_per_pixel;
+    }
+
+    /// Pan a region Orbit camera in screen space. This is used by precise
+    /// touchpad scrolling, where vertical movement must move the view up/down
+    /// instead of projecting onto the ground plane and appearing to zoom.
+    pub fn pan_orbit_screen_by_delta(
+        &self,
+        region: &mut Region,
+        delta: Vec2<f32>,
+        view_size: Vec2<i32>,
+    ) {
+        let viewport_h = view_size.y.max(1) as f32;
+        let distance = self.orbit_camera.distance();
+        let world_per_pixel =
+            2.0 * distance * (self.orbit_camera.fov.to_radians() * 0.5).tan() / viewport_h;
+        let (_forward, right, up) = self.orbit_camera.basis_vectors();
+        region.editing_position_3d += (-right * delta.x + up * delta.y) * world_per_pixel;
     }
 
     pub fn pan_3d_by_delta(

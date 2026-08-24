@@ -36,6 +36,7 @@ pub mod tools;
 pub mod treasury;
 pub mod undo;
 pub mod utils;
+pub mod viewcube;
 
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
@@ -238,6 +239,18 @@ mod ffi {
         UI.lock()
             .unwrap()
             .mouse_wheel((x as i32, y as i32), &mut CTX.lock().unwrap())
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_touch_precise_scroll(x: f32, y: f32) -> bool {
+        UI.lock()
+            .unwrap()
+            .precise_scroll((x, y), &mut CTX.lock().unwrap())
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_pinch(delta: f32) -> bool {
+        UI.lock().unwrap().pinch(delta, &mut CTX.lock().unwrap())
     }
 
     /// # Safety

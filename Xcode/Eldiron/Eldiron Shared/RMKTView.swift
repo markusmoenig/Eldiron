@@ -213,7 +213,16 @@ public class RMTKView       : MTKView
     }
 
     override public func scrollWheel(with event: NSEvent) {
-        _ = rust_touch_wheel(Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
+        if event.hasPreciseScrollingDeltas {
+            _ = rust_touch_precise_scroll(Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
+        } else {
+            _ = rust_touch_wheel(Float(event.scrollingDeltaX), Float(event.scrollingDeltaY))
+        }
+        renderer.needsUpdate()
+    }
+
+    override public func magnify(with event: NSEvent) {
+        _ = rust_pinch(Float(event.magnification))
         renderer.needsUpdate()
     }
     #elseif os(iOS)

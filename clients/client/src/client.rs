@@ -388,6 +388,12 @@ impl TheTrait for Client {
         }
         let update_time = update_started.elapsed();
 
+        let canvas_dim = *ui.canvas.buffer.dim();
+        self.rusterix.resize_client_surface((
+            canvas_dim.width.max(1) as u32,
+            canvas_dim.height.max(1) as u32,
+        ));
+
         let mut sync_time = Duration::ZERO;
         let mut render_time = Duration::ZERO;
         let mut present_time = Duration::ZERO;

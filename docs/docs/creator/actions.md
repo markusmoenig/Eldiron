@@ -77,18 +77,19 @@ Options:
 
 Jump into a first-person preview of the region. This also clears any active surface-edit overlay so the scene renders cleanly.
 
-In first-person view, hold the right mouse button and use `WASD` to fly. Release the right mouse button or press `Escape` to return to normal editing. Right-drag uses captured raw mouse motion in the desktop and Xcode/macOS builds so turning is not limited by the screen edge. `Space` is only a touchpad fallback for the older pointer-from-center fly mode.
+`WASD` moves whenever the viewport is focused; movement does not depend on a separate fly-navigation mode. Hold the right mouse button to look with a physical mouse. `Space` toggles pointer-from-center look for a touchpad. First-person view does not pan.
 
 Controls:
 
-* Hold right mouse button + mouse movement: fly look.
-* `W` / `S` while flying: move forward and backward along the current look direction.
-* `A` / `D` while flying: strafe left and right.
-* Release right mouse button: exit normal fly navigation.
-* `Space`: optional touchpad fallback; press again or press `Escape` to exit that mode.
-* `Escape`: exit fly navigation.
+* `W` / `S`: move forward and backward along the current look direction.
+* `A` / `D`: strafe left and right.
+* Hold right mouse button + mouse movement: look with captured raw mouse motion.
+* Release right mouse button: stop mouse look; `WASD` remains available.
+* `Space`: toggle touchpad look; press again or press `Escape` to stop looking.
+* Mouse wheel: zoom.
+* macOS trackpad pinch, or `Command` + two-finger scroll: zoom.
 
-While fly navigation is active, normal geometry-editing tool input is suspended so `WASD` can be used for movement instead of tool shortcuts.
+Normal pan gestures are intentionally ignored in First Person because `WASD` owns camera translation.
 
 Options: none.
 
@@ -104,6 +105,8 @@ Controls:
 * Right-drag, `Alt`-drag, or `Ctrl/Cmd`-drag: pan.
 * `Shift` + mouse wheel: pan.
 * Arrow keys: move the target position.
+* macOS trackpad two-finger scroll: pan.
+* macOS trackpad pinch: zoom.
 
 Options:
 
@@ -124,8 +127,13 @@ Controls:
 * `Ctrl/Cmd`-drag: pan.
 * `Shift` + mouse wheel: pan.
 * Arrow keys: move the target position.
+* `B`: arm one-shot Box Select in the active Object, Face, Edge, or Vertex mode. `Shift` adds and `Alt/Option` removes.
+* Click a visible **ViewCube** face: align the camera to that axis.
+* macOS trackpad two-finger scroll: pan.
+* macOS trackpad pinch, or `Command` + two-finger scroll: zoom.
+* macOS primary click-drag on empty space or the ViewCube: orbit.
 
-Right-drag uses captured raw mouse motion in the desktop and Xcode/macOS builds so the pointer cannot hit the screen edge while orbiting.
+Right-drag uses captured raw mouse motion in the desktop and Xcode/macOS builds so the pointer cannot hit the screen edge while orbiting. The ViewCube follows the camera and is shared by the region and isolated Prefab editors.
 
 Options: none.
 
@@ -205,6 +213,12 @@ Options:
 * `depth`: box size on the world Z axis, or grid-step thickness for edge-created wall boxes.
 * Selected face: aligns the box to the selected face.
 * Selected edge: aligns the box to the adjacent face below the edge, using the current grid step for thickness.
+
+### Create Unit Box
+
+Create a fixed `1 × 1 × 1` direct Geometry Object centered on and attached to the selected face or surface. Unlike Create Box, this action keeps the primitive's unit dimensions instead of fitting its in-plane size to the selected surface. Use it when you want a predictable modeling primitive while retaining surface attachment.
+
+Options: none.
 
 ### Create Cutout
 
@@ -486,7 +500,33 @@ Options: none.
 
 ---
 
-# Dock Actions (Tiles)
+# Prefab Actions
+
+Prefab creation and source management are contextual Object-mode actions. The Prefab Tool and Prefabs dock are used for browsing and placement rather than duplicating these source actions in a second toolbar.
+
+### Create Linked Prefab
+
+Create a reusable, UUID-backed Prefab from the selected Geometry Objects and replace the selection with one linked instance. Editing the Prefab source later updates every linked instance; each placement retains its own transform and runtime state.
+
+### Create Prefab Copy
+
+Create the same reusable Prefab source while keeping the selected region Geometry Objects unchanged.
+
+### Update Prefab Source
+
+Replace the selected project Prefab's source geometry from the current Geometry Object selection while preserving the Prefab UUID and all linked instances.
+
+### Make Prefab Unique
+
+Duplicate the source asset for the selected linked instance. The selected placement is relinked to the new UUID, so later source edits do not affect the other instances.
+
+### Unpack Prefab
+
+Convert selected linked Prefab instances into ordinary editable Geometry Objects and remove their asset links.
+
+---
+
+# Dock Actions
 
 Tile actions operate from the **Tiles** dock when they need a selected tile or palette source. Selection-based actions such as **Clear Tile** can also operate on selected geometry.
 
@@ -500,6 +540,8 @@ For the **Tile Picker**, this is context-sensitive:
 
 * if a tile is selected, it opens the **pixel tile editor**
 * if a node group is selected, it opens the **tile node graph editor**
+
+For the **Prefabs** dock, it opens the selected project Prefab in the isolated Prefab editor. That editor keeps the same Prefab UUID, reuses the normal Object, Face, Edge, Vertex, camera, undo, and 3D Paint paths, and provides a hierarchical Prefab / part / Geometry Object tree with part pivots and Door preview controls.
 
 Options: none.
 

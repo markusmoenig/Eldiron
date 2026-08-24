@@ -9,7 +9,9 @@ sidebar_position: 1
 
 On the **left side** of the screen, you’ll find a **list of tools**. These tools are used to **edit the geometry** of the currently selected region or content. The 2D and 3D geometry is displayed in the **geometry editor** in the middle of the screen.
 
-The geometry editor can be used in 2D, orbit, isometric, and first-person camera modes. In **FirstP** mode, hold the right mouse button and use `WASD` to fly, then release the right mouse button or press `Escape` to return to normal editing. `Space` is only a touchpad fallback for the older pointer-from-center fly mode. See [First-Person Camera](actions#first-person-camera) for the full control summary.
+The geometry editor can be used in 2D, orbit, isometric, and first-person camera modes. In **FirstP** mode, `WASD` moves whenever the viewport is focused. Hold the right mouse button to look with a physical mouse, or press `Space` to toggle touchpad look; FirstP intentionally has no pan operation. See [First-Person Camera](actions#first-person-camera) for the full control summary.
+
+In **Orbit** mode, the camera-synchronized ViewCube can align the view to an axis. Press `B` before dragging to perform a one-shot Box Select in the active geometry selection mode; outside Orbit, `B` remains the Prefab Tool shortcut.
 
 The right sidebar has compact tabs for the main working contexts:
 

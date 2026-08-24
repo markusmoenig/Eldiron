@@ -1,17 +1,18 @@
 ---
-title: "Block Tool"
+title: "Prefab Tool"
 sidebar_position: 7
 ---
 
-The **Block Tool** (keyboard shortcut **`B`**) builds 3D regions from modular block stamps.
+The **Prefab Tool** browses and places reusable linked Prefabs and retains Eldiron's modular construction-stamp workflow.
 
-Use it for fast dungeon, house, corridor, room, and blockout construction that produces editable 3D Geometry Objects.
+Outside Orbit mode, its 3D keyboard shortcut is **`B`**. In Orbit, `B` is reserved for one-shot Box Select, so activate the Prefab Tool from the left toolbar.
 
 ## What It Does
 
-The Block Tool lets you:
+The Prefab Tool lets you:
 
-- choose block stamps from the **Blocks** dock
+- choose project Prefabs and built-in construction stamps from the **Prefabs** dock
+- place project Prefabs as lightweight linked instances
 - place practical building pieces such as floors, walls, corners, doorways, stairs, ceilings, columns, and solid blocks
 - preview each block with a 3D-rendered icon
 - stamp one block with a click
@@ -22,13 +23,33 @@ The Block Tool lets you:
 - make component-aware height and width adjustments before stamping
 - stamp clean or damaged geometry variants
 
-Placed blocks become ordinary editable 3D Geometry Objects. You can continue editing them with the Object, Face, Edge, and Vertex tools.
+Project Prefab placements remain linked to their shared UUID-backed source. Built-in construction stamps currently become ordinary editable Geometry Objects; you can continue editing them with the Object, Face, Edge, and Vertex tools.
 
-## Blocks Dock
+## Reusable Prefabs
 
-When the Block Tool is active, the lower dock switches to **Blocks**.
+Create reusable assets from selected Geometry Objects in Object mode:
 
-The left side shows the block library as rendered isometric previews. The right side is a compact guide for the selected block and the active placement state:
+- **Create Linked Prefab** creates the source and replaces the selection with a linked instance.
+- **Create Prefab Copy** creates the source while retaining the original geometry.
+- **Update Prefab Source** replaces a source from selected Geometry Objects without changing its UUID or existing links.
+- **Make Prefab Unique** gives one selected instance a copied source UUID.
+- **Unpack Prefab** converts linked instances back into ordinary Geometry Objects.
+
+Maximize a selected project Prefab in the dock to enter its isolated editor. It reuses the normal Object, Face, Edge, Vertex, camera, undo, and 3D Paint paths while hiding unrelated region content. The lower panel provides a hierarchical Prefab / part / Geometry Object tree, part parenting and assignment, pivots, Prefab naming, and Door configuration and preview. Changes write back to the same source UUID, so every linked instance updates.
+
+### Parts, Paint, And Doors
+
+The tree is the source of truth for the Prefab hierarchy. Select a part to rename or reparent it, assign selected Geometry Objects, or derive its pivot from the current object, face, edge, or vertex selection. **Create Part** and **Remove Part** sit together in the Prefab toolbar; removing a part keeps its geometry by moving that geometry back to the root.
+
+Choose the shared **3D Paint Tool** in the isolated editor to replace the lower panel with the same Paint UI used by the region editor. Prefab paint is stored in asset-local coordinates and renders on every linked instance.
+
+For a Door or Gate, put all moving Geometry Objects in one part, set that part's hinge pivot, then use **Make Door / Gate**. The Door component targets the whole part: clicking any visible geometry belonging to it can resolve the interaction, so individual opening faces do not need to be marked. Configure swing or slide motion, single or split leaves, open angle or slide distance, and interaction distance. **Preview Door** tests the authored open state without running the game. At runtime, Open/Close uses the contextual rules interaction, while normal Prefab authoring can still provide Look text.
+
+## Prefabs Dock
+
+When the Prefab Tool is active, the lower dock switches to **Prefabs**.
+
+The dock combines project Prefabs with the built-in block library. Its rendered previews select the asset to place, while the compact state area describes the current construction placement settings:
 
 - **Block**: the selected block stamp
 - **Size**: the grid footprint and whether the block reacts to height, width, both, or neither
@@ -36,7 +57,7 @@ The left side shows the block library as rendered isometric previews. The right 
 - **Shape**: remembered height and width expansion values
 - **Mouse / Keys / Resize**: the main placement shortcuts
 
-The toolbar above the block library contains:
+For built-in construction stamps, the placement toolbar contains:
 
 - **Place / Replace / Erase**: choose the edit operation
 - **Clean / Damaged**: choose whether newly stamped blocks are intact or deterministically damaged
@@ -46,7 +67,7 @@ The operation controls are left-aligned. The **Clean / Damaged** and **Line / Re
 
 ## Placement Grid
 
-The Block Tool uses its own block grid in 3D views. While the tool is active, this grid replaces the normal edit grid for block placement.
+The Prefab Tool uses its own block grid for construction stamps in 3D views. While placing these stamps, this grid replaces the normal edit grid.
 
 Placement and preview are projected onto the active block-grid plane. This keeps stamps aligned even when the camera is zoomed in or the cursor is over existing geometry.
 
@@ -98,13 +119,13 @@ The 3D overlay previews the whole pending stroke before mouse-up. Erase strokes 
 
 Use **Clean / Damaged** to choose whether newly stamped geometry should be intact or chipped.
 
-When **Damaged** is active, the Block Tool applies deterministic damage while stamping. The damage is baked into the placed Geometry Objects and stored with a seed, so undo, redo, save/load, and copy/paste do not regenerate a different result.
+When **Damaged** is active, the Prefab Tool applies deterministic damage while stamping. The damage is baked into the placed Geometry Objects and stored with a seed, so undo, redo, save/load, and copy/paste do not regenerate a different result.
 
 Damage only affects newly stamped blocks. Existing blocks are not changed when you toggle the mode.
 
 ## Component-Aware Sizing
 
-The Block Tool remembers height and width settings. These settings are applied intelligently per component:
+The Prefab Tool remembers height and width settings for built-in construction stamps. These settings are applied intelligently per component:
 
 - floors ignore height changes
 - walls, posts, columns, ceilings, and lintels react to height changes
@@ -117,7 +138,7 @@ This means **make higher** affects wall-like pieces but not floor slabs. **Make 
 
 When the 3D view has focus:
 
-- **B**: activate the Block Tool
+- **B**: activate the Prefab Tool in Iso and First Person; in Orbit, arm Box Select instead
 - **R**: rotate the selected block 90 degrees
 - **E**: toggle Place / Erase
 - **D**: toggle Clean / Damaged stamping
@@ -130,7 +151,7 @@ When the 3D view has focus:
 
 ## After Stamping
 
-Blocks are baked as editable Geometry Objects. After stamping, use the direct 3D tools to refine them:
+Built-in construction stamps are baked as editable Geometry Objects. After stamping, use the direct 3D tools to refine them. Project Prefabs should instead be edited through their isolated shared-source editor unless you first use **Unpack Prefab**.
 
 - [Object Tool](object): move, resize, duplicate, delete, and assign sources to whole objects
 - [Sector / Face Tool](sector): edit faces and assign tile/material sources

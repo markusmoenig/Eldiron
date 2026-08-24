@@ -19,6 +19,7 @@ In 3D, **F** switches to face selection when there is no selected vertex boundar
 - **Click + Drag**: Move selected sectors without moving embedded sectors.
 - **Click + Cmd / Ctrl + Drag**: Move selected sectors including embedded sectors.
 - **Click + Drag (Empty Area)**: Select a rectangular area of sectors.
+- **B in 3D Orbit, then drag**: Perform one-shot rectangle selection of Geometry Object faces. **Shift** adds, **Alt/Option** removes, and **Escape** cancels.
 - **Delete Key**: Remove selected sectors.
 - **Escape Key**: Clear the selection.
 

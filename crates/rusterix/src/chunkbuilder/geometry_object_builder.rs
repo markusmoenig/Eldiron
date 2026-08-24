@@ -255,7 +255,23 @@ impl GeometryObjectBuilder {
             return uvs.to_vec();
         }
 
-        let center = (min_uv + max_uv) * 0.5;
+        // Automatic UVs are a planar projection in object space. Keep their
+        // transform anchored to that shared projection origin so separately
+        // triangulated pieces of one coplanar surface cannot drift apart when
+        // scaled or rotated. Normalized explicit projections share the usual
+        // 0.5 center; UV islands outside that range retain their own center.
+        let normalized_explicit_uvs = !face.auto_uv
+            && min_uv.x >= -0.001
+            && min_uv.y >= -0.001
+            && max_uv.x <= 1.001
+            && max_uv.y <= 1.001;
+        let center = if face.auto_uv {
+            Vec2::zero()
+        } else if normalized_explicit_uvs {
+            Vec2::broadcast(0.5)
+        } else {
+            (min_uv + max_uv) * 0.5
+        };
         let scale = Vec2::new(
             if face.texture_scale.x.abs() <= 1e-5 {
                 1.0
@@ -1134,6 +1150,71 @@ mod tests {
             GeometryObjectBuilder::tiled_face_base_uvs(&floor_cell),
             [[0.0, 1.0], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]
         );
+    }
+
+    #[test]
+    fn scaled_auto_uv_projection_stays_continuous_across_triangle_faces() {
+        let face = crate::GeometryFace {
+            id: Uuid::new_v4(),
+            paint_surface_id: None,
+            indices: vec![0, 1, 2],
+            uvs: Vec::new(),
+            paint_uvs: Vec::new(),
+            auto_uv: true,
+            texture_offset: Vec2::new(0.25, -0.5),
+            texture_scale: Vec2::new(2.0, 3.0),
+            texture_rotation: 25.0,
+            tile: None,
+            tiles: Default::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+        };
+        let first = GeometryObjectBuilder::transformed_face_uvs(
+            &face,
+            &[[0.0, 0.0], [3.0, 0.0], [2.0, 2.0]],
+            None,
+        );
+        let second = GeometryObjectBuilder::transformed_face_uvs(
+            &face,
+            &[[0.0, 0.0], [2.0, 2.0], [0.0, 2.0]],
+            None,
+        );
+
+        assert_eq!(first[0], second[0]);
+        assert_eq!(first[2], second[1]);
+    }
+
+    #[test]
+    fn normalized_scaled_uv_projection_uses_one_center_across_triangle_faces() {
+        let mut face = crate::GeometryFace {
+            id: Uuid::new_v4(),
+            paint_surface_id: None,
+            indices: vec![0, 1, 2],
+            uvs: Vec::new(),
+            paint_uvs: Vec::new(),
+            auto_uv: false,
+            texture_offset: Vec2::new(0.25, -0.5),
+            texture_scale: Vec2::new(2.0, 3.0),
+            texture_rotation: 25.0,
+            tile: None,
+            tiles: Default::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+        };
+        let first = GeometryObjectBuilder::transformed_face_uvs(
+            &face,
+            &[[0.0, 0.0], [1.0, 0.0], [0.7, 0.8]],
+            None,
+        );
+        face.indices = vec![0, 2, 3];
+        let second = GeometryObjectBuilder::transformed_face_uvs(
+            &face,
+            &[[0.0, 0.0], [0.7, 0.8], [0.0, 1.0]],
+            None,
+        );
+
+        assert_eq!(first[0], second[0]);
+        assert_eq!(first[2], second[1]);
     }
 
     #[test]

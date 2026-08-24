@@ -2,6 +2,7 @@ use crate::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShortcutAction {
+    BoxSelect,
     ToolObject,
     ToolVertex,
     ToolEdge,
@@ -12,6 +13,7 @@ pub enum ShortcutAction {
 impl ShortcutAction {
     pub fn id(self) -> &'static str {
         match self {
+            Self::BoxSelect => "selection.box",
             Self::ToolObject => "tool.object",
             Self::ToolVertex => "tool.vertex",
             Self::ToolEdge => "tool.edge",
@@ -22,6 +24,7 @@ impl ShortcutAction {
 
     fn from_id(id: &str) -> Option<Self> {
         match id {
+            "selection.box" => Some(Self::BoxSelect),
             "tool.object" => Some(Self::ToolObject),
             "tool.vertex" => Some(Self::ToolVertex),
             "tool.edge" => Some(Self::ToolEdge),
@@ -97,6 +100,7 @@ impl ShortcutResolver {
 
     pub fn default_bindings() -> Vec<ShortcutBinding> {
         vec![
+            Self::geometry_tool_binding(ShortcutAction::BoxSelect, 'B', false),
             Self::geometry_tool_binding(ShortcutAction::ToolObject, 'O', false),
             Self::geometry_tool_binding(ShortcutAction::ToolVertex, 'V', false),
             Self::geometry_tool_binding(ShortcutAction::ToolEdge, 'E', false),
@@ -154,6 +158,8 @@ impl ShortcutResolver {
             .find(|binding| {
                 binding.scope == ShortcutScope::Geometry3D
                     && binding.key.to_ascii_uppercase() == key
+                    && (binding.action != ShortcutAction::BoxSelect
+                        || context.editor_view_mode == EditorViewMode::Orbit)
             })
             .map(|binding| ShortcutResolution::Run(binding.action))
     }
@@ -196,6 +202,11 @@ mod tests {
     #[test]
     fn geometry_3d_defaults_use_object_vertex_edge_face_keys() {
         let resolver = ShortcutResolver::default();
+
+        assert_eq!(
+            resolver.resolve('b', ctx()),
+            Some(ShortcutResolution::Run(ShortcutAction::BoxSelect))
+        );
 
         assert_eq!(
             resolver.resolve('o', ctx()),

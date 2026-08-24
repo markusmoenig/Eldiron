@@ -50,6 +50,17 @@ pub struct ToolList {
     last_3d_overlay_update_at: Option<Instant>,
     prefab_preview_wire_rgb: [f32; 3],
     prefab_grid_rgb: [f32; 3],
+    box_select_armed: bool,
+    #[cfg(target_os = "macos")]
+    macos_primary_orbit_drag: Option<MacOsPrimaryOrbitDrag>,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug)]
+struct MacOsPrimaryOrbitDrag {
+    origin: Vec2<i32>,
+    from_viewcube: bool,
+    orbiting: bool,
 }
 
 struct GeometryOwnerReplacementPlan {
@@ -227,6 +238,11 @@ impl ToolList {
         self.last_3d_overlay_update_at = None;
         self.previous_non_game_tool = None;
         self.prefab_mode = false;
+        self.box_select_armed = false;
+        #[cfg(target_os = "macos")]
+        {
+            self.macos_primary_orbit_drag = None;
+        }
         ctx.ui.set_widget_state(
             Self::AUTHORING_BUTTON_NAME.to_string(),
             TheWidgetState::None,
@@ -293,6 +309,65 @@ impl ToolList {
         false
     }
 
+    fn handle_viewcube_click(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+        coord: Vec2<i32>,
+    ) -> bool {
+        let Some(face) = self.viewcube_face_at(ui, server_ctx, coord) else {
+            return false;
+        };
+
+        let region_center = if server_ctx.pc.is_prefab() {
+            None
+        } else {
+            project
+                .get_region(&server_ctx.curr_region)
+                .map(|region| region.editing_position_3d)
+        };
+        let camera = {
+            let mut edit_camera = crate::editor::EDITCAMERA.write().unwrap();
+            crate::viewcube::ViewCube::snap_camera(&mut edit_camera.orbit_camera, face);
+            edit_camera.reset_mouse_tracking();
+            let mut camera = edit_camera.orbit_camera.clone();
+            if let Some(center) = region_center {
+                camera.center = center;
+            }
+            camera
+        };
+        {
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.client.set_camera_d3(Box::new(camera));
+            rusterix.set_dirty();
+            rusterix.set_overlay_dirty();
+        }
+        self.update_geometry_overlay_3d(project, server_ctx);
+        ctx.ui.send(TheEvent::SetStatusText(
+            TheId::empty(),
+            fl!("status_viewcube_camera_aligned"),
+        ));
+        ctx.ui.redraw_all = true;
+        true
+    }
+
+    fn viewcube_face_at(
+        &self,
+        ui: &mut TheUI,
+        server_ctx: &ServerContext,
+        coord: Vec2<i32>,
+    ) -> Option<crate::viewcube::ViewCubeFace> {
+        if server_ctx.editor_view_mode != EditorViewMode::Orbit {
+            return None;
+        }
+        let dim = crate::utils::map_editor_render_view(ui, server_ctx)
+            .map(|render_view| *render_view.dim())?;
+        let edit_camera = crate::editor::EDITCAMERA.read().unwrap();
+        crate::viewcube::ViewCube::hit_test(coord, dim, &edit_camera.orbit_camera)
+    }
+
     fn shortcut_context(map: Option<&Map>, server_ctx: &ServerContext) -> ShortcutContext {
         ShortcutContext {
             editor_view_mode: server_ctx.editor_view_mode,
@@ -315,18 +390,19 @@ impl ToolList {
         }
     }
 
-    fn shortcut_tool_command_id(action: ShortcutAction) -> &'static str {
+    fn shortcut_tool_command_id(action: ShortcutAction) -> Option<&'static str> {
         match action {
-            ShortcutAction::ToolObject => "tool.geometry",
-            ShortcutAction::ToolVertex => "tool.vertex",
-            ShortcutAction::ToolEdge => "tool.linedef",
-            ShortcutAction::ToolFace => "tool.sector",
-            ShortcutAction::ToolIsoPaint => "tool.iso_paint",
+            ShortcutAction::BoxSelect => None,
+            ShortcutAction::ToolObject => Some("tool.geometry"),
+            ShortcutAction::ToolVertex => Some("tool.vertex"),
+            ShortcutAction::ToolEdge => Some("tool.linedef"),
+            ShortcutAction::ToolFace => Some("tool.sector"),
+            ShortcutAction::ToolIsoPaint => Some("tool.iso_paint"),
         }
     }
 
     fn shortcut_tool_uuid(&self, action: ShortcutAction) -> Option<Uuid> {
-        self.get_game_tool_uuid_by_command_id(Self::shortcut_tool_command_id(action))
+        self.get_game_tool_uuid_by_command_id(Self::shortcut_tool_command_id(action)?)
     }
 
     fn set_tool_widget_state_by_uuid(&mut self, uuid: Uuid, ctx: &mut TheContext) {
@@ -1666,6 +1742,9 @@ impl ToolList {
             last_3d_overlay_update_at: None,
             prefab_preview_wire_rgb: [83.0 / 255.0, 151.0 / 255.0, 207.0 / 255.0],
             prefab_grid_rgb: [57.0 / 255.0, 75.0 / 255.0, 105.0 / 255.0],
+            box_select_armed: false,
+            #[cfg(target_os = "macos")]
+            macos_primary_orbit_drag: None,
         };
 
         list.register_game_tool("tool.vertex", VertexTool::new());
@@ -1782,36 +1861,37 @@ impl ToolList {
 
                 b.set_icon_name(tool.icon_name());
                 b.set_status_text(&Self::status_text_with_accel(tool.info(), tool.accel()));
-                if index == self.curr_game_tool {
+                if index == self.curr_game_tool && !(self.prefab_mode && self.palette_mode) {
                     b.set_state(TheWidgetState::Selected);
                 }
                 list.add_widget(Box::new(b));
             }
 
-            if self.prefab_mode {
-                return;
-            }
+            if !self.prefab_mode {
+                let mut sep =
+                    TheSeparator::new(TheId::named_with_id("Tool Separator", Uuid::new_v4()));
+                sep.limiter_mut().set_max_width(46);
+                sep.limiter_mut().set_max_height(8);
+                list.add_widget(Box::new(sep));
 
-            let mut sep = TheSeparator::new(TheId::named_with_id("Tool Separator", Uuid::new_v4()));
-            sep.limiter_mut().set_max_width(46);
-            sep.limiter_mut().set_max_height(8);
-            list.add_widget(Box::new(sep));
+                let mut authoring =
+                    TheToolListButton::new(TheId::named(Self::AUTHORING_BUTTON_NAME));
+                authoring.set_icon_name("book-open".to_string());
+                authoring.set_status_text(&fl!("status_tool_authoring"));
+                if self.authoring_mode {
+                    authoring.set_state(TheWidgetState::Selected);
+                }
+                list.add_widget(Box::new(authoring));
 
-            let mut authoring = TheToolListButton::new(TheId::named(Self::AUTHORING_BUTTON_NAME));
-            authoring.set_icon_name("book-open".to_string());
-            authoring.set_status_text(&fl!("status_tool_authoring"));
-            if self.authoring_mode {
-                authoring.set_state(TheWidgetState::Selected);
+                let mut text_play =
+                    TheToolListButton::new(TheId::named(Self::TEXT_PLAY_BUTTON_NAME));
+                text_play.set_icon_name("terminal".to_string());
+                text_play.set_status_text(&fl!("status_tool_text_play"));
+                if self.text_game_mode {
+                    text_play.set_state(TheWidgetState::Selected);
+                }
+                list.add_widget(Box::new(text_play));
             }
-            list.add_widget(Box::new(authoring));
-
-            let mut text_play = TheToolListButton::new(TheId::named(Self::TEXT_PLAY_BUTTON_NAME));
-            text_play.set_icon_name("terminal".to_string());
-            text_play.set_status_text(&fl!("status_tool_text_play"));
-            if self.text_game_mode {
-                text_play.set_state(TheWidgetState::Selected);
-            }
-            list.add_widget(Box::new(text_play));
 
             let mut sep = TheSeparator::new(TheId::named_with_id(
                 "Tool Separator Bottom",
@@ -1888,7 +1968,7 @@ impl ToolList {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
-        if self.editor_mode || !self.palette_mode {
+        if self.editor_mode || self.prefab_mode || !self.palette_mode {
             return;
         }
         let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
@@ -1918,6 +1998,28 @@ impl ToolList {
                 TheWidgetState::None
             },
         );
+
+        if self.prefab_mode {
+            let current_tool = self.game_tools[self.curr_game_tool].id();
+            ctx.ui.set_widget_state(
+                current_tool.name,
+                if self.palette_mode {
+                    TheWidgetState::None
+                } else {
+                    TheWidgetState::Selected
+                },
+            );
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Tool Changed"),
+                TheValue::Empty,
+            ));
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Update Action List"),
+                TheValue::Empty,
+            ));
+            ctx.ui.redraw_all = true;
+            return true;
+        }
 
         let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
         if self.palette_mode {
@@ -1990,6 +2092,13 @@ impl ToolList {
             self.editor_tools[self.curr_editor_tool].deactivate();
         }
 
+        if self.prefab_mode {
+            self.palette_mode = false;
+            self.previous_sidebar_mode = None;
+            self.previous_palette_dock = None;
+            ctx.ui
+                .set_widget_state(Self::PALETTE_BUTTON_NAME.to_string(), TheWidgetState::None);
+        }
         self.editor_mode = false;
         self.prefab_mode = false;
         self.editor_tools.clear();
@@ -2002,13 +2111,22 @@ impl ToolList {
 
     /// Keep the geometry tool engine active while presenting a purpose-built
     /// asset-authoring palette instead of the region/game tool list.
-    pub fn set_prefab_tools(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+    pub fn set_prefab_tools(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) {
         if self.editor_mode && self.curr_editor_tool < self.editor_tools.len() {
             self.editor_tools[self.curr_editor_tool].deactivate();
         }
         self.editor_mode = false;
         self.editor_tools.clear();
         self.prefab_mode = true;
+        self.palette_mode = false;
+        self.previous_sidebar_mode = None;
+        self.previous_palette_dock = None;
+        server_ctx.palette_tool_active = false;
 
         if let Some(list) = ui.get_vlayout("Tool List Layout") {
             self.set_active_editor(list, ctx);
@@ -2116,6 +2234,14 @@ impl ToolList {
     ) {
         self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx, assets);
         crate::hud::Hud::draw_shortcut_guidance(buffer, map, ctx, server_ctx);
+        if server_ctx.editor_view_mode == EditorViewMode::Orbit {
+            let camera = crate::editor::EDITCAMERA
+                .read()
+                .unwrap()
+                .orbit_camera
+                .clone();
+            crate::viewcube::ViewCube::draw(buffer, ctx, &camera);
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2132,11 +2258,7 @@ impl ToolList {
                 // Keep tool switching and shortcuts handled by ToolList itself.
                 TheEvent::StateChanged(_, _) | TheEvent::KeyDown(_) => false,
                 TheEvent::KeyCodeDown(TheValue::KeyCode(code))
-                    if ctx
-                        .ui
-                        .focus
-                        .as_ref()
-                        .is_some_and(|id| id.name == "PolyView")
+                    if server_ctx.polyview_has_focus(ctx)
                         && server_ctx.editor_view_mode == EditorViewMode::FirstP
                         && !server_ctx.game_input_mode
                         && *code == TheKeyCode::Space =>
@@ -2144,11 +2266,7 @@ impl ToolList {
                     false
                 }
                 TheEvent::KeyCodeDown(TheValue::KeyCode(code))
-                    if ctx
-                        .ui
-                        .focus
-                        .as_ref()
-                        .is_some_and(|id| id.name == "PolyView")
+                    if server_ctx.polyview_has_focus(ctx)
                         && server_ctx.editor_view_mode == EditorViewMode::FirstP
                         && server_ctx.editor_fly_nav_active
                         && *code == TheKeyCode::Escape =>
@@ -2157,13 +2275,7 @@ impl ToolList {
                 }
                 TheEvent::KeyCodeUp(TheValue::KeyCode(code)) if *code == TheKeyCode::Space => false,
                 TheEvent::KeyUp(TheValue::Char(c))
-                    if ctx
-                        .ui
-                        .focus
-                        .as_ref()
-                        .is_some_and(|id| id.name == "PolyView")
-                        && server_ctx.editor_view_mode == EditorViewMode::FirstP
-                        && server_ctx.editor_fly_nav_active
+                    if server_ctx.editor_view_mode == EditorViewMode::FirstP
                         && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd') =>
                 {
                     false
@@ -2261,6 +2373,7 @@ impl ToolList {
                     server_ctx.editor_view_mode = EditorViewMode::from_index(*index as i32);
                     let new_mode = server_ctx.editor_view_mode;
                     let new = new_mode.is_3d();
+                    self.box_select_armed = false;
 
                     if new_mode != EditorViewMode::FirstP {
                         server_ctx.editor_fly_nav_active = false;
@@ -2393,14 +2506,31 @@ impl ToolList {
                 }
             }
             TheEvent::KeyDown(TheValue::Char(c)) => {
-                let polyview_focused = ctx
-                    .ui
-                    .focus
-                    .as_ref()
-                    .is_some_and(|id| id.name == "PolyView");
+                let polyview_focused = server_ctx.polyview_has_focus(ctx);
                 let text_input_focused =
                     ui.focus_widget_supports_text_input(ctx) && !polyview_focused;
                 let plain_key = !ui.ctrl && !ui.logo && !ui.alt;
+                if plain_key
+                    && polyview_focused
+                    && !text_input_focused
+                    && !server_ctx.game_mode
+                    && !server_ctx.game_input_mode
+                    && !server_ctx.text_game_mode
+                    && server_ctx.editor_view_mode == EditorViewMode::FirstP
+                {
+                    let action = match c.to_ascii_lowercase() {
+                        'w' => Some(crate::editcamera::CustomMoveAction::Forward),
+                        's' => Some(crate::editcamera::CustomMoveAction::Backward),
+                        'a' => Some(crate::editcamera::CustomMoveAction::StrafeLeft),
+                        'd' => Some(crate::editcamera::CustomMoveAction::StrafeRight),
+                        _ => None,
+                    };
+                    if let Some(action) = action {
+                        crate::editor::EDITCAMERA.write().unwrap().move_action = Some(action);
+                        ctx.ui.redraw_all = true;
+                        return true;
+                    }
+                }
                 let shortcut_resolution = if plain_key
                     && polyview_focused
                     && !text_input_focused
@@ -2417,6 +2547,40 @@ impl ToolList {
                     None
                 };
                 let suppress_tool_accel = shortcut_resolution.is_some();
+
+                let gizmo_op = match c.to_ascii_lowercase() {
+                    'm' => Some(GeometryGizmoOp::Move),
+                    's' => Some(GeometryGizmoOp::Resize),
+                    _ => None,
+                };
+                if plain_key
+                    && polyview_focused
+                    && !text_input_focused
+                    && !server_ctx.game_input_mode
+                    && !server_ctx.text_game_mode
+                    && !server_ctx.game_mode
+                    && server_ctx.editor_view_mode != EditorViewMode::D2
+                    && (server_ctx.curr_map_tool_type == MapToolType::Selection
+                        || self.current_game_tool_is("tool.geometry"))
+                    && let Some(op) = gizmo_op
+                {
+                    server_ctx.geometry_gizmo_op = op;
+                    self.update_geometry_overlay_3d(project, server_ctx);
+                    {
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        rusterix.set_dirty();
+                        rusterix.set_overlay_dirty();
+                    }
+                    ctx.ui.redraw_all = true;
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        match op {
+                            GeometryGizmoOp::Move => fl!("status_hud_geometry_op_move"),
+                            GeometryGizmoOp::Resize => fl!("status_hud_geometry_op_size"),
+                        },
+                    ));
+                    return true;
+                }
 
                 if plain_key
                     && polyview_focused
@@ -2499,33 +2663,36 @@ impl ToolList {
                 }
 
                 if let Some(ShortcutResolution::Run(action)) = shortcut_resolution {
+                    if action == ShortcutAction::BoxSelect {
+                        if !matches!(
+                            server_ctx.curr_map_tool_type,
+                            MapToolType::Selection
+                                | MapToolType::Vertex
+                                | MapToolType::Linedef
+                                | MapToolType::Sector
+                        ) && let Some(uuid) =
+                            self.get_game_tool_uuid_by_command_id("tool.geometry")
+                        {
+                            self.set_tool_widget_state_by_uuid(uuid, ctx);
+                            self.set_tool(uuid, ui, ctx, project, server_ctx);
+                        }
+                        server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
+                        self.box_select_armed = true;
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_box_select_armed"),
+                        ));
+                        ctx.ui.redraw_all = true;
+                        return true;
+                    }
                     if let Some(uuid) = self.shortcut_tool_uuid(action) {
                         self.set_tool_widget_state_by_uuid(uuid, ctx);
                         return self.set_tool(uuid, ui, ctx, project, server_ctx);
                     }
                 }
 
-                if let Some(id) = &ctx.ui.focus {
-                    if id.name == "PolyView" {
-                        if server_ctx.editor_view_mode == EditorViewMode::FirstP
-                            && server_ctx.editor_fly_nav_active
-                            && !server_ctx.game_input_mode
-                        {
-                            let action = match c.to_ascii_lowercase() {
-                                'w' => Some(crate::editcamera::CustomMoveAction::Forward),
-                                's' => Some(crate::editcamera::CustomMoveAction::Backward),
-                                'a' => Some(crate::editcamera::CustomMoveAction::StrafeLeft),
-                                'd' => Some(crate::editcamera::CustomMoveAction::StrafeRight),
-                                _ => None,
-                            };
-                            if let Some(action) = action {
-                                crate::editor::EDITCAMERA.write().unwrap().move_action =
-                                    Some(action);
-                                ctx.ui.redraw_all = true;
-                                return true;
-                            }
-                        }
-
+                if let Some(_id) = &ctx.ui.focus {
+                    if server_ctx.polyview_has_focus(ctx) {
                         if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
                             let plain_grid_shortcut = plain_key
                                 && !server_ctx.game_mode
@@ -2569,36 +2736,6 @@ impl ToolList {
                                 && !server_ctx.game_input_mode
                                 && server_ctx.curr_map_tool_type != MapToolType::Game
                             {
-                                if server_ctx.curr_map_tool_type == MapToolType::Selection {
-                                    let op = match c.to_ascii_lowercase() {
-                                        'm' => Some(GeometryGizmoOp::Move),
-                                        's' => Some(GeometryGizmoOp::Resize),
-                                        _ => None,
-                                    };
-                                    if let Some(op) = op {
-                                        server_ctx.geometry_gizmo_op = op;
-                                        self.update_geometry_overlay_3d(project, server_ctx);
-                                        {
-                                            let mut rusterix = RUSTERIX.write().unwrap();
-                                            rusterix.set_dirty();
-                                            rusterix.set_overlay_dirty();
-                                        }
-                                        ctx.ui.redraw_all = true;
-                                        ctx.ui.send(TheEvent::SetStatusText(
-                                            TheId::empty(),
-                                            match op {
-                                                GeometryGizmoOp::Move => {
-                                                    fl!("status_hud_geometry_op_move")
-                                                }
-                                                GeometryGizmoOp::Resize => {
-                                                    fl!("status_hud_geometry_op_size")
-                                                }
-                                            },
-                                        ));
-                                        return true;
-                                    }
-                                }
-
                                 if *c == 'd' || *c == 'D' {
                                     server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
                                     self.update_geometry_overlay_3d(project, server_ctx);
@@ -2819,7 +2956,28 @@ impl ToolList {
                 }
 
                 if let Some(id) = &ctx.ui.focus {
-                    if id.name == "PolyView" {
+                    if id.name == "PolyView"
+                        || (server_ctx.pc.is_prefab() && id.name == "PrefabView")
+                    {
+                        if self.box_select_armed && *code == TheKeyCode::Escape {
+                            self.box_select_armed = false;
+                            if let Some(_map) = Self::get_tool_map_mut(project, server_ctx) {
+                                let undo_atom = self.current_tool_map_event(
+                                    MapEvent::MapEscape,
+                                    ui,
+                                    ctx,
+                                    project,
+                                    server_ctx,
+                                );
+                                self.update_map_context(ui, ctx, project, server_ctx, undo_atom);
+                            }
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                fl!("status_box_select_cancelled"),
+                            ));
+                            ctx.ui.redraw_all = true;
+                            return true;
+                        }
                         if server_ctx.editor_view_mode == EditorViewMode::FirstP
                             && !server_ctx.game_input_mode
                             && *code == TheKeyCode::Space
@@ -2834,9 +2992,6 @@ impl ToolList {
                                 .write()
                                 .unwrap()
                                 .reset_mouse_tracking();
-                            if !server_ctx.editor_fly_nav_active {
-                                crate::editor::EDITCAMERA.write().unwrap().move_action = None;
-                            }
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
                                 if server_ctx.editor_fly_nav_active {
@@ -2933,10 +3088,7 @@ impl ToolList {
                 }
             }
             TheEvent::KeyUp(TheValue::Char(c)) => {
-                if let Some(id) = &ctx.ui.focus
-                    && id.name == "PolyView"
-                    && server_ctx.editor_view_mode == EditorViewMode::FirstP
-                    && server_ctx.editor_fly_nav_active
+                if server_ctx.editor_view_mode == EditorViewMode::FirstP
                     && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd')
                 {
                     crate::editor::EDITCAMERA.write().unwrap().move_action = None;
@@ -2958,6 +3110,30 @@ impl ToolList {
                     }
 
                     if !server_ctx.game_mode && !server_ctx.game_input_mode {
+                        #[cfg(target_os = "macos")]
+                        {
+                            self.macos_primary_orbit_drag = None;
+                            if !self.box_select_armed
+                                && self.viewcube_face_at(ui, server_ctx, *coord).is_some()
+                            {
+                                self.macos_primary_orbit_drag = Some(MacOsPrimaryOrbitDrag {
+                                    origin: *coord,
+                                    from_viewcube: true,
+                                    orbiting: false,
+                                });
+                                crate::editor::EDITCAMERA
+                                    .write()
+                                    .unwrap()
+                                    .mouse_dragged_orbit(coord);
+                                return true;
+                            }
+                        }
+                        #[cfg(not(target_os = "macos"))]
+                        if !self.box_select_armed
+                            && self.handle_viewcube_click(ui, ctx, project, server_ctx, *coord)
+                        {
+                            return true;
+                        }
                         if self.handle_action_hud_icon_click(ui, ctx, project, server_ctx, *coord) {
                             return true;
                         }
@@ -3058,6 +3234,30 @@ impl ToolList {
                             }
                         }
 
+                        if self.box_select_armed {
+                            // Box Select starts a rectangle even when the drag
+                            // begins over geometry or a gizmo.
+                            server_ctx.geo_hit = None;
+                            server_ctx.geo_hit_pos = Vec3::zero();
+                            server_ctx.hover = (None, None, None);
+                        }
+
+                        #[cfg(target_os = "macos")]
+                        if server_ctx.editor_view_mode == EditorViewMode::Orbit
+                            && !self.box_select_armed
+                            && server_ctx.geo_hit.is_none()
+                        {
+                            self.macos_primary_orbit_drag = Some(MacOsPrimaryOrbitDrag {
+                                origin: *coord,
+                                from_viewcube: false,
+                                orbiting: false,
+                            });
+                            crate::editor::EDITCAMERA
+                                .write()
+                                .unwrap()
+                                .mouse_dragged_orbit(coord);
+                        }
+
                         {
                             let undo_atom = self.current_tool_map_event(
                                 MapEvent::MapClicked(*coord),
@@ -3155,25 +3355,81 @@ impl ToolList {
                         return true;
                     }
 
+                    #[cfg(target_os = "macos")]
+                    if server_ctx.editor_view_mode == EditorViewMode::Orbit
+                        && !ui.right_mouse_down
+                        && let Some(mut navigation) = self.macos_primary_orbit_drag
+                    {
+                        let delta = *coord - navigation.origin;
+                        let drag_threshold_squared = if navigation.from_viewcube { 4 } else { 16 };
+                        if delta.x * delta.x + delta.y * delta.y >= drag_threshold_squared {
+                            navigation.orbiting = true;
+                        }
+                        self.macos_primary_orbit_drag = Some(navigation);
+
+                        if navigation.orbiting {
+                            let prefab_camera = {
+                                let mut edit_camera = crate::editor::EDITCAMERA.write().unwrap();
+                                if navigation.from_viewcube {
+                                    edit_camera.mouse_dragged_viewcube_macos_primary(coord);
+                                } else {
+                                    edit_camera.mouse_dragged_orbit_macos_primary(coord);
+                                }
+                                server_ctx
+                                    .pc
+                                    .is_prefab()
+                                    .then(|| edit_camera.orbit_camera.clone())
+                            };
+                            if let Some(camera) = prefab_camera {
+                                crate::editor::RUSTERIX
+                                    .write()
+                                    .unwrap()
+                                    .client
+                                    .set_camera_d3(Box::new(camera));
+                                self.update_geometry_overlay_3d(project, server_ctx);
+                            }
+                            crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                            ctx.ui.redraw_all = true;
+                        }
+                        // Do not leak a pending navigation drag into the active
+                        // modelling tool while waiting for the drag threshold.
+                        return true;
+                    }
+
                     if server_ctx.editor_view_mode != EditorViewMode::D2
                         && !server_ctx.game_mode
                         && !server_ctx.game_input_mode
                     {
-                        let orbit_drag = server_ctx.editor_view_mode == EditorViewMode::Orbit
+                        let orbit_drag = !self.box_select_armed
+                            && server_ctx.editor_view_mode == EditorViewMode::Orbit
                             && (ui.right_mouse_down || ui.alt);
-                        let pan_drag = matches!(
-                            server_ctx.editor_view_mode,
-                            EditorViewMode::Orbit | EditorViewMode::Iso
-                        ) && (ui.ctrl
-                            || ui.logo
-                            || (server_ctx.editor_view_mode == EditorViewMode::Iso
-                                && (ui.right_mouse_down || ui.alt)));
+                        let pan_drag = !self.box_select_armed
+                            && matches!(
+                                server_ctx.editor_view_mode,
+                                EditorViewMode::Orbit | EditorViewMode::Iso
+                            )
+                            && (ui.ctrl
+                                || ui.logo
+                                || (server_ctx.editor_view_mode == EditorViewMode::Iso
+                                    && (ui.right_mouse_down || ui.alt)));
 
                         if orbit_drag {
-                            crate::editor::EDITCAMERA
-                                .write()
-                                .unwrap()
-                                .mouse_dragged_orbit(coord);
+                            let prefab_camera = {
+                                let mut edit_camera = crate::editor::EDITCAMERA.write().unwrap();
+                                edit_camera.mouse_dragged_orbit(coord);
+                                server_ctx
+                                    .pc
+                                    .is_prefab()
+                                    .then(|| edit_camera.orbit_camera.clone())
+                            };
+                            if let Some(camera) = prefab_camera {
+                                crate::editor::RUSTERIX
+                                    .write()
+                                    .unwrap()
+                                    .client
+                                    .set_camera_d3(Box::new(camera));
+                                self.update_geometry_overlay_3d(project, server_ctx);
+                            }
                             crate::editor::RUSTERIX.write().unwrap().set_dirty();
                             ctx.ui.redraw_all = true;
                             return true;
@@ -3185,10 +3441,19 @@ impl ToolList {
                         {
                             let dim = *render_view.dim();
                             if server_ctx.pc.is_prefab() {
-                                crate::editor::EDITCAMERA
+                                let camera = {
+                                    let mut edit_camera =
+                                        crate::editor::EDITCAMERA.write().unwrap();
+                                    edit_camera
+                                        .mouse_dragged_pan_prefab(coord, Vec2::new(dim.x, dim.y));
+                                    edit_camera.orbit_camera.clone()
+                                };
+                                crate::editor::RUSTERIX
                                     .write()
                                     .unwrap()
-                                    .mouse_dragged_pan_prefab(coord, Vec2::new(dim.x, dim.y));
+                                    .client
+                                    .set_camera_d3(Box::new(camera));
+                                self.update_geometry_overlay_3d(project, server_ctx);
                                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
                                 ctx.ui.redraw_all = true;
                                 return true;
@@ -3268,7 +3533,6 @@ impl ToolList {
                             server_ctx.editor_fly_nav_active = false;
                             server_ctx.editor_fly_nav_mouse_down = false;
                             server_ctx.editor_fly_nav_space_down = false;
-                            crate::editor::EDITCAMERA.write().unwrap().move_action = None;
                             crate::editor::EDITCAMERA
                                 .write()
                                 .unwrap()
@@ -3281,6 +3545,25 @@ impl ToolList {
                             ctx.ui.redraw_all = true;
                         }
                         return true;
+                    }
+                    #[cfg(target_os = "macos")]
+                    if let Some(navigation) = self.macos_primary_orbit_drag.take() {
+                        crate::editor::EDITCAMERA
+                            .write()
+                            .unwrap()
+                            .reset_mouse_tracking();
+                        if navigation.from_viewcube {
+                            if !navigation.orbiting {
+                                self.handle_viewcube_click(
+                                    ui,
+                                    ctx,
+                                    project,
+                                    server_ctx,
+                                    navigation.origin,
+                                );
+                            }
+                            return true;
+                        }
                     }
                     if server_ctx.editor_view_mode != EditorViewMode::D2 {
                         crate::editor::EDITCAMERA
@@ -3314,6 +3597,7 @@ impl ToolList {
                             self.update_geometry_overlay_3d(project, server_ctx);
                         }
                     }
+                    self.box_select_armed = false;
 
                     if server_ctx.get_map_context() == MapContext::Region {
                         if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
@@ -3730,6 +4014,13 @@ impl ToolList {
                 None
             };
 
+        if self.prefab_mode && self.palette_mode {
+            self.palette_mode = false;
+            server_ctx.palette_tool_active = false;
+            ctx.ui
+                .set_widget_state(Self::PALETTE_BUTTON_NAME.to_string(), TheWidgetState::None);
+        }
+
         if self.editor_mode {
             // Handle editor tool switching
             for (index, tool) in self.editor_tools.iter().enumerate() {
@@ -3949,6 +4240,10 @@ impl ToolList {
             .get(self.curr_game_tool)
             .and_then(|tool| self.game_tool_descriptor_by_id(tool.id().uuid))
             .map(|descriptor| descriptor.command_id.as_str())
+    }
+
+    pub fn palette_mode_active(&self) -> bool {
+        self.palette_mode
     }
 
     pub fn game_tool_is_available(&self, command_id: &str) -> bool {

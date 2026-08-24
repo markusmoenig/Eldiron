@@ -42,6 +42,29 @@ pub struct Sidebar {
 #[allow(clippy::new_without_default)]
 impl Sidebar {
     const NAVIGATION_PAGE_COUNT: usize = 5;
+    const ACTION_PARAMS_EDITOR: &'static str = "Action Params TOML";
+    const PROJECT_ACTION_PARAMS_EDITOR: &'static str = "Project Action Params TOML";
+
+    fn action_params_editor(id: &str) -> TheTextAreaEdit {
+        let mut textedit = TheTextAreaEdit::new(TheId::named(id));
+        if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            textedit.add_syntax_from_string(source);
+            textedit.set_code_type("TOML");
+        }
+        if let Some(bytes) = crate::Embedded::get("parser/gruvbox-dark.tmTheme")
+            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
+        {
+            textedit.add_theme_from_string(source);
+            textedit.set_code_theme("Gruvbox Dark");
+        }
+        textedit.set_continuous(true);
+        textedit.display_line_number(false);
+        textedit.use_global_statusbar(true);
+        textedit.set_font_size(13.5);
+        textedit
+    }
 
     fn navigation_page_status(status: String, index: usize) -> String {
         let accelerator = TheAccelerator::new(
@@ -389,10 +412,50 @@ impl Sidebar {
         toolbar_canvas.set_layout(toolbar_hlayout);
         project_canvas.set_bottom(toolbar_canvas);
 
-        // Project page
+        // Project tree page
         let mut stack_layout = TheStackLayout::new(TheId::named("Tree Stack Layout"));
         stack_layout.add_canvas(project_canvas);
         canvas.set_layout(stack_layout);
+
+        // Project-mode contextual settings. Selection changes already choose the
+        // corresponding edit action; this compact panel exposes only that action's
+        // parameters, without making the user switch to the full Actions page.
+        let mut project_action_params_canvas = TheCanvas::default();
+        project_action_params_canvas.set_widget(Self::action_params_editor(
+            Self::PROJECT_ACTION_PARAMS_EDITOR,
+        ));
+
+        let mut project_action_title = TheText::new(TheId::named("Project Action Settings Title"));
+        project_action_title.set_text(fl!("settings"));
+        project_action_title.set_text_size(12.0);
+        project_action_title.set_vertical_offset(2);
+
+        let mut project_action_apply = TheTraybarButton::new(TheId::named("Project Action Apply"));
+        project_action_apply.set_text(fl!("apply"));
+        project_action_apply.set_status_text(&fl!("status_dock_action_apply"));
+
+        let mut project_action_toolbar = TheHLayout::new(TheId::empty());
+        project_action_toolbar.set_background_color(None);
+        project_action_toolbar.set_margin(Vec4::new(10, 1, 5, 1));
+        project_action_toolbar.add_widget(Box::new(project_action_title));
+        project_action_toolbar.add_widget(Box::new(project_action_apply));
+        project_action_toolbar.set_reverse_index(Some(1));
+
+        let mut project_action_toolbar_canvas = TheCanvas::default();
+        project_action_toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        project_action_toolbar_canvas.set_layout(project_action_toolbar);
+        project_action_params_canvas.set_top(project_action_toolbar_canvas);
+        project_action_params_canvas.top_is_expanding = false;
+
+        let mut project_page = TheCanvas::default();
+        let mut project_shared =
+            TheSharedVLayout::new(TheId::named("Project Context Settings Shared"));
+        project_shared.add_canvas(canvas);
+        project_shared.add_canvas(project_action_params_canvas);
+        project_shared.set_mode(TheSharedVLayoutMode::Top);
+        project_shared.set_shared_ratio(0.70);
+        project_shared.limiter_mut().set_max_width(self.width);
+        project_page.set_layout(project_shared);
 
         // Action parameter page. The action list itself stays owned and
         // populated by DockManager, but is mounted here in the sidebar.
@@ -400,24 +463,8 @@ impl Sidebar {
         let mut action_stack = TheStackLayout::new(TheId::named("Sidebar Bottom Stack"));
 
         let mut action_params_editor_canvas = TheCanvas::default();
-        let mut textedit = TheTextAreaEdit::new(TheId::named("Action Params TOML"));
-        if let Some(bytes) = crate::Embedded::get("parser/TOML.sublime-syntax")
-            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
-        {
-            textedit.add_syntax_from_string(source);
-            textedit.set_code_type("TOML");
-        }
-        if let Some(bytes) = crate::Embedded::get("parser/gruvbox-dark.tmTheme")
-            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
-        {
-            textedit.add_theme_from_string(source);
-            textedit.set_code_theme("Gruvbox Dark");
-        }
-        textedit.set_continuous(true);
-        textedit.display_line_number(false);
-        textedit.use_global_statusbar(true);
-        textedit.set_font_size(13.5);
-        action_params_editor_canvas.set_widget(textedit);
+        action_params_editor_canvas
+            .set_widget(Self::action_params_editor(Self::ACTION_PARAMS_EDITOR));
         action_stack.add_canvas(action_params_editor_canvas);
 
         let mut node_settings_canvas = TheCanvas::default();
@@ -481,7 +528,7 @@ impl Sidebar {
         // Compact, icon-only navigation. A stack keeps this open-ended for
         // additional sidebar modes without consuming header width with labels.
         let mut sidebar_pages = TheStackLayout::new(TheId::named("Sidebar Page Stack"));
-        sidebar_pages.add_canvas(canvas);
+        sidebar_pages.add_canvas(project_page);
         sidebar_pages.add_canvas(actions_canvas);
         sidebar_pages.add_canvas(self.console.setup(ctx));
         sidebar_pages.add_canvas(self.debug.setup(ctx));
@@ -1492,24 +1539,29 @@ impl Sidebar {
                 }
             }
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "Action Params TOML" {
+                if id.name == Self::ACTION_PARAMS_EDITOR
+                    || id.name == Self::PROJECT_ACTION_PARAMS_EDITOR
+                {
                     if let Some(action_id) = server_ctx.curr_action_id
                         && let Some(source) = value.to_string()
-                        && let Some(action) =
-                            ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
                     {
-                        let mut nodeui = action.params();
-                        if apply_toml_to_nodeui(&mut nodeui, &source).is_ok() {
-                            for (key, val) in nodeui_to_value_pairs(&nodeui) {
-                                let ev = TheEvent::ValueChanged(TheId::named(&key), val);
-                                let _ = action.handle_event(&ev, project, ui, ctx, server_ctx);
-                            }
+                        self.mirror_action_params_editor(ui, &id.name, &source);
+                        if let Some(action) =
+                            ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id)
+                        {
+                            let mut nodeui = action.params();
+                            if apply_toml_to_nodeui(&mut nodeui, &source).is_ok() {
+                                for (key, val) in nodeui_to_value_pairs(&nodeui) {
+                                    let ev = TheEvent::ValueChanged(TheId::named(&key), val);
+                                    let _ = action.handle_event(&ev, project, ui, ctx, server_ctx);
+                                }
 
-                            if server_ctx.auto_action {
-                                ctx.ui.send(TheEvent::StateChanged(
-                                    TheId::named("Action Apply"),
-                                    TheWidgetState::Clicked,
-                                ));
+                                if server_ctx.auto_action {
+                                    ctx.ui.send(TheEvent::StateChanged(
+                                        TheId::named("Action Apply"),
+                                        TheWidgetState::Clicked,
+                                    ));
+                                }
                             }
                         }
                     }
@@ -2461,33 +2513,37 @@ impl Sidebar {
                     redraw = true;
                 } else
                 // Iterate actions
-                if let Some(action) =
-                    ACTIONLIST.write().unwrap().get_action_by_id_mut(id.uuid)
-                {
-                    server_ctx.curr_action_id = Some(action.id().uuid);
+                if let Some((accelerator, params, title, auto_apply)) = {
+                    // Loading an action mutates its cached parameters, but UI
+                    // updates must happen after releasing the global action
+                    // list lock. Parameter editors can synchronously generate
+                    // more UI work that also consults the action catalog.
+                    let mut actions = ACTIONLIST.write().unwrap();
+                    actions.get_action_by_id_mut(id.uuid).map(|action| {
+                        server_ctx.curr_action_id = Some(action.id().uuid);
 
-                    //layout.clear();
-                    // if let Some(node) = layout.get_node_by_id_mut(&server_ctx.tree_settings_id) {
-                    //     if let Some(action_id) = server_ctx.curr_action_id {
-                    //         if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id) {
-                    //             let nodeui = action.params();
-                    //             // nodeui.apply_to_text_layout(layout);
-                    //             nodeui.apply_to_tree_node(node);
-                    //             ctx.ui.relayout = true;
+                        if let Some(map) = project.get_map_mut(&server_ctx) {
+                            action.load_params(map);
+                        }
+                        action.load_params_project(project, server_ctx);
 
-                    if let Some(map) = project.get_map_mut(&server_ctx) {
-                        action.load_params(map);
-                    }
-                    action.load_params_project(project, server_ctx);
-                    self.show_action_toml_params(ui, ctx, server_ctx, action.as_ref());
+                        (
+                            action.accel(),
+                            action.params(),
+                            action.id().name,
+                            server_ctx.auto_action || action.role() == ActionRole::Camera,
+                        )
+                    })
+                } {
+                    self.show_action_toml_snapshot(ui, ctx, accelerator, &params, title);
 
-                    if server_ctx.auto_action || action.role() == ActionRole::Camera {
+                    if auto_apply {
                         ctx.ui.send(TheEvent::StateChanged(
                             TheId::named("Action Apply"),
                             TheWidgetState::None,
                         ));
                     }
-                } else if id.name == "Action Apply" {
+                } else if id.name == "Action Apply" || id.name == "Project Action Apply" {
                     if let Some(action_id) = server_ctx.curr_action_id {
                         self.sync_current_action_toml_params(ui, ctx, Some(project), server_ctx);
                         if let Some(action) = ACTIONLIST.read().unwrap().get_action_by_id(action_id)
@@ -3407,6 +3463,17 @@ impl Sidebar {
                             project,
                             server_ctx,
                             ProjectContext::Screen(id.references),
+                        );
+                        redraw = true;
+                    }
+                } else if id.name == "Screen Settings Item" {
+                    if project.screens.contains_key(&id.references) {
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::ScreenSettings(id.references),
                         );
                         redraw = true;
                     }
@@ -4489,21 +4556,78 @@ impl Sidebar {
         ui.select_first_list_item("Tilemap Tile List", ctx);
     }
 
-    fn show_empty_action_toml(&self, ui: &mut TheUI, _ctx: &mut TheContext) {
+    fn set_project_action_settings_visible(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        visible: bool,
+    ) {
+        if let Some(shared) = ui.get_sharedvlayout("Project Context Settings Shared") {
+            let mode = if visible {
+                TheSharedVLayoutMode::Shared
+            } else {
+                TheSharedVLayoutMode::Top
+            };
+            if shared.get_mode() != mode {
+                shared.set_mode(mode);
+                ctx.ui.relayout = true;
+                ctx.ui.redraw_all = true;
+            }
+        }
+    }
+
+    fn set_action_params_editor_text(ui: &mut TheUI, editor_name: &str, text: &str) {
+        if let Some(edit) = ui.get_text_area_edit(editor_name) {
+            let previous = edit.get_state();
+            if edit.text() != text {
+                edit.set_text(text.to_string());
+
+                let mut state = edit.get_state();
+                let row_max = state.rows.len().saturating_sub(1);
+                let row = previous.cursor.row.min(row_max);
+                let col_max = state
+                    .rows
+                    .get(row)
+                    .map(|line| line.chars().count())
+                    .unwrap_or(0);
+
+                state.cursor.row = row;
+                state.cursor.column = previous.cursor.column.min(col_max);
+                state.selection.reset();
+                TheTextAreaEditTrait::set_state(edit, state);
+            }
+        }
+    }
+
+    fn set_action_params_text(&self, ui: &mut TheUI, text: &str) {
+        for editor_name in [
+            Self::ACTION_PARAMS_EDITOR,
+            Self::PROJECT_ACTION_PARAMS_EDITOR,
+        ] {
+            Self::set_action_params_editor_text(ui, editor_name, text);
+        }
+    }
+
+    fn mirror_action_params_editor(&self, ui: &mut TheUI, source_name: &str, text: &str) {
+        for editor_name in [
+            Self::ACTION_PARAMS_EDITOR,
+            Self::PROJECT_ACTION_PARAMS_EDITOR,
+        ] {
+            if editor_name != source_name {
+                Self::set_action_params_editor_text(ui, editor_name, text);
+            }
+        }
+    }
+
+    fn show_empty_action_toml(&self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.show_action_shortcut(ui, None);
+        self.set_project_action_settings_visible(ui, ctx, false);
         if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
             stack.set_index(0);
         }
-        if let Some(widget) = ui.get_widget("Action Params TOML")
-            && let Some(edit) = widget.as_text_area_edit()
-            && !edit.text().is_empty()
-        {
-            edit.set_text(String::new());
-            let mut state = edit.get_state();
-            state.cursor.row = 0;
-            state.cursor.column = 0;
-            state.selection.reset();
-            TheTextAreaEditTrait::set_state(edit, state);
+        self.set_action_params_text(ui, "");
+        if let Some(title) = ui.get_text("Project Action Settings Title") {
+            title.set_text(fl!("settings"));
         }
     }
 
@@ -4630,36 +4754,31 @@ impl Sidebar {
     fn show_action_toml_params(
         &self,
         ui: &mut TheUI,
-        _ctx: &mut TheContext,
+        ctx: &mut TheContext,
         _server_ctx: &ServerContext,
         action: &dyn Action,
     ) {
-        self.show_action_shortcut(ui, action.accel());
+        let params = action.params();
+        self.show_action_toml_snapshot(ui, ctx, action.accel(), &params, action.id().name);
+    }
+
+    fn show_action_toml_snapshot(
+        &self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        accelerator: Option<TheAccelerator>,
+        params: &TheNodeUI,
+        title_text: String,
+    ) {
+        self.show_action_shortcut(ui, accelerator);
         if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
             stack.set_index(0);
         }
-        let toml_text = nodeui_to_toml(&action.params());
-        if let Some(widget) = ui.get_widget("Action Params TOML")
-            && let Some(edit) = widget.as_text_area_edit()
-        {
-            let previous = edit.get_state();
-            if edit.text() != toml_text {
-                edit.set_text(toml_text);
-
-                let mut state = edit.get_state();
-                let row_max = state.rows.len().saturating_sub(1);
-                let row = previous.cursor.row.min(row_max);
-                let col_max = state
-                    .rows
-                    .get(row)
-                    .map(|line| line.chars().count())
-                    .unwrap_or(0);
-
-                state.cursor.row = row;
-                state.cursor.column = previous.cursor.column.min(col_max);
-                state.selection.reset();
-                TheTextAreaEditTrait::set_state(edit, state);
-            }
+        let toml_text = nodeui_to_toml(params);
+        self.set_project_action_settings_visible(ui, ctx, !toml_text.trim().is_empty());
+        self.set_action_params_text(ui, &toml_text);
+        if let Some(title) = ui.get_text("Project Action Settings Title") {
+            title.set_text(title_text);
         }
     }
 
@@ -4682,13 +4801,28 @@ impl Sidebar {
         let Some(action_id) = server_ctx.curr_action_id else {
             return false;
         };
-        let Some(widget) = ui.get_widget("Action Params TOML") else {
-            return false;
+        let preferred_editor = ctx
+            .ui
+            .focus
+            .as_ref()
+            .map(|id| id.name.as_str())
+            .filter(|name| {
+                *name == Self::ACTION_PARAMS_EDITOR || *name == Self::PROJECT_ACTION_PARAMS_EDITOR
+            })
+            .unwrap_or(Self::ACTION_PARAMS_EDITOR);
+        let fallback_editor = if preferred_editor == Self::ACTION_PARAMS_EDITOR {
+            Self::PROJECT_ACTION_PARAMS_EDITOR
+        } else {
+            Self::ACTION_PARAMS_EDITOR
         };
-        let Some(edit) = widget.as_text_area_edit() else {
-            return false;
-        };
-        let source = edit.text().to_string();
+        let source = ui
+            .get_text_area_edit(preferred_editor)
+            .map(|edit| edit.text())
+            .or_else(|| {
+                ui.get_text_area_edit(fallback_editor)
+                    .map(|edit| edit.text())
+            })
+            .unwrap_or_default();
         if source.trim().is_empty() {
             return false;
         }

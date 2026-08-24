@@ -170,11 +170,11 @@ export const homepageContent = {
           linkLabel: "Open docs",
         },
         {
-          title: "Block Tool",
+          title: "Prefab Tool",
           description:
-            "Build editable rooms, corridors, walls, doorways, stairs, and columns quickly from modular block stamps, with line, rectangle, clean, and damaged placement modes.",
+            "Create, edit, paint, and place reusable linked Prefabs while retaining fast modular construction stamps for rooms, corridors, walls, doorways, stairs, and columns.",
           image: "/img/Eldironv0.92_block.png",
-          alt: "Block Tool in Eldiron v0.92.0",
+          alt: "Prefab Tool and modular construction workflow",
           href: "/docs/creator/tools/blocks",
           linkLabel: "Open docs",
         },

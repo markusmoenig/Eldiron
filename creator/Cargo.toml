@@ -47,7 +47,7 @@ i18n-embed = { version = "0.16.0", features = [
     "fluent-system",
     "desktop-requester",
 ] }
-i18n-embed-fl = { version = "0.10.0" }
+i18n-embed-fl = { version = "0.10.1" }
 self_update = { version = "0.44.0", optional = true, default-features = false, features = [
     "ureq",
     "rustls",

@@ -31,6 +31,37 @@ use std::sync::{Arc, Mutex};
 use theframework::prelude::*;
 use toml::*;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ScreenAnchor {
+    #[default]
+    TopLeft,
+    TopCenter,
+    TopRight,
+    CenterLeft,
+    Center,
+    CenterRight,
+    BottomLeft,
+    BottomCenter,
+    BottomRight,
+}
+
+impl ScreenAnchor {
+    fn parse(value: &str) -> Option<Self> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "top_left" => Some(Self::TopLeft),
+            "top" | "top_center" => Some(Self::TopCenter),
+            "top_right" => Some(Self::TopRight),
+            "left" | "center_left" | "middle_left" => Some(Self::CenterLeft),
+            "center" | "middle" => Some(Self::Center),
+            "right" | "center_right" | "middle_right" => Some(Self::CenterRight),
+            "bottom_left" => Some(Self::BottomLeft),
+            "bottom" | "bottom_center" => Some(Self::BottomCenter),
+            "bottom_right" => Some(Self::BottomRight),
+            _ => None,
+        }
+    }
+}
+
 pub(crate) fn apply_2d_visibility_mask(
     pixels: &mut [u8],
     width: usize,
@@ -295,6 +326,12 @@ pub struct Client {
     config: toml::Table,
 
     pub viewport: Vec2<i32>,
+    /// Authored viewport used as the reference canvas for screen coordinates.
+    reference_viewport: Vec2<i32>,
+    /// Latest logical client surface size.
+    surface_viewport: Vec2<i32>,
+    /// The active screen opts into surface-sized game rendering and anchored UI.
+    screen_responsive: bool,
     grid_size: f32,
     pub target_fps: i32,
     pub game_tick_ms: i32,
@@ -891,6 +928,9 @@ impl Client {
 
             config: toml::Table::default(),
             viewport: Vec2::zero(),
+            reference_viewport: Vec2::zero(),
+            surface_viewport: Vec2::zero(),
+            screen_responsive: false,
             grid_size: 32.0,
             target_fps: 30,
             game_tick_ms: 250,
@@ -1957,6 +1997,9 @@ impl Client {
         } else {
             Vec2::new(viewport_width, viewport_height)
         };
+        self.reference_viewport = self.viewport;
+        self.surface_viewport = self.viewport;
+        self.screen_responsive = false;
         self.target_fps = self.get_config_i32_default("game", "target_fps", 30);
         self.game_tick_ms = self.get_config_i32_default("game", "game_tick_ms", 250);
         self.firstp_eye_level = self.get_config_f32_default("game", "firstp_eye_level", 1.7);
@@ -3078,6 +3121,9 @@ impl Client {
     /// Returns the presentation transform from viewport coordinates into a surface size.
     /// Output is `(scale, offset_x, offset_y)`.
     pub fn presentation_transform_for_surface(&self, width: u32, height: u32) -> (f32, f32, f32) {
+        if self.screen_responsive {
+            return (1.0, 0.0, 0.0);
+        }
         let vw = self.viewport.x.max(1) as f32;
         let vh = self.viewport.y.max(1) as f32;
         let sw = width.max(1) as f32;
@@ -3096,6 +3142,33 @@ impl Client {
             let offset_y = ((sh - vh) * 0.5).max(0.0).floor();
             (1.0, offset_x, offset_y)
         }
+    }
+
+    pub fn screen_is_responsive(&self) -> bool {
+        self.screen_responsive
+    }
+
+    /// Update the logical presentation surface. Fixed screens retain their
+    /// authored viewport; responsive screens adopt the surface and relayout.
+    pub fn resize_surface(&mut self, width: u32, height: u32, assets: &Assets) {
+        self.surface_viewport = Vec2::new(width.max(1) as i32, height.max(1) as i32);
+        let desired = if self.screen_responsive {
+            self.surface_viewport
+        } else {
+            self.reference_viewport
+        };
+        if desired == self.viewport {
+            return;
+        }
+
+        self.viewport = desired;
+        self.target = TheRGBABuffer::new(TheDim::sized(desired.x, desired.y));
+        self.overlay = TheRGBABuffer::new(TheDim::sized(desired.x, desired.y));
+        if let Some(screen_widget) = self.screen_widget.as_mut() {
+            screen_widget.buffer = TheRGBABuffer::new(TheDim::sized(desired.x, desired.y));
+        }
+        self.relayout_active_screen(assets);
+        self.first_game_draw = true;
     }
 
     fn punch_game_widget_holes<'a, I>(
@@ -6054,6 +6127,206 @@ impl Client {
         }
     }
 
+    fn layout_number(layout: &toml::Table, key: &str) -> Option<f32> {
+        layout.get(key).and_then(|value| {
+            value
+                .as_float()
+                .map(|value| value as f32)
+                .or_else(|| value.as_integer().map(|value| value as f32))
+        })
+    }
+
+    fn resolve_screen_element_rect(&self, authored: Rect, role: &str, table: &toml::Table) -> Rect {
+        if !self.screen_responsive {
+            return authored;
+        }
+        if role.eq_ignore_ascii_case("game") {
+            return Rect::new(
+                0.0,
+                0.0,
+                self.viewport.x.max(1) as f32,
+                self.viewport.y.max(1) as f32,
+            );
+        }
+
+        let Some(layout) = table.get("layout").and_then(toml::Value::as_table) else {
+            return authored;
+        };
+        let Some(anchor) = layout
+            .get("anchor")
+            .and_then(toml::Value::as_str)
+            .and_then(ScreenAnchor::parse)
+        else {
+            return authored;
+        };
+
+        let reference_w = self.reference_viewport.x.max(1) as f32;
+        let reference_h = self.reference_viewport.y.max(1) as f32;
+        let viewport_w = self.viewport.x.max(1) as f32;
+        let viewport_h = self.viewport.y.max(1) as f32;
+        let authored_right = authored.x + authored.width;
+        let authored_bottom = authored.y + authored.height;
+        let default_x = match anchor {
+            ScreenAnchor::TopLeft | ScreenAnchor::CenterLeft | ScreenAnchor::BottomLeft => {
+                authored.x
+            }
+            ScreenAnchor::TopCenter | ScreenAnchor::Center | ScreenAnchor::BottomCenter => {
+                authored.x + authored.width * 0.5 - reference_w * 0.5
+            }
+            ScreenAnchor::TopRight | ScreenAnchor::CenterRight | ScreenAnchor::BottomRight => {
+                authored_right - reference_w
+            }
+        };
+        let default_y = match anchor {
+            ScreenAnchor::TopLeft | ScreenAnchor::TopCenter | ScreenAnchor::TopRight => authored.y,
+            ScreenAnchor::CenterLeft | ScreenAnchor::Center | ScreenAnchor::CenterRight => {
+                authored.y + authored.height * 0.5 - reference_h * 0.5
+            }
+            ScreenAnchor::BottomLeft | ScreenAnchor::BottomCenter | ScreenAnchor::BottomRight => {
+                authored_bottom - reference_h
+            }
+        };
+        let offset_x = Self::layout_number(layout, "x").unwrap_or(default_x);
+        let offset_y = Self::layout_number(layout, "y").unwrap_or(default_y);
+
+        let x = match anchor {
+            ScreenAnchor::TopLeft | ScreenAnchor::CenterLeft | ScreenAnchor::BottomLeft => offset_x,
+            ScreenAnchor::TopCenter | ScreenAnchor::Center | ScreenAnchor::BottomCenter => {
+                viewport_w * 0.5 - authored.width * 0.5 + offset_x
+            }
+            ScreenAnchor::TopRight | ScreenAnchor::CenterRight | ScreenAnchor::BottomRight => {
+                viewport_w - authored.width + offset_x
+            }
+        };
+        let y = match anchor {
+            ScreenAnchor::TopLeft | ScreenAnchor::TopCenter | ScreenAnchor::TopRight => offset_y,
+            ScreenAnchor::CenterLeft | ScreenAnchor::Center | ScreenAnchor::CenterRight => {
+                viewport_h * 0.5 - authored.height * 0.5 + offset_y
+            }
+            ScreenAnchor::BottomLeft | ScreenAnchor::BottomCenter | ScreenAnchor::BottomRight => {
+                viewport_h - authored.height + offset_y
+            }
+        };
+        Rect::new(x, y, authored.width, authored.height)
+    }
+
+    fn resize_widget_buffer(buffer: &mut TheRGBABuffer, rect: Rect) {
+        let width = rect.width.round().max(1.0) as i32;
+        let height = rect.height.round().max(1.0) as i32;
+        if buffer.dim().width != width || buffer.dim().height != height {
+            *buffer = TheRGBABuffer::new(TheDim::sized(width, height));
+        }
+    }
+
+    fn relayout_active_screen(&mut self, assets: &Assets) {
+        if !self.screen_responsive {
+            return;
+        }
+        let Some(screen) = assets.screens.get(&self.current_screen) else {
+            return;
+        };
+        let (start_x, start_y) = crate::utils::align_screen_to_grid(
+            self.reference_viewport.x as f32,
+            self.reference_viewport.y as f32,
+            self.grid_size,
+        );
+
+        let mut resolved = Vec::new();
+        for sector in &screen.sectors {
+            let Some(crate::Value::Str(data)) = sector.properties.get("data") else {
+                continue;
+            };
+            let Ok(table) = data.parse::<toml::Table>() else {
+                continue;
+            };
+            let Some(role) = table
+                .get("ui")
+                .and_then(toml::Value::as_table)
+                .and_then(|ui| ui.get("role"))
+                .and_then(toml::Value::as_str)
+            else {
+                continue;
+            };
+            let bb = sector.bounding_box(screen);
+            let authored = Rect::new(
+                (bb.min.x - start_x) * self.grid_size,
+                (bb.min.y - start_y) * self.grid_size,
+                bb.size().x * self.grid_size,
+                bb.size().y * self.grid_size,
+            );
+            resolved.push((
+                role.to_string(),
+                sector.id,
+                sector.creator_id,
+                sector.name.clone(),
+                self.resolve_screen_element_rect(authored, role, &table),
+            ));
+        }
+
+        for (role, sector_id, creator_id, name, rect) in resolved {
+            match role.as_str() {
+                "game" => {
+                    if let Some(widget) = self.game_widgets.get_mut(&creator_id) {
+                        widget.rect = rect;
+                        Self::resize_widget_buffer(&mut widget.buffer, rect);
+                        widget.force_dynamics_rebuild = true;
+                    }
+                }
+                "button" => {
+                    if let Some(widget) = self.button_widgets.get_mut(&sector_id) {
+                        widget.rect = rect;
+                    }
+                }
+                "input" => {
+                    if let Some(widget) = self.text_input_widgets.get_mut(&sector_id) {
+                        widget.rect = rect;
+                    }
+                }
+                "messages" => {
+                    for widget in self
+                        .messages_widgets
+                        .iter_mut()
+                        .filter(|widget| widget.name == name)
+                    {
+                        widget.rect = rect;
+                        Self::resize_widget_buffer(&mut widget.buffer, rect);
+                    }
+                }
+                "avatar" => {
+                    if let Some(widget) = self.avatar_widgets.get_mut(&creator_id) {
+                        widget.rect = rect;
+                        Self::resize_widget_buffer(&mut widget.buffer, rect);
+                    }
+                }
+                "profile" => {
+                    if let Some(widget) = self.profile_widgets.get_mut(&creator_id) {
+                        widget.rect = rect;
+                        Self::resize_widget_buffer(&mut widget.buffer, rect);
+                    }
+                }
+                "stat" => {
+                    if let Some(widget) = self.stat_widgets.get_mut(&creator_id) {
+                        widget.rect = rect;
+                        Self::resize_widget_buffer(&mut widget.buffer, rect);
+                    }
+                }
+                "text" => {
+                    if let Some(widget) = self.text_widgets.get_mut(&creator_id) {
+                        widget.rect = rect;
+                        Self::resize_widget_buffer(&mut widget.buffer, rect);
+                    }
+                }
+                "deco" => {
+                    if let Some(widget) = self.deco_widgets.get_mut(&creator_id) {
+                        widget.rect = rect;
+                        Self::resize_widget_buffer(&mut widget.buffer, rect);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
     // Init the screen
     pub fn init_screen(
         &mut self,
@@ -6062,6 +6335,15 @@ impl Client {
         scene_handler: &mut SceneHandler,
     ) {
         self.clear_screen_widgets();
+
+        self.screen_responsive = assets.screen_is_responsive(&screen_name);
+        self.viewport = if self.screen_responsive {
+            self.surface_viewport
+        } else {
+            self.reference_viewport
+        };
+        self.target = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
+        self.overlay = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
 
         self.screen_widget = Some(ScreenWidget {
             buffer: TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y)),
@@ -6095,15 +6377,17 @@ impl Client {
                 let bb = widget.bounding_box(screen);
 
                 let (start_x, start_y) = crate::utils::align_screen_to_grid(
-                    self.viewport.x as f32,
-                    self.viewport.y as f32,
+                    self.reference_viewport.x as f32,
+                    self.reference_viewport.y as f32,
                     self.grid_size,
                 );
 
-                let x = (bb.min.x - start_x) * self.grid_size;
-                let y = (bb.min.y - start_y) * self.grid_size;
-                let width = bb.size().x * self.grid_size;
-                let height = bb.size().y * self.grid_size;
+                let authored_rect = Rect::new(
+                    (bb.min.x - start_x) * self.grid_size,
+                    (bb.min.y - start_y) * self.grid_size,
+                    bb.size().x * self.grid_size,
+                    bb.size().y * self.grid_size,
+                );
 
                 let mut textures = Vec::new();
                 if let Some(source) = widget.properties.get_default_source()
@@ -6131,6 +6415,9 @@ impl Client {
                                 }
                             }
                         }
+
+                        let rect = self.resolve_screen_element_rect(authored_rect, role, &table);
+                        let (x, y, width, height) = (rect.x, rect.y, rect.width, rect.height);
 
                         if role == "game" {
                             let mut game_widget = GameWidget {
@@ -8274,6 +8561,69 @@ mod tests {
         assert_eq!(widget.buffer.dim().width, 320);
         assert_eq!(widget.buffer.dim().height, 180);
         assert_eq!(widget.grid_size, 24.0);
+    }
+
+    #[test]
+    fn responsive_game_widget_fills_surface() {
+        let mut client = Client::new();
+        client.screen_responsive = true;
+        client.reference_viewport = Vec2::new(960, 540);
+        client.viewport = Vec2::new(1280, 720);
+        let table = "[ui]\nrole = \"game\"\n".parse::<toml::Table>().unwrap();
+
+        let rect =
+            client.resolve_screen_element_rect(Rect::new(32.0, 46.0, 640.0, 352.0), "game", &table);
+
+        assert_eq!(rect, Rect::new(0.0, 0.0, 1280.0, 720.0));
+    }
+
+    #[test]
+    fn responsive_bottom_center_anchor_uses_surface_center_and_offsets() {
+        let mut client = Client::new();
+        client.screen_responsive = true;
+        client.reference_viewport = Vec2::new(960, 540);
+        client.viewport = Vec2::new(1280, 720);
+        let table = r#"
+            [ui]
+            role = "button"
+
+            [layout]
+            anchor = "bottom_center"
+            x = 0
+            y = -20
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+
+        let rect = client.resolve_screen_element_rect(
+            Rect::new(400.0, 460.0, 160.0, 60.0),
+            "button",
+            &table,
+        );
+
+        assert_eq!(rect, Rect::new(560.0, 640.0, 160.0, 60.0));
+    }
+
+    #[test]
+    fn fixed_screen_ignores_widget_anchor_settings() {
+        let mut client = Client::new();
+        client.screen_responsive = false;
+        client.reference_viewport = Vec2::new(960, 540);
+        client.viewport = Vec2::new(1280, 720);
+        let table = r#"
+            [layout]
+            anchor = "bottom_right"
+            x = -16
+            y = -16
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+        let authored = Rect::new(20.0, 30.0, 80.0, 80.0);
+
+        assert_eq!(
+            client.resolve_screen_element_rect(authored, "button", &table),
+            authored
+        );
     }
 
     #[test]

@@ -9,6 +9,7 @@ pub struct TheText {
     text: String,
     text_size: f32,
     text_color: RGBA,
+    vertical_offset: i32,
 
     fixed_size_text: String,
 
@@ -31,6 +32,7 @@ impl TheWidget for TheText {
             text: "".to_string(),
             text_size: 13.0,
             text_color: WHITE,
+            vertical_offset: 0,
 
             fixed_size_text: String::default(),
 
@@ -116,7 +118,9 @@ impl TheWidget for TheText {
         let stride = buffer.stride();
 
         let mut shrinker = TheDimShrinker::zero();
-        shrinker.shrink_by(0, 1, 0, 0);
+        // Preserve the text rectangle's height while allowing individual labels
+        // to tune their visual baseline inside custom toolbars.
+        shrinker.shrink_by(0, 1 + self.vertical_offset, 0, -self.vertical_offset);
 
         ctx.draw.text_rect_blend(
             buffer.pixels_mut(),
@@ -152,6 +156,8 @@ pub trait TheTextTrait {
     fn set_text_size(&mut self, text_size: f32);
     /// Sets the text color.
     fn set_text_color(&mut self, color: RGBA);
+    /// Moves the rendered text vertically without changing its layout size.
+    fn set_vertical_offset(&mut self, offset: i32);
     /// Set fixed size text.
     fn set_fixed_size_text(&mut self, fixed_size_text: String);
 }
@@ -167,6 +173,10 @@ impl TheTextTrait for TheText {
     }
     fn set_text_color(&mut self, color: RGBA) {
         self.text_color = color;
+        self.is_dirty = true;
+    }
+    fn set_vertical_offset(&mut self, offset: i32) {
+        self.vertical_offset = offset;
         self.is_dirty = true;
     }
     fn set_fixed_size_text(&mut self, fixed_size_text: String) {

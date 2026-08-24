@@ -584,6 +584,13 @@ pub fn gen_screen_tree_items(node: &mut TheTreeNode, screen: &Screen) {
 
     node.add_widget(Box::new(item));
 
+    let mut item = TheTreeItem::new(TheId::named_with_reference(
+        "Screen Settings Item",
+        screen.id,
+    ));
+    item.set_text(fl!("settings"));
+    node.add_widget(Box::new(item));
+
     for sector in &screen.map.sectors {
         if !sector.name.is_empty() {
             let mut item = TheTreeItem::new(TheId::named_with_id_and_reference(
@@ -932,6 +939,7 @@ pub fn set_project_context(
             | ProjectContext::ItemCode(_)
             | ProjectContext::ItemData(_)
             | ProjectContext::Screen(_)
+            | ProjectContext::ScreenSettings(_)
             | ProjectContext::ScreenWidget(_, _)
             | ProjectContext::Avatar(_)
             | ProjectContext::AvatarAnimation(_, _, _)
@@ -1144,6 +1152,21 @@ pub fn set_project_context(
                 project,
                 server_ctx,
             );
+        }
+        ProjectContext::ScreenSettings(id) => {
+            server_ctx.editor_view_mode = EditorViewMode::D2;
+            ui.set_widget_value("Editor View Switch", ctx, TheValue::Int(0));
+            if let Some(screen) = project.screens.get(&id) {
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("Screen Settings: {}", screen.name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Data".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::ScreenWidget(id, _widget_id) => {
             // Screens are always edited in 2D preview mode.

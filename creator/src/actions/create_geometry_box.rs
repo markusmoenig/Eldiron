@@ -10,6 +10,11 @@ pub struct CreateGeometryBox {
     nodeui: TheNodeUI,
 }
 
+pub struct CreateGeometryUnitBox {
+    id: TheId,
+    nodeui: TheNodeUI,
+}
+
 impl CreateGeometryBox {
     fn last_size() -> Option<Vec3<f32>> {
         LAST_GEOMETRY_BOX_SIZE.lock().ok().and_then(|size| *size)
@@ -272,6 +277,23 @@ impl CreateGeometryBox {
         )
     }
 
+    fn unit_box_bounds_from_face_anchor(
+        anchor: Vec3<f32>,
+        normal: Vec3<f32>,
+    ) -> (Vec3<f32>, Vec3<f32>) {
+        let size = Vec3::one();
+        let half = size * 0.5;
+        Self::box_bounds_from_face_anchor(
+            anchor,
+            normal,
+            anchor - half,
+            anchor + half,
+            size,
+            1.0,
+            false,
+        )
+    }
+
     fn viewport_center_position(
         ui: &mut TheUI,
         server_ctx: &mut ServerContext,
@@ -301,6 +323,103 @@ impl CreateGeometryBox {
         }
 
         None
+    }
+}
+
+impl Action for CreateGeometryUnitBox {
+    fn new() -> Self
+    where
+        Self: Sized,
+    {
+        let mut nodeui = TheNodeUI::default();
+        nodeui.add_item(TheNodeUIItem::Markdown(
+            "desc".into(),
+            fl!("action_create_geometry_unit_box_desc"),
+        ));
+        Self {
+            id: TheId::named(&fl!("action_create_geometry_unit_box")),
+            nodeui,
+        }
+    }
+
+    fn id(&self) -> TheId {
+        self.id.clone()
+    }
+
+    fn info(&self) -> String {
+        fl!("action_create_geometry_unit_box_desc")
+    }
+
+    fn role(&self) -> ActionRole {
+        ActionRole::Editor
+    }
+
+    fn is_applicable(&self, _map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
+        server_ctx.get_map_context() == MapContext::Region
+            && server_ctx.editor_view_mode != EditorViewMode::D2
+    }
+
+    fn apply(
+        &self,
+        map: &mut Map,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> Option<ProjectUndoAtom> {
+        let prev = map.clone();
+        let (min, max) = if !map.selected_geometry_vertices.is_empty() {
+            let (anchor, normal, _, _) = CreateGeometryBox::selected_edge_face_anchor(map)?;
+            CreateGeometryBox::unit_box_bounds_from_face_anchor(anchor, normal)
+        } else if let Some((anchor, normal, _, _)) = CreateGeometryBox::selected_face_anchor(map) {
+            CreateGeometryBox::unit_box_bounds_from_face_anchor(anchor, normal)
+        } else {
+            let step = ServerContext::edit_grid_step(map.subdivisions);
+            let position = CreateGeometryBox::viewport_center_position(ui, server_ctx)
+                .or(map.curr_grid_pos_3d)
+                .unwrap_or(server_ctx.geo_hit_pos);
+            let center = Vec3::new(
+                CreateGeometryBox::snapped(position.x, step),
+                CreateGeometryBox::snapped(position.y, step),
+                CreateGeometryBox::snapped(position.z, step),
+            );
+            let half = Vec3::broadcast(0.5);
+            (center - half, center + half)
+        };
+        let object = GeometryObject::box_from_bounds("Unit Box", min, max);
+        let id = object.id;
+        map.geometry_objects.push(object);
+        map.clear_selection();
+        map.selected_geometry_objects.push(id);
+        server_ctx.curr_map_tool_type = MapToolType::Selection;
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Set Tool"),
+            TheValue::Text("tool.geometry".into()),
+        ));
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Map Selection Changed"),
+            TheValue::Empty,
+        ));
+
+        Some(ProjectUndoAtom::MapEdit(
+            server_ctx.pc,
+            Box::new(prev),
+            Box::new(map.clone()),
+        ))
+    }
+
+    fn params(&self) -> TheNodeUI {
+        self.nodeui.clone()
+    }
+
+    fn handle_event(
+        &mut self,
+        event: &TheEvent,
+        _project: &mut Project,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
+    ) -> bool {
+        self.nodeui.handle_event(event)
     }
 }
 
@@ -453,6 +572,25 @@ impl Action for CreateGeometryBox {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unit_box_stays_centered_and_flush_on_selected_surface() {
+        let mut map = Map::new();
+        let object = GeometryObject::box_from_bounds(
+            "Table Top",
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 1.0, 4.0),
+        );
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        map.selected_geometry_faces = vec![(object_id, 4)];
+
+        let (anchor, normal, _, _) = CreateGeometryBox::selected_face_anchor(&map).unwrap();
+        let (min, max) = CreateGeometryBox::unit_box_bounds_from_face_anchor(anchor, normal);
+
+        assert_eq!(min, Vec3::new(1.5, 1.0, 1.5));
+        assert_eq!(max, Vec3::new(2.5, 2.0, 2.5));
+    }
 
     #[test]
     fn selected_floor_edge_creates_wall_box_outside_face() {

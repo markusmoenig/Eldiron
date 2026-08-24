@@ -385,6 +385,7 @@ pub enum EntityKey {
     GameAudioFx,
     GameAuthoring,
     GameShortcuts,
+    ScreenSettings(Uuid),
     ScreenWidget(Uuid, Uuid), // (screen_id, widget_id)
 }
 
@@ -548,6 +549,15 @@ impl Dock for DataDock {
                     // Switch to this entity's undo stack
                     self.switch_to_entity(EntityKey::Item(id), ctx);
                 }
+            } else if let ProjectContext::ScreenSettings(screen_id) = server_ctx.pc {
+                if let Some(screen) = project.screens.get(&screen_id) {
+                    ui.set_widget_value(
+                        "DockDataEditor",
+                        ctx,
+                        TheValue::Text(screen.settings.clone()),
+                    );
+                    self.switch_to_entity(EntityKey::ScreenSettings(screen_id), ctx);
+                }
             } else if let ProjectContext::ScreenWidget(screen_id, widget_id) = server_ctx.pc {
                 if let Some(screen) = project.screens.get(&screen_id) {
                     for sector in &screen.map.sectors {
@@ -704,6 +714,13 @@ impl Dock for DataDock {
                                     item.data = code;
                                     redraw = true;
                                 }
+                            }
+                        } else if let ProjectContext::ScreenSettings(screen_id) = server_ctx.pc {
+                            if let Some(code) = value.to_string()
+                                && let Some(screen) = project.screens.get_mut(&screen_id)
+                            {
+                                screen.settings = code;
+                                redraw = true;
                             }
                         } else if let ProjectContext::ScreenWidget(screen_id, widget_id) =
                             server_ctx.pc
@@ -1819,6 +1836,10 @@ impl DataDock {
                 } else if server_ctx.pc.is_item() {
                     if let Some(item) = project.items.get_mut(&id) {
                         item.data = text;
+                    }
+                } else if let ProjectContext::ScreenSettings(screen_id) = server_ctx.pc {
+                    if let Some(screen) = project.screens.get_mut(&screen_id) {
+                        screen.settings = text;
                     }
                 } else if let ProjectContext::ScreenWidget(screen_id, widget_id) = server_ctx.pc {
                     if let Some(screen) = project.screens.get_mut(&screen_id) {

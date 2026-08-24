@@ -191,6 +191,7 @@ pub enum ProjectContext {
     ItemData(Uuid),
     Tilemap(Uuid),
     Screen(Uuid),
+    ScreenSettings(Uuid),
     ScreenWidget(Uuid, Uuid),
     Asset(Uuid),
     Prefab(Uuid),
@@ -232,6 +233,7 @@ impl ProjectContext {
             | ProjectContext::ItemData(id)
             | ProjectContext::Tilemap(id)
             | ProjectContext::Screen(id)
+            | ProjectContext::ScreenSettings(id)
             | ProjectContext::ScreenWidget(id, _)
             | ProjectContext::Asset(id)
             | ProjectContext::Prefab(id)
@@ -302,7 +304,9 @@ impl ProjectContext {
 
     pub fn is_screen(&self) -> bool {
         match self {
-            ProjectContext::Screen(_) | ProjectContext::ScreenWidget(_, _) => true,
+            ProjectContext::Screen(_)
+            | ProjectContext::ScreenSettings(_)
+            | ProjectContext::ScreenWidget(_, _) => true,
             _ => false,
         }
     }

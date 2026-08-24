@@ -10,6 +10,13 @@ pub enum TheEvent {
     MouseDragged(Vec2<i32>),
     MouseUp(Vec2<i32>),
     MouseWheel(Vec2<i32>),
+    /// Precise pixel scrolling from a gesture-capable pointing surface.
+    ///
+    /// This is kept separate from `MouseWheel` so render views can offer
+    /// trackpad navigation without changing physical mouse-wheel behavior.
+    PreciseScroll(Vec2<f32>),
+    /// Relative magnification reported by a pinch gesture.
+    Pinch(f32),
 
     KeyDown(TheValue),
     KeyUp(TheValue),
@@ -67,6 +74,8 @@ pub enum TheEvent {
     RenderViewHoverChanged(TheId, Vec2<i32>),
     RenderViewLostHover(TheId),
     RenderViewScrollBy(TheId, Vec2<i32>),
+    RenderViewPreciseScrollBy(TheId, Vec2<i32>),
+    RenderViewZoomBy(TheId, f32),
     RenderViewUp(TheId, Vec2<i32>),
     RenderViewDrop(TheId, Vec2<i32>, TheDrop),
     RenderViewContext(TheId, Vec2<i32>),

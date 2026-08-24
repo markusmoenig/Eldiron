@@ -197,6 +197,29 @@ pub fn rename_prefab_part(
     Ok(())
 }
 
+/// Rename the authored Prefab asset while keeping its isolated editor map in
+/// sync. Linked instances reference the stable asset UUID, so renaming never
+/// breaks or duplicates them.
+pub fn rename_prefab_asset(
+    project: &mut Project,
+    asset_id: Uuid,
+    name: String,
+) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(fl!("status_prefab_name_required"));
+    }
+    let asset = project
+        .block_props
+        .get_mut(&asset_id)
+        .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?;
+    asset.name = name.to_string();
+    if let Some(map) = project.prefab_editor_map.as_mut() {
+        map.name = name.to_string();
+    }
+    Ok(())
+}
+
 pub fn set_prefab_part_parent(
     project: &mut Project,
     asset_id: Uuid,

@@ -1,4 +1,4 @@
-use crate::editor::RUSTERIX;
+use crate::editor::{ACTIONLIST, RUSTERIX};
 use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
@@ -2709,6 +2709,29 @@ fn refresh_geometry_selection(ctx: &mut TheContext) {
     ));
 }
 
+/// Keep the compact Project sidebar settings in sync with a direct 3D object
+/// selection. The full Actions page is intentionally user-controlled: selecting
+/// geometry there must not replace the action the user is currently working with.
+fn activate_project_geometry_action(ui: &mut TheUI, map: &Map, server_ctx: &mut ServerContext) {
+    let project_page_is_active = ui
+        .get_stack_layout("Sidebar Page Stack")
+        .is_some_and(|stack| stack.index() == 0);
+    if !project_page_is_active
+        || geometry_selection_mode(map) != GeometrySelectionMode::Object
+        || map.selected_geometry_objects.len() != 1
+    {
+        return;
+    }
+
+    if let Some(action) = ACTIONLIST
+        .read()
+        .unwrap()
+        .get_action_by_command_id("geometry.edit")
+    {
+        server_ctx.curr_action_id = Some(action.id().uuid);
+    }
+}
+
 impl Tool for GeometryTool {
     fn new() -> Self
     where
@@ -3014,6 +3037,7 @@ impl Tool for GeometryTool {
                         }
                     }
                     sanitize_geometry_selection(map);
+                    activate_project_geometry_action(_ui, map, server_ctx);
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,
@@ -3065,6 +3089,7 @@ impl Tool for GeometryTool {
                         changed: false,
                     });
                 }
+                activate_project_geometry_action(_ui, map, server_ctx);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Map Selection Changed"),
                     TheValue::Empty,
@@ -3117,6 +3142,7 @@ impl Tool for GeometryTool {
                         apply_geometry_rectangle_selection(
                             map, &selection, mode, _ui.shift, _ui.alt,
                         );
+                        activate_project_geometry_action(_ui, map, server_ctx);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Map Selection Changed"),
                             TheValue::Empty,

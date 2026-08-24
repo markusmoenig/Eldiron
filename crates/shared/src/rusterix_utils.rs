@@ -240,9 +240,15 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             .insert(region.map.id, region.source.clone());
     }
     rusterix.assets.screens.clear();
+    rusterix.assets.screen_settings.clear();
     for (_, screen) in &project.screens {
         let scr = screen.map.clone();
-        rusterix.assets.screens.insert(screen.map.name.clone(), scr);
+        let name = screen.map.name.clone();
+        rusterix.assets.screens.insert(name.clone(), scr);
+        rusterix
+            .assets
+            .screen_settings
+            .insert(name, screen.settings.clone());
     }
     rusterix.assets.avatars.clear();
     insert_bundled_ruleset_avatars(&mut rusterix.assets, project);

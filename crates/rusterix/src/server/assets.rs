@@ -34,6 +34,9 @@ pub struct Assets {
     pub tile_indices: FxHashMap<Uuid, u16>,
 
     pub screens: FxHashMap<String, Map>,
+    /// Screen-level TOML keyed by screen/map name. Kept separate from the map
+    /// so presentation settings do not leak into authored map properties.
+    pub screen_settings: FxHashMap<String, String>,
 
     /// Maps which build character tiles.
     pub character_maps: FxHashMap<String, Map>,
@@ -163,6 +166,7 @@ impl Assets {
             tile_indices: FxHashMap::default(),
             materials: FxHashMap::default(),
             screens: FxHashMap::default(),
+            screen_settings: FxHashMap::default(),
             character_maps: FxHashMap::default(),
             entity_tiles: FxHashMap::default(),
             item_maps: FxHashMap::default(),
@@ -190,6 +194,21 @@ impl Assets {
             procedural_sdfs: FxHashMap::default(),
             procedural_sdf_signatures: FxHashMap::default(),
         }
+    }
+
+    pub fn screen_is_responsive(&self, name: &str) -> bool {
+        let Some(settings) = self.screen_settings.get(name) else {
+            return false;
+        };
+        let Ok(table) = settings.parse::<Table>() else {
+            return false;
+        };
+        table
+            .get("layout")
+            .and_then(toml::Value::as_table)
+            .and_then(|layout| layout.get("mode"))
+            .and_then(toml::Value::as_str)
+            .is_some_and(|mode| mode.trim().eq_ignore_ascii_case("responsive"))
     }
 
     pub fn set_procedural_material_sources<'a, I>(&mut self, sources: I)

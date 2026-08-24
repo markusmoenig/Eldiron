@@ -464,6 +464,7 @@ impl ApplicationHandler for TheWinitApp {
                         | WindowEvent::Touch(_)
                         | WindowEvent::MouseInput { .. }
                         | WindowEvent::MouseWheel { .. }
+                        | WindowEvent::PinchGesture { .. }
                         | WindowEvent::DroppedFile(_)
                 );
                 if pointer_moved {
@@ -1035,6 +1036,8 @@ impl ApplicationHandler for TheWinitApp {
                         }
                     }
                     WindowEvent::MouseWheel { delta, .. } => {
+                        #[cfg(target_os = "macos")]
+                        let is_precise = matches!(&delta, MouseScrollDelta::PixelDelta(_));
                         let (x, y) = match delta {
                             MouseScrollDelta::LineDelta(x, y) => {
                                 const LINE_HEIGHT_PX: f32 = 20.0;
@@ -1045,8 +1048,19 @@ impl ApplicationHandler for TheWinitApp {
 
                         let mut redraw = false;
                         #[cfg(feature = "ui")]
-                        if self.ui.mouse_wheel((x as i32, y as i32), &mut ctx.ctx) {
-                            redraw = true;
+                        {
+                            #[cfg(target_os = "macos")]
+                            let ui_redraw = if is_precise {
+                                self.ui.precise_scroll((x, y), &mut ctx.ctx)
+                            } else {
+                                self.ui.mouse_wheel((x as i32, y as i32), &mut ctx.ctx)
+                            };
+                            #[cfg(not(target_os = "macos"))]
+                            let ui_redraw = self.ui.mouse_wheel((x as i32, y as i32), &mut ctx.ctx);
+
+                            if ui_redraw {
+                                redraw = true;
+                            }
                         }
 
                         if self.app.mouse_wheel((x as isize, y as isize), &mut ctx.ctx) {
@@ -1055,6 +1069,19 @@ impl ApplicationHandler for TheWinitApp {
 
                         if redraw {
                             ctx.window.request_redraw();
+                        }
+                    }
+                    #[cfg(target_os = "macos")]
+                    WindowEvent::PinchGesture { delta, .. } => {
+                        if delta.is_finite() {
+                            let mut redraw = false;
+                            #[cfg(feature = "ui")]
+                            if self.ui.pinch(delta as f32, &mut ctx.ctx) {
+                                redraw = true;
+                            }
+                            if redraw {
+                                ctx.window.request_redraw();
+                            }
                         }
                     }
                     WindowEvent::DroppedFile(path) => {

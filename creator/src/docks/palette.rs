@@ -12,6 +12,7 @@ const PALETTE_DOCK_PICKER: &str = "Palette Dock Picker";
 const PALETTE_DOCK_HEX: &str = "Palette Dock Hex Edit";
 const PALETTE_DOCK_MATERIAL_PRESET: &str = "Palette Dock Material Preset";
 const PALETTE_DOCK_MATERIAL_FINISH: &str = "Palette Dock Material Finish";
+const PREFAB_PALETTE_PREFIX: &str = "Prefab Editor ";
 
 pub(crate) struct PaletteDockBoard {
     id: TheId,
@@ -210,8 +211,13 @@ impl TheWidget for PaletteDockBoard {
                 if self.read_only {
                     return true;
                 }
+                let prefix = self
+                    .id
+                    .name
+                    .strip_suffix(PALETTE_DOCK_PICKER)
+                    .unwrap_or_default();
                 ctx.ui.send(TheEvent::Custom(
-                    TheId::named("Palette Dock Delete Entry"),
+                    TheId::named(&format!("{prefix}Palette Dock Delete Entry")),
                     TheValue::Int(self.index as i32),
                 ));
                 return true;
@@ -346,9 +352,21 @@ impl TheWidget for PaletteDockBoard {
 
 pub struct PaletteDock {
     nodeui: TheNodeUI,
+    widget_prefix: &'static str,
 }
 
 impl PaletteDock {
+    pub fn new_prefab() -> Self {
+        Self {
+            nodeui: Self::build_nodeui(PREFAB_PALETTE_PREFIX),
+            widget_prefix: PREFAB_PALETTE_PREFIX,
+        }
+    }
+
+    fn widget_name(&self, name: &str) -> String {
+        format!("{}{name}", self.widget_prefix)
+    }
+
     fn material_preset_labels() -> Vec<String> {
         vec![
             fl!("material_preset_default"),
@@ -417,10 +435,10 @@ impl PaletteDock {
         (end < project.art_palette.colors.len()).then_some(end)
     }
 
-    fn build_nodeui() -> TheNodeUI {
+    fn build_nodeui(prefix: &str) -> TheNodeUI {
         let mut nodeui = TheNodeUI::default();
         nodeui.add_item(TheNodeUIItem::Text(
-            PALETTE_DOCK_HEX.into(),
+            format!("{prefix}{PALETTE_DOCK_HEX}"),
             fl!("palette_hex"),
             "".into(),
             "".into(),
@@ -428,14 +446,14 @@ impl PaletteDock {
             false,
         ));
         nodeui.add_item(TheNodeUIItem::Selector(
-            PALETTE_DOCK_MATERIAL_PRESET.into(),
+            format!("{prefix}{PALETTE_DOCK_MATERIAL_PRESET}"),
             fl!("material_preset"),
             fl!("status_material_preset"),
             Self::material_preset_labels(),
             0,
         ));
         nodeui.add_item(TheNodeUIItem::Selector(
-            PALETTE_DOCK_MATERIAL_FINISH.into(),
+            format!("{prefix}{PALETTE_DOCK_MATERIAL_FINISH}"),
             fl!("material_finish"),
             fl!("status_material_finish"),
             Self::material_finish_labels(),
@@ -459,7 +477,7 @@ impl PaletteDock {
 
     fn sync_widgets(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
         let index = project.art_palette.current_index as usize;
-        if let Some(widget) = ui.get_widget(PALETTE_DOCK_PICKER)
+        if let Some(widget) = ui.get_widget(&self.widget_name(PALETTE_DOCK_PICKER))
             && let Some(board) = widget.as_any().downcast_mut::<PaletteDockBoard>()
         {
             board.set_palette(project.art_palette.clone());
@@ -471,28 +489,30 @@ impl PaletteDock {
             .as_ref()
             .map(TheColor::to_hex)
             .unwrap_or_default();
-        self.nodeui.set_text_value(PALETTE_DOCK_HEX, text);
+        self.nodeui
+            .set_text_value(&self.widget_name(PALETTE_DOCK_HEX), text);
         let material = project
             .art_palette_materials
             .get(index)
             .cloned()
             .unwrap_or_default();
         self.nodeui.set_i32_value(
-            PALETTE_DOCK_MATERIAL_PRESET,
+            &self.widget_name(PALETTE_DOCK_MATERIAL_PRESET),
             Self::material_index(&MATERIAL_PRESET_VALUES, &material.preset, 0),
         );
         self.nodeui.set_i32_value(
-            PALETTE_DOCK_MATERIAL_FINISH,
+            &self.widget_name(PALETTE_DOCK_MATERIAL_FINISH),
             Self::material_index(&MATERIAL_FINISH_VALUES, &material.finish, 0),
         );
 
-        if let Some(layout) = ui.get_text_layout("Palette Dock Inspector Layout") {
+        if let Some(layout) = ui.get_text_layout(&self.widget_name("Palette Dock Inspector Layout"))
+        {
             self.nodeui.apply_to_text_layout(layout);
             ctx.ui.relayout = true;
         }
 
         for id in ["Palette Dock New", "Palette Dock Clone", PALETTE_DOCK_HEX] {
-            ui.set_widget_disabled_state(id, ctx, false);
+            ui.set_widget_disabled_state(&self.widget_name(id), ctx, false);
         }
     }
 
@@ -752,7 +772,8 @@ impl Dock for PaletteDock {
         Self: Sized,
     {
         Self {
-            nodeui: Self::build_nodeui(),
+            nodeui: Self::build_nodeui(""),
+            widget_prefix: "",
         }
     }
 
@@ -766,22 +787,26 @@ impl Dock for PaletteDock {
         top_layout.set_margin(Vec4::new(10, 1, 5, 1));
         top_layout.set_padding(3);
 
-        let mut apply = TheTraybarButton::new(TheId::named("Palette Dock Apply Color"));
+        let mut apply =
+            TheTraybarButton::new(TheId::named(&self.widget_name("Palette Dock Apply Color")));
         apply.set_text(fl!("palette_apply_color"));
         apply.set_status_text(&fl!("status_palette_apply_color"));
-        let mut new_button = TheTraybarButton::new(TheId::named("Palette Dock New"));
+        let mut new_button =
+            TheTraybarButton::new(TheId::named(&self.widget_name("Palette Dock New")));
         new_button.set_text(fl!("new"));
         new_button.set_status_text(&fl!("status_palette_new"));
         top_layout.add_widget(Box::new(new_button));
 
-        let mut clone_button = TheTraybarButton::new(TheId::named("Palette Dock Clone"));
+        let mut clone_button =
+            TheTraybarButton::new(TheId::named(&self.widget_name("Palette Dock Clone")));
         clone_button.set_text(fl!("action_duplicate"));
         clone_button.set_status_text(&fl!("status_palette_duplicate"));
         top_layout.add_widget(Box::new(clone_button));
 
         top_layout.add_widget(Box::new(apply));
 
-        let mut clear = TheTraybarButton::new(TheId::named("Palette Dock Clear Color"));
+        let mut clear =
+            TheTraybarButton::new(TheId::named(&self.widget_name("Palette Dock Clear Color")));
         clear.set_text(fl!("clear"));
         clear.set_status_text(&fl!("status_palette_clear"));
         top_layout.add_widget(Box::new(clear));
@@ -792,13 +817,17 @@ impl Dock for PaletteDock {
         let mut center = TheCanvas::new();
 
         let mut picker_canvas = TheCanvas::new();
-        picker_canvas.set_widget(PaletteDockBoard::new(TheId::named(PALETTE_DOCK_PICKER)));
+        picker_canvas.set_widget(PaletteDockBoard::new(TheId::named(
+            &self.widget_name(PALETTE_DOCK_PICKER),
+        )));
         center.set_center(picker_canvas);
 
         let mut inspector_canvas = TheCanvas::new();
         inspector_canvas.limiter_mut().set_min_width(220);
         inspector_canvas.limiter_mut().set_max_width(300);
-        let mut inspector = TheTextLayout::new(TheId::named("Palette Dock Inspector Layout"));
+        let mut inspector = TheTextLayout::new(TheId::named(
+            &self.widget_name("Palette Dock Inspector Layout"),
+        ));
         inspector.limiter_mut().set_min_width(220);
         inspector.limiter_mut().set_max_width(300);
         inspector.set_text_margin(20);
@@ -837,7 +866,9 @@ impl Dock for PaletteDock {
             refresh_palette_runtime(project);
         }
         match event {
-            TheEvent::PaletteEntriesSwapped(id, from, to) if id.name == PALETTE_DOCK_PICKER => {
+            TheEvent::PaletteEntriesSwapped(id, from, to)
+                if id.name == self.widget_name(PALETTE_DOCK_PICKER) =>
+            {
                 let from = *from as usize;
                 let to = *to as usize;
                 if from < project.art_palette.colors.len()
@@ -861,14 +892,18 @@ impl Dock for PaletteDock {
                 }
                 true
             }
-            TheEvent::PaletteIndexChanged(id, index) if id.name == PALETTE_DOCK_PICKER => {
+            TheEvent::PaletteIndexChanged(id, index)
+                if id.name == self.widget_name(PALETTE_DOCK_PICKER) =>
+            {
                 project.art_palette.current_index = *index;
                 project.ensure_art_palette_materials_len();
                 apply_palette(ui, ctx, server_ctx, project);
                 self.sync_widgets(ui, ctx, project);
                 true
             }
-            TheEvent::ValueChanged(id, TheValue::Text(text)) if id.name == PALETTE_DOCK_HEX => {
+            TheEvent::ValueChanged(id, TheValue::Text(text))
+                if id.name == self.widget_name(PALETTE_DOCK_HEX) =>
+            {
                 let color = TheColor::from_hex(text);
                 let index = project.art_palette.current_index as usize;
                 project.ensure_art_palette_materials_len();
@@ -887,10 +922,8 @@ impl Dock for PaletteDock {
                 true
             }
             TheEvent::ValueChanged(id, TheValue::Int(value))
-                if matches!(
-                    id.name.as_str(),
-                    PALETTE_DOCK_MATERIAL_PRESET | PALETTE_DOCK_MATERIAL_FINISH
-                ) =>
+                if id.name == self.widget_name(PALETTE_DOCK_MATERIAL_PRESET)
+                    || id.name == self.widget_name(PALETTE_DOCK_MATERIAL_FINISH) =>
             {
                 let index = project.art_palette.current_index as usize;
                 project.ensure_art_palette_materials_len();
@@ -898,31 +931,29 @@ impl Dock for PaletteDock {
                 let prev_materials = project.art_palette_materials.clone();
                 let material = &mut project.art_palette_materials[index];
                 let value = (*value).max(0) as usize;
-                let changed = match id.name.as_str() {
-                    PALETTE_DOCK_MATERIAL_PRESET => {
-                        let preset = MATERIAL_PRESET_VALUES
-                            .get(value)
-                            .copied()
-                            .unwrap_or("default")
-                            .to_string();
-                        let changed = material.preset != preset;
-                        material.preset = preset;
-                        if material.preset == "default" {
-                            material.finish = "natural".to_string();
-                        }
-                        changed
+                let changed = if id.name == self.widget_name(PALETTE_DOCK_MATERIAL_PRESET) {
+                    let preset = MATERIAL_PRESET_VALUES
+                        .get(value)
+                        .copied()
+                        .unwrap_or("default")
+                        .to_string();
+                    let changed = material.preset != preset;
+                    material.preset = preset;
+                    if material.preset == "default" {
+                        material.finish = "natural".to_string();
                     }
-                    PALETTE_DOCK_MATERIAL_FINISH => {
-                        let finish = MATERIAL_FINISH_VALUES
-                            .get(value)
-                            .copied()
-                            .unwrap_or("natural")
-                            .to_string();
-                        let changed = material.finish != finish;
-                        material.finish = finish;
-                        changed
-                    }
-                    _ => false,
+                    changed
+                } else if id.name == self.widget_name(PALETTE_DOCK_MATERIAL_FINISH) {
+                    let finish = MATERIAL_FINISH_VALUES
+                        .get(value)
+                        .copied()
+                        .unwrap_or("natural")
+                        .to_string();
+                    let changed = material.finish != finish;
+                    material.finish = finish;
+                    changed
+                } else {
+                    false
                 };
                 if changed {
                     if material.preset == "default" {
@@ -938,7 +969,7 @@ impl Dock for PaletteDock {
                 true
             }
             TheEvent::StateChanged(id, TheWidgetState::Clicked) => {
-                if id.name == "Palette Dock New" {
+                if id.name == self.widget_name("Palette Dock New") {
                     if let Some(index) = Self::append_index(project) {
                         let prev = project.art_palette.clone();
                         let prev_materials = project.art_palette_materials.clone();
@@ -957,7 +988,7 @@ impl Dock for PaletteDock {
                             .add_undo(Self::palette_undo_atom(prev, prev_materials, project), ctx);
                     }
                     true
-                } else if id.name == "Palette Dock Clone" {
+                } else if id.name == self.widget_name("Palette Dock Clone") {
                     if let Some(index) = Self::append_index(project) {
                         let prev = project.art_palette.clone();
                         let prev_materials = project.art_palette_materials.clone();
@@ -980,10 +1011,10 @@ impl Dock for PaletteDock {
                             .add_undo(Self::palette_undo_atom(prev, prev_materials, project), ctx);
                     }
                     true
-                } else if id.name == "Palette Dock Apply Color" {
+                } else if id.name == self.widget_name("Palette Dock Apply Color") {
                     self.apply_current_palette_color(project, ctx, server_ctx);
                     true
-                } else if id.name == "Palette Dock Clear Color" {
+                } else if id.name == self.widget_name("Palette Dock Clear Color") {
                     self.clear_current_palette_color(project, ctx, server_ctx);
                     true
                 } else {
@@ -991,7 +1022,7 @@ impl Dock for PaletteDock {
                 }
             }
             TheEvent::Custom(id, TheValue::Int(index))
-                if id.name == "Palette Dock Delete Entry" =>
+                if id.name == self.widget_name("Palette Dock Delete Entry") =>
             {
                 let index = *index as usize;
                 if index < project.art_palette.colors.len() {

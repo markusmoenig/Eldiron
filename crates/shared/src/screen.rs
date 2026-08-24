@@ -6,6 +6,11 @@ pub struct Screen {
     pub id: Uuid,
     pub name: String,
 
+    /// Screen-level presentation settings. Empty settings retain the legacy
+    /// fixed-layout behavior for backwards compatibility.
+    #[serde(default)]
+    pub settings: String,
+
     pub map: Map,
 }
 
@@ -21,8 +26,26 @@ impl Screen {
             id: Uuid::new_v4(),
             name: "New Screen".to_string(),
 
+            settings:
+                "[layout]\n# Available modes: \"fixed\" or \"responsive\"\nmode = \"fixed\"\n"
+                    .to_string(),
+
             map: Map::default(),
         }
+    }
+
+    /// Whether this screen follows the runtime surface and anchors its widgets
+    /// relative to that surface.
+    pub fn is_responsive(&self) -> bool {
+        let Ok(table) = self.settings.parse::<toml::Table>() else {
+            return false;
+        };
+        table
+            .get("layout")
+            .and_then(toml::Value::as_table)
+            .and_then(|layout| layout.get("mode"))
+            .and_then(toml::Value::as_str)
+            .is_some_and(|mode| mode.trim().eq_ignore_ascii_case("responsive"))
     }
 
     /// Create a region from json.
@@ -33,6 +56,37 @@ impl Screen {
     /// Convert the region to json.
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self).unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_or_invalid_screen_settings_are_fixed() {
+        let mut screen = Screen::new();
+        screen.settings.clear();
+        assert!(!screen.is_responsive());
+        screen.settings = "not valid toml =".into();
+        assert!(!screen.is_responsive());
+    }
+
+    #[test]
+    fn responsive_mode_is_case_insensitive() {
+        let mut screen = Screen::new();
+        screen.settings = "[layout]\nmode = \"Responsive\"\n".into();
+        assert!(screen.is_responsive());
+    }
+
+    #[test]
+    fn legacy_serialized_screen_without_settings_is_fixed() {
+        let screen = Screen::new();
+        let mut value = serde_json::to_value(screen).unwrap();
+        value.as_object_mut().unwrap().remove("settings");
+        let decoded: Screen = serde_json::from_value(value).unwrap();
+        assert!(decoded.settings.is_empty());
+        assert!(!decoded.is_responsive());
     }
 }
 

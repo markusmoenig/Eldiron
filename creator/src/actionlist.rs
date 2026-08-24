@@ -113,6 +113,11 @@ impl ActionList {
             crate::actions::create_geometry_box::CreateGeometryBox::new(),
         );
         list.register(
+            "geometry.create_unit_box",
+            Geometry,
+            crate::actions::create_geometry_box::CreateGeometryUnitBox::new(),
+        );
+        list.register(
             "prefab.create_linked",
             Prefab,
             crate::actions::prefabs::CreateLinkedPrefab::new(),
@@ -188,8 +193,10 @@ impl ActionList {
             crate::actions::clear_surface_detail::ClearSurfaceDetail::new(),
         );
         list.register(
+            // Keep the established command id for scripts and shortcuts; the
+            // action is presented with the other geometry operations.
             "general.duplicate",
-            General,
+            Geometry,
             crate::actions::duplicate::Duplicate::new(),
         );
         list.register(
@@ -438,5 +445,15 @@ mod tests {
     fn action_groups_map_one_to_one_to_theme_slots() {
         let slots = ActionGroup::ALL.map(ActionGroup::palette_slot);
         assert_eq!(slots, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    }
+
+    #[test]
+    fn duplicate_is_presented_as_geometry_without_breaking_its_command_id() {
+        let actions = ActionList::new();
+        let action = actions
+            .get_action_by_command_id("general.duplicate")
+            .unwrap();
+        let descriptor = actions.descriptor_by_id(action.id().uuid).unwrap();
+        assert_eq!(descriptor.group, ActionGroup::Geometry);
     }
 }

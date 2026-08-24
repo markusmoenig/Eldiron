@@ -57,6 +57,8 @@ bool rust_touch_up(float x, float y);
 bool rust_right_touch_up(float x, float y);
 
 bool rust_touch_wheel(float x, float y);
+bool rust_touch_precise_scroll(float x, float y);
+bool rust_pinch(float delta);
 
 bool rust_key_down(const char *);
 bool rust_key_up(const char *);

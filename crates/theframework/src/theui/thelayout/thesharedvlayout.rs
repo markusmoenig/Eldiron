@@ -23,6 +23,7 @@ pub struct TheSharedVLayout {
 
     background: Option<TheThemeColors>,
     ratio: f32,
+    is_dirty: bool,
 }
 
 impl TheLayout for TheSharedVLayout {
@@ -45,6 +46,7 @@ impl TheLayout for TheSharedVLayout {
 
             background: Some(DefaultWidgetBackground),
             ratio: 0.5,
+            is_dirty: true,
         }
     }
 
@@ -54,14 +56,17 @@ impl TheLayout for TheSharedVLayout {
 
     fn set_margin(&mut self, margin: Vec4<i32>) {
         self.margin = margin;
+        self.is_dirty = true;
     }
 
     fn set_padding(&mut self, padding: i32) {
         self.padding = padding;
+        self.is_dirty = true;
     }
 
     fn set_background_color(&mut self, color: Option<TheThemeColors>) {
         self.background = color;
+        self.is_dirty = true;
     }
 
     fn widgets(&mut self) -> &mut Vec<Box<dyn TheWidget>> {
@@ -69,21 +74,34 @@ impl TheLayout for TheSharedVLayout {
     }
 
     fn needs_redraw(&mut self) -> bool {
-        for canvas in &mut self.canvas {
-            if canvas.needs_redraw() {
-                return true;
-            }
+        if self.is_dirty || self.canvas.len() < 2 {
+            return self.is_dirty;
         }
 
-        false
+        match self.mode {
+            TheSharedVLayoutMode::Top => self.canvas[0].needs_redraw(),
+            TheSharedVLayoutMode::Bottom => self.canvas[1].needs_redraw(),
+            TheSharedVLayoutMode::Shared => {
+                self.canvas[0].needs_redraw() || self.canvas[1].needs_redraw()
+            }
+        }
     }
 
     fn get_layout_at_coord(&mut self, coord: Vec2<i32>) -> Option<TheId> {
-        if self.dim.contains(coord) {
-            for c in &mut self.canvas {
-                if let Some(layout_id) = c.get_layout_at_coord(coord) {
-                    return Some(layout_id);
-                }
+        if !self.dim.contains(coord) || self.canvas.len() < 2 {
+            return None;
+        }
+
+        if self.mode == TheSharedVLayoutMode::Top {
+            return self.canvas[0].get_layout_at_coord(coord);
+        }
+        if self.mode == TheSharedVLayoutMode::Bottom {
+            return self.canvas[1].get_layout_at_coord(coord);
+        }
+
+        for c in &mut self.canvas {
+            if let Some(layout_id) = c.get_layout_at_coord(coord) {
+                return Some(layout_id);
             }
         }
         None
@@ -154,6 +172,7 @@ impl TheLayout for TheSharedVLayout {
     fn set_dim(&mut self, dim: TheDim, ctx: &mut TheContext) {
         if self.dim != dim || ctx.ui.relayout {
             self.dim = dim;
+            self.is_dirty = true;
 
             if self.canvas.len() < 2 {
                 return;
@@ -246,6 +265,7 @@ impl TheLayout for TheSharedVLayout {
                 self.canvas[1].buffer(),
             );
         }
+        self.is_dirty = false;
     }
 
     fn as_sharedvlayout(&mut self) -> Option<&mut dyn TheSharedVLayoutTrait> {
@@ -272,6 +292,7 @@ pub trait TheSharedVLayoutTrait: TheLayout {
 impl TheSharedVLayoutTrait for TheSharedVLayout {
     fn add_canvas(&mut self, canvas: TheCanvas) {
         self.canvas.push(canvas);
+        self.is_dirty = true;
     }
     fn get_canvas_mut(&mut self, index: usize) -> Option<&mut TheCanvas> {
         if index < self.canvas.len() {
@@ -283,12 +304,19 @@ impl TheSharedVLayoutTrait for TheSharedVLayout {
         self.mode.clone()
     }
     fn set_mode(&mut self, mode: TheSharedVLayoutMode) {
-        self.mode = mode;
+        if self.mode != mode {
+            self.mode = mode;
+            self.is_dirty = true;
+        }
     }
     fn get_mode(&self) -> TheSharedVLayoutMode {
         self.mode.clone()
     }
     fn set_shared_ratio(&mut self, ratio: f32) {
-        self.ratio = ratio;
+        let ratio = ratio.clamp(0.0, 1.0);
+        if (self.ratio - ratio).abs() > f32::EPSILON {
+            self.ratio = ratio;
+            self.is_dirty = true;
+        }
     }
 }
