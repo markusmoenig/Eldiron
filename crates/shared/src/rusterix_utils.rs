@@ -29,25 +29,54 @@ fn insert_bundled_ruleset_textures(
     }
 }
 
-fn insert_project_item_icons(assets: &mut rusterix::server::assets::Assets, project: &Project) {
+fn insert_bundled_ruleset_item_icons(
+    assets: &mut rusterix::server::assets::Assets,
+    project: &Project,
+) {
     assets.item_icons.clear();
-    for item in project.items.values() {
-        if item.icon_frames.is_empty() {
-            continue;
-        }
-
-        let frames = item.icon_frames.clone();
-        assets
-            .item_icons
-            .insert(item.name.trim().to_ascii_lowercase(), frames.clone());
-
-        let mut runtime_item = rusterix::Item::default();
-        rusterix::server::data::apply_item_data(&mut runtime_item, &item.data);
-        for key in ["ruleset_path", "ruleset_id", "class_name", "name"] {
-            if let Some(value) = runtime_item.attributes.get_str(key) {
+    match crate::rulesets::bundled_item_icon_states_for_project(&project.config) {
+        Ok(states) => {
+            for (item_id, state, frames) in states {
+                let item_id = item_id.trim().to_ascii_lowercase();
+                let state = state.trim().to_ascii_lowercase();
                 assets
                     .item_icons
-                    .insert(value.trim().to_ascii_lowercase(), frames.clone());
+                    .insert(format!("{item_id}:{state}"), frames.clone());
+                if state == "on" {
+                    assets.item_icons.insert(item_id, frames);
+                }
+            }
+        }
+        Err(err) => eprintln!("Ruleset item icon state load error: {}", err),
+    }
+}
+
+fn insert_project_item_icons(assets: &mut rusterix::server::assets::Assets, project: &Project) {
+    for item in project.items.values() {
+        let mut runtime_item = rusterix::Item::default();
+        rusterix::server::data::apply_item_data(&mut runtime_item, &item.data);
+        let mut keys = vec![item.name.trim().to_ascii_lowercase()];
+        for key in ["ruleset_path", "ruleset_id", "class_name", "name"] {
+            if let Some(value) = runtime_item.attributes.get_str(key) {
+                keys.push(value.trim().to_ascii_lowercase());
+            }
+        }
+
+        if !item.icon_frames.is_empty() {
+            for key in &keys {
+                assets
+                    .item_icons
+                    .insert(key.clone(), item.icon_frames.clone());
+                assets
+                    .item_icons
+                    .insert(format!("{key}:on"), item.icon_frames.clone());
+            }
+        }
+        if !item.icon_off_frames.is_empty() {
+            for key in &keys {
+                assets
+                    .item_icons
+                    .insert(format!("{key}:off"), item.icon_off_frames.clone());
             }
         }
     }
@@ -74,6 +103,7 @@ pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
             .insert(avatar.name.clone(), avatar.clone());
     }
     insert_bundled_ruleset_textures(&mut rusterix.assets, project);
+    insert_bundled_ruleset_item_icons(&mut rusterix.assets, project);
     insert_project_item_icons(&mut rusterix.assets, project);
 }
 
@@ -142,6 +172,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.assets.item_authoring.clear();
     rusterix.assets.item_maps.clear();
     rusterix.assets.item_tiles.clear();
+    insert_bundled_ruleset_item_icons(&mut rusterix.assets, project);
     insert_project_item_icons(&mut rusterix.assets, project);
     for item in project.items.values_mut() {
         if debug && !item.source_debug.is_empty() {

@@ -3524,10 +3524,10 @@ mod tests {
     fn cutout_uses_coplanar_surface_when_guide_spans_split_face() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../test_projects/CutoutSeveralFaces1.eldiron");
-        let contents = std::fs::read_to_string(path)
-            .expect("CutoutSeveralFaces1 fixture should be available for tests");
-        let mut project: Project =
-            serde_json::from_str(&contents).expect("CutoutSeveralFaces1 fixture deserializes");
+        let bytes =
+            std::fs::read(path).expect("CutoutSeveralFaces1 fixture should be available for tests");
+        let mut project = shared::project_io::decode_project(&bytes)
+            .expect("CutoutSeveralFaces1 fixture deserializes");
         let map = &mut project.regions[0].map;
         let (object_id, face_index, segment_count, guide_loop) = map
             .geometry_objects

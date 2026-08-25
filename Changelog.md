@@ -4,6 +4,7 @@
 
 ### Creator
 
+- Changed **.eldiron** projects to compressed, versioned ZIP containers containing `manifest.json` and `project.json`. Creator saves atomically, continues to open legacy raw-JSON projects, and upgrades them to the container format on their next save.
 - Added per-screen **Settings** TOML and responsive screen layouts. Responsive screens follow the resizable client window, existing game widgets fill the available area, UI widgets can anchor to window edges or the center, and UI-only screens remain supported. Fixed screens retain their existing layout behavior.
 - The **Authoring** tool now supports selected 3D Geometry Objects and linked Prefab instances. Object metadata is stored independently, while linked instances edit their shared Prefab authoring.
 - Maximized **Prefab** editing now includes a Prefab-only **Tile Picker** tool alongside geometry and 3D Paint tools.
@@ -21,6 +22,10 @@
 - Removed the obsolete **Surface Noise** action and its dedicated face data and renderer path; persistent surface detail now belongs to **3D Paint**.
 - Removed **Create Pattern**; surface patterns are authored through **3D Paint** instead of a specialized geometry action.
 - Removed **Cut Profile** to keep mesh editing centered on universal geometry operations rather than one-off shape actions.
+
+### Rules
+
+- Made the official `assets/icons/<id>/<state>/<frame>.png` files authoritative, artist-editable RGBA artwork. Every item has separate **Off** and **On** editor rows with independent animation frames; ordinary single-state artwork lives under On while Off remains empty. The torch's former tile files are now reconstructed from its one-frame Off and four-frame On icon bundle, providing one binary art source for UI and world rendering. Item `active` changes automatically select an available `on_tile_id` or `off_tile_id`, removing raw tile UUIDs from the torch script. Action states preserve normal artwork, gray disabled icons, and highlight selected icons without outlines. Palette-driven generation remains only as a missing-art fallback, while the ruleset palette continues to drive avatars.
 
 ## Bug Fixes
 

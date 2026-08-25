@@ -54,7 +54,7 @@ clients, runtime systems, and tools read.
 | Weapon | `[items.weapons.training_sword]` | damage, cooldown, range, visuals |
 | Spell | `[spells.minor_heal]` | cost, range, cast time, effect |
 | Intent | `[intents.attack]` | allowed actions and distances |
-| Icon | `[icons.basic_attack]` | bundled UI/item masks and attribution |
+| Icon | `[icons.basic_attack]` | bundled artist-editable RGBA artwork and attribution |
 | Combat kind | `[combat.kinds.fire]` | damage bonuses and reductions |
 
 The current bundled ruleset is assembled from split TOML files under the
@@ -706,17 +706,17 @@ from inventory items.
 
 | Resource node | Action | Produces | Respawn | Visual |
 | --- | --- | --- | ---: | --- |
-| `wild_herb_node` | `gather_herbs` | `wild_herb x2` | `300` seconds | herb sprig mask |
-| `green_wood_node` | `gather_wood` | `green_wood x3` | `300` seconds | wood shaft mask |
-| `bird_nest_node` | `gather_feathers` | `feather x2` | `300` seconds | feather/nest mask |
-| `moonleaf_patch` | `gather_moonleaf` | `moonleaf x2` | `360` seconds | recolored herb mask |
-| `sunstone_outcrop` | `mine_sun_shards` | `sun_shard x2` | `480` seconds | golden outcrop mask |
-| `old_grave` | `sift_grave_dust` | `grave_dust x2` | `420` seconds | tombstone mask |
-| `resinous_stump` | `tap_ember_resin` | `ember_resin x2` | `360` seconds | ember-colored wood mask |
+| `wild_herb_node` | `gather_herbs` | `wild_herb x2` | `300` seconds | authored herb-sprig icon |
+| `green_wood_node` | `gather_wood` | `green_wood x3` | `300` seconds | authored wood-shaft icon |
+| `bird_nest_node` | `gather_feathers` | `feather x2` | `300` seconds | authored feather/nest icon |
+| `moonleaf_patch` | `gather_moonleaf` | `moonleaf x2` | `360` seconds | authored moonleaf icon |
+| `sunstone_outcrop` | `mine_sun_shards` | `sun_shard x2` | `480` seconds | authored golden-outcrop icon |
+| `old_grave` | `sift_grave_dust` | `grave_dust x2` | `420` seconds | authored tombstone icon |
+| `resinous_stump` | `tap_ember_resin` | `ember_resin x2` | `360` seconds | authored ember-resin icon |
 
 | Tool | Worth | Interaction | State | Visual |
 | --- | ---: | --- | --- | --- |
-| `torch` | `1s` | `use` toggles it on/off | swaps light, tile, and look text; while lit it loses `condition` over game minutes and destroys itself at `0%` | one bundled unlit tile, one bundled four-frame lit tile |
+| `torch` | `1s` | `use` toggles it on/off | `active` automatically selects the reconstructed world tile and icon state; the script swaps the light and look text, while durability destroys the torch at `0%` | one-frame Off and four-frame On PNG state bundle |
 
 Bows consume one matching ammunition item from the attacker's inventory when a
 weapon attack resolves. `hunting_bow` declares `ammunition = "wooden_arrows"`
@@ -725,15 +725,19 @@ and how many are spent. Stackable ammunition decrements its `quantity`; when the
 stack reaches zero the inventory slot is emptied. `wooden_arrows` therefore
 means one inventory stack of arrows, not one single arrow item per slot.
 
-When an item defines `avatar_channels` and no explicit icon or tile source,
-Eldiron derives its preview from the bundled humanoid avatar. Inventory,
-equipment, and ground item visuals use the same generated shape.
+When authored item PNGs are unavailable, an item with `avatar_channels` can
+derive a missing-art preview from the bundled humanoid avatar. This generator
+is a fallback; official item-id PNGs normally provide inventory and equipment
+art without runtime palette remapping.
 
 Some official items are interactive templates rather than passive gear. A torch
 contains its own script, authored state text, light definition, and lit/unlit
-visual state. Its unlit tile and animated lit tile are bundled with the official
-rules, so projects can place a complete working torch without rebuilding that
-behavior by hand. Its burn time is rules-owned through `[durability]`: while
+visual state. Its one-frame Off and four-frame On PNGs are bundled under
+`assets/icons/torch/`; Eldiron reconstructs the world tiles from those same
+files while preserving stable tile UUIDs. The generic `active` state mapping
+selects those tiles, so the script does not contain their IDs. Projects can
+therefore place a complete working torch without maintaining separate icon and
+tile binaries. Its burn time is rules-owned through `[durability]`: while
 `active`, it drains `condition` by `10%` per `60` game minutes, and `on_empty =
 "destroy"` removes the burned-out torch.
 
@@ -966,8 +970,9 @@ visual layer.
 | Explicit override | project `tile_id`, `avatar`, or empty visual fields win |
 
 On load, Eldiron resolves the effective ruleset palette into the project's
-Ruleset Palette. This keeps official item previews, avatar channels, UI defaults,
-and generated ruleset icons on stable rules-owned indices.
+Ruleset Palette. This keeps avatar channels, UI color defaults, and generated
+missing-art fallbacks on stable rules-owned indices. Authored icon PNGs retain
+their own RGBA colors and are not palette-remapped at runtime.
 
 The editable Art Palette remains separate for tiles, drawing, palette-index
 geometry sources, and 3D Paint.

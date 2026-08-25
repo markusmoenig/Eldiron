@@ -74,20 +74,37 @@ Explicit character `tile_id`, `avatar`, or `avatar_id` values override the
 ruleset visual default. Explicit empty visual attributes can be used to disable
 the inherited default.
 
-Bundled UI/item icon masks are generated from `icons.toml` into:
+Bundled UI/item icons are authoritative full-color RGBA artwork stored in
+state/frame bundles:
 
 ```text
-assets/icons
+assets/icons/<id>/on/0.png       # default state
+assets/icons/<id>/on/1.png       # optional additional animation frame
+assets/icons/<id>/off/0.png      # optional inactive state
+assets/icons/<id>/<state>/material.png  # reserved optional packed material map
 ```
 
-Regenerate them with:
+Single-state icons contain only `on/0.png`. Creator still presents both the
+**Off** and **On** rows; the Off row remains empty until it is authored.
+The optional material map is reserved for the packed material workflow: red is
+roughness, blue is metallic, green is emission, and alpha is currently unused.
+It is not required for ordinary icons and is loaded only when present once the
+material-map phase is implemented.
+
+`icons.toml` records the upstream source and attribution for the
+Game-icons-derived subset. Eldiron-authored item PNGs are named after their
+ruleset item ids. To download only missing upstream icons without replacing
+artist edits, run:
 
 ```bash
 cargo run -p eldiron-icon-builder -- crates/ruleset/rulesets/eldiron/v1/icons.toml crates/ruleset/rulesets/eldiron/v1/assets/icons
 ```
 
-The generated attribution file in `assets/icons/ATTRIBUTION.md` tracks the
-Game-icons.net sources and licenses.
+The attribution file in `assets/icons/ATTRIBUTION.md` tracks the Game-icons.net
+sources and licenses. Existing PNG files are never regenerated or recolored by
+the importer. Runtime UI renders normal RGB values as authored, grays disabled
+icons, brightens hover, darkens pressed icons, and applies an in-icon warm
+selection tint without drawing an outline.
 
 Definitions do not each need their own icon or particle block. The official
 ruleset uses `ui.action_icon_fallbacks` and `ui.item_icon_fallbacks` for shared
@@ -100,7 +117,7 @@ Sun Shards, Grave Dust, and Ember Resin come from placeable resource nodes.
 Recipes refine them into Moonwater, Consecrated Oil, Warding Salt, and Ember
 Beads. Spells consume those prepared reagents, while higher recipes can invest
 them in reusable Ritual Censers and Sunward Charms. Item and action presentation
-reuses semantic masks, so this content expansion does not require a matching
+reuses shared RGBA icons, so this content expansion does not require a matching
 batch of one-off icon artwork.
 
 Successful recipes also exercise the optional `[crafting.skill_gain]` loop.
@@ -112,14 +129,12 @@ Every official spell also binds to the optional `words_of_power` invocation
 scheme. The lexicon and word meanings live in `invocations.toml`; exact
 sequences remain action-owned beside costs, targeting, and reagents.
 
-Bundled reusable tile assets live in:
-
-```text
-assets/tiles
-```
-
-These are serialized Eldiron tiles used by ruleset-backed interactive items,
-such as the torch's unlit tile and four-frame lit animation.
+The torch's state bundle is also its world-tile source. Eldiron reconstructs
+the unlit tile from `icons/torch/off/0.png` and the four-frame lit animation
+from `icons/torch/on/*.png`, preserving the existing tile UUIDs used by its
+`off_tile_id` and `on_tile_id` attributes. Changing `active` automatically
+selects the matching tile, so the script does not repeat either UUID. There are
+no separate torch tile binaries to drift from the UI art.
 
 The torch also demonstrates rules-owned durability. Its `[durability]` table
 drains `condition` while `active`, measured in game minutes, and removes the

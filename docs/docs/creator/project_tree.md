@@ -45,6 +45,17 @@ Item templates have similar functionality as *characters templates* but define a
 
 Like with *characters* you can edit item behavior with **Eldrin Scripting** and edit the **Attributes** of the item.
 
+Each item also has **Icon: On** and **Icon: Off** rows in the tree. **On** is the
+normal/default state and contains the artwork for ordinary single-state items.
+**Off** is optional and remains empty unless the item needs a distinct inactive
+appearance. Do not put a single-state item's only icon in Off.
+
+Click an icon frame in either row to open it in the [Pixel Tile
+Editor](docks/pixel_tile_editor). The two states have independent animation
+frames. Editing a ruleset-backed frame creates a project-owned override; use
+**Load Default** in the editor to restore that state from the active ruleset.
+The bundled torch demonstrates both states: Off has one frame and On has four.
+
 You can instantiate an item template into the map of the region by simply dragging and dropping the item template into the map (Click left of the *Name* item and drag).
 
 In 3D region views, the drop uses the actual surface hit position, so the instance also stores the correct `y` height. This makes drag-and-drop placement work correctly on stairs, elevated geometry, and lowered dungeon floors.
@@ -106,7 +117,9 @@ For the complete audio workflow (assets, buses, and scripting), see [Audio](../a
 
 Shows both palette roles used by the project:
 
-- **Ruleset Palette**: fixed colors owned by the active ruleset.
+- **Ruleset Palette**: fixed colors used by ruleset avatars, UI color defaults,
+  and generated missing-art fallbacks. Authored item icon PNGs keep their own
+  RGBA colors.
 - **Art Palette**: editable project art colors used by tiles, drawing, palette-index geometry, tile graphs, and 3D Paint.
 
 Use the [Palette Tool](tools/palette) to edit the Art Palette, load external palette colors, and assign Art Palette entries to geometry. Ruleset Palette changes belong in the active ruleset or project rules overrides.

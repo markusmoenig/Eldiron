@@ -18,7 +18,12 @@ Events are categorized as:
 *Item-only event.*
 
 - **Value**: active state *(bool)*
-- **Description**: Called when the state of the item has changed and directly after item creation. This event allows the item to sync its visuals with the current state, for example a torch may use [set_emit_light](server_commands/#set_emit_light) to adjust it's light emission.
+- **Description**: Called when the state of the item changes and directly after
+  item creation. `on_tile_id` and `off_tile_id` world visuals are selected
+  automatically before the event runs. Use this event for additional behavior;
+  for example, a torch can call
+  [set_emit_light](server_commands/#set_emit_light) to adjust its light
+  emission.
 
 ---
 

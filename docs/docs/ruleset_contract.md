@@ -145,6 +145,10 @@ my-ruleset/
     en.toml
   assets/
     icons/
+      <icon-id>/
+        on/
+          0.png
+        off/            # optional
     avatars/
     tiles/
   scripts/
@@ -813,6 +817,27 @@ cannot be performed safely.
 Ruleset assets use the same selection, inheritance, override, and version rules
 as TOML definitions.
 
+Authored icon artwork is stored as ordinary RGBA PNG files:
+
+```text
+assets/icons/<icon-id>/on/0.png
+assets/icons/<icon-id>/on/1.png       # optional animation frame
+assets/icons/<icon-id>/off/0.png      # optional inactive state
+assets/icons/<icon-id>/on/material.png # optional, reserved for future use
+```
+
+**On** is the required default state and preserves the meaning of legacy
+single-state `icon_frames`. **Off** is optional; when it is absent, Creator
+shows an empty Off row and runtime presentation falls back to On. Frame numbers
+are zero-based and contiguous. PNG colors are authoritative and are not
+remapped through the Ruleset Palette or Art Palette.
+
+Creator may store project-owned frame overrides in the project archive. The
+resolution order is a project state/frame override, an explicit item tile,
+the matching ruleset item-id state PNG, then semantic and generated missing-art
+fallbacks. This keeps artist-editable artwork as the source of truth while
+allowing each project to customize it in the integrated pixel editor.
+
 An item or action does not require unique commissioned artwork. Action icons
 resolve through:
 
@@ -821,12 +846,23 @@ resolve through:
 3. `ui.action_icon_fallbacks` by healing role, condition role, action kind, then
    `default`
 
-Item icon textures resolve an explicit icon first, then
-`ui.item_icon_fallbacks` by item kind and `default`. Tiles, avatar channels, and
-visual templates remain richer item-presentation paths and can take precedence
-over drawing the icon texture. Fallback maps are optional: a minimalist or
-text-only game may omit them. Every authored fallback reference is validated,
-while many definitions can deliberately share one semantic glyph.
+When no item-id artwork is available, item icon textures resolve an explicit
+semantic icon and then `ui.item_icon_fallbacks` by item kind and `default`.
+Avatar channels and visual templates can generate a final missing-art fallback.
+Fallback maps are optional: a minimalist or text-only game may omit them. Every
+authored fallback reference is validated, while many definitions can
+deliberately share one semantic glyph.
+
+State directories may later contain a `material.png` beside the numbered color
+frames. Its reserved channels are red for roughness, blue for metallic, green
+for emission, and unused alpha. Material loading and editing are not part of
+the current implementation, so rulesets must not rely on this file yet.
+
+An item can map its boolean `active` state onto world visuals with
+`off_tile_id` and `on_tile_id`. Changing `active` selects the corresponding
+available tile UUID, alias, or palette index automatically; an absent mapping
+leaves the current source unchanged. Scripts should toggle `active` instead of
+duplicating these tile references in `set_tile()` calls.
 
 ## Documentation Contract
 

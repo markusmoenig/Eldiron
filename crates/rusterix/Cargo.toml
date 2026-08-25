@@ -80,6 +80,10 @@ web-sys = { version = "0.3", features = ['Window'] }
 console_error_panic_hook = "0.1"
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 
+[dev-dependencies]
+zip = { version = "6.0", default-features = false, features = ["deflate-flate2"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
+
 [features]
 single_thread = []
 graphics = ["scenevm/gpu"]

@@ -253,6 +253,42 @@ impl Item {
     pub fn set_attribute(&mut self, key: &str, value: Value) {
         self.attributes.set(key, value);
         self.mark_dirty_attribute(key);
+
+        if matches!(key, "active" | "on_tile_id" | "off_tile_id") {
+            self.sync_active_tile_source();
+        }
+    }
+
+    /// Select the world tile associated with the current active state, when the
+    /// item defines one. State-specific tile ids may use the same UUID, alias,
+    /// or palette-index forms accepted by `set_tile`.
+    fn sync_active_tile_source(&mut self) {
+        let Some(active) = self.attributes.get_bool("active") else {
+            return;
+        };
+        let key = if active { "on_tile_id" } else { "off_tile_id" };
+        let Some(value) = self.attributes.get(key) else {
+            return;
+        };
+        let source = match value {
+            Value::Source(source) => Some(source.clone()),
+            Value::Id(id) => Some(PixelSource::TileId(*id)),
+            Value::Str(value) => crate::server::data::parse_tile_source_from_str(value),
+            Value::Int(index) if *index >= 0 && *index <= u16::MAX as i32 => {
+                Some(PixelSource::PaletteIndex(*index as u16))
+            }
+            Value::UInt(index) if *index <= u16::MAX as u32 => {
+                Some(PixelSource::PaletteIndex(*index as u16))
+            }
+            _ => None,
+        };
+
+        if let Some(source) = source
+            && self.attributes.get("source") != Some(&Value::Source(source.clone()))
+        {
+            self.attributes.set("source", Value::Source(source));
+            self.mark_dirty_attribute("source");
+        }
     }
 
     /// Get a dynamic attribute
@@ -461,6 +497,50 @@ mod tests {
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0].id, 11);
         assert_eq!(contents[0].stack_quantity(), 2);
+    }
+
+    #[test]
+    fn active_selects_available_state_tile_automatically() {
+        let off_id = Uuid::parse_str("05ab6adc-1631-4ed2-9857-f85820a7f1ad").unwrap();
+        let on_id = Uuid::parse_str("f76473d1-70f6-4649-8b0d-cbac627f93d8").unwrap();
+        let mut item = Item::new();
+
+        // Ruleset attributes may be applied after `active`; adding the matching
+        // state mapping must still synchronize the initial visual.
+        item.set_attribute("active", Value::Bool(false));
+        item.set_attribute("off_tile_id", Value::Str(off_id.to_string()));
+        item.set_attribute("on_tile_id", Value::Str(on_id.to_string()));
+        assert_eq!(
+            item.attributes.get("source"),
+            Some(&Value::Source(PixelSource::TileId(off_id)))
+        );
+
+        item.set_attribute("active", Value::Bool(true));
+        assert_eq!(
+            item.attributes.get("source"),
+            Some(&Value::Source(PixelSource::TileId(on_id)))
+        );
+        assert!(item.dirty_attributes.contains("source"));
+
+        item.set_attribute("active", Value::Bool(false));
+        assert_eq!(
+            item.attributes.get("source"),
+            Some(&Value::Source(PixelSource::TileId(off_id)))
+        );
+    }
+
+    #[test]
+    fn active_preserves_source_when_state_tile_is_unavailable() {
+        let id = Uuid::new_v4();
+        let mut item = Item::new();
+        item.set_attribute("source", Value::Source(PixelSource::TileId(id)));
+
+        item.set_attribute("active", Value::Bool(true));
+
+        assert_eq!(
+            item.attributes.get("source"),
+            Some(&Value::Source(PixelSource::TileId(id)))
+        );
     }
 }
 

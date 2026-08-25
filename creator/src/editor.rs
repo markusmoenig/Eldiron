@@ -34,7 +34,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::{Hash, Hasher};
-use std::io::Read;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::mpsc::Receiver;
@@ -4363,14 +4363,47 @@ impl Editor {
         String::from_utf8(bytes).ok()
     }
 
-    fn load_project_from_json_path(path: &std::path::Path) -> Option<Project> {
-        let contents = std::fs::read_to_string(path).ok()?;
-        let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
+    fn load_project_from_bytes(bytes: &[u8]) -> Result<Project, String> {
+        let mut loaded = shared::project_io::decode_project(bytes)?;
         loaded.migrate_default_ruleset();
         loaded.migrate_button_commands();
         let _ = loaded.sync_ruleset_items();
         loaded.art_palette.current_index = 0;
-        Some(loaded)
+        Ok(loaded)
+    }
+
+    fn load_project_from_path(path: &std::path::Path) -> Result<Project, String> {
+        let bytes = std::fs::read(path)
+            .map_err(|err| format!("failed to read {}: {err}", path.display()))?;
+        Self::load_project_from_bytes(&bytes)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn save_project_to_path(path: &std::path::Path, project: &Project) -> Result<(), String> {
+        let bytes = shared::project_io::encode_project(project)?;
+        let parent = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let mut temporary = tempfile::NamedTempFile::new_in(parent).map_err(|err| {
+            format!(
+                "failed to create a temporary project beside {}: {err}",
+                path.display()
+            )
+        })?;
+        temporary
+            .write_all(&bytes)
+            .and_then(|_| temporary.flush())
+            .and_then(|_| temporary.as_file().sync_all())
+            .map_err(|err| format!("failed to write {}: {err}", path.display()))?;
+        temporary
+            .persist(path)
+            .map(|_| ())
+            .map_err(|err| format!("failed to replace {}: {}", path.display(), err.error))
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn save_project_to_path(path: &std::path::Path, project: &Project) -> Result<(), String> {
+        let bytes = shared::project_io::encode_project(project)?;
+        std::fs::write(path, bytes)
+            .map_err(|err| format!("failed to write {}: {err}", path.display()))
     }
 
     fn load_empty_project_template() -> Project {
@@ -4448,13 +4481,8 @@ impl Editor {
     }
 
     fn load_starter_project(repo_path: &str) -> Option<Project> {
-        let contents = Self::fetch_url_text(&Self::starter_repo_url(repo_path))?;
-        let mut loaded = serde_json::from_str::<Project>(&contents).ok()?;
-        loaded.migrate_default_ruleset();
-        loaded.migrate_button_commands();
-        let _ = loaded.sync_ruleset_items();
-        loaded.art_palette.current_index = 0;
-        Some(loaded)
+        let bytes = Self::fetch_url_bytes(&Self::starter_repo_url(repo_path))?;
+        Self::load_project_from_bytes(&bytes).ok()
     }
 
     fn window_state_file_path() -> Option<PathBuf> {
@@ -10349,34 +10377,36 @@ impl TheTrait for Editor {
                     // Open
                     if id.name == "Open" {
                         for p in paths {
-                            if let Some(loaded) = Self::load_project_from_json_path(&p) {
-                                self.open_project_as_session(
-                                    loaded,
-                                    Some(p.clone()),
-                                    ui,
-                                    ctx,
-                                    &mut update_server_icons,
-                                    &mut redraw,
-                                );
-                                ctx.ui.send(TheEvent::SetStatusText(
-                                    TheId::empty(),
-                                    "Project loaded successfully.".to_string(),
-                                ));
-                            } else {
-                                self.replace_next_project_load_in_active_tab = false;
-                                ctx.ui.send(TheEvent::SetStatusText(
-                                    TheId::empty(),
-                                    "Unable to load project!".to_string(),
-                                ));
+                            match Self::load_project_from_path(&p) {
+                                Ok(loaded) => {
+                                    self.open_project_as_session(
+                                        loaded,
+                                        Some(p.clone()),
+                                        ui,
+                                        ctx,
+                                        &mut update_server_icons,
+                                        &mut redraw,
+                                    );
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Project loaded successfully.".to_string(),
+                                    ));
+                                }
+                                Err(error) => {
+                                    self.replace_next_project_load_in_active_tab = false;
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        format!("Unable to load project: {error}"),
+                                    ));
+                                }
                             }
                         }
                     } else if id.name == "Save As" {
                         for p in paths {
                             let p = Self::ensure_project_extension(p);
                             self.persist_active_region_view_state();
-                            let json = serde_json::to_string(&self.project);
-                            if let Ok(json) = json {
-                                if std::fs::write(p.clone(), json).is_ok() {
+                            match Self::save_project_to_path(&p, &self.project) {
+                                Ok(()) => {
                                     self.project_path = Some(p);
                                     UNDOMANAGER.write().unwrap().mark_saved();
                                     DOCKMANAGER.write().unwrap().mark_saved();
@@ -10390,12 +10420,13 @@ impl TheTrait for Editor {
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
                                         "Project saved successfully.".to_string(),
-                                    ))
-                                } else {
+                                    ));
+                                }
+                                Err(error) => {
                                     ctx.ui.send(TheEvent::SetStatusText(
                                         TheId::empty(),
-                                        "Unable to save project!".to_string(),
-                                    ))
+                                        format!("Unable to save project: {error}"),
+                                    ));
                                 }
                             }
                         }
@@ -10648,11 +10679,9 @@ impl TheTrait for Editor {
                     } else if id.name == "Save" {
                         if let Some(path) = self.project_path.clone() {
                             let path = Self::ensure_project_extension(path);
-                            let mut success = false;
-                            // if let Ok(output) = postcard::to_allocvec(&self.project) {
                             self.persist_active_region_view_state();
-                            if let Ok(output) = serde_json::to_string(&self.project) {
-                                if std::fs::write(&path, output).is_ok() {
+                            match Self::save_project_to_path(&path, &self.project) {
+                                Ok(()) => {
                                     self.project_path = Some(path.clone());
                                     UNDOMANAGER.write().unwrap().mark_saved();
                                     DOCKMANAGER.write().unwrap().mark_saved();
@@ -10667,15 +10696,13 @@ impl TheTrait for Editor {
                                         TheId::empty(),
                                         "Project saved successfully.".to_string(),
                                     ));
-                                    success = true;
                                 }
-                            }
-
-                            if !success {
-                                ctx.ui.send(TheEvent::SetStatusText(
-                                    TheId::empty(),
-                                    "Unable to save project!".to_string(),
-                                ))
+                                Err(error) => {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        format!("Unable to save project: {error}"),
+                                    ));
+                                }
                             }
                         } else {
                             ctx.ui.send(TheEvent::StateChanged(

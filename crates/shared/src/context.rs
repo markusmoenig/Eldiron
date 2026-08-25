@@ -14,8 +14,8 @@ pub enum PixelEditingContext {
     None,
     /// Editing a tile texture: (tile_id, frame_index).
     Tile(Uuid, usize),
-    /// Editing a project-owned item icon: (item_id, frame_index).
-    ItemIcon(Uuid, usize),
+    /// Editing a project-owned item icon: (item_id, on_state, frame_index).
+    ItemIcon(Uuid, bool, usize),
     /// Editing an avatar animation frame: (avatar_id, anim_id, perspective_index, frame_index).
     AvatarFrame(Uuid, Uuid, usize, usize),
 }
@@ -71,10 +71,10 @@ impl PixelEditingContext {
             PixelEditingContext::Tile(tile_id, _) => {
                 project.tiles.get(tile_id).map_or(0, |t| t.textures.len())
             }
-            PixelEditingContext::ItemIcon(item_id, _) => project
+            PixelEditingContext::ItemIcon(item_id, on, _) => project
                 .items
                 .get(item_id)
-                .map_or(0, |item| item.icon_frames.len()),
+                .map_or(0, |item| item.icon_frames_for_state(*on).len()),
             PixelEditingContext::AvatarFrame(avatar_id, anim_id, persp_index, _) => project
                 .avatars
                 .get(avatar_id)
@@ -91,8 +91,8 @@ impl PixelEditingContext {
             PixelEditingContext::Tile(tile_id, _) => {
                 PixelEditingContext::Tile(tile_id, frame_index)
             }
-            PixelEditingContext::ItemIcon(item_id, _) => {
-                PixelEditingContext::ItemIcon(item_id, frame_index)
+            PixelEditingContext::ItemIcon(item_id, on, _) => {
+                PixelEditingContext::ItemIcon(item_id, on, frame_index)
             }
             PixelEditingContext::AvatarFrame(avatar_id, anim_id, persp_index, _) => {
                 PixelEditingContext::AvatarFrame(avatar_id, anim_id, persp_index, frame_index)

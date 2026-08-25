@@ -7069,7 +7069,7 @@ impl Client {
         };
 
         if show_icon
-            && let Some((texture, _)) = Widget::command_icon_texture(assets, command, visual_state)
+            && let Some(texture) = Widget::command_icon_texture(assets, command, visual_state)
             && Self::draw_alpha_masked_command_overlay(target, rect, texture, alpha)
         {
             return;

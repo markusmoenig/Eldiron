@@ -786,23 +786,25 @@ impl Sidebar {
                             }
                         }
                     }
-                } else if id.name == "Item Icon Frames" {
+                } else if id.name == "Item Icon Frames Off" || id.name == "Item Icon Frames On" {
                     let item_id = id.references;
+                    let on = id.name == "Item Icon Frames On";
                     let frame_index = *index as usize;
                     let defaults = project
                         .items
                         .get(&item_id)
-                        .filter(|item| item.icon_frames.is_empty())
-                        .map(|item| resolved_item_default_icon_frames(item, project));
+                        .filter(|item| item.icon_frames_for_state(on).is_empty())
+                        .map(|item| resolved_item_default_icon_frames_for_state(item, project, on));
                     if let Some(item) = project.items.get_mut(&item_id) {
-                        if item.icon_frames.is_empty() {
-                            item.icon_frames = defaults
+                        let frames = item.icon_frames_for_state_mut(on);
+                        if frames.is_empty() {
+                            *frames = defaults
                                 .filter(|frames| !frames.is_empty())
                                 .unwrap_or_else(|| vec![rusterix::Texture::alloc(32, 32)]);
                         }
-                        if frame_index < item.icon_frames.len() {
+                        if frame_index < frames.len() {
                             server_ctx.editing_ctx =
-                                PixelEditingContext::ItemIcon(item_id, frame_index);
+                                PixelEditingContext::ItemIcon(item_id, on, frame_index);
                             let mut dm = DOCKMANAGER.write().unwrap();
                             dm.set_dock("Tiles".into(), ui, ctx, project, server_ctx);
                             dm.edit_maximize(ui, ctx, project, server_ctx);
@@ -1052,7 +1054,7 @@ impl Sidebar {
                                 }
                             }
                         }
-                    } else if let PixelEditingContext::ItemIcon(item_id, frame_index) =
+                    } else if let PixelEditingContext::ItemIcon(item_id, on, frame_index) =
                         server_ctx.editing_ctx
                         && let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx)
                         && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
@@ -1064,7 +1066,12 @@ impl Sidebar {
                             .find(|node| node.id.uuid == item_id)
                     {
                         for widget in &mut item_node.widgets {
-                            if widget.id().name == "Item Icon Frames"
+                            if widget.id().name
+                                == if on {
+                                    "Item Icon Frames On"
+                                } else {
+                                    "Item Icon Frames Off"
+                                }
                                 && let Some(icons) = widget.as_tree_icons()
                             {
                                 icons.set_icon(frame_index, texture.to_rgba());
@@ -1083,11 +1090,14 @@ impl Sidebar {
                         .find(|node| node.id.uuid == *item_id)
                 {
                     for widget in &mut item_node.widgets {
-                        if widget.id().name == "Item Icon Frames"
+                        let on = widget.id().name == "Item Icon Frames On";
+                        let off = widget.id().name == "Item Icon Frames Off";
+                        if (off || on)
                             && let Some(icons) = widget.as_tree_icons()
                         {
-                            icons.set_icon_count(item.icon_frames.len().max(1));
-                            for (index, texture) in item.icon_frames.iter().enumerate() {
+                            let frames = item.icon_frames_for_state(on);
+                            icons.set_icon_count(frames.len().max(1));
+                            for (index, texture) in frames.iter().enumerate() {
                                 icons.set_icon(index, texture.to_rgba());
                             }
                         }

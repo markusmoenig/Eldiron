@@ -2322,6 +2322,29 @@ impl CollisionWorld {
 mod tests {
     use super::*;
 
+    fn fixture_project_json(path: &std::path::Path) -> serde_json::Value {
+        use std::io::Read;
+
+        let bytes = std::fs::read(path).unwrap_or_else(|err| {
+            panic!("fixture project '{}' is readable: {err}", path.display())
+        });
+        let project_json = if bytes.starts_with(b"PK\x03\x04") {
+            let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes))
+                .expect("fixture project archive is valid");
+            let mut entry = archive
+                .by_name("project.json")
+                .expect("fixture project archive contains project.json");
+            let mut json = Vec::new();
+            entry
+                .read_to_end(&mut json)
+                .expect("fixture project.json is readable");
+            json
+        } else {
+            bytes
+        };
+        serde_json::from_slice(&project_json).expect("fixture project is valid JSON")
+    }
+
     fn gate_fixture() -> (crate::Map, CollisionWorld) {
         fixture_world("Gate.eldiron")
     }
@@ -2336,9 +2359,7 @@ mod tests {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../test_projects")
             .join(project_name);
-        let contents = std::fs::read_to_string(path).expect("fixture project is readable");
-        let project: serde_json::Value =
-            serde_json::from_str(&contents).expect("fixture project is valid json");
+        let project = fixture_project_json(&path);
         let map_value = project["regions"][0]["map"].clone();
         let map: crate::Map = serde_json::from_value(map_value).expect("fixture map deserializes");
 
@@ -2492,9 +2513,7 @@ mod tests {
 
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../test_projects/Gate.eldiron");
-        let contents = std::fs::read_to_string(path).expect("Gate fixture is readable");
-        let project: serde_json::Value =
-            serde_json::from_str(&contents).expect("Gate fixture is valid json");
+        let project = fixture_project_json(&path);
         let map_value = project["regions"][0]["map"].clone();
         let map: crate::Map = serde_json::from_value(map_value).expect("Gate map deserializes");
 

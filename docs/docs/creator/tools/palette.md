@@ -7,7 +7,10 @@ The **Palette Tool** (keyboard shortcut **`P`**) switches Eldiron into **art pal
 
 Eldiron keeps two palette concepts separate:
 
-- **Ruleset Palette**: fixed colors owned by the active ruleset. These indices are used by rules-owned visuals such as official items, avatars, and UI defaults.
+- **Ruleset Palette**: fixed colors owned by the active ruleset. These indices
+  are used by ruleset avatars, UI color defaults, and generated missing-art
+  fallbacks. Artist-authored item icon PNGs are full-color RGBA and are not
+  recolored through this palette.
 - **Art Palette**: the editable 256-slot project palette used for tiles, pixel drawing, tile graphs, palette-index geometry sources, and 3D Paint.
 
 The Palette Tool edits the **Art Palette**. It does not edit the Ruleset Palette.

@@ -1180,9 +1180,9 @@ impl Project {
                 let tile = self.tiles.get(tile_id)?;
                 tile.textures.get(*frame_index)
             }
-            PixelEditingContext::ItemIcon(item_id, frame_index) => {
+            PixelEditingContext::ItemIcon(item_id, on, frame_index) => {
                 let item = self.items.get(item_id)?;
-                item.icon_frames.get(*frame_index)
+                item.icon_frames_for_state(*on).get(*frame_index)
             }
             PixelEditingContext::AvatarFrame(
                 avatar_id,
@@ -1209,9 +1209,9 @@ impl Project {
                 let tile = self.tiles.get_mut(tile_id)?;
                 tile.textures.get_mut(*frame_index)
             }
-            PixelEditingContext::ItemIcon(item_id, frame_index) => {
+            PixelEditingContext::ItemIcon(item_id, on, frame_index) => {
                 let item = self.items.get_mut(item_id)?;
-                item.icon_frames.get_mut(*frame_index)
+                item.icon_frames_for_state_mut(*on).get_mut(*frame_index)
             }
             PixelEditingContext::AvatarFrame(
                 avatar_id,
@@ -1575,6 +1575,13 @@ mod tests {
         GeometryObject, PixelSource, RegionCtx, Sector, Value, identity_block_prop_transform,
     };
 
+    fn load_project_fixture(path: &std::path::Path) -> Project {
+        let bytes = std::fs::read(path)
+            .unwrap_or_else(|err| panic!("read project fixture '{}': {err}", path.display()));
+        crate::project_io::decode_project(&bytes)
+            .unwrap_or_else(|err| panic!("deserialize project fixture '{}': {err}", path.display()))
+    }
+
     fn official_ruleset_item_count() -> usize {
         let rules = crate::rulesets::resolve_project_rules(
             crate::rulesets::DEFAULT_RULESET_CONFIG,
@@ -1761,9 +1768,7 @@ mod tests {
             return;
         }
 
-        let contents = std::fs::read_to_string(path).expect("read 3D starter fixture");
-        let project: Project =
-            serde_json::from_str(&contents).expect("3D starter fixture deserializes");
+        let project = load_project_fixture(&path);
 
         assert!(
             !project.regions.is_empty(),
@@ -1775,10 +1780,7 @@ mod tests {
     fn project_can_load_hideout2d_fixture() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../test_projects/Hideout2D.eldiron");
-        let contents = std::fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("read Hideout2D fixture '{}': {err}", path.display()));
-        let project: Project = serde_json::from_str(&contents)
-            .unwrap_or_else(|err| panic!("Hideout2D fixture deserializes: {err}"));
+        let project = load_project_fixture(&path);
 
         assert!(
             project
@@ -1793,10 +1795,7 @@ mod tests {
     fn hideout2d_tagged_tile_events_work_under_a_named_sector() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../test_projects/Hideout2D.eldiron");
-        let contents = std::fs::read_to_string(&path)
-            .unwrap_or_else(|err| panic!("read Hideout2D fixture '{}': {err}", path.display()));
-        let mut project: Project = serde_json::from_str(&contents)
-            .unwrap_or_else(|err| panic!("Hideout2D fixture deserializes: {err}"));
+        let mut project = load_project_fixture(&path);
 
         let (region_index, sector_index, tile_id) = project
             .regions
@@ -1893,9 +1892,9 @@ mod tests {
     fn hideout2d_resolves_through_current_ruleset_model() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../test_projects/Hideout2D.eldiron");
-        let contents = std::fs::read_to_string(&path)
+        let original_bytes = std::fs::read(&path)
             .unwrap_or_else(|err| panic!("read Hideout2D fixture '{}': {err}", path.display()));
-        let mut project: Project = serde_json::from_str(&contents)
+        let mut project = crate::project_io::decode_project(&original_bytes)
             .unwrap_or_else(|err| panic!("Hideout2D fixture deserializes: {err}"));
         let selection = crate::rulesets::selected_ruleset_config(&project.config);
         assert_eq!(selection.id, crate::rulesets::OFFICIAL_RULESET_ID);
@@ -2042,9 +2041,9 @@ mod tests {
             .sync_ruleset_items()
             .unwrap_or_else(|err| panic!("Hideout2D syncs ruleset items: {err}"));
         assert_eq!(
-            std::fs::read_to_string(&path)
+            std::fs::read(&path)
                 .unwrap_or_else(|err| panic!("re-read '{}': {err}", path.display())),
-            contents,
+            original_bytes,
             "Hideout2D model checks must not rewrite the fixture"
         );
     }
@@ -2057,8 +2056,7 @@ mod tests {
             return;
         }
 
-        let contents = std::fs::read_to_string(path).expect("read Gate fixture");
-        let project: Project = serde_json::from_str(&contents).expect("Gate fixture deserializes");
+        let project = load_project_fixture(&path);
 
         assert!(
             project

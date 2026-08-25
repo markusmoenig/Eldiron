@@ -3,6 +3,10 @@ use crate::prelude::*;
 use rusterix::material_library::MATERIAL_PRESET_NAMES;
 use theframework::prelude::*;
 
+const CHARACTER_INSTANCE_TREE_PALETTE_SLOT: usize = ActionGroup::Prefab.palette_slot();
+const ITEM_INSTANCE_TREE_PALETTE_SLOT: usize = ActionGroup::Bake.palette_slot();
+const RULESET_ITEM_TREE_PALETTE_SLOT: usize = ITEM_INSTANCE_TREE_PALETTE_SLOT;
+
 pub fn gen_procedural_recipe_tree_item(
     recipe: &ProceduralRecipeAsset,
     project: &Project,
@@ -202,7 +206,7 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     for (id, character) in &region.characters {
         let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
         item.add_value_column(200, TheValue::Text(fl!("character_instance")));
-        item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
+        item.set_background_palette(ActionGroups, CHARACTER_INSTANCE_TREE_PALETTE_SLOT);
         item.set_text(character.name.clone());
         node.add_widget(Box::new(item));
     }
@@ -210,7 +214,7 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     for (id, item_) in &region.items {
         let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
         item.add_value_column(200, TheValue::Text(fl!("item_instance")));
-        item.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
+        item.set_background_palette(ActionGroups, ITEM_INSTANCE_TREE_PALETTE_SLOT);
         item.set_text(item_.name.clone());
         node.add_widget(Box::new(item));
     }
@@ -266,9 +270,36 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
 
 /// Returns a TheTreeNode for the item.
 pub fn resolved_item_default_icon_frames(item: &Item, project: &Project) -> Vec<rusterix::Texture> {
+    resolved_item_default_icon_frames_for_state(item, project, true)
+}
+
+pub fn resolved_item_default_icon_frames_for_state(
+    item: &Item,
+    project: &Project,
+    on: bool,
+) -> Vec<rusterix::Texture> {
     let runtime = RUSTERIX.read().unwrap();
     let mut runtime_item = rusterix::Item::default();
     rusterix::server::data::apply_item_data(&mut runtime_item, &item.data);
+
+    let state = if on { "on" } else { "off" };
+    let keys = [
+        runtime_item.attributes.get_str("ruleset_path"),
+        runtime_item.attributes.get_str("ruleset_id"),
+        runtime_item.attributes.get_str("class_name"),
+        runtime_item.attributes.get_str("name"),
+    ];
+    if let Some(frames) = keys
+        .into_iter()
+        .flatten()
+        .map(|key| format!("{}:{state}", key.trim().to_ascii_lowercase()))
+        .find_map(|key| runtime.assets.item_icons.get(&key).cloned())
+    {
+        return frames;
+    }
+    if !on {
+        return Vec::new();
+    }
 
     if let Some(rusterix::Value::Source(source)) = runtime_item.attributes.get("source")
         && let Some(tile) = source.tile_from_tile_list(&runtime.assets).or_else(|| {
@@ -292,7 +323,7 @@ pub fn gen_item_tree_node(item_: &Item, project: &Project) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&item_.name, item_.id));
     node.set_root_mode(false);
     if data_has_attr(&item_.data, "ruleset_path") {
-        node.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
+        node.set_background_palette(ActionGroups, RULESET_ITEM_TREE_PALETTE_SLOT);
     } else if data_attr_bool(&item_.data, "is_spell") {
         node.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
     }
@@ -306,8 +337,29 @@ pub fn gen_item_tree_node(item_: &Item, project: &Project) -> TheTreeNode {
 
     node.add_widget(Box::new(item));
 
-    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Icon", item_.id));
-    item.set_text("Icon".to_string());
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Icon Off", item_.id));
+    item.set_text("Icon: Off".to_string());
+    node.add_widget(Box::new(item));
+
+    let frames = if item_.icon_off_frames.is_empty() {
+        resolved_item_default_icon_frames_for_state(item_, project, false)
+    } else {
+        item_.icon_off_frames.clone()
+    };
+    let mut icons = TheTreeIcons::new(TheId::named_with_reference(
+        "Item Icon Frames Off",
+        item_.id,
+    ));
+    icons.set_icon_size(40);
+    icons.set_icon_count(frames.len().max(1));
+    icons.set_selected_index(Some(0));
+    for (index, texture) in frames.iter().enumerate() {
+        icons.set_icon(index, texture.to_rgba());
+    }
+    node.add_widget(Box::new(icons));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Icon On", item_.id));
+    item.set_text("Icon: On".to_string());
     node.add_widget(Box::new(item));
 
     let frames = if item_.icon_frames.is_empty() {
@@ -315,7 +367,7 @@ pub fn gen_item_tree_node(item_: &Item, project: &Project) -> TheTreeNode {
     } else {
         item_.icon_frames.clone()
     };
-    let mut icons = TheTreeIcons::new(TheId::named_with_reference("Item Icon Frames", item_.id));
+    let mut icons = TheTreeIcons::new(TheId::named_with_reference("Item Icon Frames On", item_.id));
     icons.set_icon_size(40);
     icons.set_icon_count(frames.len().max(1));
     icons.set_selected_index(Some(0));

@@ -273,7 +273,18 @@ command = "control.forward"
 
 Use `command = "intent."` or `intent = ""` for a Walk button. This selects the normal map cursor and clears active targeting commands.
 
-Command buttons resolve ruleset icons through `[actions.<id>.ui]`, `[intents.<id>.ui]`, and the shared `[icons]` catalog. Project textures can still override a button by assigning custom normal/selected/pressed/disabled textures on the widget itself.
+Command buttons resolve ruleset icons through `[actions.<id>.ui]`,
+`[intents.<id>.ui]`, and the shared `[icons]` catalog. A resolved ruleset icon
+uses its authored RGBA colors for Normal, becomes brighter on Hover, receives a
+warm in-icon tint when Selected, becomes darker while Pressed, and is grayed
+with reduced opacity when Disabled. Selection does not add an outline. Project
+textures can still override a button by assigning custom
+normal/selected/pressed/disabled textures on the widget itself.
+
+Inventory and equipped-slot buttons use an item's **On** or **Off** icon state.
+An `active` boolean selects On when true and Off when false; otherwise a string
+`state = "off"` selects Off and all other or missing state values select On. If
+the item has no Off artwork, its On artwork remains the visual fallback.
 
 If a button command matches a key in the active player's `[input]` table, the hover tooltip shows the shortcut.
 

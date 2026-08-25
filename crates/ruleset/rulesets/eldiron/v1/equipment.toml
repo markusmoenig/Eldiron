@@ -1222,11 +1222,6 @@ script = '''
 fn event(event, value) {
     if event == "active" {
         set_emit_light(value);
-        if value == true {
-            set_tile("f76473d1-70f6-4649-8b0d-cbac627f93d8");
-        } else {
-            set_tile("05ab6adc-1631-4ed2-9857-f85820a7f1ad");
-        }
     }
     if event == "intent" {
         let intent = value.string;

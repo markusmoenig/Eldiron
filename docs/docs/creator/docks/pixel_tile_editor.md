@@ -3,27 +3,39 @@ title: "Pixel Tile Editor"
 sidebar_position: 4
 ---
 
-The **Pixel Tile Editor** is Eldiron’s integrated pixel editor for authored tiles.
+The **Pixel Tile Editor** is Eldiron’s integrated pixel editor for authored
+tiles and item icon frames.
 
 It opens when:
 
-- a single tile is selected in the tile picker
-- and you use the top-right [Edit / Maximize Dock control](/docs/creator/actions/#dock-controls), or press `Cmd/Ctrl + [`
+- you click a frame in an item's **Icon: On** or **Icon: Off** tree row, or
+- a single tile is selected in the tile picker and you use the top-right [Edit
+  / Maximize Dock control](/docs/creator/actions/#dock-controls), or press
+  `Cmd/Ctrl + [`
 
 Use the adjacent **Restore Dock** control or `Cmd/Ctrl + ]` to return to the normal split layout.
 
-Changes are reflected immediately in the project and on the map.
+Changes are reflected immediately in the project and on the map or UI.
 
 ## What It Edits
 
-The pixel editor works on authored tile textures and their frames. It is used for:
+The pixel editor works on authored tile textures and item icon state frames. It
+is used for:
 
 - painting tile pixels directly
 - editing animated tile frames
+- editing an item's default **On** frames and optional **Off** frames
 - selecting and pasting pixel regions
 - updating the final tile that is used in 2D and 3D
 
-Undo / redo is tile-based. Each tile has its own undo stack.
+Undo / redo belongs to the selected tile or item icon state, so edits in On and
+Off do not share a history. Use `Space` to preview the frames of the current
+state as an animation.
+
+For a ruleset-backed item, editing a frame stores project-owned frames in the
+project archive. **Load Default** replaces the customized state frames with
+that state's current ruleset artwork. Loading the default for On does not
+change Off, or vice versa.
 
 ## Core Tools
 
@@ -53,7 +65,8 @@ Paste preview and direct drawing are separate modes. While paste preview is acti
 
 ## Materials And Normals
 
-Tiles in Eldiron are used in both 2D and 3D. The pixel tile editor edits the visible color frames; it does not paint per-pixel render material values.
+Tiles in Eldiron are used in both 2D and 3D. The pixel tile editor edits visible
+color frames; it does not paint per-pixel render material values.
 
 For authored pixel tiles:
 
@@ -63,6 +76,10 @@ For authored pixel tiles:
 - render material comes from high-level material metadata, such as tile presets, Art Palette entry presets, or object overrides
 
 Procedural node groups use the node graph editor instead and can generate height-driven normals from graph output.
+
+Ruleset icon state directories reserve an optional `material.png` for future
+artist-authored material data: red is roughness, blue metallic, green emission,
+and alpha is unused. The editor does not currently load or edit this file.
 
 ## Related Pages
 

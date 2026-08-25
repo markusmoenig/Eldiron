@@ -1,7 +1,11 @@
 # Official Eldiron icon catalog.
 #
-# Bundled PNG masks are generated from this file by `eldiron-icon-builder`.
-# Runtime code may tint, dither, outline, or otherwise style these masks.
+# `assets/icons/<id>/<state>/<frame>.png` contains the authoritative,
+# artist-editable RGBA artwork.
+# This catalog records only the Game-icons-derived subset and lets
+# `eldiron-icon-builder` bootstrap those missing source files without
+# overwriting existing artwork. Eldiron-authored item PNGs need no upstream
+# catalog entry.
 
 [icons.walk]
 source = "game-icons"

@@ -149,8 +149,8 @@ impl EldironPlayerApp {
     }
 
     fn load_project(&self, path: PathBuf) -> Option<Project> {
-        if let Ok(contents) = std::fs::read_to_string(path)
-            && let Ok(mut project) = serde_json::from_str::<Project>(&contents)
+        if let Ok(bytes) = std::fs::read(path)
+            && let Ok(mut project) = shared::project_io::decode_project(&bytes)
         {
             project.migrate_default_ruleset();
             return Some(project);

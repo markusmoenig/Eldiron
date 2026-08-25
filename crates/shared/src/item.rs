@@ -30,10 +30,15 @@ pub struct Item {
     #[serde(default)]
     pub authoring: String,
 
-    /// Project-owned editable icon animation frames. An empty list inherits
-    /// the icon resolved from the active ruleset.
+    /// Project-owned editable icon animation frames for the default/on state.
+    /// An empty list inherits the icon resolved from the active ruleset.
     #[serde(default)]
     pub icon_frames: Vec<rusterix::Texture>,
+
+    /// Project-owned editable icon animation frames for the optional off state.
+    /// An empty list means that this item has no custom off-state artwork.
+    #[serde(default)]
+    pub icon_off_frames: Vec<rusterix::Texture>,
 
     /// The initial position.
     pub position: Vec3<f32>,
@@ -61,9 +66,26 @@ impl Item {
             data: String::new(),
             authoring: String::new(),
             icon_frames: Vec::new(),
+            icon_off_frames: Vec::new(),
             position: zero(),
 
             item_id: Uuid::new_v4(),
+        }
+    }
+
+    pub fn icon_frames_for_state(&self, on: bool) -> &Vec<rusterix::Texture> {
+        if on {
+            &self.icon_frames
+        } else {
+            &self.icon_off_frames
+        }
+    }
+
+    pub fn icon_frames_for_state_mut(&mut self, on: bool) -> &mut Vec<rusterix::Texture> {
+        if on {
+            &mut self.icon_frames
+        } else {
+            &mut self.icon_off_frames
         }
     }
 }

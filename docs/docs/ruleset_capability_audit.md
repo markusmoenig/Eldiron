@@ -146,14 +146,14 @@ The goal is reached when:
 
 | Capability | Current evidence | Status | Required next step |
 | --- | --- | --- | --- |
-| Official avatar/icon/tile assets | Compile-time bundled assets load by official id/version; optional typed `equipment.avatar_anchors` maps arbitrary ruleset slot names onto generic main/off avatar frame anchors | Complete for official | Move registration to package manifests |
+| Official avatar/icon/tile assets | Compile-time bundled avatars and state/frame icon directories load by official id/version; the torch world tile is reconstructed from its icon state frames, while optional typed `equipment.avatar_anchors` maps arbitrary ruleset slot names onto generic main/off avatar frame anchors | Complete for official | Move registration to package manifests |
 | Project asset override | Matching project avatars and assets can replace bundled defaults | Functional | Apply the same policy to third-party packages |
-| Item visual fallback | Items render from richer avatar/tile/template paths or an explicit icon; absent item icons resolve through validated `ui.item_icon_fallbacks` by ruleset kind/default and are materialized during ruleset-template sync | Functional | Add optional icon composition and a presentation coverage report |
+| Item visual fallback | Project icon-state overrides and explicit tiles win; authored item-id On/Off PNGs precede semantic icons and validated `ui.item_icon_fallbacks`; avatar/template generation is the final missing-art path | Functional | Add optional icon composition and a presentation coverage report |
 | Action icon fallback | Rules actions resolve an explicit icon, a matching required ability/spell/action icon, then validated semantic healing/condition/kind/default mappings | Functional | Add optional icon composition and Creator previews |
 | Semantic procedural FX fallback | Explicit action/condition stages win; validated ruleset-authored role/stage mappings provide shared presets, state actions now spawn their action FX, and conditions rebuild persistent active particles | Functional | Add travel-path execution beyond the existing spell path and Creator previews |
-| Icon generation and attribution | `icons.toml` downloads Game-icons masks and writes attribution | Functional for official | Support aliases, composition, local sources, package output, and unresolved reports |
+| Icon artwork and attribution | Artist-editable RGBA PNG state/frame directories are authoritative; On is the required default, Off is optional, `icons.toml` records attribution, and the importer only creates missing On files | Functional for official | Support aliases, composition, package output, material-map loading, and unresolved reports |
 | Icon registration | Official textures are listed manually through compile-time macros | Partial | Generate the asset registry from the package manifest |
-| Ruleset palette | Official palette drives rules-owned visuals and generated icons | Functional | Make palettes package-owned and optional |
+| Ruleset palette | Official palette drives avatars and missing-art generated fallbacks, while authored icon PNGs remain palette-independent | Functional | Make palettes package-owned and optional |
 | Localized runtime messages | Official English defaults merge with project locale overrides | Functional | Package locale discovery and completeness reports |
 | Localized definition names/descriptions | Most names/descriptions are hardcoded English in rules TOML | Partial | Add locale keys with display fallbacks |
 
@@ -249,9 +249,9 @@ These ownership conflicts should be settled before schema 2:
    damage, and the mapped weapon-damage attribute overlap.
 6. Race relations and the faction attribute both participate in disposition
    without a full faction relation model.
-7. Rich item visuals and icon glyphs have separate precedence chains; these are
-   documented and validated, but Creator does not yet preview the full resolved
-   presentation report.
+7. Rich item visuals and icon glyphs have separate precedence chains. Creator
+   now exposes editable On and Off frame rows and ruleset-default loading, but
+   it does not yet preview the full resolved presentation report.
 
 ## Priority Backlog
 

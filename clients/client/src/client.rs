@@ -574,13 +574,21 @@ impl ClientTrait for Client {
             let xhr = XmlHttpRequest::new().expect("XmlHttpRequest not available");
             xhr.open_with_async("GET", "game.eldiron", false)
                 .expect("failed to open XHR");
+            // A synchronous main-thread XHR cannot use `responseType = arraybuffer`.
+            // x-user-defined preserves each response byte in the low byte of a character.
+            xhr.override_mime_type("text/plain; charset=x-user-defined")
+                .expect("failed to configure binary XHR response");
             xhr.send().expect("failed to send XHR");
 
             // 200..299 considered success
             let status = xhr.status().unwrap_or(0);
             if (200..300).contains(&status) {
-                if let Ok(Some(text)) = xhr.response_text() {
-                    if let Ok(mut project) = serde_json::from_str::<Project>(&text) {
+                if let Ok(Some(response)) = xhr.response_text() {
+                    let bytes = response
+                        .chars()
+                        .map(|character| (character as u32 & 0xff) as u8)
+                        .collect::<Vec<_>>();
+                    if let Ok(mut project) = shared::project_io::decode_project(&bytes) {
                         project.migrate_default_ruleset();
                         let _ = project.sync_ruleset_items();
                         return project;
@@ -593,8 +601,8 @@ impl ClientTrait for Client {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            if let Ok(contents) = std::fs::read_to_string(path) {
-                if let Ok(mut project) = serde_json::from_str::<Project>(&contents) {
+            if let Ok(bytes) = std::fs::read(path) {
+                if let Ok(mut project) = shared::project_io::decode_project(&bytes) {
                     project.migrate_default_ruleset();
                     let _ = project.sync_ruleset_items();
                     return project;

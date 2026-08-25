@@ -321,12 +321,17 @@ impl Dock for TilesEditorDock {
                     && let Some(item) = project.items.get(item_id).cloned()
                 {
                     let frame_index = match server_ctx.editing_ctx {
-                        PixelEditingContext::ItemIcon(id, index) if id == *item_id => index,
+                        PixelEditingContext::ItemIcon(id, _, index) if id == *item_id => index,
                         _ => 0,
                     };
+                    let on = matches!(
+                        server_ctx.editing_ctx,
+                        PixelEditingContext::ItemIcon(id, true, _) if id == *item_id
+                    );
                     server_ctx.editing_ctx = PixelEditingContext::ItemIcon(
                         *item_id,
-                        frame_index.min(item.icon_frames.len().saturating_sub(1)),
+                        on,
+                        frame_index.min(item.icon_frames_for_state(on).len().saturating_sub(1)),
                     );
                     self.set_item_icon(&item, ui, ctx, server_ctx);
                 } else if id.name == "Tile Editor Undo Available" {
@@ -347,9 +352,9 @@ impl Dock for TilesEditorDock {
                 if id.name == "Tile Size Edit" {
                     if let Some(size) = value.to_i32() {
                         match server_ctx.editing_ctx {
-                            PixelEditingContext::ItemIcon(item_id, _) if size > 0 => {
+                            PixelEditingContext::ItemIcon(item_id, on, _) if size > 0 => {
                                 if let Some(item) = project.items.get(&item_id) {
-                                    let before = item.icon_frames.clone();
+                                    let before = item.icon_frames_for_state(on).clone();
                                     if before.first().is_some_and(|texture| {
                                         texture.width != size as usize
                                             || texture.height != size as usize
@@ -362,11 +367,12 @@ impl Dock for TilesEditorDock {
                                             .collect::<Vec<_>>();
                                         let atom = TileEditorUndoAtom::ItemIconFramesEdit(
                                             item_id,
+                                            on,
                                             before,
                                             after.clone(),
                                         );
                                         if let Some(item) = project.items.get_mut(&item_id) {
-                                            item.icon_frames = after;
+                                            *item.icon_frames_for_state_mut(on) = after;
                                         }
                                         self.add_undo(atom, ctx);
                                         if let Some(item) = project.items.get(&item_id).cloned() {
@@ -404,12 +410,12 @@ impl Dock for TilesEditorDock {
                 if id.name == "Tile Frame Edit" {
                     if let Some(frames) = value.to_i32() {
                         match server_ctx.editing_ctx {
-                            PixelEditingContext::ItemIcon(item_id, _) => {
+                            PixelEditingContext::ItemIcon(item_id, on, _) => {
                                 let frame_count = frames.max(1) as usize;
                                 if let Some(item) = project.items.get(&item_id)
-                                    && frame_count != item.icon_frames.len()
+                                    && frame_count != item.icon_frames_for_state(on).len()
                                 {
-                                    let before = item.icon_frames.clone();
+                                    let before = item.icon_frames_for_state(on).clone();
                                     let mut after = before.clone();
                                     if after.is_empty() {
                                         after.push(rusterix::Texture::alloc(32, 32));
@@ -420,11 +426,12 @@ impl Dock for TilesEditorDock {
                                     after.truncate(frame_count);
                                     let atom = TileEditorUndoAtom::ItemIconFramesEdit(
                                         item_id,
+                                        on,
                                         before,
                                         after.clone(),
                                     );
                                     if let Some(item) = project.items.get_mut(&item_id) {
-                                        item.icon_frames = after;
+                                        *item.icon_frames_for_state_mut(on) = after;
                                     }
                                     self.add_undo(atom, ctx);
                                     if let Some(item) = project.items.get(&item_id).cloned() {
@@ -476,21 +483,22 @@ impl Dock for TilesEditorDock {
             TheEvent::StateChanged(id, state) => {
                 if id.name == "Item Icon Load Default"
                     && *state == TheWidgetState::Clicked
-                    && let PixelEditingContext::ItemIcon(item_id, _) = server_ctx.editing_ctx
+                    && let PixelEditingContext::ItemIcon(item_id, on, _) = server_ctx.editing_ctx
                 {
                     if let Some(item) = project.items.get(&item_id).cloned() {
-                        let after = resolved_item_default_icon_frames(&item, project);
-                        let before = item.icon_frames;
+                        let after = resolved_item_default_icon_frames_for_state(&item, project, on);
+                        let before = item.icon_frames_for_state(on).clone();
                         if !after.is_empty() && before != after {
                             let atom = TileEditorUndoAtom::ItemIconFramesEdit(
                                 item_id,
+                                on,
                                 before,
                                 after.clone(),
                             );
                             if let Some(item) = project.items.get_mut(&item_id) {
-                                item.icon_frames = after;
+                                *item.icon_frames_for_state_mut(on) = after;
                             }
-                            server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item_id, 0);
+                            server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item_id, on, 0);
                             self.add_undo(atom, ctx);
                             if let Some(item) = project.items.get(&item_id).cloned() {
                                 self.set_item_icon(&item, ui, ctx, server_ctx);
@@ -1194,19 +1202,19 @@ impl TilesEditorDock {
         server_ctx: &mut ServerContext,
     ) {
         match server_ctx.editing_ctx {
-            PixelEditingContext::ItemIcon(item_id, _) => {
+            PixelEditingContext::ItemIcon(item_id, on, _) => {
                 if let Some(item) = project.items.get(&item_id)
-                    && index < item.icon_frames.len()
+                    && index < item.icon_frames_for_state(on).len()
                 {
                     server_ctx.curr_tile_frame_index = index;
-                    server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item_id, index);
+                    server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item_id, on, index);
                     if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree")
                         && let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node)
                         && let Some(widget) = tile_node.widgets[2].as_tree_icons()
                     {
                         widget.set_selected_index(Some(index));
                     }
-                    if let Some(texture) = item.icon_frames.get(index) {
+                    if let Some(texture) = item.icon_frames_for_state(on).get(index) {
                         self.set_editing_texture(texture, ui, ctx);
                     }
                     self.sync_anchor_overlay(project, ui, ctx, server_ctx);
@@ -1285,16 +1293,16 @@ impl TilesEditorDock {
     pub fn add_undo(&mut self, atom: TileEditorUndoAtom, ctx: &mut TheContext) {
         let key = match &atom {
             TileEditorUndoAtom::TileEdit(tile_id, _, _) => Some(*tile_id),
-            TileEditorUndoAtom::ItemIconFramesEdit(item_id, _, _) => Some(*item_id),
+            TileEditorUndoAtom::ItemIconFramesEdit(item_id, _, _, _) => Some(*item_id),
             TileEditorUndoAtom::TextureEdit(editing_ctx, _, _) => match editing_ctx {
                 PixelEditingContext::Tile(tile_id, _) => Some(*tile_id),
-                PixelEditingContext::ItemIcon(item_id, _) => Some(*item_id),
+                PixelEditingContext::ItemIcon(item_id, _, _) => Some(*item_id),
                 PixelEditingContext::AvatarFrame(avatar_id, _, _, _) => Some(*avatar_id),
                 PixelEditingContext::None => None,
             },
             TileEditorUndoAtom::AvatarAnchorEdit(editing_ctx, _, _, _, _) => match editing_ctx {
                 PixelEditingContext::Tile(tile_id, _) => Some(*tile_id),
-                PixelEditingContext::ItemIcon(item_id, _) => Some(*item_id),
+                PixelEditingContext::ItemIcon(item_id, _, _) => Some(*item_id),
                 PixelEditingContext::AvatarFrame(avatar_id, _, _, _) => Some(*avatar_id),
                 PixelEditingContext::None => None,
             },
@@ -1530,19 +1538,26 @@ impl TilesEditorDock {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
-        if item.icon_frames.is_empty() {
+        let on = matches!(
+            server_ctx.editing_ctx,
+            PixelEditingContext::ItemIcon(id, true, _) if id == item.id
+        );
+        let frames = item.icon_frames_for_state(on);
+        if frames.is_empty() {
             return;
         }
 
         self.current_tile_id = None;
         self.current_undo_key = Some(item.id);
         let requested = match server_ctx.editing_ctx {
-            PixelEditingContext::ItemIcon(id, index) if id == item.id => index,
+            PixelEditingContext::ItemIcon(id, state, index) if id == item.id && state == on => {
+                index
+            }
             _ => 0,
         };
-        let frame_index = requested.min(item.icon_frames.len() - 1);
+        let frame_index = requested.min(frames.len() - 1);
         server_ctx.curr_tile_frame_index = frame_index;
-        server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item.id, frame_index);
+        server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item.id, on, frame_index);
 
         if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree")
             && let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node)
@@ -1550,24 +1565,24 @@ impl TilesEditorDock {
             if let Some(widget) = tile_node.widgets[0].as_tree_item()
                 && let Some(embedded) = widget.embedded_widget_mut()
             {
-                embedded.set_value(TheValue::Int(item.icon_frames[0].width as i32));
+                embedded.set_value(TheValue::Int(frames[0].width as i32));
             }
             if let Some(widget) = tile_node.widgets[1].as_tree_item()
                 && let Some(embedded) = widget.embedded_widget_mut()
             {
-                embedded.set_value(TheValue::Int(item.icon_frames.len() as i32));
+                embedded.set_value(TheValue::Int(frames.len() as i32));
             }
             if let Some(widget) = tile_node.widgets[2].as_tree_icons() {
-                widget.set_icon_count(item.icon_frames.len());
+                widget.set_icon_count(frames.len());
                 widget.set_selected_index(Some(frame_index));
-                for (index, texture) in item.icon_frames.iter().enumerate() {
+                for (index, texture) in frames.iter().enumerate() {
                     widget.set_icon(index, texture.to_rgba());
                 }
             }
         }
 
         ui.set_enabled("Item Icon Load Default", ctx);
-        self.set_editing_texture(&item.icon_frames[frame_index], ui, ctx);
+        self.set_editing_texture(&frames[frame_index], ui, ctx);
         self.set_undo_state_to_ui(ctx);
     }
 
@@ -1669,7 +1684,7 @@ impl TilesEditorDock {
                     }
                 }
             }
-            PixelEditingContext::ItemIcon(item_id, _) => {
+            PixelEditingContext::ItemIcon(item_id, _, _) => {
                 server_ctx.avatar_anchor_slot = AvatarAnchorEditSlot::None;
                 if let Some(item) = project.items.get(&item_id) {
                     self.set_item_icon(item, ui, ctx, server_ctx);
@@ -1703,7 +1718,7 @@ impl TilesEditorDock {
         self.current_undo_key = match editing_ctx {
             PixelEditingContext::None => None,
             PixelEditingContext::Tile(tile_id, _) => Some(*tile_id),
-            PixelEditingContext::ItemIcon(item_id, _) => Some(*item_id),
+            PixelEditingContext::ItemIcon(item_id, _, _) => Some(*item_id),
             PixelEditingContext::AvatarFrame(avatar_id, _, _, _) => Some(*avatar_id),
         };
     }

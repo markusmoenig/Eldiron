@@ -8,6 +8,7 @@ pub mod iso_paint_brush;
 pub mod iso_paint_render;
 pub mod item;
 pub mod project;
+pub mod project_io;
 pub mod region;
 pub mod rulesets;
 #[cfg(feature = "graphics")]
@@ -36,6 +37,7 @@ pub mod prelude {
     pub use crate::project::{
         BuilderGraphAsset, ProceduralRecipeAsset, Project, TileCollectionAsset, TileCollectionEntry,
     };
+    pub use crate::project_io::*;
     pub use crate::region::Region;
     pub use crate::rulesets::*;
     pub use crate::screen::*;

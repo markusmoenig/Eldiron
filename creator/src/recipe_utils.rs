@@ -637,9 +637,9 @@ mod tests {
     fn hideout2d_meadow_grass_rebakes_as_a_paintable_surface_tile() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../test_projects/Hideout2D.eldiron");
-        let contents = std::fs::read_to_string(&path)
+        let bytes = std::fs::read(&path)
             .unwrap_or_else(|error| panic!("read Hideout2D fixture '{}': {error}", path.display()));
-        let mut project: Project = serde_json::from_str(&contents)
+        let mut project = shared::project_io::decode_project(&bytes)
             .unwrap_or_else(|error| panic!("load Hideout2D fixture: {error}"));
         let recipe_id = project
             .procedural_recipes
@@ -681,9 +681,9 @@ mod tests {
     fn gate_brick_wall_rebakes_as_a_rect_paintable_surface_tile() {
         let path =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_projects/Gate.eldiron");
-        let contents = std::fs::read_to_string(&path)
+        let bytes = std::fs::read(&path)
             .unwrap_or_else(|error| panic!("read Gate fixture '{}': {error}", path.display()));
-        let mut project: Project = serde_json::from_str(&contents)
+        let mut project = shared::project_io::decode_project(&bytes)
             .unwrap_or_else(|error| panic!("load Gate fixture: {error}"));
         let recipe_id = project
             .procedural_recipes

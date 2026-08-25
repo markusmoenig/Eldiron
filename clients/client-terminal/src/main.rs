@@ -82,9 +82,9 @@ enum AutoAttackMode {
 
 impl TerminalApp {
     fn load(path: &Path) -> Result<Self, String> {
-        let contents = fs::read_to_string(path)
-            .map_err(|err| format!("Failed to read {}: {}", path.display(), err))?;
-        let mut project: Project = serde_json::from_str(&contents)
+        let bytes =
+            fs::read(path).map_err(|err| format!("Failed to read {}: {}", path.display(), err))?;
+        let mut project: Project = shared::project_io::decode_project(&bytes)
             .map_err(|err| format!("Failed to parse {}: {}", path.display(), err))?;
         project.migrate_default_ruleset();
 
@@ -1132,9 +1132,9 @@ fn optional_rules_project_path(args: &[String]) -> Result<Option<&Path>, String>
 }
 
 fn project_rules_table(path: &Path) -> Result<toml::Table, String> {
-    let contents = fs::read_to_string(path)
-        .map_err(|err| format!("Failed to read {}: {}", path.display(), err))?;
-    let mut project: Project = serde_json::from_str(&contents)
+    let bytes =
+        fs::read(path).map_err(|err| format!("Failed to read {}: {}", path.display(), err))?;
+    let mut project: Project = shared::project_io::decode_project(&bytes)
         .map_err(|err| format!("Failed to parse {}: {}", path.display(), err))?;
     project.migrate_default_ruleset();
     let rules = shared::rulesets::resolve_project_rules(&project.config, &project.rules)?;

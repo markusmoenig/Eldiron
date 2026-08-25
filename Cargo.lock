@@ -1394,6 +1394,7 @@ dependencies = [
  "self_update",
  "serde",
  "serde_json",
+ "tempfile",
  "theframework",
  "toml 0.8.23",
  "ureq 2.12.1",
@@ -1426,6 +1427,7 @@ dependencies = [
  "buildergraph",
  "earcutr",
  "eldiron-ruleset",
+ "flate2",
  "fontdue",
  "indexmap",
  "line_drawing",
@@ -1446,6 +1448,7 @@ dependencies = [
  "vek",
  "wasm-bindgen",
  "web-sys",
+ "zip",
 ]
 
 [[package]]
@@ -4488,6 +4491,7 @@ dependencies = [
  "earcutr",
  "eldiron-ruleset",
  "fast-srgb8",
+ "flate2",
  "fontdue",
  "hound",
  "image",
@@ -4516,6 +4520,7 @@ dependencies = [
  "walkdir",
  "wasm-bindgen",
  "web-sys",
+ "zip",
 ]
 
 [[package]]
@@ -7122,6 +7127,7 @@ checksum = "eb2a05c7c36fde6c09b08576c9f7fb4cda705990f73b58fe011abf7dfb24168b"
 dependencies = [
  "arbitrary",
  "crc32fast",
+ "flate2",
  "indexmap",
  "memchr",
  "time",

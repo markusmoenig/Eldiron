@@ -496,9 +496,8 @@ pub fn build_project(project_dir: &Path) -> Result<PathBuf, String> {
         fs::create_dir_all(parent)
             .map_err(|err| format!("failed to create {}: {err}", parent.display()))?;
     }
-    let json = serde_json::to_string(&project)
-        .map_err(|err| format!("failed to serialize project: {err}"))?;
-    fs::write(&output_path, json)
+    let archive = shared::project_io::encode_project(&project)?;
+    fs::write(&output_path, archive)
         .map_err(|err| format!("failed to write {}: {err}", output_path.display()))?;
     Ok(output_path)
 }
@@ -6228,12 +6227,13 @@ Screen "play" {
         .expect("source written");
 
         let output = build_project(&root).expect("project builds");
-        let compiled = fs::read_to_string(&output).expect("compiled project readable");
-        assert!(
-            !compiled.contains('\n'),
-            "generated projects should use compact JSON"
+        let compiled = fs::read(&output).expect("compiled project readable");
+        assert_eq!(
+            shared::project_io::project_file_format(&compiled),
+            shared::project_io::ProjectFileFormat::ArchiveV1
         );
-        let project: Project = serde_json::from_str(&compiled).expect("compiled project parses");
+        let project: Project =
+            shared::project_io::decode_project(&compiled).expect("compiled project parses");
 
         assert!(project.config.contains("[renderer]"));
         assert!(project.config.contains("backend_3d = \"raster\""));
@@ -6307,9 +6307,10 @@ output = "build/game.eldiron"
         .expect("screen source written");
 
         let output = build_project(&root).expect("project builds");
-        let project: Project =
-            serde_json::from_str(&fs::read_to_string(&output).expect("compiled project readable"))
-                .expect("compiled project parses");
+        let project: Project = shared::project_io::decode_project(
+            &fs::read(&output).expect("compiled project readable"),
+        )
+        .expect("compiled project parses");
 
         assert!(
             project
@@ -6380,9 +6381,10 @@ Region "cellar" {
         .expect("source written");
 
         let output = build_project(&root).expect("project builds");
-        let project: Project =
-            serde_json::from_str(&fs::read_to_string(&output).expect("compiled project readable"))
-                .expect("compiled project parses");
+        let project: Project = shared::project_io::decode_project(
+            &fs::read(&output).expect("compiled project readable"),
+        )
+        .expect("compiled project parses");
         let floor_id = project
             .tiles
             .values()

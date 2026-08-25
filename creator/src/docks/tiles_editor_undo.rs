@@ -8,8 +8,8 @@ pub enum TileEditorUndoAtom {
     TileEdit(Uuid, rusterix::Tile, rusterix::Tile),
     /// Generic texture edit via PixelEditingContext: (context, before_texture, after_texture)
     TextureEdit(PixelEditingContext, rusterix::Texture, rusterix::Texture),
-    /// Item icon frame-list edit: (item_id, before_frames, after_frames)
-    ItemIconFramesEdit(Uuid, Vec<rusterix::Texture>, Vec<rusterix::Texture>),
+    /// Item icon frame-list edit: (item_id, on_state, before_frames, after_frames)
+    ItemIconFramesEdit(Uuid, bool, Vec<rusterix::Texture>, Vec<rusterix::Texture>),
     /// Avatar weapon attachment anchor edit for the currently edited frame.
     AvatarAnchorEdit(
         PixelEditingContext,
@@ -46,9 +46,9 @@ impl TileEditorUndoAtom {
                 }
                 Self::send_editing_context_update(editing_ctx, ctx);
             }
-            TileEditorUndoAtom::ItemIconFramesEdit(item_id, prev, _) => {
+            TileEditorUndoAtom::ItemIconFramesEdit(item_id, on, prev, _) => {
                 if let Some(item) = project.items.get_mut(item_id) {
-                    item.icon_frames = prev.clone();
+                    *item.icon_frames_for_state_mut(*on) = prev.clone();
                 }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Item Icon Frames Changed"),
@@ -92,9 +92,9 @@ impl TileEditorUndoAtom {
                 }
                 Self::send_editing_context_update(editing_ctx, ctx);
             }
-            TileEditorUndoAtom::ItemIconFramesEdit(item_id, _, next) => {
+            TileEditorUndoAtom::ItemIconFramesEdit(item_id, on, _, next) => {
                 if let Some(item) = project.items.get_mut(item_id) {
-                    item.icon_frames = next.clone();
+                    *item.icon_frames_for_state_mut(*on) = next.clone();
                 }
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Item Icon Frames Changed"),

@@ -48,20 +48,28 @@ fn main() -> Result<(), String> {
     fs::create_dir_all(&out_dir)
         .map_err(|err| format!("Could not create '{}': {err}", out_dir.display()))?;
 
+    let mut imported = 0;
     for (id, icon) in &manifest.icons {
-        build_icon(id, icon, &out_dir)?;
+        if import_missing_icon(id, icon, &out_dir)? {
+            imported += 1;
+        }
     }
     write_attribution(&manifest, &out_dir)?;
 
     println!(
-        "Built {} icon mask(s) into {}",
-        manifest.icons.len(),
+        "Imported {imported} missing icon(s); preserved {} existing artist-editable PNG(s) in {}",
+        manifest.icons.len() - imported,
         out_dir.display()
     );
     Ok(())
 }
 
-fn build_icon(id: &str, icon: &IconEntry, out_dir: &Path) -> Result<(), String> {
+fn import_missing_icon(id: &str, icon: &IconEntry, out_dir: &Path) -> Result<bool, String> {
+    let out_path = out_dir.join(id).join("on").join("0.png");
+    if out_path.exists() {
+        return Ok(false);
+    }
+
     if icon.source.trim() != "game-icons" {
         return Err(format!(
             "Icon '{id}' uses unsupported source '{}'",
@@ -87,21 +95,26 @@ fn build_icon(id: &str, icon: &IconEntry, out_dir: &Path) -> Result<(), String> 
 
     let image = image::load_from_memory(&bytes)
         .map_err(|err| format!("Could not decode downloaded icon '{id}': {err}"))?;
-    let output = normalize_icon_mask(image);
-    let out_path = out_dir.join(format!("{id}.png"));
+    let output = normalize_imported_icon(image);
+    if let Some(parent) = out_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Could not create '{}': {err}", parent.display()))?;
+    }
     output
         .save_with_format(&out_path, ImageFormat::Png)
         .map_err(|err| format!("Could not write '{}': {err}", out_path.display()))?;
-    Ok(())
+    Ok(true)
 }
 
-fn normalize_icon_mask(image: DynamicImage) -> DynamicImage {
+fn normalize_imported_icon(image: DynamicImage) -> DynamicImage {
     let mut resized = image.resize_exact(32, 32, FilterType::Nearest).to_rgba8();
     for pixel in resized.pixels_mut() {
         if pixel[3] > 0 {
-            pixel[0] = 255;
-            pixel[1] = 255;
-            pixel[2] = 255;
+            // New imports receive the old neutral item-icon default as actual
+            // RGBA pixels. From this point onward the PNG is edited and used as-is.
+            pixel[0] = 216;
+            pixel[1] = 216;
+            pixel[2] = 216;
         }
     }
     DynamicImage::ImageRgba8(resized)
@@ -110,10 +123,11 @@ fn normalize_icon_mask(image: DynamicImage) -> DynamicImage {
 fn write_attribution(manifest: &IconManifest, out_dir: &Path) -> Result<(), String> {
     let mut text = String::from(
         "# Eldiron Ruleset Icons\n\n\
-         These bundled icon masks are generated from `crates/ruleset/rulesets/eldiron/v1/icons.toml`.\n\
+         The PNG files under `<id>/<state>/<frame>.png` are the authoritative, artist-editable icon artwork.\n\
+         `crates/ruleset/rulesets/eldiron/v1/icons.toml` records the upstream sources and licenses for the Game-icons-derived subset. Eldiron-authored item icons are not derived from those upstream files.\n\
          Source icons are adapted from [Game-icons.net](https://game-icons.net/) \
          under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/).\n\n\
-         Runtime tinting, dithering, and visual treatment are applied by Eldiron, not by this builder.\n\n\
+         `eldiron-icon-builder` only imports missing files and never overwrites existing PNG artwork.\n\n\
          ## Icons\n\n",
     );
 

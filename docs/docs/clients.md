@@ -39,6 +39,8 @@ On **Linux** and **Windows**, just start the client and pass the name of the **.
 
 For the **Web**, rename your **.eldiron** file to **game.eldiron** and put it in the same directory as **index.html** and the other files. You can then run the game on any web server.
 
-# Binary Files
+# Project Files
 
-Right now the **client** works directly on **.eldiron** source files. As we move closer to a v1 of **Eldiron**, I will add the export of **binary** project files from within **Eldiron Creator**. These binary files cannot be loaded back into the **Creator** and can only be run by the clients.
+Creator and every Eldiron client use the same **.eldiron** project file. New files are compressed, versioned containers, so even projects with embedded pixel art remain practical to store and transfer. A project saved by Creator can be opened again in Creator or passed directly to a client; there is no separate client-only export.
+
+Older **.eldiron** files that contain plain JSON remain supported. Opening and saving one in Creator upgrades it to the compressed container automatically. See [Project Files](creator/project_files.md) for the format and compatibility details.

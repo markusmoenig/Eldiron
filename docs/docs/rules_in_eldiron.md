@@ -36,6 +36,7 @@ crates/ruleset/rulesets/
       races_classes.toml
       README.md
       assets/
+        icons/
         humanoid.eldiron_avatar
         orc.eldiron_avatar
         skeleton.eldiron_avatar
@@ -239,8 +240,9 @@ starting inventory.
 Explicit character startup item attributes always override the class loadout.
 `start_active_items` can name any item in either explicit startup list when the
 game needs it to spawn active. The item still receives its normal ruleset
-`active` event, so state-specific visuals, light, durability, and other behavior
-remain defined by the item rather than the character.
+`active` event. State-mapped world and UI visuals update automatically, while
+light, durability, and other behavior remain defined by the item rather than
+the character.
 
 Rulesets assign engine-facing meaning through optional semantic attribute
 roles. The official mapping is:
@@ -554,21 +556,36 @@ Creator creates missing ruleset-backed items and refreshes existing
 ruleset-backed items whose `ruleset_path` still points to the official item.
 Custom project items remain separate project assets.
 
-Ruleset icons live in `[icons]` and are bundled as neutral PNG masks. Item
-templates can set `icon = "training_sword"` as a generic fallback. Item display
-still prefers explicit tiles, avatar channels, and `visual_template` pixel masks
-when present, so hand-shaped pixel item icons remain the primary look.
-Icons are shared semantic assets rather than one file per definition: the
-official Guard action, for example, deliberately references the existing
-`round_shield` icon.
+Ruleset icons live in `[icons]`, with their authoritative artist-editable RGBA
+PNGs under `assets/icons/<id>/<state>/<frame>.png`. Item templates can set
+`icon = "training_sword"`.
+Item display prefers a project-owned edited icon, then an explicit tile, then
+the authored item-id ruleset PNG. This lets an item keep its own artwork even
+when its semantic fallback is shared with an action. Avatar-channel and
+`visual_template` generators are used only when that artwork is missing. The
+PNG colors are never remapped through either project palette.
+Every item exposes **Off** and **On** icon rows in Creator. A single-state item
+has only the On row populated; a stateful item may independently animate both
+rows. The torch is the first bundled example: its former tile files are rebuilt
+from the same one-frame Off and four-frame On icon PNGs, so UI and world art no
+longer have separate binary sources.
+An optional state-local `material.png` is reserved for artist-authored material
+data: red stores roughness, blue metallic, green emission, and alpha is unused.
+No material file is required, and the torch does not invent one because its
+former tiles did not contain material data.
+Items own state bundles keyed by item id. Actions may still share semantic
+artwork: the official Guard action, for example, deliberately references the
+existing `round_shield` icon.
 
 Actions and items may share any semantic icon id, so new content does not
 require one-off artwork. Action icons resolve an explicit `ui.icon`, then an
 icon matching the required ability, required spell, or action id, then
 `[ui.action_icon_fallbacks]` by `healing`, `condition`, action `kind`, and
-`default`. Item icons resolve an explicit `icon`/`icon_template`, then
-`[ui.item_icon_fallbacks]` by `ruleset_kind` and `default`. Ruleset-backed
-project item templates receive the resolved item fallback during sync.
+`default`. For items, an authored item-id state PNG wins before the explicit
+semantic `icon`/`icon_template` and `[ui.item_icon_fallbacks]` by
+`ruleset_kind` and `default`. Ruleset-backed project item templates receive the
+resolved fallback during sync, but it is only used when their own artwork is
+unavailable.
 
 Action particle stages work the same way. Explicit
 `[actions.<id>.fx.<stage>]` data wins; otherwise
@@ -579,14 +596,23 @@ action id. These fallback tables are optional, and all referenced icon and FX
 preset ids are validated.
 
 Ruleset-backed item templates can also carry item script source, authoring text,
-tile ids, and lights. The ruleset can bundle the referenced tiles too, including
-animated tile frames. This is used for reusable interactive objects such as
+tile ids, and lights. This is used for reusable interactive objects such as
 `items.tools.torch`: the ruleset creates a normal project item template whose
-`use` intent toggles `active`, swaps between the bundled unlit tile and the
-bundled four-frame lit animation, enables or disables the point light, and
-presents different look/use text for the on and off states. The same item also
+`use` intent toggles `active`, which selects its Off or On icon and world-tile
+state automatically. The script only responds to that state change to enable
+or disable the point light and presents different look/use text for both
+states. Its world tiles are reconstructed from the same one-frame Off and
+four-frame On PNG bundle while retaining stable tile UUIDs. There are no
+separate torch tile binaries or UUIDs embedded in the script to keep in sync.
+The same item also
 uses ruleset durability: while `active`, its `condition` drains in game minutes,
 and the default official torch destroys itself at `0%` condition.
+
+This behavior is generic. When an item has a boolean `active` attribute and
+defines `off_tile_id` and/or `on_tile_id`, changing `active` automatically
+updates its world `source` from the matching available mapping. A mapping may
+use a tile UUID, tile alias, or palette index. If the requested state has no
+mapping, Eldiron preserves the current source.
 
 Ruleset item ids are stable. Startup loadouts can reference `training_sword` or
 `padded_armor` even when the visible item name is `Training Sword` or
@@ -652,9 +678,9 @@ policy and reject changes without losing or moving the item.
 The official ruleset owns the **Ruleset Palette**.
 
 On load and ruleset sync, Eldiron resolves the effective ruleset `[palette]`
-into the project's Ruleset Palette. Rules-owned visuals such as official item
-icons, avatar defaults, UI color channels, and generated ruleset assets can rely
-on those indices staying stable.
+into the project's Ruleset Palette. Avatar defaults and generated missing-art
+fallbacks can rely on those indices staying stable. Authored icon PNGs keep
+their own RGBA colors and do not depend on this palette.
 
 The editable **Art Palette** is separate. It is used for artist-authored tiles,
 pixel drawing, tile graphs, palette-index geometry sources, and 3D Paint.
@@ -707,10 +733,11 @@ worth = 5
 avatar_channels = ["torso", "arms"]
 ```
 
-When no explicit item icon or tile source is provided, Eldiron uses the default
-avatar's idle front frame, extracts the requested channels, recolors them from
-the ruleset palette, and uses that shape for inventory, equipped slot, and
-ground item previews.
+When no project override, explicit tile, authored item-id icon, or semantic icon
+is available, Eldiron can use the default avatar's idle front frame, extract
+the requested channels, recolor them from the Ruleset Palette, and use that
+shape for inventory, equipped-slot, and ground-item previews. This is generated
+missing art; authored RGBA icon PNGs retain their own colors.
 
 ## Runtime Resolution
 

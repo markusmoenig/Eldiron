@@ -354,13 +354,13 @@ impl Widget {
         let mut drew_primary_texture = false;
         if self.show_icon
             && !is_item_slot
-            && let Some((texture, color)) = Self::command_icon_texture(
+            && let Some(texture) = Self::command_icon_texture(
                 assets,
                 resolved_command.or(self.command.as_deref()),
                 visual_state,
             )
         {
-            Self::draw_tinted_texture(buffer, self.rect, draw2d, texture, color);
+            Self::draw_command_icon_texture(buffer, self.rect, draw2d, texture, visual_state);
             drew_primary_texture = true;
         }
         if !drew_primary_texture && !self.textures.is_empty() {
@@ -543,7 +543,7 @@ impl Widget {
         assets: &'a Assets,
         command: Option<&str>,
         visual_state: ButtonVisualState,
-    ) -> Option<(&'a Texture, Pixel)> {
+    ) -> Option<&'a Texture> {
         let root = assets.rules_table()?;
         let command = command?;
         let resolved_action_icon = match parse_client_command(command) {
@@ -585,43 +585,7 @@ impl Widget {
             .or(resolved_action_icon)?;
         let icon_name = Self::resolve_icon_texture_id(&root, &icon_name);
 
-        let color = match visual_state {
-            ButtonVisualState::Selected => Self::command_icon_color(
-                command_table,
-                ui,
-                &["selected_icon_color", "icon_selected_color"],
-                [255, 255, 255, 255],
-            ),
-            ButtonVisualState::Pressed => Self::command_icon_color(
-                command_table,
-                ui,
-                &["pressed_icon_color", "icon_pressed_color"],
-                [255, 255, 255, 255],
-            ),
-            ButtonVisualState::Disabled => Self::command_icon_color(
-                command_table,
-                ui,
-                &["disabled_icon_color", "icon_disabled_color"],
-                [112, 112, 112, 255],
-            ),
-            ButtonVisualState::Hover => Self::command_icon_color(
-                command_table,
-                ui,
-                &["hover_icon_color", "icon_hover_color"],
-                [190, 190, 190, 255],
-            ),
-            ButtonVisualState::Normal => Self::command_icon_color(
-                command_table,
-                ui,
-                &["icon_color", "normal_icon_color"],
-                [150, 150, 150, 255],
-            ),
-        };
-
-        assets
-            .textures
-            .get(icon_name.as_str())
-            .map(|texture| (texture, color))
+        assets.textures.get(icon_name.as_str())
     }
 
     fn command_icon_table<'a>(root: &'a Table, command: &str) -> Option<&'a Table> {
@@ -654,38 +618,12 @@ impl Widget {
             .to_string()
     }
 
-    fn command_icon_color(
-        action: &Table,
-        ui: Option<&Table>,
-        keys: &[&str],
-        fallback: Pixel,
-    ) -> Pixel {
-        keys.iter()
-            .find_map(|key| {
-                ui.and_then(|ui| ui.get(*key))
-                    .or_else(|| action.get(*key))
-                    .and_then(toml::Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
-                    .map(Self::hex_to_rgba_u8)
-            })
-            .or_else(|| {
-                ui.and_then(|ui| ui.get("icon_color"))
-                    .or_else(|| action.get("icon_color"))
-                    .and_then(toml::Value::as_str)
-                    .map(str::trim)
-                    .filter(|value| !value.is_empty())
-                    .map(Self::hex_to_rgba_u8)
-            })
-            .unwrap_or(fallback)
-    }
-
-    fn draw_tinted_texture(
+    fn draw_command_icon_texture(
         buffer: &mut TheRGBABuffer,
         rect: Rect,
         draw2d: &Draw2D,
         texture: &Texture,
-        color: Pixel,
+        visual_state: ButtonVisualState,
     ) {
         let stride = buffer.stride();
         let inset = (rect.width.min(rect.height) * 0.12).round().max(2.0);
@@ -713,40 +651,99 @@ impl Widget {
                 if source_alpha == 0 {
                     continue;
                 }
-                let shade = texture.data[s]
-                    .max(texture.data[s + 1])
-                    .max(texture.data[s + 2]);
-                let shade = shade as u16;
-                let tinted = [
-                    ((color[0] as u16 * shade) / 255) as u8,
-                    ((color[1] as u16 * shade) / 255) as u8,
-                    ((color[2] as u16 * shade) / 255) as u8,
-                    ((source_alpha as u16 * color[3] as u16) / 255) as u8,
-                ];
+                let treated = Self::command_icon_pixel(
+                    [
+                        texture.data[s],
+                        texture.data[s + 1],
+                        texture.data[s + 2],
+                        source_alpha,
+                    ],
+                    visual_state,
+                );
                 let background = [frame[d], frame[d + 1], frame[d + 2], frame[d + 3]];
                 frame[d..d + 4].copy_from_slice(&draw2d.mix_color(
                     &background,
-                    &tinted,
-                    tinted[3] as f32 / 255.0,
+                    &treated,
+                    treated[3] as f32 / 255.0,
                 ));
             }
         }
     }
 
-    fn hex_to_rgba_u8(hex: &str) -> [u8; 4] {
-        let hex = hex.trim().trim_start_matches('#');
-        if !(hex.len() == 6 || hex.len() == 8) {
-            return [255, 255, 255, 255];
+    fn command_icon_pixel(source: Pixel, visual_state: ButtonVisualState) -> Pixel {
+        match visual_state {
+            ButtonVisualState::Normal => source,
+            ButtonVisualState::Disabled => {
+                let gray = (source[0] as f32 * 0.299
+                    + source[1] as f32 * 0.587
+                    + source[2] as f32 * 0.114)
+                    .round()
+                    .clamp(0.0, 255.0) as u8;
+                [gray, gray, gray, (source[3] as f32 * 0.58).round() as u8]
+            }
+            ButtonVisualState::Selected => {
+                let selected = [255_u8, 226_u8, 150_u8];
+                let mix = 0.34_f32;
+                [
+                    (source[0] as f32 * (1.0 - mix) + selected[0] as f32 * mix).round() as u8,
+                    (source[1] as f32 * (1.0 - mix) + selected[1] as f32 * mix).round() as u8,
+                    (source[2] as f32 * (1.0 - mix) + selected[2] as f32 * mix).round() as u8,
+                    source[3],
+                ]
+            }
+            ButtonVisualState::Hover => [
+                (source[0] as f32 * 1.25).round().clamp(0.0, 255.0) as u8,
+                (source[1] as f32 * 1.25).round().clamp(0.0, 255.0) as u8,
+                (source[2] as f32 * 1.25).round().clamp(0.0, 255.0) as u8,
+                source[3],
+            ],
+            ButtonVisualState::Pressed => [
+                (source[0] as f32 * 0.76).round() as u8,
+                (source[1] as f32 * 0.76).round() as u8,
+                (source[2] as f32 * 0.76).round() as u8,
+                source[3],
+            ],
         }
-        let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(255);
-        let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(255);
-        let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(255);
-        let a = if hex.len() == 8 {
-            u8::from_str_radix(&hex[6..8], 16).unwrap_or(255)
-        } else {
-            255
-        };
-        [r, g, b, a]
+    }
+
+    fn item_icon_state(item: &Item) -> &'static str {
+        if let Some(active) = item.attributes.get_bool("active") {
+            return if active { "on" } else { "off" };
+        }
+        if let Some(state) = item.attributes.get_str("state") {
+            return if state.trim().eq_ignore_ascii_case("off") {
+                "off"
+            } else {
+                "on"
+            };
+        }
+        "on"
+    }
+
+    fn item_icon_asset_keys(item: &Item) -> impl Iterator<Item = String> + '_ {
+        [
+            item.attributes.get_str("ruleset_path"),
+            item.attributes.get_str("ruleset_id"),
+            item.attributes.get_str("class_name"),
+            item.attributes.get_str("name"),
+            (!item.item_type.trim().is_empty()).then_some(item.item_type.as_str()),
+        ]
+        .into_iter()
+        .flatten()
+        .map(|key| key.trim().to_ascii_lowercase())
+    }
+
+    fn custom_item_icon_frames<'a>(assets: &'a Assets, item: &Item) -> Option<&'a Vec<Texture>> {
+        let state = Self::item_icon_state(item);
+        for key in Self::item_icon_asset_keys(item) {
+            if let Some(frames) = assets.item_icons.get(&format!("{key}:{state}")) {
+                return Some(frames);
+            }
+            if let Some(frames) = assets.item_icons.get(&key) {
+                return Some(frames);
+            }
+        }
+        None
     }
 
     fn texture_index_for_state(&self, visual_state: ButtonVisualState) -> usize {
@@ -865,6 +862,12 @@ impl Widget {
             drawn = true;
         }
 
+        // Ruleset PNGs are authoritative RGBA artwork. Prefer them over the
+        // palette-driven generators, which now serve only as missing-art fallbacks.
+        if !drawn && Self::draw_item_icon_texture(buffer, rect, assets, item, draw2d) {
+            drawn = true;
+        }
+
         if !drawn && Self::draw_generated_avatar_channel_icon(buffer, rect, assets, item, draw2d) {
             drawn = true;
         }
@@ -877,27 +880,10 @@ impl Widget {
             drawn = Self::draw_generated_equipment_icon(buffer, rect, assets, item, draw2d);
         }
 
-        if !drawn && Self::draw_item_icon_texture(buffer, rect, assets, item, draw2d) {
-            drawn = true;
-        }
         if drawn {
             Self::draw_stack_badge(buffer, rect, item, draw2d);
         }
         drawn
-    }
-
-    fn custom_item_icon_frames<'a>(assets: &'a Assets, item: &Item) -> Option<&'a Vec<Texture>> {
-        [
-            item.attributes.get_str("ruleset_path"),
-            item.attributes.get_str("ruleset_id"),
-            item.attributes.get_str("class_name"),
-            item.attributes.get_str("name"),
-            (!item.item_type.trim().is_empty()).then_some(item.item_type.as_str()),
-        ]
-        .into_iter()
-        .flatten()
-        .map(|key| key.trim().to_ascii_lowercase())
-        .find_map(|key| assets.item_icons.get(&key))
     }
 
     fn draw_stack_badge(buffer: &mut TheRGBABuffer, rect: Rect, item: &Item, _draw2d: &Draw2D) {
@@ -959,18 +945,20 @@ impl Widget {
         }
     }
 
-    /// Render the same generated item icon used by runtime UI consumers.
+    /// Resolve the same default item icon used by runtime UI consumers.
     ///
     /// Editor surfaces such as ruleset Help use this entry point so previews
     /// cannot drift from the icon chosen by the game client.
     pub fn item_generated_icon_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
+        if let Some(icon) = Self::item_icon_texture_square(assets, item) {
+            return Some(icon);
+        }
         if !AvatarRuntimeBuilder::item_allows_generated_icon(item, assets) {
             return None;
         }
         Self::item_avatar_channel_icon_square(assets, item)
             .or_else(|| Self::item_template_mask_icon_square(assets, item))
             .or_else(|| Self::item_equipment_icon_square(assets, item))
-            .or_else(|| Self::item_icon_texture_square(assets, item))
     }
 
     pub(crate) fn item_avatar_channel_icon_square(
@@ -1095,29 +1083,36 @@ impl Widget {
     }
 
     fn item_icon_texture_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
+        // Every official item may own a PNG named after its ruleset id. This
+        // avoids forcing action icons and visually richer item defaults to
+        // share one semantic texture id.
+        let authored_item_icon = item
+            .attributes
+            .get_str("ruleset_id")
+            .map(str::trim)
+            .filter(|id| !id.is_empty())
+            .filter(|id| assets.textures.contains_key(*id));
         let explicit_icon = item
             .attributes
             .get_str("icon")
             .or_else(|| item.attributes.get_str("icon_template"));
         let root = assets.rules_table();
-        let icon_id = root
-            .as_ref()
-            .and_then(|root| {
-                eldiron_ruleset::resolve_item_icon(
-                    root,
-                    item.attributes.get_str("ruleset_kind"),
-                    explicit_icon,
-                )
-            })
-            .or_else(|| explicit_icon.map(str::to_string))?;
+        let icon_id = authored_item_icon.map(str::to_string).or_else(|| {
+            root.as_ref()
+                .and_then(|root| {
+                    eldiron_ruleset::resolve_item_icon(
+                        root,
+                        item.attributes.get_str("ruleset_kind"),
+                        explicit_icon,
+                    )
+                })
+                .or_else(|| explicit_icon.map(str::to_string))
+        })?;
         let texture = assets.textures.get(&icon_id).or_else(|| {
             root.as_ref()
                 .map(|root| Self::resolve_icon_texture_id(root, &icon_id))
                 .and_then(|texture_id| assets.textures.get(texture_id.as_str()))
         })?;
-        let mut color = Self::item_icon_color(assets, item, [216, 216, 216, 255]);
-        color[3] = 255;
-
         let size = texture.width.max(texture.height).max(1);
         let offset_x = (size - texture.width) / 2;
         let offset_y = (size - texture.height) / 2;
@@ -1128,18 +1123,8 @@ impl Widget {
                 if src + 3 >= texture.data.len() {
                     continue;
                 }
-                let alpha = texture.data[src + 3];
-                if alpha == 0 {
-                    continue;
-                }
-                let shade = texture.data[src]
-                    .max(texture.data[src + 1])
-                    .max(texture.data[src + 2]) as u16;
                 let dst = ((y + offset_y) * size + x + offset_x) * 4;
-                icon[dst] = ((color[0] as u16 * shade) / 255) as u8;
-                icon[dst + 1] = ((color[1] as u16 * shade) / 255) as u8;
-                icon[dst + 2] = ((color[2] as u16 * shade) / 255) as u8;
-                icon[dst + 3] = ((alpha as u16 * color[3] as u16) / 255) as u8;
+                icon[dst..dst + 4].copy_from_slice(&texture.data[src..src + 4]);
             }
         }
         Some((size as u32, icon))
@@ -1672,5 +1657,78 @@ mod tests {
             Widget::item_role_color(&assets, &item, "blade", [0, 0, 0, 255]),
             [41, 82, 123, 255]
         );
+    }
+
+    #[test]
+    fn authored_item_icon_pixels_are_preserved() {
+        let mut assets = Assets::default();
+        assets.textures.insert(
+            "authored".to_string(),
+            Texture::new(vec![12, 34, 56, 78, 90, 123, 210, 255], 2, 1),
+        );
+        let mut item = Item::default();
+        item.attributes.set("icon", Value::Str("authored".into()));
+
+        let (size, pixels) = Widget::item_icon_texture_square(&assets, &item).unwrap();
+        assert_eq!(size, 2);
+        assert_eq!(&pixels[0..8], &[12, 34, 56, 78, 90, 123, 210, 255]);
+    }
+
+    #[test]
+    fn ruleset_item_uses_its_own_authored_icon_before_semantic_fallback() {
+        let mut assets = Assets::default();
+        assets.textures.insert(
+            "official_item".to_string(),
+            Texture::new(vec![12, 34, 56, 255], 1, 1),
+        );
+        assets.textures.insert(
+            "shared_action".to_string(),
+            Texture::new(vec![210, 190, 170, 255], 1, 1),
+        );
+        let mut item = Item::default();
+        item.attributes
+            .set("ruleset_id", Value::Str("official_item".into()));
+        item.attributes
+            .set("icon", Value::Str("shared_action".into()));
+
+        let (_, pixels) = Widget::item_icon_texture_square(&assets, &item).unwrap();
+        assert_eq!(pixels, vec![12, 34, 56, 255]);
+    }
+
+    #[test]
+    fn active_item_selects_on_state_icon_frames() {
+        let mut assets = Assets::default();
+        assets.item_icons.insert(
+            "torch:off".to_string(),
+            vec![Texture::new(vec![20, 30, 40, 255], 1, 1)],
+        );
+        assets.item_icons.insert(
+            "torch:on".to_string(),
+            vec![Texture::new(vec![240, 160, 40, 255], 1, 1)],
+        );
+        let mut item = Item::default();
+        item.attributes
+            .set("ruleset_id", Value::Str("torch".into()));
+        item.attributes.set("active", Value::Bool(false));
+
+        let off = Widget::custom_item_icon_frames(&assets, &item).unwrap();
+        assert_eq!(&off[0].data[0..4], &[20, 30, 40, 255]);
+
+        item.attributes.set("active", Value::Bool(true));
+        let on = Widget::custom_item_icon_frames(&assets, &item).unwrap();
+        assert_eq!(&on[0].data[0..4], &[240, 160, 40, 255]);
+    }
+
+    #[test]
+    fn command_icon_normal_state_preserves_authored_color() {
+        let source = [37, 149, 211, 203];
+        assert_eq!(
+            Widget::command_icon_pixel(source, ButtonVisualState::Normal),
+            source
+        );
+        let disabled = Widget::command_icon_pixel(source, ButtonVisualState::Disabled);
+        assert_eq!(disabled[0], disabled[1]);
+        assert_eq!(disabled[1], disabled[2]);
+        assert!(disabled[3] < source[3]);
     }
 }

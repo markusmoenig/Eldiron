@@ -317,12 +317,16 @@ pub struct BundledTextureAsset {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BundledTileAsset {
-    pub id: &'static str,
+pub struct BundledIconStateAsset {
+    pub item_id: &'static str,
+    pub state: &'static str,
     pub ruleset_id: &'static str,
     pub ruleset_version: &'static str,
     pub path: &'static str,
-    pub source: &'static str,
+    pub tile_id: Option<&'static str>,
+    pub tile_role: &'static str,
+    pub tile_alias: &'static str,
+    pub frames: &'static [&'static [u8]],
 }
 
 pub fn bundled_rulesets() -> &'static [BundledRuleset] {
@@ -374,11 +378,11 @@ pub fn bundled_texture_assets() -> &'static [BundledTextureAsset] {
                 id: $id,
                 ruleset_id: OFFICIAL_RULESET_ID,
                 ruleset_version: OFFICIAL_RULESET_VERSION,
-                path: concat!("assets/icons/", $id, ".png"),
+                path: concat!("assets/icons/", $id, "/on/0.png"),
                 source: include_bytes!(concat!(
                     "../rulesets/eldiron/v1/assets/icons/",
                     $id,
-                    ".png"
+                    "/on/0.png"
                 )),
             }
         };
@@ -420,27 +424,59 @@ pub fn bundled_texture_assets() -> &'static [BundledTextureAsset] {
         official_icon!("green_wood_node"),
         official_icon!("bird_nest_node"),
         official_icon!("torch"),
+        official_icon!("cleric_vestments"),
+        official_icon!("consecrated_oil"),
+        official_icon!("copper_coin"),
+        official_icon!("ember_bead"),
+        official_icon!("ember_resin"),
+        official_icon!("gold_coin"),
+        official_icon!("grave_dust"),
+        official_icon!("moonleaf"),
+        official_icon!("moonleaf_patch"),
+        official_icon!("moonwater"),
+        official_icon!("old_grave"),
+        official_icon!("resinous_stump"),
+        official_icon!("ritual_censer"),
+        official_icon!("silver_coin"),
+        official_icon!("sun_shard"),
+        official_icon!("sunstone_outcrop"),
+        official_icon!("sunward_charm"),
+        official_icon!("warding_salt"),
     ]
 }
 
-pub fn bundled_tile_assets() -> &'static [BundledTileAsset] {
-    macro_rules! official_tile {
-        ($id:literal) => {
-            BundledTileAsset {
-                id: $id,
-                ruleset_id: OFFICIAL_RULESET_ID,
-                ruleset_version: OFFICIAL_RULESET_VERSION,
-                path: concat!("assets/tiles/", $id, ".eldiron_tile"),
-                source: include_str!(concat!(
-                    "../rulesets/eldiron/v1/assets/tiles/",
-                    $id,
-                    ".eldiron_tile"
-                )),
-            }
-        };
-    }
-
-    &[official_tile!("torch_off"), official_tile!("torch_on")]
+pub fn bundled_icon_state_assets() -> &'static [BundledIconStateAsset] {
+    &[
+        BundledIconStateAsset {
+            item_id: "torch",
+            state: "off",
+            ruleset_id: OFFICIAL_RULESET_ID,
+            ruleset_version: OFFICIAL_RULESET_VERSION,
+            path: "assets/icons/torch/off",
+            tile_id: Some("05ab6adc-1631-4ed2-9857-f85820a7f1ad"),
+            tile_role: "Character",
+            tile_alias: "torch off",
+            frames: &[include_bytes!(
+                "../rulesets/eldiron/v1/assets/icons/torch/off/0.png"
+            )],
+        },
+        BundledIconStateAsset {
+            item_id: "torch",
+            state: "on",
+            ruleset_id: OFFICIAL_RULESET_ID,
+            ruleset_version: OFFICIAL_RULESET_VERSION,
+            path: "assets/icons/torch/on",
+            tile_id: Some("f76473d1-70f6-4649-8b0d-cbac627f93d8"),
+            tile_role: "ManMade",
+            tile_alias: "torch on",
+            frames: &[
+                include_bytes!("../rulesets/eldiron/v1/assets/icons/torch/on/0.png"),
+                include_bytes!("../rulesets/eldiron/v1/assets/icons/torch/on/1.png"),
+                include_bytes!("../rulesets/eldiron/v1/assets/icons/torch/on/2.png"),
+                include_bytes!("../rulesets/eldiron/v1/assets/icons/torch/on/3.png"),
+            ],
+        },
+    ]
 }
 
 pub fn bundled_avatar_assets_for_ruleset(
@@ -475,11 +511,11 @@ pub fn bundled_texture_assets_for_ruleset(
         .collect()
 }
 
-pub fn bundled_tile_assets_for_ruleset(
+pub fn bundled_icon_state_assets_for_ruleset(
     ruleset_id: &str,
     ruleset_version: &str,
-) -> Vec<&'static BundledTileAsset> {
-    bundled_tile_assets()
+) -> Vec<&'static BundledIconStateAsset> {
+    bundled_icon_state_assets()
         .iter()
         .filter(|asset| {
             asset.ruleset_id == ruleset_id
@@ -6475,27 +6511,22 @@ mod tests {
     }
 
     #[test]
-    fn loads_bundled_ruleset_tiles() {
-        let tiles = bundled_tile_assets_for_ruleset(OFFICIAL_RULESET_ID, OFFICIAL_RULESET_VERSION);
-        let off_tile = tiles
+    fn loads_bundled_ruleset_icon_states() {
+        let states =
+            bundled_icon_state_assets_for_ruleset(OFFICIAL_RULESET_ID, OFFICIAL_RULESET_VERSION);
+        let off = states
             .iter()
-            .find(|asset| asset.id == "torch_off")
-            .expect("torch off tile should be bundled");
-        let on_tile = tiles
+            .find(|asset| asset.item_id == "torch" && asset.state == "off")
+            .expect("torch off icon state should be bundled");
+        let on = states
             .iter()
-            .find(|asset| asset.id == "torch_on")
-            .expect("torch on tile should be bundled");
+            .find(|asset| asset.item_id == "torch" && asset.state == "on")
+            .expect("torch on icon state should be bundled");
 
-        assert!(
-            off_tile
-                .source
-                .contains("05ab6adc-1631-4ed2-9857-f85820a7f1ad")
-        );
-        assert!(
-            on_tile
-                .source
-                .contains("f76473d1-70f6-4649-8b0d-cbac627f93d8")
-        );
+        assert_eq!(off.tile_id, Some("05ab6adc-1631-4ed2-9857-f85820a7f1ad"));
+        assert_eq!(on.tile_id, Some("f76473d1-70f6-4649-8b0d-cbac627f93d8"));
+        assert_eq!(off.frames.len(), 1);
+        assert_eq!(on.frames.len(), 4);
     }
 
     #[test]
@@ -7326,8 +7357,10 @@ mod tests {
                 && template.kind == "tool"
                 && template.ruleset_path == "items.tools.torch"
                 && template.source.contains("set_emit_light(value)")
-                && template.source.contains("set_tile(\"f76473d1")
+                && !template.source.contains("set_tile(")
                 && template.data.contains("tile_id = \"05ab6adc")
+                && template.data.contains("off_tile_id = \"05ab6adc")
+                && template.data.contains("on_tile_id = \"f76473d1")
                 && template.data.contains("[light]")
                 && template.data.contains("range = 3.8")
                 && template.data.contains("on_look_on = \"A lit torch")

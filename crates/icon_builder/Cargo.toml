@@ -6,7 +6,7 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "Builds bundled Eldiron ruleset icon masks from icon manifests."
+description = "Imports missing bundled Eldiron ruleset icons without overwriting artist-edited PNGs."
 
 [[bin]]
 name = "eldiron-icon-builder"
