@@ -245,30 +245,53 @@ impl TheWidget for TheTraybarButton {
         draw_button_chrome(buffer, bounds, paint_role, border, style, ctx);
         shrinker.shrink(1);
 
-        if let Some(icon) = &self.icon {
+        let icon = self.icon.as_ref().or_else(|| ctx.ui.icon(&self.icon_name));
+        if let Some(icon) = icon {
             let utuple = self.dim.to_buffer_shrunk_utuple(&shrinker);
-            let r = (
-                ((utuple.0 + (utuple.2 - icon.dim().width as usize) / 2) as i32
-                    + self.icon_offset.x) as usize,
-                ((utuple.1 + (utuple.3 - icon.dim().height as usize) / 2) as i32
-                    + self.icon_offset.y) as usize,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
+            let source_size = (
+                icon.dim().width.max(0) as usize,
+                icon.dim().height.max(0) as usize,
             );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
-        } else if let Some(icon) = ctx.ui.icon(&self.icon_name) {
-            let utuple = self.dim.to_buffer_shrunk_utuple(&shrinker);
-            let r = (
-                ((utuple.0 + (utuple.2 - icon.dim().width as usize) / 2) as i32
-                    + self.icon_offset.x) as usize,
-                ((utuple.1 + (utuple.3 - icon.dim().height as usize) / 2) as i32
-                    + self.icon_offset.y) as usize,
-                icon.dim().width as usize,
-                icon.dim().height as usize,
+            if source_size.0 == 0 || source_size.1 == 0 || utuple.2 == 0 || utuple.3 == 0 {
+                self.is_dirty = false;
+                return;
+            }
+
+            // Tray icons are theme assets and may be supplied at a larger
+            // resolution. Fit them into the button instead of allowing usize
+            // subtraction to wrap when centering an oversized image.
+            let scale = (utuple.2 as f32 / source_size.0 as f32)
+                .min(utuple.3 as f32 / source_size.1 as f32)
+                .min(1.0);
+            let target_size = (
+                ((source_size.0 as f32 * scale).floor() as usize).max(1),
+                ((source_size.1 as f32 * scale).floor() as usize).max(1),
             );
-            ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
+            let x = ((utuple.0 + (utuple.2 - target_size.0) / 2) as i64
+                + self.icon_offset.x as i64)
+                .clamp(
+                    utuple.0 as i64,
+                    (utuple.0 + utuple.2 - target_size.0) as i64,
+                );
+            let y = ((utuple.1 + (utuple.3 - target_size.1) / 2) as i64
+                + self.icon_offset.y as i64)
+                .clamp(
+                    utuple.1 as i64,
+                    (utuple.1 + utuple.3 - target_size.1) as i64,
+                );
+            let r = (x as usize, y as usize, target_size.0, target_size.1);
+            if target_size == source_size {
+                ctx.draw
+                    .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
+            } else {
+                ctx.draw.blend_scale_chunk(
+                    buffer.pixels_mut(),
+                    &r,
+                    stride,
+                    icon.pixels(),
+                    &source_size,
+                );
+            }
         }
 
         if !self.text.is_empty() {

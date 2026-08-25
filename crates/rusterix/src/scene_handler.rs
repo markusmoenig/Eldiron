@@ -2,8 +2,9 @@ use std::{hash::Hasher, str::FromStr};
 
 use crate::server::message::RuntimeRenderState;
 use crate::{
-    Assets, AvatarDirection, AvatarShadingOptions, BillboardAnimation, BillboardMetadata, D3Camera,
-    Item, Map, ParticleEmitter, PixelSource, RenderSettings, Texture, Tile, Value,
+    Assets, AvatarDirection, AvatarShadingOptions, BillboardAnimation, BillboardMetadata,
+    BlockPropOccupant, D3Camera, Entity, Item, Map, ParticleEmitter, PixelSource, RenderSettings,
+    Texture, Tile, Value,
     avatar_builder::{AvatarFrameStyle, AvatarRuntimeBuilder},
     chunkbuilder::d3chunkbuilder::DEFAULT_TILE_ID,
     client::widget::Widget,
@@ -225,6 +226,7 @@ pub struct SceneHandler {
     pub character_on: Uuid,
     pub item_off: Uuid,
     pub item_on: Uuid,
+    pub selection_frame: Uuid,
 
     pub flat_material: Uuid,
 
@@ -265,6 +267,7 @@ pub struct SceneHandler {
     last_dynamics_tick_3d: Option<usize>,
     dynamics_ready_2d: bool,
     dynamics_ready_3d: bool,
+    entity_item_selection_visible: bool,
     generated_item_avatar_geo: FxHashSet<GeoId>,
 
     // Timing parameters (configurable)
@@ -361,11 +364,19 @@ impl SceneHandler {
             .clamp(0.1, 1.0)
     }
 
-    fn item_render_geo_id(item: &Item, index: usize) -> GeoId {
+    pub fn item_render_geo_id(item: &Item, index: usize) -> GeoId {
         if item.id != 0 {
             GeoId::Item(item.id)
         } else {
             GeoId::Item(u32::MAX.saturating_sub(index as u32))
+        }
+    }
+
+    pub fn entity_render_geo_id(entity: &Entity, index: usize) -> GeoId {
+        if entity.id != 0 {
+            GeoId::Character(entity.id)
+        } else {
+            GeoId::Character(u32::MAX.saturating_sub(index as u32))
         }
     }
 
@@ -2147,6 +2158,13 @@ impl SceneHandler {
         self.dynamics_ready_3d = false;
     }
 
+    pub fn set_entity_item_selection_visible(&mut self, visible: bool) {
+        if self.entity_item_selection_visible != visible {
+            self.entity_item_selection_visible = visible;
+            self.mark_dynamics_dirty();
+        }
+    }
+
     /// Clear cached runtime geometry, billboards, lights and dynamic state.
     pub fn clear_runtime_scene(&mut self) {
         self.vm.execute(Atom::ClearGeometry);
@@ -2332,6 +2350,7 @@ impl SceneHandler {
             character_on: Uuid::new_v4(),
             item_off: Uuid::new_v4(),
             item_on: Uuid::new_v4(),
+            selection_frame: Uuid::new_v4(),
 
             flat_material: Uuid::new_v4(),
 
@@ -2366,6 +2385,7 @@ impl SceneHandler {
             last_dynamics_tick_3d: None,
             dynamics_ready_2d: false,
             dynamics_ready_3d: false,
+            entity_item_selection_visible: false,
             generated_item_avatar_geo: FxHashSet::default(),
             render_fps: 30.0,
             game_tick_fps: 4.0, // default 250ms ticks
@@ -2740,6 +2760,15 @@ impl SceneHandler {
         hasher.write_u64(map.geometry_objects.len() as u64);
         hasher.write_u64(map.items.len() as u64);
         hasher.write_u64(map.entities.len() as u64);
+        hasher.write_u8(u8::from(self.entity_item_selection_visible));
+        if self.entity_item_selection_visible
+            && let Some(selected) = map.selected_entity_item
+        {
+            hasher.write_u8(1);
+            hasher.write(selected.as_bytes());
+        } else {
+            hasher.write_u8(0);
+        }
 
         for sector in &map.sectors {
             hasher.write_u32(sector.id);
@@ -3058,6 +3087,29 @@ impl SceneHandler {
                     });
                 }
             }
+
+            let frame_size = 32usize;
+            let frame_border = 2usize;
+            let mut frame = vec![0u8; frame_size * frame_size * 4];
+            for y in 0..frame_size {
+                for x in 0..frame_size {
+                    if x < frame_border
+                        || y < frame_border
+                        || x >= frame_size - frame_border
+                        || y >= frame_size - frame_border
+                    {
+                        let offset = (y * frame_size + x) * 4;
+                        frame[offset..offset + 4].copy_from_slice(&[187, 122, 208, 255]);
+                    }
+                }
+            }
+            self.vm.execute(Atom::AddTile {
+                id: self.selection_frame,
+                width: frame_size as u32,
+                height: frame_size as u32,
+                frames: vec![frame],
+                material_frames: None,
+            });
             // self.vm.execute(Atom::AddSolid {
             //     id: Uuid::from_str("27826750-a9e7-4346-994b-fb318b238452")
             //         .ok()
@@ -3325,7 +3377,7 @@ impl SceneHandler {
             }
         }
 
-        for entity in &map.entities {
+        for (entity_index, entity) in map.entities.iter().enumerate() {
             let entity_pos = Vec2::new(entity.position.x, entity.position.z);
             let pos = Vec2::new(entity_pos.x, entity_pos.y);
 
@@ -3368,7 +3420,7 @@ impl SceneHandler {
             }
 
             if entity.attributes.get_bool_default("visible", false) {
-                let geo_id = GeoId::Character(entity.id);
+                let geo_id = Self::entity_render_geo_id(entity, entity_index);
                 let size_2d = entity
                     .attributes
                     .get_float_default("size_2d", 1.0)
@@ -3436,6 +3488,27 @@ impl SceneHandler {
         self.dynamics_ready_2d = true;
     }
 
+    fn add_billboard_selection_frame(
+        &mut self,
+        id: GeoId,
+        center: Vec3<f32>,
+        view_right: Vec3<f32>,
+        view_up: Vec3<f32>,
+        width: f32,
+        height: f32,
+    ) {
+        let dynamic = DynamicObject::billboard_tile(
+            id,
+            self.selection_frame,
+            center,
+            view_right,
+            view_up,
+            width * 1.18,
+            height * 1.18,
+        );
+        self.vm.execute(Atom::AddDynamic { object: dynamic });
+    }
+
     pub fn build_dynamics_3d(
         &mut self,
         map: &Map,
@@ -3493,7 +3566,7 @@ impl SceneHandler {
         let character_axes = Self::character_billboard_axes(camera);
 
         // Entities
-        for entity in &map.entities {
+        for (entity_index, entity) in map.entities.iter().enumerate() {
             if entity.get_mode() == "dead" {
                 continue;
             }
@@ -3551,21 +3624,18 @@ impl SceneHandler {
                             map, pos_xz, &config,
                         );
                 }
-                let center3 = Vec3::new(
-                    entity.position.x,
-                    entity.position.y + size * 0.5,
-                    entity.position.z,
-                );
-                let preview_center3 =
-                    Vec3::new(entity.position.x, ground_y + size * 0.5, entity.position.z);
-                let geo_id = GeoId::Character(entity.id);
-                let mut rendered_avatar = false;
                 let visible = entity.attributes.get_bool_default("visible", false);
+                let render_feet3 = if visible {
+                    entity.position
+                } else {
+                    Vec3::new(entity.position.x, ground_y, entity.position.z)
+                };
+                let center3 = render_feet3 + Vec3::unit_y() * (size * 0.5);
+                let geo_id = Self::entity_render_geo_id(entity, entity_index);
+                let mut rendered_avatar = false;
+                let mut selection_bounds = (center3, basis.1, basis.2, size, size);
 
-                if visible
-                    && let Some(avatar) =
-                        AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets)
-                {
+                if let Some(avatar) = AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets) {
                     let direction = Self::avatar_direction_3d(entity, camera);
                     if self
                         .avatar_builder
@@ -3586,9 +3656,8 @@ impl SceneHandler {
                             .current_avatar_alpha_bounds(geo_id)
                             .map(|(_, _, _, bottom, reference_h)| {
                                 let quad_size = size / reference_h.max(0.01);
-                                let feet3 = entity.position;
                                 let center =
-                                    feet3 + character_axes.1 * (quad_size * (bottom - 0.5));
+                                    render_feet3 + character_axes.1 * (quad_size * (bottom - 0.5));
                                 (center, quad_size)
                             })
                             .unwrap_or((center3, size));
@@ -3601,17 +3670,23 @@ impl SceneHandler {
                             avatar_quad_size,
                         );
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
+                        selection_bounds = (
+                            avatar_center3,
+                            character_axes.0,
+                            character_axes.1,
+                            avatar_quad_size,
+                            avatar_quad_size,
+                        );
                         rendered_avatar = true;
                     }
                 }
 
                 if !rendered_avatar {
-                    if visible
-                        && let Some(Value::Source(source)) = entity.attributes.get("source")
+                    if let Some(Value::Source(source)) = entity.attributes.get("source")
                         && let Some(tile) = source.tile_from_tile_list(assets)
                     {
                         let dynamic = DynamicObject::billboard_tile(
-                            GeoId::Character(entity.id),
+                            geo_id,
                             tile.id,
                             center3,
                             character_axes.0,
@@ -3620,16 +3695,13 @@ impl SceneHandler {
                             size,
                         );
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
+                        selection_bounds =
+                            (center3, character_axes.0, character_axes.1, size, size);
                     } else {
-                        let icon = if Some(entity.creator_id) == map.selected_entity_item {
-                            self.character_on
-                        } else {
-                            self.character_off
-                        };
                         let dynamic = DynamicObject::billboard_tile(
-                            GeoId::Character(entity.id),
-                            icon,
-                            preview_center3,
+                            geo_id,
+                            self.character_off,
+                            center3,
                             basis.1,
                             basis.2,
                             size,
@@ -3637,6 +3709,15 @@ impl SceneHandler {
                         );
                         self.vm.execute(Atom::AddDynamic { object: dynamic });
                     }
+                }
+
+                if self.entity_item_selection_visible
+                    && Some(entity.creator_id) == map.selected_entity_item
+                {
+                    let (center, view_right, view_up, width, height) = selection_bounds;
+                    self.add_billboard_selection_frame(
+                        geo_id, center, view_right, view_up, width, height,
+                    );
                 }
             }
         }
@@ -3673,14 +3754,25 @@ impl SceneHandler {
             let size = 1.0;
             let visible = item.attributes.get_bool_default("visible", false);
             let pos_xz = item.get_pos_xz();
-            let mut ground_y = map
-                .geometry_floor_height_nearest(pos_xz, item.position.y)
-                .or_else(|| {
-                    map.find_sector_at(pos_xz)
-                        .map(|s| s.properties.get_float_default("floor_height", 0.0))
-                })
-                .unwrap_or(0.0);
-            if ground_y == 0.0 {
+            let support_surface_attached =
+                map.block_prop_surface_placements.iter().any(|placement| {
+                    match &placement.occupant {
+                        BlockPropOccupant::Item(id) => *id == item.id,
+                        BlockPropOccupant::ItemInstance(id) => *id == item.creator_id,
+                        _ => false,
+                    }
+                });
+            let mut ground_y = if support_surface_attached {
+                item.position.y
+            } else {
+                map.geometry_floor_height_nearest(pos_xz, item.position.y)
+                    .or_else(|| {
+                        map.find_sector_at(pos_xz)
+                            .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                    })
+                    .unwrap_or(0.0)
+            };
+            if !support_surface_attached && ground_y == 0.0 {
                 let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
                 ground_y =
                     crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
@@ -3688,12 +3780,15 @@ impl SceneHandler {
                     );
             }
 
+            let geo_id = Self::item_render_geo_id(item, item_index);
+            let default_center3 =
+                Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
+            let mut selection_bounds = (geo_id, default_center3, basis.1, basis.2, size, size);
             if visible
                 && item.attributes.get("source").is_none()
                 && AvatarRuntimeBuilder::item_allows_generated_icon(item, assets)
                 && let Some((icon_size, rgba)) = Widget::item_generated_icon_square(assets, item)
             {
-                let geo_id = Self::item_render_geo_id(item, item_index);
                 self.vm.execute(Atom::SetAvatarBillboardData {
                     id: geo_id,
                     size: icon_size,
@@ -3716,16 +3811,17 @@ impl SceneHandler {
                     ground_size,
                 );
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
+                selection_bounds = (geo_id, center3, basis.1, basis.2, ground_size, ground_size);
             } else if visible
                 && item.attributes.get("source").is_none()
                 && let Some(tile_id) = AvatarRuntimeBuilder::explicit_item_tile_id(item, assets)
             {
-                let geo_id = Self::item_render_geo_id(item, item_index);
                 let center3 = Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
                 let dynamic = DynamicObject::billboard_tile(
                     geo_id, tile_id, center3, basis.1, basis.2, size, size,
                 );
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
+                selection_bounds = (geo_id, center3, basis.1, basis.2, size, size);
             } else if visible
                 && let Some(Value::Source(source)) = item.attributes.get("source")
                 && let Some(tile_id) = source.render_tile_id(assets)
@@ -3757,13 +3853,7 @@ impl SceneHandler {
                 };
 
                 let dynamic = DynamicObject::billboard_tile(
-                    Self::item_render_geo_id(item, item_index),
-                    tile_id,
-                    center3,
-                    view_right,
-                    view_up,
-                    size,
-                    size,
+                    geo_id, tile_id, center3, view_right, view_up, size, size,
                 )
                 .with_anim_start_counter({
                     let geo_id = Self::item_render_geo_id(item, item_index);
@@ -3774,23 +3864,27 @@ impl SceneHandler {
                     anim_start
                 });
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
+                selection_bounds = (geo_id, center3, view_right, view_up, size, size);
             } else {
-                let center3 = Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
-                let icon = if Some(item.creator_id) == map.selected_entity_item {
-                    self.item_on
-                } else {
-                    self.item_off
-                };
                 let dynamic = DynamicObject::billboard_tile(
-                    Self::item_render_geo_id(item, item_index),
-                    icon,
-                    center3,
+                    geo_id,
+                    self.item_off,
+                    default_center3,
                     basis.1,
                     basis.2,
                     size,
                     size,
                 );
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
+            }
+
+            if self.entity_item_selection_visible
+                && Some(item.creator_id) == map.selected_entity_item
+            {
+                let (geo_id, center, view_right, view_up, width, height) = selection_bounds;
+                self.add_billboard_selection_frame(
+                    geo_id, center, view_right, view_up, width, height,
+                );
             }
         }
 

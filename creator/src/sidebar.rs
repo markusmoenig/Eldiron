@@ -786,6 +786,28 @@ impl Sidebar {
                             }
                         }
                     }
+                } else if id.name == "Item Icon Frames" {
+                    let item_id = id.references;
+                    let frame_index = *index as usize;
+                    let defaults = project
+                        .items
+                        .get(&item_id)
+                        .filter(|item| item.icon_frames.is_empty())
+                        .map(|item| resolved_item_default_icon_frames(item, project));
+                    if let Some(item) = project.items.get_mut(&item_id) {
+                        if item.icon_frames.is_empty() {
+                            item.icon_frames = defaults
+                                .filter(|frames| !frames.is_empty())
+                                .unwrap_or_else(|| vec![rusterix::Texture::alloc(32, 32)]);
+                        }
+                        if frame_index < item.icon_frames.len() {
+                            server_ctx.editing_ctx =
+                                PixelEditingContext::ItemIcon(item_id, frame_index);
+                            let mut dm = DOCKMANAGER.write().unwrap();
+                            dm.set_dock("Tiles".into(), ui, ctx, project, server_ctx);
+                            dm.edit_maximize(ui, ctx, project, server_ctx);
+                        }
+                    }
                 }
             }
             TheEvent::RenderViewClicked(id, coord)
@@ -1028,6 +1050,45 @@ impl Sidebar {
                                         }
                                     }
                                 }
+                            }
+                        }
+                    } else if let PixelEditingContext::ItemIcon(item_id, frame_index) =
+                        server_ctx.editing_ctx
+                        && let Some(texture) = project.get_editing_texture(&server_ctx.editing_ctx)
+                        && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
+                        && let Some(items_node) =
+                            tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                        && let Some(item_node) = items_node
+                            .childs
+                            .iter_mut()
+                            .find(|node| node.id.uuid == item_id)
+                    {
+                        for widget in &mut item_node.widgets {
+                            if widget.id().name == "Item Icon Frames"
+                                && let Some(icons) = widget.as_tree_icons()
+                            {
+                                icons.set_icon(frame_index, texture.to_rgba());
+                            }
+                        }
+                    }
+                } else if let TheValue::Id(item_id) = value
+                    && id.name == "Item Icon Frames Changed"
+                    && let Some(item) = project.items.get(item_id)
+                    && let Some(tree_layout) = ui.get_tree_layout("Project Tree")
+                    && let Some(items_node) =
+                        tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
+                    && let Some(item_node) = items_node
+                        .childs
+                        .iter_mut()
+                        .find(|node| node.id.uuid == *item_id)
+                {
+                    for widget in &mut item_node.widgets {
+                        if widget.id().name == "Item Icon Frames"
+                            && let Some(icons) = widget.as_tree_icons()
+                        {
+                            icons.set_icon_count(item.icon_frames.len().max(1));
+                            for (index, texture) in item.icon_frames.iter().enumerate() {
+                                icons.set_icon(index, texture.to_rgba());
                             }
                         }
                     }
@@ -2398,6 +2459,33 @@ impl Sidebar {
                 if server_ctx.game_mode || server_ctx.game_input_mode || server_ctx.text_game_mode {
                     return false;
                 }
+
+                if DockManager::edit_maximize_accelerator()
+                    .matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c)
+                {
+                    let can_maximize = {
+                        let dock_manager = DOCKMANAGER.read().unwrap();
+                        dock_manager.get_state() == DockManagerState::Minimized
+                            && !dock_manager.dock.is_empty()
+                    };
+                    if can_maximize {
+                        DOCKMANAGER
+                            .write()
+                            .unwrap()
+                            .edit_maximize(ui, ctx, project, server_ctx);
+                        return true;
+                    }
+                } else if DockManager::restore_accelerator()
+                    .matches(ui.shift, ui.ctrl, ui.alt, ui.logo, *c)
+                    && DOCKMANAGER.read().unwrap().get_state() != DockManagerState::Minimized
+                {
+                    DOCKMANAGER
+                        .write()
+                        .unwrap()
+                        .minimize(ui, ctx, project, server_ctx);
+                    return true;
+                }
+
                 let action_list = ACTIONLIST.write().unwrap();
                 let mut needs_scene_redraw: bool = false;
                 let mut action_applied = false;
@@ -3107,7 +3195,7 @@ impl Sidebar {
                                 && let Some(items_node) =
                                     tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
                             {
-                                let mut node = gen_item_tree_node(&duplicated);
+                                let mut node = gen_item_tree_node(&duplicated, project);
                                 node.set_open(true);
                                 items_node.add_child(node);
                             }
@@ -4100,7 +4188,7 @@ impl Sidebar {
                 items_node.childs.clear();
 
                 for (_, item) in project.items.iter() {
-                    let node = gen_item_tree_node(item);
+                    let node = gen_item_tree_node(item, project);
                     items_node.add_child(node);
                 }
             }

@@ -30,6 +30,11 @@ pub struct Item {
     #[serde(default)]
     pub authoring: String,
 
+    /// Project-owned editable icon animation frames. An empty list inherits
+    /// the icon resolved from the active ruleset.
+    #[serde(default)]
+    pub icon_frames: Vec<rusterix::Texture>,
+
     /// The initial position.
     pub position: Vec3<f32>,
 
@@ -55,6 +60,7 @@ impl Item {
             source_debug: String::new(),
             data: String::new(),
             authoring: String::new(),
+            icon_frames: Vec::new(),
             position: zero(),
 
             item_id: Uuid::new_v4(),

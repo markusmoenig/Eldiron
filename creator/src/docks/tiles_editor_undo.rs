@@ -8,6 +8,8 @@ pub enum TileEditorUndoAtom {
     TileEdit(Uuid, rusterix::Tile, rusterix::Tile),
     /// Generic texture edit via PixelEditingContext: (context, before_texture, after_texture)
     TextureEdit(PixelEditingContext, rusterix::Texture, rusterix::Texture),
+    /// Item icon frame-list edit: (item_id, before_frames, after_frames)
+    ItemIconFramesEdit(Uuid, Vec<rusterix::Texture>, Vec<rusterix::Texture>),
     /// Avatar weapon attachment anchor edit for the currently edited frame.
     AvatarAnchorEdit(
         PixelEditingContext,
@@ -43,6 +45,15 @@ impl TileEditorUndoAtom {
                     *texture = prev.clone();
                 }
                 Self::send_editing_context_update(editing_ctx, ctx);
+            }
+            TileEditorUndoAtom::ItemIconFramesEdit(item_id, prev, _) => {
+                if let Some(item) = project.items.get_mut(item_id) {
+                    item.icon_frames = prev.clone();
+                }
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Item Icon Frames Changed"),
+                    TheValue::Id(*item_id),
+                ));
             }
             TileEditorUndoAtom::AvatarAnchorEdit(editing_ctx, prev_main, prev_off, _, _) => {
                 if let Some(frame) = project.get_editing_avatar_frame_mut(editing_ctx) {
@@ -81,6 +92,15 @@ impl TileEditorUndoAtom {
                 }
                 Self::send_editing_context_update(editing_ctx, ctx);
             }
+            TileEditorUndoAtom::ItemIconFramesEdit(item_id, _, next) => {
+                if let Some(item) = project.items.get_mut(item_id) {
+                    item.icon_frames = next.clone();
+                }
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Item Icon Frames Changed"),
+                    TheValue::Id(*item_id),
+                ));
+            }
             TileEditorUndoAtom::AvatarAnchorEdit(editing_ctx, _, _, next_main, next_off) => {
                 if let Some(frame) = project.get_editing_avatar_frame_mut(editing_ctx) {
                     frame.weapon_main_anchor = *next_main;
@@ -105,7 +125,7 @@ impl TileEditorUndoAtom {
                     TheValue::Empty,
                 ));
             }
-            PixelEditingContext::AvatarFrame(..) => {
+            PixelEditingContext::ItemIcon(..) | PixelEditingContext::AvatarFrame(..) => {
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Editing Texture Updated"),
                     TheValue::Empty,

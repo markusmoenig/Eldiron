@@ -10,12 +10,13 @@ The **Tile Picker** dock is the main asset browser and assignment dock for map w
 - browse project tiles, tile groups, and node groups
 - organize them in collections
 - preview and select the current tile source
+- copy the selected tile or group UUID from the dock toolbar
 - apply or clear that source on geometry
-- open the pixel editor or node graph editor via [Edit / Maximize](/docs/creator/actions/#edit--maximize)
+- open the pixel editor or node graph editor with the top-right [dock control](/docs/creator/actions/#dock-controls)
 
 For single tiles, **Edit Tile Meta** can also assign an alias. That alias can then be used anywhere a `tile_id`-style source is accepted, alongside UUIDs and palette indices.
 
-The currently selected source is used by the **Apply Tile** button in the dock toolbar, by **Clear Tile**, and by tools such as [Rect](/docs/creator/tools/rect).
+The currently selected source is used by **Copy Tile ID**, **Apply Tile**, and **Clear Tile** in the dock toolbar, and by tools such as [Rect](/docs/creator/tools/rect). **Copy Tile ID** places the quoted UUID on the system clipboard for use in settings, scripts, and other source fields.
 
 ## Sources
 
@@ -75,12 +76,14 @@ Behavior:
 - in Region geometry, if the selected action exposes HUD material slots, it clears the current action icon slot instead
 - on screens, it keeps the existing screen-specific material clearing behavior
 
-## Maximize Behavior
+## Opening The Integrated Editors
 
-The [Edit / Maximize](/docs/creator/actions/#edit--maximize) action is context-sensitive:
+The top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) is context-sensitive:
 
 - if a **tile** is selected, Eldiron opens the **pixel tile editor**
 - if a **node group** is selected, Eldiron opens the **tile node graph editor**
+
+Use the adjacent **Restore Dock** control (`Cmd/Ctrl + ]`) to return to the normal editor/dock split.
 
 See:
 

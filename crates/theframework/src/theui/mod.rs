@@ -115,7 +115,7 @@ pub mod prelude {
     pub use crate::theui::thergbbuffer::TheRGBBuffer;
     pub use crate::theui::thesizelimiter::TheSizeLimiter;
     pub use crate::theui::theuicontext::*;
-    pub use crate::theui::{TheUI, rasterize_svg_path_icon};
+    pub use crate::theui::{ThePopover, TheUI, rasterize_svg_path_icon};
 
     pub use crate::theui::thevalue::{TheValue, TheValueAssignment, TheValueComparison};
     pub use crate::theui::thevent::TheEvent;
@@ -308,11 +308,64 @@ impl TheDialogButtonRole {
     }
 }
 
+/// A lightweight widget container anchored to another control.
+///
+/// Unlike a dialog, a popover has no title bar or confirmation buttons. It
+/// remains active while its child controls are used and is dismissed by an
+/// outside click or Escape.
+pub struct ThePopover {
+    pub id: TheId,
+    pub anchor: TheDim,
+    pub canvas: TheCanvas,
+}
+
+impl ThePopover {
+    pub fn new(id: TheId, anchor: TheDim, canvas: TheCanvas) -> Self {
+        Self { id, anchor, canvas }
+    }
+
+    fn layout(&mut self, gap: i32, ctx: &mut TheContext) {
+        let margin = 8;
+        let max_width = (ctx.width as i32 - margin * 2).max(1);
+        let max_height = (ctx.height as i32 - margin * 2).max(1);
+        let width = self.canvas.limiter.get_max_width().clamp(1, max_width);
+        let height = self.canvas.limiter.get_max_height().clamp(1, max_height);
+
+        // Align the popover's leading edge with the control that opened it.
+        // Clamping below still keeps it on-screen for controls near the right edge.
+        let mut x = self.anchor.x;
+        let below = self.anchor.y + self.anchor.height + gap;
+        let above = self.anchor.y - gap - height;
+        let mut y = if below + height <= ctx.height as i32 - margin {
+            below
+        } else {
+            above
+        };
+        x = x.clamp(margin, (ctx.width as i32 - width - margin).max(margin));
+        y = y.clamp(margin, (ctx.height as i32 - height - margin).max(margin));
+
+        let mut dim = TheDim::new(x, y, width, height);
+        dim.set_buffer_offset(x, y);
+        self.canvas.set_dim(dim, ctx);
+    }
+
+    fn contains(&self, coord: Vec2<i32>, border_width: i32) -> bool {
+        TheDim::new(
+            self.canvas.dim.x - border_width,
+            self.canvas.dim.y - border_width,
+            self.canvas.dim.width + border_width * 2,
+            self.canvas.dim.height + border_width * 2,
+        )
+        .contains(coord)
+    }
+}
+
 pub struct TheUI {
     pub canvas: TheCanvas,
 
     pub dialog_text: String,
     pub dialog: Option<TheCanvas>,
+    pub popover: Option<ThePopover>,
 
     pub style: Box<dyn TheStyle>,
 
@@ -361,6 +414,7 @@ impl TheUI {
 
             dialog_text: "".to_string(),
             dialog: None,
+            popover: None,
 
             statusbar_name: None,
 
@@ -457,6 +511,19 @@ impl TheUI {
             let width = dialog.limiter.get_max_width();
             let height = dialog.limiter.get_max_height();
             dialog.layout(width, height, ctx);
+        }
+        let popover_anchor_id = self.popover.as_ref().map(|popover| popover.id.clone());
+        let popover_anchor = popover_anchor_id.and_then(|id| {
+            self.canvas
+                .get_widget(Some(&id.name), Some(&id.uuid))
+                .map(|widget| *widget.dim())
+        });
+        if let Some(popover) = &mut self.popover {
+            if let Some(anchor) = popover_anchor {
+                popover.anchor = anchor;
+            }
+            let gap = self.style.theme().metric(PopoverGap).round() as i32;
+            popover.layout(gap, ctx);
         }
         ctx.ui.relayout = false;
     }
@@ -580,6 +647,9 @@ impl TheUI {
             self.draw_dialog(ctx);
         }
         self.canvas.draw_overlay(&mut self.style, ctx);
+        if self.popover.is_some() {
+            self.draw_popover(ctx);
+        }
         self.draw_hover_help(ctx);
         if let Some(drop) = &ctx.ui.drop {
             if let Some(position) = &drop.position {
@@ -871,6 +941,11 @@ impl TheUI {
                                     }
                                 }
                                 self.dialog = None;
+                                ctx.ui.clear_focus();
+                                ctx.ui.clear_hover();
+                                ctx.ui.clear_overlay();
+                                ctx.ui.redraw_all = true;
+                                self.is_dirty = true;
                             }
                         }
                     }
@@ -1013,6 +1088,7 @@ impl TheUI {
     pub fn set_disabled(&mut self, id: &str, ctx: &mut TheContext) {
         ctx.ui.set_disabled(id);
         if let Some(widget) = self.get_widget(id) {
+            widget.set_disabled(true);
             widget.set_needs_redraw(true);
         }
     }
@@ -1021,6 +1097,7 @@ impl TheUI {
     pub fn set_enabled(&mut self, id: &str, ctx: &mut TheContext) {
         ctx.ui.set_enabled(id);
         if let Some(widget) = self.get_widget(id) {
+            widget.set_disabled(false);
             widget.set_needs_redraw(true);
         }
     }
@@ -1050,6 +1127,15 @@ impl TheUI {
     pub fn context(&mut self, x: f32, y: f32, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
         let coord = Vec2::new(x as i32, y as i32);
+        let popover_border = self.style.theme().metric(PopoverBorderWidth).round() as i32;
+        if self
+            .popover
+            .as_ref()
+            .is_some_and(|popover| !popover.contains(coord, popover_border))
+        {
+            self.clear_popover(ctx);
+            redraw = true;
+        }
         if let Some(widget) = self.get_widget_at_coord(coord) {
             let event = TheEvent::Context(coord);
             redraw = widget.on_event(&event, ctx);
@@ -1129,6 +1215,17 @@ impl TheUI {
                 self.process_events(ctx);
                 return redraw;
             }
+        }
+
+        let popover_border = self.style.theme().metric(PopoverBorderWidth).round() as i32;
+        if self.dialog.is_none()
+            && self
+                .popover
+                .as_ref()
+                .is_some_and(|popover| !popover.contains(coord, popover_border))
+        {
+            self.clear_popover(ctx);
+            redraw = true;
         }
 
         let mut mouse_capture_id: Option<TheId> = None;
@@ -1384,6 +1481,21 @@ impl TheUI {
         let mut consumed = false;
         let mut suppress_focused_widget = false;
 
+        if key == Some(TheKeyCode::Escape) && self.popover.is_some() {
+            self.clear_popover(ctx);
+            return true;
+        }
+
+        if key == Some(TheKeyCode::Escape) && self.dialog.is_some() {
+            self.clear_dialog();
+            ctx.ui.clear_focus();
+            ctx.ui.clear_hover();
+            ctx.ui.clear_overlay();
+            ctx.ui.redraw_all = true;
+            self.is_dirty = true;
+            return true;
+        }
+
         if let Some(c) = char {
             if self.ctrl || self.alt || self.logo {
                 // Local text editing shortcuts must override global accelerators.
@@ -1528,7 +1640,20 @@ impl TheUI {
             if let Some(layout) = dialog.get_layout_at_coord(coord) {
                 return Some(layout);
             }
-        } else if let Some(layout) = self.canvas.get_layout_at_coord(coord) {
+            return None;
+        }
+        let popover_border = self.style.theme().metric(PopoverBorderWidth).round() as i32;
+        if self
+            .popover
+            .as_ref()
+            .is_some_and(|popover| popover.contains(coord, popover_border))
+        {
+            return self
+                .popover
+                .as_mut()
+                .and_then(|popover| popover.canvas.get_layout_at_coord(coord));
+        }
+        if let Some(layout) = self.canvas.get_layout_at_coord(coord) {
             return Some(layout);
         }
         None
@@ -1540,7 +1665,20 @@ impl TheUI {
             if let Some(widget) = dialog.get_widget_at_coord(coord) {
                 return Some(widget);
             }
-        } else if let Some(widget) = self.canvas.get_widget_at_coord(coord) {
+            return None;
+        }
+        let popover_border = self.style.theme().metric(PopoverBorderWidth).round() as i32;
+        if self
+            .popover
+            .as_ref()
+            .is_some_and(|popover| popover.contains(coord, popover_border))
+        {
+            return self
+                .popover
+                .as_mut()
+                .and_then(|popover| popover.canvas.get_widget_at_coord(coord));
+        }
+        if let Some(widget) = self.canvas.get_widget_at_coord(coord) {
             return Some(widget);
         }
         None
@@ -1551,11 +1689,17 @@ impl TheUI {
         name: Option<&String>,
         uuid: Option<&Uuid>,
     ) -> Option<&mut Box<dyn TheWidget>> {
-        if let Some(dialog) = &mut self.dialog {
-            dialog.get_widget(name, uuid)
-        } else {
-            self.canvas.get_widget(name, uuid)
+        if let Some(dialog) = &mut self.dialog
+            && let Some(widget) = dialog.get_widget(name, uuid)
+        {
+            return Some(widget);
         }
+        if let Some(popover) = &mut self.popover
+            && let Some(widget) = popover.canvas.get_widget(name, uuid)
+        {
+            return Some(widget);
+        }
+        self.canvas.get_widget(name, uuid)
     }
 
     pub fn get_layout_abs(
@@ -1563,11 +1707,17 @@ impl TheUI {
         name: Option<&String>,
         uuid: Option<&Uuid>,
     ) -> Option<&mut Box<dyn TheLayout>> {
-        if let Some(dialog) = &mut self.dialog {
-            dialog.get_layout(name, uuid)
-        } else {
-            self.canvas.get_layout(name, uuid)
+        if let Some(dialog) = &mut self.dialog
+            && let Some(layout) = dialog.get_layout(name, uuid)
+        {
+            return Some(layout);
         }
+        if let Some(popover) = &mut self.popover
+            && let Some(layout) = popover.canvas.get_layout(name, uuid)
+        {
+            return Some(layout);
+        }
+        self.canvas.get_layout(name, uuid)
     }
 
     /// Gets a given widget by name
@@ -1854,15 +2004,16 @@ impl TheUI {
 
     /// Get the value of the given widget.
     pub fn get_widget_value(&mut self, name: &str) -> Option<TheValue> {
-        self.canvas
-            .get_widget(Some(&name.to_string()), None)
+        self.get_widget_abs(Some(&name.to_string()), None)
             .map(|widget| widget.value())
     }
 
     /// Set the value of the given widget.
     pub fn set_widget_value(&mut self, name: &str, ctx: &mut TheContext, value: TheValue) -> bool {
-        if let Some(widget) = self.canvas.get_widget(Some(&name.to_string()), None) {
+        if let Some(widget) = self.get_widget_abs(Some(&name.to_string()), None) {
             widget.set_value(value);
+            widget.set_needs_redraw(true);
+            ctx.ui.redraw_all = true;
             true
         } else {
             false
@@ -1878,6 +2029,7 @@ impl TheUI {
         buttons: Vec<TheDialogButtonRole>,
         ctx: &mut TheContext,
     ) {
+        self.clear_popover(ctx);
         self.dialog_text = text.to_string();
 
         let width = canvas.limiter.get_max_width();
@@ -1915,8 +2067,101 @@ impl TheUI {
 
         ctx.ui.clear_focus();
         ctx.ui.clear_hover();
+        ctx.ui.clear_overlay();
 
         self.dialog = Some(canvas);
+        ctx.ui.redraw_all = true;
+        self.is_dirty = true;
+    }
+
+    /// Opens a themed, non-modal popover anchored to a control.
+    pub fn show_popover(
+        &mut self,
+        id: TheId,
+        anchor: TheDim,
+        canvas: TheCanvas,
+        ctx: &mut TheContext,
+    ) {
+        let gap = self.style.theme().metric(PopoverGap).round() as i32;
+        let mut popover = ThePopover::new(id, anchor, canvas);
+        popover.layout(gap, ctx);
+        ctx.ui.clear_focus();
+        ctx.ui.clear_hover();
+        ctx.ui.clear_overlay();
+        self.popover = Some(popover);
+        ctx.ui.redraw_all = true;
+        self.is_dirty = true;
+    }
+
+    /// Closes the active popover, if any.
+    pub fn clear_popover(&mut self, ctx: &mut TheContext) {
+        if self.popover.take().is_some() {
+            ctx.ui.clear_focus();
+            ctx.ui.clear_hover();
+            ctx.ui.clear_overlay();
+            ctx.ui.redraw_all = true;
+            self.is_dirty = true;
+        }
+    }
+
+    /// Draws the active popover above the normal canvas and its overlays.
+    pub fn draw_popover(&mut self, ctx: &mut TheContext) {
+        if let Some(popover) = &mut self.popover {
+            popover.canvas.draw(&mut self.style, ctx);
+
+            let border_width = self.style.theme().metric(PopoverBorderWidth).round() as i32;
+            let radius = self.style.theme().metric(PopoverCornerRadius);
+            let content = popover.canvas.dim;
+            let frame = ThePixelRect::new(
+                content.buffer_x - border_width,
+                content.buffer_y - border_width,
+                content.width + border_width * 2,
+                content.height + border_width * 2,
+            );
+            let shadow = ThePixelRect::new(frame.x + 4, frame.y + 5, frame.width, frame.height);
+            let body = ThePixelRect::new(
+                frame.x + border_width,
+                frame.y + border_width,
+                frame.width - border_width * 2,
+                frame.height - border_width * 2,
+            );
+            let shadow_paint = self.style.theme().paint(PopoverShadow, shadow);
+            let frame_paint = self.style.theme().paint(PopoverFrame, frame);
+            let body_paint = self.style.theme().paint(PopoverBody, body);
+            let width = self.canvas.buffer.dim().width.max(0) as usize;
+            let height = self.canvas.buffer.dim().height.max(0) as usize;
+            if let Ok(mut surface) =
+                TheSurfaceMut::new(self.canvas.buffer.pixels_mut(), width, height)
+            {
+                ctx.painter
+                    .fill_round_rect(&mut surface, shadow, radius + 2.0, &shadow_paint);
+                ctx.painter
+                    .fill_round_rect(&mut surface, frame, radius, &frame_paint);
+                ctx.painter.fill_round_rect(
+                    &mut surface,
+                    body,
+                    (radius - border_width as f32).max(0.0),
+                    &body_paint,
+                );
+            }
+            self.canvas.buffer.blend_into(
+                content.buffer_x,
+                content.buffer_y,
+                &popover.canvas.buffer,
+            );
+            if let Some(overlay_id) = ctx.ui.overlay.clone()
+                && let Some(widget) = popover.canvas.get_widget(None, Some(&overlay_id.uuid))
+            {
+                let overlay = widget.draw_overlay(&mut self.style, ctx);
+                if overlay.is_valid() {
+                    self.canvas.buffer.copy_into(
+                        overlay.dim().buffer_x,
+                        overlay.dim().buffer_y,
+                        &overlay,
+                    );
+                }
+            }
+        }
     }
 
     #[cfg(feature = "ui")]
@@ -1930,105 +2175,66 @@ impl TheUI {
     pub fn draw_dialog(&mut self, ctx: &mut TheContext) {
         if let Some(dialog_canvas) = &mut self.dialog {
             dialog_canvas.draw(&mut self.style, ctx);
+            dialog_canvas.draw_overlay(&mut self.style, ctx);
 
-            let width = dialog_canvas.limiter.get_max_width();
-            let height = dialog_canvas.limiter.get_max_height();
-
-            // ctx.draw.rect(
-            //     self.canvas.buffer.pixels_mut(),
-            //     &(
-            //         dialog_canvas.dim.buffer_x as usize,
-            //         dialog_canvas.dim.buffer_y as usize,
-            //         width as usize,
-            //         height as usize,
-            //     ),
-            //     ctx.width,
-            //     &BLACK,
-            // );
-
-            let mut tuple = dialog_canvas.dim.to_buffer_utuple();
-
-            let window_margin = Vec4::new(3, 29, 3, 3);
-
-            let mut border_shrinker = TheDimShrinker::zero();
-            let mut border_dim = TheDim::new(
-                tuple.0 as i32 - window_margin.x,
-                tuple.1 as i32 - window_margin.y,
-                tuple.2 as i32 + window_margin.x + window_margin.z,
-                tuple.3 as i32 + window_margin.y + window_margin.w,
+            let header_height = self.style.theme().metric(PopupHeaderHeight).round() as i32;
+            let border_width = self.style.theme().metric(PopupBorderWidth).round() as i32;
+            let radius = self.style.theme().metric(PopupCornerRadius);
+            let content = dialog_canvas.dim;
+            let outer = ThePixelRect::new(
+                content.buffer_x - border_width,
+                content.buffer_y - header_height,
+                content.width + border_width * 2,
+                content.height + header_height + border_width,
             );
-            border_dim.buffer_x = border_dim.x;
-            border_dim.buffer_y = border_dim.y;
-
-            tuple = border_dim.to_buffer_utuple();
-
-            ctx.draw.rect_outline(
-                self.canvas.buffer.pixels_mut(),
-                &tuple,
-                ctx.width,
-                self.style.theme().color(WindowBorderOuter),
+            let body = ThePixelRect::new(
+                outer.x + border_width,
+                outer.y + border_width,
+                outer.width - border_width * 2,
+                outer.height - border_width * 2,
             );
-
-            border_shrinker.shrink(1);
-            tuple = border_dim.to_buffer_shrunk_utuple(&border_shrinker);
-            ctx.draw.rect_outline(
-                self.canvas.buffer.pixels_mut(),
-                &tuple,
-                ctx.width,
-                self.style.theme().color(WindowBorderInner),
-            );
-
-            border_shrinker.shrink(1);
-            tuple = border_dim.to_buffer_shrunk_utuple(&border_shrinker);
-            ctx.draw.rect_outline(
-                self.canvas.buffer.pixels_mut(),
-                &tuple,
-                ctx.width,
-                self.style.theme().color(WindowBorderInner),
-            );
-
-            // Header
-
-            border_shrinker.shrink(1);
-            tuple = border_dim.to_buffer_shrunk_utuple(&border_shrinker);
-            ctx.draw.rect(
-                self.canvas.buffer.pixels_mut(),
-                &(tuple.0, tuple.1, tuple.2, 23),
-                ctx.width,
-                self.style.theme().color(WindowHeaderBackground),
-            );
-
-            ctx.draw.rect(
-                self.canvas.buffer.pixels_mut(),
-                &(tuple.0, tuple.1 + 23, tuple.2, 1),
-                ctx.width,
-                self.style.theme().color(WindowHeaderBorder1),
-            );
-
-            ctx.draw.rect(
-                self.canvas.buffer.pixels_mut(),
-                &(tuple.0, tuple.1 + 24, tuple.2, 1),
-                ctx.width,
-                self.style.theme().color(WindowBorderInner),
-            );
-
-            ctx.draw.rect(
-                self.canvas.buffer.pixels_mut(),
-                &(tuple.0, tuple.1 + 25, tuple.2, 1),
-                ctx.width,
-                self.style.theme().color(WindowHeaderBorder2),
-            );
+            let header =
+                ThePixelRect::new(body.x, body.y, body.width, header_height - border_width);
+            let separator =
+                ThePixelRect::new(header.x, header.y + header.height - 1, header.width, 1);
+            let frame_paint = self.style.theme().paint(PopupFrame, outer);
+            let body_paint = self.style.theme().paint(PopupBody, body);
+            let header_paint = self.style.theme().paint(PopupHeader, header);
+            let separator_paint = self.style.theme().paint(PopupSeparator, separator);
+            let title_color = *self.style.theme().color(MenuText);
+            let width = self.canvas.buffer.dim().width.max(0) as usize;
+            let height = self.canvas.buffer.dim().height.max(0) as usize;
+            if let Ok(mut surface) =
+                TheSurfaceMut::new(self.canvas.buffer.pixels_mut(), width, height)
+            {
+                ctx.painter
+                    .fill_round_rect(&mut surface, outer, radius, &frame_paint);
+                ctx.painter.fill_round_rect(
+                    &mut surface,
+                    body,
+                    (radius - border_width as f32).max(0.0),
+                    &body_paint,
+                );
+                ctx.painter.fill_rect(&mut surface, header, &header_paint);
+                ctx.painter
+                    .fill_rect(&mut surface, separator, &separator_paint);
+            }
 
             ctx.draw.text_rect_blend(
                 self.canvas.buffer.pixels_mut(),
-                &(tuple.0 + 13, tuple.1, tuple.2 - 13, 23),
+                &(
+                    header.x.max(0) as usize + 10,
+                    header.y.max(0) as usize,
+                    header.width.saturating_sub(20) as usize,
+                    header.height.max(1) as usize,
+                ),
                 ctx.width,
                 &self.dialog_text,
                 TheFontSettings {
                     size: 15.0,
                     ..Default::default()
                 },
-                &WHITE,
+                &title_color,
                 TheHorizontalAlign::Left,
                 TheVerticalAlign::Center,
             );

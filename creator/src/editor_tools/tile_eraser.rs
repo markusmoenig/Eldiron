@@ -172,7 +172,7 @@ impl TileEraserTool {
                             TheValue::Id(tile_id),
                         ));
                     }
-                    PixelEditingContext::AvatarFrame(..) => {
+                    PixelEditingContext::ItemIcon(..) | PixelEditingContext::AvatarFrame(..) => {
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Editing Texture Updated"),
                             TheValue::Empty,

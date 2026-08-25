@@ -265,7 +265,30 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
 }
 
 /// Returns a TheTreeNode for the item.
-pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
+pub fn resolved_item_default_icon_frames(item: &Item, project: &Project) -> Vec<rusterix::Texture> {
+    let runtime = RUSTERIX.read().unwrap();
+    let mut runtime_item = rusterix::Item::default();
+    rusterix::server::data::apply_item_data(&mut runtime_item, &item.data);
+
+    if let Some(rusterix::Value::Source(source)) = runtime_item.attributes.get("source")
+        && let Some(tile) = source.tile_from_tile_list(&runtime.assets).or_else(|| {
+            let mut assets = rusterix::server::assets::Assets::new();
+            for tile in project.tiles.values() {
+                assets.tiles.insert(tile.id, tile.clone());
+            }
+            source.tile_from_tile_list(&assets)
+        })
+        && !tile.textures.is_empty()
+    {
+        return tile.textures;
+    }
+
+    rusterix::client::widget::Widget::item_generated_icon_square(&runtime.assets, &runtime_item)
+        .map(|(size, rgba)| vec![rusterix::Texture::new(rgba, size as usize, size as usize)])
+        .unwrap_or_default()
+}
+
+pub fn gen_item_tree_node(item_: &Item, project: &Project) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&item_.name, item_.id));
     node.set_root_mode(false);
     if data_has_attr(&item_.data, "ruleset_path") {
@@ -282,6 +305,24 @@ pub fn gen_item_tree_node(item_: &Item) -> TheTreeNode {
     item.add_widget_column(200, Box::new(edit));
 
     node.add_widget(Box::new(item));
+
+    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Icon", item_.id));
+    item.set_text("Icon".to_string());
+    node.add_widget(Box::new(item));
+
+    let frames = if item_.icon_frames.is_empty() {
+        resolved_item_default_icon_frames(item_, project)
+    } else {
+        item_.icon_frames.clone()
+    };
+    let mut icons = TheTreeIcons::new(TheId::named_with_reference("Item Icon Frames", item_.id));
+    icons.set_icon_size(40);
+    icons.set_icon_count(frames.len().max(1));
+    icons.set_selected_index(Some(0));
+    for (index, texture) in frames.iter().enumerate() {
+        icons.set_icon(index, texture.to_rgba());
+    }
+    node.add_widget(Box::new(icons));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
     item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());

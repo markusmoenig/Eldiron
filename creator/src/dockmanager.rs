@@ -20,6 +20,7 @@ pub struct DockManager {
     pub dock: String,
     pub index: usize,
     pub editor_index: Option<usize>,
+    normal_split_ratio: f32,
 
     pub supports_undo: bool,
     pub auto_text_play_prev_dock: Option<String>,
@@ -36,6 +37,14 @@ impl Default for DockManager {
 }
 
 impl DockManager {
+    pub fn edit_maximize_accelerator() -> TheAccelerator {
+        TheAccelerator::new(TheAcceleratorKey::CTRLCMD, '[')
+    }
+
+    pub fn restore_accelerator() -> TheAccelerator {
+        TheAccelerator::new(TheAcceleratorKey::CTRLCMD, ']')
+    }
+
     /// Builds an action panel backed by the global action model.
     ///
     /// The panel is intentionally independent from the dock canvas so hosts can
@@ -114,6 +123,7 @@ impl DockManager {
             dock: "".into(),
             index: 0,
             editor_index: None,
+            normal_split_ratio: crate::DEFAULT_VLAYOUT_RATIO,
             supports_undo: false,
             auto_text_play_prev_dock: None,
             auto_text_play_active: false,
@@ -135,6 +145,35 @@ impl DockManager {
 
         dock_canvas.set_layout(dock_stack);
         dock_canvas
+    }
+
+    pub fn remember_normal_split(&mut self, ui: &mut TheUI) {
+        if let Some(layout) = ui.get_sharedvlayout("Shared VLayout")
+            && layout.get_mode() == TheSharedVLayoutMode::Shared
+        {
+            self.normal_split_ratio = layout.get_shared_ratio();
+        }
+    }
+
+    fn restore_normal_split(&self, ui: &mut TheUI) {
+        if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+            layout.set_shared_ratio(self.normal_split_ratio);
+            layout.set_mode(TheSharedVLayoutMode::Shared);
+        }
+    }
+
+    pub fn sync_size_controls(&self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if self.state == DockManagerState::Minimized {
+            ui.set_disabled("Dock Restore", ctx);
+            if self.dock.is_empty() {
+                ui.set_disabled("Dock Edit Maximize", ctx);
+            } else {
+                ui.set_enabled("Dock Edit Maximize", ctx);
+            }
+        } else {
+            ui.set_enabled("Dock Restore", ctx);
+            ui.set_disabled("Dock Edit Maximize", ctx);
+        }
     }
 
     pub fn set_dock(
@@ -166,6 +205,7 @@ impl DockManager {
                 let state = self.docks[self.index].default_state();
                 if state == DockDefaultState::Minimized {
                     self.state = DockManagerState::Minimized;
+                    layout.set_shared_ratio(self.normal_split_ratio);
                     layout.set_mode(TheSharedVLayoutMode::Shared);
                 } else {
                     self.state = DockManagerState::Maximized;
@@ -178,6 +218,7 @@ impl DockManager {
         if self.supports_undo {
             self.docks[self.index].set_undo_state_to_ui(ctx);
         }
+        self.sync_size_controls(ui, ctx);
     }
 
     pub fn import(
@@ -307,6 +348,7 @@ impl DockManager {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) {
+        self.remember_normal_split(ui);
         if self.dock == "Prefabs" {
             let Some(asset_id) = server_ctx
                 .curr_block_asset_id
@@ -445,6 +487,7 @@ impl DockManager {
             layout.set_mode(TheSharedVLayoutMode::Bottom);
             self.state = DockManagerState::Maximized;
         }
+        self.sync_size_controls(ui, ctx);
     }
 
     /// Open a dock that exists only as a full-screen editor. Recipes use this
@@ -493,6 +536,7 @@ impl DockManager {
             }
         }
         self.set_supports_undo(supports_undo, ctx);
+        self.sync_size_controls(ui, ctx);
     }
 
     fn minimize_inner(
@@ -518,9 +562,7 @@ impl DockManager {
                 if let Some(stack) = ui.get_stack_layout("Editor Stack") {
                     stack.set_index(0);
                 }
-                if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
-                    layout.set_mode(TheSharedVLayoutMode::Shared);
-                }
+                self.restore_normal_split(ui);
                 ctx.ui.relayout = true;
                 ctx.ui.redraw_all = true;
                 self.state = DockManagerState::Minimized;
@@ -534,13 +576,14 @@ impl DockManager {
                     self.dock = regular_dock.clone();
                     self.editor_index = self.editor_canvases.get(&self.dock).copied();
                 }
-            } else if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
-                layout.set_mode(TheSharedVLayoutMode::Shared);
+            } else {
+                self.restore_normal_split(ui);
                 self.state = DockManagerState::Minimized;
             }
 
             self.set_supports_undo(self.docks[self.index].supports_undo(), ctx);
         }
+        self.sync_size_controls(ui, ctx);
 
         // Restore an isolated Prefab workspace whenever one is pending. Do not
         // key this off the currently selected dock: tool and sidebar events can

@@ -127,6 +127,39 @@ pub fn sync_prefab_editor(project: &mut Project, asset_id: Uuid) -> Result<(), S
             *geometry_objects = objects_by_part.shift_remove(&part.id).unwrap_or_default();
         }
     }
+    let valid_part_ids = asset
+        .parts
+        .iter()
+        .map(|part| part.id)
+        .collect::<FxHashSet<_>>();
+    let valid_faces = asset
+        .parts
+        .iter()
+        .flat_map(|part| part.geometry_source.geometry_objects())
+        .map(|object| {
+            (
+                object.id,
+                object
+                    .faces
+                    .iter()
+                    .map(|face| face.id)
+                    .collect::<FxHashSet<_>>(),
+            )
+        })
+        .collect::<FxHashMap<_, _>>();
+    for surface in &mut asset.support_surfaces {
+        if let rusterix::BlockPropSemanticShape::Faces(refs) = &mut surface.shape {
+            refs.retain(|face_ref| {
+                valid_faces
+                    .get(&face_ref.object_id)
+                    .is_some_and(|face_ids| face_ids.contains(&face_ref.face_id))
+            });
+        }
+    }
+    asset.support_surfaces.retain(|surface| {
+        valid_part_ids.contains(&surface.part_id)
+            && !matches!(&surface.shape, rusterix::BlockPropSemanticShape::Faces(refs) if refs.is_empty())
+    });
     Ok(())
 }
 
@@ -143,6 +176,178 @@ pub fn select_prefab_part(project: &mut Project, part_id: Uuid) -> bool {
     map.clear_selection();
     map.selected_geometry_objects = selected;
     !map.selected_geometry_objects.is_empty()
+}
+
+/// Creates one semantic support surface from the currently selected Prefab
+/// faces. A support surface belongs to exactly one stable part, while its face
+/// references may span several Geometry Objects owned by that part.
+pub fn create_prefab_support_surface_from_selection(
+    project: &mut Project,
+    asset_id: Uuid,
+    name: impl Into<String>,
+) -> Result<(Uuid, Uuid, usize), String> {
+    let map = project
+        .prefab_editor_map
+        .as_ref()
+        .ok_or_else(|| fl!("error_prefab_editor_not_open"))?;
+    if map.selected_geometry_faces.is_empty() {
+        return Err(fl!("status_prefab_surface_select_faces"));
+    }
+
+    let mut part_id = None;
+    let mut refs = Vec::new();
+    let mut seen = FxHashSet::default();
+    let mut reference_plane: Option<(Vec3<f32>, Vec3<f32>)> = None;
+    for (object_id, face_index) in &map.selected_geometry_faces {
+        let owner = project
+            .prefab_editor_part_by_object
+            .get(object_id)
+            .copied()
+            .ok_or_else(|| fl!("status_prefab_surface_missing_part"))?;
+        if part_id.is_some_and(|part_id| part_id != owner) {
+            return Err(fl!("status_prefab_surface_one_part"));
+        }
+        part_id = Some(owner);
+        let object = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == *object_id)
+            .ok_or_else(|| fl!("status_prefab_surface_missing_face"))?;
+        let face = object
+            .faces
+            .get(*face_index)
+            .ok_or_else(|| fl!("status_prefab_surface_missing_face"))?;
+        let points = face
+            .indices
+            .iter()
+            .filter_map(|index| object.vertices.get(*index))
+            .map(|point| object.transform_point(*point))
+            .collect::<Vec<_>>();
+        let origin = points
+            .first()
+            .copied()
+            .ok_or_else(|| fl!("status_prefab_surface_faces_coplanar"))?;
+        let normal = (1..points.len())
+            .find_map(|second| {
+                (second + 1..points.len()).find_map(|third| {
+                    (points[second] - origin)
+                        .cross(points[third] - origin)
+                        .try_normalized()
+                })
+            })
+            .ok_or_else(|| fl!("status_prefab_surface_faces_coplanar"))?;
+        if points
+            .iter()
+            .any(|point| (*point - origin).dot(normal).abs() > 0.001)
+            || reference_plane.is_some_and(|(reference_origin, reference_normal)| {
+                normal.dot(reference_normal).abs() < 0.999
+                    || points.iter().any(|point| {
+                        (*point - reference_origin).dot(reference_normal).abs() > 0.001
+                    })
+            })
+        {
+            return Err(fl!("status_prefab_surface_faces_coplanar"));
+        }
+        reference_plane.get_or_insert((origin, normal));
+        let face_id = face.id;
+        if seen.insert((*object_id, face_id)) {
+            refs.push(rusterix::BlockPropFaceRef {
+                object_id: *object_id,
+                face_id,
+            });
+        }
+    }
+
+    let part_id = part_id.ok_or_else(|| fl!("status_prefab_surface_select_faces"))?;
+    let surface = rusterix::BlockPropSupportSurface {
+        id: Uuid::new_v4(),
+        name: name.into(),
+        part_id,
+        shape: rusterix::BlockPropSemanticShape::Faces(refs),
+        snap_spacing: 0.25,
+        allowed_item_tags: vec!["placeable".to_string()],
+        capacity: None,
+        occupancy_policy: rusterix::BlockPropOccupancyPolicy::RejectOverlap,
+    };
+    let surface_id = surface.id;
+    let face_count = match &surface.shape {
+        rusterix::BlockPropSemanticShape::Faces(faces) => faces.len(),
+        _ => 0,
+    };
+    project
+        .block_props
+        .get_mut(&asset_id)
+        .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?
+        .support_surfaces
+        .push(surface);
+    Ok((surface_id, part_id, face_count))
+}
+
+/// Selects the authored faces of one support surface in the isolated map so
+/// the standard Face overlay is also the support-surface preview.
+pub fn select_prefab_support_surface(
+    project: &mut Project,
+    asset_id: Uuid,
+    surface_id: Uuid,
+) -> Result<Uuid, String> {
+    let (part_id, refs) = project
+        .block_props
+        .get(&asset_id)
+        .and_then(|asset| asset.find_support_surface(surface_id))
+        .and_then(|surface| match &surface.shape {
+            rusterix::BlockPropSemanticShape::Faces(refs) => Some((surface.part_id, refs.clone())),
+            _ => None,
+        })
+        .ok_or_else(|| fl!("status_prefab_surface_missing"))?;
+    let map = project
+        .prefab_editor_map
+        .as_mut()
+        .ok_or_else(|| fl!("error_prefab_editor_not_open"))?;
+    map.clear_selection();
+    for face_ref in refs {
+        let Some(object) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == face_ref.object_id)
+        else {
+            continue;
+        };
+        let Some(face_index) = object
+            .faces
+            .iter()
+            .position(|face| face.id == face_ref.face_id)
+        else {
+            continue;
+        };
+        if !map.selected_geometry_objects.contains(&face_ref.object_id) {
+            map.selected_geometry_objects.push(face_ref.object_id);
+        }
+        map.selected_geometry_faces
+            .push((face_ref.object_id, face_index));
+    }
+    if map.selected_geometry_faces.is_empty() {
+        return Err(fl!("status_prefab_surface_missing_face"));
+    }
+    Ok(part_id)
+}
+
+pub fn remove_prefab_support_surface(
+    project: &mut Project,
+    asset_id: Uuid,
+    surface_id: Uuid,
+) -> Result<Uuid, String> {
+    let asset = project
+        .block_props
+        .get_mut(&asset_id)
+        .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?;
+    let part_id = asset
+        .find_support_surface(surface_id)
+        .map(|surface| surface.part_id)
+        .ok_or_else(|| fl!("status_prefab_surface_missing"))?;
+    asset
+        .support_surfaces
+        .retain(|surface| surface.id != surface_id);
+    Ok(part_id)
 }
 
 /// Move the current object selection into a new stable Prefab part.
@@ -1566,6 +1771,45 @@ mod tests {
         server_ctx.pc = ProjectContext::Region(region_id);
         server_ctx.editor_view_mode = EditorViewMode::Orbit;
         (project, server_ctx, object_id)
+    }
+
+    #[test]
+    fn prefab_support_surface_round_trips_selected_faces() {
+        let mut project = Project::default();
+        let object = rusterix::GeometryObject::box_("Table Top", Vec3::zero(), Vec3::one());
+        let object_id = object.id;
+        let asset = rusterix::BlockPropAsset::new_authored("Table", vec![object]);
+        let asset_id = asset.id;
+        let part_id = asset.parts[0].id;
+        project.block_props.insert(asset_id, asset);
+        begin_prefab_editor(&mut project, asset_id).unwrap();
+        let map = project.prefab_editor_map.as_mut().unwrap();
+        map.selected_geometry_objects = vec![object_id];
+        map.selected_geometry_faces = vec![(object_id, 4)];
+
+        let (surface_id, owner_id, face_count) =
+            create_prefab_support_surface_from_selection(&mut project, asset_id, "Tabletop")
+                .unwrap();
+        assert_eq!(owner_id, part_id);
+        assert_eq!(face_count, 1);
+
+        project
+            .prefab_editor_map
+            .as_mut()
+            .unwrap()
+            .clear_selection();
+        assert_eq!(
+            select_prefab_support_surface(&mut project, asset_id, surface_id).unwrap(),
+            part_id
+        );
+        assert_eq!(
+            project
+                .prefab_editor_map
+                .as_ref()
+                .unwrap()
+                .selected_geometry_faces,
+            vec![(object_id, 4)]
+        );
     }
 
     #[test]

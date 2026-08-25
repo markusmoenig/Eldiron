@@ -173,6 +173,12 @@ impl Dock for TilesDock {
             .set_status_text("Manage collection membership for the selected tile or group.");
         toolbar_hlayout.add_widget(Box::new(collection_button));
 
+        let mut copy_id_button =
+            TheTraybarButton::new(TheId::named(&self.widget_name("Tiles Dock Copy ID")));
+        copy_id_button.set_text(fl!("action_copy_tile_id"));
+        copy_id_button.set_status_text(&fl!("action_copy_tile_id_desc"));
+        toolbar_hlayout.add_widget(Box::new(copy_id_button));
+
         let mut apply_button =
             TheTraybarButton::new(TheId::named(&self.widget_name("Tiles Dock Apply Tile")));
         apply_button.set_text(fl!("action_apply_tile"));
@@ -625,6 +631,13 @@ impl Dock for TilesDock {
                         self.blend_index = index;
                         server_ctx.rect_blend_preset = VertexBlendPreset::from_index(index)
                             .unwrap_or(VertexBlendPreset::Solid);
+                    }
+                } else if id.name == self.widget_name("Tiles Dock Copy ID") {
+                    if let Some(id) = self.current_copy_id() {
+                        ctx.ui.send(TheEvent::SetClipboard(
+                            TheValue::Text(format!("\"{id}\"")),
+                            None,
+                        ));
                     }
                 } else if id.name == self.widget_name("Tiles Dock Apply Tile") {
                     if let Some(TileSource::Procedural(package_id)) = self.curr_source
@@ -2710,6 +2723,16 @@ impl TilesDock {
 
     fn current_source(&self) -> Option<TileSource> {
         self.curr_source
+    }
+
+    fn current_copy_id(&self) -> Option<Uuid> {
+        match self.curr_source {
+            Some(TileSource::TileGroup(group_id)) => Some(group_id),
+            Some(TileSource::SingleTile(tile_id)) => Some(tile_id),
+            Some(TileSource::TileGroupMember { .. }) => self.curr_tile,
+            Some(TileSource::Procedural(id)) => Some(id),
+            None => self.curr_tile,
+        }
     }
 
     fn grouped_tile_ids(&self, project: &Project) -> FxHashSet<Uuid> {

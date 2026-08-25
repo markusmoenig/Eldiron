@@ -148,6 +148,18 @@ pub trait TheTheme: Send {
             TheThemePaints::ControlNormal => ThePaint::solid(*self.color(ToolbarButtonNormal)),
             TheThemePaints::ControlHover => ThePaint::solid(*self.color(ToolbarButtonHover)),
             TheThemePaints::ControlPressed => ThePaint::solid(*self.color(ToolbarButtonClicked)),
+            TheThemePaints::PopupFrame => ThePaint::solid(*self.color(WindowBorderOuter)),
+            TheThemePaints::PopupBody => ThePaint::solid(*self.color(ListLayoutBackground)),
+            TheThemePaints::PopupHeader => ThePaint::linear_gradient(
+                [0.0, top],
+                [0.0, bottom],
+                *self.color(WindowHeaderBackground),
+                *self.color(DefaultWidgetDarkBackground),
+            ),
+            TheThemePaints::PopupSeparator => ThePaint::solid(*self.color(WindowHeaderBorder1)),
+            TheThemePaints::PopoverShadow => ThePaint::solid([0, 0, 0, 96]),
+            TheThemePaints::PopoverFrame => ThePaint::solid(*self.color(WindowBorderOuter)),
+            TheThemePaints::PopoverBody => ThePaint::solid(*self.color(ListLayoutBackground)),
             TheThemePaints::Selection => ThePaint::solid(*self.color(DefaultSelection)),
             TheThemePaints::Focus => ThePaint::solid(*self.color(SelectedTextEditBorder1)),
             TheThemePaints::Accent => ThePaint::solid(*self.color(Green)),
@@ -162,6 +174,12 @@ pub trait TheTheme: Send {
             TheThemeMetrics::ControlCornerRadius => 2.0,
             TheThemeMetrics::ControlBorderWidth => 1.0,
             TheThemeMetrics::FocusRingWidth => 1.5,
+            TheThemeMetrics::PopupHeaderHeight => 26.0,
+            TheThemeMetrics::PopupBorderWidth => 3.0,
+            TheThemeMetrics::PopupCornerRadius => 4.0,
+            TheThemeMetrics::PopoverBorderWidth => 1.0,
+            TheThemeMetrics::PopoverCornerRadius => 10.0,
+            TheThemeMetrics::PopoverGap => 6.0,
         }
     }
 
@@ -262,6 +280,13 @@ pub enum TheThemePaints {
     ControlNormal,
     ControlHover,
     ControlPressed,
+    PopupFrame,
+    PopupBody,
+    PopupHeader,
+    PopupSeparator,
+    PopoverShadow,
+    PopoverFrame,
+    PopoverBody,
     Selection,
     Focus,
     Accent,
@@ -274,6 +299,12 @@ pub enum TheThemeMetrics {
     ControlCornerRadius,
     ControlBorderWidth,
     FocusRingWidth,
+    PopupHeaderHeight,
+    PopupBorderWidth,
+    PopupCornerRadius,
+    PopoverBorderWidth,
+    PopoverCornerRadius,
+    PopoverGap,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]

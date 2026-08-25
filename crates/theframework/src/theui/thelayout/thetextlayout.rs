@@ -342,6 +342,11 @@ impl TheLayout for TheTextLayout {
                 stride,
                 style.theme().color(background),
             );
+        } else {
+            // Transparent text layouts are used inside rounded popovers. Clear
+            // the reusable backing buffer so old control pixels never square
+            // off the popover or survive a subsequent redraw.
+            self.list_buffer.pixels_mut().fill(0);
         }
 
         if self.vertical_scrollbar_visible {

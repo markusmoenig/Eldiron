@@ -575,6 +575,10 @@ impl BlockPropInstance {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum BlockPropOccupant {
     Item(u32),
+    /// Stable Creator-side item instance identity. Runtime-spawned items keep
+    /// using `Item(u32)`, while authored region items must not rely on their
+    /// transient numeric runtime ID.
+    ItemInstance(Uuid),
     Entity(u32),
     PropInstance(Uuid),
 }
@@ -626,6 +630,16 @@ pub struct BlockPropInteractionHit {
     pub part_id: Uuid,
     pub target_id: Option<Uuid>,
     pub component_id: Option<Uuid>,
+}
+
+/// Stable support-surface identity resolved from one rendered linked-instance
+/// face hit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BlockPropSupportSurfaceHit {
+    pub instance_id: Uuid,
+    pub asset_id: Uuid,
+    pub part_id: Uuid,
+    pub surface_id: Uuid,
 }
 
 fn resolved_part_transform(
@@ -768,6 +782,421 @@ pub fn resolve_block_prop_interaction_hit(
         }
     }
     None
+}
+
+/// Resolve a rendered linked-instance face to an authored support surface.
+/// Face identity remains stable across source edits and instance resolution.
+pub fn resolve_block_prop_support_surface_hit(
+    instances: &[BlockPropInstance],
+    assets: &IndexMap<Uuid, BlockPropAsset>,
+    rendered_object_id: Uuid,
+    paint_surface_id: [u32; 4],
+) -> Option<BlockPropSupportSurfaceHit> {
+    for instance in instances {
+        let Some(asset) = assets.get(&instance.asset_id) else {
+            continue;
+        };
+        for part in &asset.parts {
+            for source_object in part.geometry_source.geometry_objects() {
+                if block_prop_instance_object_id(instance.id, part.id, source_object.id)
+                    != rendered_object_id
+                {
+                    continue;
+                }
+                for surface in asset
+                    .support_surfaces
+                    .iter()
+                    .filter(|surface| surface.part_id == part.id)
+                {
+                    let BlockPropSemanticShape::Faces(face_refs) = &surface.shape else {
+                        continue;
+                    };
+                    let matches = face_refs.iter().any(|face_ref| {
+                        face_ref.object_id == source_object.id
+                            && source_object
+                                .faces
+                                .iter()
+                                .find(|face| face.id == face_ref.face_id)
+                                .is_some_and(|face| {
+                                    block_prop_paint_surface_id(
+                                        source_object.id,
+                                        crate::geometry_face_effective_paint_surface_id(face),
+                                    ) == paint_surface_id
+                                })
+                    });
+                    if matches {
+                        return Some(BlockPropSupportSurfaceHit {
+                            instance_id: instance.id,
+                            asset_id: asset.id,
+                            part_id: part.id,
+                            surface_id: surface.id,
+                        });
+                    }
+                }
+                return None;
+            }
+        }
+    }
+    None
+}
+
+fn support_surface_point_inside_face(points: &[Vec3<f32>], point: Vec3<f32>) -> bool {
+    if points.len() < 3 {
+        return false;
+    }
+    let origin = points[0];
+    let Some(normal) = (1..points.len()).find_map(|second| {
+        (second + 1..points.len()).find_map(|third| {
+            (points[second] - origin)
+                .cross(points[third] - origin)
+                .try_normalized()
+        })
+    }) else {
+        return false;
+    };
+    // Rendered tiled faces are nudged very slightly to avoid z-fighting.
+    if (point - origin).dot(normal).abs() > 0.025 {
+        return false;
+    }
+
+    let abs = Vec3::new(normal.x.abs(), normal.y.abs(), normal.z.abs());
+    let project = |point: Vec3<f32>| {
+        if abs.x >= abs.y && abs.x >= abs.z {
+            [point.y, point.z]
+        } else if abs.y >= abs.z {
+            [point.x, point.z]
+        } else {
+            [point.x, point.y]
+        }
+    };
+    let point = project(point);
+    let projected = points.iter().copied().map(project).collect::<Vec<_>>();
+
+    let mut inside = false;
+    for index in 0..projected.len() {
+        let a = projected[index];
+        let b = projected[(index + 1) % projected.len()];
+        let edge = [b[0] - a[0], b[1] - a[1]];
+        let to_point = [point[0] - a[0], point[1] - a[1]];
+        let edge_length_squared = edge[0] * edge[0] + edge[1] * edge[1];
+        if edge_length_squared > 1e-8 {
+            let t = ((to_point[0] * edge[0] + to_point[1] * edge[1]) / edge_length_squared)
+                .clamp(0.0, 1.0);
+            let dx = point[0] - (a[0] + edge[0] * t);
+            let dy = point[1] - (a[1] + edge[1] * t);
+            if dx * dx + dy * dy <= 0.025 * 0.025 {
+                return true;
+            }
+        }
+        if (a[1] > point[1]) != (b[1] > point[1])
+            && point[0] < (b[0] - a[0]) * (point[1] - a[1]) / (b[1] - a[1]) + a[0]
+        {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
+/// Resolve a linked-instance support surface from the actual world-space hit.
+/// This is the robust fallback for render paths that cannot provide the stable
+/// face paint ID (for example, a face split into several tiled render polygons).
+fn resolve_block_prop_support_surface_hit_at_point_filtered(
+    instances: &[BlockPropInstance],
+    assets: &IndexMap<Uuid, BlockPropAsset>,
+    rendered_object_id: Option<Uuid>,
+    world_point: Vec3<f32>,
+) -> Option<BlockPropSupportSurfaceHit> {
+    for instance in instances {
+        let Some(asset) = assets.get(&instance.asset_id) else {
+            continue;
+        };
+        for part in &asset.parts {
+            for source_object in part.geometry_source.geometry_objects() {
+                if rendered_object_id.is_some_and(|rendered_object_id| {
+                    block_prop_instance_object_id(instance.id, part.id, source_object.id)
+                        != rendered_object_id
+                }) {
+                    continue;
+                }
+
+                let mut diagnostics = Vec::new();
+                let part_transform =
+                    resolved_part_transform(asset, instance, part, &mut diagnostics);
+                if !diagnostics.is_empty() {
+                    return None;
+                }
+                let world_transform = multiply_block_prop_transforms(
+                    source_object.transform,
+                    multiply_block_prop_transforms(part_transform, instance.world_transform),
+                );
+
+                for surface in asset
+                    .support_surfaces
+                    .iter()
+                    .filter(|surface| surface.part_id == part.id)
+                {
+                    let BlockPropSemanticShape::Faces(face_refs) = &surface.shape else {
+                        continue;
+                    };
+                    let matches = face_refs.iter().any(|face_ref| {
+                        if face_ref.object_id != source_object.id {
+                            return false;
+                        }
+                        let Some(face) = source_object
+                            .faces
+                            .iter()
+                            .find(|face| face.id == face_ref.face_id)
+                        else {
+                            return false;
+                        };
+                        let points = face
+                            .indices
+                            .iter()
+                            .filter_map(|index| source_object.vertices.get(*index))
+                            .map(|point| {
+                                transform_block_prop_point(
+                                    world_transform,
+                                    [point.x, point.y, point.z],
+                                )
+                            })
+                            .collect::<Vec<_>>();
+                        support_surface_point_inside_face(&points, world_point)
+                    });
+                    if matches {
+                        return Some(BlockPropSupportSurfaceHit {
+                            instance_id: instance.id,
+                            asset_id: asset.id,
+                            part_id: part.id,
+                            surface_id: surface.id,
+                        });
+                    }
+                }
+                if rendered_object_id.is_some() {
+                    return None;
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn resolve_block_prop_support_surface_hit_at_point(
+    instances: &[BlockPropInstance],
+    assets: &IndexMap<Uuid, BlockPropAsset>,
+    rendered_object_id: Uuid,
+    world_point: Vec3<f32>,
+) -> Option<BlockPropSupportSurfaceHit> {
+    resolve_block_prop_support_surface_hit_at_point_filtered(
+        instances,
+        assets,
+        Some(rendered_object_id),
+        world_point,
+    )
+}
+
+/// Resolve a support surface solely from the world-space hit. This avoids
+/// depending on the renderer preserving the resolved Prefab object's GeoId.
+pub fn resolve_block_prop_support_surface_hit_at_world_point(
+    instances: &[BlockPropInstance],
+    assets: &IndexMap<Uuid, BlockPropAsset>,
+    world_point: Vec3<f32>,
+) -> Option<BlockPropSupportSurfaceHit> {
+    resolve_block_prop_support_surface_hit_at_point_filtered(instances, assets, None, world_point)
+}
+
+fn support_surface_part_frame(
+    asset: &BlockPropAsset,
+    surface: &BlockPropSupportSurface,
+) -> Option<BlockPropTransform> {
+    let (origin, axis_u, axis_v) = match &surface.shape {
+        BlockPropSemanticShape::Faces(face_refs) => {
+            let part = asset.find_part(surface.part_id)?;
+            let mut frame = None;
+            for face_ref in face_refs {
+                let Some(object) = part
+                    .geometry_source
+                    .geometry_objects()
+                    .iter()
+                    .find(|object| object.id == face_ref.object_id)
+                else {
+                    continue;
+                };
+                let Some(face) = object.faces.iter().find(|face| face.id == face_ref.face_id)
+                else {
+                    continue;
+                };
+                let points = face
+                    .indices
+                    .iter()
+                    .filter_map(|index| object.vertices.get(*index))
+                    .map(|point| object.transform_point(*point))
+                    .collect::<Vec<_>>();
+                let Some(origin) = points.first().copied() else {
+                    continue;
+                };
+                for second in 1..points.len() {
+                    let Some(axis_u) = (points[second] - origin).try_normalized() else {
+                        continue;
+                    };
+                    for third in second + 1..points.len() {
+                        let Some(normal) = axis_u.cross(points[third] - origin).try_normalized()
+                        else {
+                            continue;
+                        };
+                        let axis_v = normal.cross(axis_u);
+                        frame = Some((origin, axis_u, axis_v));
+                        break;
+                    }
+                    if frame.is_some() {
+                        break;
+                    }
+                }
+                if frame.is_some() {
+                    break;
+                }
+            }
+            frame?
+        }
+        BlockPropSemanticShape::Plane {
+            origin,
+            axis_u,
+            axis_v,
+            ..
+        } => {
+            let origin = Vec3::from(*origin);
+            let axis_u = Vec3::from(*axis_u).try_normalized()?;
+            let normal = axis_u.cross(Vec3::from(*axis_v)).try_normalized()?;
+            (origin, axis_u, normal.cross(axis_u))
+        }
+        _ => return None,
+    };
+    let normal = axis_u.cross(axis_v).try_normalized()?;
+    let mut frame = identity_block_prop_transform();
+    frame[0][0] = axis_u.x;
+    frame[0][1] = axis_u.y;
+    frame[0][2] = axis_u.z;
+    frame[1][0] = normal.x;
+    frame[1][1] = normal.y;
+    frame[1][2] = normal.z;
+    frame[2][0] = axis_v.x;
+    frame[2][1] = axis_v.y;
+    frame[2][2] = axis_v.z;
+    frame[3][0] = origin.x;
+    frame[3][1] = origin.y;
+    frame[3][2] = origin.z;
+    Some(frame)
+}
+
+/// Surface-local-to-world transform. Local X/Z lie on the support surface and
+/// local Y follows its normal.
+pub fn block_prop_support_surface_world_transform(
+    asset: &BlockPropAsset,
+    instance: &BlockPropInstance,
+    surface_id: Uuid,
+) -> Option<BlockPropTransform> {
+    let surface = asset.find_support_surface(surface_id)?;
+    let part = asset.find_part(surface.part_id)?;
+    let surface_frame = support_surface_part_frame(asset, surface)?;
+    let mut diagnostics = Vec::new();
+    let part_transform = resolved_part_transform(asset, instance, part, &mut diagnostics);
+    diagnostics.is_empty().then(|| {
+        multiply_block_prop_transforms(
+            multiply_block_prop_transforms(surface_frame, part_transform),
+            instance.world_transform,
+        )
+    })
+}
+
+pub fn block_prop_support_surface_world_point(
+    asset: &BlockPropAsset,
+    instance: &BlockPropInstance,
+    surface_id: Uuid,
+    local_point: [f32; 3],
+) -> Option<Vec3<f32>> {
+    block_prop_support_surface_world_transform(asset, instance, surface_id)
+        .map(|transform| transform_block_prop_point(transform, local_point))
+}
+
+/// Convert a world point to one support surface's local X/normal/Z basis.
+pub fn block_prop_support_surface_local_point(
+    asset: &BlockPropAsset,
+    instance: &BlockPropInstance,
+    surface_id: Uuid,
+    world_point: Vec3<f32>,
+) -> Option<Vec3<f32>> {
+    let transform = block_prop_support_surface_world_transform(asset, instance, surface_id)?;
+    let origin = Vec3::new(transform[3][0], transform[3][1], transform[3][2]);
+    let x = Vec3::new(transform[0][0], transform[0][1], transform[0][2]);
+    let y = Vec3::new(transform[1][0], transform[1][1], transform[1][2]);
+    let z = Vec3::new(transform[2][0], transform[2][1], transform[2][2]);
+    let determinant = x.dot(y.cross(z));
+    if determinant.abs() <= 1e-7 {
+        return None;
+    }
+    let delta = world_point - origin;
+    Some(Vec3::new(
+        delta.dot(y.cross(z)) / determinant,
+        delta.dot(z.cross(x)) / determinant,
+        delta.dot(x.cross(y)) / determinant,
+    ))
+}
+
+pub fn block_prop_surface_placement_world_position(
+    asset: &BlockPropAsset,
+    instance: &BlockPropInstance,
+    placement: &BlockPropSurfacePlacement,
+) -> Option<Vec3<f32>> {
+    block_prop_support_surface_world_point(
+        asset,
+        instance,
+        placement.surface_id,
+        [
+            placement.local_transform[3][0],
+            placement.local_transform[3][1],
+            placement.local_transform[3][2],
+        ],
+    )
+}
+
+/// Reapply persistent support-surface relationships to item world positions.
+/// This keeps authored and runtime items attached when a Prefab instance,
+/// parent part, or source surface moves.
+pub fn sync_block_prop_surface_item_positions(
+    instances: &[BlockPropInstance],
+    placements: &[BlockPropSurfacePlacement],
+    items: &mut [crate::Item],
+    assets: &IndexMap<Uuid, BlockPropAsset>,
+) -> usize {
+    let mut updated = 0;
+    for placement in placements {
+        let item = match &placement.occupant {
+            BlockPropOccupant::Item(id) => items.iter_mut().find(|item| item.id == *id),
+            BlockPropOccupant::ItemInstance(id) => {
+                items.iter_mut().find(|item| item.creator_id == *id)
+            }
+            _ => None,
+        };
+        let Some(item) = item else {
+            continue;
+        };
+        let Some(instance) = instances
+            .iter()
+            .find(|instance| instance.id == placement.prop_instance_id)
+        else {
+            continue;
+        };
+        let Some(asset) = assets.get(&instance.asset_id) else {
+            continue;
+        };
+        let Some(position) =
+            block_prop_surface_placement_world_position(asset, instance, placement)
+        else {
+            continue;
+        };
+        item.position = position;
+        updated += 1;
+    }
+    updated
 }
 
 /// World-space anchor for whole-Prefab authoring interactions. The selected
@@ -963,6 +1392,126 @@ mod tests {
         assert_eq!(restored, asset);
         assert!(restored.find_part(part_id).is_some());
         assert!(restored.find_support_surface(surface_id).is_some());
+    }
+
+    #[test]
+    fn support_surface_hit_and_local_placement_follow_instance_transform() {
+        let object = GeometryObject::box_(
+            "Table Top",
+            Vec3::new(0.0, 0.5, 0.0),
+            Vec3::new(2.0, 1.0, 2.0),
+        );
+        let object_id = object.id;
+        let face_id = object.faces[4].id;
+        let mut asset = BlockPropAsset::new_authored("Table", vec![object]);
+        let part_id = asset.parts[0].id;
+        let surface_id = Uuid::new_v4();
+        asset.support_surfaces.push(BlockPropSupportSurface {
+            id: surface_id,
+            name: "Tabletop".to_string(),
+            part_id,
+            shape: BlockPropSemanticShape::Faces(vec![BlockPropFaceRef { object_id, face_id }]),
+            snap_spacing: 0.25,
+            allowed_item_tags: vec!["placeable".to_string()],
+            capacity: None,
+            occupancy_policy: BlockPropOccupancyPolicy::RejectOverlap,
+        });
+        let asset_id = asset.id;
+        let mut instance = BlockPropInstance::new(asset_id);
+        instance.world_transform[3][0] = 5.0;
+        instance.world_transform[3][1] = 2.0;
+        instance.world_transform[3][2] = 7.0;
+        let rendered_object_id = block_prop_instance_object_id(instance.id, part_id, object_id);
+        let paint_surface_id = block_prop_paint_surface_id(object_id, face_id);
+        let assets = IndexMap::from([(asset_id, asset)]);
+
+        assert_eq!(
+            resolve_block_prop_support_surface_hit(
+                std::slice::from_ref(&instance),
+                &assets,
+                rendered_object_id,
+                paint_surface_id,
+            ),
+            Some(BlockPropSupportSurfaceHit {
+                instance_id: instance.id,
+                asset_id,
+                part_id,
+                surface_id,
+            })
+        );
+
+        let asset = &assets[&asset_id];
+        let local = Vec3::new(0.5, 0.0, 0.25);
+        let world = block_prop_support_surface_world_point(
+            asset,
+            &instance,
+            surface_id,
+            [local.x, local.y, local.z],
+        )
+        .unwrap();
+        assert_eq!(
+            resolve_block_prop_support_surface_hit_at_point(
+                std::slice::from_ref(&instance),
+                &assets,
+                rendered_object_id,
+                world,
+            ),
+            Some(BlockPropSupportSurfaceHit {
+                instance_id: instance.id,
+                asset_id,
+                part_id,
+                surface_id,
+            })
+        );
+        assert_eq!(
+            resolve_block_prop_support_surface_hit_at_world_point(
+                std::slice::from_ref(&instance),
+                &assets,
+                world,
+            ),
+            Some(BlockPropSupportSurfaceHit {
+                instance_id: instance.id,
+                asset_id,
+                part_id,
+                surface_id,
+            })
+        );
+        let round_trip =
+            block_prop_support_surface_local_point(asset, &instance, surface_id, world).unwrap();
+        assert!((round_trip - local).magnitude() < 1e-5);
+
+        let item_creator_id = Uuid::new_v4();
+        let mut item = crate::Item::new();
+        item.creator_id = item_creator_id;
+        let mut local_transform = identity_block_prop_transform();
+        local_transform[3][0] = local.x;
+        local_transform[3][2] = local.z;
+        let placement = BlockPropSurfacePlacement {
+            id: Uuid::new_v4(),
+            prop_instance_id: instance.id,
+            surface_id,
+            occupant: BlockPropOccupant::ItemInstance(item_creator_id),
+            local_transform,
+        };
+        assert_eq!(
+            sync_block_prop_surface_item_positions(
+                std::slice::from_ref(&instance),
+                std::slice::from_ref(&placement),
+                std::slice::from_mut(&mut item),
+                &assets,
+            ),
+            1
+        );
+        assert!((item.position - world).magnitude() < 1e-5);
+
+        instance.world_transform[3][0] += 2.0;
+        sync_block_prop_surface_item_positions(
+            std::slice::from_ref(&instance),
+            std::slice::from_ref(&placement),
+            std::slice::from_mut(&mut item),
+            &assets,
+        );
+        assert!((item.position.x - (world.x + 2.0)).abs() < 1e-5);
     }
 
     #[test]

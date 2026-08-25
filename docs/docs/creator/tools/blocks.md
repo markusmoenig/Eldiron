@@ -27,23 +27,247 @@ Project Prefab placements remain linked to their shared UUID-backed source. Buil
 
 ## Reusable Prefabs
 
-Create reusable assets from selected Geometry Objects in Object mode:
+Project Prefabs are Eldiron's reusable 3D assets. One source asset owns its Geometry Objects, part hierarchy, pivots, paint, support surfaces, and behavior. Regions contain lightweight instances that refer to the source through its stable UUID.
 
-- **Create Linked Prefab** creates the source and replaces the selection with a linked instance.
-- **Create Prefab Copy** creates the source while retaining the original geometry.
-- **Update Prefab Source** replaces a source from selected Geometry Objects without changing its UUID or existing links.
-- **Make Prefab Unique** gives one selected instance a copied source UUID.
-- **Unpack Prefab** converts linked instances back into ordinary Geometry Objects.
+This distinction is important:
 
-Maximize a selected project Prefab in the dock to enter its isolated editor. It reuses the normal Object, Face, Edge, Vertex, camera, undo, and 3D Paint paths while hiding unrelated region content. The lower panel provides a hierarchical Prefab / part / Geometry Object tree, part parenting and assignment, pivots, Prefab naming, and Door configuration and preview. Changes write back to the same source UUID, so every linked instance updates.
+| Source asset | Linked instance |
+| --- | --- |
+| Shared geometry, materials, paint, parts, pivots, support surfaces, and behavior | World position, rotation, scale, and runtime state for one placement |
+| Edited in the isolated Prefab editor | Selected and positioned in a region |
+| One stable project UUID | Its own stable instance UUID plus the source UUID |
+| A source edit updates every linked placement | Moving one instance does not move or edit the others |
 
-### Parts, Paint, And Doors
+Built-in construction stamps and project Prefabs share the Prefab Tool, but they have different results. A project Prefab is placed as a linked instance. A built-in floor, wall, stair, doorway, or similar stamp is baked into ordinary editable Geometry Objects.
 
-The tree is the source of truth for the Prefab hierarchy. Select a part to rename or reparent it, assign selected Geometry Objects, or derive its pivot from the current object, face, edge, or vertex selection. **Create Part** and **Remove Part** sit together in the Prefab toolbar; removing a part keeps its geometry by moving that geometry back to the root.
+### Create A Project Prefab
 
-Choose the shared **3D Paint Tool** in the isolated editor to replace the lower panel with the same Paint UI used by the region editor. Prefab paint is stored in asset-local coordinates and renders on every linked instance.
+Prefab creation is an Object-mode operation in a normal 3D region:
 
-For a Door or Gate, put all moving Geometry Objects in one part, set that part's hinge pivot, then use **Make Door / Gate**. The Door component targets the whole part: clicking any visible geometry belonging to it can resolve the interaction, so individual opening faces do not need to be marked. Configure swing or slide motion, single or split leaves, open angle or slide distance, and interaction distance. **Preview Door** tests the authored open state without running the game. At runtime, Open/Close uses the contextual rules interaction, while normal Prefab authoring can still provide Look text.
+1. Model the asset from one or more Geometry Objects.
+2. Switch to the **Object Tool** and select every object that belongs to the asset.
+3. In the action list, choose either **Create Linked Prefab** or **Create Prefab Copy**.
+4. Eldiron creates a project asset with a stable UUID and selects it in the Prefabs dock.
+5. Rename and refine the source in the isolated Prefab editor.
+
+The creation actions differ as follows:
+
+- **Create Linked Prefab** moves the selected content into a reusable source and replaces the region selection with one linked instance at the same location. Surface-clipped 3D Paint owned by the selected objects is moved into asset-local Prefab paint so it renders on every linked instance.
+- **Create Prefab Copy** creates a reusable source but leaves the selected region objects untouched. Those original objects remain independent geometry and no longer follow the Prefab source.
+
+The source is localized around the bottom center of the selected geometry. This gives the Prefab a practical placement origin while the replacement instance remains at the original world position.
+
+New assets receive an automatic name such as `Prefab 1`. To rename one, open its isolated editor and edit the **Prefab** field in the lower inspector. Renaming changes only the display name; the UUID, instances, geometry, paint, and authored behavior remain linked.
+
+### Place A Project Prefab
+
+1. Activate the **Prefab Tool**.
+2. Select the project Prefab in the **Prefabs** dock.
+3. Move the pointer over the desired 3D placement surface.
+4. Click to place a linked instance.
+
+Place as many instances as needed. Every placement keeps an independent transform and runtime state, but all resolve the same source asset. Editing the source later updates them without recreating the placements.
+
+To reposition an existing linked instance, select any visible part of it with the **Object Tool**, press **M** if necessary, and drag the move gizmo or drag the selected instance directly. Moving changes only that placement's world transform. The **Size** operation is intentionally unavailable for linked instances because geometry dimensions belong to the shared source; edit the source, make the instance unique, or unpack it when its shape must change independently.
+
+### Open And Close The Isolated Editor
+
+Select a project Prefab in the Prefabs dock and use the top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) to open it. Built-in construction stamps are not project source assets and cannot be opened this way.
+
+The isolated editor:
+
+- displays only the selected Prefab source and a neutral preview grid
+- starts in Orbit view and frames the asset automatically
+- reuses the normal Object, Face, Edge, Vertex, camera, ViewCube, gizmo, action, undo, and redo paths
+- disables unrelated region content and editor post-processing while it is open
+- writes changes back to the same Prefab UUID
+- provides Prefab-specific hierarchy, pivot, Door, paint, tile, palette, and support-surface controls
+
+Use **Restore Dock** (`Cmd/Ctrl + ]`) to return to the normal region layout. Eldiron restores the previous region and camera context and returns to the Prefab Tool.
+
+Advanced source editing happens in this isolated editor. A linked instance in a region can be positioned, made unique, or unpacked, but its shared Geometry Objects are not edited directly in place.
+
+### Editor Modes
+
+The lower section follows the active tool so each workflow has one shared UI implementation:
+
+- **Parts**: Object, Face, Edge, and Vertex tools show the Prefab hierarchy, part properties, support surfaces, and Prefab actions.
+- **3D Paint**: the **3D Paint Tool** shows the same brush and layer UI used by the region editor, but writes asset-local Prefab paint.
+- **Tiles**: the **Tile Picker Tool** shows the normal Tiles dock for applying tiles and materials to the Prefab's selected faces or objects.
+- **Palette**: the **Palette Tool** shows the normal Art Palette editor and lets Prefab geometry use the same project palette workflow.
+
+The contextual action list remains available beside the editor. Region-only actions, post-processing controls, and tools that do not apply to a Prefab source are hidden.
+
+### Model The Source
+
+Use the Object, Face, Edge, and Vertex tools exactly as in the normal 3D editor. Object editing shortcuts such as **M** for move and **S** for size operate on source geometry, and camera movement keeps the transform handles aligned to the current view.
+
+The same contextual modeling actions are available where applicable. Common Prefab-building operations include:
+
+- **Create Box** to attach a box fitted to the selected surface
+- **Create Unit Box** to attach a centered `1 × 1 × 1` primitive without fitting its size
+- duplicate selected Geometry Objects for repeated legs, slats, handles, or trim
+- edit faces with extrude, inset, subdivide, delete, texture, and opening actions
+- edit edges, contours, and vertices with the normal direct-geometry tools
+- assign tiles, materials, Art Palette colors, and 3D Paint
+
+See [Object Tool](object), [Sector / Face Tool](sector), [Linedef / Edge Tool](linedef), [Vertex Tool](vertex), and [Creator Actions](/docs/creator/actions) for the complete shared modeling operations.
+
+### Prefab Hierarchy And Parts
+
+The hierarchy tree is the source of truth for how the Prefab is assembled:
+
+```text
+Prefab
+  Part
+    Geometry Object
+    Support Surface
+    Child Part
+```
+
+A new directly authored Prefab begins with one part containing all selected Geometry Objects. Extra parts are useful when geometry needs its own name, parent, pivot, support surfaces, or motion. A static table can remain one part; a door leaf, drawer, lid, or lever normally needs a distinct moving part.
+
+Selecting a part exposes these properties:
+
+- **Prefab**: renames the complete reusable asset without changing its UUID.
+- **Name**: renames the selected logical part without changing its stable identity.
+- **Parent**: assigns another part as the parent. Child parts follow their parent's transformation and motion. Cyclic parenting is rejected.
+- **Selected Objects**: moves the currently selected Geometry Objects into this part. Objects are reassigned, not duplicated.
+- **Pivot**: displays the part's stored Prefab-local pivot. It is intentionally read-only; use **Set Pivot** to derive it from the current 3D selection.
+
+The top Prefab toolbar provides:
+
+- **Create Part**: create a new logical part from the currently selected Geometry Objects. The selected objects move into the new part.
+- **Remove Part**: remove the selected logical part without deleting its Geometry Objects. The objects move to another remaining part. Support surfaces and behavior owned specifically by the removed part are removed, and a Prefab must always retain at least one part.
+- **Set Pivot**: set the selected part's pivot to the center of the selected vertices, edges, faces, or objects.
+- **Create Surface** and **Remove Surface**: create an item-placement area from selected faces or remove the selected definition.
+- **Make Door / Gate** and **Preview Door**: configure and test standard Door behavior.
+
+Clicking a Geometry Object in the tree selects it in the 3D view. Clicking a support surface selects all of its referenced faces, making its exact area visible with the normal Face selection overlay.
+
+When a support surface is selected, **Surface Settings** appears in the inspector settings list and opens its anchored property popover.
+
+### Set A Part Pivot
+
+The pivot controls part motion. For a swinging door, it must lie on the hinge axis rather than at the center of the leaf.
+
+1. Select the part in the hierarchy.
+2. Switch to Vertex, Edge, Face, or Object mode.
+3. Select the geometry whose center represents the desired pivot. For a door hinge, select the vertical hinge edge or its two vertices.
+4. Click **Set Pivot**.
+
+The stored Pivot field updates in Prefab-local coordinates. Rotating a Door part then keeps the hinge edge fixed while the rest of the leaf moves around it.
+
+### Paint A Prefab
+
+Choose the **3D Paint Tool** while the isolated editor is open. The lower section switches to the complete shared Paint UI, including its brush, layer, and palette controls.
+
+Prefab paint is stored in source-local coordinates and is resolved against stable geometry identities. Painting the source therefore appears on every linked instance, including differently positioned or rotated placements. Returning to the Object, Face, Edge, or Vertex tool switches the lower section back to Parts without discarding the paint.
+
+Tiles and materials are still face properties rather than 3D Paint. Use the Tile Picker or Palette Tool for those sources, and 3D Paint for brush-based surface detail.
+
+### Create A Door Or Gate
+
+A standard Door is behavior attached to a complete moving part. You do not select interaction faces: clicking any visible geometry in the controlled part can resolve the Door.
+
+For a single swinging door:
+
+1. Create or fit the door geometry. To fit an existing irregular opening, select one rim edge, press **C** to select its contour, then **L** to include the matching contour on the opposite side, and run **Create Fitted Geometry**.
+2. Convert the new object to a linked Prefab and open its isolated editor.
+3. If the Prefab also contains a frame or other static geometry, select the leaf objects and click **Create Part** so only the leaf moves. A Prefab containing only the leaf can use its existing part.
+4. Select the leaf's hinge edge or hinge vertices and click **Set Pivot**.
+5. Set **Leaves** to **Single** and **Motion** to **Swing**.
+6. Set **Open Angle**. Positive and negative angles open in opposite directions; the valid range is `-180` through `180`, excluding zero.
+7. Set **Usage Distance**, then click **Make Door / Gate**.
+8. Click **Preview Door** to toggle a non-destructive open/closed preview.
+
+For a sliding door, choose **Slide** and set **Slide Distance**. Open Angle is ignored. Fitted geometry supplies its motion axis when available.
+
+For a split door or gate, select exactly two fitted leaf Geometry Objects, choose **Split**, and click **Make Door / Gate**. Eldiron assigns or creates two moving parts, derives their outer pivots and motion direction from the fitted geometry, and binds both leaves to one shared open/closed state.
+
+The Door settings are:
+
+- **Leaves**: one moving part or two synchronized fitted leaves.
+- **Motion**: swing around the part pivot or slide along the fitted motion axis.
+- **Open Angle**: signed swing angle in degrees.
+- **Slide Distance**: Prefab-local travel distance for Slide motion.
+- **Usage Distance**: maximum horizontal distance from which the player may operate the Door.
+
+**Preview Door** changes only the editor preview. It does not modify the Prefab's authored closed geometry and closes automatically when geometry editing resumes.
+
+At runtime, the existing authoring and rules system remains in control. **Look** can target any visible part of any Prefab and show its authored description, whether or not the Prefab has a component. **Use**, **Open**, and **Close** first pass through contextual authoring/rules resolution and may then continue into the built-in Door behavior. This allows a Door to show Look text, reject a locked interaction through rules, or perform authored logic without requiring marked faces.
+
+### Create A Support Surface
+
+A support surface marks exact Prefab faces on which items may be placed, such as a tabletop, shelf, counter, altar, bed, or window ledge. It references existing faces without copying or changing their geometry.
+
+To author one:
+
+1. Open the Prefab's isolated editor and switch to the **Sector / Face Tool**.
+2. Select one or more coplanar faces that form the usable area.
+3. Ensure all selected faces belong to the same logical part. They may span several Geometry Objects within that part.
+4. Click **Create Surface** in the Prefab toolbar.
+5. Edit the surface in the anchored settings popover.
+
+The new surface appears below its owning part in the hierarchy. Select it to restore its face selection and make the usable area visible. Click **Surface Settings** to reopen the popover, or **Remove Surface** to remove only the placement definition. Removing a surface never deletes or modifies its Geometry Objects.
+
+The settings are:
+
+- **Surface Name**: label shown in the hierarchy and available to later authoring or scripting tools.
+- **Snap Spacing**: item-placement grid in Prefab-local units. Use `0` for continuous placement.
+- **Allowed Tags**: comma-separated item tags. Leave empty to allow any item. Authored items automatically offer `placeable` and their item type in addition to explicit tags.
+- **Capacity**: maximum number of items on the surface. Leave empty for no explicit limit.
+- **Occupancy**:
+  - **Reject Overlap** rejects an occupied snapped position.
+  - **Allow Overlap** permits multiple items at the same position.
+  - **Single Occupant** permits only one item on the entire surface.
+
+**Create Surface** is enabled only when a valid face selection exists. **Surface Settings** and **Remove Surface** are enabled only while a surface is selected in the hierarchy. Creation is rejected if the faces are not coplanar or span more than one part.
+
+### Place Items On A Support Surface
+
+Support surfaces are used in the normal region editor, not in the isolated source editor:
+
+1. Place a linked instance of the table, shelf, or other supporting Prefab.
+2. Use the **Entity Tool** to drag an existing item, or drag a new item from the sidebar.
+3. Move it over the authored support surface and drop it.
+
+Eldiron snaps the position, validates allowed tags, capacity, and occupancy, and stores a relationship containing the Prefab instance UUID, support-surface UUID, and a surface-local transform. The item therefore follows the linked Prefab when the instance moves and is recalculated when the source or instance transform changes.
+
+If placement is rejected, the status bar reports whether the item is not allowed, the surface is full, or the position is occupied.
+
+### Update, Detach, Or Branch A Prefab
+
+These contextual Object-mode actions operate in a normal 3D region:
+
+- **Update Prefab Source** replaces the currently selected project Prefab's authored source with the selected Geometry Objects while preserving the asset UUID and all linked instances. This is a source rebuild: existing parts, support surfaces, interaction targets, components, and asset-local paint are cleared because their stable geometry references belonged to the old source. Use the isolated editor for ordinary incremental changes.
+- **Make Prefab Unique** duplicates the source behind exactly one selected linked instance, creates a new UUID, and relinks only that instance. Later source edits no longer affect placements of the original asset.
+- **Unpack Prefab** resolves selected linked instances into ordinary editable Geometry Objects and removes those placements' source links, support-surface placement relationships, and Prefab behavior. The reusable source asset and its other instances remain unchanged.
+
+Use **Make Prefab Unique** when one placement should become a separately reusable variant. Use **Unpack Prefab** when the result should stop being a Prefab entirely.
+
+### Example: Build A Table Prefab
+
+1. Create the tabletop with **Create Box** or **Create Unit Box**, then size it.
+2. Create one leg, duplicate it, and position the copies.
+3. Select the tabletop and legs in Object mode and run **Create Linked Prefab**.
+4. Open the selected Prefab in the isolated editor and rename it in the **Prefab** field.
+5. Apply tiles, materials, palette colors, and 3D Paint as needed.
+6. Switch to Face mode, select the top face or coplanar top faces, and click **Create Surface**.
+7. Give the surface a useful name such as `Tabletop`, then configure snapping, tags, capacity, and occupancy.
+8. Restore the normal editor and place additional linked table instances from the Prefabs dock.
+9. Drag an item onto any table instance with the Entity Tool.
+
+The table does not need separate parts unless a section must move independently or needs its own hierarchy, pivot, or semantic ownership.
+
+### Current Boundaries
+
+- Project Prefabs currently use directly authored Geometry Objects. Procedural Recipe-backed Prefab sources are planned but are not yet part of this editor workflow.
+- Built-in construction stamps are editable baked geometry, not linked project Prefabs.
+- Linked source geometry is edited in the isolated editor rather than directly inside a region.
+- **Update Prefab Source** is a destructive source rebuild for Prefab-specific semantics; it is not the normal way to save incremental source edits.
+- **Unpack Prefab** removes Prefab behavior and support relationships from those placements.
+- Stable UUIDs make project assets suitable for future library, packaging, import/export, and database sharing, but those sharing workflows are not yet exposed by the Creator UI.
 
 ## Prefabs Dock
 
@@ -171,4 +395,8 @@ Built-in construction stamps are baked as editable Geometry Objects. After stamp
 
 - [Tools Overview](overview)
 - [Object Tool](object)
+- [3D Paint Tool](iso_paint)
+- [Palette Tool](palette)
+- [Creator Actions](/docs/creator/actions)
+- [Creator Authoring](/docs/creator/authoring)
 - [Creating 3D Maps: Geometry](/docs/building_maps/creating_3d_maps)

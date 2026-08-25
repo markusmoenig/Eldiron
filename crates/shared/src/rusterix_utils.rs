@@ -29,6 +29,54 @@ fn insert_bundled_ruleset_textures(
     }
 }
 
+fn insert_project_item_icons(assets: &mut rusterix::server::assets::Assets, project: &Project) {
+    assets.item_icons.clear();
+    for item in project.items.values() {
+        if item.icon_frames.is_empty() {
+            continue;
+        }
+
+        let frames = item.icon_frames.clone();
+        assets
+            .item_icons
+            .insert(item.name.trim().to_ascii_lowercase(), frames.clone());
+
+        let mut runtime_item = rusterix::Item::default();
+        rusterix::server::data::apply_item_data(&mut runtime_item, &item.data);
+        for key in ["ruleset_path", "ruleset_id", "class_name", "name"] {
+            if let Some(value) = runtime_item.attributes.get_str(key) {
+                assets
+                    .item_icons
+                    .insert(value.trim().to_ascii_lowercase(), frames.clone());
+            }
+        }
+    }
+}
+
+/// Refresh the visual asset subset used by Creator previews and tree icons.
+/// This deliberately does not start or mutate the game server.
+pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
+    rusterix.assets.config = project.config.clone();
+    rusterix.assets.rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
+        .unwrap_or_else(|_| project.rules.clone());
+    rusterix.assets.ruleset_palette = project.palette.clone();
+    rusterix.assets.palette = project.art_palette.clone();
+    rusterix.assets.read_rules_metadata();
+    rusterix.set_tiles(project.tiles.clone(), true);
+    rusterix.set_tile_groups(project.tile_groups.clone());
+
+    rusterix.assets.avatars.clear();
+    insert_bundled_ruleset_avatars(&mut rusterix.assets, project);
+    for avatar in project.avatars.values() {
+        rusterix
+            .assets
+            .avatars
+            .insert(avatar.name.clone(), avatar.clone());
+    }
+    insert_bundled_ruleset_textures(&mut rusterix.assets, project);
+    insert_project_item_icons(&mut rusterix.assets, project);
+}
+
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool) {
     rusterix.server.clear();
@@ -94,6 +142,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.assets.item_authoring.clear();
     rusterix.assets.item_maps.clear();
     rusterix.assets.item_tiles.clear();
+    insert_project_item_icons(&mut rusterix.assets, project);
     for item in project.items.values_mut() {
         if debug && !item.source_debug.is_empty() {
             rusterix.assets.items.insert(
@@ -259,6 +308,7 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             .insert(avatar.name.clone(), avatar.clone());
     }
     insert_bundled_ruleset_textures(&mut rusterix.assets, project);
+    insert_project_item_icons(&mut rusterix.assets, project);
     rusterix.assets.fonts.clear();
     rusterix.assets.audio.clear();
     for (_, asset) in project.assets.iter() {
@@ -291,6 +341,7 @@ fn is_legacy_python_instance_setup(source: &str) -> bool {
 }
 
 pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
+    let block_props = &project.block_props;
     for region in &mut project.regions {
         region.map.entities.clear();
         for instance in region.characters.values_mut() {
@@ -352,5 +403,11 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
             }
             region.map.items.push(item);
         }
+        rusterix::sync_block_prop_surface_item_positions(
+            &region.map.block_prop_instances,
+            &region.map.block_prop_surface_placements,
+            &mut region.map.items,
+            block_props,
+        );
     }
 }

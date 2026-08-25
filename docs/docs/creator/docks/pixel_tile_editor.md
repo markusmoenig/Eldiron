@@ -8,7 +8,9 @@ The **Pixel Tile Editor** is Eldiron’s integrated pixel editor for authored ti
 It opens when:
 
 - a single tile is selected in the tile picker
-- and you use [Edit / Maximize](/docs/creator/actions/#edit--maximize)
+- and you use the top-right [Edit / Maximize Dock control](/docs/creator/actions/#dock-controls), or press `Cmd/Ctrl + [`
+
+Use the adjacent **Restore Dock** control or `Cmd/Ctrl + ]` to return to the normal split layout.
 
 Changes are reflected immediately in the project and on the map.
 

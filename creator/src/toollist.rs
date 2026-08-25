@@ -3621,14 +3621,21 @@ impl ToolList {
                                     if let Some(instance) = region.items.get_mut(&id) {
                                         instance.position = to;
                                     }
+                                    let (old_surface, new_surface) = server_ctx
+                                        .moved_item_surface_placements
+                                        .remove(&id)
+                                        .unwrap_or((None, None));
                                     move_atoms.push(ProjectUndoAtom::MoveRegionItemInstance(
                                         server_ctx.curr_region,
                                         id,
                                         from,
                                         to,
+                                        old_surface,
+                                        new_surface,
                                     ));
                                 }
                             }
+                            server_ctx.moved_item_surface_placements.clear();
 
                             for atom in move_atoms {
                                 UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
@@ -3637,6 +3644,7 @@ impl ToolList {
                     } else {
                         server_ctx.moved_entities.clear();
                         server_ctx.moved_items.clear();
+                        server_ctx.moved_item_surface_placements.clear();
                     }
 
                     redraw = true;
@@ -4256,7 +4264,7 @@ impl ToolList {
         !self.prefab_mode || Self::is_prefab_tool_command_id(command_id)
     }
 
-    fn current_game_tool_is(&self, command_id: &str) -> bool {
+    pub fn current_game_tool_is(&self, command_id: &str) -> bool {
         self.current_game_tool_command_id() == Some(command_id)
     }
 
@@ -4940,6 +4948,81 @@ impl ToolList {
                     );
                 }
             };
+            if server_ctx.curr_map_tool_type == MapToolType::Selection
+                && server_ctx.geometry_gizmo_op == GeometryGizmoOp::Move
+                && !map.selected_block_prop_instances.is_empty()
+            {
+                let selected_ids = map
+                    .selected_block_prop_instances
+                    .iter()
+                    .copied()
+                    .collect::<FxHashSet<_>>();
+                let selected_instances = map
+                    .block_prop_instances
+                    .iter()
+                    .filter(|instance| selected_ids.contains(&instance.id))
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let resolved = rusterix::resolve_block_prop_geometry(
+                    &selected_instances,
+                    &rusterix.assets.block_props,
+                );
+                let mut min = Vec3::broadcast(f32::INFINITY);
+                let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+                let mut found = false;
+                for object in &resolved.geometry_objects {
+                    for vertex in &object.vertices {
+                        let world = object.transform_point(*vertex);
+                        if !world.x.is_finite() || !world.y.is_finite() || !world.z.is_finite() {
+                            continue;
+                        }
+                        min.x = min.x.min(world.x);
+                        min.y = min.y.min(world.y);
+                        min.z = min.z.min(world.z);
+                        max.x = max.x.max(world.x);
+                        max.y = max.y.max(world.y);
+                        max.z = max.z.max(world.z);
+                        found = true;
+                    }
+                }
+                if found {
+                    let center = (min + max) * 0.5;
+                    let base_overlay_size = overlay_world_size(center);
+                    let axis_len = (base_overlay_size * 7.0).clamp(0.38, 1.75);
+                    let handle_size = (base_overlay_size * 1.15).clamp(0.08, 0.22);
+                    let id_salt = map
+                        .selected_block_prop_instances
+                        .first()
+                        .map(|id| (id.as_u128() as u32) & 0x0000_F000)
+                        .unwrap_or(0);
+                    for (axis_id, delta, color) in [
+                        (1, Vec3::new(axis_len, 0.0, 0.0), [0.86, 0.22, 0.22, 1.0]),
+                        (2, Vec3::new(0.0, axis_len, 0.0), [0.28, 0.78, 0.32, 1.0]),
+                        (3, Vec3::new(0.0, 0.0, axis_len), [0.32, 0.48, 0.94, 1.0]),
+                    ] {
+                        let handle_center = center + delta + view_nudge;
+                        rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                            GeoId::Gizmo(axis_id),
+                            center + view_nudge,
+                            handle_center,
+                            color,
+                            42 + axis_id as i32,
+                        );
+                        push_handle_rect(
+                            &mut rusterix,
+                            0xE3C0_0000u32
+                                .wrapping_add(id_salt)
+                                .wrapping_add(axis_id << 4),
+                            GeoId::Gizmo(axis_id),
+                            false,
+                            handle_center + cam_forward * -0.012,
+                            handle_size,
+                            color,
+                            0.88,
+                        );
+                    }
+                }
+            }
             for object in &map.geometry_objects {
                 let selected = map.selected_geometry_objects.contains(&object.id);
                 let hovered = server_ctx.geo_hit == Some(GeoId::GeometryObject(object.id));

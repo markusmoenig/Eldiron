@@ -29,7 +29,7 @@ From the picker you can:
 - select a builder asset
 - edit exposed `param` values in the TOML sidebar
 - create a new asset with **New**
-- open an asset by double-clicking it, pressing **Return**, or maximizing the editor
+- open an asset by double-clicking it, pressing **Return**, or using the top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`)
 - click in the 3D scene to bake the selected asset at the clicked point
 - use the normal geometry tools after baking to move, texture, cut, delete, or reshape the generated parts
 

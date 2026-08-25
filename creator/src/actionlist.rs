@@ -93,11 +93,6 @@ impl ActionList {
             crate::actions::build_procedural::BuildProcedural::new(),
         );
         list.register(
-            "tile.copy_id",
-            Tile,
-            crate::actions::copy_tile_id::CopyTileID::new(),
-        );
-        list.register(
             "map.create_center_vertex",
             Map,
             crate::actions::create_center_vertex::CreateCenterVertex::new(),
@@ -255,11 +250,6 @@ impl ActionList {
             crate::actions::face_subdivide::FaceSubdivide::new(),
         );
         list.register(
-            "view.maximize_editor",
-            View,
-            crate::actions::edit_maximize::EditMaximize::new(),
-        );
-        list.register(
             "map.edit_linedef",
             Map,
             crate::actions::edit_linedef::EditLinedef::new(),
@@ -300,11 +290,6 @@ impl ActionList {
             crate::actions::make_sector_rectangular::MakeSectorRectangular::new(),
         );
         list.register("tile.new", Tile, crate::actions::new_tile::NewTile::new());
-        list.register(
-            "general.minimize",
-            General,
-            crate::actions::minimize::Minimize::new(),
-        );
         list.register(
             "tile.remap",
             Tile,

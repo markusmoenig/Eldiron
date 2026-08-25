@@ -21,7 +21,14 @@ pub enum ProjectUndoAtom {
     MoveRegionCharacterInstance(Uuid, Uuid, Vec3<f32>, Vec3<f32>), // region, instance, from, to
     AddRegionItemInstance(Uuid, Item),
     RemoveRegionItemInstance(usize, Uuid, Item),
-    MoveRegionItemInstance(Uuid, Uuid, Vec3<f32>, Vec3<f32>), // region, instance, from, to
+    MoveRegionItemInstance(
+        Uuid,
+        Uuid,
+        Vec3<f32>,
+        Vec3<f32>,
+        Option<rusterix::BlockPropSurfacePlacement>,
+        Option<rusterix::BlockPropSurfacePlacement>,
+    ), // region, instance, from, to, old/new support relationship
     AddCharacter(Character),
     RemoveCharacter(usize, Character),
     RenameCharacter(Uuid, String, String),
@@ -259,7 +266,7 @@ impl ProjectUndoAtom {
             RemoveRegionItemInstance(_, _, item) => {
                 format!("Remove Region Item Instance: {}", item.name)
             }
-            MoveRegionItemInstance(_, _, _, _) => "Move Region Item Instance".into(),
+            MoveRegionItemInstance(_, _, _, _, _, _) => "Move Region Item Instance".into(),
             AddCharacter(character) => format!("Add Character: {}", character.name),
             RemoveCharacter(_, character) => format!("Remove Character: {}", character.name),
             RenameCharacter(_, old, new) => format!("Rename Character: {} -> {}", old, new),
@@ -502,7 +509,14 @@ impl ProjectUndoAtom {
                     shared::rusterix_utils::insert_content_into_maps(project);
                 }
             }
-            MoveRegionItemInstance(region_id, instance_id, from, _to) => {
+            MoveRegionItemInstance(
+                region_id,
+                instance_id,
+                from,
+                _to,
+                old_surface,
+                _new_surface,
+            ) => {
                 move_region_item_pos(
                     project,
                     ui,
@@ -511,6 +525,7 @@ impl ProjectUndoAtom {
                     *region_id,
                     *instance_id,
                     *from,
+                    old_surface.as_ref(),
                 );
             }
             AddCharacter(character) => {
@@ -579,7 +594,7 @@ impl ProjectUndoAtom {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     let item = item.clone();
 
-                    let mut node = gen_item_tree_node(&item);
+                    let mut node = gen_item_tree_node(&item, project);
                     node.set_open(true);
                     if let Some(item_node) =
                         tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
@@ -1169,8 +1184,24 @@ impl ProjectUndoAtom {
                     shared::rusterix_utils::insert_content_into_maps(project);
                 }
             }
-            MoveRegionItemInstance(region_id, instance_id, _from, to) => {
-                move_region_item_pos(project, ui, ctx, server_ctx, *region_id, *instance_id, *to);
+            MoveRegionItemInstance(
+                region_id,
+                instance_id,
+                _from,
+                to,
+                _old_surface,
+                new_surface,
+            ) => {
+                move_region_item_pos(
+                    project,
+                    ui,
+                    ctx,
+                    server_ctx,
+                    *region_id,
+                    *instance_id,
+                    *to,
+                    new_surface.as_ref(),
+                );
             }
             RemoveRegionItemInstance(_, region_id, item) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -1294,7 +1325,7 @@ impl ProjectUndoAtom {
                             }
                         }
 
-                        let mut item_node = gen_item_tree_node(&item);
+                        let mut item_node = gen_item_tree_node(&item, project);
                         item_node.set_open(true);
                         node.add_child(item_node);
 
@@ -1828,6 +1859,7 @@ fn move_region_item_pos(
     region_id: Uuid,
     instance_id: Uuid,
     pos: Vec3<f32>,
+    surface_placement: Option<&rusterix::BlockPropSurfacePlacement>,
 ) {
     set_project_context(
         ctx,
@@ -1838,6 +1870,17 @@ fn move_region_item_pos(
     );
 
     if let Some(region) = project.get_region_mut(&region_id) {
+        let occupant = rusterix::BlockPropOccupant::ItemInstance(instance_id);
+        region
+            .map
+            .block_prop_surface_placements
+            .retain(|placement| placement.occupant != occupant);
+        if let Some(placement) = surface_placement {
+            region
+                .map
+                .block_prop_surface_placements
+                .push(placement.clone());
+        }
         if let Some(instance) = region.items.get_mut(&instance_id) {
             instance.position = pos;
         }

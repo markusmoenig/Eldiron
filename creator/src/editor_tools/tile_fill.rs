@@ -209,7 +209,7 @@ impl TileFillTool {
                     TheValue::Empty,
                 ));
             }
-            PixelEditingContext::AvatarFrame(..) => {
+            PixelEditingContext::ItemIcon(..) | PixelEditingContext::AvatarFrame(..) => {
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Editing Texture Updated"),
                     TheValue::Empty,

@@ -804,8 +804,28 @@ impl Widget {
         let stride = buffer.stride();
         let rect = rect.with_border(4.0);
         let mut drawn = false;
-        if let Some(Value::Source(source)) = item.attributes.get("source")
+        if let Some(frames) = Self::custom_item_icon_frames(assets, item)
+            && !frames.is_empty()
+        {
+            let texture = &frames[animation_frame % frames.len()];
+            draw2d.blend_scale_chunk(
+                buffer.pixels_mut(),
+                &(
+                    rect.x as usize,
+                    rect.y as usize,
+                    rect.width as usize,
+                    rect.height as usize,
+                ),
+                stride,
+                &texture.data,
+                &(texture.width, texture.height),
+            );
+            drawn = true;
+        }
+        if !drawn
+            && let Some(Value::Source(source)) = item.attributes.get("source")
             && let Some(tile) = source.tile_from_tile_list(assets)
+            && !tile.textures.is_empty()
         {
             let index = animation_frame % tile.textures.len();
             let texture = &tile.textures[index];
@@ -824,7 +844,10 @@ impl Widget {
             drawn = true;
         }
 
-        if !drawn && let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets) {
+        if !drawn
+            && let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets)
+            && !tile.textures.is_empty()
+        {
             let index = animation_frame % tile.textures.len();
             let texture = &tile.textures[index];
             draw2d.blend_scale_chunk(
@@ -861,6 +884,20 @@ impl Widget {
             Self::draw_stack_badge(buffer, rect, item, draw2d);
         }
         drawn
+    }
+
+    fn custom_item_icon_frames<'a>(assets: &'a Assets, item: &Item) -> Option<&'a Vec<Texture>> {
+        [
+            item.attributes.get_str("ruleset_path"),
+            item.attributes.get_str("ruleset_id"),
+            item.attributes.get_str("class_name"),
+            item.attributes.get_str("name"),
+            (!item.item_type.trim().is_empty()).then_some(item.item_type.as_str()),
+        ]
+        .into_iter()
+        .flatten()
+        .map(|key| key.trim().to_ascii_lowercase())
+        .find_map(|key| assets.item_icons.get(&key))
     }
 
     fn draw_stack_badge(buffer: &mut TheRGBABuffer, rect: Rect, item: &Item, _draw2d: &Draw2D) {

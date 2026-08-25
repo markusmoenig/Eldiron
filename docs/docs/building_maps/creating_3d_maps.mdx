@@ -179,7 +179,7 @@ Use **Edit Face Texture** on selected faces, or on a selected object, to adjust 
 
 Select one or more Geometry Objects in Object mode and run **Create Linked Prefab** to create a reusable source asset and replace the selection with a linked instance. Use **Create Prefab Copy** when the source asset should be created without replacing the original geometry. Every Prefab has a stable UUID; linked instances share source geometry and paint while keeping independent placement and runtime state.
 
-The **Prefab Tool** opens the **Prefabs** dock for browsing and placing linked assets. Selecting a project Prefab and maximizing the dock opens the isolated Prefab editor, where the normal Object, Face, Edge, Vertex, camera, undo, and 3D Paint tools edit the shared source. The lower editor panel contains the hierarchical Prefab / part / Geometry Object tree, part properties, pivots, and Prefab-specific controls.
+The **Prefab Tool** opens the **Prefabs** dock for browsing and placing linked assets. Select a project Prefab, then use the top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) to open the isolated Prefab editor. There, the normal Object, Face, Edge, Vertex, camera, undo, and 3D Paint tools edit the shared source. The lower editor panel contains the hierarchical Prefab / part / Geometry Object tree, part properties, pivots, and Prefab-specific controls. Use **Restore Dock** (`Cmd/Ctrl + ]`) to return to the normal split layout.
 
 Use **Make Prefab Unique** when one linked instance needs its own source, or **Unpack Prefab** to convert an instance back into ordinary Geometry Objects. **Update Prefab Source** replaces the shared source from selected Geometry Objects without changing its UUID or existing links.
 

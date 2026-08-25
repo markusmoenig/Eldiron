@@ -397,6 +397,11 @@ impl Rusterix {
         );
     }
 
+    pub fn set_entity_item_selection_visible(&mut self, visible: bool) {
+        self.scene_handler
+            .set_entity_item_selection_visible(visible);
+    }
+
     /// Build runtime 2D dynamic overlays (characters/items/lights) into SceneVM.
     pub fn build_dynamics_2d(&mut self, map: &Map, animation_frame: usize) {
         self.scene_handler.build_dynamics_2d(

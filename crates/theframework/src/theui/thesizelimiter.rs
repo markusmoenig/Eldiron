@@ -49,6 +49,16 @@ impl TheSizeLimiter {
         self.max_size.x
     }
 
+    /// Returns the minimum width.
+    pub fn get_min_width(&self) -> i32 {
+        self.min_size.x
+    }
+
+    /// Returns the minimum height.
+    pub fn get_min_height(&self) -> i32 {
+        self.min_size.y
+    }
+
     /// Returns the max height.
     pub fn get_max_height(&self) -> i32 {
         self.max_size.y

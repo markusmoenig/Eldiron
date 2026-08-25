@@ -1180,6 +1180,10 @@ impl Project {
                 let tile = self.tiles.get(tile_id)?;
                 tile.textures.get(*frame_index)
             }
+            PixelEditingContext::ItemIcon(item_id, frame_index) => {
+                let item = self.items.get(item_id)?;
+                item.icon_frames.get(*frame_index)
+            }
             PixelEditingContext::AvatarFrame(
                 avatar_id,
                 anim_id,
@@ -1204,6 +1208,10 @@ impl Project {
             PixelEditingContext::Tile(tile_id, frame_index) => {
                 let tile = self.tiles.get_mut(tile_id)?;
                 tile.textures.get_mut(*frame_index)
+            }
+            PixelEditingContext::ItemIcon(item_id, frame_index) => {
+                let item = self.items.get_mut(item_id)?;
+                item.icon_frames.get_mut(*frame_index)
             }
             PixelEditingContext::AvatarFrame(
                 avatar_id,

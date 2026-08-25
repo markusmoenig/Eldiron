@@ -14,6 +14,8 @@ pub enum PixelEditingContext {
     None,
     /// Editing a tile texture: (tile_id, frame_index).
     Tile(Uuid, usize),
+    /// Editing a project-owned item icon: (item_id, frame_index).
+    ItemIcon(Uuid, usize),
     /// Editing an avatar animation frame: (avatar_id, anim_id, perspective_index, frame_index).
     AvatarFrame(Uuid, Uuid, usize, usize),
 }
@@ -49,7 +51,7 @@ impl PixelEditingContext {
     ) -> Option<[u8; 4]> {
         match self {
             PixelEditingContext::None => None,
-            PixelEditingContext::Tile(..) => {
+            PixelEditingContext::Tile(..) | PixelEditingContext::ItemIcon(..) => {
                 if let Some(color) = palette.get_current_color() {
                     let mut arr = color.to_u8_array();
                     arr[3] = (arr[3] as f32 * opacity) as u8;
@@ -69,6 +71,10 @@ impl PixelEditingContext {
             PixelEditingContext::Tile(tile_id, _) => {
                 project.tiles.get(tile_id).map_or(0, |t| t.textures.len())
             }
+            PixelEditingContext::ItemIcon(item_id, _) => project
+                .items
+                .get(item_id)
+                .map_or(0, |item| item.icon_frames.len()),
             PixelEditingContext::AvatarFrame(avatar_id, anim_id, persp_index, _) => project
                 .avatars
                 .get(avatar_id)
@@ -84,6 +90,9 @@ impl PixelEditingContext {
             PixelEditingContext::None => PixelEditingContext::None,
             PixelEditingContext::Tile(tile_id, _) => {
                 PixelEditingContext::Tile(tile_id, frame_index)
+            }
+            PixelEditingContext::ItemIcon(item_id, _) => {
+                PixelEditingContext::ItemIcon(item_id, frame_index)
             }
             PixelEditingContext::AvatarFrame(avatar_id, anim_id, persp_index, _) => {
                 PixelEditingContext::AvatarFrame(avatar_id, anim_id, persp_index, frame_index)
@@ -557,6 +566,14 @@ pub struct ServerContext {
 
     /// Pending item position changes: (from, to)
     pub moved_items: FxHashMap<Uuid, (Vec3<f32>, Vec3<f32>)>,
+    /// Pending support-surface relationship changes for moved authored items.
+    pub moved_item_surface_placements: FxHashMap<
+        Uuid,
+        (
+            Option<rusterix::BlockPropSurfacePlacement>,
+            Option<rusterix::BlockPropSurfacePlacement>,
+        ),
+    >,
 
     /// Pending character orientation changes: (from, to)
     pub rotated_entities: FxHashMap<Uuid, (Vec2<f32>, Vec2<f32>)>,
@@ -759,6 +776,7 @@ impl ServerContext {
 
             moved_entities: FxHashMap::default(),
             moved_items: FxHashMap::default(),
+            moved_item_surface_placements: FxHashMap::default(),
             rotated_entities: FxHashMap::default(),
 
             selected_wall_row: Some(0),

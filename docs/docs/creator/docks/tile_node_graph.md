@@ -8,7 +8,9 @@ The **Tile Node Graph** editor is Eldiron’s procedural tile authoring system.
 It opens when:
 
 - a **node group** is selected in the tile picker
-- and you use [Edit / Maximize](/docs/creator/actions/#edit--maximize)
+- and you use the top-right [Edit / Maximize Dock control](/docs/creator/actions/#dock-controls), or press `Cmd/Ctrl + [`
+
+Use the adjacent **Restore Dock** control or `Cmd/Ctrl + ]` to return to the normal split layout.
 
 A node group is a first-class tile source asset. It is not just one loose image. A node group defines:
 

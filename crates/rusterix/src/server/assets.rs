@@ -23,6 +23,9 @@ pub struct Assets {
     pub items: FxHashMap<String, (String, String)>,
     pub entity_authoring: FxHashMap<String, String>,
     pub item_authoring: FxHashMap<String, String>,
+    /// Project-owned item icon animation frames, keyed by normalized item
+    /// template/ruleset identifiers.
+    pub item_icons: FxHashMap<String, Vec<Texture>>,
 
     pub tiles: IndexMap<Uuid, Tile>,
     pub tile_groups: IndexMap<Uuid, TileGroup>,
@@ -158,6 +161,7 @@ impl Assets {
             items: FxHashMap::default(),
             entity_authoring: FxHashMap::default(),
             item_authoring: FxHashMap::default(),
+            item_icons: FxHashMap::default(),
             tiles: IndexMap::default(),
             tile_groups: IndexMap::default(),
             block_props: IndexMap::default(),

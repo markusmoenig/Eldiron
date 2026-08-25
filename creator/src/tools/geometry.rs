@@ -34,6 +34,7 @@ struct GeometryDrag {
     start_vertices: Vec<Vec3<f32>>,
     start_transform: [[f32; 4]; 4],
     start_object_transforms: Vec<(Uuid, [[f32; 4]; 4])>,
+    start_instance_transforms: Vec<(Uuid, [[f32; 4]; 4])>,
     vertex_indices: Option<Vec<usize>>,
     axis: Option<Vec3<f32>>,
     gizmo_kind: Option<GizmoDragKind>,
@@ -723,6 +724,77 @@ fn selected_geometry_object_transforms(map: &Map) -> Vec<(Uuid, [[f32; 4]; 4])> 
         .filter(|object| selected.contains(&object.id))
         .map(|object| (object.id, object.transform))
         .collect()
+}
+
+fn selected_block_prop_instance_transforms(map: &Map) -> Vec<(Uuid, [[f32; 4]; 4])> {
+    let selected = map
+        .selected_block_prop_instances
+        .iter()
+        .copied()
+        .collect::<FxHashSet<_>>();
+    map.block_prop_instances
+        .iter()
+        .filter(|instance| selected.contains(&instance.id))
+        .map(|instance| (instance.id, instance.world_transform))
+        .collect()
+}
+
+fn selected_block_prop_geometry(map: &Map) -> Vec<rusterix::GeometryObject> {
+    let selected = map
+        .selected_block_prop_instances
+        .iter()
+        .copied()
+        .collect::<FxHashSet<_>>();
+    let instances = map
+        .block_prop_instances
+        .iter()
+        .filter(|instance| selected.contains(&instance.id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let assets = RUSTERIX.read().unwrap().assets.block_props.clone();
+    rusterix::resolve_block_prop_geometry(&instances, &assets).geometry_objects
+}
+
+fn selected_block_prop_bounds(map: &Map) -> Option<(Vec3<f32>, Vec3<f32>)> {
+    let mut min = Vec3::broadcast(f32::INFINITY);
+    let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+    let mut found = false;
+    for object in selected_block_prop_geometry(map) {
+        for vertex in &object.vertices {
+            let world = object.transform_point(*vertex);
+            if !world.x.is_finite() || !world.y.is_finite() || !world.z.is_finite() {
+                continue;
+            }
+            min.x = min.x.min(world.x);
+            min.y = min.y.min(world.y);
+            min.z = min.z.min(world.z);
+            max.x = max.x.max(world.x);
+            max.y = max.y.max(world.y);
+            max.z = max.z.max(world.z);
+            found = true;
+        }
+    }
+    found.then_some((min, max))
+}
+
+fn selected_block_prop_bboxes(map: &Map) -> Vec<rusterix::BBox> {
+    selected_block_prop_geometry(map)
+        .iter()
+        .filter_map(|object| object.bbox())
+        .collect()
+}
+
+fn sync_block_prop_surface_items(map: &mut Map) {
+    if map.block_prop_surface_placements.is_empty() {
+        return;
+    }
+    let assets = RUSTERIX.read().unwrap().assets.block_props.clone();
+    rusterix::sync_block_prop_surface_item_positions(
+        &map.block_prop_instances,
+        &map.block_prop_surface_placements,
+        &mut map.items,
+        &assets,
+    );
 }
 
 fn move_selected_geometry_vertices(map: &mut Map, delta: Vec3<f32>) -> bool {
@@ -2835,6 +2907,39 @@ impl Tool for GeometryTool {
                     GeoId::Gizmo(axis_id) => gizmo_axis(axis_id).zip(gizmo_kind(axis_id)),
                     _ => None,
                 }) {
+                    if map.selected_geometry_objects.is_empty()
+                        && !map.selected_block_prop_instances.is_empty()
+                    {
+                        // Linked instances expose their placement transform only.
+                        // Their source size remains an isolated Prefab-editor concern.
+                        if !matches!(gizmo_kind, GizmoDragKind::Move) {
+                            return None;
+                        }
+                        let Some((min, max)) = selected_block_prop_bounds(map) else {
+                            return None;
+                        };
+                        let center = (min + max) * 0.5;
+                        let start_hit = if axis.y.abs() < 0.5 {
+                            Vec3::new(center.x, min.y, center.z)
+                        } else {
+                            center
+                        };
+                        self.undo_map = Some(map.clone());
+                        self.drag = Some(GeometryDrag {
+                            object_id: Uuid::nil(),
+                            start_hit,
+                            start_vertices: Vec::new(),
+                            start_transform: rusterix::identity_block_prop_transform(),
+                            start_object_transforms: Vec::new(),
+                            start_instance_transforms: selected_block_prop_instance_transforms(map),
+                            vertex_indices: None,
+                            axis: Some(axis),
+                            gizmo_kind: Some(gizmo_kind),
+                            start_plane_hit: None,
+                            changed: false,
+                        });
+                        return None;
+                    }
                     let Some(object_id) = map.selected_geometry_objects.first().copied() else {
                         return None;
                     };
@@ -2900,6 +3005,7 @@ impl Tool for GeometryTool {
                         } else {
                             Vec::new()
                         },
+                        start_instance_transforms: Vec::new(),
                         vertex_indices,
                         axis: Some(axis),
                         gizmo_kind: Some(gizmo_kind),
@@ -2920,6 +3026,24 @@ impl Tool for GeometryTool {
                             TheValue::Empty,
                         ));
                         RUSTERIX.write().unwrap().set_overlay_dirty();
+                        if !_ui.shift && !_ui.alt {
+                            self.undo_map = Some(map.clone());
+                            self.drag = Some(GeometryDrag {
+                                object_id: Uuid::nil(),
+                                start_hit: server_ctx.geo_hit_pos,
+                                start_vertices: Vec::new(),
+                                start_transform: rusterix::identity_block_prop_transform(),
+                                start_object_transforms: Vec::new(),
+                                start_instance_transforms: selected_block_prop_instance_transforms(
+                                    map,
+                                ),
+                                vertex_indices: None,
+                                axis: None,
+                                gizmo_kind: None,
+                                start_plane_hit: Some(server_ctx.geo_hit_pos),
+                                changed: false,
+                            });
+                        }
                     }
                     return None;
                 };
@@ -3082,6 +3206,7 @@ impl Tool for GeometryTool {
                         } else {
                             Vec::new()
                         },
+                        start_instance_transforms: Vec::new(),
                         vertex_indices: vertex_indices.clone(),
                         axis: None,
                         gizmo_kind: None,
@@ -3201,8 +3326,10 @@ impl Tool for GeometryTool {
                     return None;
                 }
 
-                let old_bboxes = if drag.vertex_indices.is_none()
-                    && !drag.start_object_transforms.is_empty()
+                let moving_prefab_instances = !drag.start_instance_transforms.is_empty();
+                let old_bboxes = if moving_prefab_instances {
+                    selected_block_prop_bboxes(map)
+                } else if drag.vertex_indices.is_none() && !drag.start_object_transforms.is_empty()
                 {
                     drag.start_object_transforms
                         .iter()
@@ -3237,7 +3364,40 @@ impl Tool for GeometryTool {
                         return None;
                     }
                 }
-                if let Some(indices) = &drag.vertex_indices {
+                if moving_prefab_instances {
+                    let subdivisions = map.subdivisions;
+                    for (selected_id, start_transform) in &drag.start_instance_transforms {
+                        if let Some(instance) = map
+                            .block_prop_instances
+                            .iter_mut()
+                            .find(|instance| instance.id == *selected_id)
+                        {
+                            instance.world_transform = if drag.axis.is_some() {
+                                translated_transform(*start_transform, drag_delta)
+                            } else {
+                                snap_translated_transform_target(
+                                    *start_transform,
+                                    drag_delta,
+                                    subdivisions,
+                                )
+                            };
+                        }
+                    }
+                    sync_block_prop_surface_items(map);
+                    if let Some(anchor) = next_axis_anchor {
+                        drag.start_plane_hit = Some(anchor);
+                        drag.start_instance_transforms = drag
+                            .start_instance_transforms
+                            .iter()
+                            .filter_map(|(selected_id, _)| {
+                                map.block_prop_instances
+                                    .iter()
+                                    .find(|instance| instance.id == *selected_id)
+                                    .map(|instance| (*selected_id, instance.world_transform))
+                            })
+                            .collect();
+                    }
+                } else if let Some(indices) = &drag.vertex_indices {
                     let Some(object) = map
                         .geometry_objects
                         .iter_mut()
@@ -3330,7 +3490,12 @@ impl Tool for GeometryTool {
                 for bbox in old_bboxes {
                     add_bbox_dirty_chunks(bbox, &mut dirty_chunks);
                 }
-                if drag.vertex_indices.is_none() && !drag.start_object_transforms.is_empty() {
+                if moving_prefab_instances {
+                    for bbox in selected_block_prop_bboxes(map) {
+                        add_bbox_dirty_chunks(bbox, &mut dirty_chunks);
+                    }
+                } else if drag.vertex_indices.is_none() && !drag.start_object_transforms.is_empty()
+                {
                     for (selected_id, _) in &drag.start_object_transforms {
                         if let Some(object) = map
                             .geometry_objects

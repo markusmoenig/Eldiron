@@ -3,7 +3,7 @@ title: "Actions"
 sidebar_position: 3
 ---
 
-Actions do the real work in **Eldiron Creator**, from maximizing a dock widget to creating geometry or switching cameras. The centralized action system only displays actions that are currently applicable to the selected geometry, project tree item, tool, and camera.
+Actions do the real work in **Eldiron Creator**, from creating geometry to editing metadata or switching cameras. The centralized action system only displays actions that are currently applicable to the selected geometry, project tree item, tool, and camera.
 
 Open the **Actions** page in the right sidebar to see the available actions and the parameters of the selected action. Use `Tab` and `Shift+Tab` to move between sidebar pages when a text field is not being edited.
 
@@ -12,6 +12,15 @@ A compact row between the action list and its parameters shows the selected acti
 Action rows are sorted into the **Camera**, **Bake**, **Face**, **Surface**, **Geometry**, **Map**, **Prefab**, **Procedural**, **Tile**, **Palette**, **View**, and **General** groups. Each group uses its own slot in the theme's modular action palette, so a custom theme can change the colors without changing action behavior.
 
 Frequently used camera actions are also exposed as icon shortcuts beside the project tabs. These shortcuts execute the same camera actions without requiring a switch to the Actions sidebar page.
+
+## Dock Controls
+
+Opening and restoring dock editors is handled directly by two small controls beside the camera shortcuts, separated from the camera group by a vertical divider:
+
+- **Edit / Maximize Dock** (frame-corners icon), `Cmd/Ctrl + [`: opens the editor associated with the current dock or maximizes that dock.
+- **Restore Dock** (down-caret icon), `Cmd/Ctrl + ]`: returns a maximized dock or dock editor to the normal split layout.
+
+These controls are always available from the project strip when their operation is applicable. They are UI controls rather than Actions-page entries.
 
 If the **Automatic** mode is enabled, selecting an action (or changing the parameter of an action) will automatically execute it. If the automatic mode is disabled, you need to click the **Apply** button manually to execute the action. Automatic mode is off by default.
 
@@ -526,32 +535,9 @@ Convert selected linked Prefab instances into ordinary editable Geometry Objects
 
 ---
 
-# Dock Actions
+# Tile And Palette Actions
 
 Tile actions operate from the **Tiles** dock when they need a selected tile or palette source. Selection-based actions such as **Clear Tile** can also operate on selected geometry.
-
-### Edit / Maximize
-
-*Shortcut: Ctrl/Cmd + [*
-
-Maximize the active dock.
-
-For the **Tile Picker**, this is context-sensitive:
-
-* if a tile is selected, it opens the **pixel tile editor**
-* if a node group is selected, it opens the **tile node graph editor**
-
-For the **Prefabs** dock, it opens the selected project Prefab in the isolated Prefab editor. That editor keeps the same Prefab UUID, reuses the normal Object, Face, Edge, Vertex, camera, undo, and 3D Paint paths, and provides a hierarchical Prefab / part / Geometry Object tree with part pivots and Door preview controls.
-
-Options: none.
-
-### Minimize
-
-*Shortcut: Ctrl/Cmd + ]*
-
-Restore a maximized dock to normal size.
-
-Options: none.
 
 ## Palette
 
@@ -583,12 +569,6 @@ Options:
 ### Clear Tile
 
 Clear the assigned tile/source from selected 2D sectors, selected 3D faces, or all faces of selected 3D Geometry Objects.
-
-Options: none.
-
-### Copy Tile ID
-
-Copy the selected tile's UUID to both the internal and system clipboard.
 
 Options: none.
 

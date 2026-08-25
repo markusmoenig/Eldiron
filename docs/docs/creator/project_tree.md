@@ -5,9 +5,9 @@ sidebar_position: 2
 
 The project tree is available on the **Project** page of the right sidebar in *Eldiron Creator* and contains all editable content of your game. Use the **+** and **-** buttons at the bottom of the tree to add or remove content. To the right of these buttons, the current content context is displayed together with the **import** and **export** buttons.
 
-The compact sidebar tabs switch between the **Project** tree, the contextual **Actions** page, the **Console**, **Debug**, and **Help**. Console presents structured runtime output above its command entry. [Debug](debug) contains live server diagnostics, automatically opens when new warnings or errors arrive, and works with the script editor's runtime workflow visualization. Help uses the same sidebar area for the ruleset-aware interactive help system. Use `Tab` and `Shift+Tab` to cycle. The direct shortcuts are `Ctrl/Cmd+Shift+F` (Project), `G` (Actions), `H` (Console), `J` (Debug), and `K` (Help). The minimap remains visible below every page.
+The compact sidebar tabs switch between the **Project** tree, the contextual **Actions** page, the **Console**, **Debug**, and **Help**. Console presents structured runtime output above its command entry. [Debug](debug) contains live server diagnostics, automatically opens when new warnings or errors arrive, and works with the script editor's runtime workflow visualization. Help uses the same sidebar area for the ruleset-aware interactive help system. Use `Tab` and `Shift+Tab` to cycle. The direct shortcuts are `Ctrl/Cmd+Shift+F` (Project), `Ctrl/Cmd+Shift+G` (Actions), `Ctrl/Cmd+Shift+H` (Console), `Ctrl/Cmd+Shift+J` (Debug), and `Ctrl/Cmd+Shift+K` (Help). The minimap remains visible below every page.
 
-Selecting specific content in the project tree displays its corresponding editor dock widget. Camera shortcuts remain available as right-aligned icons beside the project tabs.
+Selecting specific content in the project tree displays its corresponding editor dock widget. Camera shortcuts remain available as right-aligned icons beside the project tabs. After the separator, use the frame-corners control (`Cmd/Ctrl + [`) to open or maximize the current dock editor and the down-caret control (`Cmd/Ctrl + ]`) to restore the normal split.
 
 ---
 

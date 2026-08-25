@@ -106,6 +106,8 @@ const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 8] = [
     ),
 ];
 
+const ENTITY_TOOL_ICON_PATH: &str = "M71.59,61.47a8,8,0,0,0-15.18,0l-40,120A8,8,0,0,0,24,192h80a8,8,0,0,0,7.59-10.53ZM35.1,176,64,89.3,92.9,176ZM208,76a52,52,0,1,0-52,52A52.06,52.06,0,0,0,208,76Zm-88,0a36,36,0,1,1,36,36A36,36,0,0,1,120,76Zm104,68H136a8,8,0,0,0-8,8v56a8,8,0,0,0,8,8h88a8,8,0,0,0,8-8V152A8,8,0,0,0,224,144Zm-8,56H144V160h72Z";
+
 fn register_compact_navigation_icons(ctx: &mut TheContext) {
     for (name, path) in COMPACT_NAVIGATION_ICON_PATHS {
         ctx.ui.add_icon(
@@ -113,6 +115,10 @@ fn register_compact_navigation_icons(ctx: &mut TheContext) {
             rasterize_svg_path_icon(path, 18, 256.0, [242, 242, 242, 255]),
         );
     }
+    ctx.ui.add_icon(
+        "shapes".to_string(),
+        rasterize_svg_path_icon(ENTITY_TOOL_ICON_PATH, 24, 256.0, [242, 242, 242, 255]),
+    );
 }
 pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
     LazyLock::new(|| RwLock::new(Rusterix::default()));
@@ -4831,6 +4837,7 @@ impl Editor {
         {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.assets.config = self.project.config.clone();
+            sync_editor_visual_assets(&mut rusterix, &self.project);
             rusterix
                 .scene_handler
                 .sync_base_render_settings(&self.project.config);
@@ -8078,9 +8085,11 @@ impl TheTrait for Editor {
         self.sidebar.init_ui(ui, ctx, &mut self.server_ctx);
 
         // Docks
-        let bottom_panels = DOCKMANAGER.write().unwrap().init_docks(ctx);
+        let mut bottom_panels = DOCKMANAGER.write().unwrap().init_docks(ctx);
+        bottom_panels.limiter_mut().set_min_height(180);
 
         let mut editor_canvas: TheCanvas = TheCanvas::new();
+        editor_canvas.limiter_mut().set_min_height(240);
 
         let mut editor_stack = TheStackLayout::new(TheId::named("Editor Stack"));
         let poly_canvas = self.mapeditor.init_ui(ui, ctx, &mut self.project);
@@ -8119,6 +8128,42 @@ impl TheTrait for Editor {
             &mut self.project,
             &mut self.server_ctx,
         );
+
+        let (dock_is_normal, dock_is_available) = {
+            let dock_manager = DOCKMANAGER.read().unwrap();
+            (
+                dock_manager.state == DockManagerState::Minimized,
+                !dock_manager.dock.is_empty(),
+            )
+        };
+
+        let mut dock_control_separator = TheHDivider::new(TheId::named("Dock Control Separator"));
+        dock_control_separator
+            .limiter_mut()
+            .set_max_size(Vec2::new(8, 20));
+        project_strip_layout.add_widget(Box::new(dock_control_separator));
+
+        let mut dock_edit_maximize = TheTraybarButton::new(TheId::named("Dock Edit Maximize"));
+        dock_edit_maximize.set_icon_name("frame_corners".to_string());
+        dock_edit_maximize.set_status_text(&format!(
+            "{} ({})",
+            fl!("action_edit_maximize_desc"),
+            DockManager::edit_maximize_accelerator().description()
+        ));
+        dock_edit_maximize.set_disabled(!dock_is_normal || !dock_is_available);
+        project_strip_layout.add_widget(Box::new(dock_edit_maximize));
+
+        let mut dock_restore = TheTraybarButton::new(TheId::named("Dock Restore"));
+        dock_restore.set_icon_name("caret-down".to_string());
+        dock_restore.set_status_text(&format!(
+            "{} ({})",
+            fl!("action_minimize_desc"),
+            DockManager::restore_accelerator().description()
+        ));
+        dock_restore.set_disabled(dock_is_normal);
+        project_strip_layout.add_widget(Box::new(dock_restore));
+        project_strip_layout.set_reverse_index(Some(4));
+
         tabs_canvas.set_layout(project_strip_layout);
         shared_canvas.set_top(tabs_canvas);
 
@@ -8152,6 +8197,10 @@ impl TheTrait for Editor {
         shared_canvas.set_left(tool_list_canvas);
 
         ui.canvas.set_center(shared_canvas);
+        // The active tool can select its dock while the UI is still being
+        // assembled. Synchronize once more now that these controls are part of
+        // the live canvas, so their widget-local disabled state is updated too.
+        DOCKMANAGER.read().unwrap().sync_size_controls(ui, ctx);
 
         // -
 
@@ -9201,6 +9250,10 @@ impl TheTrait for Editor {
                         } else if self.server_ctx.editor_view_mode != EditorViewMode::D2
                             && self.server_ctx.get_map_context() == MapContext::Region
                         {
+                            let entity_item_selection_visible =
+                                TOOLLIST.read().unwrap().current_game_tool_is("tool.entity");
+                            rusterix
+                                .set_entity_item_selection_visible(entity_item_selection_visible);
                             if let Some(region) =
                                 self.project.get_region_ctx_mut(&mut self.server_ctx)
                             {
@@ -9961,6 +10014,9 @@ impl TheTrait for Editor {
                     let mut grid_pos = Vec2::zero();
                     let mut spawn_y = 0.0;
                     let mut placement_reference_y: Option<f32> = None;
+                    let mut support_surface_sample: Option<
+                        crate::tools::entity::SupportSurfaceSample,
+                    > = None;
                     let use_3d_hit = self.server_ctx.editor_view_mode != EditorViewMode::D2;
                     let placement_clearance = if drop.id.name.starts_with("Character") {
                         2.0
@@ -9990,13 +10046,103 @@ impl TheTrait for Editor {
                                 false,
                                 false,
                             ) {
-                                let floor_candidates = map
-                                    .geometry_floor_candidates_at(Vec2::new(raw.1.x, raw.1.z))
-                                    .into_iter()
-                                    .map(|floor| format!("{:.3}", floor.height))
-                                    .collect::<Vec<_>>()
-                                    .join(",");
-                                if let Some((ray_origin, ray_dir)) = ray
+                                if drop.id.name.starts_with("Item") {
+                                    let rendered_object_id = match raw.0 {
+                                        scenevm::GeoId::GeometryObject(object_id) => {
+                                            Some(object_id)
+                                        }
+                                        _ => None,
+                                    };
+                                    let paint_surface_id = rusterix
+                                        .scene_handler
+                                        .vm
+                                        .pick_paint_surface_at_uv(
+                                            dim.width as u32,
+                                            dim.height as u32,
+                                            screen_uv,
+                                        )
+                                        .filter(|surface| surface.valid)
+                                        .map(|surface| surface.paint_geo);
+                                    let paint_surface_hit =
+                                        rendered_object_id.and_then(|object_id| {
+                                            paint_surface_id.and_then(|paint_surface_id| {
+                                                rusterix::resolve_block_prop_support_surface_hit(
+                                                    &map.block_prop_instances,
+                                                    &rusterix.assets.block_props,
+                                                    object_id,
+                                                    paint_surface_id,
+                                                )
+                                            })
+                                        });
+                                    let object_point_surface_hit =
+                                        rendered_object_id.and_then(|object_id| {
+                                            rusterix::resolve_block_prop_support_surface_hit_at_point(
+                                                &map.block_prop_instances,
+                                                &rusterix.assets.block_props,
+                                                object_id,
+                                                raw.1,
+                                            )
+                                        });
+                                    let world_point_surface_hit =
+                                        rusterix::resolve_block_prop_support_surface_hit_at_world_point(
+                                                    &map.block_prop_instances,
+                                                    &rusterix.assets.block_props,
+                                                    raw.1,
+                                                );
+                                    let surface_hit = paint_surface_hit
+                                        .or(object_point_surface_hit)
+                                        .or(world_point_surface_hit);
+                                    if let Some(surface_hit) = surface_hit
+                                        && let Some(instance) = map
+                                            .block_prop_instances
+                                            .iter()
+                                            .find(|instance| instance.id == surface_hit.instance_id)
+                                        && let Some(asset) =
+                                            rusterix.assets.block_props.get(&surface_hit.asset_id)
+                                        && let Some(surface) =
+                                            asset.find_support_surface(surface_hit.surface_id)
+                                        && let Some(mut local_position) =
+                                            rusterix::block_prop_support_surface_local_point(
+                                                asset, instance, surface.id, raw.1,
+                                            )
+                                    {
+                                        local_position.y = 0.0;
+                                        if surface.snap_spacing > 0.0 {
+                                            local_position.x =
+                                                (local_position.x / surface.snap_spacing).round()
+                                                    * surface.snap_spacing;
+                                            local_position.z =
+                                                (local_position.z / surface.snap_spacing).round()
+                                                    * surface.snap_spacing;
+                                        }
+                                        if let Some(world_position) =
+                                            rusterix::block_prop_support_surface_world_point(
+                                                asset,
+                                                instance,
+                                                surface.id,
+                                                [
+                                                    local_position.x,
+                                                    local_position.y,
+                                                    local_position.z,
+                                                ],
+                                            )
+                                        {
+                                            grid_pos =
+                                                Vec2::new(world_position.x, world_position.z);
+                                            spawn_y = world_position.y;
+                                            placement_reference_y = Some(world_position.y);
+                                            support_surface_sample =
+                                                Some(crate::tools::entity::SupportSurfaceSample {
+                                                    instance_id: instance.id,
+                                                    surface_id: surface.id,
+                                                    local_position,
+                                                    world_position,
+                                                });
+                                        }
+                                    }
+                                }
+                                if support_surface_sample.is_none()
+                                    && let Some((ray_origin, ray_dir)) = ray
                                     && let Some((floor_hit, reference_y)) = map
                                         .geometry_floor_hit_from_ray_for_placement(
                                             ray_origin,
@@ -10008,30 +10154,10 @@ impl TheTrait for Editor {
                                     grid_pos = Vec2::new(floor_hit.x, floor_hit.z);
                                     spawn_y = floor_hit.y;
                                     placement_reference_y = Some(reference_y);
-                                    eprintln!(
-                                        "[EntityPlacementDebug] viewport drop raw=({:.3},{:.3},{:.3}) raw_floors=[{}] resolved=({:.3},{:.3},{:.3}) reference_y={:.3} clearance={:.3}",
-                                        raw.1.x,
-                                        raw.1.y,
-                                        raw.1.z,
-                                        floor_candidates,
-                                        floor_hit.x,
-                                        floor_hit.y,
-                                        floor_hit.z,
-                                        reference_y,
-                                        placement_clearance
-                                    );
-                                } else {
+                                } else if support_surface_sample.is_none() {
                                     grid_pos = Vec2::new(raw.1.x, raw.1.z);
                                     spawn_y = raw.1.y;
                                     placement_reference_y = Some(raw.1.y);
-                                    eprintln!(
-                                        "[EntityPlacementDebug] viewport drop raw fallback raw=({:.3},{:.3},{:.3}) raw_floors=[{}] clearance={:.3}",
-                                        raw.1.x,
-                                        raw.1.y,
-                                        raw.1.z,
-                                        floor_candidates,
-                                        placement_clearance
-                                    );
                                 }
                             } else {
                                 grid_pos = self.server_ctx.local_to_map_cell(
@@ -10088,17 +10214,13 @@ impl TheTrait for Editor {
                             }
                         }
 
-                        if use_3d_hit {
+                        if use_3d_hit && support_surface_sample.is_none() {
                             let floor_height = if let Some(reference_y) = placement_reference_y {
                                 map.geometry_floor_height_nearest(grid_pos, reference_y)
                             } else {
                                 map.geometry_floor_height_at(grid_pos)
                             };
                             if let Some(height) = floor_height {
-                                eprintln!(
-                                    "[EntityPlacementDebug] viewport drop height recheck grid=({:.3},{:.3}) reference_y={:?} before={:.3} after={:.3}",
-                                    grid_pos.x, grid_pos.y, placement_reference_y, spawn_y, height
-                                );
                                 spawn_y = height;
                             }
                         }
@@ -10135,13 +10257,43 @@ impl TheTrait for Editor {
                             name.clone_from(&item.name);
                         }
                         instance.name = name;
+                        let item_instance_id = instance.id;
 
                         let atom = ProjectUndoAtom::AddRegionItemInstance(
                             self.server_ctx.curr_region,
                             instance,
                         );
                         atom.redo(&mut self.project, ui, ctx, &mut self.server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        let placement = if support_surface_sample.is_some() {
+                            self.project
+                                .get_map_mut(&self.server_ctx)
+                                .map(|map| {
+                                    crate::tools::entity::EntityTool::commit_item_surface_placement(
+                                        map,
+                                        item_instance_id,
+                                        support_surface_sample,
+                                    )
+                                })
+                                .unwrap_or_else(|| Err(fl!("status_prefab_surface_item_missing")))
+                        } else {
+                            Ok(())
+                        };
+                        match placement {
+                            Ok(()) => {
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                                if support_surface_sample.is_some() {
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        fl!("status_item_placed_on_prefab_surface"),
+                                    ));
+                                }
+                            }
+                            Err(message) => {
+                                atom.undo(&mut self.project, ui, ctx, &mut self.server_ctx);
+                                ctx.ui
+                                    .send(TheEvent::SetStatusText(TheId::empty(), message));
+                            }
+                        }
                     }
                 }
                 TheEvent::FileRequesterResult(id, paths) => {
@@ -10250,7 +10402,33 @@ impl TheTrait for Editor {
                     }
                 }
                 TheEvent::StateChanged(id, state) => {
-                    if id.name == "GameInput" {
+                    if id.name == "Dock Edit Maximize" && state == TheWidgetState::Clicked {
+                        DOCKMANAGER.write().unwrap().edit_maximize(
+                            ui,
+                            ctx,
+                            &mut self.project,
+                            &mut self.server_ctx,
+                        );
+                        ctx.ui.set_widget_state(
+                            "Dock Edit Maximize".to_string(),
+                            TheWidgetState::None,
+                        );
+                        ctx.ui.relayout = true;
+                        ctx.ui.redraw_all = true;
+                        redraw = true;
+                    } else if id.name == "Dock Restore" && state == TheWidgetState::Clicked {
+                        DOCKMANAGER.write().unwrap().minimize(
+                            ui,
+                            ctx,
+                            &self.project,
+                            &mut self.server_ctx,
+                        );
+                        ctx.ui
+                            .set_widget_state("Dock Restore".to_string(), TheWidgetState::None);
+                        ctx.ui.relayout = true;
+                        ctx.ui.redraw_all = true;
+                        redraw = true;
+                    } else if id.name == "GameInput" {
                         self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
                     } else if id.name == "Starter Project List Item"
                         && state == TheWidgetState::Selected
@@ -10803,7 +10981,17 @@ impl TheTrait for Editor {
                     }
                 }
                 TheEvent::ValueChanged(id, value) => {
-                    if id.name == "Server Time Slider" {
+                    if id.name == "Shared V Splitter" {
+                        if let Some(screen_y) = value.to_i32() {
+                            if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
+                                layout.set_split_position(screen_y);
+                            }
+                            DOCKMANAGER.write().unwrap().remember_normal_split(ui);
+                            ctx.ui.relayout = true;
+                            ctx.ui.redraw_all = true;
+                            redraw = true;
+                        }
+                    } else if id.name == "Server Time Slider" {
                         if let TheValue::Time(time) = value {
                             self.project.time = time;
                             let mut rusterix = RUSTERIX.write().unwrap();

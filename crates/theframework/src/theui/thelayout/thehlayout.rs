@@ -100,19 +100,28 @@ impl TheLayout for TheHLayout {
             if !self.widgets.is_empty() {
                 let mut x: i32 = self.margin.x;
 
-                let mut to_go = self.widgets.len();
-                if let Some(split_index) = self.reverse_index {
-                    to_go -= split_index as usize;
-                }
+                let reverse = self
+                    .reverse_index
+                    .unwrap_or(0)
+                    .clamp(0, self.widgets.len() as i32) as usize;
+                let to_go = self.widgets.len() - reverse;
 
                 if self.mode == TheHLayoutMode::ContentBased {
+                    let available_height = (dim.height - self.margin.y - self.margin.w).max(0);
                     for i in 0..to_go {
                         self.widgets[i].calculate_size(ctx);
                         let width = self.widgets[i].limiter().get_width(dim.width);
-                        let height = self.widgets[i].limiter().get_height(dim.height);
+                        let height = self.widgets[i].limiter().get_height(available_height);
 
                         // Limit to visible area
-                        if x + width > dim.width {
+                        if width <= 0
+                            || height <= 0
+                            || x < self.margin.x
+                            || x + width > dim.width - self.margin.z
+                        {
+                            for widget in &mut self.widgets[i..to_go] {
+                                widget.set_dim(TheDim::zero(), ctx);
+                            }
                             break;
                         }
 
@@ -136,19 +145,26 @@ impl TheLayout for TheHLayout {
                         x += width + self.padding;
                     }
 
-                    if let Some(reverse) = self.reverse_index {
+                    if reverse > 0 {
                         let mut x: i32 = self.dim.width - self.margin.z;
 
                         for i in 0..reverse {
-                            let i = self.widgets.len() - 1 - i as usize;
+                            let i = self.widgets.len() - 1 - i;
 
                             self.widgets[i].calculate_size(ctx);
                             let width = self.widgets[i].limiter().get_width(dim.width);
-                            let height = self.widgets[i].limiter().get_height(dim.height);
+                            let height = self.widgets[i].limiter().get_height(available_height);
 
                             x -= width;
                             // Limit to visible area
-                            if x + width > dim.width {
+                            if width <= 0
+                                || height <= 0
+                                || x < self.margin.x
+                                || x + width > dim.width - self.margin.z
+                            {
+                                for widget in &mut self.widgets[to_go..=i] {
+                                    widget.set_dim(TheDim::zero(), ctx);
+                                }
                                 break;
                             }
 
@@ -179,11 +195,22 @@ impl TheLayout for TheHLayout {
                     let width = total_width / count;
                     let height = dim.height - self.margin.y - self.margin.w;
 
-                    for w in &mut self.widgets {
+                    if width <= 0 || height <= 0 {
+                        for widget in &mut self.widgets {
+                            widget.set_dim(TheDim::zero(), ctx);
+                        }
+                        return;
+                    }
+
+                    for i in 0..self.widgets.len() {
+                        let w = &mut self.widgets[i];
                         w.calculate_size(ctx);
 
                         // Limit to visible area
-                        if x + width > dim.width {
+                        if x < self.margin.x || x + width > dim.width - self.margin.z {
+                            for widget in &mut self.widgets[i..] {
+                                widget.set_dim(TheDim::zero(), ctx);
+                            }
                             break;
                         }
 

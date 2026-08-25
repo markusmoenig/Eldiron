@@ -1139,11 +1139,29 @@ impl TheDraw2D {
         rect: &(usize, usize, usize, usize),
         dest_stride: usize,
     ) {
-        for y in 0..rect.3 {
+        let Some(dest_row_bytes) = dest_stride.checked_mul(4) else {
+            return;
+        };
+        let Some(source_row_bytes) = rect.2.checked_mul(4) else {
+            return;
+        };
+        if dest_row_bytes == 0 || source_row_bytes == 0 {
+            return;
+        }
+
+        let dest_height = dest.len() / dest_row_bytes;
+        let source_height = source.len() / source_row_bytes;
+        if rect.0 >= dest_stride || rect.1 >= dest_height {
+            return;
+        }
+
+        let width = rect.2.min(dest_stride - rect.0);
+        let height = rect.3.min(dest_height - rect.1).min(source_height);
+        for y in 0..height {
             let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
             let s = y * rect.2 * 4;
 
-            for x in 0..rect.2 {
+            for x in 0..width {
                 let dd = d + x * 4;
                 let ss = s + x * 4;
 
