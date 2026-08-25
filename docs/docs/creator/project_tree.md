@@ -52,9 +52,12 @@ appearance. Do not put a single-state item's only icon in Off.
 
 Click an icon frame in either row to open it in the [Pixel Tile
 Editor](docks/pixel_tile_editor). The two states have independent animation
-frames. Editing a ruleset-backed frame creates a project-owned override; use
-**Load Default** in the editor to restore that state from the active ruleset.
-The bundled torch demonstrates both states: Off has one frame and On has four.
+frames. Editing a resolved default creates a project-owned icon; use
+**Load Default** in the editor to restore that state from its source. For an
+item with `on_tile_id` or `off_tile_id`, the source is the tile currently
+resolved by that UUID or alias; otherwise it is the active ruleset artwork or
+ordinary On visual fallback. The bundled torch demonstrates both states: Off
+has one frame and On has four.
 
 You can instantiate an item template into the map of the region by simply dragging and dropping the item template into the map (Click left of the *Name* item and drag).
 

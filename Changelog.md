@@ -4,7 +4,7 @@
 
 ### Creator
 
-- Changed **.eldiron** projects to compressed, versioned ZIP containers containing `manifest.json` and `project.json`. Creator saves atomically, continues to open legacy raw-JSON projects, and upgrades them to the container format on their next save.
+- Changed **.eldiron** projects to compressed, versioned ZIP containers containing `manifest.json`, `project.json`, and a shared `binaries/` hierarchy. Background bakes and customized item icon frames use the same validated binary writer/reader instead of embedding large arrays in JSON. New bake entries live under `binaries/bakes/`, item icons under `binaries/items/<item-id>/icons/`, and older raw-JSON or early `bakes/` paths remain readable. Creator saves atomically and upgrades older storage layouts on their next save.
 - Added per-screen **Settings** TOML and responsive screen layouts. Responsive screens follow the resizable client window, existing game widgets fill the available area, UI widgets can anchor to window edges or the center, and UI-only screens remain supported. Fixed screens retain their existing layout behavior.
 - The **Authoring** tool now supports selected 3D Geometry Objects and linked Prefab instances. Object metadata is stored independently, while linked instances edit their shared Prefab authoring.
 - Maximized **Prefab** editing now includes a Prefab-only **Tile Picker** tool alongside geometry and 3D Paint tools.
@@ -25,12 +25,16 @@
 
 ### Rules
 
-- Made the official `assets/icons/<id>/<state>/<frame>.png` files authoritative, artist-editable RGBA artwork. Every item has separate **Off** and **On** editor rows with independent animation frames; ordinary single-state artwork lives under On while Off remains empty. The torch's former tile files are now reconstructed from its one-frame Off and four-frame On icon bundle, providing one binary art source for UI and world rendering. Item `active` changes automatically select an available `on_tile_id` or `off_tile_id`, removing raw tile UUIDs from the torch script. Action states preserve normal artwork, gray disabled icons, and highlight selected icons without outlines. Palette-driven generation remains only as a missing-art fallback, while the ruleset palette continues to drive avatars.
+- Made the official `assets/icons/<id>/<state>/<frame>.png` files authoritative, artist-editable RGBA artwork. Every item has separate **Off** and **On** editor rows with independent animation frames; ordinary single-state artwork lives under On while Off remains empty. The torch's former tile files are now reconstructed from its one-frame Off and four-frame On icon bundle, providing one binary art source for UI and world rendering. Item `active` changes automatically select an available `on_tile_id` or `off_tile_id`, removing raw tile UUIDs from the torch script. Mapped state tiles also provide Creator icon defaults: painting stores an independent item icon, while **Load Default** reloads the current tile frames. Action states preserve normal artwork, gray disabled icons, and highlight selected icons without outlines. Palette-driven generation remains only as a missing-art fallback, while the ruleset palette continues to drive avatars.
 
 ## Bug Fixes
 
 ### Creator
 
+- Fixed project-edited item icons only updating in the Creator tree. Painted On/Off frames now refresh the live runtime immediately and override ordinary item artwork in game UI, 2D previews, and 3D world billboards, including state-tiled and non-ruleset items.
+- Fixed animated project item icons collapsing to a static billboard after editing one frame; viewport rendering now retains and cycles the complete frame sequence.
+- Fixed **Load Default** resolving the already-edited project icon instead of the underlying tile, bundled ruleset artwork, texture, or generated fallback.
+- Fixed the Pixel Editor initially fitting images to its pre-maximized size before snapping to the available canvas after the first stroke. Escape now closes any open full-screen editor in addition to the existing Command/Ctrl + ] shortcut.
 - Fixed scaled or rotated planar tiles breaking along triangulation seams on solid fitted Prefab geometry.
 - Fixed **L: Edge Loop** treating selection expansion as a topology edit and unnecessarily rebuilding the scene.
 - Fixed hover help sizing and truncation, added direct shortcuts to sidebar-tab help, made help available while hovering the selected action, clarified the Debug icon, and corrected semantic Debug output colors across wrapped lines while hiding redundant severity labels.

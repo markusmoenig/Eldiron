@@ -612,7 +612,9 @@ This behavior is generic. When an item has a boolean `active` attribute and
 defines `off_tile_id` and/or `on_tile_id`, changing `active` automatically
 updates its world `source` from the matching available mapping. A mapping may
 use a tile UUID, tile alias, or palette index. If the requested state has no
-mapping, Eldiron preserves the current source.
+mapping, Eldiron preserves the current source. Creator uses the same mapping as
+the default icon for that state. Pixel edits are stored as independent item
+icon frames, and **Load Default** reloads the currently mapped tile frames.
 
 Ruleset item ids are stable. Startup loadouts can reference `training_sword` or
 `padded_armor` even when the visible item name is `Training Sword` or

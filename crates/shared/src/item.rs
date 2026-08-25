@@ -31,14 +31,26 @@ pub struct Item {
     pub authoring: String,
 
     /// Project-owned editable icon animation frames for the default/on state.
-    /// An empty list inherits the icon resolved from the active ruleset.
-    #[serde(default)]
+    /// An empty list inherits the icon resolved from a mapped tile, the active
+    /// ruleset, or the item's ordinary visual fallback.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub icon_frames: Vec<rusterix::Texture>,
 
+    /// Archive paths for project-owned On frames. The archive loader hydrates
+    /// these PNGs back into `icon_frames`; legacy JSON keeps using inline data.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub icon_frame_paths: Vec<String>,
+
     /// Project-owned editable icon animation frames for the optional off state.
-    /// An empty list means that this item has no custom off-state artwork.
-    #[serde(default)]
+    /// An empty list inherits an available off-state tile or ruleset artwork;
+    /// otherwise the item has no off-state icon.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub icon_off_frames: Vec<rusterix::Texture>,
+
+    /// Archive paths for project-owned Off frames. The archive loader hydrates
+    /// these PNGs back into `icon_off_frames`; legacy JSON keeps using inline data.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub icon_off_frame_paths: Vec<String>,
 
     /// The initial position.
     pub position: Vec3<f32>,
@@ -66,7 +78,9 @@ impl Item {
             data: String::new(),
             authoring: String::new(),
             icon_frames: Vec::new(),
+            icon_frame_paths: Vec::new(),
             icon_off_frames: Vec::new(),
+            icon_off_frame_paths: Vec::new(),
             position: zero(),
 
             item_id: Uuid::new_v4(),

@@ -3336,7 +3336,24 @@ impl SceneHandler {
                 });
             }
 
-            if let Some(Value::Source(source)) = item.attributes.get("source") {
+            if item.attributes.get_bool_default("visible", false)
+                && let Some((size, rgba)) =
+                    Widget::project_item_icon_square(assets, item, animation_frame)
+            {
+                let geo_id = Self::item_render_geo_id(item, item_index);
+                self.vm.execute(Atom::SetAvatarBillboardData {
+                    id: geo_id,
+                    size,
+                    rgba,
+                });
+                active_generated_item_geo.insert(geo_id);
+                active_avatar_geo.insert(geo_id);
+                let ground_size = Self::generated_ground_item_size(item);
+                let dynamic =
+                    DynamicObject::billboard_avatar_2d(geo_id, pos, ground_size, ground_size)
+                        .with_layer(D2_GROUND_ITEM_LAYER);
+                self.vm.execute(Atom::AddDynamic { object: dynamic });
+            } else if let Some(Value::Source(source)) = item.attributes.get("source") {
                 if item.attributes.get_bool_default("visible", false) {
                     if let Some(tile_id) = source.render_tile_id(assets) {
                         let geo_id = Self::item_render_geo_id(item, item_index);
@@ -3784,11 +3801,15 @@ impl SceneHandler {
             let default_center3 =
                 Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
             let mut selection_bounds = (geo_id, default_center3, basis.1, basis.2, size, size);
-            if visible
-                && item.attributes.get("source").is_none()
-                && AvatarRuntimeBuilder::item_allows_generated_icon(item, assets)
-                && let Some((icon_size, rgba)) = Widget::item_generated_icon_square(assets, item)
-            {
+            let billboard_icon = Widget::project_item_icon_square(assets, item, animation_frame)
+                .or_else(|| {
+                    item.attributes
+                        .get("source")
+                        .is_none()
+                        .then(|| Widget::item_generated_icon_square(assets, item))
+                        .flatten()
+                });
+            if visible && let Some((icon_size, rgba)) = billboard_icon {
                 self.vm.execute(Atom::SetAvatarBillboardData {
                     id: geo_id,
                     size: icon_size,

@@ -283,6 +283,10 @@ impl Dock for TilesEditorDock {
         let mut redraw = false;
 
         match event {
+            TheEvent::WidgetResized(id, _) if id.name == "Tile Editor Dock RGBA Layout View" => {
+                self.refresh_from_editing_context(project, ui, ctx, server_ctx);
+                redraw = true;
+            }
             TheEvent::Custom(id, value) => {
                 if let TheValue::Id(tile_id) = value
                     && id.name == "Tile Picked"
@@ -488,7 +492,8 @@ impl Dock for TilesEditorDock {
                     if let Some(item) = project.items.get(&item_id).cloned() {
                         let after = resolved_item_default_icon_frames_for_state(&item, project, on);
                         let before = item.icon_frames_for_state(on).clone();
-                        if !after.is_empty() && before != after {
+                        if before != after {
+                            let default_is_empty = after.is_empty();
                             let atom = TileEditorUndoAtom::ItemIconFramesEdit(
                                 item_id,
                                 on,
@@ -500,7 +505,13 @@ impl Dock for TilesEditorDock {
                             }
                             server_ctx.editing_ctx = PixelEditingContext::ItemIcon(item_id, on, 0);
                             self.add_undo(atom, ctx);
-                            if let Some(item) = project.items.get(&item_id).cloned() {
+                            if default_is_empty {
+                                self.set_editing_texture(
+                                    &rusterix::Texture::alloc(32, 32),
+                                    ui,
+                                    ctx,
+                                );
+                            } else if let Some(item) = project.items.get(&item_id).cloned() {
                                 self.set_item_icon(&item, ui, ctx, server_ctx);
                             }
                             ctx.ui.send(TheEvent::Custom(
@@ -1581,9 +1592,30 @@ impl TilesEditorDock {
             }
         }
 
-        ui.set_enabled("Item Icon Load Default", ctx);
+        self.set_item_icon_default_enabled(ui, ctx, true);
         self.set_editing_texture(&frames[frame_index], ui, ctx);
         self.set_undo_state_to_ui(ctx);
+    }
+
+    fn set_item_icon_default_enabled(&self, ui: &mut TheUI, ctx: &mut TheContext, enabled: bool) {
+        if enabled {
+            ui.set_enabled("Item Icon Load Default", ctx);
+        } else {
+            ui.set_disabled("Item Icon Load Default", ctx);
+        }
+
+        if let Some(tree_layout) = ui.get_tree_layout("Tile Editor Tree")
+            && let Some(tile_node) = tree_layout.get_node_by_id_mut(&self.tile_node)
+            && let Some(tree_item) = tile_node
+                .widgets
+                .iter_mut()
+                .find(|widget| widget.id().name == "Item Icon Default")
+                .and_then(|widget| widget.as_tree_item())
+            && let Some(button) = tree_item.embedded_widget_mut()
+        {
+            button.set_disabled(!enabled);
+            button.set_needs_redraw(true);
+        }
     }
 
     /// Set the tile for the editor.
@@ -1595,7 +1627,7 @@ impl TilesEditorDock {
         server_ctx: &mut ServerContext,
         update_only: bool,
     ) {
-        ui.set_disabled("Item Icon Load Default", ctx);
+        self.set_item_icon_default_enabled(ui, ctx, false);
         // Switch to this tile's undo stack
         if !update_only {
             self.switch_to_tile(tile, ctx, server_ctx);
@@ -1694,7 +1726,7 @@ impl TilesEditorDock {
                 }
             }
             PixelEditingContext::AvatarFrame(..) => {
-                ui.set_disabled("Item Icon Load Default", ctx);
+                self.set_item_icon_default_enabled(ui, ctx, false);
                 self.set_undo_key_from_context(&server_ctx.editing_ctx);
                 self.refresh_from_editing_context(project, ui, ctx, server_ctx);
                 if let Some(stack) = ui.get_stack_layout("Pixel Editor Stack Layout") {

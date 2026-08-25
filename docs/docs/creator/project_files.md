@@ -14,7 +14,14 @@ New **.eldiron** files are ZIP containers with this initial layout:
 ```text
 MyGame.eldiron
 ├── manifest.json
-└── project.json
+├── project.json
+└── binaries/
+    ├── bakes/
+    │   └── <region-id>/<map-id>/...
+    └── items/
+        └── <item-id>/icons/
+            ├── on/0.png
+            └── off/0.png
 ```
 
 `manifest.json` identifies the container and its format version. Version 1 contains:
@@ -26,13 +33,27 @@ MyGame.eldiron
 }
 ```
 
-`project.json` contains the complete serialized project model. Both entries are compressed inside the container. The container gives Eldiron room to add separate binary asset entries later without embedding large byte arrays in JSON or changing the **.eldiron** extension again.
+`project.json` contains the serialized project model and stable paths to its
+binary payloads. Large byte arrays are written as separate entries through one
+shared archive API. Background-bake color, depth, albedo, normal, and material
+payloads live below `binaries/bakes/`. Customized item icon frames live below
+`binaries/items/` as ordinary PNGs. PNG entries are stored without redundant
+ZIP recompression, while raw data such as bake depth is deflated.
+
+Inherited ruleset and tile icons are not copied into the project. An item gains
+binary icon entries only after its On or Off frames are customized. **Load
+Default** can replace those frames from their current source on the next save.
 
 The internal layout is an interchange format, not a second project-authoring workflow. Normally, edit projects in Creator or in an Eldiron Source folder rather than changing `project.json` by hand.
 
 ## Compatibility
 
 Legacy **.eldiron** files consisting of raw JSON are still accepted by Creator, Eldiron Source tooling, and all clients. Saving a legacy project in Creator writes it back in the current ZIP format. This is a one-way storage upgrade, so use version control or keep a copy if an older Eldiron build must still open the file.
+
+Early version-one archives that stored background payloads directly below
+`bakes/` also remain readable. Saving them again moves those entries under the
+common `binaries/bakes/` layout. Legacy inline icon frames are similarly
+externalized as PNG entries on save.
 
 Creator writes saves through a temporary file beside the destination and replaces the old project only after the new archive has been written successfully. This reduces the risk of leaving a partially written project if a save is interrupted.
 

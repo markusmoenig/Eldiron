@@ -266,11 +266,24 @@ impl Item {
         let Some(active) = self.attributes.get_bool("active") else {
             return;
         };
+        let source = self.tile_source_for_active_state(active);
+
+        if let Some(source) = source
+            && self.attributes.get("source") != Some(&Value::Source(source.clone()))
+        {
+            self.attributes.set("source", Value::Source(source));
+            self.mark_dirty_attribute("source");
+        }
+    }
+
+    /// Resolve the optional world tile mapped to an active state without
+    /// changing the item. Creator uses the same lookup for state icon defaults.
+    pub fn tile_source_for_active_state(&self, active: bool) -> Option<PixelSource> {
         let key = if active { "on_tile_id" } else { "off_tile_id" };
         let Some(value) = self.attributes.get(key) else {
-            return;
+            return None;
         };
-        let source = match value {
+        match value {
             Value::Source(source) => Some(source.clone()),
             Value::Id(id) => Some(PixelSource::TileId(*id)),
             Value::Str(value) => crate::server::data::parse_tile_source_from_str(value),
@@ -281,13 +294,6 @@ impl Item {
                 Some(PixelSource::PaletteIndex(*index as u16))
             }
             _ => None,
-        };
-
-        if let Some(source) = source
-            && self.attributes.get("source") != Some(&Value::Source(source.clone()))
-        {
-            self.attributes.set("source", Value::Source(source));
-            self.mark_dirty_attribute("source");
         }
     }
 
@@ -510,6 +516,14 @@ mod tests {
         item.set_attribute("active", Value::Bool(false));
         item.set_attribute("off_tile_id", Value::Str(off_id.to_string()));
         item.set_attribute("on_tile_id", Value::Str(on_id.to_string()));
+        assert_eq!(
+            item.tile_source_for_active_state(false),
+            Some(PixelSource::TileId(off_id))
+        );
+        assert_eq!(
+            item.tile_source_for_active_state(true),
+            Some(PixelSource::TileId(on_id))
+        );
         assert_eq!(
             item.attributes.get("source"),
             Some(&Value::Source(PixelSource::TileId(off_id)))

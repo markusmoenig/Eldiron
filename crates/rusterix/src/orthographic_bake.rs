@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use vek::Vec3;
 
-const BAKE_VERSION: u32 = 4;
+const BAKE_VERSION: u32 = 5;
 const DEFAULT_TILE_SIZE: u32 = 256;
 const MAX_TILE_COUNT: usize = 4096;
 
@@ -333,6 +333,11 @@ impl OrthographicBakeController {
             albedo_png_base64: Some(BASE64.encode(albedo_png)),
             normal_png_base64: Some(BASE64.encode(normal_png)),
             material_png_base64: Some(BASE64.encode(material_png)),
+            color_png_path: None,
+            depth_path: None,
+            albedo_png_path: None,
+            normal_png_path: None,
+            material_png_path: None,
         });
         self.staging_tiles.insert(
             (x, y),
@@ -471,9 +476,6 @@ impl OrthographicBakeController {
         let width = width.max(1);
         let height = height.max(1);
         let mut output = vec![0u8; width as usize * height as usize * 4];
-        for pixel in output.chunks_exact_mut(4) {
-            pixel[3] = 255;
-        }
         let right = vec3(asset.camera_right);
         let up = vec3(asset.camera_up);
         let ppu = asset.pixels_per_world_unit.max(0.0001);
@@ -635,6 +637,10 @@ fn shade_baked_pixel(
         .get(src..src + 4)
         .and_then(|pixel| pixel.try_into().ok())
         .unwrap_or([0, 0, 0, 255]);
+    let alpha = fallback[3] as f32 / 255.0;
+    if alpha <= 0.0 {
+        return [0, 0, 0, 0];
+    }
     let Some(lighting) = lighting.filter(|lighting| lighting.sun_enabled) else {
         return fallback;
     };
@@ -652,7 +658,9 @@ fn shade_baked_pixel(
             bytes[src + 2] as f32 / 255.0,
         )
     };
-    let encoded = decode(&tile.color);
+    // Progressive bake color is stored premultiplied so subpixel no-hit samples remain clean.
+    // Resolve lighting in straight color, then premultiply again for runtime composition.
+    let encoded = decode(&tile.color) / alpha;
     let mapped = Vec3::new(
         encoded.x.powf(2.2),
         encoded.y.powf(2.2),
@@ -716,9 +724,15 @@ fn shade_baked_pixel(
         linear.z / (linear.z + 1.0),
     );
     [
-        (mapped.x.powf(1.0 / 2.2) * 255.0).round().clamp(0.0, 255.0) as u8,
-        (mapped.y.powf(1.0 / 2.2) * 255.0).round().clamp(0.0, 255.0) as u8,
-        (mapped.z.powf(1.0 / 2.2) * 255.0).round().clamp(0.0, 255.0) as u8,
+        (mapped.x.powf(1.0 / 2.2) * alpha * 255.0)
+            .round()
+            .clamp(0.0, 255.0) as u8,
+        (mapped.y.powf(1.0 / 2.2) * alpha * 255.0)
+            .round()
+            .clamp(0.0, 255.0) as u8,
+        (mapped.z.powf(1.0 / 2.2) * alpha * 255.0)
+            .round()
+            .clamp(0.0, 255.0) as u8,
         fallback[3],
     ]
 }
@@ -841,6 +855,11 @@ mod tests {
             albedo_png_base64: None,
             normal_png_base64: None,
             material_png_base64: None,
+            color_png_path: None,
+            depth_path: None,
+            albedo_png_path: None,
+            normal_png_path: None,
+            material_png_path: None,
         };
         let json = serde_json::to_string(&tile).unwrap();
         let restored: OrthographicBakeTile = serde_json::from_str(&json).unwrap();
@@ -883,6 +902,11 @@ mod tests {
                 albedo_png_base64: None,
                 normal_png_base64: None,
                 material_png_base64: None,
+                color_png_path: None,
+                depth_path: None,
+                albedo_png_path: None,
+                normal_png_path: None,
+                material_png_path: None,
             }],
         };
         let mut bake = OrthographicBakeController::default();
@@ -927,6 +951,31 @@ mod tests {
     }
 
     #[test]
+    fn transparent_bake_pixel_does_not_resolve_a_background_color() {
+        let tile = DecodedBakeTile {
+            color: vec![90, 120, 150, 0],
+            depth: vec![f32::INFINITY],
+            albedo: vec![0; 4],
+            normal: vec![0; 4],
+            material: vec![0; 4],
+        };
+        assert_eq!(
+            shade_baked_pixel(
+                &tile,
+                0,
+                &Camera3D::iso(),
+                Some(OrthographicBakeLighting {
+                    sun_direction: Vec3::new(0.0, -1.0, 0.0),
+                    sun_color: Vec3::broadcast(1.0),
+                    sun_intensity: 2.0,
+                    sun_enabled: true,
+                }),
+            ),
+            [0, 0, 0, 0]
+        );
+    }
+
+    #[test]
     fn persisted_tile_composes_after_pan_and_resize() {
         let region = Uuid::new_v4();
         let mut camera = Camera3D::iso();
@@ -951,6 +1000,11 @@ mod tests {
                 albedo_png_base64: None,
                 normal_png_base64: None,
                 material_png_base64: None,
+                color_png_path: None,
+                depth_path: None,
+                albedo_png_path: None,
+                normal_png_path: None,
+                material_png_path: None,
             }],
         };
         let mut bake = OrthographicBakeController::default();
@@ -1030,6 +1084,11 @@ mod tests {
                 albedo_png_base64: None,
                 normal_png_base64: None,
                 material_png_base64: None,
+                color_png_path: None,
+                depth_path: None,
+                albedo_png_path: None,
+                normal_png_path: None,
+                material_png_path: None,
             }],
         };
         let mut bake = OrthographicBakeController::default();

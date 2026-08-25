@@ -1306,14 +1306,18 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
     final_color = final_color / (final_color + vec3<f32>(1.0));
     final_color = pow(final_color, vec3<f32>(1.0 / 2.2));
 
-    var output_color = final_color;
+    // Ordinary Compute3D rendering keeps its normal opaque sky. Progressive bake samples
+    // instead record coverage: a camera ray with no static hit contributes transparent black,
+    // allowing the current runtime/editor background to show through the finished bake.
+    let sample_alpha = select(1.0, select(0.0, 1.0, has_surface), progressive);
+    var output_color = vec4<f32>(final_color * sample_alpha, sample_alpha);
     if (progressive) {
         let sample_count = f32(U.anim_counter) + 1.0;
         if (sample_count > 1.0) {
-            let previous = textureSampleLevel(prev_layer, atlas_smp, display_uv, 0.0).rgb;
-            output_color = previous + (final_color - previous) / sample_count;
+            let previous = textureSampleLevel(prev_layer, atlas_smp, display_uv, 0.0);
+            output_color = previous + (output_color - previous) / sample_count;
         }
     }
 
-    sv_write(px, py, vec4<f32>(output_color, 1.0));
+    sv_write(px, py, output_color);
 }

@@ -13650,6 +13650,14 @@ mod shader_tests {
     }
 
     #[test]
+    fn progressive_compute_bake_accumulates_transparent_misses() {
+        let source = include_str!("../embedded/3d_body.wgsl");
+        assert!(source.contains("final_color * sample_alpha"));
+        assert!(source.contains("output_color - previous"));
+        assert!(source.contains("sv_write(px, py, output_color)"));
+    }
+
+    #[test]
     fn dynamic_only_base_layer_clears_transparent() {
         let mut vm = VM::new(16, 16);
         vm.background.w = 0.0;

@@ -1007,6 +1007,17 @@ impl Sidebar {
                 }
             }
             TheEvent::Custom(id, value) => {
+                let editing_item_icon =
+                    matches!(server_ctx.editing_ctx, PixelEditingContext::ItemIcon(..));
+                if id.name == "Item Icon Frames Changed"
+                    || (id.name == "Editing Texture Updated" && editing_item_icon)
+                {
+                    shared::rusterix_utils::sync_item_icon_assets(
+                        &mut RUSTERIX.write().unwrap(),
+                        project,
+                    );
+                }
+
                 if id.name == "Editing Texture Updated" {
                     // Update the avatar perspective icon in the Project Tree
                     if let PixelEditingContext::AvatarFrame(
@@ -1096,6 +1107,7 @@ impl Sidebar {
                             && let Some(icons) = widget.as_tree_icons()
                         {
                             let frames = item.icon_frames_for_state(on);
+                            icons.clear_icons();
                             icons.set_icon_count(frames.len().max(1));
                             for (index, texture) in frames.iter().enumerate() {
                                 icons.set_icon(index, texture.to_rgba());
@@ -2529,6 +2541,16 @@ impl Sidebar {
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
+                if *code == TheKeyCode::Escape
+                    && DOCKMANAGER.read().unwrap().get_state() == DockManagerState::Editor
+                {
+                    DOCKMANAGER
+                        .write()
+                        .unwrap()
+                        .minimize(ui, ctx, project, server_ctx);
+                    return true;
+                }
+
                 let navigation_input_focused = ctx.ui.focus.as_ref().is_some_and(|id| {
                     id.name == "Console Input" || id.name == "LogEdit" || id.name == "Help Input"
                 });

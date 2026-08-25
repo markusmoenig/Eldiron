@@ -278,9 +278,47 @@ pub fn resolved_item_default_icon_frames_for_state(
     project: &Project,
     on: bool,
 ) -> Vec<rusterix::Texture> {
-    let runtime = RUSTERIX.read().unwrap();
+    let mut default_assets = RUSTERIX.read().unwrap().assets.clone();
+    default_assets.item_icons.clear();
+    default_assets.project_item_icon_keys.clear();
+    if let Ok(states) = shared::rulesets::bundled_item_icon_states_for_project(&project.config) {
+        for (item_id, state, frames) in states {
+            let item_id = item_id.trim().to_ascii_lowercase();
+            let state = state.trim().to_ascii_lowercase();
+            default_assets
+                .item_icons
+                .insert(format!("{item_id}:{state}"), frames.clone());
+            if state == "on" {
+                default_assets.item_icons.insert(item_id, frames);
+            }
+        }
+    }
+
     let mut runtime_item = rusterix::Item::default();
     rusterix::server::data::apply_item_data(&mut runtime_item, &item.data);
+
+    let resolve_tile_frames = |source: &rusterix::PixelSource| {
+        source
+            .tile_from_tile_list(&default_assets)
+            .or_else(|| {
+                let mut assets = rusterix::server::assets::Assets::new();
+                for tile in project.tiles.values() {
+                    assets.tiles.insert(tile.id, tile.clone());
+                }
+                source.tile_from_tile_list(&assets)
+            })
+            .filter(|tile| !tile.textures.is_empty())
+            .map(|tile| tile.textures)
+    };
+
+    // A state-specific world tile is also the default editable icon for that
+    // state. Custom icon frames remain stored on the item; Load Default calls
+    // this resolver again and therefore reloads the current mapped tile.
+    if let Some(source) = runtime_item.tile_source_for_active_state(on)
+        && let Some(frames) = resolve_tile_frames(&source)
+    {
+        return frames;
+    }
 
     let state = if on { "on" } else { "off" };
     let keys = [
@@ -293,7 +331,7 @@ pub fn resolved_item_default_icon_frames_for_state(
         .into_iter()
         .flatten()
         .map(|key| format!("{}:{state}", key.trim().to_ascii_lowercase()))
-        .find_map(|key| runtime.assets.item_icons.get(&key).cloned())
+        .find_map(|key| default_assets.item_icons.get(&key).cloned())
     {
         return frames;
     }
@@ -302,19 +340,12 @@ pub fn resolved_item_default_icon_frames_for_state(
     }
 
     if let Some(rusterix::Value::Source(source)) = runtime_item.attributes.get("source")
-        && let Some(tile) = source.tile_from_tile_list(&runtime.assets).or_else(|| {
-            let mut assets = rusterix::server::assets::Assets::new();
-            for tile in project.tiles.values() {
-                assets.tiles.insert(tile.id, tile.clone());
-            }
-            source.tile_from_tile_list(&assets)
-        })
-        && !tile.textures.is_empty()
+        && let Some(frames) = resolve_tile_frames(source)
     {
-        return tile.textures;
+        return frames;
     }
 
-    rusterix::client::widget::Widget::item_generated_icon_square(&runtime.assets, &runtime_item)
+    rusterix::client::widget::Widget::item_generated_icon_square(&default_assets, &runtime_item)
         .map(|(size, rgba)| vec![rusterix::Texture::new(rgba, size as usize, size as usize)])
         .unwrap_or_default()
 }

@@ -151,6 +151,22 @@ impl Rusterix {
         }
     }
 
+    fn orthographic_bake_background(&self, editor_neutral_background: bool) -> [u8; 4] {
+        let linear = if editor_neutral_background {
+            [0.018; 3]
+        } else {
+            self.scene_handler
+                .settings
+                .sky_color
+                .map(|value| value.powf(2.2))
+        };
+        let encode = |value: f32| {
+            let mapped = value.max(0.0) / (value.max(0.0) + 1.0);
+            (mapped.powf(1.0 / 2.2) * 255.0).round().clamp(0.0, 255.0) as u8
+        };
+        [encode(linear[0]), encode(linear[1]), encode(linear[2]), 255]
+    }
+
     /// Set to 2D mode.
     pub fn set_d2(&mut self) {
         self.draw_mode = D2;
@@ -627,13 +643,17 @@ impl Rusterix {
             }
 
             let lighting = self.orthographic_bake_lighting();
-            if let Some(composed) = self.orthographic_bake.compose_rgba_lit(
+            if let Some(mut composed) = self.orthographic_bake.compose_rgba_lit(
                 map.id,
                 width as u32,
                 height as u32,
                 &camera,
                 Some(lighting),
             ) {
+                composite_rgba_over_solid_background(
+                    &mut composed,
+                    self.orthographic_bake_background(editor_neutral_background),
+                );
                 let copy_len = pixels.len().min(composed.len());
                 pixels[..copy_len].copy_from_slice(&composed[..copy_len]);
             } else {
@@ -677,6 +697,10 @@ impl Rusterix {
                 &self.orthographic_bake_overlay_pixels,
                 baked_depth.as_deref(),
                 dynamic_surface.as_ref(),
+            );
+            composite_rgba_over_solid_background(
+                &mut composed,
+                self.orthographic_bake_background(editor_neutral_background),
             );
             let copy_len = pixels.len().min(composed.len());
             pixels[..copy_len].copy_from_slice(&composed[..copy_len]);
@@ -796,6 +820,7 @@ impl Rusterix {
         self.orthographic_bake
             .sync_persisted_asset(map.id, map.orthographic_bake.as_ref());
         let lighting = self.orthographic_bake_lighting();
+        let bake_background = self.orthographic_bake_background(false);
         let bake = &self.orthographic_bake;
         let region_id = map.id;
         self.client.draw_game_with_widget_overlays(
@@ -862,6 +887,7 @@ impl Rusterix {
                             baked_depth.as_deref(),
                             dynamic_surface.as_ref(),
                         );
+                        composite_rgba_over_solid_background(&mut composed, bake_background);
                         let pixels = widget.buffer.pixels_mut();
                         let copy_len = pixels.len().min(composed.len());
                         pixels[..copy_len].copy_from_slice(&composed[..copy_len]);
@@ -1091,9 +1117,21 @@ fn blend_rgba_over_depth(
     }
 }
 
+fn composite_rgba_over_solid_background(pixels: &mut [u8], background: [u8; 4]) {
+    for pixel in pixels.chunks_exact_mut(4) {
+        let inverse = 1.0 - pixel[3] as f32 / 255.0;
+        for channel in 0..3 {
+            pixel[channel] = (pixel[channel] as f32 + background[channel] as f32 * inverse)
+                .round()
+                .clamp(0.0, 255.0) as u8;
+        }
+        pixel[3] = 255;
+    }
+}
+
 #[cfg(test)]
 mod bake_overlay_tests {
-    use super::{blend_rgba_over, blend_rgba_over_depth};
+    use super::{blend_rgba_over, blend_rgba_over_depth, composite_rgba_over_solid_background};
 
     #[test]
     fn blends_scenevm_premultiplied_overlay_over_bake() {
@@ -1116,5 +1154,13 @@ mod bake_overlay_tests {
         dynamic.pixels[0].depth = 1.0;
         blend_rgba_over_depth(&mut base, &overlay, Some(&[2.0]), Some(&dynamic));
         assert_eq!(base, overlay);
+    }
+
+    #[test]
+    fn transparent_bake_uses_the_current_solid_background() {
+        let mut pixels = [0, 0, 0, 0, 100, 50, 25, 128];
+        composite_rgba_over_solid_background(&mut pixels, [20, 40, 60, 255]);
+        assert_eq!(&pixels[..4], &[20, 40, 60, 255]);
+        assert_eq!(&pixels[4..], &[110, 70, 55, 255]);
     }
 }

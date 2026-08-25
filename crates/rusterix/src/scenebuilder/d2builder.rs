@@ -1,5 +1,7 @@
 #[cfg(feature = "graphics")]
 use crate::avatar_builder::AvatarRuntimeBuilder;
+#[cfg(feature = "graphics")]
+use crate::client::widget::Widget;
 use crate::{Assets, Batch2D, Map, PixelSource, Scene, Value};
 use theframework::prelude::*;
 use uuid::Uuid;
@@ -262,7 +264,19 @@ impl D2Builder {
             }
 
             if item.attributes.get_bool_default("visible", false) {
-                if let Some(Value::Source(source)) = item.attributes.get("source") {
+                if let Some(frames) = Widget::project_item_icon_frames(assets, item) {
+                    let tile = crate::Tile::from_textures(frames.clone());
+                    let Some(texture_index) = u16::try_from(textures.len()).ok() else {
+                        continue;
+                    };
+                    let mut batch = Batch2D::empty()
+                        .source(PixelSource::DynamicTileIndex(texture_index))
+                        .receives_light(true);
+
+                    batch.add_rectangle(pos.x - hsize, pos.y - hsize, size, size);
+                    textures.push(tile);
+                    repeated_batches.push(batch);
+                } else if let Some(Value::Source(source)) = item.attributes.get("source") {
                     if let Some(tile) = source.tile_from_tile_list(assets) {
                         if let Some(texture_index) = assets.tile_index(&tile.id) {
                             let mut batch = Batch2D::empty()
@@ -300,10 +314,14 @@ impl D2Builder {
                             batch.add_rectangle(pos.x - hsize, pos.y - hsize, size, size);
                             textures.push(tile);
                             repeated_batches.push(batch);
-                        } else if AvatarRuntimeBuilder::item_allows_generated_icon(item, assets)
-                            && let Some(tile) =
-                                AvatarRuntimeBuilder::generated_item_tile(item, assets)
+                        } else if let Some((icon_size, rgba)) =
+                            Widget::item_generated_icon_square(assets, item)
                         {
+                            let tile = crate::Tile::from_texture(crate::Texture::new(
+                                rgba,
+                                icon_size as usize,
+                                icon_size as usize,
+                            ));
                             let Some(texture_index) = u16::try_from(textures.len()).ok() else {
                                 continue;
                             };

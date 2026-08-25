@@ -23,9 +23,12 @@ pub struct Assets {
     pub items: FxHashMap<String, (String, String)>,
     pub entity_authoring: FxHashMap<String, String>,
     pub item_authoring: FxHashMap<String, String>,
-    /// Project-owned item icon animation frames, keyed by normalized item
-    /// template/ruleset identifiers.
+    /// Resolved bundled and project-owned item icon animation frames, keyed by
+    /// normalized item template/ruleset identifiers.
     pub item_icons: FxHashMap<String, Vec<Texture>>,
+    /// Keys in `item_icons` that came from explicit project-owned frames rather
+    /// than bundled ruleset defaults.
+    pub project_item_icon_keys: FxHashSet<String>,
 
     pub tiles: IndexMap<Uuid, Tile>,
     pub tile_groups: IndexMap<Uuid, TileGroup>,
@@ -162,6 +165,7 @@ impl Assets {
             entity_authoring: FxHashMap::default(),
             item_authoring: FxHashMap::default(),
             item_icons: FxHashMap::default(),
+            project_item_icon_keys: FxHashSet::default(),
             tiles: IndexMap::default(),
             tile_groups: IndexMap::default(),
             block_props: IndexMap::default(),

@@ -34,6 +34,7 @@ fn insert_bundled_ruleset_item_icons(
     project: &Project,
 ) {
     assets.item_icons.clear();
+    assets.project_item_icon_keys.clear();
     match crate::rulesets::bundled_item_icon_states_for_project(&project.config) {
         Ok(states) => {
             for (item_id, state, frames) in states {
@@ -55,15 +56,31 @@ fn insert_project_item_icons(assets: &mut rusterix::server::assets::Assets, proj
     for item in project.items.values() {
         let mut runtime_item = rusterix::Item::default();
         rusterix::server::data::apply_item_data(&mut runtime_item, &item.data);
-        let mut keys = vec![item.name.trim().to_ascii_lowercase()];
+        let mut keys = vec![
+            item.id.to_string().to_ascii_lowercase(),
+            item.name.trim().to_ascii_lowercase(),
+        ];
         for key in ["ruleset_path", "ruleset_id", "class_name", "name"] {
             if let Some(value) = runtime_item.attributes.get_str(key) {
                 keys.push(value.trim().to_ascii_lowercase());
             }
         }
+        for region in &project.regions {
+            keys.extend(
+                region
+                    .items
+                    .values()
+                    .filter(|instance| instance.item_id == item.id)
+                    .map(|instance| instance.id.to_string().to_ascii_lowercase()),
+            );
+        }
+        keys.sort_unstable();
+        keys.dedup();
 
         if !item.icon_frames.is_empty() {
             for key in &keys {
+                assets.project_item_icon_keys.insert(key.clone());
+                assets.project_item_icon_keys.insert(format!("{key}:on"));
                 assets
                     .item_icons
                     .insert(key.clone(), item.icon_frames.clone());
@@ -74,12 +91,22 @@ fn insert_project_item_icons(assets: &mut rusterix::server::assets::Assets, proj
         }
         if !item.icon_off_frames.is_empty() {
             for key in &keys {
+                assets.project_item_icon_keys.insert(format!("{key}:off"));
                 assets
                     .item_icons
                     .insert(format!("{key}:off"), item.icon_off_frames.clone());
             }
         }
     }
+}
+
+/// Rebuild the item-icon registry from bundled defaults and project-owned
+/// overrides. Project frames are inserted last and therefore remain the
+/// authoritative artwork for both ruleset and custom items.
+pub fn sync_item_icon_assets(rusterix: &mut Rusterix, project: &Project) {
+    insert_bundled_ruleset_item_icons(&mut rusterix.assets, project);
+    insert_project_item_icons(&mut rusterix.assets, project);
+    rusterix.set_overlay_dirty();
 }
 
 /// Refresh the visual asset subset used by Creator previews and tree icons.
@@ -103,8 +130,7 @@ pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
             .insert(avatar.name.clone(), avatar.clone());
     }
     insert_bundled_ruleset_textures(&mut rusterix.assets, project);
-    insert_bundled_ruleset_item_icons(&mut rusterix.assets, project);
-    insert_project_item_icons(&mut rusterix.assets, project);
+    sync_item_icon_assets(rusterix, project);
 }
 
 /// Start the server
@@ -172,8 +198,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.assets.item_authoring.clear();
     rusterix.assets.item_maps.clear();
     rusterix.assets.item_tiles.clear();
-    insert_bundled_ruleset_item_icons(&mut rusterix.assets, project);
-    insert_project_item_icons(&mut rusterix.assets, project);
+    sync_item_icon_assets(rusterix, project);
     for item in project.items.values_mut() {
         if debug && !item.source_debug.is_empty() {
             rusterix.assets.items.insert(
@@ -339,7 +364,7 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             .insert(avatar.name.clone(), avatar.clone());
     }
     insert_bundled_ruleset_textures(&mut rusterix.assets, project);
-    insert_project_item_icons(&mut rusterix.assets, project);
+    sync_item_icon_assets(rusterix, project);
     rusterix.assets.fonts.clear();
     rusterix.assets.audio.clear();
     for (_, asset) in project.assets.iter() {
@@ -430,6 +455,10 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
             );
             if let Some(item_template) = project.items.get(&instance.item_id) {
                 item.set_attribute("class_name", Value::Str(item_template.name.clone()));
+                item.set_attribute(
+                    "creator_template_id",
+                    Value::Str(item_template.id.to_string()),
+                );
                 rusterix::server::data::apply_item_data(&mut item, &item_template.data);
             }
             region.map.items.push(item);

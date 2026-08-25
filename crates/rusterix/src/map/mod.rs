@@ -46,7 +46,9 @@ pub enum MapCamera {
 pub struct OrthographicBakeTile {
     pub x: i32,
     pub y: i32,
-    /// Lossless PNG bytes encoded as Base64 for portable JSON persistence.
+    /// Legacy/in-memory lossless PNG bytes encoded as Base64. Archive saves externalize this
+    /// payload and omit the string from project.json.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub color_png_base64: String,
     /// Camera-linear f32 depth values, little-endian and Base64 encoded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -60,6 +62,21 @@ pub struct OrthographicBakeTile {
     /// Roughness, metallic, opacity and emission encoded as an RGBA PNG.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub material_png_base64: Option<String>,
+    /// ZIP entry containing the color PNG in packaged projects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color_png_path: Option<String>,
+    /// ZIP entry containing little-endian camera-linear f32 depth values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth_path: Option<String>,
+    /// ZIP entry containing the primary-surface albedo PNG.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub albedo_png_path: Option<String>,
+    /// ZIP entry containing the world-space normal PNG.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub normal_png_path: Option<String>,
+    /// ZIP entry containing the material PNG.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material_png_path: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -218,8 +235,8 @@ pub struct Map {
     #[serde(default)]
     pub shaders: IndexMap<Uuid, serde_json::Value>,
 
-    /// Camera-projected, world-aligned ray-traced tiles. Tile payloads are compressed binary
-    /// images embedded as Base64 strings so a project remains one portable JSON file.
+    /// Camera-projected, world-aligned ray-traced tiles. Packaged projects keep payloads as
+    /// binary ZIP entries; Base64 fields remain an in-memory and legacy-JSON compatibility form.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub orthographic_bake: Option<OrthographicBakeAsset>,
 

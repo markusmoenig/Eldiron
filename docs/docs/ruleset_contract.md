@@ -832,8 +832,9 @@ shows an empty Off row and runtime presentation falls back to On. Frame numbers
 are zero-based and contiguous. PNG colors are authoritative and are not
 remapped through the Ruleset Palette or Art Palette.
 
-Creator may store project-owned frame overrides in the project archive. The
-resolution order is a project state/frame override, an explicit item tile,
+Creator stores project-owned frame overrides as PNG binary entries below
+`binaries/items/<item-id>/icons/<state>/` in the project archive. The resolution
+order is a project state/frame override, an explicit item tile,
 the matching ruleset item-id state PNG, then semantic and generated missing-art
 fallbacks. This keeps artist-editable artwork as the source of truth while
 allowing each project to customize it in the integrated pixel editor.

@@ -32,10 +32,16 @@ Undo / redo belongs to the selected tile or item icon state, so edits in On and
 Off do not share a history. Use `Space` to preview the frames of the current
 state as an animation.
 
-For a ruleset-backed item, editing a frame stores project-owned frames in the
-project archive. **Load Default** replaces the customized state frames with
-that state's current ruleset artwork. Loading the default for On does not
-change Off, or vice versa.
+When an item icon initially comes from a tile UUID or alias, opening it copies
+the resolved tile frames into project-owned icon frames. Painting changes that
+icon copy, not the source tile. The custom frames are serialized with the item
+as PNG entries below `binaries/items/<item-id>/icons/` in the project archive.
+
+**Load Default** replaces the customized state frames from the current source:
+`on_tile_id` or `off_tile_id` when mapped, otherwise the ruleset state artwork
+or ordinary On visual fallback. This means changing the source tile and then
+using **Load Default** imports its latest frames. Loading On never changes Off,
+or vice versa.
 
 ## Core Tools
 

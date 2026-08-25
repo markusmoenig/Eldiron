@@ -399,14 +399,6 @@ impl AvatarRuntimeBuilder {
         true
     }
 
-    pub(crate) fn generated_item_tile(item: &Item, assets: &Assets) -> Option<crate::Tile> {
-        let slot = item.attributes.get_str("slot").unwrap_or("item");
-        let (rgba, width, height, _) = Self::generated_rig_texture(item, assets, slot)?;
-        Some(crate::Tile::from_texture(crate::Texture::new(
-            rgba, width, height,
-        )))
-    }
-
     fn item_has_project_item_class(item: &Item, assets: &Assets) -> bool {
         let Some(class_name) = item
             .attributes

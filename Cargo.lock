@@ -1424,6 +1424,7 @@ dependencies = [
 name = "eldiron-shared"
 version = "0.93.0"
 dependencies = [
+ "base64",
  "buildergraph",
  "earcutr",
  "eldiron-ruleset",

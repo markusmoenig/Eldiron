@@ -12201,7 +12201,13 @@ impl RegionInstance {
                     {
                         entity.set_pos_xz(entrance_center);
                         entity.mark_all_dirty();
-                    } else {
+                    } else if crate::procedural::parse_procedural_config_table(&ctx.config)
+                        .is_some_and(|cfg| {
+                            cfg.enabled
+                                && cfg.generator.eq_ignore_ascii_case("connected_rooms")
+                                && cfg.mode.eq_ignore_ascii_case("2d")
+                        })
+                    {
                         ctx.send_log_message(format!(
                             "[warning] [Procedural] {}: spawning player '{}' but no entrance sector was found",
                             ctx.map.name, class_name

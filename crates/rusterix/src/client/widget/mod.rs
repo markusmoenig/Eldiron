@@ -720,17 +720,22 @@ impl Widget {
         "on"
     }
 
-    fn item_icon_asset_keys(item: &Item) -> impl Iterator<Item = String> + '_ {
-        [
-            item.attributes.get_str("ruleset_path"),
-            item.attributes.get_str("ruleset_id"),
-            item.attributes.get_str("class_name"),
-            item.attributes.get_str("name"),
-            (!item.item_type.trim().is_empty()).then_some(item.item_type.as_str()),
-        ]
-        .into_iter()
-        .flatten()
-        .map(|key| key.trim().to_ascii_lowercase())
+    fn item_icon_asset_keys(item: &Item) -> Vec<String> {
+        let mut keys = vec![item.creator_id.to_string().to_ascii_lowercase()];
+        keys.extend(
+            [
+                item.attributes.get_str("creator_template_id"),
+                item.attributes.get_str("ruleset_path"),
+                item.attributes.get_str("ruleset_id"),
+                item.attributes.get_str("class_name"),
+                item.attributes.get_str("name"),
+                (!item.item_type.trim().is_empty()).then_some(item.item_type.as_str()),
+            ]
+            .into_iter()
+            .flatten()
+            .map(|key| key.trim().to_ascii_lowercase()),
+        );
+        keys
     }
 
     fn custom_item_icon_frames<'a>(assets: &'a Assets, item: &Item) -> Option<&'a Vec<Texture>> {
@@ -740,6 +745,27 @@ impl Widget {
                 return Some(frames);
             }
             if let Some(frames) = assets.item_icons.get(&key) {
+                return Some(frames);
+            }
+        }
+        None
+    }
+
+    pub(crate) fn project_item_icon_frames<'a>(
+        assets: &'a Assets,
+        item: &Item,
+    ) -> Option<&'a Vec<Texture>> {
+        let state = Self::item_icon_state(item);
+        for key in Self::item_icon_asset_keys(item) {
+            let state_key = format!("{key}:{state}");
+            if assets.project_item_icon_keys.contains(&state_key)
+                && let Some(frames) = assets.item_icons.get(&state_key)
+            {
+                return Some(frames);
+            }
+            if assets.project_item_icon_keys.contains(&key)
+                && let Some(frames) = assets.item_icons.get(&key)
+            {
                 return Some(frames);
             }
         }
@@ -950,6 +976,9 @@ impl Widget {
     /// Editor surfaces such as ruleset Help use this entry point so previews
     /// cannot drift from the icon chosen by the game client.
     pub fn item_generated_icon_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
+        if let Some(icon) = Self::custom_item_icon_square(assets, item) {
+            return Some(icon);
+        }
         if let Some(icon) = Self::item_icon_texture_square(assets, item) {
             return Some(icon);
         }
@@ -959,6 +988,52 @@ impl Widget {
         Self::item_avatar_channel_icon_square(assets, item)
             .or_else(|| Self::item_template_mask_icon_square(assets, item))
             .or_else(|| Self::item_equipment_icon_square(assets, item))
+    }
+
+    fn custom_item_icon_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
+        Self::item_icon_frames_square(Self::custom_item_icon_frames(assets, item)?, 0)
+    }
+
+    pub(crate) fn project_item_icon_square(
+        assets: &Assets,
+        item: &Item,
+        animation_frame: usize,
+    ) -> Option<(u32, Vec<u8>)> {
+        Self::item_icon_frames_square(
+            Self::project_item_icon_frames(assets, item)?,
+            animation_frame,
+        )
+    }
+
+    fn item_icon_frames_square(
+        frames: &[Texture],
+        animation_frame: usize,
+    ) -> Option<(u32, Vec<u8>)> {
+        let texture = frames.get(animation_frame % frames.len().max(1))?;
+        let width = texture.width;
+        let height = texture.height;
+        let size = width.max(height).max(1);
+        let expected = width.checked_mul(height)?.checked_mul(4)?;
+        if texture.data.len() < expected {
+            return None;
+        }
+
+        let size_u32 = u32::try_from(size).ok()?;
+        if width == size && height == size {
+            return Some((size_u32, texture.data[..expected].to_vec()));
+        }
+
+        let mut icon = vec![0_u8; size.checked_mul(size)?.checked_mul(4)?];
+        let offset_x = (size - width) / 2;
+        let offset_y = (size - height) / 2;
+        for y in 0..height {
+            let source_start = y * width * 4;
+            let source_end = source_start + width * 4;
+            let target_start = ((y + offset_y) * size + offset_x) * 4;
+            let target_end = target_start + width * 4;
+            icon[target_start..target_end].copy_from_slice(&texture.data[source_start..source_end]);
+        }
+        Some((size_u32, icon))
     }
 
     pub(crate) fn item_avatar_channel_icon_square(
@@ -1717,6 +1792,92 @@ mod tests {
         item.attributes.set("active", Value::Bool(true));
         let on = Widget::custom_item_icon_frames(&assets, &item).unwrap();
         assert_eq!(&on[0].data[0..4], &[240, 160, 40, 255]);
+    }
+
+    #[test]
+    fn project_item_icon_overrides_ordinary_icon_for_world_billboards() {
+        let mut assets = Assets::default();
+        assets.item_icons.insert(
+            "torch:on".to_string(),
+            vec![Texture::new(vec![240, 160, 40, 255], 1, 1)],
+        );
+        assets.textures.insert(
+            "torch".to_string(),
+            Texture::new(vec![255, 255, 255, 255], 1, 1),
+        );
+
+        let mut item = Item::default();
+        item.attributes
+            .set("ruleset_id", Value::Str("torch".into()));
+        item.attributes.set("active", Value::Bool(true));
+
+        let (_, pixels) = Widget::item_generated_icon_square(&assets, &item).unwrap();
+        assert_eq!(pixels, vec![240, 160, 40, 255]);
+    }
+
+    #[test]
+    fn rectangular_project_item_icon_is_centered_for_world_billboards() {
+        let mut assets = Assets::default();
+        assets.item_icons.insert(
+            "custom:on".to_string(),
+            vec![Texture::new(vec![10, 20, 30, 255, 40, 50, 60, 255], 1, 2)],
+        );
+
+        let mut item = Item::default();
+        item.attributes
+            .set("class_name", Value::Str("custom".into()));
+
+        let (size, pixels) = Widget::item_generated_icon_square(&assets, &item).unwrap();
+        assert_eq!(size, 2);
+        assert_eq!(
+            pixels,
+            vec![10, 20, 30, 255, 0, 0, 0, 0, 40, 50, 60, 255, 0, 0, 0, 0]
+        );
+    }
+
+    #[test]
+    fn project_off_icon_resolves_by_creator_template_id() {
+        let mut assets = Assets::default();
+        let template_id = Uuid::new_v4().to_string();
+        let key = format!("{template_id}:off");
+        assets.item_icons.insert(
+            key.clone(),
+            vec![
+                Texture::new(vec![7, 8, 9, 255], 1, 1),
+                Texture::new(vec![70, 80, 90, 255], 1, 1),
+            ],
+        );
+        assets.project_item_icon_keys.insert(key);
+
+        let mut item = Item::default();
+        item.attributes
+            .set("creator_template_id", Value::Str(template_id));
+        item.attributes.set("active", Value::Bool(false));
+        item.attributes
+            .set("source", Value::Source(PixelSource::TileId(Uuid::new_v4())));
+
+        let (_, first) = Widget::project_item_icon_square(&assets, &item, 0).unwrap();
+        let (_, second) = Widget::project_item_icon_square(&assets, &item, 1).unwrap();
+        let (_, wrapped) = Widget::project_item_icon_square(&assets, &item, 3).unwrap();
+        assert_eq!(first, vec![7, 8, 9, 255]);
+        assert_eq!(second, vec![70, 80, 90, 255]);
+        assert_eq!(wrapped, second);
+    }
+
+    #[test]
+    fn bundled_icon_is_not_treated_as_a_project_world_override() {
+        let mut assets = Assets::default();
+        assets.item_icons.insert(
+            "torch:off".to_string(),
+            vec![Texture::new(vec![7, 8, 9, 255], 1, 1)],
+        );
+
+        let mut item = Item::default();
+        item.attributes
+            .set("ruleset_id", Value::Str("torch".into()));
+        item.attributes.set("active", Value::Bool(false));
+
+        assert!(Widget::project_item_icon_square(&assets, &item, 0).is_none());
     }
 
     #[test]

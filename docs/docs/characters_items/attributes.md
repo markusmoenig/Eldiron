@@ -29,6 +29,9 @@ Represents the active state of an item (on or off). When it changes, Eldiron
 automatically selects `on_tile_id` or `off_tile_id` when the matching mapping
 exists. Each mapping accepts a tile UUID, tile alias, or palette index. If the
 requested mapping is absent, the current world source remains unchanged.
+Creator also uses a mapped state tile as that state's default icon. Painting
+the icon stores an independent item override; **Load Default** reads the tile
+mapping again.
 
 An [active event](events#active) is also sent to the item for additional
 state-dependent behavior such as enabling a light. Scripts do not need to call
