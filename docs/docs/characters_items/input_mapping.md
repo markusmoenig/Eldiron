@@ -114,6 +114,10 @@ or assigned with the panel's **Assign** mode. The resulting player override is
 persistent; the class action bar remains the fallback for slots without an
 override.
 
+`ui.spellbook` opens the same draggable catalogue shell filtered to actions
+with `kind = "spell"`. It uses the same ruleset icons, availability checks, and
+quick-slot assignment path.
+
 ```toml
 [actions.basic_attack]
 target = "hostile_or_neutral_entity"

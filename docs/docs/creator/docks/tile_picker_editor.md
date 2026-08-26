@@ -14,7 +14,7 @@ The **Tile Picker** dock is the main asset browser and assignment dock for map w
 - apply or clear that source on geometry
 - open the pixel editor or node graph editor with the top-right [dock control](/docs/creator/actions/#dock-controls)
 
-For single tiles, **Edit Tile Meta** can also assign an alias. That alias can then be used anywhere a `tile_id`-style source is accepted, alongside UUIDs and palette indices.
+For single tiles, **Edit Tile Meta** can assign an alias and gameplay tags. The alias identifies the visual tile anywhere a `tile_id`-style source is accepted, including `set_tile(...)`; it does not trigger events. Gameplay tags describe behavior and trigger `entered_tile` and `left_tile` character events when a character crosses a painted 2D tile placement.
 
 The currently selected source is used by **Copy Tile ID**, **Apply Tile**, and **Clear Tile** in the dock toolbar, and by tools such as [Rect](/docs/creator/tools/rect). **Copy Tile ID** places the quoted UUID on the system clipboard for use in settings, scripts, and other source fields.
 

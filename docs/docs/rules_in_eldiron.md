@@ -587,6 +587,13 @@ semantic `icon`/`icon_template` and `[ui.item_icon_fallbacks]` by
 resolved fallback during sync, but it is only used when their own artwork is
 unavailable.
 
+Local interface commands use `[ui.commands.<name>]` for ruleset-themed
+presentation without pretending to be gameplay actions. For example,
+`ui.spellbook` resolves `[ui.commands.spellbook].icon`, while `ui.actions`
+resolves `[ui.commands.actions].icon`. Their authoritative PNGs use the same
+`assets/icons/<id>/on/0.png` layout and can be replaced by an artist like any
+other bundled icon.
+
 Action particle stages work the same way. Explicit
 `[actions.<id>.fx.<stage>]` data wins; otherwise
 `[fx.action_fallbacks.<semantic-role>].<stage>` may supply a shared preset.

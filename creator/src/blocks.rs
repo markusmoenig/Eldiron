@@ -25,6 +25,7 @@ pub fn localized_block_asset_name(asset: &BlockAsset) -> String {
         "block_asset_large_block" => fl!("block_asset_large_block"),
         "block_asset_column" => fl!("block_asset_column"),
         "block_asset_plain_column" => fl!("block_asset_plain_column"),
+        "block_asset_table" => fl!("block_asset_table"),
         _ => asset.name.to_string(),
     }
 }
@@ -44,6 +45,7 @@ pub fn localized_block_asset_description(asset: &BlockAsset) -> String {
         "block_asset_large_block_desc" => fl!("block_asset_large_block_desc"),
         "block_asset_column_desc" => fl!("block_asset_column_desc"),
         "block_asset_plain_column_desc" => fl!("block_asset_plain_column_desc"),
+        "block_asset_table_desc" => fl!("block_asset_table_desc"),
         _ => asset.description.to_string(),
     }
 }
@@ -62,6 +64,9 @@ pub enum BlockComponentKind {
     DoorPostRight,
     DoorLintel,
     Stair,
+    TableTop,
+    TableLegLeft,
+    TableLegRight,
 }
 
 #[derive(Clone, Copy)]
@@ -242,6 +247,69 @@ const PLAIN_COLUMN_BOXES: &[BlockBox] = &[BlockBox {
     },
 }];
 
+const TABLE_BOXES: &[BlockBox] = &[
+    BlockBox {
+        min: Vec3 {
+            x: 0.0,
+            y: 1.84,
+            z: 0.0,
+        },
+        max: Vec3 {
+            x: 2.0,
+            y: 2.0,
+            z: 1.0,
+        },
+    },
+    BlockBox {
+        min: Vec3 {
+            x: 0.10,
+            y: 0.0,
+            z: 0.10,
+        },
+        max: Vec3 {
+            x: 0.24,
+            y: 1.84,
+            z: 0.24,
+        },
+    },
+    BlockBox {
+        min: Vec3 {
+            x: 1.76,
+            y: 0.0,
+            z: 0.10,
+        },
+        max: Vec3 {
+            x: 1.90,
+            y: 1.84,
+            z: 0.24,
+        },
+    },
+    BlockBox {
+        min: Vec3 {
+            x: 0.10,
+            y: 0.0,
+            z: 0.76,
+        },
+        max: Vec3 {
+            x: 0.24,
+            y: 1.84,
+            z: 0.90,
+        },
+    },
+    BlockBox {
+        min: Vec3 {
+            x: 1.76,
+            y: 0.0,
+            z: 0.76,
+        },
+        max: Vec3 {
+            x: 1.90,
+            y: 1.84,
+            z: 0.90,
+        },
+    },
+];
+
 const DOORWAY_BOXES: &[BlockBox] = &[
     BlockBox {
         min: Vec3 {
@@ -385,6 +453,13 @@ const COLUMN_COMPONENTS: &[BlockComponentKind] = &[
     BlockComponentKind::ColumnCapital,
 ];
 const PLAIN_COLUMN_COMPONENTS: &[BlockComponentKind] = &[BlockComponentKind::ColumnShaft];
+const TABLE_COMPONENTS: &[BlockComponentKind] = &[
+    BlockComponentKind::TableTop,
+    BlockComponentKind::TableLegLeft,
+    BlockComponentKind::TableLegRight,
+    BlockComponentKind::TableLegLeft,
+    BlockComponentKind::TableLegRight,
+];
 const DOORWAY_COMPONENTS: &[BlockComponentKind] = &[
     BlockComponentKind::DoorPostLeft,
     BlockComponentKind::DoorPostRight,
@@ -547,6 +622,16 @@ static BLOCK_ASSETS: LazyLock<Vec<BlockAsset>> = LazyLock::new(|| {
             boxes: PLAIN_COLUMN_BOXES,
             components: PLAIN_COLUMN_COMPONENTS,
         },
+        BlockAsset {
+            id: Uuid::from_u128(0xB10C_0000_0000_0000_0000_0000_0000_000E),
+            name: "Table",
+            name_key: "block_asset_table",
+            description: "Resizable table with four legs",
+            description_key: "block_asset_table_desc",
+            footprint: Vec3 { x: 2, y: 2, z: 1 },
+            boxes: TABLE_BOXES,
+            components: TABLE_COMPONENTS,
+        },
     ]
 });
 
@@ -577,6 +662,9 @@ pub fn component_supports_height(component: BlockComponentKind) -> bool {
             | BlockComponentKind::DoorPostRight
             | BlockComponentKind::DoorLintel
             | BlockComponentKind::Ceiling
+            | BlockComponentKind::TableTop
+            | BlockComponentKind::TableLegLeft
+            | BlockComponentKind::TableLegRight
     )
 }
 
@@ -591,6 +679,9 @@ pub fn component_supports_width(component: BlockComponentKind) -> bool {
             | BlockComponentKind::DoorPostRight
             | BlockComponentKind::DoorLintel
             | BlockComponentKind::Stair
+            | BlockComponentKind::TableTop
+            | BlockComponentKind::TableLegLeft
+            | BlockComponentKind::TableLegRight
     )
 }
 
@@ -690,6 +781,15 @@ pub fn adjusted_block_box(
             block_box.min.y += delta;
             block_box.max.y += delta;
         }
+        BlockComponentKind::TableTop => {
+            let thickness = (block_box.max.y - block_box.min.y).max(0.01);
+            block_box.max.y = height;
+            block_box.min.y = (height - thickness).max(0.0);
+        }
+        BlockComponentKind::TableLegLeft | BlockComponentKind::TableLegRight => {
+            let top_thickness = 0.16;
+            block_box.max.y = (height - top_thickness).max(block_box.min.y + 0.1);
+        }
         BlockComponentKind::Floor | BlockComponentKind::Stair | BlockComponentKind::ColumnBase => {}
     }
 
@@ -700,15 +800,16 @@ pub fn adjusted_block_box(
             | BlockComponentKind::Ceiling
             | BlockComponentKind::Wall
             | BlockComponentKind::DoorLintel
-            | BlockComponentKind::Stair => {
+            | BlockComponentKind::Stair
+            | BlockComponentKind::TableTop => {
                 block_box.min.x -= extra;
                 block_box.max.x += extra;
             }
-            BlockComponentKind::DoorPostLeft => {
+            BlockComponentKind::DoorPostLeft | BlockComponentKind::TableLegLeft => {
                 block_box.min.x -= extra;
                 block_box.max.x -= extra;
             }
-            BlockComponentKind::DoorPostRight => {
+            BlockComponentKind::DoorPostRight | BlockComponentKind::TableLegRight => {
                 block_box.min.x += extra;
                 block_box.max.x += extra;
             }
@@ -920,5 +1021,40 @@ mod tests {
         assert_close(shaft.max.y, 4.0);
         assert_close(shaft.min.z, 0.28);
         assert_close(shaft.max.z, 0.72);
+    }
+
+    #[test]
+    fn table_adjusts_height_and_width_without_thickening_its_legs() {
+        let asset = block_assets()
+            .iter()
+            .find(|asset| asset.name == "Table")
+            .expect("Table block asset");
+        let sizing = BlockSizing {
+            height_cells: 3,
+            span_extra_cells: 1,
+        };
+
+        let top = adjusted_block_box(asset, 0, sizing).unwrap();
+        let left_front = adjusted_block_box(asset, 1, sizing).unwrap();
+        let right_front = adjusted_block_box(asset, 2, sizing).unwrap();
+        let left_back = adjusted_block_box(asset, 3, sizing).unwrap();
+        let right_back = adjusted_block_box(asset, 4, sizing).unwrap();
+
+        assert!(asset_supports_height(asset));
+        assert!(asset_supports_width(asset));
+        assert_close(top.min.x, -1.0);
+        assert_close(top.max.x, 3.0);
+        assert_close(top.min.y, 2.84);
+        assert_close(top.max.y, 3.0);
+
+        for leg in [left_front, right_front, left_back, right_back] {
+            assert_close(leg.max.x - leg.min.x, 0.14);
+            assert_close(leg.min.y, 0.0);
+            assert_close(leg.max.y, top.min.y);
+        }
+        assert_close(left_front.min.x, -0.90);
+        assert_close(left_back.min.x, -0.90);
+        assert_close(right_front.max.x, 2.90);
+        assert_close(right_back.max.x, 2.90);
     }
 }

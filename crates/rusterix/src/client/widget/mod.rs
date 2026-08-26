@@ -35,6 +35,26 @@ pub enum ButtonVisualState {
     Disabled,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BorderGradientDirection {
+    Horizontal,
+    #[default]
+    Vertical,
+    Diagonal,
+    DiagonalReverse,
+}
+
+impl BorderGradientDirection {
+    pub fn parse(value: &str) -> Self {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "horizontal" | "left_to_right" => Self::Horizontal,
+            "diagonal" | "top_left_to_bottom_right" => Self::Diagonal,
+            "diagonal_reverse" | "top_right_to_bottom_left" => Self::DiagonalReverse,
+            _ => Self::Vertical,
+        }
+    }
+}
+
 /// Used right now for button widgets
 pub struct Widget {
     pub name: String,
@@ -63,6 +83,16 @@ pub struct Widget {
     pub equipped_slot: Option<String>,
     pub portrait: bool,
     pub drag_drop: bool,
+    /// Optional button chrome drawn below command or item artwork.
+    pub chrome_textures: Vec<Texture>,
+    /// Source-pixel inset used to nine-slice the button chrome.
+    pub chrome_slice: usize,
+    /// Optional decorative artwork drawn above command or item artwork.
+    pub frame_textures: Vec<Texture>,
+    /// Source-pixel inset used to nine-slice the foreground frame.
+    pub frame_slice: usize,
+    /// Optional pixel inset for command artwork. Defaults to 12% of the slot size.
+    pub icon_inset: Option<f32>,
     pub textures: Vec<Texture>,
     pub entity_cursor_id: Option<Uuid>,
     pub entity_clicked_cursor_id: Option<Uuid>,
@@ -70,6 +100,10 @@ pub struct Widget {
     pub item_clicked_cursor_id: Option<Uuid>,
     pub border_color: Pixel,
     pub border_size: i32,
+    pub border_gradient_color: Option<Pixel>,
+    pub border_gradient_direction: BorderGradientDirection,
+    pub border_radius: f32,
+    pub border_painter: ThePainter,
     pub show_icon: bool,
     pub label: String,
     pub label_font: String,
@@ -189,6 +223,186 @@ fn table_at<'a>(root: &'a Table, path: &[&str]) -> Option<&'a Table> {
     Some(current)
 }
 
+fn texture_axis_coordinate(
+    position: usize,
+    destination_len: usize,
+    source_len: usize,
+    slice: usize,
+) -> usize {
+    if destination_len == 0 || source_len == 0 {
+        return 0;
+    }
+
+    let source_slice = slice.min(source_len.saturating_sub(1) / 2);
+    let destination_slice = source_slice.min(destination_len / 2);
+    if source_slice == 0 || destination_slice == 0 {
+        return position.saturating_mul(source_len) / destination_len;
+    }
+
+    if position < destination_slice {
+        return position.saturating_mul(source_slice) / destination_slice;
+    }
+    if position >= destination_len - destination_slice {
+        let edge_position = position - (destination_len - destination_slice);
+        return source_len - source_slice
+            + edge_position.saturating_mul(source_slice) / destination_slice;
+    }
+
+    let destination_middle = destination_len - destination_slice * 2;
+    let source_middle = source_len - source_slice * 2;
+    source_slice
+        + (position - destination_slice).saturating_mul(source_middle) / destination_middle.max(1)
+}
+
+/// Draws a texture as a normal scaled layer or as a nine-slice when `slice` is non-zero.
+pub(crate) fn blend_texture_layer(
+    buffer: &mut TheRGBABuffer,
+    rect: Rect,
+    draw2d: &Draw2D,
+    texture: &Texture,
+    slice: usize,
+) {
+    let destination_width = rect.width.round().max(0.0) as usize;
+    let destination_height = rect.height.round().max(0.0) as usize;
+    if destination_width == 0
+        || destination_height == 0
+        || texture.width == 0
+        || texture.height == 0
+    {
+        return;
+    }
+
+    let destination_x = rect.x.round() as isize;
+    let destination_y = rect.y.round() as isize;
+    let buffer_width = buffer.dim().width.max(0) as isize;
+    let buffer_height = buffer.dim().height.max(0) as isize;
+    let stride = buffer.stride();
+    let frame = buffer.pixels_mut();
+
+    for y in 0..destination_height {
+        let frame_y = destination_y + y as isize;
+        if frame_y < 0 || frame_y >= buffer_height {
+            continue;
+        }
+        let source_y = texture_axis_coordinate(y, destination_height, texture.height, slice)
+            .min(texture.height - 1);
+        for x in 0..destination_width {
+            let frame_x = destination_x + x as isize;
+            if frame_x < 0 || frame_x >= buffer_width {
+                continue;
+            }
+            let source_x = texture_axis_coordinate(x, destination_width, texture.width, slice)
+                .min(texture.width - 1);
+            let source_index = (source_x + source_y * texture.width) * 4;
+            if source_index + 3 >= texture.data.len() {
+                continue;
+            }
+            let alpha = texture.data[source_index + 3];
+            if alpha == 0 {
+                continue;
+            }
+            let frame_index = (frame_x as usize + frame_y as usize * stride) * 4;
+            if frame_index + 3 >= frame.len() {
+                continue;
+            }
+            let source = [
+                texture.data[source_index],
+                texture.data[source_index + 1],
+                texture.data[source_index + 2],
+                alpha,
+            ];
+            let background = [
+                frame[frame_index],
+                frame[frame_index + 1],
+                frame[frame_index + 2],
+                frame[frame_index + 3],
+            ];
+            frame[frame_index..frame_index + 4].copy_from_slice(&draw2d.mix_color(
+                &background,
+                &source,
+                alpha as f32 / 255.0,
+            ));
+        }
+    }
+}
+
+pub(crate) fn draw_widget_border(
+    buffer: &mut TheRGBABuffer,
+    rect: Rect,
+    draw2d: &Draw2D,
+    painter: &mut ThePainter,
+    border_size: i32,
+    start_color: Pixel,
+    end_color: Option<Pixel>,
+    direction: BorderGradientDirection,
+    radius: f32,
+) {
+    if border_size <= 0 || rect.width <= 0.0 || rect.height <= 0.0 {
+        return;
+    }
+
+    if end_color.is_none() && radius <= 0.0 {
+        let stride = buffer.stride();
+        draw2d.rect_outline_thickness(
+            buffer.pixels_mut(),
+            &(
+                rect.x.max(0.0) as usize,
+                rect.y.max(0.0) as usize,
+                rect.width.max(0.0) as usize,
+                rect.height.max(0.0) as usize,
+            ),
+            stride,
+            &start_color,
+            border_size as usize,
+        );
+        return;
+    }
+
+    let surface_width = buffer.dim().width.max(0) as usize;
+    let surface_height = buffer.dim().height.max(0) as usize;
+    let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), surface_width, surface_height)
+    else {
+        return;
+    };
+    let stroke_width = border_size as f32;
+    let inset = stroke_width * 0.5;
+    let path_width = (rect.width - stroke_width).max(0.0);
+    let path_height = (rect.height - stroke_width).max(0.0);
+    if path_width <= 0.0 || path_height <= 0.0 {
+        return;
+    }
+
+    let mut path = ThePath::new();
+    let path_origin = (rect.x + inset, rect.y + inset);
+    if radius > 0.0 {
+        let radius = radius.max(inset).min(path_width.min(path_height) * 0.5);
+        path.add_round_rect(path_origin, path_width, path_height, radius, radius);
+    } else {
+        path.add_rect(path_origin, path_width, path_height);
+    }
+
+    let paint = if let Some(end_color) = end_color {
+        let left = rect.x;
+        let top = rect.y;
+        let right = rect.x + rect.width;
+        let bottom = rect.y + rect.height;
+        let (start, end) = match direction {
+            BorderGradientDirection::Horizontal => ([left, top], [right, top]),
+            BorderGradientDirection::Vertical => ([left, top], [left, bottom]),
+            BorderGradientDirection::Diagonal => ([left, top], [right, bottom]),
+            BorderGradientDirection::DiagonalReverse => ([right, top], [left, bottom]),
+        };
+        ThePaint::linear_gradient(start, end, start_color, end_color)
+    } else {
+        ThePaint::solid(start_color)
+    };
+    painter.stroke_path(
+        &mut surface,
+        &path,
+        &ThePathStroke::new(stroke_width, paint).with_join(TheLineJoin::Round),
+    );
+}
+
 impl Default for Widget {
     fn default() -> Self {
         Self::new()
@@ -224,6 +438,11 @@ impl Widget {
             equipped_slot: None,
             portrait: false,
             drag_drop: false,
+            chrome_textures: vec![],
+            chrome_slice: 0,
+            frame_textures: vec![],
+            frame_slice: 0,
+            icon_inset: None,
             textures: vec![],
             entity_cursor_id: None,
             entity_clicked_cursor_id: None,
@@ -231,6 +450,10 @@ impl Widget {
             item_clicked_cursor_id: None,
             border_color: WHITE,
             border_size: 0,
+            border_gradient_color: None,
+            border_gradient_direction: BorderGradientDirection::Vertical,
+            border_radius: 0.0,
+            border_painter: ThePainter::new(),
             show_icon: true,
             label: String::new(),
             label_font: String::new(),
@@ -350,6 +573,13 @@ impl Widget {
             );
         }
 
+        if !self.chrome_textures.is_empty() {
+            let texture_index =
+                Self::texture_index_for_state(self.chrome_textures.len(), visual_state);
+            let texture = &self.chrome_textures[texture_index];
+            blend_texture_layer(buffer, self.rect, draw2d, texture, self.chrome_slice);
+        }
+
         let is_item_slot = self.inventory_index.is_some() || self.equipped_slot.is_some();
         let mut drew_primary_texture = false;
         if self.show_icon
@@ -360,11 +590,18 @@ impl Widget {
                 visual_state,
             )
         {
-            Self::draw_command_icon_texture(buffer, self.rect, draw2d, texture, visual_state);
+            Self::draw_command_icon_texture(
+                buffer,
+                self.rect,
+                draw2d,
+                texture,
+                visual_state,
+                self.icon_inset,
+            );
             drew_primary_texture = true;
         }
         if !drew_primary_texture && !self.textures.is_empty() {
-            let texture_index = self.texture_index_for_state(visual_state);
+            let texture_index = Self::texture_index_for_state(self.textures.len(), visual_state);
             draw2d.blend_scale_chunk(
                 buffer.pixels_mut(),
                 &(
@@ -421,6 +658,18 @@ impl Widget {
             Self::draw_item_icon(buffer, self.rect, assets, item, draw2d, *animation_frame);
         }
 
+        if !self.frame_textures.is_empty() {
+            let texture_index =
+                Self::texture_index_for_state(self.frame_textures.len(), visual_state);
+            blend_texture_layer(
+                buffer,
+                self.rect,
+                draw2d,
+                &self.frame_textures[texture_index],
+                self.frame_slice,
+            );
+        }
+
         if self.border_size > 0 {
             let border_color = match visual_state {
                 ButtonVisualState::Selected => {
@@ -450,17 +699,16 @@ impl Widget {
                 ]),
                 ButtonVisualState::Normal => self.border_color,
             };
-            draw2d.rect_outline_thickness(
-                buffer.pixels_mut(),
-                &(
-                    self.rect.x as usize,
-                    self.rect.y as usize,
-                    self.rect.width as usize,
-                    self.rect.height as usize,
-                ),
-                stride,
-                &border_color,
-                self.border_size as usize,
+            draw_widget_border(
+                buffer,
+                self.rect,
+                draw2d,
+                &mut self.border_painter,
+                self.border_size,
+                border_color,
+                self.border_gradient_color,
+                self.border_gradient_direction,
+                self.border_radius,
             );
         }
 
@@ -604,6 +852,9 @@ impl Widget {
                 };
                 table_at(root, &["intents", intent_id.trim()])
             }
+            ClientCommandBinding::Ui(command) => {
+                table_at(root, &["ui", "commands", command.trim()])
+            }
             _ => None,
         }
     }
@@ -624,9 +875,12 @@ impl Widget {
         draw2d: &Draw2D,
         texture: &Texture,
         visual_state: ButtonVisualState,
+        configured_inset: Option<f32>,
     ) {
         let stride = buffer.stride();
-        let inset = (rect.width.min(rect.height) * 0.12).round().max(2.0);
+        let inset = configured_inset
+            .unwrap_or_else(|| (rect.width.min(rect.height) * 0.12).round().max(2.0))
+            .max(0.0);
         let dest_x = (rect.x + inset).round().max(0.0) as usize;
         let dest_y = (rect.y + inset).round().max(0.0) as usize;
         let dest_w = (rect.width - inset * 2.0).round().max(1.0) as usize;
@@ -772,8 +1026,7 @@ impl Widget {
         None
     }
 
-    fn texture_index_for_state(&self, visual_state: ButtonVisualState) -> usize {
-        let len = self.textures.len();
+    fn texture_index_for_state(len: usize, visual_state: ButtonVisualState) -> usize {
         match visual_state {
             ButtonVisualState::Selected => {
                 if len > 1 {
@@ -798,7 +1051,14 @@ impl Widget {
                     0
                 }
             }
-            ButtonVisualState::Hover | ButtonVisualState::Normal => 0,
+            ButtonVisualState::Hover => {
+                if len > 4 {
+                    4
+                } else {
+                    0
+                }
+            }
+            ButtonVisualState::Normal => 0,
         }
     }
 
@@ -1715,6 +1975,42 @@ mod tests {
     use super::*;
 
     #[test]
+    fn button_state_textures_can_override_hover_artwork() {
+        assert_eq!(
+            Widget::texture_index_for_state(5, ButtonVisualState::Hover),
+            4
+        );
+        assert_eq!(
+            Widget::texture_index_for_state(4, ButtonVisualState::Hover),
+            0
+        );
+    }
+
+    #[test]
+    fn nine_slice_preserves_texture_corners_and_center() {
+        let pixels: Vec<u8> = (0..9)
+            .flat_map(|index| [index * 20, index * 20, index * 20, 255])
+            .collect();
+        let texture = Texture::new(pixels, 3, 3);
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(5, 5));
+
+        blend_texture_layer(
+            &mut buffer,
+            Rect::new(0.0, 0.0, 5.0, 5.0),
+            &Draw2D::default(),
+            &texture,
+            1,
+        );
+
+        let pixel = |x: usize, y: usize| buffer.pixels()[(x + y * 5) * 4];
+        assert_eq!(pixel(0, 0), 0);
+        assert_eq!(pixel(4, 0), 40);
+        assert_eq!(pixel(2, 2), 80);
+        assert_eq!(pixel(0, 4), 120);
+        assert_eq!(pixel(4, 4), 160);
+    }
+
+    #[test]
     fn generated_item_icon_colors_use_ruleset_palette() {
         let mut assets = Assets::default();
         assets.ruleset_palette.colors[10] = Some(TheColor::from_u8(41, 82, 123, 255));
@@ -1747,6 +2043,25 @@ mod tests {
         let (size, pixels) = Widget::item_icon_texture_square(&assets, &item).unwrap();
         assert_eq!(size, 2);
         assert_eq!(&pixels[0..8], &[12, 34, 56, 78, 90, 123, 210, 255]);
+    }
+
+    #[test]
+    fn ui_commands_resolve_replaceable_ruleset_icons() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [ui.commands.spellbook]
+            icon = "custom_spellbook"
+        "#
+        .into();
+        assets.textures.insert(
+            "custom_spellbook".to_string(),
+            Texture::new(vec![12, 34, 56, 255], 1, 1),
+        );
+
+        let texture =
+            Widget::command_icon_texture(&assets, Some("ui.spellbook"), ButtonVisualState::Normal)
+                .expect("UI command should resolve its ruleset icon");
+        assert_eq!(texture.data, vec![12, 34, 56, 255]);
     }
 
     #[test]

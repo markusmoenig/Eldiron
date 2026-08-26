@@ -1248,14 +1248,11 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
         if let Ok(toml_value) = value.parse::<toml::Value>()
             && let toml::Value::Array(items) = toml_value
         {
-            let parsed: Vec<String> = items
+            return items
                 .iter()
                 .filter_map(|item| item.as_str().map(|s| s.trim().to_string()))
                 .filter(|s| !s.is_empty())
                 .collect();
-            if !parsed.is_empty() {
-                return parsed;
-            }
         }
 
         value
@@ -1317,7 +1314,11 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
                         ),
                     )
                 };
-                let val = if action_key == "iso_hide_on_enter" {
+                let is_string_array = matches!(
+                    action_key.as_str(),
+                    "iso_hide_on_enter" | "tile_gameplay_tags"
+                );
+                let val = if is_string_array {
                     toml::Value::Array(
                         parse_string_array(value)
                             .into_iter()
@@ -1327,11 +1328,21 @@ pub fn nodeui_to_toml(nodeui: &TheNodeUI) -> String {
                 } else {
                     toml::Value::String(value.clone())
                 };
+                let comment = match action_key.as_str() {
+                    "tile_alias" => Some(
+                        "# Alias identifies this visual tile in tile source references such as set_tile; it does not trigger tile events."
+                            .to_string(),
+                    ),
+                    "tile_gameplay_tags" => Some(
+                        "# Gameplay tags trigger entered_tile and left_tile events.".to_string(),
+                    ),
+                    _ => None,
+                };
                 if let Some(section_name) = target_section {
                     let entries = section_entries_mut(&mut sections, &section_name);
-                    upsert(entries, key, val, None);
+                    upsert(entries, key, val, comment);
                 } else {
-                    upsert(&mut root_action_entries, key, val, None);
+                    upsert(&mut root_action_entries, key, val, comment);
                 }
                 has_editable_values = true;
             }
@@ -1534,7 +1545,12 @@ pub fn apply_toml_to_nodeui(nodeui: &mut TheNodeUI, source: &str) -> Result<(), 
                                     nodeui.set_text_value(&id, v.to_string());
                                     break;
                                 }
-                                toml::Value::Array(items) if action_key == "iso_hide_on_enter" => {
+                                toml::Value::Array(items)
+                                    if matches!(
+                                        action_key.as_str(),
+                                        "iso_hide_on_enter" | "tile_gameplay_tags"
+                                    ) =>
+                                {
                                     let joined = items
                                         .iter()
                                         .filter_map(|item| item.as_str())

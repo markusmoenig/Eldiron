@@ -60,8 +60,11 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         // Colors (match Eldiron defaults)
         // Keep background transparent so base 2D scene remains visible.
         let bg_color       = vec4<f32>(0.0, 0.0, 0.0, 0.0);
-        let line_color     = vec4<f32>(1.0, 1.0, 1.0, 0.22);
-        let sub_line_color = vec4<f32>(1.0, 1.0, 1.0, 0.12);
+        // Use the same visible gray values as the normal 2D editor grid.
+        // Keeping these opaque avoids losing the line contrast a second time
+        // when the transparent overlay is composited onto the editor canvas.
+        let line_color     = vec4<f32>(0.15, 0.15, 0.15, 1.0);
+        let sub_line_color = vec4<f32>(0.11, 0.11, 0.11, 1.0);
 
         // Thickness in pixels (use 1px for both major and minor)
         let th  = 1.0;

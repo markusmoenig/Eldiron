@@ -19,9 +19,9 @@ use crate::{
     client::command::{ClientCommandBinding, command_from_legacy_fields, parse_client_command},
     client::rules_ui::{CommandState, ContainerUiTemplate, RulesDescription},
     client::widget::{
-        ButtonStateStyle, ButtonVisualState, TextInputWidget, Widget, avatar::AvatarWidget,
-        deco::DecoWidget, game::GameWidget, messages::MessagesWidget, profile::ProfileWidget,
-        screen::ScreenWidget, stat::StatWidget, text::TextWidget,
+        BorderGradientDirection, ButtonStateStyle, ButtonVisualState, TextInputWidget, Widget,
+        avatar::AvatarWidget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget,
+        profile::ProfileWidget, screen::ScreenWidget, stat::StatWidget, text::TextWidget,
     },
 };
 use draw2d::Draw2D;
@@ -176,6 +176,106 @@ struct ActionsPanelLayout {
     title_rect: Rect,
     groups: Vec<ActionsPanelGroupLayout>,
     entries: Vec<ActionsPanelEntryLayout>,
+    previous_page_rect: Option<Rect>,
+    next_page_rect: Option<Rect>,
+    page_label_rect: Option<Rect>,
+    page: usize,
+    page_count: usize,
+}
+
+#[derive(Clone)]
+struct CatalogPanelConfig {
+    columns: usize,
+    rows: Option<usize>,
+    cell_size: f32,
+    spacing: f32,
+    padding: f32,
+    title_height: f32,
+    icon_inset: f32,
+    show_names: bool,
+    authored_rect: Option<Rect>,
+    background_color: Pixel,
+    title_background_color: Pixel,
+    border_color: Pixel,
+    border_size: i32,
+    text_color: Pixel,
+    muted_text_color: Pixel,
+    slot_background_color: Pixel,
+    slot_border_color: Pixel,
+    slot_border_size: i32,
+    frame_texture: Option<Texture>,
+    frame_slice: usize,
+    slot_texture: Option<Texture>,
+    slot_slice: usize,
+}
+
+impl Default for CatalogPanelConfig {
+    fn default() -> Self {
+        Self {
+            columns: 5,
+            rows: None,
+            cell_size: 72.0,
+            spacing: 8.0,
+            padding: 12.0,
+            title_height: 30.0,
+            icon_inset: 8.0,
+            show_names: true,
+            authored_rect: None,
+            background_color: [10, 12, 15, 242],
+            title_background_color: [20, 24, 30, 245],
+            border_color: [98, 105, 116, 255],
+            border_size: 1,
+            text_color: [236, 233, 214, 255],
+            muted_text_color: [174, 179, 183, 255],
+            slot_background_color: [31, 35, 41, 232],
+            slot_border_color: [72, 78, 87, 255],
+            slot_border_size: 1,
+            frame_texture: None,
+            frame_slice: 0,
+            slot_texture: None,
+            slot_slice: 0,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct ActionBarButtonConfig {
+    command: Option<String>,
+    command_slot: Option<String>,
+    label: String,
+    show_icon: Option<bool>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ActionBarGroupAlign {
+    Left,
+    #[default]
+    Center,
+    Right,
+}
+
+#[derive(Clone, Debug)]
+struct ActionBarGroupConfig {
+    align: ActionBarGroupAlign,
+    slot_size: f32,
+    spacing: f32,
+    buttons: Vec<ActionBarButtonConfig>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+enum CatalogPanelContent {
+    #[default]
+    Actions,
+    Spellbook,
+}
+
+impl CatalogPanelContent {
+    fn title(self) -> &'static str {
+        match self {
+            Self::Actions => "Actions",
+            Self::Spellbook => "Spellbook",
+        }
+    }
 }
 
 #[derive(Default)]
@@ -351,6 +451,7 @@ pub struct Client {
     // The widgets
     game_widgets: FxHashMap<Uuid, GameWidget>,
     button_widgets: FxHashMap<u32, Widget>,
+    action_bar_button_ids: FxHashMap<u32, Vec<u32>>,
     avatar_widgets: FxHashMap<Uuid, AvatarWidget>,
     profile_widgets: FxHashMap<Uuid, ProfileWidget>,
     stat_widgets: FxHashMap<Uuid, StatWidget>,
@@ -446,13 +547,25 @@ pub struct Client {
     dragging_container_panel: bool,
     container_panel_drag_offset: Vec2<i32>,
     actions_panel_open: bool,
+    actions_panel_content: CatalogPanelContent,
     actions_panel_rect: Option<Rect>,
+    actions_panel_title_rect: Option<Rect>,
     actions_panel_close_rect: Option<Rect>,
     actions_panel_assign_rect: Option<Rect>,
+    actions_panel_previous_page_rect: Option<Rect>,
+    actions_panel_next_page_rect: Option<Rect>,
     actions_panel_entries: Vec<ActionsPanelEntryLayout>,
     actions_assignment_mode: bool,
     pending_action_assignment: Option<String>,
     dragging_action_command: Option<String>,
+    dragging_actions_panel: bool,
+    actions_panel_drag_offset: Vec2<i32>,
+    actions_panel_position: Option<Vec2<i32>>,
+    actions_panel_page: usize,
+    toolbar_actions_panel_config: CatalogPanelConfig,
+    toolbar_spellbook_config: CatalogPanelConfig,
+    custom_actions_panel_config: Option<CatalogPanelConfig>,
+    custom_spellbook_config: Option<CatalogPanelConfig>,
     actions_panel_catalog_rules: String,
     actions_panel_catalog_class: Option<String>,
     actions_panel_catalog: Vec<rules_ui::ActionCatalogGroup>,
@@ -944,6 +1057,7 @@ impl Client {
 
             game_widgets: FxHashMap::default(),
             button_widgets: FxHashMap::default(),
+            action_bar_button_ids: FxHashMap::default(),
             avatar_widgets: FxHashMap::default(),
             profile_widgets: FxHashMap::default(),
             stat_widgets: FxHashMap::default(),
@@ -1007,13 +1121,25 @@ impl Client {
             dragging_container_panel: false,
             container_panel_drag_offset: Vec2::zero(),
             actions_panel_open: false,
+            actions_panel_content: CatalogPanelContent::Actions,
             actions_panel_rect: None,
+            actions_panel_title_rect: None,
             actions_panel_close_rect: None,
             actions_panel_assign_rect: None,
+            actions_panel_previous_page_rect: None,
+            actions_panel_next_page_rect: None,
             actions_panel_entries: Vec::new(),
             actions_assignment_mode: false,
             pending_action_assignment: None,
             dragging_action_command: None,
+            dragging_actions_panel: false,
+            actions_panel_drag_offset: Vec2::zero(),
+            actions_panel_position: None,
+            actions_panel_page: 0,
+            toolbar_actions_panel_config: CatalogPanelConfig::default(),
+            toolbar_spellbook_config: CatalogPanelConfig::default(),
+            custom_actions_panel_config: None,
+            custom_spellbook_config: None,
             actions_panel_catalog_rules: String::new(),
             actions_panel_catalog_class: None,
             actions_panel_catalog: Vec::new(),
@@ -1865,6 +1991,44 @@ impl Client {
             .map(Self::hex_to_rgba_u8)
     }
 
+    fn border_style_from_table(
+        table: &toml::value::Table,
+        default_color: [u8; 4],
+        default_size: i32,
+    ) -> ([u8; 4], i32, Option<[u8; 4]>, BorderGradientDirection, f32) {
+        let mut color = Self::color_from_table(table, "border_color").unwrap_or(default_color);
+        let mut size = table
+            .get("border_size")
+            .and_then(toml::Value::as_integer)
+            .map(|value| value.max(0) as i32)
+            .unwrap_or(default_size.max(0));
+        let mut gradient_color = None;
+        let mut direction = BorderGradientDirection::Vertical;
+        let mut radius = 0.0;
+
+        if let Some(border) = table.get("border").and_then(toml::Value::as_table) {
+            size = border
+                .get("size")
+                .and_then(toml::Value::as_integer)
+                .map(|value| value.max(0) as i32)
+                .unwrap_or(size);
+            color = Self::color_from_table(border, "from")
+                .or_else(|| Self::color_from_table(border, "color"))
+                .unwrap_or(color);
+            gradient_color = Self::color_from_table(border, "to");
+            direction = border
+                .get("direction")
+                .and_then(toml::Value::as_str)
+                .map(BorderGradientDirection::parse)
+                .unwrap_or_default();
+            radius = Self::layout_number(border, "radius")
+                .unwrap_or(0.0)
+                .max(0.0);
+        }
+
+        (color, size, gradient_color, direction, radius)
+    }
+
     fn ui_style_color(
         ui: &toml::value::Table,
         state: Option<&str>,
@@ -2358,8 +2522,17 @@ impl Client {
     }
 
     fn clear_screen_widgets(&mut self) {
+        for id in self.action_bar_button_ids.values().flatten() {
+            self.activated_widgets.retain(|active| active != id);
+            self.permanently_activated_widgets
+                .retain(|active| active != id);
+            if self.pressed_widget == Some(*id) {
+                self.pressed_widget = None;
+            }
+        }
         self.game_widgets.clear();
         self.button_widgets.clear();
+        self.action_bar_button_ids.clear();
         self.avatar_widgets.clear();
         self.profile_widgets.clear();
         self.stat_widgets.clear();
@@ -2369,6 +2542,12 @@ impl Client {
         self.messages_widgets.clear();
         self.screen_widget = None;
         self.focused_text_input = None;
+        self.toolbar_actions_panel_config = CatalogPanelConfig::default();
+        self.toolbar_spellbook_config = CatalogPanelConfig::default();
+        self.custom_actions_panel_config = None;
+        self.custom_spellbook_config = None;
+        self.actions_panel_page = 0;
+        self.actions_panel_position = None;
     }
 
     fn init_region_fallback(&mut self, assets: &Assets, scene_handler: &mut SceneHandler) {
@@ -3945,27 +4124,39 @@ impl Client {
         self.dragging_container_panel = false;
     }
 
-    fn toggle_actions_panel(&mut self) {
-        let should_open = !self.actions_panel_open;
+    fn toggle_catalog_panel(&mut self, content: CatalogPanelContent) {
+        let should_open = !self.actions_panel_open || self.actions_panel_content != content;
         self.close_floaters();
+        self.actions_panel_content = content;
         self.actions_panel_open = should_open;
+        self.actions_panel_page = 0;
+        self.actions_panel_position = None;
     }
 
     fn close_actions_panel(&mut self) {
         self.actions_panel_open = false;
         self.actions_panel_rect = None;
+        self.actions_panel_title_rect = None;
         self.actions_panel_close_rect = None;
         self.actions_panel_assign_rect = None;
+        self.actions_panel_previous_page_rect = None;
+        self.actions_panel_next_page_rect = None;
         self.actions_panel_entries.clear();
         self.actions_assignment_mode = false;
         self.pending_action_assignment = None;
         self.dragging_action_command = None;
+        self.dragging_actions_panel = false;
+        self.actions_panel_page = 0;
     }
 
     fn apply_ui_command(&mut self, command: &str) -> bool {
         match command.trim().to_ascii_lowercase().as_str() {
             "actions" | "action_catalog" | "abilities" => {
-                self.toggle_actions_panel();
+                self.toggle_catalog_panel(CatalogPanelContent::Actions);
+                true
+            }
+            "spellbook" | "spells" => {
+                self.toggle_catalog_panel(CatalogPanelContent::Spellbook);
                 true
             }
             _ => false,
@@ -4032,49 +4223,126 @@ impl Client {
         if self.actions_panel_catalog.is_empty() {
             return None;
         }
+        let catalog: Vec<_> = match self.actions_panel_content {
+            CatalogPanelContent::Actions => self
+                .actions_panel_catalog
+                .iter()
+                .filter(|group| !group.entries.is_empty())
+                .cloned()
+                .collect(),
+            CatalogPanelContent::Spellbook => self
+                .actions_panel_catalog
+                .iter()
+                .filter(|group| group.id.eq_ignore_ascii_case("spells"))
+                .filter(|group| !group.entries.is_empty())
+                .cloned()
+                .collect(),
+        };
+        if catalog.is_empty() {
+            return None;
+        }
 
-        let padding = 12.0;
-        let title_height = 30.0;
+        let config = self.active_catalog_panel_config();
+        let padding = config.padding;
+        let title_height = config.title_height;
         let group_title_height = 20.0;
-        let card_width = 72.0;
-        let card_height = 72.0;
-        let column_gap = 8.0;
-        let row_gap = 8.0;
-        let group_gap = 8.0;
-        let columns = 5_usize;
+        let card_width = config.cell_size;
+        let card_height = config.cell_size;
+        let column_gap = config.spacing;
+        let row_gap = config.spacing;
+        let group_gap = config.spacing;
+        let columns = config.columns;
+        let total_entries = catalog
+            .iter()
+            .map(|group| group.entries.len())
+            .sum::<usize>();
+        let page_capacity = config.rows.map(|rows| rows * columns);
+        let page_count = page_capacity
+            .map(|capacity| total_entries.div_ceil(capacity.max(1)).max(1))
+            .unwrap_or(1);
+        self.actions_panel_page = self.actions_panel_page.min(page_count.saturating_sub(1));
+        let page = self.actions_panel_page;
+        let page_start = page_capacity.map(|capacity| page * capacity).unwrap_or(0);
+        let page_end = page_capacity
+            .map(|capacity| (page_start + capacity).min(total_entries))
+            .unwrap_or(total_entries);
+        let mut offset = 0;
+        let mut visible_catalog = Vec::new();
+        for group in &catalog {
+            let group_start = offset;
+            let group_end = group_start + group.entries.len();
+            offset = group_end;
+            let visible_start = page_start.max(group_start);
+            let visible_end = page_end.min(group_end);
+            if visible_start >= visible_end {
+                continue;
+            }
+            let mut visible_group = group.clone();
+            visible_group.entries =
+                group.entries[(visible_start - group_start)..(visible_end - group_start)].to_vec();
+            visible_catalog.push(visible_group);
+        }
+
         let content_width =
             card_width * columns as f32 + column_gap * columns.saturating_sub(1) as f32;
-        let panel_width = padding * 2.0 + content_width;
-        let content_height = self
-            .actions_panel_catalog
+        let content_height = visible_catalog
             .iter()
             .map(|group| {
-                let rows = group.entries.len().div_ceil(columns);
+                let mut rows = group.entries.len().div_ceil(columns);
+                if visible_catalog.len() == 1 {
+                    rows = rows.max(config.rows.unwrap_or(0));
+                }
                 group_title_height
                     + card_height * rows as f32
                     + row_gap * rows.saturating_sub(1) as f32
             })
             .sum::<f32>()
-            + group_gap * self.actions_panel_catalog.len().saturating_sub(1) as f32;
-        let panel_height = title_height + padding * 2.0 + content_height;
+            + group_gap * visible_catalog.len().saturating_sub(1) as f32;
+        let computed_width = padding * 2.0 + content_width;
+        let computed_height = title_height + padding * 2.0 + content_height;
+        let (panel_width, panel_height) = config
+            .authored_rect
+            .map(|rect| (rect.width.max(1.0), rect.height.max(1.0)))
+            .unwrap_or((computed_width, computed_height));
         let viewport_width = self.target.dim().width.max(1) as f32;
         let viewport_height = self.target.dim().height.max(1) as f32;
-        let x = ((viewport_width - panel_width) * 0.5).max(2.0);
-        let y = ((viewport_height - panel_height) * 0.5).max(2.0);
+        let default_x = config
+            .authored_rect
+            .map(|rect| rect.x)
+            .unwrap_or_else(|| ((viewport_width - panel_width) * 0.5).max(2.0));
+        let default_y = config
+            .authored_rect
+            .map(|rect| rect.y)
+            .unwrap_or_else(|| ((viewport_height - panel_height) * 0.5).max(2.0));
+        let position = self
+            .actions_panel_position
+            .unwrap_or_else(|| Vec2::new(default_x.round() as i32, default_y.round() as i32));
+        let x = (position.x as f32).clamp(2.0, (viewport_width - 24.0).max(2.0));
+        let y = (position.y as f32).clamp(2.0, (viewport_height - 24.0).max(2.0));
         let rect = Rect::new(x, y, panel_width, panel_height);
         let close_rect = Rect::new(x + panel_width - 26.0, y + 5.0, 20.0, 20.0);
         let assign_rect = Rect::new(x + panel_width - 100.0, y + 5.0, 66.0, 20.0);
+        let (previous_page_rect, next_page_rect, page_label_rect) = if page_count > 1 {
+            (
+                Some(Rect::new(x + panel_width - 176.0, y + 5.0, 20.0, 20.0)),
+                Some(Rect::new(x + panel_width - 126.0, y + 5.0, 20.0, 20.0)),
+                Some(Rect::new(x + panel_width - 154.0, y + 5.0, 26.0, 20.0)),
+            )
+        } else {
+            (None, None, None)
+        };
+        let reserved_title_width = if page_count > 1 { 178.0 } else { 100.0 };
         let title_rect = Rect::new(
             x + padding,
             y,
-            panel_width - padding * 2.0 - 100.0,
+            (panel_width - padding * 2.0 - reserved_title_width).max(1.0),
             title_height,
         );
 
-        let mut group_layouts = Vec::with_capacity(self.actions_panel_catalog.len());
+        let mut group_layouts = Vec::with_capacity(visible_catalog.len());
         let mut entry_layouts = Vec::new();
         let mut cursor_y = y + title_height + padding;
-        for group in &self.actions_panel_catalog {
+        for group in &visible_catalog {
             group_layouts.push(ActionsPanelGroupLayout {
                 name: group.name.clone(),
                 title_rect: Rect::new(x + padding, cursor_y, content_width, group_title_height),
@@ -4086,11 +4354,20 @@ impl Client {
                 let card_x = x + padding + column as f32 * (card_width + column_gap);
                 let card_y = cursor_y + row as f32 * (card_height + row_gap);
                 let rect = Rect::new(card_x, card_y, card_width, card_height);
+                let label_height = if config.show_names { 18.0 } else { 0.0 };
+                let icon_size = (card_width - config.icon_inset * 2.0)
+                    .min(card_height - config.icon_inset * 2.0 - label_height)
+                    .max(1.0);
                 entry_layouts.push(ActionsPanelEntryLayout {
                     command: entry.command.clone(),
                     name: entry.name.clone(),
                     rect,
-                    icon_rect: Rect::new(card_x + 12.0, card_y + 2.0, 48.0, 48.0),
+                    icon_rect: Rect::new(
+                        card_x + (card_width - icon_size) * 0.5,
+                        card_y + config.icon_inset,
+                        icon_size,
+                        icon_size,
+                    ),
                 });
             }
             let rows = entry_layouts
@@ -4110,6 +4387,11 @@ impl Client {
             title_rect,
             groups: group_layouts,
             entries: entry_layouts,
+            previous_page_rect,
+            next_page_rect,
+            page_label_rect,
+            page,
+            page_count,
         })
     }
 
@@ -4406,6 +4688,24 @@ impl Client {
             self.open_container_title_rect = None;
             self.open_container_close_rect = None;
         }
+        self.tooltip_hover_key = None;
+        self.tooltip_hover_since = None;
+    }
+
+    fn move_catalog_panel_to_cursor(&mut self, p: Vec2<i32>) {
+        let target_width = self.target.dim().width as i32;
+        let target_height = self.target.dim().height as i32;
+        self.actions_panel_position = Some(Vec2::new(
+            (p.x - self.actions_panel_drag_offset.x).clamp(2, (target_width - 24).max(2)),
+            (p.y - self.actions_panel_drag_offset.y).clamp(2, (target_height - 24).max(2)),
+        ));
+        self.actions_panel_rect = None;
+        self.actions_panel_title_rect = None;
+        self.actions_panel_close_rect = None;
+        self.actions_panel_assign_rect = None;
+        self.actions_panel_previous_page_rect = None;
+        self.actions_panel_next_page_rect = None;
+        self.actions_panel_entries.clear();
         self.tooltip_hover_key = None;
         self.tooltip_hover_since = None;
     }
@@ -4758,6 +5058,10 @@ impl Client {
     ) {
         let p = self.screen_to_viewport(coord);
         self.cursor_pos = p;
+        if self.dragging_actions_panel {
+            self.move_catalog_panel_to_cursor(p);
+            return;
+        }
         if self.dragging_container_panel {
             self.move_open_container_panel_to_cursor(p);
             return;
@@ -5051,6 +5355,35 @@ impl Client {
         {
             self.actions_assignment_mode = !self.actions_assignment_mode;
             self.pending_action_assignment = None;
+            return None;
+        }
+        if self
+            .actions_panel_previous_page_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            self.actions_panel_page = self.actions_panel_page.saturating_sub(1);
+            self.actions_panel_entries.clear();
+            return None;
+        }
+        if self
+            .actions_panel_next_page_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            self.actions_panel_page = self.actions_panel_page.saturating_add(1);
+            self.actions_panel_entries.clear();
+            return None;
+        }
+        if let Some(title_rect) = self.actions_panel_title_rect
+            && title_rect.contains(Vec2::new(p.x as f32, p.y as f32))
+            && let Some(panel_rect) = self.actions_panel_rect
+        {
+            self.dragging_actions_panel = true;
+            self.actions_panel_drag_offset = Vec2::new(
+                p.x - panel_rect.x.round() as i32,
+                p.y - panel_rect.y.round() as i32,
+            );
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
             return None;
         }
         if let Some(entry) = self
@@ -5563,6 +5896,11 @@ impl Client {
         assets: &Assets,
     ) -> Option<EntityAction> {
         let mut action = None;
+        if self.dragging_actions_panel {
+            self.dragging_actions_panel = false;
+            self.pressed_widget = None;
+            return None;
+        }
         if self.dragging_container_panel {
             self.dragging_container_panel = false;
             self.pressed_widget = None;
@@ -6136,6 +6474,725 @@ impl Client {
         })
     }
 
+    fn catalog_panel_config(
+        config: &toml::Table,
+        root: Option<&toml::Table>,
+        authored_rect: Option<Rect>,
+        assets: &Assets,
+    ) -> CatalogPanelConfig {
+        let mut parsed = CatalogPanelConfig::default();
+        parsed.columns = config
+            .get("columns")
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(parsed.columns as i64)
+            .max(1) as usize;
+        parsed.rows = config
+            .get("rows")
+            .and_then(toml::Value::as_integer)
+            .map(|rows| rows.max(1) as usize);
+        parsed.cell_size = Self::layout_number(config, "cell_size")
+            .or_else(|| Self::layout_number(config, "slot_size"))
+            .unwrap_or(parsed.cell_size)
+            .max(16.0);
+        parsed.spacing = Self::layout_number(config, "spacing")
+            .or_else(|| Self::layout_number(config, "gap"))
+            .unwrap_or(parsed.spacing)
+            .max(0.0);
+        parsed.padding = Self::layout_number(config, "padding")
+            .unwrap_or(parsed.padding)
+            .max(0.0);
+        parsed.title_height = Self::layout_number(config, "title_height")
+            .unwrap_or(parsed.title_height)
+            .max(20.0);
+        parsed.icon_inset = Self::layout_number(config, "icon_inset")
+            .unwrap_or(parsed.icon_inset)
+            .max(0.0);
+        parsed.show_names = config
+            .get("show_names")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(parsed.show_names);
+        parsed.authored_rect = authored_rect;
+
+        let frame = config
+            .get("frame")
+            .and_then(toml::Value::as_table)
+            .or_else(|| root.and_then(|root| root.get("frame").and_then(toml::Value::as_table)));
+        let slot = config
+            .get("slot")
+            .and_then(toml::Value::as_table)
+            .or_else(|| root.and_then(|root| root.get("slot").and_then(toml::Value::as_table)));
+
+        if let Some(frame) = frame {
+            parsed.background_color = Self::color_from_table(frame, "background_color")
+                .or_else(|| Self::color_from_table(frame, "color"))
+                .unwrap_or(parsed.background_color);
+            parsed.border_color =
+                Self::color_from_table(frame, "border_color").unwrap_or(parsed.border_color);
+            parsed.border_size = frame
+                .get("border_size")
+                .and_then(toml::Value::as_integer)
+                .unwrap_or(parsed.border_size as i64)
+                .max(0) as i32;
+            parsed.frame_texture = Self::action_bar_tile_texture(frame, "tile", assets);
+            parsed.frame_slice = frame
+                .get("slice")
+                .and_then(toml::Value::as_integer)
+                .unwrap_or(0)
+                .max(0) as usize;
+        }
+        if let Some(slot) = slot {
+            parsed.slot_background_color = Self::color_from_table(slot, "background_color")
+                .or_else(|| Self::color_from_table(slot, "color"))
+                .unwrap_or(parsed.slot_background_color);
+            parsed.slot_border_color =
+                Self::color_from_table(slot, "border_color").unwrap_or(parsed.slot_border_color);
+            parsed.slot_border_size = slot
+                .get("border_size")
+                .and_then(toml::Value::as_integer)
+                .unwrap_or(parsed.slot_border_size as i64)
+                .max(0) as i32;
+            parsed.slot_texture = Self::action_bar_tile_texture(slot, "normal_tile", assets)
+                .or_else(|| Self::action_bar_tile_texture(slot, "tile", assets));
+            parsed.slot_slice = slot
+                .get("slice")
+                .and_then(toml::Value::as_integer)
+                .unwrap_or(0)
+                .max(0) as usize;
+        }
+        parsed.title_background_color = Self::color_from_table(config, "title_background_color")
+            .unwrap_or(parsed.title_background_color);
+        parsed.text_color =
+            Self::color_from_table(config, "text_color").unwrap_or(parsed.text_color);
+        parsed.muted_text_color =
+            Self::color_from_table(config, "muted_text_color").unwrap_or(parsed.muted_text_color);
+        parsed
+    }
+
+    fn active_catalog_panel_config(&self) -> CatalogPanelConfig {
+        match self.actions_panel_content {
+            CatalogPanelContent::Actions => self
+                .custom_actions_panel_config
+                .clone()
+                .unwrap_or_else(|| self.toolbar_actions_panel_config.clone()),
+            CatalogPanelContent::Spellbook => self
+                .custom_spellbook_config
+                .clone()
+                .unwrap_or_else(|| self.toolbar_spellbook_config.clone()),
+        }
+    }
+
+    fn parse_action_bar_buttons(buttons: &[toml::Value]) -> Vec<ActionBarButtonConfig> {
+        buttons
+            .iter()
+            .filter_map(|value| {
+                if let Some(command) = value.as_str().map(str::trim).filter(|v| !v.is_empty()) {
+                    return Some(ActionBarButtonConfig {
+                        command: Some(command.to_string()),
+                        ..Default::default()
+                    });
+                }
+
+                let button = value.as_table()?;
+                let text = |key: &str| {
+                    button
+                        .get(key)
+                        .and_then(toml::Value::as_str)
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_string)
+                };
+                Some(ActionBarButtonConfig {
+                    command: text("command"),
+                    command_slot: text("command_slot").or_else(|| text("slot")),
+                    label: text("label").or_else(|| text("text")).unwrap_or_default(),
+                    show_icon: button.get("show_icon").and_then(toml::Value::as_bool),
+                })
+            })
+            .collect()
+    }
+
+    fn action_bar_groups(table: &toml::Table) -> Vec<ActionBarGroupConfig> {
+        let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
+            return vec![];
+        };
+        let default_slot_size = Self::layout_number(ui, "slot_size")
+            .unwrap_or(52.0)
+            .max(1.0);
+        let default_spacing = Self::layout_number(ui, "spacing").unwrap_or(4.0).max(0.0);
+
+        if let Some(groups) = ui.get("groups").and_then(toml::Value::as_array) {
+            let parsed: Vec<_> = groups
+                .iter()
+                .filter_map(toml::Value::as_table)
+                .filter_map(|group| {
+                    let buttons = group
+                        .get("buttons")
+                        .and_then(toml::Value::as_array)
+                        .map(|buttons| Self::parse_action_bar_buttons(buttons))
+                        .unwrap_or_default();
+                    if buttons.is_empty() {
+                        return None;
+                    }
+                    let align = match group
+                        .get("align")
+                        .and_then(toml::Value::as_str)
+                        .unwrap_or("center")
+                        .trim()
+                        .to_ascii_lowercase()
+                        .as_str()
+                    {
+                        "left" => ActionBarGroupAlign::Left,
+                        "right" => ActionBarGroupAlign::Right,
+                        _ => ActionBarGroupAlign::Center,
+                    };
+                    Some(ActionBarGroupConfig {
+                        align,
+                        slot_size: Self::layout_number(group, "slot_size")
+                            .unwrap_or(default_slot_size)
+                            .max(1.0),
+                        spacing: Self::layout_number(group, "spacing")
+                            .unwrap_or(default_spacing)
+                            .max(0.0),
+                        buttons,
+                    })
+                })
+                .collect();
+            if !parsed.is_empty() {
+                return parsed;
+            }
+        }
+
+        ui.get("buttons")
+            .and_then(toml::Value::as_array)
+            .map(|buttons| ActionBarGroupConfig {
+                align: ActionBarGroupAlign::Center,
+                slot_size: default_slot_size,
+                spacing: default_spacing,
+                buttons: Self::parse_action_bar_buttons(buttons),
+            })
+            .filter(|group| !group.buttons.is_empty())
+            .into_iter()
+            .collect()
+    }
+
+    fn action_bar_buttons(table: &toml::Table) -> Vec<ActionBarButtonConfig> {
+        Self::action_bar_groups(table)
+            .into_iter()
+            .flat_map(|group| group.buttons)
+            .collect()
+    }
+
+    fn action_bar_group_width(group: &ActionBarGroupConfig) -> f32 {
+        group.slot_size * group.buttons.len() as f32
+            + group.spacing * group.buttons.len().saturating_sub(1) as f32
+    }
+
+    fn action_bar_band_width(
+        groups: &[ActionBarGroupConfig],
+        align: ActionBarGroupAlign,
+        group_spacing: f32,
+    ) -> f32 {
+        let widths: Vec<_> = groups
+            .iter()
+            .filter(|group| group.align == align)
+            .map(Self::action_bar_group_width)
+            .collect();
+        widths.iter().sum::<f32>() + group_spacing * widths.len().saturating_sub(1) as f32
+    }
+
+    fn action_bar_authored_rect(authored: Rect, table: &toml::Table) -> Rect {
+        let groups = Self::action_bar_groups(table);
+        if groups.is_empty() {
+            return authored;
+        }
+        let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
+            return authored;
+        };
+        if !ui
+            .get("auto_size")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true)
+        {
+            return authored;
+        }
+
+        let padding = Self::layout_number(ui, "padding").unwrap_or(8.0).max(0.0);
+        let edge_padding = Self::layout_number(ui, "edge_padding")
+            .unwrap_or(padding)
+            .max(0.0);
+        let group_spacing = Self::layout_number(ui, "group_spacing")
+            .unwrap_or(18.0)
+            .max(0.0);
+        let left_width =
+            Self::action_bar_band_width(&groups, ActionBarGroupAlign::Left, group_spacing);
+        let center_width =
+            Self::action_bar_band_width(&groups, ActionBarGroupAlign::Center, group_spacing);
+        let right_width =
+            Self::action_bar_band_width(&groups, ActionBarGroupAlign::Right, group_spacing);
+        let content_width = if center_width > 0.0 {
+            let side_width = left_width.max(right_width);
+            center_width
+                + if side_width > 0.0 {
+                    (side_width + group_spacing) * 2.0
+                } else {
+                    0.0
+                }
+        } else {
+            left_width
+                + right_width
+                + if left_width > 0.0 && right_width > 0.0 {
+                    group_spacing
+                } else {
+                    0.0
+                }
+        };
+        let max_slot_size = groups
+            .iter()
+            .map(|group| group.slot_size)
+            .fold(1.0_f32, f32::max);
+        Rect::new(
+            authored.x,
+            authored.y,
+            (edge_padding * 2.0 + content_width).max(1.0),
+            (padding * 2.0 + max_slot_size).max(1.0),
+        )
+    }
+
+    fn action_bar_slot_rects(rect: Rect, table: &toml::Table) -> Vec<Rect> {
+        let groups = Self::action_bar_groups(table);
+        if groups.is_empty() {
+            return vec![];
+        }
+        let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
+            return vec![];
+        };
+        let padding = Self::layout_number(ui, "padding").unwrap_or(8.0).max(0.0);
+        let edge_padding = Self::layout_number(ui, "edge_padding")
+            .unwrap_or(padding)
+            .max(0.0);
+        let group_spacing = Self::layout_number(ui, "group_spacing")
+            .unwrap_or(18.0)
+            .max(0.0);
+        let band_width = |align| Self::action_bar_band_width(&groups, align, group_spacing);
+        let center_width = band_width(ActionBarGroupAlign::Center);
+        let right_width = band_width(ActionBarGroupAlign::Right);
+        let mut left_cursor = rect.x + edge_padding;
+        let mut center_cursor = rect.x + (rect.width - center_width) * 0.5;
+        let mut right_cursor = rect.x + rect.width - edge_padding - right_width;
+        let mut group_rects: Vec<Vec<Rect>> = vec![vec![]; groups.len()];
+
+        for (group_index, group) in groups.iter().enumerate() {
+            let cursor = match group.align {
+                ActionBarGroupAlign::Left => &mut left_cursor,
+                ActionBarGroupAlign::Center => &mut center_cursor,
+                ActionBarGroupAlign::Right => &mut right_cursor,
+            };
+            let y = rect.y + (rect.height - group.slot_size) * 0.5;
+            for button_index in 0..group.buttons.len() {
+                group_rects[group_index].push(Rect::new(
+                    *cursor + button_index as f32 * (group.slot_size + group.spacing),
+                    y,
+                    group.slot_size,
+                    group.slot_size,
+                ));
+            }
+            *cursor += Self::action_bar_group_width(group) + group_spacing;
+        }
+
+        group_rects.into_iter().flatten().collect()
+    }
+
+    fn action_bar_group_separators(rect: Rect, table: &toml::Table) -> Vec<f32> {
+        let groups = Self::action_bar_groups(table);
+        let slots = Self::action_bar_slot_rects(rect, table);
+        let mut slot_index = 0;
+        let mut bounds = Vec::with_capacity(groups.len());
+
+        for group in groups {
+            let group_slots = &slots[slot_index..slot_index + group.buttons.len()];
+            slot_index += group.buttons.len();
+            let Some(first) = group_slots.first() else {
+                continue;
+            };
+            let last = group_slots.last().unwrap_or(first);
+            bounds.push((first.x, last.x + last.width));
+        }
+        bounds.sort_by(|left, right| left.0.total_cmp(&right.0));
+
+        bounds
+            .windows(2)
+            .filter_map(|pair| {
+                let gap_start = pair[0].1;
+                let gap_end = pair[1].0;
+                (gap_end > gap_start).then_some((gap_start + gap_end) * 0.5)
+            })
+            .collect()
+    }
+
+    fn action_bar_tile_texture(table: &toml::Table, key: &str, assets: &Assets) -> Option<Texture> {
+        let id = table
+            .get(key)
+            .and_then(toml::Value::as_str)
+            .and_then(|value| Uuid::parse_str(value.trim()).ok())?;
+        assets
+            .tiles
+            .get(&id)
+            .and_then(|tile| tile.textures.first())
+            .cloned()
+    }
+
+    fn action_bar_state_textures(table: &toml::Table, assets: &Assets) -> Vec<Texture> {
+        let normal = Self::action_bar_tile_texture(table, "normal_tile", assets)
+            .or_else(|| Self::action_bar_tile_texture(table, "tile", assets))
+            .or_else(|| Self::action_bar_tile_texture(table, "hover_tile", assets))
+            .or_else(|| Self::action_bar_tile_texture(table, "selected_tile", assets))
+            .or_else(|| Self::action_bar_tile_texture(table, "pressed_tile", assets))
+            .or_else(|| Self::action_bar_tile_texture(table, "disabled_tile", assets));
+        let Some(normal) = normal else {
+            return vec![];
+        };
+        let selected = Self::action_bar_tile_texture(table, "selected_tile", assets)
+            .unwrap_or_else(|| normal.clone());
+        let pressed = Self::action_bar_tile_texture(table, "pressed_tile", assets)
+            .unwrap_or_else(|| selected.clone());
+        let disabled = Self::action_bar_tile_texture(table, "disabled_tile", assets)
+            .unwrap_or_else(|| normal.clone());
+        let hover = Self::action_bar_tile_texture(table, "hover_tile", assets)
+            .unwrap_or_else(|| normal.clone());
+        vec![normal, selected, pressed, disabled, hover]
+    }
+
+    fn action_bar_slot_textures(table: &toml::Table, assets: &Assets) -> Vec<Texture> {
+        table
+            .get("slot")
+            .and_then(toml::Value::as_table)
+            .map(|slot| Self::action_bar_state_textures(slot, assets))
+            .unwrap_or_default()
+    }
+
+    fn next_action_bar_button_id(&self, screen: &Map) -> u32 {
+        let mut id = u32::MAX;
+        while self.button_widgets.contains_key(&id)
+            || self.text_input_widgets.contains_key(&id)
+            || screen.sectors.iter().any(|sector| sector.id == id)
+        {
+            id = id.wrapping_sub(1);
+        }
+        id
+    }
+
+    fn insert_action_bar(
+        &mut self,
+        screen: &Map,
+        sector_id: u32,
+        creator_id: Uuid,
+        name: &str,
+        rect: Rect,
+        table: &toml::Table,
+        assigned_textures: &[Texture],
+        assets: &Assets,
+    ) {
+        let ui = table.get("ui").and_then(toml::Value::as_table);
+        let frame = table.get("frame").and_then(toml::Value::as_table);
+        let slot = table.get("slot").and_then(toml::Value::as_table);
+        let slot_frame = slot
+            .and_then(|slot| slot.get("frame"))
+            .and_then(toml::Value::as_table);
+
+        if let Some(spellbook) = ui
+            .and_then(|ui| ui.get("spellbook"))
+            .and_then(toml::Value::as_table)
+        {
+            self.toolbar_spellbook_config =
+                Self::catalog_panel_config(spellbook, None, None, assets);
+        }
+        if let Some(actions) = ui
+            .and_then(|ui| ui.get("actions"))
+            .and_then(toml::Value::as_table)
+        {
+            self.toolbar_actions_panel_config =
+                Self::catalog_panel_config(actions, None, None, assets);
+        }
+
+        let mut frame_textures = frame
+            .and_then(|frame| Self::action_bar_tile_texture(frame, "tile", assets))
+            .map(|texture| vec![texture])
+            .unwrap_or_else(|| assigned_textures.first().cloned().into_iter().collect());
+        frame_textures.truncate(1);
+        let frame_color = frame
+            .and_then(|frame| {
+                Self::color_from_table(frame, "background_color")
+                    .or_else(|| Self::color_from_table(frame, "color"))
+            })
+            .unwrap_or([21, 18, 13, 204]);
+        let (
+            frame_border_color,
+            frame_border_size,
+            frame_border_gradient_color,
+            frame_border_gradient_direction,
+            frame_border_radius,
+        ) = frame
+            .map(|frame| Self::border_style_from_table(frame, [143, 117, 70, 255], 2))
+            .unwrap_or((
+                [143, 117, 70, 255],
+                2,
+                None,
+                BorderGradientDirection::Vertical,
+                0.0,
+            ));
+        let frame_slice = frame
+            .and_then(|frame| frame.get("slice"))
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(0)
+            .max(0) as usize;
+        let separator = table.get("separator").and_then(toml::Value::as_table);
+        let separator_size = separator
+            .and_then(|separator| separator.get("size"))
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(0)
+            .max(0) as i32;
+        let separator_color = separator
+            .and_then(|separator| {
+                Self::color_from_table(separator, "from")
+                    .or_else(|| Self::color_from_table(separator, "color"))
+            })
+            .unwrap_or([143, 117, 70, 255]);
+        let separator_gradient_color =
+            separator.and_then(|separator| Self::color_from_table(separator, "to"));
+        let separator_margin = separator
+            .and_then(|separator| Self::layout_number(separator, "margin"))
+            .unwrap_or(8.0)
+            .max(0.0);
+        let separators = if separator_size > 0 {
+            Self::action_bar_group_separators(rect, table)
+        } else {
+            vec![]
+        };
+        let top_separator = table.get("top_separator").and_then(toml::Value::as_table);
+        let top_separator_size = top_separator
+            .and_then(|separator| separator.get("size"))
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(0)
+            .max(0) as i32;
+        let top_separator_color = top_separator
+            .and_then(|separator| {
+                Self::color_from_table(separator, "from")
+                    .or_else(|| Self::color_from_table(separator, "color"))
+            })
+            .unwrap_or([143, 117, 70, 255]);
+        let top_separator_gradient_color =
+            top_separator.and_then(|separator| Self::color_from_table(separator, "to"));
+        let top_separator_inset = top_separator
+            .and_then(|separator| Self::layout_number(separator, "inset"))
+            .unwrap_or(0.0)
+            .max(0.0);
+        let top_separator_offset = top_separator
+            .and_then(|separator| Self::layout_number(separator, "offset"))
+            .unwrap_or(0.0);
+        let layer = ui
+            .and_then(|ui| ui.get("layer"))
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(0) as i32;
+        self.deco_widgets.insert(
+            creator_id,
+            DecoWidget {
+                rect,
+                buffer: TheRGBABuffer::new(TheDim::sized(
+                    rect.width.round().max(1.0) as i32,
+                    rect.height.round().max(1.0) as i32,
+                )),
+                layer,
+                color: frame_color,
+                border_color: frame_border_color,
+                border_size: frame_border_size,
+                border_gradient_color: frame_border_gradient_color,
+                border_gradient_direction: frame_border_gradient_direction,
+                border_radius: frame_border_radius,
+                textures: frame_textures,
+                texture_slice: frame_slice,
+                separators,
+                separator_color,
+                separator_gradient_color,
+                separator_size,
+                separator_margin,
+                top_separator_color,
+                top_separator_gradient_color,
+                top_separator_size,
+                top_separator_inset,
+                top_separator_offset,
+                ..Default::default()
+            },
+        );
+
+        let buttons = Self::action_bar_buttons(table);
+        let rects = Self::action_bar_slot_rects(rect, table);
+        let slot_textures = Self::action_bar_slot_textures(table, assets);
+        let slot_slice = slot
+            .and_then(|slot| slot.get("slice"))
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(0)
+            .max(0) as usize;
+        let slot_frame_textures = slot_frame
+            .map(|frame| Self::action_bar_state_textures(frame, assets))
+            .unwrap_or_default();
+        let slot_frame_slice = slot_frame
+            .and_then(|frame| frame.get("slice"))
+            .and_then(toml::Value::as_integer)
+            .or_else(|| {
+                slot.and_then(|slot| slot.get("frame_slice"))
+                    .and_then(toml::Value::as_integer)
+            })
+            .unwrap_or(0)
+            .max(0) as usize;
+        let icon_inset = slot
+            .and_then(|slot| Self::layout_number(slot, "icon_inset"))
+            .map(|value| value.max(0.0));
+        let background_color = slot
+            .and_then(|slot| {
+                Self::color_from_table(slot, "background_color")
+                    .or_else(|| Self::color_from_table(slot, "color"))
+            })
+            .or(Some([33, 28, 21, 238]));
+        let (
+            border_color,
+            border_size,
+            border_gradient_color,
+            border_gradient_direction,
+            border_radius,
+        ) = slot
+            .map(|slot| Self::border_style_from_table(slot, [119, 100, 69, 255], 1))
+            .unwrap_or((
+                [119, 100, 69, 255],
+                1,
+                None,
+                BorderGradientDirection::Vertical,
+                0.0,
+            ));
+        let label_color = slot
+            .and_then(|slot| {
+                Self::color_from_table(slot, "text_color")
+                    .or_else(|| Self::color_from_table(slot, "color"))
+            })
+            .unwrap_or(crate::WHITE);
+        let label_font = slot
+            .and_then(|slot| slot.get("font"))
+            .and_then(toml::Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let label_font_size = slot
+            .and_then(|slot| Self::layout_number(slot, "font_size"))
+            .unwrap_or(18.0);
+        let party = ui
+            .and_then(|ui| ui.get("party"))
+            .and_then(toml::Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
+        let default_show_icon = ui
+            .and_then(|ui| ui.get("show_icon"))
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(true);
+        let hover_style = slot
+            .map(|slot| {
+                Self::button_state_style_from_ui(
+                    slot,
+                    "hover",
+                    "hover_background_color",
+                    "hover_border_color",
+                    "hover_color",
+                )
+            })
+            .unwrap_or_default();
+        let selected_style = slot
+            .map(|slot| {
+                Self::button_state_style_from_ui(
+                    slot,
+                    "selected",
+                    "selected_background_color",
+                    "selected_border_color",
+                    "selected_color",
+                )
+            })
+            .unwrap_or_default();
+        let pressed_style = slot
+            .map(|slot| {
+                Self::button_state_style_from_ui(
+                    slot,
+                    "pressed",
+                    "pressed_background_color",
+                    "pressed_border_color",
+                    "pressed_color",
+                )
+            })
+            .unwrap_or_default();
+        let disabled_style = slot
+            .map(|slot| {
+                Self::button_state_style_from_ui(
+                    slot,
+                    "disabled",
+                    "disabled_background_color",
+                    "disabled_border_color",
+                    "disabled_color",
+                )
+            })
+            .unwrap_or_default();
+
+        let mut ids = Vec::with_capacity(buttons.len());
+        for (index, (config, button_rect)) in buttons.into_iter().zip(rects).enumerate() {
+            let id = self.next_action_bar_button_id(screen);
+            ids.push(id);
+            self.button_widgets.insert(
+                id,
+                Widget {
+                    name: format!("{} Slot {}", name, index + 1),
+                    id,
+                    rect: button_rect,
+                    command: config.command,
+                    command_slot: config.command_slot,
+                    party: party.clone(),
+                    chrome_textures: slot_textures.clone(),
+                    chrome_slice: slot_slice,
+                    frame_textures: slot_frame_textures.clone(),
+                    frame_slice: slot_frame_slice,
+                    icon_inset,
+                    border_color,
+                    border_size,
+                    border_gradient_color,
+                    border_gradient_direction,
+                    border_radius,
+                    show_icon: config.show_icon.unwrap_or(default_show_icon),
+                    label: config.label,
+                    label_font: label_font.clone(),
+                    label_font_size,
+                    label_color,
+                    background_color,
+                    hover_style,
+                    selected_style,
+                    pressed_style,
+                    disabled_style,
+                    ..Widget::new()
+                },
+            );
+        }
+        self.action_bar_button_ids.insert(sector_id, ids);
+    }
+
+    fn relayout_action_bar(&mut self, sector_id: u32, creator_id: Uuid, rect: Rect, table: &Table) {
+        if let Some(widget) = self.deco_widgets.get_mut(&creator_id) {
+            widget.rect = rect;
+            widget.separators = Self::action_bar_group_separators(rect, table);
+            Self::resize_widget_buffer(&mut widget.buffer, rect);
+        }
+        let rects = Self::action_bar_slot_rects(rect, table);
+        if let Some(ids) = self.action_bar_button_ids.get(&sector_id) {
+            for (id, rect) in ids.iter().zip(rects) {
+                if let Some(widget) = self.button_widgets.get_mut(id) {
+                    widget.rect = rect;
+                }
+            }
+        }
+    }
+
     fn resolve_screen_element_rect(&self, authored: Rect, role: &str, table: &toml::Table) -> Rect {
         if !self.screen_responsive {
             return authored;
@@ -6149,13 +7206,15 @@ impl Client {
             );
         }
 
-        let Some(layout) = table.get("layout").and_then(toml::Value::as_table) else {
-            return authored;
-        };
-        let Some(anchor) = layout
-            .get("anchor")
+        let layout = table.get("layout").and_then(toml::Value::as_table);
+        let explicit_anchor = layout
+            .and_then(|layout| layout.get("anchor"))
             .and_then(toml::Value::as_str)
-            .and_then(ScreenAnchor::parse)
+            .and_then(ScreenAnchor::parse);
+        let implicit_action_bar_anchor =
+            explicit_anchor.is_none() && role.eq_ignore_ascii_case("action_bar");
+        let Some(anchor) = explicit_anchor
+            .or_else(|| implicit_action_bar_anchor.then_some(ScreenAnchor::BottomCenter))
         else {
             return authored;
         };
@@ -6166,28 +7225,42 @@ impl Client {
         let viewport_h = self.viewport.y.max(1) as f32;
         let authored_right = authored.x + authored.width;
         let authored_bottom = authored.y + authored.height;
-        let default_x = match anchor {
-            ScreenAnchor::TopLeft | ScreenAnchor::CenterLeft | ScreenAnchor::BottomLeft => {
-                authored.x
-            }
-            ScreenAnchor::TopCenter | ScreenAnchor::Center | ScreenAnchor::BottomCenter => {
-                authored.x + authored.width * 0.5 - reference_w * 0.5
-            }
-            ScreenAnchor::TopRight | ScreenAnchor::CenterRight | ScreenAnchor::BottomRight => {
-                authored_right - reference_w
-            }
-        };
-        let default_y = match anchor {
-            ScreenAnchor::TopLeft | ScreenAnchor::TopCenter | ScreenAnchor::TopRight => authored.y,
-            ScreenAnchor::CenterLeft | ScreenAnchor::Center | ScreenAnchor::CenterRight => {
-                authored.y + authored.height * 0.5 - reference_h * 0.5
-            }
-            ScreenAnchor::BottomLeft | ScreenAnchor::BottomCenter | ScreenAnchor::BottomRight => {
-                authored_bottom - reference_h
+        let default_x = if implicit_action_bar_anchor {
+            0.0
+        } else {
+            match anchor {
+                ScreenAnchor::TopLeft | ScreenAnchor::CenterLeft | ScreenAnchor::BottomLeft => {
+                    authored.x
+                }
+                ScreenAnchor::TopCenter | ScreenAnchor::Center | ScreenAnchor::BottomCenter => {
+                    authored.x + authored.width * 0.5 - reference_w * 0.5
+                }
+                ScreenAnchor::TopRight | ScreenAnchor::CenterRight | ScreenAnchor::BottomRight => {
+                    authored_right - reference_w
+                }
             }
         };
-        let offset_x = Self::layout_number(layout, "x").unwrap_or(default_x);
-        let offset_y = Self::layout_number(layout, "y").unwrap_or(default_y);
+        let default_y = if implicit_action_bar_anchor {
+            -16.0
+        } else {
+            match anchor {
+                ScreenAnchor::TopLeft | ScreenAnchor::TopCenter | ScreenAnchor::TopRight => {
+                    authored.y
+                }
+                ScreenAnchor::CenterLeft | ScreenAnchor::Center | ScreenAnchor::CenterRight => {
+                    authored.y + authored.height * 0.5 - reference_h * 0.5
+                }
+                ScreenAnchor::BottomLeft
+                | ScreenAnchor::BottomCenter
+                | ScreenAnchor::BottomRight => authored_bottom - reference_h,
+            }
+        };
+        let offset_x = layout
+            .and_then(|layout| Self::layout_number(layout, "x"))
+            .unwrap_or(default_x);
+        let offset_y = layout
+            .and_then(|layout| Self::layout_number(layout, "y"))
+            .unwrap_or(default_y);
 
         let x = match anchor {
             ScreenAnchor::TopLeft | ScreenAnchor::CenterLeft | ScreenAnchor::BottomLeft => offset_x,
@@ -6207,7 +7280,18 @@ impl Client {
                 viewport_h - authored.height + offset_y
             }
         };
-        Rect::new(x, y, authored.width, authored.height)
+        let fill_width = role.eq_ignore_ascii_case("action_bar")
+            && table
+                .get("ui")
+                .and_then(toml::Value::as_table)
+                .and_then(|ui| ui.get("fill_width"))
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(false);
+        if fill_width {
+            Rect::new(0.0, y, viewport_w, authored.height)
+        } else {
+            Rect::new(x, y, authored.width, authored.height)
+        }
     }
 
     fn resize_widget_buffer(buffer: &mut TheRGBABuffer, rect: Rect) {
@@ -6244,26 +7328,31 @@ impl Client {
                 .and_then(toml::Value::as_table)
                 .and_then(|ui| ui.get("role"))
                 .and_then(toml::Value::as_str)
+                .map(str::to_string)
             else {
                 continue;
             };
             let bb = sector.bounding_box(screen);
-            let authored = Rect::new(
+            let mut authored = Rect::new(
                 (bb.min.x - start_x) * self.grid_size,
                 (bb.min.y - start_y) * self.grid_size,
                 bb.size().x * self.grid_size,
                 bb.size().y * self.grid_size,
             );
+            if role == "action_bar" {
+                authored = Self::action_bar_authored_rect(authored, &table);
+            }
             resolved.push((
-                role.to_string(),
+                role.clone(),
                 sector.id,
                 sector.creator_id,
                 sector.name.clone(),
-                self.resolve_screen_element_rect(authored, role, &table),
+                self.resolve_screen_element_rect(authored, &role, &table),
+                table,
             ));
         }
 
-        for (role, sector_id, creator_id, name, rect) in resolved {
+        for (role, sector_id, creator_id, name, rect, table) in resolved {
             match role.as_str() {
                 "game" => {
                     if let Some(widget) = self.game_widgets.get_mut(&creator_id) {
@@ -6320,6 +7409,19 @@ impl Client {
                     if let Some(widget) = self.deco_widgets.get_mut(&creator_id) {
                         widget.rect = rect;
                         Self::resize_widget_buffer(&mut widget.buffer, rect);
+                    }
+                }
+                "action_bar" => {
+                    self.relayout_action_bar(sector_id, creator_id, rect, &table);
+                }
+                "spellbook" => {
+                    if let Some(config) = self.custom_spellbook_config.as_mut() {
+                        config.authored_rect = Some(rect);
+                    }
+                }
+                "actions" => {
+                    if let Some(config) = self.custom_actions_panel_config.as_mut() {
+                        config.authored_rect = Some(rect);
                     }
                 }
                 _ => {}
@@ -6382,7 +7484,7 @@ impl Client {
                     self.grid_size,
                 );
 
-                let authored_rect = Rect::new(
+                let mut authored_rect = Rect::new(
                     (bb.min.x - start_x) * self.grid_size,
                     (bb.min.y - start_y) * self.grid_size,
                     bb.size().x * self.grid_size,
@@ -6416,6 +7518,9 @@ impl Client {
                             }
                         }
 
+                        if role == "action_bar" {
+                            authored_rect = Self::action_bar_authored_rect(authored_rect, &table);
+                        }
                         let rect = self.resolve_screen_element_rect(authored_rect, role, &table);
                         let (x, y, width, height) = (rect.x, rect.y, rect.width, rect.height);
 
@@ -6798,6 +7903,26 @@ impl Client {
                                 );
                             }
 
+                            let (
+                                border_color,
+                                border_size,
+                                border_gradient_color,
+                                border_gradient_direction,
+                                border_radius,
+                            ) = table
+                                .get("ui")
+                                .and_then(toml::Value::as_table)
+                                .map(|ui| {
+                                    Self::border_style_from_table(ui, border_color, border_size)
+                                })
+                                .unwrap_or((
+                                    border_color,
+                                    border_size,
+                                    None,
+                                    BorderGradientDirection::Vertical,
+                                    0.0,
+                                ));
+
                             let button_widget = Widget {
                                 name: widget.name.clone(),
                                 id: widget.id,
@@ -6825,6 +7950,11 @@ impl Client {
                                 equipped_slot,
                                 portrait,
                                 drag_drop,
+                                chrome_textures: vec![],
+                                chrome_slice: 0,
+                                frame_textures: vec![],
+                                frame_slice: 0,
+                                icon_inset: None,
                                 textures,
                                 entity_cursor_id,
                                 entity_clicked_cursor_id,
@@ -6832,6 +7962,10 @@ impl Client {
                                 item_clicked_cursor_id,
                                 border_color,
                                 border_size,
+                                border_gradient_color,
+                                border_gradient_direction,
+                                border_radius,
+                                border_painter: ThePainter::new(),
                                 show_icon,
                                 label,
                                 label_font,
@@ -6845,6 +7979,28 @@ impl Client {
                             };
 
                             self.button_widgets.insert(widget.id, button_widget);
+                        } else if role == "action_bar" {
+                            self.insert_action_bar(
+                                screen,
+                                widget.id,
+                                widget.creator_id,
+                                &widget.name,
+                                rect,
+                                &table,
+                                &textures,
+                                assets,
+                            );
+                        } else if role == "spellbook" || role == "actions" {
+                            let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
+                                continue;
+                            };
+                            let config =
+                                Self::catalog_panel_config(ui, Some(&table), Some(rect), assets);
+                            if role == "spellbook" {
+                                self.custom_spellbook_config = Some(config);
+                            } else {
+                                self.custom_actions_panel_config = Some(config);
+                            }
                         } else if role == "input" {
                             let mut binding = widget.name.clone();
                             let mut text = String::new();
@@ -7570,14 +8726,21 @@ impl Client {
     fn draw_actions_panel(&mut self, map: &Map, assets: &Assets) {
         let Some(layout) = self.actions_panel_layout(map, assets) else {
             self.actions_panel_rect = None;
+            self.actions_panel_title_rect = None;
             self.actions_panel_close_rect = None;
             self.actions_panel_assign_rect = None;
+            self.actions_panel_previous_page_rect = None;
+            self.actions_panel_next_page_rect = None;
             self.actions_panel_entries.clear();
             return;
         };
+        let config = self.active_catalog_panel_config();
         self.actions_panel_rect = Some(layout.rect);
+        self.actions_panel_title_rect = Some(layout.title_rect);
         self.actions_panel_close_rect = Some(layout.close_rect);
         self.actions_panel_assign_rect = Some(layout.assign_rect);
+        self.actions_panel_previous_page_rect = layout.previous_page_rect;
+        self.actions_panel_next_page_rect = layout.next_page_rect;
         self.actions_panel_entries = layout.entries.clone();
 
         let stride = self.target.stride();
@@ -7598,20 +8761,8 @@ impl Client {
             self.target.pixels_mut(),
             &panel_rect,
             stride,
-            &[10, 12, 15, 242],
+            &config.background_color,
             &safe,
-        );
-        self.draw2d.rect_outline_thickness(
-            self.target.pixels_mut(),
-            &(
-                layout.rect.x.round() as usize,
-                layout.rect.y.round() as usize,
-                layout.rect.width.round().max(1.0) as usize,
-                layout.rect.height.round().max(1.0) as usize,
-            ),
-            stride,
-            &[98, 105, 116, 255],
-            1,
         );
         self.draw2d.blend_rect_safe(
             self.target.pixels_mut(),
@@ -7619,12 +8770,35 @@ impl Client {
                 layout.rect.x.round() as isize,
                 layout.rect.y.round() as isize,
                 layout.rect.width.round().max(1.0) as isize,
-                30,
+                config.title_height.round().max(1.0) as isize,
             ),
             stride,
-            &[20, 24, 30, 245],
+            &config.title_background_color,
             &safe,
         );
+        if let Some(texture) = &config.frame_texture {
+            widget::blend_texture_layer(
+                &mut self.target,
+                layout.rect,
+                &self.draw2d,
+                texture,
+                config.frame_slice,
+            );
+        }
+        if config.border_size > 0 {
+            self.draw2d.rect_outline_thickness(
+                self.target.pixels_mut(),
+                &(
+                    layout.rect.x.round() as usize,
+                    layout.rect.y.round() as usize,
+                    layout.rect.width.round().max(1.0) as usize,
+                    layout.rect.height.round().max(1.0) as usize,
+                ),
+                stride,
+                &config.border_color,
+                config.border_size as usize,
+            );
+        }
 
         let actor = Self::resolve_party_entity(map, None);
         let class_name = actor
@@ -7634,10 +8808,11 @@ impl Client {
                     .or_else(|| actor.get_attr_string("class_name"))
             })
             .unwrap_or_default();
+        let panel_title = self.actions_panel_content.title();
         let title = if class_name.trim().is_empty() {
-            "Actions".to_string()
+            panel_title.to_string()
         } else {
-            format!("Actions — {}", class_name.trim())
+            format!("{} — {}", panel_title, class_name.trim())
         };
         let font = self
             .messages_font
@@ -7656,7 +8831,7 @@ impl Client {
                 font,
                 self.messages_font_size.clamp(13.0, 17.0),
                 &title,
-                &[236, 233, 214, 255],
+                &config.text_color,
                 draw2d::TheHorizontalAlign::Left,
                 draw2d::TheVerticalAlign::Center,
                 &safe,
@@ -7703,7 +8878,7 @@ impl Client {
             &self.draw2d,
             &mut self.target,
             layout.close_rect,
-            &[236, 233, 214, 255],
+            &config.text_color,
         );
 
         let assign_hovered = layout.assign_rect.contains(Vec2::new(
@@ -7757,11 +8932,89 @@ impl Client {
                 font,
                 11.0,
                 "Assign",
-                &[236, 233, 214, 255],
+                &config.text_color,
                 draw2d::TheHorizontalAlign::Center,
                 draw2d::TheVerticalAlign::Center,
                 &safe,
             );
+        }
+
+        if let (Some(previous), Some(next), Some(label)) = (
+            layout.previous_page_rect,
+            layout.next_page_rect,
+            layout.page_label_rect,
+        ) {
+            for (rect, enabled) in [
+                (previous, layout.page > 0),
+                (next, layout.page + 1 < layout.page_count),
+            ] {
+                self.draw2d.blend_rect_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        rect.x.round() as isize,
+                        rect.y.round() as isize,
+                        rect.width.round().max(1.0) as isize,
+                        rect.height.round().max(1.0) as isize,
+                    ),
+                    stride,
+                    if enabled {
+                        &[42, 47, 54, 230]
+                    } else {
+                        &[24, 27, 31, 180]
+                    },
+                    &safe,
+                );
+                self.draw2d.rect_outline_thickness(
+                    self.target.pixels_mut(),
+                    &(
+                        rect.x.round() as usize,
+                        rect.y.round() as usize,
+                        rect.width.round().max(1.0) as usize,
+                        rect.height.round().max(1.0) as usize,
+                    ),
+                    stride,
+                    &config.border_color,
+                    1,
+                );
+            }
+            if let Some(font) = font {
+                for (rect, text) in [(previous, "<"), (next, ">")] {
+                    self.draw2d.text_rect_blend_safe(
+                        self.target.pixels_mut(),
+                        &(
+                            rect.x.round() as isize,
+                            rect.y.round() as isize,
+                            rect.width.round().max(1.0) as isize,
+                            rect.height.round().max(1.0) as isize,
+                        ),
+                        stride,
+                        font,
+                        11.0,
+                        text,
+                        &config.text_color,
+                        draw2d::TheHorizontalAlign::Center,
+                        draw2d::TheVerticalAlign::Center,
+                        &safe,
+                    );
+                }
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        label.x.round() as isize,
+                        label.y.round() as isize,
+                        label.width.round().max(1.0) as isize,
+                        label.height.round().max(1.0) as isize,
+                    ),
+                    stride,
+                    font,
+                    10.0,
+                    &format!("{}/{}", layout.page + 1, layout.page_count),
+                    &config.muted_text_color,
+                    draw2d::TheHorizontalAlign::Center,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
         }
 
         if let Some(font) = font {
@@ -7778,7 +9031,7 @@ impl Client {
                     font,
                     self.messages_font_size.clamp(11.0, 14.0),
                     &group.name,
-                    &[174, 179, 183, 255],
+                    &config.muted_text_color,
                     draw2d::TheHorizontalAlign::Left,
                     draw2d::TheVerticalAlign::Center,
                     &safe,
@@ -7815,7 +9068,7 @@ impl Client {
             } else if hovered {
                 [48, 54, 62, 242]
             } else {
-                [31, 35, 41, 232]
+                config.slot_background_color
             };
             self.draw2d.blend_rect_safe(
                 self.target.pixels_mut(),
@@ -7829,24 +9082,35 @@ impl Client {
                 &background,
                 &safe,
             );
-            self.draw2d.rect_outline_thickness(
-                self.target.pixels_mut(),
-                &(
-                    entry.rect.x.round() as usize,
-                    entry.rect.y.round() as usize,
-                    entry.rect.width.round().max(1.0) as usize,
-                    entry.rect.height.round().max(1.0) as usize,
-                ),
-                stride,
-                if selected || assignment_selected {
-                    &[238, 214, 118, 255]
-                } else if hovered && state.enabled {
-                    &[174, 179, 183, 255]
-                } else {
-                    &[72, 78, 87, 255]
-                },
-                1,
-            );
+            if let Some(texture) = &config.slot_texture {
+                widget::blend_texture_layer(
+                    &mut self.target,
+                    entry.rect,
+                    &self.draw2d,
+                    texture,
+                    config.slot_slice,
+                );
+            }
+            if config.slot_border_size > 0 {
+                self.draw2d.rect_outline_thickness(
+                    self.target.pixels_mut(),
+                    &(
+                        entry.rect.x.round() as usize,
+                        entry.rect.y.round() as usize,
+                        entry.rect.width.round().max(1.0) as usize,
+                        entry.rect.height.round().max(1.0) as usize,
+                    ),
+                    stride,
+                    if selected || assignment_selected {
+                        &[238, 214, 118, 255]
+                    } else if hovered && state.enabled {
+                        &[174, 179, 183, 255]
+                    } else {
+                        &config.slot_border_color
+                    },
+                    config.slot_border_size as usize,
+                );
+            }
 
             let mut icon = Widget::new();
             icon.rect = entry.icon_rect;
@@ -7874,7 +9138,9 @@ impl Client {
                 );
             }
 
-            if let Some(font) = font {
+            if config.show_names
+                && let Some(font) = font
+            {
                 let lines = Self::wrap_tooltip_line(
                     &self.draw2d,
                     font,
@@ -7887,7 +9153,8 @@ impl Client {
                         self.target.pixels_mut(),
                         &(
                             (entry.rect.x + 3.0).round() as isize,
-                            (entry.rect.y + 51.0 + line_index as f32 * 10.0).round() as isize,
+                            (entry.rect.y + entry.rect.height - 19.0 + line_index as f32 * 10.0)
+                                .round() as isize,
                             (entry.rect.width - 6.0).round().max(1.0) as isize,
                             10,
                         ),
@@ -8605,6 +9872,197 @@ mod tests {
     }
 
     #[test]
+    fn action_bar_auto_sizes_and_centers_generated_slots() {
+        let table = r#"
+            [ui]
+            role = "action_bar"
+            slot_size = 52
+            spacing = 4
+            padding = 8
+            buttons = [
+                { command = "intent.look" },
+                { command_slot = "main.0" },
+                { command = "ui.actions", label = "Actions", show_icon = false },
+            ]
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+
+        let authored =
+            Client::action_bar_authored_rect(Rect::new(100.0, 200.0, 32.0, 32.0), &table);
+        assert_eq!(authored, Rect::new(100.0, 200.0, 180.0, 68.0));
+
+        let slots = Client::action_bar_slot_rects(authored, &table);
+        assert_eq!(slots.len(), 3);
+        assert_eq!(slots[0], Rect::new(108.0, 208.0, 52.0, 52.0));
+        assert_eq!(slots[1], Rect::new(164.0, 208.0, 52.0, 52.0));
+        assert_eq!(slots[2], Rect::new(220.0, 208.0, 52.0, 52.0));
+
+        let buttons = Client::action_bar_buttons(&table);
+        assert_eq!(buttons[0].command.as_deref(), Some("intent.look"));
+        assert_eq!(buttons[1].command_slot.as_deref(), Some("main.0"));
+        assert_eq!(buttons[2].label, "Actions");
+        assert_eq!(buttons[2].show_icon, Some(false));
+    }
+
+    #[test]
+    fn nested_border_style_parses_gradient_and_keeps_flat_fallbacks() {
+        let table = r##"
+            border_size = 1
+            border_color = "#112233"
+
+            [border]
+            size = 3
+            radius = 4
+            from = "#e5c477"
+            to = "#5d3b18"
+            direction = "diagonal"
+        "##
+        .parse::<toml::Table>()
+        .unwrap();
+
+        let (from, size, to, direction, radius) =
+            Client::border_style_from_table(&table, [0, 0, 0, 255], 0);
+        assert_eq!(from, [229, 196, 119, 255]);
+        assert_eq!(size, 3);
+        assert_eq!(to, Some([93, 59, 24, 255]));
+        assert_eq!(direction, BorderGradientDirection::Diagonal);
+        assert_eq!(radius, 4.0);
+    }
+
+    #[test]
+    fn responsive_action_bar_anchors_the_auto_sized_group() {
+        let mut client = Client::new();
+        client.screen_responsive = true;
+        client.reference_viewport = Vec2::new(960, 540);
+        client.viewport = Vec2::new(1280, 720);
+        let table = r#"
+            [ui]
+            role = "action_bar"
+            slot_size = 52
+            spacing = 4
+            padding = 8
+            buttons = ["intent.look", "intent.use", "ui.actions"]
+
+            [layout]
+            anchor = "bottom_center"
+            x = 0
+            y = -16
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+
+        let authored = Client::action_bar_authored_rect(Rect::new(0.0, 0.0, 32.0, 32.0), &table);
+        let rect = client.resolve_screen_element_rect(authored, "action_bar", &table);
+        assert_eq!(rect, Rect::new(550.0, 636.0, 180.0, 68.0));
+    }
+
+    #[test]
+    fn responsive_action_bar_defaults_to_bottom_center_without_layout_settings() {
+        let mut client = Client::new();
+        client.screen_responsive = true;
+        client.reference_viewport = Vec2::new(960, 540);
+        client.viewport = Vec2::new(1280, 720);
+        let table = r#"
+            [ui]
+            role = "action_bar"
+            slot_size = 52
+            spacing = 4
+            padding = 8
+            buttons = ["intent.look", "intent.use", "ui.actions"]
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+
+        let authored =
+            Client::action_bar_authored_rect(Rect::new(100.0, 400.0, 32.0, 32.0), &table);
+        let rect = client.resolve_screen_element_rect(authored, "action_bar", &table);
+        assert_eq!(rect, Rect::new(550.0, 636.0, 180.0, 68.0));
+    }
+
+    #[test]
+    fn responsive_action_bar_can_fill_the_bottom_edge() {
+        let mut client = Client::new();
+        client.screen_responsive = true;
+        client.reference_viewport = Vec2::new(960, 540);
+        client.viewport = Vec2::new(1280, 720);
+        let table = r#"
+            [ui]
+            role = "action_bar"
+            fill_width = true
+            slot_size = 44
+            padding = 5
+            edge_padding = 14
+
+            [[ui.groups]]
+            align = "left"
+            buttons = ["ui.spellbook"]
+
+            [[ui.groups]]
+            align = "right"
+            buttons = ["intent.look"]
+
+            [layout]
+            anchor = "bottom_center"
+            y = 0
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+
+        let authored = Client::action_bar_authored_rect(Rect::new(0.0, 0.0, 32.0, 32.0), &table);
+        let rect = client.resolve_screen_element_rect(authored, "action_bar", &table);
+        assert_eq!(rect, Rect::new(0.0, 666.0, 1280.0, 54.0));
+        assert_eq!(
+            Client::action_bar_slot_rects(rect, &table),
+            vec![
+                Rect::new(14.0, 671.0, 44.0, 44.0),
+                Rect::new(1222.0, 671.0, 44.0, 44.0),
+            ]
+        );
+    }
+
+    #[test]
+    fn grouped_action_bar_keeps_navigation_center_and_actions_apart() {
+        let table = r#"
+            [ui]
+            role = "action_bar"
+            slot_size = 52
+            spacing = 4
+            padding = 8
+            group_spacing = 18
+
+            [[ui.groups]]
+            align = "left"
+            buttons = ["ui.spellbook", "ui.actions"]
+
+            [[ui.groups]]
+            align = "center"
+            buttons = [{ command_slot = "main.0" }]
+
+            [[ui.groups]]
+            align = "right"
+            buttons = ["intent.look", "intent.use"]
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+
+        let authored =
+            Client::action_bar_authored_rect(Rect::new(100.0, 200.0, 20.0, 20.0), &table);
+        assert_eq!(authored, Rect::new(100.0, 200.0, 320.0, 68.0));
+        let slots = Client::action_bar_slot_rects(authored, &table);
+        assert_eq!(slots.len(), 5);
+        assert_eq!(slots[0], Rect::new(108.0, 208.0, 52.0, 52.0));
+        assert_eq!(slots[1], Rect::new(164.0, 208.0, 52.0, 52.0));
+        assert_eq!(slots[2], Rect::new(234.0, 208.0, 52.0, 52.0));
+        assert_eq!(slots[3], Rect::new(304.0, 208.0, 52.0, 52.0));
+        assert_eq!(slots[4], Rect::new(360.0, 208.0, 52.0, 52.0));
+        assert_eq!(
+            Client::action_bar_group_separators(authored, &table),
+            vec![225.0, 295.0]
+        );
+    }
+
+    #[test]
     fn fixed_screen_ignores_widget_anchor_settings() {
         let mut client = Client::new();
         client.screen_responsive = false;
@@ -8884,6 +10342,105 @@ mod tests {
         let _ = client.user_event("key_up".into(), Value::Str("tab".into()));
         let _ = client.user_event("key_down".into(), Value::Str("tab".into()));
         assert!(!client.actions_panel_open);
+    }
+
+    #[test]
+    fn spellbook_command_reuses_catalog_panel_and_filters_to_spells() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Cleric"
+
+            [classes.Cleric.action_bar]
+            main = ["rules.basic_attack", "rules.minor_heal"]
+
+            [actions.basic_attack]
+            name = "Basic Attack"
+            kind = "attack"
+
+            [actions.minor_heal]
+            name = "Minor Heal"
+            kind = "spell"
+        "#
+        .into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Cleric".into()));
+        let mut map = Map::default();
+        map.entities.push(player);
+        let mut client = Client::new();
+        client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+
+        assert!(client.apply_ui_command("spellbook"));
+        assert!(client.actions_panel_open);
+        assert_eq!(client.actions_panel_content, CatalogPanelContent::Spellbook);
+        let layout = client
+            .actions_panel_layout(&map, &assets)
+            .expect("Spellbook should use the shared catalogue panel");
+        assert_eq!(layout.groups.len(), 1);
+        assert_eq!(layout.groups[0].name, "Spells");
+        assert_eq!(layout.entries.len(), 1);
+        assert_eq!(layout.entries[0].command, "rules.minor_heal");
+
+        assert!(client.apply_ui_command("actions"));
+        assert_eq!(client.actions_panel_content, CatalogPanelContent::Actions);
+        let layout = client.actions_panel_layout(&map, &assets).unwrap();
+        assert_eq!(layout.entries.len(), 2);
+    }
+
+    #[test]
+    fn toolbar_spellbook_config_controls_grid_and_pages() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Cleric"
+
+            [classes.Cleric.action_bar]
+            main = ["rules.one", "rules.two", "rules.three"]
+
+            [actions.one]
+            name = "One"
+            kind = "spell"
+
+            [actions.two]
+            name = "Two"
+            kind = "spell"
+
+            [actions.three]
+            name = "Three"
+            kind = "spell"
+        "#
+        .into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Cleric".into()));
+        let mut map = Map::default();
+        map.entities.push(player);
+        let table = r#"
+            columns = 2
+            rows = 1
+            cell_size = 44
+            spacing = 3
+            padding = 7
+            icon_inset = 5
+            show_names = false
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+        let mut client = Client::new();
+        client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+        client.toolbar_spellbook_config = Client::catalog_panel_config(&table, None, None, &assets);
+        client.apply_ui_command("spellbook");
+
+        let first = client.actions_panel_layout(&map, &assets).unwrap();
+        assert_eq!(first.entries.len(), 2);
+        assert_eq!(first.page_count, 2);
+        assert_eq!(first.entries[0].rect.width, 44.0);
+
+        client.actions_panel_page = 1;
+        let second = client.actions_panel_layout(&map, &assets).unwrap();
+        assert_eq!(second.entries.len(), 1);
+        assert_eq!(second.entries[0].command, "rules.three");
     }
 
     #[test]

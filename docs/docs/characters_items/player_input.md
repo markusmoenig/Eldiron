@@ -160,6 +160,8 @@ command_slot = "main.1"
 
 Command slots resolve through the active player. A player attribute such as `command_slot_main_0 = "rules.minor_heal"` can override a slot; otherwise Eldiron reads the active ruleset class, for example `[classes.Cleric.action_bar] main = ["rules.basic_attack", "rules.minor_heal", "rules.holy_light", "rules.gather_herbs", "rules.craft_blessed_herb"]`. This keeps fixed world intents like Walk, Look, and Use separate from class actions.
 
+This separation remains part of the modern UI model. The Spellbook is a presentation and selection surface for `rules.*` abilities; it does not replace `intent.*`. Intents represent contextual interaction or targeting modes such as Walk/default, Look, Use, Drop, and choosing a world target. A spell selected from the Spellbook may enter that targeting layer, but the executable spell itself remains a rules action.
+
 ### Actions Panel
 
 The five visible command slots are a quick-access bar, not the complete list of
@@ -188,10 +190,12 @@ Entries use the same rules-owned icons, tooltips, costs, reagent requirements,
 cooldowns, and unlock checks as ordinary command-slot buttons. Selecting an
 enabled entry highlights it and activates the normal rules action targeting
 path; the panel stays open for subsequent choices until closed with its button,
-close control, `Tab`, or Escape. This makes the panel suitable for martial
-abilities and sandbox actions as well as magic; a game can later present a
-spellbook as a themed or filtered view without changing the ruleset action
+close control, `Tab`, or Escape. This makes the generic panel suitable for
+martial abilities and sandbox actions as well as magic, while the Spellbook
+presents a themed and filtered view without changing the ruleset action
 representation.
+
+`ui.spellbook` opens the floating, draggable catalogue filtered to rules actions with `kind = "spell"`. The active screen's action-bar widget may configure its built-in Spellbook under `[ui.spellbook]`, including rows, columns, cell size, spacing, padding, icon inset, and labels. A separate screen widget with `role = "spellbook"` overrides that default when a game needs its own rectangle or frame and slot artwork. Both panels retain drag-to-slot and Assign behavior.
 
 Drag a panel entry onto a `command_slot` button to replace that player's quick
 slot. On touch or non-drag interfaces, use **Assign**, then click the action and

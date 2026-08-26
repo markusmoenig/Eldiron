@@ -392,6 +392,8 @@ pub fn bundled_texture_assets() -> &'static [BundledTextureAsset] {
         official_icon!("walk"),
         official_icon!("look"),
         official_icon!("use"),
+        official_icon!("ui_spellbook"),
+        official_icon!("ui_actions"),
         official_icon!("take"),
         official_icon!("drop"),
         official_icon!("basic_attack"),
@@ -6498,6 +6500,8 @@ mod tests {
         for id in [
             "walk",
             "look",
+            "ui_spellbook",
+            "ui_actions",
             "basic_attack",
             "training_sword",
             "small_bag",

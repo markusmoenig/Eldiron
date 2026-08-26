@@ -394,11 +394,34 @@ pub fn describe_command(
                 lines: Vec::new(),
             }
         }
-        ClientCommandBinding::Ui(command) => RulesDescription {
-            title: title_case(&command.replace('_', " ")),
-            subtitle: Some("Interface".to_string()),
-            lines: Vec::new(),
-        },
+        ClientCommandBinding::Ui(command) => {
+            let mut description = RulesDescription {
+                title: title_case(&command.replace('_', " ")),
+                subtitle: Some("Interface".to_string()),
+                lines: Vec::new(),
+            };
+            if let Some(root) = assets.rules_table()
+                && let Some(command_ui) = table_at(&root, &["ui", "commands", command.trim()])
+            {
+                if let Some(name) = command_ui
+                    .get("name")
+                    .and_then(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|name| !name.is_empty())
+                {
+                    description.title = name.to_string();
+                }
+                if let Some(text) = command_ui
+                    .get("description")
+                    .and_then(toml::Value::as_str)
+                    .map(str::trim)
+                    .filter(|text| !text.is_empty())
+                {
+                    description.lines.push(text.to_string());
+                }
+            }
+            description
+        }
         ClientCommandBinding::Screen(command) => RulesDescription {
             title: title_case(&command.replace(['_', '.'], " ")),
             subtitle: Some("Screen".to_string()),
@@ -1299,6 +1322,27 @@ fn current_weapon_range(root: &Table, entity: &Entity) -> Option<f32> {
 mod tests {
     use super::*;
     use crate::{Entity, Value};
+
+    #[test]
+    fn ui_command_description_uses_ruleset_presentation() {
+        let mut assets = Assets::new();
+        assets.rules = r#"
+            [ui.commands.spellbook]
+            name = "Grimoire"
+            description = "Review the spells known by this character."
+            icon = "custom_grimoire"
+        "#
+        .into();
+
+        let description = describe_command(&assets, None, "ui.spellbook");
+
+        assert_eq!(description.title, "Grimoire");
+        assert_eq!(description.subtitle.as_deref(), Some("Interface"));
+        assert_eq!(
+            description.lines,
+            vec!["Review the spells known by this character."]
+        );
+    }
 
     #[test]
     fn action_catalog_groups_class_commands_by_ruleset_kind() {

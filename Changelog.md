@@ -2,6 +2,8 @@
 
 ## Improvements
 
+- Added a configurable `action_bar` screen widget for modern responsive HUDs, including grouped ruleset commands, responsive placement, full-width bottom bands, separators, gradients, and nine-slice frame, slot, and state artwork. Built-in draggable Actions and Spellbook panels can be configured directly by the toolbar, including their grids, paging, labels, colors, and artwork, while optional screen widgets can override their layout and presentation. Generated controls continue to reuse ruleset icons, tooltips, cooldowns, targeting, shortcuts, and drag-and-drop slot assignment.
+
 ### Creator
 
 - Changed **.eldiron** projects to compressed, versioned ZIP containers containing `manifest.json`, `project.json`, and a shared `binaries/` hierarchy. Background bakes and customized item icon frames use the same validated binary writer/reader instead of embedding large arrays in JSON. New bake entries live under `binaries/bakes/`, item icons under `binaries/items/<item-id>/icons/`, and older raw-JSON or early `bakes/` paths remain readable. Creator saves atomically and upgrades older storage layouts on their next save.
@@ -31,6 +33,8 @@
 
 ### Creator
 
+- Fixed the Screen editor losing—or rendering almost invisibly—its 2D grid when the shared editing-geometry overlay was disabled, rebuilt, or composited over black. Screen grids and widget bounds now remain clearly visible as part of the screen-authoring canvas.
+- Fixed **Edit Tile Meta Data** dropping `gameplay_tags` when its TOML attribute list was applied. Gameplay tags now round-trip as a string array, remain visible as `gameplay_tags = []` when empty, and are clearly distinguished from the visual tile alias in inline comments and documentation.
 - Fixed project-edited item icons only updating in the Creator tree. Painted On/Off frames now refresh the live runtime immediately and override ordinary item artwork in game UI, 2D previews, and 3D world billboards, including state-tiled and non-ruleset items.
 - Fixed animated project item icons collapsing to a static billboard after editing one frame; viewport rendering now retains and cycles the complete frame sequence.
 - Fixed **Load Default** resolving the already-edited project icon instead of the underlying tile, bundled ruleset artwork, texture, or generated fallback.

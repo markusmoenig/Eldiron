@@ -311,15 +311,43 @@ impl Action for EditTileMeta {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::actions::nodeui_to_toml;
+    use crate::actions::{apply_toml_to_nodeui, nodeui_to_toml};
 
     #[test]
     fn edit_tile_meta_toml_has_material_group() {
         let action = EditTileMeta::new();
         let toml = nodeui_to_toml(&action.params());
 
+        assert!(toml.contains(
+            "# Alias identifies this visual tile in tile source references such as set_tile; it does not trigger tile events.\nalias = \"\"\n# Gameplay tags trigger entered_tile and left_tile events.\ngameplay_tags = []"
+        ));
         assert!(toml.contains("[material]\n"));
         assert!(toml.contains("preset = \"Default\""));
         assert!(toml.contains("finish = \"Natural\""));
+    }
+
+    #[test]
+    fn edit_tile_meta_gameplay_tags_round_trip_as_an_array() {
+        let action = EditTileMeta::new();
+        let mut params = action.params();
+
+        apply_toml_to_nodeui(
+            &mut params,
+            "[action]\ngameplay_tags = [\"chairright\", \"sittable\"]\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            params.get_text_value("actionTileGameplayTags"),
+            Some("chairright, sittable".to_string())
+        );
+        assert!(nodeui_to_toml(&params).contains("gameplay_tags = [\"chairright\", \"sittable\"]"));
+
+        apply_toml_to_nodeui(&mut params, "[action]\ngameplay_tags = []\n").unwrap();
+        assert_eq!(
+            params.get_text_value("actionTileGameplayTags"),
+            Some(String::new())
+        );
+        assert!(nodeui_to_toml(&params).contains("gameplay_tags = []"));
     }
 }

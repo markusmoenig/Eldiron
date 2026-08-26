@@ -9587,13 +9587,18 @@ impl TheTrait for Editor {
                             rusterix
                                 .client
                                 .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
+                            let editing_screen =
+                                self.server_ctx.get_map_context() == MapContext::Screen;
+                            let show_editor_overlay =
+                                editing_screen || self.server_ctx.show_editing_geometry;
                             if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                                 if rusterix.scene_handler.vm.vm_layer_count() > 1 {
-                                    // Screen/character/item overlays should respect toggle.
-                                    rusterix.scene_handler.vm.set_layer_enabled(
-                                        1,
-                                        self.server_ctx.show_editing_geometry,
-                                    );
+                                    // A screen's grid and widget bounds are the editing canvas,
+                                    // so they remain visible even when region geometry is hidden.
+                                    rusterix
+                                        .scene_handler
+                                        .vm
+                                        .set_layer_enabled(1, show_editor_overlay);
                                 }
                                 if let Some(hover_cursor) = self.server_ctx.hover_cursor {
                                     rusterix.client.set_map_hover_info_d2(
@@ -9644,6 +9649,12 @@ impl TheTrait for Editor {
                                         &self.server_ctx.editing_surface,
                                         true,
                                     );
+                                    if rusterix.scene_handler.vm.vm_layer_count() > 1 {
+                                        rusterix
+                                            .scene_handler
+                                            .vm
+                                            .set_layer_enabled(1, show_editor_overlay);
+                                    }
                                     rusterix.draw_custom_d2(
                                         &map,
                                         render_view.render_buffer_mut().pixels_mut(),
@@ -9658,6 +9669,12 @@ impl TheTrait for Editor {
                                         &None,
                                         true,
                                     );
+                                    if rusterix.scene_handler.vm.vm_layer_count() > 1 {
+                                        rusterix
+                                            .scene_handler
+                                            .vm
+                                            .set_layer_enabled(1, show_editor_overlay);
+                                    }
                                     rusterix.draw_custom_d2(
                                         map,
                                         render_view.render_buffer_mut().pixels_mut(),

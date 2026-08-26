@@ -125,6 +125,119 @@ scale = 6.0
 
 ---
 
+## Action Bar Widgets
+
+Use one **action bar widget** to define a complete horizontal bottom bar. At runtime Eldiron expands its entries into ordinary button widgets. Ruleset icons, tooltips, requirements, cooldowns, targeting, keyboard shortcuts, and action-slot assignment therefore work exactly like they do on hand-authored buttons.
+
+```toml
+[ui]
+role = "action_bar"
+fill_width = true
+slot_size = 44
+spacing = 2
+padding = 5
+edge_padding = 14
+group_spacing = 12
+
+# Built-in panel used when this screen has no role = "spellbook" widget.
+[ui.spellbook]
+columns = 6
+rows = 4
+cell_size = 52
+spacing = 4
+padding = 10
+icon_inset = 6
+show_names = true
+
+[[ui.groups]]
+align = "left"
+buttons = [
+  { command = "ui.spellbook" },
+]
+
+[[ui.groups]]
+align = "center"
+buttons = [
+  { command_slot = "main.0" },
+  { command_slot = "main.1" },
+  { command_slot = "main.2" },
+]
+
+[[ui.groups]]
+align = "right"
+buttons = [
+  { command = "intent.look" },
+  { command = "intent.use" },
+]
+
+[layout]
+anchor = "bottom_center"
+x = 0
+y = 0
+
+[frame]
+background_color = "#15120dcc"
+# tile = "<frame tile UUID>"
+# slice = 8
+
+[top_separator]
+size = 1
+inset = 0
+offset = -2
+color = "#5f5949"
+
+[slot]
+background_color = "#211c15ee"
+# icon_inset = 8
+# normal_tile = "<normal slot tile UUID>"
+# hover_tile = "<hover slot tile UUID>"
+# selected_tile = "<selected slot tile UUID>"
+# pressed_tile = "<pressed slot tile UUID>"
+# disabled_tile = "<disabled slot tile UUID>"
+# slice = 6
+
+# Optional decorative artwork drawn above the command icon.
+#[slot.frame]
+#normal_tile = "<normal foreground frame tile UUID>"
+#hover_tile = "<hover foreground frame tile UUID>"
+#selected_tile = "<selected foreground frame tile UUID>"
+#pressed_tile = "<pressed foreground frame tile UUID>"
+#disabled_tile = "<disabled foreground frame tile UUID>"
+#slice = 6
+
+[slot.style.hover]
+background = "#322a1fee"
+border = "#a38a60"
+```
+
+- **groups** divides the bar into `left`, `center`, and `right` clusters. Each group owns its `buttons` and may override `slot_size` and `spacing`.
+- **group_spacing** controls the separation between groups. With automatic sizing, Eldiron reserves equal space on both sides of the center group so it remains visually centered.
+- `ui.spellbook` and `ui.actions` are navigation commands and normally belong in the left group. They are not executable ruleset actions. The modern player HUD normally exposes `ui.spellbook`; add `ui.actions` when a complete generic ruleset catalogue is useful, such as a compact or hardcoded UI.
+- `[ui.spellbook]` configures the Toolbar's built-in Spellbook. `columns` and `rows` set the visible page capacity, `cell_size` sets square entry dimensions, `spacing` and `padding` control the grid, `icon_inset` controls icon size, and `show_names` toggles labels. When the spell count exceeds `rows * columns`, the title bar provides page controls. `[ui.actions]` accepts the same settings for the generic Actions catalogue.
+- `[ui.spellbook.frame]` and `[ui.spellbook.slot]` optionally style the built-in panel. They accept `background_color`, `border_color`, `border_size`, and artist-authored `tile` / `slice` values; the slot also accepts `normal_tile`. The same child tables work below `[ui.actions]`.
+- The built-in panel is the zero-setup path: a screen only needs its action-bar widget and a `ui.spellbook` command. A screen sector with `role = "spellbook"` overrides the Toolbar configuration and authored panel rectangle. This lets a game replace the default layout and artwork without changing commands or ruleset spell data.
+- Navigation-command artwork is supplied by `[ui.commands.<name>]` in the ruleset. The official artist-editable placeholders are `assets/icons/ui_spellbook/on/0.png` and `assets/icons/ui_actions/on/0.png`.
+- On responsive screens, an action bar without a `[layout]` block defaults to `bottom_center` with a 16-pixel bottom margin. Add `[layout]` when you want an explicit anchor or offset.
+- For a simple bar, the original top-level **buttons** array remains supported and behaves as one centered group.
+- Each button accepts `command`, `command_slot`, `label` (or `text`), and `show_icon`.
+- A string entry is shorthand for a command, for example `buttons = ["intent.look", "ui.actions"]`.
+- **slot_size**, **spacing**, and **padding** are measured in screen pixels.
+- **edge_padding** independently controls the left and right inset of the outer groups. When omitted it uses `padding`; increasing it does not make the toolbar taller.
+- **auto_size** defaults to `true`; the bar's width and height are calculated from its entries. Set it to `false` to use the sector's authored dimensions and center the slots inside it.
+- **fill_width** keeps the automatically calculated height but stretches a responsive action bar across the viewport. Combined with `anchor = "bottom_center"` and `y = 0`, this creates a bottom-attached HUD band instead of a floating framed panel.
+- **party** on `[ui]` binds every generated button to the same party member.
+- The tile assigned to the action-bar sector in the Creator is used as its frame artwork. `[frame].tile` can explicitly select a different frame tile by UUID.
+- `[slot]` controls every generated button. Colors and borders work without artwork. Its optional state tiles draw below the command icon; `[slot.frame]` uses the same state keys for decorative artwork drawn above the icon. Omitted states fall back to normal artwork.
+- `slice` enables nine-slice scaling and is measured in source-image pixels. Corners remain unscaled while edges and the center adapt to the bar or slot size. Leave it at `0` or omit it to stretch the complete image.
+- `icon_inset` is the empty space between the slot edge and its command artwork, measured in screen pixels. When omitted, Eldiron uses the existing 12% inset.
+- `[frame.border]` and `[slot.border]` draw scalable, anti-aliased borders above the artwork. `from` and `to` define the linear gradient; `direction` accepts `vertical`, `horizontal`, `diagonal`, or `diagonal_reverse`. Omit `to` for a solid border. `radius` rounds the corners. Individual button and decoration widgets can use the same fields under `[ui.border]`. The older flat `border_size` and `border_color` keys remain supported.
+- `[separator]` draws one vertical line in the open space between adjacent action-bar groups. It supports `size`, vertical `margin`, and optional `from`/`to` gradient colors. Use separators for navigation/action bands without drawing another frame around every slot.
+- `[top_separator]` draws only a horizontal hairline along the upper edge of the bar. It supports `size`, horizontal `inset`, vertical `offset`, a solid `color`, or `from`/`to` gradient colors. Negative offsets move the line above the bar. It is the appropriate choice for a full-width bottom toolbar that should not have an enclosing rectangle.
+
+Use `[layout]` when the bar should deviate from its responsive bottom-center default. Fixed screens retain the sector's authored position.
+
+---
+
 ## Button Widgets
 
 **Button widgets** define interactive UI elements that trigger commands when clicked.
@@ -271,10 +384,10 @@ command = "control.forward"
 # border_color = "#888888"
 ```
 
-Use `command = "intent."` or `intent = ""` for a Walk button. This selects the normal map cursor and clears active targeting commands.
+Use `command = "intent."` or `intent = ""` for an optional Walk button. It does not move the player directly; it restores the normal map cursor and clears active targeting commands. You can omit it when your game does not need an explicit way to leave a persistent targeting mode.
 
 Command buttons resolve ruleset icons through `[actions.<id>.ui]`,
-`[intents.<id>.ui]`, and the shared `[icons]` catalog. A resolved ruleset icon
+`[intents.<id>.ui]`, `[ui.commands.<name>]`, and the shared `[icons]` catalog. A resolved ruleset icon
 uses its authored RGBA colors for Normal, becomes brighter on Hover, receives a
 warm in-icon tint when Selected, becomes darker while Pressed, and is grayed
 with reduced opacity when Disabled. Selection does not add an outline. Project
@@ -304,11 +417,43 @@ show_icon = false
 
 The panel reads the active player's complete `[classes.<Class>.action_bar]`, groups its commands into Combat, Spells, and Utility, and reuses the normal ruleset icons, descriptions, requirements, costs, cooldowns, unlock state, and targeting path. It is not specific to `Hideout2D`.
 
+`ui.spellbook` opens a draggable panel filtered to the Spells group. Its default layout comes from `[ui.spellbook]` on the action bar. To replace it for one screen, add a sector with settings such as:
+
+```toml
+[ui]
+role = "spellbook"
+columns = 7
+rows = 5
+cell_size = 48
+spacing = 3
+padding = 10
+icon_inset = 6
+show_names = false
+
+[layout]
+anchor = "center"
+
+[frame]
+background_color = "#0a0c0ff2"
+border_color = "#625b48"
+border_size = 1
+# tile = "<panel frame tile UUID>"
+# slice = 8
+
+[slot]
+background_color = "#1f2329e8"
+border_color = "#484e57"
+# tile = "<slot tile UUID>"
+# slice = 6
+```
+
+The sector's rectangle and responsive `[layout]` determine the custom panel's placement and size. Frame and slot tiles use nine-slice scaling. The Spellbook still reads spells, icons, descriptions, requirements, and targeting behavior from the active ruleset.
+
 Click an action to select it for normal use. Drag an action onto any button with `command_slot = "<group>.<index>"` to assign it to that quick slot. For touch or non-drag interfaces, click **Assign**, click an action, and then click the destination quick slot.
 
 Assignments are persisted as player attributes such as `command_slot_main_0`. The active class action bar remains the default, so a slot with no non-empty override still resolves from the ruleset. Only ruleset actions listed in the active class action bar can be assigned.
 
-For 2D action bars that sit on top of the game view, put a `role = "deco"` widget behind the buttons with `layer = -1` and a semi-transparent `color`. Negative-layer deco widgets draw below screen-rendered controls, which lets the background dim the map without dimming the icons.
+For custom arrangements you can still build an action bar from individual buttons. Put a `role = "deco"` widget behind those buttons with `layer = -1` and a semi-transparent `color`. Negative-layer deco widgets draw below screen-rendered controls, which lets the background dim the map without dimming the icons.
 
 For start screens, use generic UI state bindings for choices. The selected class button stays highlighted because the button's `value` matches the current `bind` value. `game.start` reads `start.class` and `start.name` when spawning the player.
 

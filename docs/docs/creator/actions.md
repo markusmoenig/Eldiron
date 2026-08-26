@@ -580,9 +580,21 @@ Options: none.
 
 ### Edit Tile Meta
 
-Set tile *role*, *blocking* flag (2D collisions), *alias*, and optional procedural generator hints for the currently selected tile in the tile picker.
+Set the tile *role*, *blocking* flag (2D collisions), *alias*, *gameplay tags*, and optional procedural generator hints for the currently selected tile in the tile picker.
 
-The alias can then be used anywhere a `tile_id`-style tile source is accepted, alongside UUIDs and palette indices.
+The alias identifies the tile's visual source. It can be used anywhere a `tile_id`-style tile source is accepted, alongside UUIDs and palette indices, including `set_tile(...)`. An alias does not trigger character events.
+
+Gameplay tags describe behavior attached to painted 2D tile placements. Each tag triggers [`entered_tile`](/docs/characters_items/events#entered_tile) and [`left_tile`](/docs/characters_items/events#left_tile) character events. Tags are normalized to lowercase and duplicates are removed.
+
+The action always exposes both fields, including when they are empty:
+
+```toml
+[action]
+# Alias identifies this visual tile in tile source references such as set_tile; it does not trigger tile events.
+alias = ""
+# Gameplay tags trigger entered_tile and left_tile events.
+gameplay_tags = []
+```
 
 Procedural tile metadata is stored as:
 
@@ -609,7 +621,8 @@ Options:
 
 * `role`: tile role used by editor/game systems.
 * `blocking`: 2D collision flag.
-* `alias`: optional human-readable tile source name.
+* `alias`: optional human-readable visual tile source name, accepted by `set_tile(...)` and other `tile_id`-style fields; it does not trigger tile events.
+* `gameplay_tags`: behavior tags that trigger `entered_tile` and `left_tile` events for characters on painted 2D tile placements.
 * `[procedural].style`: generator style hint, such as `stone`.
 * `[procedural].kind`: `floor`, `wall`, `entrance`, `exit`, or `none`.
 * `[procedural].weight`: generator weighting value.

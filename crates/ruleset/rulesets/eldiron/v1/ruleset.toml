@@ -33,6 +33,16 @@ tile_id = "explicit character tile_id wins over ruleset visuals"
 avatar = "explicit character avatar/avatar_id wins over ruleset visuals"
 empty_visual = "tile_id = \"\" or avatar = \"\" disables inherited default visuals"
 
+[ui.commands.spellbook]
+name = "Spellbook"
+description = "Open the player-facing collection of known spells."
+icon = "ui_spellbook"
+
+[ui.commands.actions]
+name = "Actions"
+description = "Open the complete ruleset action catalogue."
+icon = "ui_actions"
+
 [ui.action_icon_fallbacks]
 healing = "minor_heal"
 condition = "round_shield"

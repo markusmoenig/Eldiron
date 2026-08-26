@@ -832,6 +832,11 @@ shows an empty Off row and runtime presentation falls back to On. Frame numbers
 are zero-based and contiguous. PNG colors are authoritative and are not
 remapped through the Ruleset Palette or Art Palette.
 
+Ruleset-themed local navigation commands may declare `name`, `description`,
+and `icon` under `[ui.commands.<name>]`. A screen command such as
+`ui.spellbook` looks up `[ui.commands.spellbook]`; this keeps interface chrome
+customizable without creating a fake gameplay action.
+
 Creator stores project-owned frame overrides as PNG binary entries below
 `binaries/items/<item-id>/icons/<state>/` in the project archive. The resolution
 order is a project state/frame override, an explicit item tile,
