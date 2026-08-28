@@ -1,4 +1,5 @@
 pub mod avatar;
+pub mod choice;
 pub mod deco;
 pub mod game;
 pub mod game_backend;
@@ -132,10 +133,8 @@ pub struct TextInputWidget {
 
 impl TextInputWidget {
     fn resolved_font<'a>(&self, assets: &'a Assets) -> Option<&'a fontdue::Font> {
-        if let Some(font) = assets
-            .fonts
-            .get(self.font.trim())
-            .or_else(|| assets.fonts.values().next())
+        if !self.font.trim().is_empty()
+            && let Some(font) = assets.fonts.get(self.font.trim())
         {
             Some(font)
         } else {
@@ -736,15 +735,10 @@ impl Widget {
             return;
         }
 
-        let fallback = Self::fallback_font();
-        let font = if self.label_font.trim().is_empty() {
-            assets.fonts.values().next().or(fallback)
+        let font = if let Some(font) = assets.fonts.get(self.label_font.trim()) {
+            Some(font)
         } else {
-            assets
-                .fonts
-                .get(self.label_font.trim())
-                .or_else(|| assets.fonts.values().next())
-                .or(fallback)
+            Self::fallback_font()
         };
 
         let Some(font) = font else {
@@ -774,7 +768,7 @@ impl Widget {
         );
     }
 
-    fn fallback_font() -> Option<&'static fontdue::Font> {
+    pub(crate) fn fallback_font() -> Option<&'static fontdue::Font> {
         static FALLBACK_FONT: std::sync::OnceLock<Option<fontdue::Font>> =
             std::sync::OnceLock::new();
         FALLBACK_FONT
@@ -933,7 +927,10 @@ impl Widget {
                     + source[2] as f32 * 0.114)
                     .round()
                     .clamp(0.0, 255.0) as u8;
-                [gray, gray, gray, (source[3] as f32 * 0.58).round() as u8]
+                // Keep dark artwork identifiable when disabled. Some authored icons
+                // use near-black strokes that would otherwise disappear on dark UI.
+                let gray = gray.max(104);
+                [gray, gray, gray, (source[3] as f32 * 0.74).round() as u8]
             }
             ButtonVisualState::Selected => {
                 let selected = [255_u8, 226_u8, 150_u8];
@@ -1973,6 +1970,7 @@ impl Widget {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::PixelSource;
 
     #[test]
     fn button_state_textures_can_override_hover_artwork() {

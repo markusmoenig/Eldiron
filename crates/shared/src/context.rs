@@ -478,7 +478,9 @@ pub struct ServerContext {
     /// Remembered block component height in grid cells.
     pub block_height_cells: i32,
     /// Remembered horizontal block span expansion in grid cells on each side.
-    pub block_span_extra_cells: i32,
+    pub block_span_extra_cells: f32,
+    /// Remembered block depth expansion in grid cells on each side.
+    pub block_depth_extra_cells: f32,
     /// Active block operation: place, replace, or erase.
     pub block_operation: i32,
     /// Active block stroke: line or rectangle.
@@ -733,7 +735,8 @@ impl ServerContext {
             block_grid_level: 0,
             block_rotation_quarters: 0,
             block_height_cells: 2,
-            block_span_extra_cells: 0,
+            block_span_extra_cells: 0.0,
+            block_depth_extra_cells: 0.0,
             block_operation: 0,
             block_stroke_mode: 0,
             block_damage_enabled: false,

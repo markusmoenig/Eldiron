@@ -2,7 +2,7 @@
 
 ## Improvements
 
-- Added a configurable `action_bar` screen widget for modern responsive HUDs, including grouped ruleset commands, responsive placement, full-width bottom bands, separators, gradients, and nine-slice frame, slot, and state artwork. Built-in draggable Actions and Spellbook panels can be configured directly by the toolbar, including their grids, paging, labels, colors, and artwork, while optional screen widgets can override their layout and presentation. Generated controls continue to reuse ruleset icons, tooltips, cooldowns, targeting, shortcuts, and drag-and-drop slot assignment.
+- Added a configurable `action_bar` screen widget for modern responsive HUDs, including grouped ruleset commands, ten-slot quick bars, responsive placement, separators, gradients, and scalable artwork. Toolbar-configured Inventory, Equipment, Spellbook, Actions, and Preferences panels provide ruleset-owned gear slots, a live equipped avatar, fitted tabs, structured scrolling details, reusable choices, tooltips, and drag-and-drop. Generated controls use embedded Roboto plus independently replaceable ruleset and navigation icons.
 
 ### Creator
 
@@ -30,6 +30,10 @@
 - Made the official `assets/icons/<id>/<state>/<frame>.png` files authoritative, artist-editable RGBA artwork. Every item has separate **Off** and **On** editor rows with independent animation frames; ordinary single-state artwork lives under On while Off remains empty. The torch's former tile files are now reconstructed from its one-frame Off and four-frame On icon bundle, providing one binary art source for UI and world rendering. Item `active` changes automatically select an available `on_tile_id` or `off_tile_id`, removing raw tile UUIDs from the torch script. Mapped state tiles also provide Creator icon defaults: painting stores an independent item icon, while **Load Default** reloads the current tile frames. Action states preserve normal artwork, gray disabled icons, and highlight selected icons without outlines. Palette-driven generation remains only as a missing-art fallback, while the ruleset palette continues to drive avatars.
 
 ## Bug Fixes
+
+### Game
+
+- Fixed `ui.spellbook` and `ui.actions` appearing to do nothing when the active character had no matching entries; configured panels now open with an explicit empty state.
 
 ### Creator
 

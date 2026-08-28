@@ -138,7 +138,6 @@ impl TextWidget {
         self.font = assets
             .fonts
             .get(&font_name)
-            .or_else(|| assets.fonts.values().next())
             .cloned()
             .or_else(Self::fallback_font);
     }

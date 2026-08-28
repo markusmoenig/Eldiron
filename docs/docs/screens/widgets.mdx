@@ -139,6 +139,44 @@ padding = 5
 edge_padding = 14
 group_spacing = 12
 
+# Built-in panel used when this screen has no role = "inventory" widget.
+[ui.inventory]
+columns = 8
+rows = 5
+cell_size = 48
+spacing = 4
+padding = 10
+title = "Inventory"
+font = "Roboto-Bold"
+categories = [
+  { label = "All", value = "all" },
+  { label = "Equipment", value = "equipment" },
+  { label = "Consumables", value = "consumables" },
+  { label = "Materials", value = "materials" },
+  { label = "Misc", value = "misc" },
+]
+sort_options = ["Newest", "Name", "Value", "Quantity"]
+
+# Built-in Equipment. Slot ids come from the active ruleset's [equipment].
+[ui.equipment]
+slot_size = 52
+spacing = 8
+padding = 10
+column_gap = 12
+label_width = 70
+avatar_width = 150
+avatar_height = 292
+avatar_scale = 1
+title = "Equipment"
+font = "Roboto-Bold"
+
+# Compact player preferences popover.
+[ui.preferences]
+width = 290
+row_height = 32
+title = "Preferences"
+font = "Roboto-Bold"
+
 # Built-in panel used when this screen has no role = "spellbook" widget.
 [ui.spellbook]
 columns = 6
@@ -147,11 +185,23 @@ cell_size = 52
 spacing = 4
 padding = 10
 icon_inset = 6
-show_names = true
+show_names = false
+show_tabs = true
+show_details = true
+detail_width = 260
+title = "Spellbook"
+font = "Roboto-Bold"
+title_font = "Roboto-Bold"
+font_size = 14
+title_font_size = 20
+small_font_size = 12
 
 [[ui.groups]]
 align = "left"
 buttons = [
+  { command = "ui.preferences" },
+  { command = "ui.equipment" },
+  { command = "ui.inventory" },
   { command = "ui.spellbook" },
 ]
 
@@ -161,6 +211,13 @@ buttons = [
   { command_slot = "main.0" },
   { command_slot = "main.1" },
   { command_slot = "main.2" },
+  { command_slot = "main.3" },
+  { command_slot = "main.4" },
+  { command_slot = "main.5" },
+  { command_slot = "main.6" },
+  { command_slot = "main.7" },
+  { command_slot = "main.8" },
+  { command_slot = "main.9" },
 ]
 
 [[ui.groups]]
@@ -212,11 +269,16 @@ border = "#a38a60"
 
 - **groups** divides the bar into `left`, `center`, and `right` clusters. Each group owns its `buttons` and may override `slot_size` and `spacing`.
 - **group_spacing** controls the separation between groups. With automatic sizing, Eldiron reserves equal space on both sides of the center group so it remains visually centered.
-- `ui.spellbook` and `ui.actions` are navigation commands and normally belong in the left group. They are not executable ruleset actions. The modern player HUD normally exposes `ui.spellbook`; add `ui.actions` when a complete generic ruleset catalogue is useful, such as a compact or hardcoded UI.
-- `[ui.spellbook]` configures the Toolbar's built-in Spellbook. `columns` and `rows` set the visible page capacity, `cell_size` sets square entry dimensions, `spacing` and `padding` control the grid, `icon_inset` controls icon size, and `show_names` toggles labels. When the spell count exceeds `rows * columns`, the title bar provides page controls. `[ui.actions]` accepts the same settings for the generic Actions catalogue.
+- `ui.preferences`, `ui.equipment`, `ui.inventory`, `ui.spellbook`, and `ui.actions` are navigation commands and normally belong in the left group. They are not executable ruleset actions. The modern player HUD normally exposes Preferences, Equipment, Inventory, and Spellbook; add `ui.actions` when a complete generic ruleset catalogue is useful, such as a compact or hardcoded UI.
+- `[ui.inventory]` configures the built-in Inventory. `columns`, `rows`, `cell_size`, `spacing`, and `padding` control the paged grid; `categories` / `tabs` and `sort_options` configure its reusable tab bar and dropdown. The panel uses normal item icons and ruleset tooltips, opens containers on click, and supports moving, swapping, and dropping items.
+- `[ui.equipment]` configures the built-in Equipment panel. Slot ids are resolved from the active ruleset's ordered `equipment.weapon_slots` and `equipment.armor_slots`; the UI never guesses official names. Eldiron alternates those slots around a live, equipped avatar by default. Optional `left_slots` and `right_slots` arrays override only their visual placement, while `slot_size`, `spacing`, `column_gap`, `label_width`, `avatar_width`, `avatar_height`, and `avatar_scale` control presentation. Items can be dragged between Inventory and Equipment and retain normal item tooltips. A screen sector with `role = "equipment"` can replace the toolbar default rectangle and styling.
+- `[ui.preferences]` styles the compact Preferences popover opened by `ui.preferences`. Its current controls enable or disable item/command tooltips, choose an instant, short, or normal tooltip delay, and reset remembered floating-window positions. These preferences remain active while the client is running.
+- `[ui.spellbook]` configures the Toolbar's built-in Spellbook. `columns` and `rows` define a fixed content viewport, so changing tabs never moves or resizes the panel; `cell_size`, `spacing`, `padding`, and `icon_inset` control the icon grid. `show_tabs`, `show_details`, `detail_width`, `show_names`, and optional `show_assign` control the presentation. Overflowing abilities use page controls, a vertical scrollbar, and the mouse wheel. The structured detail pane separates summary, target/range/cost data, effects, and availability, and gains its own scrollbar when necessary. `[ui.actions]` accepts the same settings for the generic Actions catalogue.
+- Typography is deterministic and configurable: `font` controls body, tab, and group text; `title_font` optionally overrides headings; and `font_size`, `title_font_size`, and `small_font_size` control their sizes. Names resolve against project font assets. Missing or omitted fonts use Eldiron's embedded **Roboto Bold** UI font instead of an arbitrary project font.
+- Panel colors can be customized with `title_background_color`, `text_color`, `muted_text_color`, `detail_background_color`, `tab_background_color`, `tab_selected_color`, and `separator_color`.
 - `[ui.spellbook.frame]` and `[ui.spellbook.slot]` optionally style the built-in panel. They accept `background_color`, `border_color`, `border_size`, and artist-authored `tile` / `slice` values; the slot also accepts `normal_tile`. The same child tables work below `[ui.actions]`.
-- The built-in panel is the zero-setup path: a screen only needs its action-bar widget and a `ui.spellbook` command. A screen sector with `role = "spellbook"` overrides the Toolbar configuration and authored panel rectangle. This lets a game replace the default layout and artwork without changing commands or ruleset spell data.
-- Navigation-command artwork is supplied by `[ui.commands.<name>]` in the ruleset. The official artist-editable placeholders are `assets/icons/ui_spellbook/on/0.png` and `assets/icons/ui_actions/on/0.png`.
+- Built-in panels are the zero-setup path: a screen only needs its action-bar widget and the matching `ui.*` command. A screen sector with `role = "inventory"`, `role = "spellbook"`, or `role = "actions"` overrides that panel's Toolbar configuration and authored rectangle, letting a game replace the default layout without changing the underlying data or commands.
+- Navigation-command artwork is supplied by `[ui.commands.<name>]` in the ruleset. The official artist-editable placeholders include `assets/icons/ui_preferences/on/0.png`, `ui_equipment`, `ui_inventory`, `ui_spellbook`, and `ui_actions` using the same directory structure.
 - On responsive screens, an action bar without a `[layout]` block defaults to `bottom_center` with a 16-pixel bottom margin. Add `[layout]` when you want an explicit anchor or offset.
 - For a simple bar, the original top-level **buttons** array remains supported and behaves as one centered group.
 - Each button accepts `command`, `command_slot`, `label` (or `text`), and `show_icon`.
@@ -417,7 +479,7 @@ show_icon = false
 
 The panel reads the active player's complete `[classes.<Class>.action_bar]`, groups its commands into Combat, Spells, and Utility, and reuses the normal ruleset icons, descriptions, requirements, costs, cooldowns, unlock state, and targeting path. It is not specific to `Hideout2D`.
 
-`ui.spellbook` opens a draggable panel filtered to the Spells group. Its default layout comes from `[ui.spellbook]` on the action bar. To replace it for one screen, add a sector with settings such as:
+`ui.spellbook` opens every ability known by the active class and organizes them into Combat, Spells, and Utility groups. Its default layout comes from `[ui.spellbook]` on the action bar. To replace it for one screen, add a sector with settings such as:
 
 ```toml
 [ui]
@@ -429,6 +491,15 @@ spacing = 3
 padding = 10
 icon_inset = 6
 show_names = false
+show_tabs = true
+show_details = true
+detail_width = 260
+title = "Abilities"
+font = "My UI Font"
+title_font = "My Heading Font"
+font_size = 14
+title_font_size = 20
+small_font_size = 12
 
 [layout]
 anchor = "center"
@@ -447,11 +518,36 @@ border_color = "#484e57"
 # slice = 6
 ```
 
-The sector's rectangle and responsive `[layout]` determine the custom panel's placement and size. Frame and slot tiles use nine-slice scaling. The Spellbook still reads spells, icons, descriptions, requirements, and targeting behavior from the active ruleset.
+The sector's rectangle and responsive `[layout]` determine the custom panel's placement and size. Frame and slot tiles use nine-slice scaling. The Spellbook still reads abilities, icons, descriptions, requirements, categories, and targeting behavior from the active ruleset.
 
-Click an action to select it for normal use. Drag an action onto any button with `command_slot = "<group>.<index>"` to assign it to that quick slot. For touch or non-drag interfaces, click **Assign**, click an action, and then click the destination quick slot.
+Click an action to select it for normal use. Drag an action onto any button with `command_slot = "<group>.<index>"` to assign it to that quick slot. Set `show_assign = true` when a touch-oriented layout should also expose the explicit **Assign** workflow.
 
 Assignments are persisted as player attributes such as `command_slot_main_0`. The active class action bar remains the default, so a slot with no non-empty override still resolves from the ruleset. Only ruleset actions listed in the active class action bar can be assigned.
+
+### Built-in Inventory
+
+`ui.inventory` opens the active player's Inventory panel. It is configured by `[ui.inventory]` on the action bar and needs no separate screen widget. Category tabs filter the existing inventory without changing item data; the sort dropdown supports newest slot order, name, value, and quantity. Large inventories page automatically, occupied slots show stack counts and ruleset tooltips, and the grid participates in the existing item drag-and-drop system.
+
+To give one screen its own rectangle or settings, add a normal screen widget with:
+
+```toml
+[ui]
+role = "inventory"
+columns = 9
+rows = 6
+cell_size = 46
+spacing = 4
+padding = 10
+title = "Inventory"
+font = "Roboto-Bold"
+categories = ["All", "Equipment", "Consumables", "Materials", "Misc"]
+sort_options = ["Newest", "Name", "Value", "Quantity"]
+
+[layout]
+anchor = "center"
+```
+
+The widget's authored rectangle becomes the panel's initial position and minimum size. Dragging its title moves it for the current screen session. Omit the custom widget to keep the Toolbar-defined default.
 
 For custom arrangements you can still build an action bar from individual buttons. Put a `role = "deco"` widget behind those buttons with `layer = -1` and a semi-transparent `color`. Negative-layer deco widgets draw below screen-rendered controls, which lets the background dim the map without dimming the icons.
 
@@ -469,6 +565,51 @@ text = "Warrior"
 
 ---
 
+## Tab Bar and Dropdown Widgets
+
+Use `role = "tab_bar"` and `role = "dropdown"` for reusable choices. Both controls write the selected option's `value` to generic UI state through `binding` (or `bind`). Other widgets can read that state through their existing bindings and `{UI.<binding>}` command placeholders.
+
+Roboto Bold is embedded as the default UI font. Set `font` to the exact name of a project font asset only when a screen needs a different typeface.
+
+```toml
+[ui]
+role = "tab_bar"
+binding = "inventory.category"
+default = "all"
+font = "Roboto-Bold"
+font_size = 14
+spacing = 1
+indicator_size = 2
+tabs = [
+  { label = "All", value = "all" },
+  { label = "Weapons", value = "weapons" },
+  { label = "Armor", value = "armor" },
+  { label = "Consumables", value = "consumables" },
+]
+```
+
+```toml
+[ui]
+role = "dropdown"
+binding = "inventory.sort"
+default = "newest"
+font = "Roboto-Bold"
+font_size = 14
+item_height = 30
+open_upwards = false
+options = [
+  { label = "Newest", value = "newest" },
+  { label = "Name", value = "name" },
+  { label = "Value", value = "value" },
+]
+```
+
+String entries are accepted as shorthand, for example `tabs = ["All", "Combat", "Utility"]`; their lowercase label becomes the stored value. Table entries should be used when the label and stable value differ.
+
+Shared appearance fields are `font`, `font_size`, `spacing`, `padding` / `text_padding`, `background_color`, `hover_color`, `selected_color`, `border_color`, `border_size`, `text_color`, `muted_text_color`, and `indicator_color`. Tab bars size entries from their complete labels by default; set `equal_widths = true` when every tab should occupy the same width. Tab bars additionally use `indicator_size`; dropdowns use `item_height`, `panel_color`, and `open_upwards`. Clicking outside an open dropdown closes it, and Escape closes it with other floating UI.
+
+---
+
 ## Input Widgets
 
 Use `role = "input"` for simple text entry on screens. Inputs write to generic UI state via `bind` / `binding`; `game.start` reads `start.name`.
@@ -478,7 +619,7 @@ Use `role = "input"` for simple text entry on screens. Inputs write to generic U
 role = "input"
 bind = "start.name"
 text = "Edliron"
-font = "Tiny5-Regular"
+font = "Roboto-Bold"
 font_size = 24.0
 color = "#f2f2f2"
 background_color = "#111111cc"

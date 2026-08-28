@@ -686,42 +686,10 @@ impl MapEditor {
                     server_ctx.paste_clipboard = Some(server_ctx.clipboard.clone());
                 }
             }
-            TheEvent::Custom(id, value) => {
+            TheEvent::Custom(id, _value) => {
                 if id.name == "Base State Selected" {
                     if let Some(layout) = ui.get_text_layout("Node Settings") {
                         layout.clear();
-                    }
-                } else if id.name == "SoftRig Selected" {
-                    if let TheValue::Id(id) = value {
-                        let mut nodeui: TheNodeUI = TheNodeUI::default();
-
-                        if let Some(map) = project.get_map(server_ctx) {
-                            let name = if let Some(softrig) = map.softrigs.get(id) {
-                                softrig.name.clone()
-                            } else {
-                                "???".to_string()
-                            };
-
-                            let item = TheNodeUIItem::Text(
-                                "softRigName".into(),
-                                "Rig Name".into(),
-                                "Set the name of the soft rig keyframe.".into(),
-                                name,
-                                None,
-                                false,
-                            );
-                            nodeui.add_item(item);
-                        }
-
-                        if let Some(layout) = ui.get_text_layout("Node Settings") {
-                            nodeui.apply_to_text_layout(layout);
-                            ctx.ui.relayout = true;
-
-                            ctx.ui.send(TheEvent::Custom(
-                                TheId::named("Show Node Settings"),
-                                TheValue::Text("Soft Rig Settings".to_string()),
-                            ));
-                        }
                     }
                 } else if id.name == "Map Selection Changed" {
                     set_code(ui, ctx, project, server_ctx);

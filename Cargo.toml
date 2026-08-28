@@ -1,6 +1,6 @@
 [workspace]
 
-members = ["creator", "run-wasm", "xtask", "crates/ruleset", "crates/shared", "crates/source", "clients/client", "clients/client-wgpu", "clients/client-terminal", "crates/rusterix", "crates/rusterix/rusteria", "crates/theframework", "crates/scenevm", "crates/organicgraph", "crates/buildergraph", "crates/procedural_recipes", "crates/scepter", "crates/icon_builder"]
+members = ["creator", "run-wasm", "xtask", "crates/ruleset", "crates/shared", "crates/source", "clients/client", "clients/client-wgpu", "clients/client-terminal", "crates/rusterix", "crates/theframework", "crates/scenevm", "crates/organicgraph", "crates/buildergraph", "crates/procedural_recipes", "crates/scepter", "crates/icon_builder"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -9,7 +9,6 @@ theframework = { path = "crates/theframework", version = "0.93.0", features = [
 ], default-features = false }
 
 rusterix = { path = "crates/rusterix", version = "0.93.0" }
-rusteria = { path = "crates/rusterix/rusteria", version = "0.93.0", package = "rusteria" }
 scenevm = { path = "crates/scenevm", version = "0.93.0" }
 
 [workspace.package]

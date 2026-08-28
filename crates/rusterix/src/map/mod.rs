@@ -10,17 +10,13 @@ pub mod organic;
 pub mod particle;
 pub mod pixelsource;
 pub mod sector;
-pub mod softrig;
 pub mod surface;
 pub mod tile;
 pub mod tilesource;
 pub mod topology;
 pub mod vertex;
 
-use crate::{
-    BBox, GeometryObject, Keyform, MapMini, PixelSource, SoftRig, SoftRigAnimator, Surface, Value,
-    ValueContainer,
-};
+use crate::{BBox, GeometryObject, MapMini, PixelSource, Surface, Value, ValueContainer};
 use indexmap::IndexMap;
 use std::collections::VecDeque;
 use theframework::prelude::{FxHashMap, FxHashSet};
@@ -165,14 +161,8 @@ pub struct Map {
     #[serde(default)]
     pub block_prop_surface_placements: Vec<BlockPropSurfacePlacement>,
 
-    pub sky_texture: Option<Uuid>,
-
     // Camera Mode
     pub camera: MapCamera,
-    #[serde(skip)]
-    pub camera_xz: Option<Vec2<f32>>,
-    #[serde(skip)]
-    pub look_at_xz: Option<Vec2<f32>>,
 
     // Lights
     pub lights: Vec<Light>,
@@ -211,18 +201,6 @@ pub struct Map {
     #[serde(default)]
     pub properties: ValueContainer,
 
-    /// All SoftRigs in the map, each defining vertex-based keyforms
-    #[serde(default)]
-    pub softrigs: IndexMap<Uuid, SoftRig>,
-
-    /// Currently edited SoftRig, or None for base geometry
-    #[serde(skip)]
-    pub editing_rig: Option<Uuid>,
-
-    /// Vertex animation
-    #[serde(skip)]
-    pub soft_animator: Option<SoftRigAnimator>,
-
     /// The surfaces of the 3D meshes.
     #[serde(default)]
     pub surfaces: IndexMap<Uuid, Surface>,
@@ -230,10 +208,6 @@ pub struct Map {
     /// The optional profile of surfaces.
     #[serde(default)]
     pub profiles: FxHashMap<Uuid, Map>,
-
-    /// The shaders used in the map.
-    #[serde(default)]
-    pub shaders: IndexMap<Uuid, serde_json::Value>,
 
     /// Camera-projected, world-aligned ray-traced tiles. Packaged projects keep payloads as
     /// binary ZIP entries; Base64 fields remain an in-memory and legacy-JSON compatibility form.
@@ -539,11 +513,7 @@ impl Map {
             block_prop_instances: vec![],
             block_prop_surface_placements: vec![],
 
-            sky_texture: None,
-
             camera: MapCamera::TwoD,
-            camera_xz: None,
-            look_at_xz: None,
 
             lights: vec![],
             entities: vec![],
@@ -563,13 +533,8 @@ impl Map {
             selected_entity_item: None,
 
             properties: ValueContainer::default(),
-            softrigs: IndexMap::default(),
-            editing_rig: None,
-            soft_animator: None,
-
             surfaces: IndexMap::default(),
             profiles: FxHashMap::default(),
-            shaders: IndexMap::default(),
             orthographic_bake: None,
 
             changed: 0,
@@ -1304,122 +1269,20 @@ impl Map {
             .or_else(|| self.geometry_area_name_at(pos))
     }
 
-    /// Tick the soft animator.
-    pub fn tick(&mut self, delta_time: f32) {
-        if let Some(anim) = &mut self.soft_animator {
-            anim.tick(delta_time);
-        }
-    }
-
-    /// Get the current position of a vertex, using any keyform override in the current SoftRig.
+    /// Get the current position of a vertex.
     pub fn get_vertex(&self, vertex_id: u32) -> Option<Vec2<f32>> {
-        // Base vertex lookup
         let base = self.vertices.iter().find(|v| v.id == vertex_id)?;
-        let base_pos = Vec2::new(base.x, base.y);
-
-        // 1. Try runtime animation
-        if let Some(animator) = &self.soft_animator {
-            if let Some(rig) = animator.get_blended_rig(self) {
-                if let Some((_, pos)) = rig
-                    .keyforms
-                    .first()
-                    .and_then(|key| key.vertex_positions.iter().find(|(id, _)| *id == vertex_id))
-                {
-                    return Some(*pos);
-                }
-            }
-        }
-
-        // 2. Try editing override (if not currently animating)
-        if self.soft_animator.is_none() {
-            if let Some(rig_id) = self.editing_rig {
-                if let Some(rig) = self.softrigs.get(&rig_id) {
-                    for keyform in &rig.keyforms {
-                        if let Some((_, pos)) = keyform
-                            .vertex_positions
-                            .iter()
-                            .find(|(id, _)| *id == vertex_id)
-                        {
-                            return Some(*pos);
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Fallback to base
-        Some(base_pos)
+        Some(Vec2::new(base.x, base.y))
     }
 
-    /// Get the current position of a vertex, using any keyform override in the current SoftRig.
+    /// Get the current 3D position of a vertex.
     pub fn get_vertex_3d(&self, vertex_id: u32) -> Option<Vec3<f32>> {
-        // Base vertex lookup
         let base = self.vertices.iter().find(|v| v.id == vertex_id)?;
-        let base_pos = Vec3::new(base.x, base.z, base.y);
-
-        // 1. Try runtime animation
-        // if let Some(animator) = &self.soft_animator {
-        //     if let Some(rig) = animator.get_blended_rig(self) {
-        //         if let Some((_, pos)) = rig
-        //             .keyforms
-        //             .first()
-        //             .and_then(|key| key.vertex_positions.iter().find(|(id, _)| *id == vertex_id))
-        //         {
-        //             return Some(*pos);
-        //         }
-        //     }
-        // }
-
-        // 2. Try editing override (if not currently animating)
-        // if self.soft_animator.is_none() {
-        //     if let Some(rig_id) = self.editing_rig {
-        //         if let Some(rig) = self.softrigs.get(&rig_id) {
-        //             for keyform in &rig.keyforms {
-        //                 if let Some((_, pos)) = keyform
-        //                     .vertex_positions
-        //                     .iter()
-        //                     .find(|(id, _)| *id == vertex_id)
-        //                 {
-        //                     return Some(*pos);
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
-        // 3. Fallback to base
-        Some(base_pos)
+        Some(Vec3::new(base.x, base.z, base.y))
     }
 
-    /// Update the vertex position. If a keyform in the selected rig contains this vertex, update it.
-    /// Otherwise, create a new keyform for this single vertex.
+    /// Update the vertex position.
     pub fn update_vertex(&mut self, vertex_id: u32, new_position: Vec2<f32>) {
-        // Update in active SoftRig
-        if let Some(rig_id) = self.editing_rig {
-            if let Some(rig) = self.softrigs.get_mut(&rig_id) {
-                // Try to find a keyform that already contains this vertex
-                for keyform in &mut rig.keyforms {
-                    if let Some(entry) = keyform
-                        .vertex_positions
-                        .iter_mut()
-                        .find(|(id, _)| *id == vertex_id)
-                    {
-                        entry.1 = new_position;
-                        return;
-                    }
-                }
-
-                // No existing keyform contains this vertex → create new keyform
-                let new_keyform = Keyform {
-                    vertex_positions: vec![(vertex_id, new_position)],
-                };
-
-                rig.keyforms.push(new_keyform);
-                return;
-            }
-        }
-
-        // Otherwise update base geometry
         if let Some(v) = self.vertices.iter_mut().find(|v| v.id == vertex_id) {
             v.x = new_position.x;
             v.y = new_position.y;
@@ -2768,11 +2631,7 @@ impl Map {
             block_prop_instances: self.block_prop_instances.clone(),
             block_prop_surface_placements: self.block_prop_surface_placements.clone(),
 
-            sky_texture: None,
-
             camera: self.camera,
-            camera_xz: None,
-            look_at_xz: None,
 
             lights: vec![],
             entities: vec![],
@@ -2792,13 +2651,8 @@ impl Map {
             selected_entity_item: None,
 
             properties: ValueContainer::default(),
-            softrigs: IndexMap::default(),
-            editing_rig: None,
-            soft_animator: None,
-
             surfaces: IndexMap::default(),
             profiles: FxHashMap::default(),
-            shaders: IndexMap::default(),
             orthographic_bake: None,
 
             changed: 0,

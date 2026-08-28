@@ -820,15 +820,14 @@ impl ProfileWidget {
     fn draw_identity_text(
         &mut self,
         entity: &Entity,
-        assets: &Assets,
+        _assets: &Assets,
         draw2d: &Draw2D,
         text_rect: Rect,
     ) {
         if !self.show_text || text_rect.width <= 1.0 || text_rect.height <= 1.0 {
             return;
         }
-        let fallback = Self::fallback_font();
-        let Some(font) = assets.fonts.values().next().or(fallback) else {
+        let Some(font) = Self::fallback_font() else {
             return;
         };
 

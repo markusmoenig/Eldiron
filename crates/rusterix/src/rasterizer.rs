@@ -4,7 +4,6 @@ use crate::{
     RenderMode, Scene, pixel_to_vec4, vec4_to_pixel,
 };
 use rayon::prelude::*;
-use rusteria::Execution;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
 
 use SampleMode::*;
@@ -228,8 +227,6 @@ impl Rasterizer {
             }
         }
 
-        let screen_size = Vec2::new(width as f32, height as f32);
-
         // Parallel process each tile
         let tile_buffers: Vec<Vec<u8>> = tiles
             .par_iter()
@@ -250,26 +247,6 @@ impl Rasterizer {
 
                 let mut surface_id: Vec<Option<u32>> = vec![None; tile.width * tile.height];
 
-                if !self.render_mode.ignore_background_shader {
-                    if let Some(shader) = &scene.background {
-                        for ty in 0..tile.height {
-                            for tx in 0..tile.width {
-                                let pixel = shader.shade_pixel(
-                                    Vec2::new(
-                                        (tile.x + tx) as f32 / screen_size.x,
-                                        (tile.y + ty) as f32 / screen_size.y,
-                                    ),
-                                    screen_size,
-                                );
-                                let idx = (ty * tile.width + tx) * 4;
-                                buffer[idx..idx + 4].copy_from_slice(&pixel);
-                            }
-                        }
-                    }
-                }
-
-                let mut execution = Execution::new(0);
-
                 if self.render_mode.supports3d() {
                     // Chunks
                     for chunk in scene.chunks.values() {
@@ -283,8 +260,6 @@ impl Rasterizer {
                                 batch3d,
                                 scene,
                                 assets,
-                                Some(chunk),
-                                &mut execution,
                             );
                         }
                         for batch3d in &chunk.batches3d {
@@ -296,8 +271,6 @@ impl Rasterizer {
                                 batch3d,
                                 scene,
                                 assets,
-                                Some(chunk),
-                                &mut execution,
                                 false,
                             );
                         }
@@ -313,8 +286,6 @@ impl Rasterizer {
                             batch,
                             scene,
                             assets,
-                            None,
-                            &mut execution,
                             false,
                         );
                     }
@@ -329,8 +300,6 @@ impl Rasterizer {
                             batch,
                             scene,
                             assets,
-                            None,
-                            &mut execution,
                             false,
                         );
                     }
@@ -345,8 +314,6 @@ impl Rasterizer {
                             batch,
                             scene,
                             assets,
-                            None,
-                            &mut execution,
                             false,
                         );
                     }
@@ -442,35 +409,18 @@ impl Rasterizer {
                                 scene,
                                 assets,
                                 Some(chunk),
-                                &mut execution,
                             );
                         }
                     }
 
                     // Static
                     for batch in scene.d2_static.iter() {
-                        self.d2_rasterize(
-                            &mut buffer,
-                            tile,
-                            batch,
-                            scene,
-                            assets,
-                            None,
-                            &mut execution,
-                        );
+                        self.d2_rasterize(&mut buffer, tile, batch, scene, assets, None);
                     }
 
                     // Dynamic
                     for batch in scene.d2_dynamic.iter() {
-                        self.d2_rasterize(
-                            &mut buffer,
-                            tile,
-                            batch,
-                            scene,
-                            assets,
-                            None,
-                            &mut execution,
-                        );
+                        self.d2_rasterize(&mut buffer, tile, batch, scene, assets, None);
                     }
                 }
 
@@ -511,7 +461,6 @@ impl Rasterizer {
         scene: &Scene,
         assets: &Assets,
         chunk: Option<&Chunk>,
-        execution: &mut Execution,
     ) {
         if let Some(bbox) = batch.bounding_box {
             // Without padding horizontal lines may not be insde the BBox.
@@ -671,45 +620,6 @@ impl Rasterizer {
                                             }
                                             _ => [0, 0, 0, 0],
                                         };
-
-                                        // Execute the batch shader (if any)
-                                        if let Some(shader_index) = batch.shader {
-                                            let program = if let Some(chunk) = chunk {
-                                                chunk.shaders.get(shader_index)
-                                            } else {
-                                                scene.shaders.get(shader_index)
-                                            };
-
-                                            if let Some(program) = program {
-                                                if let Some(sh) = program.shade_index {
-                                                    let mut color: Vec4<f32> =
-                                                        pixel_to_vec4(&texel);
-
-                                                    execution.uv.x = u / 4.0;
-                                                    execution.uv.y = v / 4.0;
-                                                    execution.color.x = color.x;
-                                                    execution.color.y = color.y;
-                                                    execution.color.z = color.z;
-                                                    execution.hitpoint.x = world.x;
-                                                    execution.hitpoint.y = world.y;
-                                                    execution.time.x = self.time;
-                                                    execution.time.y = self.time;
-                                                    execution.time.z = self.time;
-
-                                                    execution.roughness.x = 0.5;
-                                                    execution.metallic.x = 0.0;
-
-                                                    execution.reset(program.globals);
-                                                    execution.shade(sh, program, &assets.palette);
-
-                                                    color.x = execution.color.x;
-                                                    color.y = execution.color.y;
-                                                    color.z = execution.color.z;
-                                                    color.w = 1.0;
-                                                    texel = vec4_to_pixel(&color);
-                                                }
-                                            }
-                                        }
 
                                         if batch.receives_light
                                             && (!scene.lights.is_empty()
@@ -885,8 +795,6 @@ impl Rasterizer {
         batch: &Batch3D,
         scene: &Scene,
         assets: &Assets,
-        chunk: Option<&Chunk>,
-        execution: &mut Execution,
         overlay: bool,
     ) {
         // Bounding box check for the tile with the batch bbox
@@ -1104,105 +1012,16 @@ impl Rasterizer {
                                     };
 
                                     let mut color: Vec4<f32> = pixel_to_vec4(&texel);
+                                    color.x = srgb_to_linear_fast(color.x);
+                                    color.y = srgb_to_linear_fast(color.y);
+                                    color.z = srgb_to_linear_fast(color.z);
 
-                                    if let Some(shader_index) = batch.shader {
-                                        let texture = if let Some(chunk) = chunk {
-                                            if let Some(tex) =
-                                                chunk.shader_textures.get(shader_index)
-                                            {
-                                                tex
-                                            } else {
-                                                &None
-                                            }
-                                        } else {
-                                            &None
-                                        };
-
-                                        if let Some(texture) = texture {
-                                            // let texel = texture.sample_with_normal(
-                                            //     interpolated_u,
-                                            //     interpolated_v,
-                                            //     self.sample_mode,
-                                            //     batch.repeat_mode,
-                                            //     Some(&mut normal),
-                                            //     0.2,
-                                            // );
-                                            let texel = texture.sample(
-                                                interpolated_u,
-                                                interpolated_v,
-                                                self.sample_mode,
-                                                batch.repeat_mode,
-                                            );
-                                            color = pixel_to_vec4(&texel);
-                                            color.x = srgb_to_linear_fast(color.x);
-                                            color.y = srgb_to_linear_fast(color.y);
-                                            color.z = srgb_to_linear_fast(color.z);
-
-                                            execution.color.x = color.x;
-                                            execution.color.y = color.y;
-                                            execution.color.z = color.z;
-                                            execution.opacity.x = color.w;
-
-                                            execution.roughness.x = 0.5;
-                                            execution.metallic.x = 0.0;
-
-                                            execution.normal = normal;
-                                        } else {
-                                            color.x = srgb_to_linear_fast(color.x);
-                                            color.y = srgb_to_linear_fast(color.y);
-                                            color.z = srgb_to_linear_fast(color.z);
-
-                                            execution.color.x = color.x;
-                                            execution.color.y = color.y;
-                                            execution.color.z = color.z;
-                                            execution.opacity.x = texel[3] as f32 / 255.0;
-
-                                            execution.normal = normal;
-
-                                            execution.roughness.x = 0.5;
-                                            execution.metallic.x = 0.0;
-
-                                            // Execute the batch shader (if any)
-                                            let program = if let Some(chunk) = chunk {
-                                                chunk.shaders.get(shader_index)
-                                            } else {
-                                                scene.shaders.get(shader_index)
-                                            };
-
-                                            if let Some(program) = program {
-                                                if let Some(sh) = program.shade_index {
-                                                    execution.uv.x = interpolated_u / 4.0;
-                                                    execution.uv.y = interpolated_v / 4.0;
-
-                                                    execution.hitpoint = world;
-                                                    execution.time.x = self.time;
-                                                    execution.time.y = self.time;
-                                                    execution.time.z = self.time;
-
-                                                    execution.reset(program.globals);
-                                                    execution.shade(sh, program, &assets.palette);
-                                                }
-                                            }
-                                        }
-                                    } else {
-                                        color.x = srgb_to_linear_fast(color.x);
-                                        color.y = srgb_to_linear_fast(color.y);
-                                        color.z = srgb_to_linear_fast(color.z);
-
-                                        execution.color.x = color.x;
-                                        execution.color.y = color.y;
-                                        execution.color.z = color.z;
-                                        execution.opacity.x = texel[3] as f32 / 255.0;
-                                        execution.normal = normal;
-                                        execution.roughness.x = 0.5;
-                                        execution.metallic.x = 0.0;
-                                    }
-
-                                    let mat_base = execution.color;
-                                    normal = execution.normal.normalized();
-                                    let mat_roughness = execution.roughness.x.clamp(0.0, 1.0);
-                                    let mat_metallic = execution.metallic.x.clamp(0.0, 1.0);
-                                    let mat_emissive = execution.emissive;
+                                    let mat_base = color.xyz();
+                                    normal = normal.normalized();
+                                    let mat_roughness = 0.5;
+                                    let mat_metallic = 0.0;
+                                    let mat_emissive = Vec3::zero();
+                                    let opacity = texel[3] as f32 / 255.0;
 
                                     let mut lit = Vec3::<f32>::zero();
 
@@ -1284,7 +1103,7 @@ impl Rasterizer {
                                         color.y = mat_base.y;
                                         color.z = mat_base.z;
                                     }
-                                    color.w = execution.opacity.x;
+                                    color.w = opacity;
                                     texel = vec4_to_pixel(&color);
 
                                     // ---
@@ -1315,8 +1134,6 @@ impl Rasterizer {
         batch: &Batch3D,
         scene: &Scene,
         assets: &Assets,
-        chunk: Option<&Chunk>,
-        execution: &mut Execution,
     ) {
         // Bounding box check for the tile with the batch bbox
         if let Some(bbox) = batch.bounding_box {
@@ -1394,9 +1211,6 @@ impl Rasterizer {
                                     // Now we can divide back both interpolated values by 1/w
                                     interpolated_u /= interpolated_reciprocal_w;
                                     interpolated_v /= interpolated_reciprocal_w;
-
-                                    // Get the screen coordinates of the hitpoint
-                                    let world = self.screen_to_world(p[0], p[1], z);
 
                                     let (mut texel, _is_terrain) = match batch.source {
                                         PixelSource::StaticTileIndex(index) => {
@@ -1485,43 +1299,10 @@ impl Rasterizer {
                                     color.y = srgb_to_linear_fast(color.y);
                                     color.z = srgb_to_linear_fast(color.z);
 
-                                    execution.color.x = color.x;
-                                    execution.color.y = color.y;
-                                    execution.color.z = color.z;
-                                    execution.opacity.x = texel[3] as f32 / 255.0;
-
-                                    // Execute the batch shader (if any)
-                                    if let Some(shader_index) = batch.shader {
-                                        let program = if let Some(chunk) = chunk {
-                                            chunk.shaders.get(shader_index)
-                                        } else {
-                                            scene.shaders.get(shader_index)
-                                        };
-
-                                        if let Some(program) = program {
-                                            if let Some(sh) = program.shade_index {
-                                                execution.normal = Vec3::zero();
-                                                execution.uv.x = interpolated_u / 4.0;
-                                                execution.uv.y = interpolated_v / 4.0;
-
-                                                execution.hitpoint = world;
-                                                execution.time.x = self.time;
-                                                execution.time.y = self.time;
-                                                execution.time.z = self.time;
-
-                                                execution.roughness.x = 0.5;
-                                                execution.metallic.x = 0.0;
-
-                                                execution.reset(program.globals);
-                                                execution.shade(sh, program, &assets.palette);
-                                            }
-                                        }
-                                    }
-
-                                    color.x = linear_to_srgb_fast(execution.color.x);
-                                    color.y = linear_to_srgb_fast(execution.color.y);
-                                    color.z = linear_to_srgb_fast(execution.color.z);
-                                    color.w = execution.opacity.x;
+                                    color.x = linear_to_srgb_fast(color.x);
+                                    color.y = linear_to_srgb_fast(color.y);
+                                    color.z = linear_to_srgb_fast(color.z);
+                                    color.w = texel[3] as f32 / 255.0;
                                     texel = vec4_to_pixel(&color);
 
                                     // ---

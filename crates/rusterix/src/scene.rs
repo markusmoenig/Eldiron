@@ -1,14 +1,10 @@
-use crate::{Batch2D, Batch3D, Chunk, CompiledLight, HitInfo, MapMini, Ray, Shader, Tile};
+use crate::{Batch2D, Batch3D, Chunk, CompiledLight, HitInfo, MapMini, Ray, Tile};
 use rayon::prelude::*;
-use rusteria::{Program, Rusteria};
 use theframework::prelude::*;
 use vek::{Mat3, Mat4};
 
 /// A scene of 2D and 3D batches which are passed to the rasterizer for rasterization.
 pub struct Scene {
-    /// Background shader
-    pub background: Option<Box<dyn Shader>>,
-
     /// The lights in the scene
     pub lights: Vec<CompiledLight>,
 
@@ -39,12 +35,6 @@ pub struct Scene {
     /// For 2D grid conversion when we dont use a matrix
     pub mapmini: MapMini,
 
-    /// The list of shaders for the Batches
-    pub shaders: Vec<Program>,
-
-    /// The list of shaders which have opacity
-    pub shaders_with_opacity: Vec<bool>,
-
     /// The build chunks
     pub chunks: FxHashMap<(i32, i32), Chunk>,
 }
@@ -59,7 +49,6 @@ impl Scene {
     // An empty scene
     pub fn empty() -> Self {
         Self {
-            background: None,
             lights: vec![],
             dynamic_lights: vec![],
             d3_static: vec![],
@@ -73,9 +62,6 @@ impl Scene {
 
             mapmini: MapMini::default(),
 
-            shaders: vec![],
-            shaders_with_opacity: vec![],
-
             chunks: FxHashMap::default(),
         }
     }
@@ -83,7 +69,6 @@ impl Scene {
     // From static 2D and 3D meshes.
     pub fn from_static(d2: Vec<Batch2D>, d3: Vec<Batch3D>) -> Self {
         Self {
-            background: None,
             lights: vec![],
             dynamic_lights: vec![],
             d3_static: d3,
@@ -97,46 +82,8 @@ impl Scene {
 
             mapmini: MapMini::default(),
 
-            shaders: vec![],
-            shaders_with_opacity: vec![],
-
             chunks: FxHashMap::default(),
         }
-    }
-
-    /// Add a shader
-    pub fn add_shader(&mut self, code: &str) -> Option<usize> {
-        if code.is_empty() {
-            return None;
-        };
-
-        let mut rs: Rusteria = Rusteria::default();
-        let _module = match rs.parse_str(code) {
-            Ok(module) => match rs.compile(&module) {
-                Ok(()) => {}
-                Err(e) => {
-                    eprintln!("Error compiling module: {e}");
-                    return None;
-                }
-            },
-            Err(e) => {
-                eprintln!("Error parsing module: {e}");
-                return None;
-            }
-        };
-
-        let index = self.shaders.len();
-        self.shaders_with_opacity
-            .push(rs.context.program.shader_supports_opacity());
-        self.shaders.push(rs.context.program.clone());
-
-        Some(index)
-    }
-
-    /// Sets the background shader using the builder pattern.
-    pub fn background(mut self, background: Box<dyn Shader>) -> Self {
-        self.background = Some(background);
-        self
     }
 
     /// Sets the lights using the builder pattern.

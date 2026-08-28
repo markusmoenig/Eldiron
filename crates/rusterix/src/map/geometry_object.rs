@@ -51,6 +51,100 @@ pub struct GeometryFace {
     pub surface_points: Vec<GeometrySurfacePoint>,
     #[serde(default)]
     pub surface_segments: Vec<GeometrySurfaceSegment>,
+    /// Faces in the same non-zero group share vertex normals. Group zero keeps the face flat,
+    /// preserving the appearance of geometry authored before smoothing groups were introduced.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub smoothing_group: u32,
+}
+
+/// Triangulate a planar 3D polygon while preserving its original winding and corner indices.
+///
+/// Geometry faces retain n-gons for editing, UVs, and stable paint identity. Rendering needs
+/// triangles, though, and a triangle fan is only valid for convex polygons. This helper projects
+/// the polygon along its dominant normal axis and uses earcut so concave authored faces are safe.
+pub fn triangulate_geometry_polygon(points: &[Vec3<f32>]) -> Option<Vec<(usize, usize, usize)>> {
+    if points.len() < 3
+        || points
+            .iter()
+            .any(|point| !point.x.is_finite() || !point.y.is_finite() || !point.z.is_finite())
+    {
+        return None;
+    }
+
+    // Earcut accepts collinear vertices, but consecutive duplicates can make its linked-list
+    // topology ambiguous. Keep a map back to the face's original corners so UV and paint arrays
+    // remain aligned with the editable n-gon.
+    let mut cleaned = Vec::with_capacity(points.len());
+    for (index, point) in points.iter().copied().enumerate() {
+        if cleaned
+            .last()
+            .is_some_and(|(_, previous): &(usize, Vec3<f32>)| {
+                (*previous - point).magnitude_squared() <= 1e-12
+            })
+        {
+            continue;
+        }
+        cleaned.push((index, point));
+    }
+    if cleaned.len() >= 2
+        && (cleaned[0].1 - cleaned[cleaned.len() - 1].1).magnitude_squared() <= 1e-12
+    {
+        cleaned.pop();
+    }
+    if cleaned.len() < 3 {
+        return None;
+    }
+
+    // Newell's method is stable for convex and concave planar polygons and preserves winding.
+    let mut polygon_normal = Vec3::<f32>::zero();
+    for index in 0..cleaned.len() {
+        let current = cleaned[index].1;
+        let next = cleaned[(index + 1) % cleaned.len()].1;
+        polygon_normal.x += (current.y - next.y) * (current.z + next.z);
+        polygon_normal.y += (current.z - next.z) * (current.x + next.x);
+        polygon_normal.z += (current.x - next.x) * (current.y + next.y);
+    }
+    if polygon_normal.magnitude_squared() <= 1e-12 {
+        return None;
+    }
+
+    let abs_normal = polygon_normal.map(f32::abs);
+    let project = |point: Vec3<f32>| {
+        if abs_normal.x >= abs_normal.y && abs_normal.x >= abs_normal.z {
+            Vec2::new(point.y, point.z)
+        } else if abs_normal.y >= abs_normal.z {
+            Vec2::new(point.x, point.z)
+        } else {
+            Vec2::new(point.x, point.y)
+        }
+    };
+    let flattened = cleaned
+        .iter()
+        .flat_map(|(_, point)| {
+            let projected = project(*point);
+            [projected.x as f64, projected.y as f64]
+        })
+        .collect::<Vec<_>>();
+    let earcut_indices = std::panic::catch_unwind(|| earcutr::earcut(&flattened, &[], 2))
+        .ok()?
+        .ok()?;
+
+    let mut triangles = Vec::with_capacity(cleaned.len().saturating_sub(2));
+    for triangle in earcut_indices.chunks_exact(3) {
+        let a = cleaned.get(triangle[0])?.0;
+        let mut b = cleaned.get(triangle[1])?.0;
+        let mut c = cleaned.get(triangle[2])?.0;
+        let triangle_normal = (points[b] - points[a]).cross(points[c] - points[a]);
+        if triangle_normal.magnitude_squared() <= 1e-12 {
+            continue;
+        }
+        if triangle_normal.dot(polygon_normal) < 0.0 {
+            std::mem::swap(&mut b, &mut c);
+        }
+        triangles.push((a, b, c));
+    }
+
+    (!triangles.is_empty()).then_some(triangles)
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -367,7 +461,12 @@ fn face(indices: Vec<usize>) -> GeometryFace {
         tiles: FxHashMap::default(),
         surface_points: Vec::new(),
         surface_segments: Vec::new(),
+        smoothing_group: 0,
     }
+}
+
+fn is_zero_u32(value: &u32) -> bool {
+    *value == 0
 }
 
 fn default_geometry_face_id() -> Uuid {
@@ -457,6 +556,106 @@ mod geometry_face_tiles {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn triangle_area_xz(points: &[Vec3<f32>], triangle: (usize, usize, usize)) -> f32 {
+        let a = points[triangle.0];
+        let b = points[triangle.1];
+        let c = points[triangle.2];
+        ((b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x)).abs() * 0.5
+    }
+
+    #[test]
+    fn concave_geometry_polygon_triangulates_without_filling_the_notch() {
+        let points = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 3.0),
+            Vec3::new(2.0, 0.0, 3.0),
+            Vec3::new(2.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 3.0),
+            Vec3::new(0.0, 0.0, 3.0),
+        ];
+
+        let triangles = triangulate_geometry_polygon(&points).expect("concave face triangulates");
+        let area = triangles
+            .iter()
+            .copied()
+            .map(|triangle| triangle_area_xz(&points, triangle))
+            .sum::<f32>();
+
+        assert_eq!(triangles.len(), points.len() - 2);
+        assert!(
+            (area - 7.0).abs() < 1e-5,
+            "triangles cover only the U-shaped polygon"
+        );
+    }
+
+    #[test]
+    fn geometry_polygon_triangulation_preserves_winding() {
+        let clockwise = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 2.0),
+            Vec3::new(2.0, 0.0, 2.0),
+            Vec3::new(2.0, 0.0, 0.0),
+        ];
+        let counter_clockwise = clockwise.iter().copied().rev().collect::<Vec<_>>();
+
+        for points in [clockwise, counter_clockwise] {
+            let expected = (points[1] - points[0]).cross(points[2] - points[0]);
+            for (a, b, c) in triangulate_geometry_polygon(&points).unwrap() {
+                let actual = (points[b] - points[a]).cross(points[c] - points[a]);
+                assert!(actual.dot(expected) > 0.0);
+            }
+        }
+    }
+
+    #[test]
+    fn geometry_polygon_triangulation_maps_past_duplicate_corners() {
+        let points = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(2.0, 0.0, 0.0),
+            Vec3::new(2.0, 0.0, 0.0),
+            Vec3::new(2.0, 0.0, 2.0),
+            Vec3::new(0.0, 0.0, 2.0),
+        ];
+
+        let triangles = triangulate_geometry_polygon(&points).unwrap();
+        assert_eq!(triangles.len(), 2);
+        assert!(
+            triangles
+                .iter()
+                .all(|(a, b, c)| { [*a, *b, *c].into_iter().all(|index| index < points.len()) })
+        );
+    }
+
+    #[test]
+    fn degenerate_geometry_polygon_is_rejected() {
+        let points = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(2.0, 0.0, 0.0),
+        ];
+        assert!(triangulate_geometry_polygon(&points).is_none());
+    }
+
+    #[test]
+    fn redundant_collinear_corner_does_not_reject_a_valid_polygon() {
+        let points = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(2.0, 0.0, 0.0),
+            Vec3::new(2.0, 0.0, 2.0),
+            Vec3::new(0.0, 0.0, 2.0),
+        ];
+        let triangles = triangulate_geometry_polygon(&points).unwrap();
+        let area = triangles
+            .iter()
+            .copied()
+            .map(|triangle| triangle_area_xz(&points, triangle))
+            .sum::<f32>();
+        assert!((area - 4.0).abs() < 1e-5);
+    }
 
     #[test]
     fn geometry_face_tile_cells_serialize_to_toml() {

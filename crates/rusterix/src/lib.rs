@@ -42,12 +42,10 @@ pub mod scene_build_index;
 pub mod scene_handler;
 pub mod scenebuilder;
 pub mod scenemanager;
+pub mod server;
 #[cfg(not(feature = "graphics"))]
 #[path = "client/text_command.rs"]
 pub mod text_command;
-// pub mod script;
-pub mod server;
-pub mod shader;
 pub mod texture;
 pub mod utils;
 pub mod value;
@@ -191,7 +189,7 @@ pub use crate::{
             GeometryFace, GeometryObject, GeometryObjectKind, GeometrySurfacePoint,
             GeometrySurfacePointMode, GeometrySurfaceSegment, GeometrySurfaceSegmentMode,
             geometry_face_effective_paint_surface_id, geometry_face_paint_uvs,
-            remap_geometry_face_paint_uvs,
+            remap_geometry_face_paint_uvs, triangulate_geometry_polygon,
         },
         light::CompiledLight,
         light::Light,
@@ -208,7 +206,6 @@ pub use crate::{
         pixelsource::NoiseTarget,
         pixelsource::PixelSource,
         sector::Sector,
-        softrig::{Keyform, SoftRig, SoftRigAnimator},
         surface::{BillboardAnimation, LoopOp, ProfileLoop, Surface},
         tile::{
             Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature, TileGeometryOperation,
@@ -241,7 +238,6 @@ pub use crate::{
         region::RegionInstance,
         regionctx::RegionCtx,
     },
-    shader::{Shader, grid::GridShader, vgradient::VGrayGradientShader},
     texture::{RepeatMode, SampleMode, Texture},
     value::{HeightControlPoint, Value, ValueContainer},
     value_toml::{ValueGroups, ValueTomlLoader},
@@ -280,12 +276,12 @@ pub mod prelude {
         BlockPropInteractionHit, BlockPropInteractionTarget, BlockPropOccupancyPolicy,
         BlockPropOccupant, BlockPropPart, BlockPropPlacementProfile, BlockPropSemanticShape,
         BlockPropSupportSurface, BlockPropSupportSurfaceHit, BlockPropSurfacePlacement,
-        BlockPropTransform, Keyform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget,
+        BlockPropTransform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget,
         OrganicBushCluster, OrganicGrowthShape, OrganicVineStroke, Particle, ParticleEmitter,
-        PixelSource, Sector, SoftRig, SoftRigAnimator, Tile, TileAttachment, TileBoxGeometry,
-        TileGeometryFeature, TileGeometryOperation, TileGroup, TileGroupMemberRef, TileLightEffect,
-        TileNicheGeometry, TileParticleEffect, TileRole, TileSource, Vertex,
-        block_prop_door_controls_part, block_prop_interaction_verb, block_prop_part_world_anchor,
+        PixelSource, Sector, Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature,
+        TileGeometryOperation, TileGroup, TileGroupMemberRef, TileLightEffect, TileNicheGeometry,
+        TileParticleEffect, TileRole, TileSource, Vertex, block_prop_door_controls_part,
+        block_prop_interaction_verb, block_prop_part_world_anchor,
         block_prop_support_surface_local_point, block_prop_support_surface_world_point,
         block_prop_support_surface_world_transform, block_prop_surface_placement_world_position,
         default_organic_bush_clusters, default_organic_vine_strokes,
@@ -297,7 +293,6 @@ pub mod prelude {
     #[cfg(feature = "graphics")]
     pub use crate::{Command, Daylight, MsgParser, Tok};
     pub use crate::{D3Camera, D3FirstPCamera, D3IsoCamera, D3OrbitCamera};
-    pub use crate::{GridShader, Shader, VGrayGradientShader};
     pub use crate::{
         Rect, Scene, SceneManager, SceneManagerCmd, SceneManagerResult, Value, ValueContainer,
     };

@@ -9453,13 +9453,6 @@ impl TheTrait for Editor {
                                         .set_map_hover_info_d2(self.server_ctx.hover, None);
                                 }
 
-                                if let Some(camera_pos) = region.map.camera_xz {
-                                    rusterix.client.set_camera_info_d2(
-                                        Some(Vec3::new(camera_pos.x, 0.0, camera_pos.y)),
-                                        None,
-                                    );
-                                }
-
                                 // let start_time = ctx.get_time();
 
                                 if let Some(clipboard) = &self.server_ctx.paste_clipboard {

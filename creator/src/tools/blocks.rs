@@ -1,8 +1,8 @@
 use crate::blocks::{
     BLOCK_COLUMN_SEGMENTS, BLOCK_OPERATION_ERASE, BLOCK_OPERATION_PLACE, BLOCK_OPERATION_REPLACE,
-    adjusted_rotated_bounds, block_asset, block_component_kind, block_sizing_from_context,
-    block_stroke_cells, block_surface_base_y, component_uses_cylinder, cylinder_vertices_and_faces,
-    default_block_asset_id, localized_block_asset_name,
+    BLOCK_SIZE_STEP_CELLS, adjusted_rotated_bounds, block_asset, block_component_kind,
+    block_sizing_from_context, block_stroke_cells, block_surface_base_y, component_uses_cylinder,
+    cylinder_vertices_and_faces, default_block_asset_id, localized_block_asset_name,
 };
 use crate::editor::DOCKMANAGER;
 use crate::prelude::*;
@@ -145,7 +145,11 @@ impl BlockTool {
                     .set("block_height_cells", Value::Int(sizing.height_cells));
                 object.properties.set(
                     "block_span_extra_cells",
-                    Value::Int(sizing.span_extra_cells),
+                    Value::Float(sizing.span_extra_cells),
+                );
+                object.properties.set(
+                    "block_depth_extra_cells",
+                    Value::Float(sizing.depth_extra_cells),
                 );
                 Some(object)
             })
@@ -170,6 +174,7 @@ impl BlockTool {
             tiles: FxHashMap::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
+            smoothing_group: 0,
         }
     }
 
@@ -780,8 +785,8 @@ impl Tool for BlockTool {
             }
             MapKey('w') => {
                 server_ctx.block_span_extra_cells =
-                    (server_ctx.block_span_extra_cells + 1).clamp(0, 16);
-                let width = server_ctx.block_span_extra_cells as i64;
+                    (server_ctx.block_span_extra_cells + BLOCK_SIZE_STEP_CELLS).clamp(0.0, 16.0);
+                let width = server_ctx.block_span_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_width_extra", width = width)),
@@ -798,11 +803,47 @@ impl Tool for BlockTool {
             }
             MapKey('W') => {
                 server_ctx.block_span_extra_cells =
-                    (server_ctx.block_span_extra_cells - 1).clamp(0, 16);
-                let width = server_ctx.block_span_extra_cells as i64;
+                    (server_ctx.block_span_extra_cells - BLOCK_SIZE_STEP_CELLS).clamp(0.0, 16.0);
+                let width = server_ctx.block_span_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_width_extra", width = width)),
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
+                    TheValue::Empty,
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Geometry Overlay 3D"),
+                    TheValue::Empty,
+                ));
+                None
+            }
+            MapKey('z') => {
+                server_ctx.block_depth_extra_cells =
+                    (server_ctx.block_depth_extra_cells + BLOCK_SIZE_STEP_CELLS).clamp(0.0, 16.0);
+                let depth = server_ctx.block_depth_extra_cells as f64;
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    format!("{}", fl!("status_block_depth_extra", depth = depth)),
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
+                    TheValue::Empty,
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Geometry Overlay 3D"),
+                    TheValue::Empty,
+                ));
+                None
+            }
+            MapKey('Z') => {
+                server_ctx.block_depth_extra_cells =
+                    (server_ctx.block_depth_extra_cells - BLOCK_SIZE_STEP_CELLS).clamp(0.0, 16.0);
+                let depth = server_ctx.block_depth_extra_cells as f64;
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    format!("{}", fl!("status_block_depth_extra", depth = depth)),
                 ));
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),

@@ -2962,14 +2962,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c6a884d2998352bb4daf0183589aec883f16a6da1f4dde84d8e2e9a5409a1ce"
 
 [[package]]
-name = "rsia"
-version = "0.1.0"
-dependencies = [
- "clap",
- "rusteria",
-]
-
-[[package]]
 name = "rust-embed"
 version = "8.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3026,22 +3018,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rusteria"
-version = "0.1.0"
-dependencies = [
- "image",
- "indexmap",
- "once_cell",
- "rayon",
- "rust-embed",
- "rustc-hash 2.1.1",
- "strum",
- "theframework",
- "vek",
- "web-sys",
-]
-
-[[package]]
 name = "rusterix"
 version = "0.2.8"
 dependencies = [
@@ -3066,7 +3042,6 @@ dependencies = [
  "regex",
  "rust-embed",
  "rustc-hash 2.1.1",
- "rusteria",
  "scenevm",
  "serde",
  "serde_json",

@@ -257,6 +257,7 @@ impl Chunk {
             tile_id,
             vertices,
             uvs,
+            normals: Vec::new(),
             indices,
             layer,
             visible,
@@ -284,12 +285,44 @@ impl Chunk {
         paint_source_id: Option<GeoId>,
         paint_uvs: Vec<[f32; 2]>,
     ) {
+        self.add_poly_3d_painted_with_normals(
+            id,
+            tile_id,
+            vertices,
+            uvs,
+            Vec::new(),
+            indices,
+            layer,
+            visible,
+            paint_surface_id,
+            paint_source_id,
+            paint_uvs,
+        );
+    }
+
+    /// Add a painted 3D polygon with explicit per-vertex shading normals.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_poly_3d_painted_with_normals(
+        &mut self,
+        id: GeoId,
+        tile_id: uuid::Uuid,
+        vertices: Vec<[f32; 4]>,
+        uvs: Vec<[f32; 2]>,
+        normals: Vec<[f32; 3]>,
+        indices: Vec<(usize, usize, usize)>,
+        layer: i32,
+        visible: bool,
+        paint_surface_id: [u32; 4],
+        paint_source_id: Option<GeoId>,
+        paint_uvs: Vec<[f32; 2]>,
+    ) {
         self.add_poly_3d(id, tile_id, vertices, uvs, indices, layer, visible);
         if let Some(poly) = self
             .polys3d_map
             .get_mut(&id)
             .and_then(|polys| polys.last_mut())
         {
+            poly.normals = normals;
             poly.paint_surface_id = Some(paint_surface_id);
             poly.paint_source_id = paint_source_id;
             poly.paint_uvs = paint_uvs;
@@ -342,6 +375,7 @@ impl Chunk {
             tile_id,
             vertices,
             uvs,
+            normals: Vec::new(),
             indices,
             layer,
             visible,
@@ -419,6 +453,7 @@ impl Chunk {
             tile_id,
             vertices,
             uvs,
+            normals: Vec::new(),
             indices,
             layer: 0,
             visible,
@@ -514,6 +549,7 @@ impl Chunk {
             tile_id,
             vertices,
             uvs,
+            normals: Vec::new(),
             indices,
             layer,
             visible: true,

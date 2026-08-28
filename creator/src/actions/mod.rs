@@ -739,6 +739,7 @@ pub fn clear_nodeui_icon_tile_id(nodeui: &mut TheNodeUI, item_name: &str, index:
     }
 }
 
+pub mod action_edit;
 pub mod apply_tile;
 pub mod build_procedural;
 pub mod clear_palette;
@@ -748,6 +749,7 @@ pub mod create_center_vertex;
 pub mod create_fitted_geometry;
 pub mod create_geometry_box;
 pub mod create_linedef;
+pub mod create_revolve;
 pub mod create_ridge;
 pub mod create_sector;
 pub mod create_surface_face;
@@ -1007,6 +1009,16 @@ pub trait Action: Send + Sync {
     }
 
     fn uses_minimap_preview(&self) -> bool {
+        false
+    }
+
+    /// Optional full editor display owned by this action.
+    fn edit_display(&self) -> Option<action_edit::ActionEditDisplay> {
+        None
+    }
+
+    /// Receive persistent data edited by the shared full-display host.
+    fn update_edit_display(&mut self, _display: &action_edit::ActionEditDisplay) -> bool {
         false
     }
 

@@ -8,7 +8,11 @@ use toml::*;
 /// events keep the established PolyView contract, but their actual widget is
 /// intentionally isolated under a different id.
 pub fn map_editor_render_view_name(server_ctx: &ServerContext) -> &'static str {
-    if server_ctx.pc.is_prefab() {
+    map_editor_render_view_name_for_context(server_ctx.pc)
+}
+
+pub fn map_editor_render_view_name_for_context(project_context: ProjectContext) -> &'static str {
+    if project_context.is_prefab() {
         "PrefabView"
     } else {
         "PolyView"
@@ -751,6 +755,7 @@ mod scaled_geometry_projection_tests {
             tiles: Default::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
+            smoothing_group: 0,
         }
     }
 

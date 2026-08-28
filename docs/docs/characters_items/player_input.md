@@ -191,11 +191,11 @@ cooldowns, and unlock checks as ordinary command-slot buttons. Selecting an
 enabled entry highlights it and activates the normal rules action targeting
 path; the panel stays open for subsequent choices until closed with its button,
 close control, `Tab`, or Escape. This makes the generic panel suitable for
-martial abilities and sandbox actions as well as magic, while the Spellbook
-presents a themed and filtered view without changing the ruleset action
-representation.
+martial abilities and sandbox actions as well as magic. The Spellbook presents
+the same complete ability catalogue through the configurable player-facing UI;
+action kinds only organize its groups.
 
-`ui.spellbook` opens the floating, draggable catalogue filtered to rules actions with `kind = "spell"`. The active screen's action-bar widget may configure its built-in Spellbook under `[ui.spellbook]`, including rows, columns, cell size, spacing, padding, icon inset, and labels. A separate screen widget with `role = "spellbook"` overrides that default when a game needs its own rectangle or frame and slot artwork. Both panels retain drag-to-slot and Assign behavior.
+`ui.spellbook` opens the floating, draggable catalogue containing every rules action known by the active class. The active screen's action-bar widget may configure its built-in Spellbook under `[ui.spellbook]`, including its grid, tabs, details pane, fonts, colors, and artwork. A separate screen widget with `role = "spellbook"` overrides that default when a game needs its own rectangle or presentation. Both panels retain drag-to-slot behavior; set `show_assign = true` to expose the explicit Assign mode.
 
 Drag a panel entry onto a `command_slot` button to replace that player's quick
 slot. On touch or non-drag interfaces, use **Assign**, then click the action and

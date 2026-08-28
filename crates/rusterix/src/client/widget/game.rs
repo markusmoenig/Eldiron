@@ -10,7 +10,10 @@ use instant::Instant;
 use theframework::prelude::*;
 use vek::Vec2;
 
-use super::game_backend::{GameWidgetBackend, GraphicalGameWidgetBackend, TextGameWidgetBackend};
+use super::{
+    Widget,
+    game_backend::{GameWidgetBackend, GraphicalGameWidgetBackend, TextGameWidgetBackend},
+};
 
 fn render_debug_enabled() -> bool {
     std::env::var("ELDIRON_RENDER_DEBUG")
@@ -337,10 +340,8 @@ impl GameWidget {
             {
                 self.text_font = Some(font.clone());
             }
-            if self.text_font.is_none()
-                && let Some(font) = assets.fonts.values().next()
-            {
-                self.text_font = Some(font.clone());
+            if self.text_font.is_none() {
+                self.text_font = Widget::fallback_font().cloned();
             }
         }
     }

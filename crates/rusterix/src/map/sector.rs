@@ -15,9 +15,6 @@ pub struct Sector {
 
     pub properties: ValueContainer,
 
-    #[serde(default)]
-    pub shader: Option<Uuid>,
-
     /// The rect tool layer for this sector (if created by the rect tool).
     #[serde(default)]
     pub layer: Option<u8>,
@@ -35,7 +32,6 @@ impl Sector {
             linedefs,
             properties,
 
-            shader: None,
             layer: None,
         }
     }

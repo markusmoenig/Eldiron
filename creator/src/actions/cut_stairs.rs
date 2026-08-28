@@ -84,6 +84,7 @@ fn geometry_face(
         tiles: FxHashMap::default(),
         surface_points: Vec::new(),
         surface_segments: Vec::new(),
+        smoothing_group: source_face.map_or(0, |face| face.smoothing_group),
     }
 }
 

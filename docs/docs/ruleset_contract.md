@@ -859,6 +859,12 @@ Fallback maps are optional: a minimalist or text-only game may omit them. Every
 authored fallback reference is validated, while many definitions can
 deliberately share one semantic glyph.
 
+The official ruleset gives every action an independent
+`assets/icons/<action-id>/on/0.png`, even when its initial placeholder pixels
+come from another semantic glyph. This is an authoring convention rather than
+an engine restriction: it lets an artist replace abilities one by one without
+changing another action.
+
 State directories may later contain a `material.png` beside the numbered color
 frames. Its reserved channels are red for roughness, blue for metallic, green
 for emission, and unused alpha. Material loading and editing are not part of

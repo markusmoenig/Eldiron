@@ -1,10 +1,11 @@
 use crate::blocks::{
     BLOCK_COLUMN_SEGMENTS, BLOCK_OPERATION_ERASE, BLOCK_OPERATION_PLACE, BLOCK_STROKE_LINE,
-    BLOCK_STROKE_RECT, BlockAsset, BlockSizing, adjusted_rotated_bounds, asset_supports_height,
-    asset_supports_width, block_asset, block_assets, block_component_kind, component_uses_cylinder,
-    cylinder_vertices_and_faces, default_block_asset_id, localized_block_asset_description,
-    localized_block_asset_name,
+    BLOCK_STROKE_RECT, BlockAsset, BlockSizing, adjusted_rotated_bounds, asset_supports_depth,
+    asset_supports_height, asset_supports_width, block_asset, block_assets, block_component_kind,
+    component_uses_cylinder, cylinder_vertices_and_faces, default_block_asset_id,
+    localized_block_asset_description, localized_block_asset_name,
 };
+use crate::editor::{RUSTERIX, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
 use rusterix::D3Camera;
 use std::collections::HashMap;
@@ -15,6 +16,7 @@ const BLOCKS_DOCK_INSPECTOR: &str = "Blocks Dock Inspector";
 const BLOCKS_DOCK_OPERATION: &str = "Blocks Dock Operation";
 const BLOCKS_DOCK_STROKE: &str = "Blocks Dock Stroke";
 const BLOCKS_DOCK_DAMAGE: &str = "Blocks Dock Damage";
+const BLOCKS_DOCK_DELETE: &str = "Blocks Dock Delete Prefab";
 pub const BLOCKS_DOCK_SYNC_EVENT: &str = "Blocks Dock Sync";
 
 const BLOCK_PREVIEW_COLORS: [[u8; 4]; 3] = [
@@ -419,15 +421,28 @@ impl BlocksDock {
                 0
             });
         }
+        if project.block_props.contains_key(&self.selected) {
+            ui.set_enabled(BLOCKS_DOCK_DELETE, ctx);
+        } else {
+            ui.set_disabled(BLOCKS_DOCK_DELETE, ctx);
+        }
 
         if let Some(layout) = ui.get_text_layout(BLOCKS_DOCK_INSPECTOR) {
             layout.clear();
             if let Some(asset) = block_asset(self.selected) {
-                let adjusts = match (asset_supports_height(asset), asset_supports_width(asset)) {
-                    (true, true) => fl!("block_adjust_height_width"),
-                    (true, false) => fl!("block_adjust_height"),
-                    (false, true) => fl!("block_adjust_width"),
-                    (false, false) => fl!("block_adjust_fixed"),
+                let adjusts = match (
+                    asset_supports_height(asset),
+                    asset_supports_width(asset),
+                    asset_supports_depth(asset),
+                ) {
+                    (true, true, true) => fl!("block_adjust_height_width_depth"),
+                    (true, true, false) => fl!("block_adjust_height_width"),
+                    (true, false, true) => fl!("block_adjust_height_depth"),
+                    (false, true, true) => fl!("block_adjust_width_depth"),
+                    (true, false, false) => fl!("block_adjust_height"),
+                    (false, true, false) => fl!("block_adjust_width"),
+                    (false, false, true) => fl!("block_adjust_depth"),
+                    (false, false, false) => fl!("block_adjust_fixed"),
                 };
                 layout.add_pair(
                     fl!("block_label_block"),
@@ -460,11 +475,13 @@ impl BlocksDock {
                 layout.add_pair(
                     fl!("block_label_shape"),
                     Self::text(format!(
-                        "{}{}, {}+{}",
+                        "{}{}, {}+{}, {}+{}",
                         fl!("block_label_height_short"),
                         server_ctx.block_height_cells.max(1),
                         fl!("block_label_width_short"),
-                        server_ctx.block_span_extra_cells.max(0)
+                        server_ctx.block_span_extra_cells.max(0.0),
+                        fl!("block_label_depth_short"),
+                        server_ctx.block_depth_extra_cells.max(0.0)
                     )),
                 );
                 layout.add_pair(
@@ -522,6 +539,66 @@ impl BlocksDock {
             TheValue::Empty,
         ));
     }
+
+    fn delete_selected_project_prefab(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        let asset_id = self.selected;
+        if !project.block_props.contains_key(&asset_id) {
+            return false;
+        }
+
+        let before = project.clone();
+        match crate::block_props::delete_unused_block_prop(project, asset_id) {
+            Ok(name) => {
+                self.preview_cache
+                    .retain(|(cached_id, _), _| *cached_id != asset_id);
+                self.selected = default_block_asset_id();
+                server_ctx.curr_block_asset_id = Some(self.selected);
+                server_ctx.curr_block_asset_name =
+                    block_asset(self.selected).map(|asset| asset.name.to_string());
+
+                RUSTERIX
+                    .write()
+                    .unwrap()
+                    .set_block_props(project.block_props.clone());
+                SCENEMANAGER
+                    .write()
+                    .unwrap()
+                    .set_block_props(project.block_props.clone());
+                crate::utils::editor_scene_refresh_prefab_assets(&before, project, server_ctx);
+                UNDOMANAGER.write().unwrap().add_undo(
+                    ProjectUndoAtom::ProjectEdit(
+                        fl!("prefab_delete"),
+                        Box::new(before),
+                        Box::new(project.clone()),
+                    ),
+                    ctx,
+                );
+
+                self.sync_widgets(ui, ctx, project, server_ctx);
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    fl!("status_prefab_deleted", name = name.as_str()),
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Action List"),
+                    TheValue::Empty,
+                ));
+                Self::update_overlay(ctx);
+                true
+            }
+            Err(message) => {
+                ctx.ui
+                    .send(TheEvent::SetStatusText(TheId::empty(), message));
+                true
+            }
+        }
+    }
 }
 
 impl Dock for BlocksDock {
@@ -571,6 +648,13 @@ impl Dock for BlocksDock {
         stroke_group.set_item_width(68);
         stroke_group.set_index(BLOCK_STROKE_LINE);
         toolbar.add_widget(Box::new(stroke_group));
+
+        toolbar.add_widget(Box::new(TheSpacer::new(TheId::empty())));
+        let mut delete = TheTraybarButton::new(TheId::named(BLOCKS_DOCK_DELETE));
+        delete.set_text(fl!("prefab_delete"));
+        delete.set_status_text(&fl!("status_prefab_delete"));
+        delete.set_disabled(true);
+        toolbar.add_widget(Box::new(delete));
 
         toolbar.set_reverse_index(Some(2));
         toolbar_canvas.set_layout(toolbar);
@@ -674,6 +758,11 @@ impl Dock for BlocksDock {
                 self.sync_widgets(ui, ctx, project, server_ctx);
                 Self::update_overlay(ctx);
                 true
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if id.name == BLOCKS_DOCK_DELETE =>
+            {
+                self.delete_selected_project_prefab(ui, ctx, project, server_ctx)
             }
             TheEvent::Custom(id, TheValue::Empty) if id.name == BLOCKS_DOCK_SYNC_EVENT => {
                 self.sync_widgets(ui, ctx, project, server_ctx);

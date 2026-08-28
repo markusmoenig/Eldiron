@@ -277,23 +277,6 @@ impl D2PreviewBuilder {
         scene_handler.vm.execute(Atom::ClearLights);
         scene_handler.mark_dynamics_dirty();
 
-        // Grid
-        // if self.draw_grid {
-        //     if scene.background.is_none() {
-        //         let grid_shader = GridShader::new();
-        //         scene.background = Some(Box::new(grid_shader));
-        //     }
-        // } else {
-        //     scene.background = None;
-        // }
-
-        // Adjust the grid shader
-        // if let Some(grid_shader) = &mut scene.background {
-        //     grid_shader.set_parameter_f32("grid_size", map.grid_size);
-        //     grid_shader.set_parameter_f32("subdivisions", map.subdivisions);
-        //     grid_shader.set_parameter_vec2("offset", Vec2::new(map.offset.x, -map.offset.y));
-        // }
-
         // Add the clipping area
         if let Some(clip_rect) = self.clip_rect {
             let rect = (

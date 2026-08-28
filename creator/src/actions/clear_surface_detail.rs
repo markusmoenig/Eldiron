@@ -196,6 +196,7 @@ mod tests {
                 mode: rusterix::GeometrySurfaceSegmentMode::Line,
                 curve_amount: 0.35,
             }],
+            smoothing_group: 0,
         }
     }
 

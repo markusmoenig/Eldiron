@@ -782,17 +782,44 @@ fn describe_rules_action(
     {
         lines.push(description.trim().to_string());
     }
+    lines.push("Activation: 1 Action".to_string());
     lines.push(format!(
         "Target: {}",
         title_case(&action.target.id().replace('_', " "))
     ));
     for requirement in &action.requirements {
-        if let ResolvedActionRequirement::TargetAttribute { id, predicate } = requirement {
-            let reason = action_attribute_requirement_reason(id, predicate);
-            lines.push(format!(
-                "Requires Target: {}",
-                reason.strip_prefix("Need ").unwrap_or(&reason)
-            ));
+        match requirement {
+            ResolvedActionRequirement::Ability(id) => lines.push(format!(
+                "Requires: Ability {}",
+                title_case(&id.replace('_', " "))
+            )),
+            ResolvedActionRequirement::Spell(id) => lines.push(format!(
+                "Requires: Spell {}",
+                title_case(&id.replace('_', " "))
+            )),
+            ResolvedActionRequirement::Profession(id) => lines.push(format!(
+                "Requires: Profession {}",
+                title_case(&id.replace('_', " "))
+            )),
+            ResolvedActionRequirement::Skill { id, minimum } => lines.push(format!(
+                "Requires: {} {}",
+                title_case(&id.replace('_', " ")),
+                minimum
+            )),
+            ResolvedActionRequirement::Attribute { id, predicate } => {
+                let reason = action_attribute_requirement_reason(id, predicate);
+                lines.push(format!(
+                    "Requires: {}",
+                    reason.strip_prefix("Need ").unwrap_or(&reason)
+                ));
+            }
+            ResolvedActionRequirement::TargetAttribute { id, predicate } => {
+                let reason = action_attribute_requirement_reason(id, predicate);
+                lines.push(format!(
+                    "Requires Target: {}",
+                    reason.strip_prefix("Need ").unwrap_or(&reason)
+                ));
+            }
         }
     }
     match &action.range {
@@ -818,6 +845,12 @@ fn describe_rules_action(
     if action.cooldown_seconds > 0.0 {
         lines.push(format!("Cooldown: {:.1}s", action.cooldown_seconds));
     }
+    if let Some(damage_kind) = action.damage_kind.as_deref() {
+        lines.push(format!(
+            "Damage: {}",
+            title_case(&damage_kind.replace('_', " "))
+        ));
+    }
     if !action.resource_costs.is_empty() {
         let parts = action
             .resource_costs
@@ -839,6 +872,17 @@ fn describe_rules_action(
             })
             .collect::<Vec<_>>();
         lines.push(format!("Consumes: {}", parts.join(", ")));
+    }
+    if !action.invocations.is_empty() {
+        let invocations = action
+            .invocations
+            .iter()
+            .map(|invocation| invocation.sequence.join(" "))
+            .filter(|invocation| !invocation.trim().is_empty())
+            .collect::<Vec<_>>();
+        if !invocations.is_empty() {
+            lines.push(format!("Invocation: {}", invocations.join(" / ")));
+        }
     }
     for effect in &action.effects {
         match effect {

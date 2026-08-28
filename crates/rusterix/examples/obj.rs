@@ -40,8 +40,7 @@ impl TheTrait for ObjDemo {
                 .with_intensity(1.0)
                 .with_color([1.0, 1.0, 0.95])
                 .compile(),
-        ])
-        .background(Box::new(VGrayGradientShader::new()));
+        ]);
 
         let assets = Assets::default().textures(vec![Tile::from_texture(Texture::from_image(
             Path::new("images/logo.png"),

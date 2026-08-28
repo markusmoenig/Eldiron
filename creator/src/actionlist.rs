@@ -108,6 +108,11 @@ impl ActionList {
             crate::actions::create_geometry_box::CreateGeometryBox::new(),
         );
         list.register(
+            "geometry.create_revolve",
+            Geometry,
+            crate::actions::create_revolve::CreateRevolve::new(),
+        );
+        list.register(
             "geometry.create_unit_box",
             Geometry,
             crate::actions::create_geometry_box::CreateGeometryUnitBox::new(),

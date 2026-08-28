@@ -573,12 +573,15 @@ An optional state-local `material.png` is reserved for artist-authored material
 data: red stores roughness, blue metallic, green emission, and alpha is unused.
 No material file is required, and the torch does not invent one because its
 former tiles did not contain material data.
-Items own state bundles keyed by item id. Actions may still share semantic
-artwork: the official Guard action, for example, deliberately references the
-existing `round_shield` icon.
+Items own state bundles keyed by item id. The engine still permits actions to
+share semantic artwork, but every official action now points to its own
+`assets/icons/<action-id>/on/0.png`. The initial file may be copied from a
+semantic placeholder, but it is an independent artist-replaceable source and
+changing it cannot alter another ability.
 
-Actions and items may share any semantic icon id, so new content does not
-require one-off artwork. Action icons resolve an explicit `ui.icon`, then an
+Custom actions and items may share any semantic icon id, so new content does
+not require one-off artwork. Official actions deliberately use their own ids
+to support the artist workflow. Action icons resolve an explicit `ui.icon`, then an
 icon matching the required ability, required spell, or action id, then
 `[ui.action_icon_fallbacks]` by `healing`, `condition`, action `kind`, and
 `default`. For items, an authored item-id state PNG wins before the explicit

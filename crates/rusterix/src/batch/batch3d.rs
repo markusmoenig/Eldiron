@@ -61,11 +61,8 @@ pub struct Batch3D {
     /// Clipped normals
     pub clipped_normals: Vec<Vec3<f32>>,
 
-    /// Shader
+    /// Ambient color
     pub ambient_color: Vec3<f32>,
-
-    /// Shader
-    pub shader: Option<usize>,
 
     /// Optional Wall Profile Id
     pub profile_id: Option<u32>,
@@ -96,7 +93,6 @@ impl Batch3D {
             normals: vec![],
             clipped_normals: vec![],
             ambient_color: Vec3::zero(),
-            shader: None,
             profile_id: None,
             geometry_source: GeometrySource::Unknown,
         }
@@ -125,7 +121,6 @@ impl Batch3D {
             normals: vec![],
             clipped_normals: vec![],
             ambient_color: Vec3::zero(),
-            shader: None,
             profile_id: None,
             geometry_source: GeometrySource::Unknown,
         }
@@ -429,12 +424,6 @@ impl Batch3D {
     /// Set the source of pixels for this batch.
     pub fn source(mut self, pixel_source: PixelSource) -> Self {
         self.source = pixel_source;
-        self
-    }
-
-    /// Set the shader index for this batch
-    pub fn shader(mut self, shader: usize) -> Self {
-        self.shader = Some(shader);
         self
     }
 

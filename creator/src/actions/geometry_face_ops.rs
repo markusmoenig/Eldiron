@@ -325,6 +325,7 @@ pub(crate) fn fill_selected_geometry_vertices(map: &mut Map) -> bool {
             tiles: FxHashMap::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
+            smoothing_group: 0,
         });
         new_selected_faces.push((object.id, face_index));
         changed = true;
@@ -450,6 +451,7 @@ fn push_geometry_face(
         tiles: FxHashMap::default(),
         surface_points: Vec::new(),
         surface_segments: Vec::new(),
+        smoothing_group: source.smoothing_group,
     });
     face_index
 }
@@ -479,6 +481,7 @@ fn push_geometry_face_continuation(
         tiles: FxHashMap::default(),
         surface_points: Vec::new(),
         surface_segments: Vec::new(),
+        smoothing_group: source.smoothing_group,
     });
     face_index
 }
@@ -2893,6 +2896,7 @@ pub(crate) fn extrude_selected_geometry_faces(map: &mut Map, amount: f32) -> boo
                     tiles: FxHashMap::default(),
                     surface_points: Vec::new(),
                     surface_segments: Vec::new(),
+                    smoothing_group: 0,
                 });
             }
             processed_faces.insert(face_index);
@@ -3161,6 +3165,7 @@ pub(crate) fn inset_selected_geometry_faces(map: &mut Map, amount: f32) -> bool 
                     tiles: FxHashMap::default(),
                     surface_points: Vec::new(),
                     surface_segments: Vec::new(),
+                    smoothing_group: 0,
                 });
             }
             changed = true;

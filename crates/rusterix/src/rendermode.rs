@@ -5,8 +5,6 @@ pub struct RenderMode {
     pub d2_active: bool,
     /// Render 3D batches
     pub d3_active: bool,
-    /// Flag to ignore the background shader in the scene
-    pub ignore_background_shader: bool,
 }
 
 impl RenderMode {
@@ -14,7 +12,6 @@ impl RenderMode {
         Self {
             d2_active: true,
             d3_active: true,
-            ignore_background_shader: false,
         }
     }
 
@@ -22,7 +19,6 @@ impl RenderMode {
         Self {
             d2_active: true,
             d3_active: false,
-            ignore_background_shader: false,
         }
     }
 
@@ -30,14 +26,7 @@ impl RenderMode {
         Self {
             d2_active: false,
             d3_active: true,
-            ignore_background_shader: false,
         }
-    }
-
-    /// Ignores the background shader.
-    pub fn ignore_background_shader(mut self, value: bool) -> Self {
-        self.ignore_background_shader = value;
-        self
     }
 
     #[inline(always)]

@@ -20,8 +20,15 @@ use crate::{
     client::rules_ui::{CommandState, ContainerUiTemplate, RulesDescription},
     client::widget::{
         BorderGradientDirection, ButtonStateStyle, ButtonVisualState, TextInputWidget, Widget,
-        avatar::AvatarWidget, deco::DecoWidget, game::GameWidget, messages::MessagesWidget,
-        profile::ProfileWidget, screen::ScreenWidget, stat::StatWidget, text::TextWidget,
+        avatar::AvatarWidget,
+        choice::{ChoiceInteraction, ChoiceOption, ChoiceWidget, ChoiceWidgetKind},
+        deco::DecoWidget,
+        game::GameWidget,
+        messages::MessagesWidget,
+        profile::ProfileWidget,
+        screen::ScreenWidget,
+        stat::StatWidget,
+        text::TextWidget,
     },
 };
 use draw2d::Draw2D;
@@ -155,6 +162,247 @@ struct ContainerPanelLayout {
 }
 
 #[derive(Clone, Debug)]
+struct InventoryPanelSlotLayout {
+    rect: Rect,
+    inventory_index: Option<usize>,
+    item_id: Option<u32>,
+}
+
+#[derive(Clone, Debug)]
+struct InventoryPanelLayout {
+    rect: Rect,
+    title_rect: Rect,
+    close_rect: Rect,
+    tab_rect: Rect,
+    sort_rect: Rect,
+    capacity_rect: Rect,
+    previous_page_rect: Option<Rect>,
+    next_page_rect: Option<Rect>,
+    page_rect: Option<Rect>,
+    slots: Vec<InventoryPanelSlotLayout>,
+    page: usize,
+    page_count: usize,
+}
+
+#[derive(Clone)]
+struct InventoryPanelConfig {
+    columns: usize,
+    rows: usize,
+    cell_size: f32,
+    spacing: f32,
+    padding: f32,
+    title_height: f32,
+    tab_height: f32,
+    footer_height: f32,
+    sort_width: f32,
+    font: String,
+    font_size: f32,
+    title_font_size: f32,
+    title: String,
+    categories: Vec<ChoiceOption>,
+    sort_options: Vec<ChoiceOption>,
+    authored_rect: Option<Rect>,
+    background_color: Pixel,
+    title_background_color: Pixel,
+    border_color: Pixel,
+    text_color: Pixel,
+    muted_text_color: Pixel,
+    slot_background_color: Pixel,
+    slot_border_color: Pixel,
+    selected_slot_color: Pixel,
+    tab_background_color: Pixel,
+    tab_selected_color: Pixel,
+    dropdown_background_color: Pixel,
+    dropdown_panel_color: Pixel,
+}
+
+impl Default for InventoryPanelConfig {
+    fn default() -> Self {
+        Self {
+            columns: 8,
+            rows: 5,
+            cell_size: 48.0,
+            spacing: 4.0,
+            padding: 10.0,
+            title_height: 38.0,
+            tab_height: 30.0,
+            footer_height: 34.0,
+            sort_width: 132.0,
+            font: String::new(),
+            font_size: 14.0,
+            title_font_size: 20.0,
+            title: "Inventory".to_string(),
+            categories: vec![
+                ChoiceOption {
+                    label: "All".to_string(),
+                    value: "all".to_string(),
+                },
+                ChoiceOption {
+                    label: "Equipment".to_string(),
+                    value: "equipment".to_string(),
+                },
+                ChoiceOption {
+                    label: "Consumables".to_string(),
+                    value: "consumables".to_string(),
+                },
+                ChoiceOption {
+                    label: "Materials".to_string(),
+                    value: "materials".to_string(),
+                },
+                ChoiceOption {
+                    label: "Misc".to_string(),
+                    value: "misc".to_string(),
+                },
+            ],
+            sort_options: vec![
+                ChoiceOption {
+                    label: "Newest".to_string(),
+                    value: "newest".to_string(),
+                },
+                ChoiceOption {
+                    label: "Name".to_string(),
+                    value: "name".to_string(),
+                },
+                ChoiceOption {
+                    label: "Value".to_string(),
+                    value: "value".to_string(),
+                },
+                ChoiceOption {
+                    label: "Quantity".to_string(),
+                    value: "quantity".to_string(),
+                },
+            ],
+            authored_rect: None,
+            background_color: [8, 10, 10, 246],
+            title_background_color: [12, 14, 14, 246],
+            border_color: [104, 88, 55, 255],
+            text_color: [222, 214, 190, 255],
+            muted_text_color: [156, 149, 130, 255],
+            slot_background_color: [13, 16, 16, 238],
+            slot_border_color: [77, 67, 47, 255],
+            selected_slot_color: [238, 214, 118, 255],
+            tab_background_color: [10, 13, 13, 230],
+            tab_selected_color: [22, 29, 30, 245],
+            dropdown_background_color: [10, 13, 13, 245],
+            dropdown_panel_color: [8, 11, 11, 252],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct EquipmentPanelSlotLayout {
+    slot: String,
+    rect: Rect,
+    label_rect: Rect,
+    item_id: Option<u32>,
+}
+
+#[derive(Clone, Debug)]
+struct EquipmentPanelLayout {
+    rect: Rect,
+    title_rect: Rect,
+    close_rect: Rect,
+    avatar_rect: Rect,
+    slots: Vec<EquipmentPanelSlotLayout>,
+}
+
+#[derive(Clone)]
+struct EquipmentPanelConfig {
+    padding: f32,
+    title_height: f32,
+    slot_size: f32,
+    spacing: f32,
+    column_gap: f32,
+    label_width: f32,
+    avatar_width: f32,
+    avatar_height: f32,
+    avatar_scale: f32,
+    font: String,
+    font_size: f32,
+    title_font_size: f32,
+    title: String,
+    left_slots: Vec<String>,
+    right_slots: Vec<String>,
+    authored_rect: Option<Rect>,
+    background_color: Pixel,
+    title_background_color: Pixel,
+    border_color: Pixel,
+    text_color: Pixel,
+    muted_text_color: Pixel,
+    slot_background_color: Pixel,
+    slot_border_color: Pixel,
+    occupied_slot_color: Pixel,
+}
+
+impl Default for EquipmentPanelConfig {
+    fn default() -> Self {
+        Self {
+            padding: 10.0,
+            title_height: 38.0,
+            slot_size: 52.0,
+            spacing: 8.0,
+            column_gap: 12.0,
+            label_width: 70.0,
+            avatar_width: 150.0,
+            avatar_height: 300.0,
+            avatar_scale: 1.0,
+            font: String::new(),
+            font_size: 13.0,
+            title_font_size: 20.0,
+            title: "Equipment".to_string(),
+            left_slots: Vec::new(),
+            right_slots: Vec::new(),
+            authored_rect: None,
+            background_color: [8, 10, 10, 246],
+            title_background_color: [12, 14, 14, 246],
+            border_color: [104, 88, 55, 255],
+            text_color: [222, 214, 190, 255],
+            muted_text_color: [156, 149, 130, 255],
+            slot_background_color: [13, 16, 16, 238],
+            slot_border_color: [77, 67, 47, 255],
+            occupied_slot_color: [238, 214, 118, 255],
+        }
+    }
+}
+
+#[derive(Clone)]
+struct PreferencesPanelConfig {
+    width: f32,
+    padding: f32,
+    title_height: f32,
+    row_height: f32,
+    font: String,
+    font_size: f32,
+    title_font_size: f32,
+    title: String,
+    background_color: Pixel,
+    title_background_color: Pixel,
+    border_color: Pixel,
+    text_color: Pixel,
+    muted_text_color: Pixel,
+}
+
+impl Default for PreferencesPanelConfig {
+    fn default() -> Self {
+        Self {
+            width: 290.0,
+            padding: 10.0,
+            title_height: 34.0,
+            row_height: 32.0,
+            font: String::new(),
+            font_size: 13.0,
+            title_font_size: 18.0,
+            title: "Preferences".to_string(),
+            background_color: [8, 10, 10, 246],
+            title_background_color: [12, 14, 14, 246],
+            border_color: [104, 88, 55, 255],
+            text_color: [222, 214, 190, 255],
+            muted_text_color: [156, 149, 130, 255],
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 struct ActionsPanelEntryLayout {
     command: String,
     name: String,
@@ -169,16 +417,44 @@ struct ActionsPanelGroupLayout {
 }
 
 #[derive(Clone, Debug)]
+struct ActionsPanelTabLayout {
+    id: String,
+    name: String,
+    rect: Rect,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CatalogDetailRowKind {
+    Summary,
+    Section,
+    Fact,
+    Effect,
+    Warning,
+}
+
+#[derive(Clone, Debug)]
+struct CatalogDetailRow {
+    label: Option<String>,
+    text: String,
+    kind: CatalogDetailRowKind,
+}
+
+#[derive(Clone, Debug)]
 struct ActionsPanelLayout {
     rect: Rect,
     close_rect: Rect,
-    assign_rect: Rect,
+    assign_rect: Option<Rect>,
     title_rect: Rect,
+    tabs: Vec<ActionsPanelTabLayout>,
+    detail_rect: Option<Rect>,
     groups: Vec<ActionsPanelGroupLayout>,
     entries: Vec<ActionsPanelEntryLayout>,
+    empty_rect: Option<Rect>,
     previous_page_rect: Option<Rect>,
     next_page_rect: Option<Rect>,
     page_label_rect: Option<Rect>,
+    scroll_track_rect: Option<Rect>,
+    scroll_thumb_rect: Option<Rect>,
     page: usize,
     page_count: usize,
 }
@@ -191,8 +467,20 @@ struct CatalogPanelConfig {
     spacing: f32,
     padding: f32,
     title_height: f32,
+    tab_height: f32,
+    detail_width: f32,
+    detail_gap: f32,
     icon_inset: f32,
     show_names: bool,
+    show_tabs: bool,
+    show_details: bool,
+    show_assign: bool,
+    title: String,
+    font: String,
+    title_font: String,
+    font_size: f32,
+    title_font_size: f32,
+    small_font_size: f32,
     authored_rect: Option<Rect>,
     background_color: Pixel,
     title_background_color: Pixel,
@@ -203,6 +491,10 @@ struct CatalogPanelConfig {
     slot_background_color: Pixel,
     slot_border_color: Pixel,
     slot_border_size: i32,
+    detail_background_color: Pixel,
+    tab_background_color: Pixel,
+    tab_selected_color: Pixel,
+    separator_color: Pixel,
     frame_texture: Option<Texture>,
     frame_slice: usize,
     slot_texture: Option<Texture>,
@@ -217,23 +509,51 @@ impl Default for CatalogPanelConfig {
             cell_size: 72.0,
             spacing: 8.0,
             padding: 12.0,
-            title_height: 30.0,
-            icon_inset: 8.0,
-            show_names: true,
+            title_height: 38.0,
+            tab_height: 30.0,
+            detail_width: 196.0,
+            detail_gap: 12.0,
+            icon_inset: 6.0,
+            show_names: false,
+            show_tabs: true,
+            show_details: true,
+            show_assign: false,
+            title: String::new(),
+            font: String::new(),
+            title_font: String::new(),
+            font_size: 14.0,
+            title_font_size: 20.0,
+            small_font_size: 12.0,
             authored_rect: None,
-            background_color: [10, 12, 15, 242],
-            title_background_color: [20, 24, 30, 245],
-            border_color: [98, 105, 116, 255],
+            background_color: [8, 10, 10, 246],
+            title_background_color: [12, 14, 14, 246],
+            border_color: [104, 88, 55, 255],
             border_size: 1,
-            text_color: [236, 233, 214, 255],
-            muted_text_color: [174, 179, 183, 255],
-            slot_background_color: [31, 35, 41, 232],
-            slot_border_color: [72, 78, 87, 255],
+            text_color: [222, 214, 190, 255],
+            muted_text_color: [156, 149, 130, 255],
+            slot_background_color: [13, 16, 16, 238],
+            slot_border_color: [77, 67, 47, 255],
             slot_border_size: 1,
+            detail_background_color: [8, 11, 11, 230],
+            tab_background_color: [10, 13, 13, 230],
+            tab_selected_color: [22, 29, 30, 245],
+            separator_color: [77, 67, 47, 255],
             frame_texture: None,
             frame_slice: 0,
             slot_texture: None,
             slot_slice: 0,
+        }
+    }
+}
+
+impl CatalogPanelConfig {
+    fn actions_default() -> Self {
+        Self {
+            title: "Actions".to_string(),
+            show_names: true,
+            show_details: false,
+            show_assign: true,
+            ..Self::default()
         }
     }
 }
@@ -457,6 +777,8 @@ pub struct Client {
     stat_widgets: FxHashMap<Uuid, StatWidget>,
     text_widgets: FxHashMap<Uuid, TextWidget>,
     text_input_widgets: FxHashMap<u32, TextInputWidget>,
+    choice_widgets: FxHashMap<u32, ChoiceWidget>,
+    open_choice_dropdown: Option<u32>,
     deco_widgets: FxHashMap<Uuid, DecoWidget>,
     screen_widget: Option<ScreenWidget>,
 
@@ -546,6 +868,45 @@ pub struct Client {
     open_container_close_rect: Option<Rect>,
     dragging_container_panel: bool,
     container_panel_drag_offset: Vec2<i32>,
+    inventory_panel_open: bool,
+    inventory_panel_rect: Option<Rect>,
+    inventory_panel_title_rect: Option<Rect>,
+    inventory_panel_close_rect: Option<Rect>,
+    inventory_panel_previous_page_rect: Option<Rect>,
+    inventory_panel_next_page_rect: Option<Rect>,
+    inventory_panel_slots: Vec<InventoryPanelSlotLayout>,
+    inventory_panel_position: Option<Vec2<i32>>,
+    inventory_panel_page: usize,
+    inventory_panel_selected_item: Option<u32>,
+    inventory_panel_tabs: Option<ChoiceWidget>,
+    inventory_panel_sort: Option<ChoiceWidget>,
+    dragging_inventory_panel_item: bool,
+    dragging_inventory_panel: bool,
+    inventory_panel_drag_offset: Vec2<i32>,
+    toolbar_inventory_panel_config: InventoryPanelConfig,
+    custom_inventory_panel_config: Option<InventoryPanelConfig>,
+    equipment_panel_open: bool,
+    equipment_panel_rect: Option<Rect>,
+    equipment_panel_title_rect: Option<Rect>,
+    equipment_panel_close_rect: Option<Rect>,
+    equipment_panel_avatar_rect: Option<Rect>,
+    equipment_panel_slots: Vec<EquipmentPanelSlotLayout>,
+    equipment_panel_position: Option<Vec2<i32>>,
+    equipment_panel_avatar: AvatarWidget,
+    dragging_equipment_panel_item: bool,
+    dragging_equipment_panel: bool,
+    equipment_panel_drag_offset: Vec2<i32>,
+    toolbar_equipment_panel_config: EquipmentPanelConfig,
+    custom_equipment_panel_config: Option<EquipmentPanelConfig>,
+    preferences_panel_open: bool,
+    preferences_panel_rect: Option<Rect>,
+    preferences_panel_close_rect: Option<Rect>,
+    preferences_reset_rect: Option<Rect>,
+    preferences_tooltips_choice: Option<ChoiceWidget>,
+    preferences_delay_choice: Option<ChoiceWidget>,
+    toolbar_preferences_panel_config: PreferencesPanelConfig,
+    tooltips_enabled: bool,
+    tooltip_delay_ms: u64,
     actions_panel_open: bool,
     actions_panel_content: CatalogPanelContent,
     actions_panel_rect: Option<Rect>,
@@ -554,7 +915,20 @@ pub struct Client {
     actions_panel_assign_rect: Option<Rect>,
     actions_panel_previous_page_rect: Option<Rect>,
     actions_panel_next_page_rect: Option<Rect>,
+    actions_panel_scroll_track_rect: Option<Rect>,
+    actions_panel_scroll_thumb_rect: Option<Rect>,
+    actions_panel_page_count: usize,
+    actions_panel_detail_rect: Option<Rect>,
+    actions_panel_detail_scroll_track_rect: Option<Rect>,
+    actions_panel_detail_scroll_thumb_rect: Option<Rect>,
+    actions_panel_detail_scroll: f32,
+    actions_panel_detail_scroll_max: f32,
+    dragging_actions_detail_scrollbar: bool,
+    actions_detail_scrollbar_drag_offset: f32,
+    actions_panel_tabs: Vec<ActionsPanelTabLayout>,
     actions_panel_entries: Vec<ActionsPanelEntryLayout>,
+    actions_panel_tab: String,
+    actions_panel_selected_command: Option<String>,
     actions_assignment_mode: bool,
     pending_action_assignment: Option<String>,
     dragging_action_command: Option<String>,
@@ -1063,6 +1437,8 @@ impl Client {
             stat_widgets: FxHashMap::default(),
             text_widgets: FxHashMap::default(),
             text_input_widgets: FxHashMap::default(),
+            choice_widgets: FxHashMap::default(),
+            open_choice_dropdown: None,
             deco_widgets: FxHashMap::default(),
             screen_widget: None,
 
@@ -1120,6 +1496,45 @@ impl Client {
             open_container_close_rect: None,
             dragging_container_panel: false,
             container_panel_drag_offset: Vec2::zero(),
+            inventory_panel_open: false,
+            inventory_panel_rect: None,
+            inventory_panel_title_rect: None,
+            inventory_panel_close_rect: None,
+            inventory_panel_previous_page_rect: None,
+            inventory_panel_next_page_rect: None,
+            inventory_panel_slots: Vec::new(),
+            inventory_panel_position: None,
+            inventory_panel_page: 0,
+            inventory_panel_selected_item: None,
+            inventory_panel_tabs: None,
+            inventory_panel_sort: None,
+            dragging_inventory_panel_item: false,
+            dragging_inventory_panel: false,
+            inventory_panel_drag_offset: Vec2::zero(),
+            toolbar_inventory_panel_config: InventoryPanelConfig::default(),
+            custom_inventory_panel_config: None,
+            equipment_panel_open: false,
+            equipment_panel_rect: None,
+            equipment_panel_title_rect: None,
+            equipment_panel_close_rect: None,
+            equipment_panel_avatar_rect: None,
+            equipment_panel_slots: Vec::new(),
+            equipment_panel_position: None,
+            equipment_panel_avatar: AvatarWidget::new(),
+            dragging_equipment_panel_item: false,
+            dragging_equipment_panel: false,
+            equipment_panel_drag_offset: Vec2::zero(),
+            toolbar_equipment_panel_config: EquipmentPanelConfig::default(),
+            custom_equipment_panel_config: None,
+            preferences_panel_open: false,
+            preferences_panel_rect: None,
+            preferences_panel_close_rect: None,
+            preferences_reset_rect: None,
+            preferences_tooltips_choice: None,
+            preferences_delay_choice: None,
+            toolbar_preferences_panel_config: PreferencesPanelConfig::default(),
+            tooltips_enabled: true,
+            tooltip_delay_ms: 650,
             actions_panel_open: false,
             actions_panel_content: CatalogPanelContent::Actions,
             actions_panel_rect: None,
@@ -1128,7 +1543,20 @@ impl Client {
             actions_panel_assign_rect: None,
             actions_panel_previous_page_rect: None,
             actions_panel_next_page_rect: None,
+            actions_panel_scroll_track_rect: None,
+            actions_panel_scroll_thumb_rect: None,
+            actions_panel_page_count: 1,
+            actions_panel_detail_rect: None,
+            actions_panel_detail_scroll_track_rect: None,
+            actions_panel_detail_scroll_thumb_rect: None,
+            actions_panel_detail_scroll: 0.0,
+            actions_panel_detail_scroll_max: 0.0,
+            dragging_actions_detail_scrollbar: false,
+            actions_detail_scrollbar_drag_offset: 0.0,
+            actions_panel_tabs: Vec::new(),
             actions_panel_entries: Vec::new(),
+            actions_panel_tab: "all".to_string(),
+            actions_panel_selected_command: None,
             actions_assignment_mode: false,
             pending_action_assignment: None,
             dragging_action_command: None,
@@ -1136,7 +1564,7 @@ impl Client {
             actions_panel_drag_offset: Vec2::zero(),
             actions_panel_position: None,
             actions_panel_page: 0,
-            toolbar_actions_panel_config: CatalogPanelConfig::default(),
+            toolbar_actions_panel_config: CatalogPanelConfig::actions_default(),
             toolbar_spellbook_config: CatalogPanelConfig::default(),
             custom_actions_panel_config: None,
             custom_spellbook_config: None,
@@ -2538,16 +2966,124 @@ impl Client {
         self.stat_widgets.clear();
         self.text_widgets.clear();
         self.text_input_widgets.clear();
+        self.choice_widgets.clear();
+        self.open_choice_dropdown = None;
         self.deco_widgets.clear();
         self.messages_widgets.clear();
         self.screen_widget = None;
         self.focused_text_input = None;
-        self.toolbar_actions_panel_config = CatalogPanelConfig::default();
+        self.toolbar_actions_panel_config = CatalogPanelConfig::actions_default();
         self.toolbar_spellbook_config = CatalogPanelConfig::default();
+        self.toolbar_inventory_panel_config = InventoryPanelConfig::default();
+        self.toolbar_equipment_panel_config = EquipmentPanelConfig::default();
+        self.toolbar_preferences_panel_config = PreferencesPanelConfig::default();
         self.custom_actions_panel_config = None;
         self.custom_spellbook_config = None;
+        self.custom_inventory_panel_config = None;
+        self.custom_equipment_panel_config = None;
+        self.inventory_panel_position = None;
+        self.inventory_panel_page = 0;
+        self.inventory_panel_tabs = None;
+        self.inventory_panel_sort = None;
+        self.inventory_panel_slots.clear();
+        self.equipment_panel_position = None;
+        self.equipment_panel_slots.clear();
+        self.preferences_tooltips_choice = None;
+        self.preferences_delay_choice = None;
         self.actions_panel_page = 0;
         self.actions_panel_position = None;
+        self.actions_panel_tab = "all".to_string();
+        self.actions_panel_selected_command = None;
+        self.actions_panel_detail_scroll = 0.0;
+    }
+
+    fn widget_name_is_hidden(name: &str, hidden: &[String]) -> bool {
+        hidden.iter().any(|pattern| {
+            pattern
+                .strip_suffix('*')
+                .map(|prefix| name.starts_with(prefix))
+                .unwrap_or_else(|| name == pattern)
+        })
+    }
+
+    fn draw_choice_widgets(
+        widgets: &mut FxHashMap<u32, ChoiceWidget>,
+        open_dropdown: Option<u32>,
+        buffer: &mut TheRGBABuffer,
+        assets: &Assets,
+        draw2d: &Draw2D,
+        cursor: Vec2<f32>,
+        ui_state: &FxHashMap<String, String>,
+        hidden: &[String],
+    ) {
+        let mut ids = widgets.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable();
+        if let Some(open_id) = open_dropdown
+            && let Some(index) = ids.iter().position(|id| *id == open_id)
+        {
+            ids.remove(index);
+            ids.push(open_id);
+        }
+
+        for id in ids {
+            let Some(widget) = widgets.get_mut(&id) else {
+                continue;
+            };
+            if Self::widget_name_is_hidden(&widget.name, hidden) {
+                continue;
+            }
+            widget.sync_value(ui_state.get(&widget.binding).map(String::as_str));
+            widget.draw(buffer, assets, draw2d, cursor);
+        }
+    }
+
+    fn interact_choice_widgets(&mut self, point: Vec2<f32>) -> bool {
+        if let Some(open_id) = self.open_choice_dropdown {
+            let result = self.choice_widgets.get_mut(&open_id).map(|widget| {
+                let binding = widget.binding.clone();
+                let interaction = widget.interact(point);
+                (binding, interaction, widget.open)
+            });
+            self.open_choice_dropdown = result
+                .as_ref()
+                .and_then(|(_, _, open)| open.then_some(open_id));
+            if let Some((binding, ChoiceInteraction::Selected(value), _)) = result {
+                self.set_ui_state(&binding, &value);
+            }
+            // An open menu owns the next click, including an outside click that
+            // simply dismisses it.
+            return true;
+        }
+
+        let mut ids = self.choice_widgets.keys().copied().collect::<Vec<_>>();
+        ids.sort_unstable_by(|left, right| right.cmp(left));
+        for id in ids {
+            let Some(widget) = self.choice_widgets.get(&id) else {
+                continue;
+            };
+            if Self::widget_name_is_hidden(&widget.name, &self.widgets_to_hide)
+                || !widget.contains_interactive_point(point)
+            {
+                continue;
+            }
+            let (binding, interaction, is_dropdown, open) = {
+                let widget = self.choice_widgets.get_mut(&id).unwrap();
+                (
+                    widget.binding.clone(),
+                    widget.interact(point),
+                    widget.kind == ChoiceWidgetKind::Dropdown,
+                    widget.open,
+                )
+            };
+            if is_dropdown && open {
+                self.open_choice_dropdown = Some(id);
+            }
+            if let ChoiceInteraction::Selected(value) = interaction {
+                self.set_ui_state(&binding, &value);
+            }
+            return true;
+        }
+        false
     }
 
     fn init_region_fallback(&mut self, assets: &Assets, scene_handler: &mut SceneHandler) {
@@ -3144,9 +3680,23 @@ impl Client {
         }
         debug_buttons += stage_started.elapsed();
 
+        Self::draw_choice_widgets(
+            &mut self.choice_widgets,
+            self.open_choice_dropdown,
+            &mut self.target,
+            assets,
+            &self.draw2d,
+            Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32),
+            &self.ui_state,
+            &self.widgets_to_hide,
+        );
+
         let stage_started = Instant::now();
         self.draw_open_container_panel(map, assets);
+        self.draw_inventory_panel(map, assets);
+        self.draw_equipment_panel(map, assets);
         self.draw_actions_panel(map, assets);
+        self.draw_preferences_panel(assets);
         self.draw_drag_drop_highlights(map);
 
         // Drag preview icon for inventory/equipped drag & drop.
@@ -3814,7 +4364,19 @@ impl Client {
             }
         }
 
+        Self::draw_choice_widgets(
+            &mut self.choice_widgets,
+            self.open_choice_dropdown,
+            &mut self.overlay,
+            assets,
+            &self.draw2d,
+            Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32),
+            &self.ui_state,
+            &self.widgets_to_hide,
+        );
+
         std::mem::swap(&mut self.target, &mut self.overlay);
+        self.draw_inventory_panel(map, assets);
         self.draw_actions_panel(map, assets);
         std::mem::swap(&mut self.target, &mut self.overlay);
 
@@ -4002,7 +4564,9 @@ impl Client {
     }
 
     fn has_drag_drop_targets(&self) -> bool {
-        !self.profile_widgets.is_empty()
+        self.inventory_panel_open
+            || self.equipment_panel_open
+            || !self.profile_widgets.is_empty()
             || self.button_widgets.values().any(|widget| {
                 widget.drag_drop
                     && (widget.inventory_index.is_some() || widget.equipped_slot.is_some())
@@ -4124,6 +4688,559 @@ impl Client {
         self.dragging_container_panel = false;
     }
 
+    fn toggle_inventory_panel(&mut self) {
+        let should_open = !self.inventory_panel_open;
+        self.close_floaters();
+        self.inventory_panel_open = should_open;
+        self.inventory_panel_page = 0;
+        self.inventory_panel_position = None;
+        self.inventory_panel_selected_item = None;
+        self.inventory_panel_tabs = None;
+        self.inventory_panel_sort = None;
+    }
+
+    fn close_inventory_panel(&mut self) {
+        self.inventory_panel_open = false;
+        self.inventory_panel_rect = None;
+        self.inventory_panel_title_rect = None;
+        self.inventory_panel_close_rect = None;
+        self.inventory_panel_previous_page_rect = None;
+        self.inventory_panel_next_page_rect = None;
+        self.inventory_panel_slots.clear();
+        self.inventory_panel_tabs = None;
+        self.inventory_panel_sort = None;
+        self.dragging_inventory_panel = false;
+        self.dragging_inventory_panel_item = false;
+        self.inventory_panel_page = 0;
+        self.inventory_panel_selected_item = None;
+    }
+
+    fn toggle_equipment_panel(&mut self) {
+        let should_open = !self.equipment_panel_open;
+        self.close_floaters();
+        self.equipment_panel_open = should_open;
+        self.equipment_panel_position = None;
+    }
+
+    fn close_equipment_panel(&mut self) {
+        self.equipment_panel_open = false;
+        self.equipment_panel_rect = None;
+        self.equipment_panel_title_rect = None;
+        self.equipment_panel_close_rect = None;
+        self.equipment_panel_avatar_rect = None;
+        self.equipment_panel_slots.clear();
+        self.dragging_equipment_panel_item = false;
+        self.dragging_equipment_panel = false;
+    }
+
+    fn toggle_preferences_panel(&mut self) {
+        let should_open = !self.preferences_panel_open;
+        self.close_floaters();
+        self.preferences_panel_open = should_open;
+        self.preferences_tooltips_choice = None;
+        self.preferences_delay_choice = None;
+    }
+
+    fn close_preferences_panel(&mut self) {
+        self.preferences_panel_open = false;
+        self.preferences_panel_rect = None;
+        self.preferences_panel_close_rect = None;
+        self.preferences_reset_rect = None;
+        self.preferences_tooltips_choice = None;
+        self.preferences_delay_choice = None;
+    }
+
+    fn reset_floating_panel_positions(&mut self) {
+        self.inventory_panel_position = None;
+        self.equipment_panel_position = None;
+        self.actions_panel_position = None;
+        self.open_container_panel_positions.clear();
+    }
+
+    fn active_equipment_panel_config(&self) -> EquipmentPanelConfig {
+        self.custom_equipment_panel_config
+            .clone()
+            .unwrap_or_else(|| self.toolbar_equipment_panel_config.clone())
+    }
+
+    fn equipment_panel_slot_columns(
+        config: &EquipmentPanelConfig,
+        assets: &Assets,
+    ) -> (Vec<String>, Vec<String>) {
+        let all_slots = assets
+            .rules_table()
+            .and_then(|root| eldiron_ruleset::resolve_equipment_policy(&root).ok())
+            .map(|policy| {
+                policy
+                    .weapon_slots
+                    .into_iter()
+                    .chain(policy.armor_slots)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let is_known = |slot: &str| {
+            all_slots
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(slot.trim()))
+        };
+        let mut left = config
+            .left_slots
+            .iter()
+            .filter(|slot| is_known(slot))
+            .cloned()
+            .collect::<Vec<_>>();
+        let mut right = config
+            .right_slots
+            .iter()
+            .filter(|slot| is_known(slot))
+            .cloned()
+            .collect::<Vec<_>>();
+        for slot in all_slots {
+            if left
+                .iter()
+                .chain(right.iter())
+                .any(|existing| existing.eq_ignore_ascii_case(&slot))
+            {
+                continue;
+            }
+            if left.len() <= right.len() {
+                left.push(slot);
+            } else {
+                right.push(slot);
+            }
+        }
+        (left, right)
+    }
+
+    fn equipment_slot_label(slot: &str) -> String {
+        slot.split(['_', '-', '.'])
+            .filter(|part| !part.is_empty())
+            .map(|part| {
+                let mut chars = part.chars();
+                chars
+                    .next()
+                    .map(|first| {
+                        first.to_uppercase().collect::<String>()
+                            + &chars.as_str().to_ascii_lowercase()
+                    })
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    fn equipment_panel_layout(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+    ) -> Option<EquipmentPanelLayout> {
+        if !self.equipment_panel_open {
+            return None;
+        }
+        let actor = Self::resolve_party_entity(map, None)?;
+        let config = self.active_equipment_panel_config();
+        let (left, right) = Self::equipment_panel_slot_columns(&config, assets);
+        let row_count = left.len().max(right.len()).max(1);
+        let slots_height = config.slot_size * row_count as f32
+            + config.spacing * row_count.saturating_sub(1) as f32;
+        let avatar_width = config.avatar_width * config.avatar_scale;
+        let avatar_height = config.avatar_height * config.avatar_scale;
+        let content_height = slots_height.max(avatar_height);
+        let computed_width = config.padding * 2.0
+            + config.slot_size * 2.0
+            + config.label_width * 2.0
+            + config.column_gap * 2.0
+            + avatar_width;
+        let computed_height = config.title_height + config.padding * 2.0 + content_height;
+        let (panel_width, panel_height) = config
+            .authored_rect
+            .map(|rect| (rect.width.max(1.0), rect.height.max(1.0)))
+            .unwrap_or((computed_width, computed_height));
+        let viewport_width = self.target.dim().width.max(1) as f32;
+        let viewport_height = self.target.dim().height.max(1) as f32;
+        let default_x = config
+            .authored_rect
+            .map(|rect| rect.x)
+            .unwrap_or_else(|| ((viewport_width - panel_width) * 0.5).max(2.0));
+        let default_y = config
+            .authored_rect
+            .map(|rect| rect.y)
+            .unwrap_or_else(|| ((viewport_height - panel_height) * 0.5).max(2.0));
+        let position = self
+            .equipment_panel_position
+            .unwrap_or_else(|| Vec2::new(default_x.round() as i32, default_y.round() as i32));
+        let x = (position.x as f32).clamp(2.0, (viewport_width - panel_width - 2.0).max(2.0));
+        let y = (position.y as f32).clamp(2.0, (viewport_height - panel_height - 2.0).max(2.0));
+        self.equipment_panel_position = Some(Vec2::new(x.round() as i32, y.round() as i32));
+        let rect = Rect::new(x, y, panel_width, panel_height);
+        let title_rect = Rect::new(x, y, panel_width, config.title_height);
+        let close_rect = Rect::new(x + panel_width - 30.0, y + 6.0, 22.0, 22.0);
+        let content_y = y + config.title_height + config.padding;
+        let left_x = x + config.padding;
+        let avatar_x = left_x + config.slot_size + config.label_width + config.column_gap;
+        let right_label_x = avatar_x + avatar_width + config.column_gap;
+        let right_x = right_label_x + config.label_width;
+        let avatar_rect = Rect::new(
+            avatar_x,
+            content_y + (content_height - avatar_height) * 0.5,
+            avatar_width,
+            avatar_height,
+        );
+        let mut slots = Vec::with_capacity(left.len() + right.len());
+        for (index, slot) in left.iter().enumerate() {
+            let row_y = content_y + index as f32 * (config.slot_size + config.spacing);
+            slots.push(EquipmentPanelSlotLayout {
+                slot: slot.clone(),
+                rect: Rect::new(left_x, row_y, config.slot_size, config.slot_size),
+                label_rect: Rect::new(
+                    left_x + config.slot_size + 6.0,
+                    row_y,
+                    (config.label_width - 6.0).max(1.0),
+                    config.slot_size,
+                ),
+                item_id: actor.get_equipped_item(slot).map(|item| item.id),
+            });
+        }
+        for (index, slot) in right.iter().enumerate() {
+            let row_y = content_y + index as f32 * (config.slot_size + config.spacing);
+            slots.push(EquipmentPanelSlotLayout {
+                slot: slot.clone(),
+                rect: Rect::new(right_x, row_y, config.slot_size, config.slot_size),
+                label_rect: Rect::new(
+                    right_label_x,
+                    row_y,
+                    (config.label_width - 6.0).max(1.0),
+                    config.slot_size,
+                ),
+                item_id: actor.get_equipped_item(slot).map(|item| item.id),
+            });
+        }
+        Some(EquipmentPanelLayout {
+            rect,
+            title_rect,
+            close_rect,
+            avatar_rect,
+            slots,
+        })
+    }
+
+    fn inventory_item_category(item: &Item) -> &'static str {
+        let slot = item
+            .attributes
+            .get_str("slot")
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase();
+        if matches!(
+            slot.as_str(),
+            "head"
+                | "neck"
+                | "torso"
+                | "chest"
+                | "hands"
+                | "belt"
+                | "legs"
+                | "feet"
+                | "boots"
+                | "cloak"
+                | "main_hand"
+                | "off_hand"
+                | "shield"
+                | "focus"
+                | "ammunition"
+        ) {
+            return "equipment";
+        }
+        if matches!(slot.as_str(), "material" | "reagent" | "resource") {
+            return "materials";
+        }
+
+        let category = item
+            .attributes
+            .get_str("category")
+            .unwrap_or("")
+            .trim()
+            .to_ascii_lowercase();
+        if ["potion", "food", "drink", "scroll"]
+            .iter()
+            .any(|value| category.contains(value))
+            || item.attributes.get_bool_default("consumable", false)
+        {
+            return "consumables";
+        }
+        if [
+            "material", "wood", "ore", "dust", "resin", "salt", "shard", "feather", "herb",
+            "liquid", "oil", "mineral",
+        ]
+        .iter()
+        .any(|value| category.contains(value))
+            || item.attributes.get_str("reagent_for").is_some()
+            || item.attributes.get_bool_default("stackable", false)
+        {
+            return "materials";
+        }
+        "misc"
+    }
+
+    fn inventory_panel_items<'a>(&self, actor: &'a Entity) -> Vec<(usize, &'a Item)> {
+        let category = self
+            .ui_state
+            .get("inventory.category")
+            .map(String::as_str)
+            .unwrap_or("all");
+        let mut items = actor
+            .inventory
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| item.as_ref().map(|item| (index, item)))
+            .filter(|(_, item)| {
+                category.eq_ignore_ascii_case("all")
+                    || Self::inventory_item_category(item).eq_ignore_ascii_case(category)
+            })
+            .collect::<Vec<_>>();
+
+        match self
+            .ui_state
+            .get("inventory.sort")
+            .map(String::as_str)
+            .unwrap_or("newest")
+        {
+            "name" => items.sort_by(|left, right| {
+                let left = left
+                    .1
+                    .attributes
+                    .get_str("name")
+                    .unwrap_or(&left.1.item_type);
+                let right = right
+                    .1
+                    .attributes
+                    .get_str("name")
+                    .unwrap_or(&right.1.item_type);
+                left.to_ascii_lowercase().cmp(&right.to_ascii_lowercase())
+            }),
+            "value" => items.sort_by(|left, right| {
+                right
+                    .1
+                    .attributes
+                    .get_float_default("worth", 0.0)
+                    .total_cmp(&left.1.attributes.get_float_default("worth", 0.0))
+            }),
+            "quantity" => {
+                items.sort_by(|left, right| right.1.stack_quantity().cmp(&left.1.stack_quantity()))
+            }
+            _ => items.sort_by_key(|(index, _)| *index),
+        }
+        items
+    }
+
+    fn inventory_panel_choice(
+        config: &InventoryPanelConfig,
+        kind: ChoiceWidgetKind,
+        id: u32,
+        rect: Rect,
+        binding: &str,
+        options: Vec<ChoiceOption>,
+    ) -> ChoiceWidget {
+        let selected = options
+            .iter()
+            .position(|option| option.value == "all" || option.value == "newest")
+            .unwrap_or(0);
+        ChoiceWidget {
+            name: if kind == ChoiceWidgetKind::TabBar {
+                "Inventory Categories".to_string()
+            } else {
+                "Inventory Sort".to_string()
+            },
+            id,
+            rect,
+            kind,
+            binding: binding.to_string(),
+            options,
+            selected,
+            open: false,
+            font: config.font.clone(),
+            font_size: config.font_size,
+            spacing: 1.0,
+            text_padding: 8.0,
+            item_height: config.footer_height,
+            indicator_size: if kind == ChoiceWidgetKind::TabBar {
+                2.0
+            } else {
+                0.0
+            },
+            equal_widths: false,
+            open_upwards: true,
+            background_color: if kind == ChoiceWidgetKind::TabBar {
+                config.tab_background_color
+            } else {
+                config.dropdown_background_color
+            },
+            hover_color: [29, 33, 32, 245],
+            selected_color: config.tab_selected_color,
+            panel_color: config.dropdown_panel_color,
+            border_color: config.border_color,
+            text_color: config.text_color,
+            muted_text_color: config.muted_text_color,
+            indicator_color: config.selected_slot_color,
+            border_size: 1,
+        }
+    }
+
+    fn inventory_panel_layout(&mut self, map: &Map) -> Option<InventoryPanelLayout> {
+        if !self.inventory_panel_open {
+            return None;
+        }
+        let actor = Self::resolve_party_entity(map, None)?;
+        let config = self.active_inventory_panel_config();
+        let content_width = config.columns as f32 * config.cell_size
+            + config.columns.saturating_sub(1) as f32 * config.spacing;
+        let grid_height = config.rows as f32 * config.cell_size
+            + config.rows.saturating_sub(1) as f32 * config.spacing;
+        let computed_width = content_width + config.padding * 2.0;
+        let computed_height = config.title_height
+            + config.tab_height
+            + grid_height
+            + config.footer_height
+            + config.padding * 3.0;
+        let authored = config.authored_rect;
+        let width = authored
+            .map(|rect| rect.width.max(computed_width))
+            .unwrap_or(computed_width);
+        let height = authored
+            .map(|rect| rect.height.max(computed_height))
+            .unwrap_or(computed_height);
+        let default_position = authored
+            .map(|rect| Vec2::new(rect.x.round() as i32, rect.y.round() as i32))
+            .unwrap_or_else(|| {
+                Vec2::new(
+                    ((self.target.dim().width as f32 - width) * 0.5).round() as i32,
+                    ((self.target.dim().height as f32 - height) * 0.5).round() as i32,
+                )
+            });
+        let mut position = self.inventory_panel_position.unwrap_or(default_position);
+        position.x = position.x.clamp(
+            2,
+            (self.target.dim().width - width.round() as i32 - 2).max(2),
+        );
+        position.y = position.y.clamp(
+            2,
+            (self.target.dim().height - height.round() as i32 - 2).max(2),
+        );
+        self.inventory_panel_position = Some(position);
+
+        let rect = Rect::new(position.x as f32, position.y as f32, width, height);
+        let close_rect = Rect::new(
+            rect.x + rect.width - config.title_height + 5.0,
+            rect.y + 5.0,
+            config.title_height - 10.0,
+            config.title_height - 10.0,
+        );
+        let title_rect = Rect::new(
+            rect.x + config.padding,
+            rect.y,
+            rect.width - config.padding * 2.0,
+            config.title_height,
+        );
+        let tab_rect = Rect::new(
+            rect.x + config.padding,
+            rect.y + config.title_height,
+            rect.width - config.padding * 2.0,
+            config.tab_height,
+        );
+        let grid_x = rect.x + (rect.width - content_width) * 0.5;
+        let grid_y = tab_rect.y + tab_rect.height + config.padding;
+        let footer_y = rect.y + rect.height - config.footer_height - config.padding;
+        let sort_rect = Rect::new(
+            rect.x + config.padding,
+            footer_y,
+            config.sort_width.min(rect.width * 0.4),
+            config.footer_height,
+        );
+        let capacity_rect = Rect::new(
+            rect.x + rect.width - config.padding - 116.0,
+            footer_y,
+            116.0,
+            config.footer_height,
+        );
+
+        let items = self.inventory_panel_items(actor);
+        let page_size = (config.columns * config.rows).max(1);
+        let page_count = items.len().max(1).div_ceil(page_size);
+        self.inventory_panel_page = self.inventory_panel_page.min(page_count.saturating_sub(1));
+        let page = self.inventory_panel_page;
+        let page_items = items
+            .iter()
+            .skip(page * page_size)
+            .take(page_size)
+            .copied()
+            .collect::<Vec<_>>();
+        let empty_indices = actor
+            .inventory
+            .iter()
+            .enumerate()
+            .filter_map(|(index, item)| item.is_none().then_some(index))
+            .collect::<Vec<_>>();
+        let mut slots = Vec::with_capacity(page_size);
+        for slot_index in 0..page_size {
+            let col = slot_index % config.columns;
+            let row = slot_index / config.columns;
+            let entry = page_items.get(slot_index).copied();
+            slots.push(InventoryPanelSlotLayout {
+                rect: Rect::new(
+                    grid_x + col as f32 * (config.cell_size + config.spacing),
+                    grid_y + row as f32 * (config.cell_size + config.spacing),
+                    config.cell_size,
+                    config.cell_size,
+                ),
+                inventory_index: entry
+                    .map(|entry| entry.0)
+                    .or_else(|| empty_indices.get(slot_index - page_items.len()).copied()),
+                item_id: entry.map(|entry| entry.1.id),
+            });
+        }
+
+        let (previous_page_rect, next_page_rect, page_rect) = if page_count > 1 {
+            let center = rect.x + rect.width * 0.5;
+            (
+                Some(Rect::new(
+                    center - 54.0,
+                    footer_y,
+                    28.0,
+                    config.footer_height,
+                )),
+                Some(Rect::new(
+                    center + 26.0,
+                    footer_y,
+                    28.0,
+                    config.footer_height,
+                )),
+                Some(Rect::new(
+                    center - 24.0,
+                    footer_y,
+                    48.0,
+                    config.footer_height,
+                )),
+            )
+        } else {
+            (None, None, None)
+        };
+
+        Some(InventoryPanelLayout {
+            rect,
+            title_rect,
+            close_rect,
+            tab_rect,
+            sort_rect,
+            capacity_rect,
+            previous_page_rect,
+            next_page_rect,
+            page_rect,
+            slots,
+            page,
+            page_count,
+        })
+    }
+
     fn toggle_catalog_panel(&mut self, content: CatalogPanelContent) {
         let should_open = !self.actions_panel_open || self.actions_panel_content != content;
         self.close_floaters();
@@ -4131,6 +5248,9 @@ impl Client {
         self.actions_panel_open = should_open;
         self.actions_panel_page = 0;
         self.actions_panel_position = None;
+        self.actions_panel_tab = "all".to_string();
+        self.actions_panel_selected_command = None;
+        self.actions_panel_detail_scroll = 0.0;
     }
 
     fn close_actions_panel(&mut self) {
@@ -4141,16 +5261,40 @@ impl Client {
         self.actions_panel_assign_rect = None;
         self.actions_panel_previous_page_rect = None;
         self.actions_panel_next_page_rect = None;
+        self.actions_panel_scroll_track_rect = None;
+        self.actions_panel_scroll_thumb_rect = None;
+        self.actions_panel_page_count = 1;
+        self.actions_panel_detail_rect = None;
+        self.actions_panel_detail_scroll_track_rect = None;
+        self.actions_panel_detail_scroll_thumb_rect = None;
+        self.actions_panel_detail_scroll = 0.0;
+        self.actions_panel_detail_scroll_max = 0.0;
+        self.dragging_actions_detail_scrollbar = false;
+        self.actions_panel_tabs.clear();
         self.actions_panel_entries.clear();
         self.actions_assignment_mode = false;
         self.pending_action_assignment = None;
         self.dragging_action_command = None;
         self.dragging_actions_panel = false;
         self.actions_panel_page = 0;
+        self.actions_panel_tab = "all".to_string();
+        self.actions_panel_selected_command = None;
     }
 
     fn apply_ui_command(&mut self, command: &str) -> bool {
         match command.trim().to_ascii_lowercase().as_str() {
+            "inventory" | "items" | "bag" => {
+                self.toggle_inventory_panel();
+                true
+            }
+            "equipment" | "gear" | "character" => {
+                self.toggle_equipment_panel();
+                true
+            }
+            "preferences" | "prefs" | "settings" => {
+                self.toggle_preferences_panel();
+                true
+            }
             "actions" | "action_catalog" | "abilities" => {
                 self.toggle_catalog_panel(CatalogPanelContent::Actions);
                 true
@@ -4186,7 +5330,12 @@ impl Client {
     }
 
     fn close_floaters(&mut self) -> bool {
-        let had_floater = self.open_container_panel.is_some() || self.actions_panel_open;
+        let had_floater = self.open_container_panel.is_some()
+            || self.actions_panel_open
+            || self.inventory_panel_open
+            || self.equipment_panel_open
+            || self.preferences_panel_open
+            || self.open_choice_dropdown.is_some();
         if let Some(panel) = self.open_container_panel {
             self.open_container_panel_positions
                 .insert((panel.item_id, panel.owner_entity_id), panel.position);
@@ -4197,6 +5346,14 @@ impl Client {
         self.open_container_title_rect = None;
         self.open_container_close_rect = None;
         self.dragging_container_panel = false;
+        if let Some(id) = self.open_choice_dropdown.take()
+            && let Some(widget) = self.choice_widgets.get_mut(&id)
+        {
+            widget.open = false;
+        }
+        self.close_inventory_panel();
+        self.close_equipment_panel();
+        self.close_preferences_panel();
         self.close_actions_panel();
         self.tooltip_hover_key = None;
         self.tooltip_hover_since = None;
@@ -4220,32 +5377,43 @@ impl Client {
             self.actions_panel_catalog_rules.clone_from(&assets.rules);
             self.actions_panel_catalog_class = actor_class;
         }
-        if self.actions_panel_catalog.is_empty() {
-            return None;
-        }
-        let catalog: Vec<_> = match self.actions_panel_content {
-            CatalogPanelContent::Actions => self
-                .actions_panel_catalog
-                .iter()
-                .filter(|group| !group.entries.is_empty())
-                .cloned()
-                .collect(),
-            CatalogPanelContent::Spellbook => self
-                .actions_panel_catalog
-                .iter()
-                .filter(|group| group.id.eq_ignore_ascii_case("spells"))
-                .filter(|group| !group.entries.is_empty())
-                .cloned()
-                .collect(),
-        };
-        if catalog.is_empty() {
-            return None;
-        }
-
+        let complete_catalog: Vec<_> = self
+            .actions_panel_catalog
+            .iter()
+            .filter(|group| !group.entries.is_empty())
+            .cloned()
+            .collect();
+        let fixed_group_count = complete_catalog.len().max(1);
         let config = self.active_catalog_panel_config();
+        let mut tab_definitions = vec![("all".to_string(), "All".to_string())];
+        tab_definitions.extend(
+            complete_catalog
+                .iter()
+                .map(|group| (group.id.clone(), group.name.clone())),
+        );
+        if !config.show_tabs
+            || !tab_definitions
+                .iter()
+                .any(|(id, _)| id.eq_ignore_ascii_case(&self.actions_panel_tab))
+        {
+            self.actions_panel_tab = "all".to_string();
+        }
+        let catalog: Vec<_> = if self.actions_panel_tab.eq_ignore_ascii_case("all") {
+            complete_catalog
+        } else {
+            complete_catalog
+                .into_iter()
+                .filter(|group| group.id.eq_ignore_ascii_case(&self.actions_panel_tab))
+                .collect()
+        };
         let padding = config.padding;
         let title_height = config.title_height;
-        let group_title_height = 20.0;
+        let tabs_height = if config.show_tabs {
+            config.tab_height
+        } else {
+            0.0
+        };
+        let group_title_height = 18.0;
         let card_width = config.cell_size;
         let card_height = config.cell_size;
         let column_gap = config.spacing;
@@ -4285,21 +5453,44 @@ impl Client {
 
         let content_width =
             card_width * columns as f32 + column_gap * columns.saturating_sub(1) as f32;
-        let content_height = visible_catalog
-            .iter()
-            .map(|group| {
-                let mut rows = group.entries.len().div_ceil(columns);
-                if visible_catalog.len() == 1 {
-                    rows = rows.max(config.rows.unwrap_or(0));
-                }
-                group_title_height
+        let natural_content_height = if visible_catalog.is_empty() {
+            let rows = config.rows.unwrap_or(2).max(1);
+            card_height * rows as f32 + row_gap * rows.saturating_sub(1) as f32
+        } else {
+            visible_catalog
+                .iter()
+                .map(|group| {
+                    let mut rows = group.entries.len().div_ceil(columns);
+                    if visible_catalog.len() == 1 {
+                        rows = rows.max(config.rows.unwrap_or(0));
+                    }
+                    group_title_height
+                        + card_height * rows as f32
+                        + row_gap * rows.saturating_sub(1) as f32
+                })
+                .sum::<f32>()
+                + group_gap * visible_catalog.len().saturating_sub(1) as f32
+        };
+        // An authored row count defines the viewport, not the height of whichever
+        // tab happens to be selected. Reserve the same group-heading space for
+        // every tab so the complete window never jumps or resizes on selection.
+        let content_height = config
+            .rows
+            .map(|rows| {
+                let rows = rows.max(1);
+                group_title_height * fixed_group_count as f32
                     + card_height * rows as f32
                     + row_gap * rows.saturating_sub(1) as f32
+                    + group_gap * fixed_group_count.saturating_sub(1) as f32
             })
-            .sum::<f32>()
-            + group_gap * visible_catalog.len().saturating_sub(1) as f32;
-        let computed_width = padding * 2.0 + content_width;
-        let computed_height = title_height + padding * 2.0 + content_height;
+            .unwrap_or(natural_content_height);
+        let details_extra = if config.show_details {
+            config.detail_gap + config.detail_width
+        } else {
+            0.0
+        };
+        let computed_width = padding * 2.0 + content_width + details_extra;
+        let computed_height = title_height + tabs_height + padding * 2.0 + content_height;
         let (panel_width, panel_height) = config
             .authored_rect
             .map(|rect| (rect.width.max(1.0), rect.height.max(1.0)))
@@ -4317,31 +5508,103 @@ impl Client {
         let position = self
             .actions_panel_position
             .unwrap_or_else(|| Vec2::new(default_x.round() as i32, default_y.round() as i32));
-        let x = (position.x as f32).clamp(2.0, (viewport_width - 24.0).max(2.0));
-        let y = (position.y as f32).clamp(2.0, (viewport_height - 24.0).max(2.0));
+        let x = (position.x as f32).clamp(2.0, (viewport_width - panel_width - 2.0).max(2.0));
+        let y = (position.y as f32).clamp(2.0, (viewport_height - panel_height - 2.0).max(2.0));
+        self.actions_panel_position = Some(Vec2::new(x.round() as i32, y.round() as i32));
         let rect = Rect::new(x, y, panel_width, panel_height);
         let close_rect = Rect::new(x + panel_width - 26.0, y + 5.0, 20.0, 20.0);
-        let assign_rect = Rect::new(x + panel_width - 100.0, y + 5.0, 66.0, 20.0);
+        let assign_rect =
+            config
+                .show_assign
+                .then_some(Rect::new(x + panel_width - 100.0, y + 5.0, 66.0, 20.0));
+        let page_controls_right = if config.show_assign { 106.0 } else { 32.0 };
         let (previous_page_rect, next_page_rect, page_label_rect) = if page_count > 1 {
             (
-                Some(Rect::new(x + panel_width - 176.0, y + 5.0, 20.0, 20.0)),
-                Some(Rect::new(x + panel_width - 126.0, y + 5.0, 20.0, 20.0)),
-                Some(Rect::new(x + panel_width - 154.0, y + 5.0, 26.0, 20.0)),
+                Some(Rect::new(
+                    x + panel_width - page_controls_right - 70.0,
+                    y + 5.0,
+                    20.0,
+                    20.0,
+                )),
+                Some(Rect::new(
+                    x + panel_width - page_controls_right - 20.0,
+                    y + 5.0,
+                    20.0,
+                    20.0,
+                )),
+                Some(Rect::new(
+                    x + panel_width - page_controls_right - 48.0,
+                    y + 5.0,
+                    26.0,
+                    20.0,
+                )),
             )
         } else {
             (None, None, None)
         };
-        let reserved_title_width = if page_count > 1 { 178.0 } else { 100.0 };
         let title_rect = Rect::new(
             x + padding,
             y,
-            (panel_width - padding * 2.0 - reserved_title_width).max(1.0),
+            (panel_width - padding * 2.0).max(1.0),
             title_height,
         );
+        let tabs = if config.show_tabs {
+            let tab_area_width = (panel_width - padding * 2.0).max(1.0);
+            let tab_width = (tab_area_width / tab_definitions.len().max(1) as f32).min(104.0);
+            tab_definitions
+                .into_iter()
+                .enumerate()
+                .map(|(index, (id, name))| ActionsPanelTabLayout {
+                    id,
+                    name,
+                    rect: Rect::new(
+                        x + padding + index as f32 * tab_width,
+                        y + title_height,
+                        tab_width,
+                        tabs_height,
+                    ),
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
 
         let mut group_layouts = Vec::with_capacity(visible_catalog.len());
         let mut entry_layouts = Vec::new();
-        let mut cursor_y = y + title_height + padding;
+        let mut cursor_y = y + title_height + tabs_height + padding;
+        let detail_rect = config.show_details.then_some(Rect::new(
+            x + padding + content_width + config.detail_gap,
+            cursor_y,
+            config.detail_width,
+            content_height,
+        ));
+        let (scroll_track_rect, scroll_thumb_rect) = if page_count > 1 {
+            let track_width = 6.0;
+            let track_x = if config.show_details {
+                x + padding + content_width + (config.detail_gap - track_width) * 0.5
+            } else {
+                x + padding + content_width - track_width
+            };
+            let track = Rect::new(track_x, cursor_y, track_width, content_height);
+            let thumb_height = (content_height / page_count as f32).max(24.0);
+            let travel = (content_height - thumb_height).max(0.0);
+            let progress = page as f32 / page_count.saturating_sub(1).max(1) as f32;
+            let thumb = Rect::new(
+                track_x,
+                cursor_y + travel * progress,
+                track_width,
+                thumb_height,
+            );
+            (Some(track), Some(thumb))
+        } else {
+            (None, None)
+        };
+        let empty_rect = visible_catalog.is_empty().then_some(Rect::new(
+            x + padding,
+            cursor_y,
+            content_width,
+            content_height,
+        ));
         for group in &visible_catalog {
             group_layouts.push(ActionsPanelGroupLayout {
                 name: group.name.clone(),
@@ -4385,11 +5648,16 @@ impl Client {
             close_rect,
             assign_rect,
             title_rect,
+            tabs,
+            detail_rect,
             groups: group_layouts,
             entries: entry_layouts,
+            empty_rect,
             previous_page_rect,
             next_page_rect,
             page_label_rect,
+            scroll_track_rect,
+            scroll_thumb_rect,
             page,
             page_count,
         })
@@ -4452,6 +5720,8 @@ impl Client {
         self.dragging_source_widget_id = None;
         self.dragging_item_from_world = false;
         self.dragging_item_container_source = None;
+        self.dragging_inventory_panel_item = false;
+        self.dragging_equipment_panel_item = false;
         self.dragging_started = false;
         self.pressed_widget = None;
     }
@@ -4705,7 +5975,23 @@ impl Client {
         self.actions_panel_assign_rect = None;
         self.actions_panel_previous_page_rect = None;
         self.actions_panel_next_page_rect = None;
+        self.actions_panel_tabs.clear();
         self.actions_panel_entries.clear();
+        self.tooltip_hover_key = None;
+        self.tooltip_hover_since = None;
+    }
+
+    fn move_equipment_panel_to_cursor(&mut self, p: Vec2<i32>) {
+        let target_width = self.target.dim().width as i32;
+        let target_height = self.target.dim().height as i32;
+        self.equipment_panel_position = Some(Vec2::new(
+            (p.x - self.equipment_panel_drag_offset.x).clamp(2, (target_width - 24).max(2)),
+            (p.y - self.equipment_panel_drag_offset.y).clamp(2, (target_height - 24).max(2)),
+        ));
+        self.equipment_panel_rect = None;
+        self.equipment_panel_title_rect = None;
+        self.equipment_panel_close_rect = None;
+        self.equipment_panel_slots.clear();
         self.tooltip_hover_key = None;
         self.tooltip_hover_since = None;
     }
@@ -5058,6 +6344,30 @@ impl Client {
     ) {
         let p = self.screen_to_viewport(coord);
         self.cursor_pos = p;
+        if self.dragging_actions_detail_scrollbar {
+            if let (Some(track), Some(thumb)) = (
+                self.actions_panel_detail_scroll_track_rect,
+                self.actions_panel_detail_scroll_thumb_rect,
+            ) {
+                let travel = (track.height - thumb.height).max(1.0);
+                let thumb_y = (p.y as f32 - self.actions_detail_scrollbar_drag_offset)
+                    .clamp(track.y, track.y + travel);
+                self.actions_panel_detail_scroll =
+                    ((thumb_y - track.y) / travel) * self.actions_panel_detail_scroll_max;
+            }
+            return;
+        }
+        if self.dragging_inventory_panel {
+            self.inventory_panel_position = Some(Vec2::new(
+                p.x - self.inventory_panel_drag_offset.x,
+                p.y - self.inventory_panel_drag_offset.y,
+            ));
+            return;
+        }
+        if self.dragging_equipment_panel {
+            self.move_equipment_panel_to_cursor(p);
+            return;
+        }
         if self.dragging_actions_panel {
             self.move_catalog_panel_to_cursor(p);
             return;
@@ -5153,6 +6463,15 @@ impl Client {
         if self
             .actions_panel_rect
             .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+        {
+            return;
+        }
+        if self
+            .equipment_panel_rect
+            .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+            || self
+                .preferences_panel_rect
+                .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
         {
             return;
         }
@@ -5329,6 +6648,8 @@ impl Client {
         self.dragging_source_widget_id = None;
         self.dragging_item_from_world = false;
         self.dragging_item_container_source = None;
+        self.dragging_inventory_panel_item = false;
+        self.dragging_equipment_panel_item = false;
         self.dragging_action_command = None;
         self.dragging_started = false;
 
@@ -5341,6 +6662,230 @@ impl Client {
 
         // Transform screen coordinates to viewport coordinates
         let p = self.screen_to_viewport(coord);
+        let point = Vec2::new(p.x as f32, p.y as f32);
+
+        if self
+            .preferences_tooltips_choice
+            .as_ref()
+            .is_some_and(|choice| choice.open)
+        {
+            let interaction = self
+                .preferences_tooltips_choice
+                .as_mut()
+                .map(|choice| choice.interact(point))
+                .unwrap_or(ChoiceInteraction::None);
+            if let ChoiceInteraction::Selected(value) = interaction {
+                self.tooltips_enabled = value.eq_ignore_ascii_case("on");
+                self.tooltip_hover_key = None;
+                self.tooltip_hover_since = None;
+            }
+            return None;
+        }
+        if self
+            .preferences_delay_choice
+            .as_ref()
+            .is_some_and(|choice| choice.open)
+        {
+            let interaction = self
+                .preferences_delay_choice
+                .as_mut()
+                .map(|choice| choice.interact(point))
+                .unwrap_or(ChoiceInteraction::None);
+            if let ChoiceInteraction::Selected(value) = interaction {
+                self.tooltip_delay_ms = match value.as_str() {
+                    "instant" => 0,
+                    "short" => 300,
+                    _ => 650,
+                };
+                self.tooltip_hover_key = None;
+                self.tooltip_hover_since = None;
+            }
+            return None;
+        }
+        if self
+            .preferences_panel_close_rect
+            .is_some_and(|rect| rect.contains(point))
+        {
+            self.close_preferences_panel();
+            return None;
+        }
+        if self
+            .preferences_tooltips_choice
+            .as_ref()
+            .is_some_and(|choice| choice.contains_interactive_point(point))
+        {
+            if let Some(choice) = self.preferences_tooltips_choice.as_mut() {
+                choice.interact(point);
+            }
+            return None;
+        }
+        if self
+            .preferences_delay_choice
+            .as_ref()
+            .is_some_and(|choice| choice.contains_interactive_point(point))
+        {
+            if let Some(choice) = self.preferences_delay_choice.as_mut() {
+                choice.interact(point);
+            }
+            return None;
+        }
+        if self
+            .preferences_reset_rect
+            .is_some_and(|rect| rect.contains(point))
+        {
+            self.reset_floating_panel_positions();
+            return None;
+        }
+        if self
+            .preferences_panel_rect
+            .is_some_and(|rect| rect.contains(point))
+        {
+            return None;
+        }
+
+        if self
+            .equipment_panel_close_rect
+            .is_some_and(|rect| rect.contains(point))
+        {
+            self.close_equipment_panel();
+            return None;
+        }
+        if let Some(title_rect) = self.equipment_panel_title_rect
+            && title_rect.contains(point)
+            && let Some(panel_rect) = self.equipment_panel_rect
+        {
+            self.dragging_equipment_panel = true;
+            self.equipment_panel_drag_offset = Vec2::new(
+                p.x - panel_rect.x.round() as i32,
+                p.y - panel_rect.y.round() as i32,
+            );
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
+            return None;
+        }
+        if let Some(slot) = self
+            .equipment_panel_slots
+            .iter()
+            .find(|slot| slot.rect.contains(point))
+            .cloned()
+        {
+            if let Some(item_id) = slot.item_id
+                && let Some(actor) = Self::resolve_party_entity(map, None)
+            {
+                self.dragging_item_id = Some(item_id);
+                self.dragging_item_owner_entity_id = Some(actor.id);
+                self.dragging_equipment_panel_item = true;
+                self.drag_start_pos = p;
+            }
+            return None;
+        }
+        if self
+            .equipment_panel_rect
+            .is_some_and(|rect| rect.contains(point))
+        {
+            return None;
+        }
+
+        if self
+            .inventory_panel_sort
+            .as_ref()
+            .is_some_and(|sort| sort.open)
+        {
+            let interaction = self
+                .inventory_panel_sort
+                .as_mut()
+                .map(|sort| sort.interact(point))
+                .unwrap_or(ChoiceInteraction::None);
+            if let ChoiceInteraction::Selected(value) = interaction {
+                self.set_ui_state("inventory.sort", &value);
+                self.inventory_panel_page = 0;
+            }
+            return None;
+        }
+        if self
+            .inventory_panel_close_rect
+            .is_some_and(|rect| rect.contains(point))
+        {
+            self.close_inventory_panel();
+            return None;
+        }
+        if self
+            .inventory_panel_previous_page_rect
+            .is_some_and(|rect| rect.contains(point))
+        {
+            self.inventory_panel_page = self.inventory_panel_page.saturating_sub(1);
+            return None;
+        }
+        if self
+            .inventory_panel_next_page_rect
+            .is_some_and(|rect| rect.contains(point))
+        {
+            self.inventory_panel_page = self.inventory_panel_page.saturating_add(1);
+            return None;
+        }
+        if self
+            .inventory_panel_tabs
+            .as_ref()
+            .is_some_and(|tabs| tabs.contains_interactive_point(point))
+        {
+            let interaction = self
+                .inventory_panel_tabs
+                .as_mut()
+                .map(|tabs| tabs.interact(point))
+                .unwrap_or(ChoiceInteraction::None);
+            if let ChoiceInteraction::Selected(value) = interaction {
+                self.set_ui_state("inventory.category", &value);
+                self.inventory_panel_page = 0;
+                self.inventory_panel_selected_item = None;
+            }
+            return None;
+        }
+        if self
+            .inventory_panel_sort
+            .as_ref()
+            .is_some_and(|sort| sort.contains_interactive_point(point))
+        {
+            if let Some(sort) = self.inventory_panel_sort.as_mut() {
+                sort.interact(point);
+            }
+            return None;
+        }
+        if let Some(title_rect) = self.inventory_panel_title_rect
+            && title_rect.contains(point)
+            && let Some(panel_rect) = self.inventory_panel_rect
+        {
+            self.dragging_inventory_panel = true;
+            self.inventory_panel_drag_offset = Vec2::new(
+                p.x - panel_rect.x.round() as i32,
+                p.y - panel_rect.y.round() as i32,
+            );
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
+            return None;
+        }
+        if let Some(slot) = self
+            .inventory_panel_slots
+            .iter()
+            .find(|slot| slot.rect.contains(point))
+            .cloned()
+        {
+            if let Some(item_id) = slot.item_id
+                && let Some(actor) = Self::resolve_party_entity(map, None)
+            {
+                self.inventory_panel_selected_item = Some(item_id);
+                self.dragging_item_id = Some(item_id);
+                self.dragging_item_owner_entity_id = Some(actor.id);
+                self.dragging_inventory_panel_item = true;
+                self.drag_start_pos = p;
+            }
+            return None;
+        }
+        if self
+            .inventory_panel_rect
+            .is_some_and(|rect| rect.contains(point))
+        {
+            return None;
+        }
 
         if self
             .actions_panel_close_rect
@@ -5363,6 +6908,7 @@ impl Client {
         {
             self.actions_panel_page = self.actions_panel_page.saturating_sub(1);
             self.actions_panel_entries.clear();
+            self.actions_panel_detail_scroll = 0.0;
             return None;
         }
         if self
@@ -5371,6 +6917,52 @@ impl Client {
         {
             self.actions_panel_page = self.actions_panel_page.saturating_add(1);
             self.actions_panel_entries.clear();
+            self.actions_panel_detail_scroll = 0.0;
+            return None;
+        }
+        if let Some(track) = self.actions_panel_scroll_track_rect
+            && track.contains(point)
+            && self.actions_panel_page_count > 1
+        {
+            let progress = ((point.y - track.y) / track.height.max(1.0)).clamp(0.0, 1.0);
+            self.actions_panel_page = (progress
+                * self.actions_panel_page_count.saturating_sub(1) as f32)
+                .round() as usize;
+            self.actions_panel_entries.clear();
+            self.actions_panel_detail_scroll = 0.0;
+            return None;
+        }
+        if let Some(track) = self.actions_panel_detail_scroll_track_rect
+            && track.contains(point)
+            && self.actions_panel_detail_scroll_max > 0.0
+        {
+            if let Some(thumb) = self.actions_panel_detail_scroll_thumb_rect
+                && thumb.contains(point)
+            {
+                self.dragging_actions_detail_scrollbar = true;
+                self.actions_detail_scrollbar_drag_offset = point.y - thumb.y;
+            } else {
+                let thumb_height = self
+                    .actions_panel_detail_scroll_thumb_rect
+                    .map(|thumb| thumb.height)
+                    .unwrap_or(24.0);
+                let travel = (track.height - thumb_height).max(1.0);
+                let progress = ((point.y - track.y - thumb_height * 0.5) / travel).clamp(0.0, 1.0);
+                self.actions_panel_detail_scroll = progress * self.actions_panel_detail_scroll_max;
+            }
+            return None;
+        }
+        if let Some(tab) = self
+            .actions_panel_tabs
+            .iter()
+            .find(|tab| tab.rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+            .cloned()
+        {
+            self.actions_panel_tab = tab.id;
+            self.actions_panel_page = 0;
+            self.actions_panel_selected_command = None;
+            self.actions_panel_entries.clear();
+            self.actions_panel_detail_scroll = 0.0;
             return None;
         }
         if let Some(title_rect) = self.actions_panel_title_rect
@@ -5392,6 +6984,10 @@ impl Client {
             .find(|entry| entry.rect.contains(Vec2::new(p.x as f32, p.y as f32)))
             .cloned()
         {
+            if self.actions_panel_selected_command.as_deref() != Some(entry.command.as_str()) {
+                self.actions_panel_detail_scroll = 0.0;
+            }
+            self.actions_panel_selected_command = Some(entry.command.clone());
             if self.actions_assignment_mode {
                 self.pending_action_assignment = Some(entry.command);
                 return None;
@@ -5443,6 +7039,12 @@ impl Client {
         if let Some(rect) = self.open_container_panel_rect
             && rect.contains(Vec2::new(p.x as f32, p.y as f32))
         {
+            return None;
+        }
+
+        if self.interact_choice_widgets(Vec2::new(p.x as f32, p.y as f32)) {
+            self.tooltip_hover_key = None;
+            self.tooltip_hover_since = None;
             return None;
         }
 
@@ -5896,6 +7498,11 @@ impl Client {
         assets: &Assets,
     ) -> Option<EntityAction> {
         let mut action = None;
+        if self.dragging_actions_detail_scrollbar {
+            self.dragging_actions_detail_scrollbar = false;
+            self.pressed_widget = None;
+            return None;
+        }
         if self.dragging_actions_panel {
             self.dragging_actions_panel = false;
             self.pressed_widget = None;
@@ -5903,6 +7510,16 @@ impl Client {
         }
         if self.dragging_container_panel {
             self.dragging_container_panel = false;
+            self.pressed_widget = None;
+            return None;
+        }
+        if self.dragging_inventory_panel {
+            self.dragging_inventory_panel = false;
+            self.pressed_widget = None;
+            return None;
+        }
+        if self.dragging_equipment_panel {
+            self.dragging_equipment_panel = false;
             self.pressed_widget = None;
             return None;
         }
@@ -5931,6 +7548,8 @@ impl Client {
         let dragged_source_widget_id = self.dragging_source_widget_id;
         let dragged_item_from_world = self.dragging_item_from_world;
         let dragged_container_source = self.dragging_item_container_source;
+        let dragged_inventory_panel_item = self.dragging_inventory_panel_item;
+        let dragged_equipment_panel_item = self.dragging_equipment_panel_item;
         let dragging_started = self.dragging_started || self.drag_distance_exceeded(p);
 
         if let Some(item_id) = dragged_item_id {
@@ -5975,6 +7594,42 @@ impl Client {
                         intent,
                         None,
                     ));
+                } else if dragged_inventory_panel_item {
+                    if let Some(owner_id) = dragged_item_owner_entity_id
+                        && let Some(item) = Self::find_container_item(map, item_id, Some(owner_id))
+                        && Self::item_is_container(item)
+                    {
+                        let anchor = self
+                            .inventory_panel_slots
+                            .iter()
+                            .find(|slot| slot.item_id == Some(item_id))
+                            .map(|slot| slot.rect)
+                            .unwrap_or(Rect::new(p.x as f32, p.y as f32, 1.0, 1.0));
+                        self.toggle_container_panel(item_id, Some(owner_id), anchor);
+                        self.clear_item_drag();
+                        return None;
+                    }
+                    let intent = self.get_current_intent_for_action();
+                    if intent.is_some() {
+                        self.consume_one_shot_2d_intent();
+                    }
+                    action = Some(EntityAction::ItemClicked(
+                        item_id,
+                        0.0,
+                        intent,
+                        dragged_item_owner_entity_id,
+                    ));
+                } else if dragged_equipment_panel_item {
+                    let intent = self.get_current_intent_for_action();
+                    if intent.is_some() {
+                        self.consume_one_shot_2d_intent();
+                    }
+                    action = Some(EntityAction::ItemClicked(
+                        item_id,
+                        0.0,
+                        intent,
+                        dragged_item_owner_entity_id,
+                    ));
                 } else if let Some(source_id) = dragged_source_widget_id
                     && let Some(widget) = self.button_widgets.get(&source_id)
                     && widget.rect.contains(Vec2::new(p.x as f32, p.y as f32))
@@ -6003,7 +7658,67 @@ impl Client {
                     ));
                 }
             } else {
+                if let Some(slot) = self
+                    .inventory_panel_slots
+                    .iter()
+                    .find(|slot| slot.rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+                    && let Some(target_index) = slot.inventory_index
+                {
+                    let target_entity_id =
+                        Self::resolve_party_entity(map, None).map(|entity| entity.id);
+                    action = Some(if let Some(source) = dragged_container_source {
+                        EntityAction::MoveContainerItem {
+                            item_id,
+                            container_item_id: source.container_item_id,
+                            container_owner_entity_id: source.container_owner_entity_id,
+                            target_entity_id,
+                            to_inventory_index: Some(target_index),
+                            to_equipped_slot: None,
+                        }
+                    } else {
+                        EntityAction::MoveItem {
+                            item_id,
+                            owner_entity_id: dragged_item_owner_entity_id,
+                            target_entity_id,
+                            to_inventory_index: Some(target_index),
+                            to_equipped_slot: None,
+                        }
+                    });
+                }
+                if action.is_none()
+                    && let Some(target) = self
+                        .equipment_panel_slots
+                        .iter()
+                        .find(|slot| slot.rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+                    && let Some(item) = self.find_dragged_item(map)
+                    && item
+                        .attributes
+                        .get_str("slot")
+                        .is_some_and(|slot| slot.trim().eq_ignore_ascii_case(&target.slot))
+                {
+                    let target_entity_id =
+                        Self::resolve_party_entity(map, None).map(|entity| entity.id);
+                    action = Some(if let Some(source) = dragged_container_source {
+                        EntityAction::MoveContainerItem {
+                            item_id,
+                            container_item_id: source.container_item_id,
+                            container_owner_entity_id: source.container_owner_entity_id,
+                            target_entity_id,
+                            to_inventory_index: None,
+                            to_equipped_slot: Some(target.slot.clone()),
+                        }
+                    } else {
+                        EntityAction::MoveItem {
+                            item_id,
+                            owner_entity_id: dragged_item_owner_entity_id,
+                            target_entity_id,
+                            to_inventory_index: None,
+                            to_equipped_slot: Some(target.slot.clone()),
+                        }
+                    });
+                }
                 if let Some(panel) = self.open_container_panel
+                    && action.is_none()
                     && self
                         .open_container_panel_rect
                         .is_some_and(|rect| rect.contains(Vec2::new(p.x as f32, p.y as f32)))
@@ -6321,6 +8036,39 @@ impl Client {
     }
 
     pub fn scroll_messages(&mut self, delta_y: isize) -> bool {
+        let point = Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32);
+        if self
+            .actions_panel_detail_rect
+            .is_some_and(|rect| rect.contains(point))
+            && self.actions_panel_detail_scroll_max > 0.0
+        {
+            let steps = (delta_y.unsigned_abs() / 120).max(1) as f32;
+            let delta = steps * 32.0;
+            if delta_y > 0 {
+                self.actions_panel_detail_scroll = (self.actions_panel_detail_scroll + delta)
+                    .min(self.actions_panel_detail_scroll_max);
+            } else if delta_y < 0 {
+                self.actions_panel_detail_scroll =
+                    (self.actions_panel_detail_scroll - delta).max(0.0);
+            }
+            return true;
+        }
+        if self
+            .actions_panel_rect
+            .is_some_and(|rect| rect.contains(point))
+            && self.actions_panel_page_count > 1
+        {
+            if delta_y > 0 {
+                self.actions_panel_page = (self.actions_panel_page + 1)
+                    .min(self.actions_panel_page_count.saturating_sub(1));
+            } else if delta_y < 0 {
+                self.actions_panel_page = self.actions_panel_page.saturating_sub(1);
+            }
+            self.actions_panel_entries.clear();
+            self.actions_panel_detail_scroll = 0.0;
+            return true;
+        }
+
         let mut handled = false;
         let cursor_pos = self.cursor_pos;
         for widget in self.messages_widgets.iter_mut() {
@@ -6504,6 +8252,15 @@ impl Client {
         parsed.title_height = Self::layout_number(config, "title_height")
             .unwrap_or(parsed.title_height)
             .max(20.0);
+        parsed.tab_height = Self::layout_number(config, "tab_height")
+            .unwrap_or(parsed.tab_height)
+            .max(18.0);
+        parsed.detail_width = Self::layout_number(config, "detail_width")
+            .unwrap_or(parsed.detail_width)
+            .max(80.0);
+        parsed.detail_gap = Self::layout_number(config, "detail_gap")
+            .unwrap_or(parsed.detail_gap)
+            .max(0.0);
         parsed.icon_inset = Self::layout_number(config, "icon_inset")
             .unwrap_or(parsed.icon_inset)
             .max(0.0);
@@ -6511,6 +8268,38 @@ impl Client {
             .get("show_names")
             .and_then(toml::Value::as_bool)
             .unwrap_or(parsed.show_names);
+        parsed.show_tabs = config
+            .get("show_tabs")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(parsed.show_tabs);
+        parsed.show_details = config
+            .get("show_details")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(parsed.show_details);
+        parsed.show_assign = config
+            .get("show_assign")
+            .and_then(toml::Value::as_bool)
+            .unwrap_or(parsed.show_assign);
+        let text = |key: &str| {
+            config
+                .get(key)
+                .and_then(toml::Value::as_str)
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_string)
+        };
+        parsed.title = text("title").unwrap_or(parsed.title);
+        parsed.font = text("font").unwrap_or(parsed.font);
+        parsed.title_font = text("title_font").unwrap_or(parsed.title_font);
+        parsed.font_size = Self::layout_number(config, "font_size")
+            .unwrap_or(parsed.font_size)
+            .max(6.0);
+        parsed.title_font_size = Self::layout_number(config, "title_font_size")
+            .unwrap_or(parsed.title_font_size)
+            .max(6.0);
+        parsed.small_font_size = Self::layout_number(config, "small_font_size")
+            .unwrap_or(parsed.small_font_size)
+            .max(6.0);
         parsed.authored_rect = authored_rect;
 
         let frame = config
@@ -6565,7 +8354,260 @@ impl Client {
             Self::color_from_table(config, "text_color").unwrap_or(parsed.text_color);
         parsed.muted_text_color =
             Self::color_from_table(config, "muted_text_color").unwrap_or(parsed.muted_text_color);
+        parsed.detail_background_color = Self::color_from_table(config, "detail_background_color")
+            .unwrap_or(parsed.detail_background_color);
+        parsed.tab_background_color = Self::color_from_table(config, "tab_background_color")
+            .unwrap_or(parsed.tab_background_color);
+        parsed.tab_selected_color = Self::color_from_table(config, "tab_selected_color")
+            .unwrap_or(parsed.tab_selected_color);
+        parsed.separator_color =
+            Self::color_from_table(config, "separator_color").unwrap_or(parsed.separator_color);
         parsed
+    }
+
+    fn inventory_panel_config(
+        config: &toml::Table,
+        authored_rect: Option<Rect>,
+    ) -> InventoryPanelConfig {
+        let mut parsed = InventoryPanelConfig::default();
+        parsed.columns = config
+            .get("columns")
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(parsed.columns as i64)
+            .max(1) as usize;
+        parsed.rows = config
+            .get("rows")
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(parsed.rows as i64)
+            .max(1) as usize;
+        parsed.cell_size = Self::layout_number(config, "cell_size")
+            .or_else(|| Self::layout_number(config, "slot_size"))
+            .unwrap_or(parsed.cell_size)
+            .max(16.0);
+        parsed.spacing = Self::layout_number(config, "spacing")
+            .unwrap_or(parsed.spacing)
+            .max(0.0);
+        parsed.padding = Self::layout_number(config, "padding")
+            .unwrap_or(parsed.padding)
+            .max(0.0);
+        parsed.title_height = Self::layout_number(config, "title_height")
+            .unwrap_or(parsed.title_height)
+            .max(20.0);
+        parsed.tab_height = Self::layout_number(config, "tab_height")
+            .unwrap_or(parsed.tab_height)
+            .max(20.0);
+        parsed.footer_height = Self::layout_number(config, "footer_height")
+            .unwrap_or(parsed.footer_height)
+            .max(20.0);
+        parsed.sort_width = Self::layout_number(config, "sort_width")
+            .unwrap_or(parsed.sort_width)
+            .max(64.0);
+        parsed.font = config
+            .get("font")
+            .and_then(toml::Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        parsed.font_size = Self::layout_number(config, "font_size")
+            .unwrap_or(parsed.font_size)
+            .max(1.0);
+        parsed.title_font_size = Self::layout_number(config, "title_font_size")
+            .unwrap_or(parsed.title_font_size)
+            .max(1.0);
+        if let Some(title) = config.get("title").and_then(toml::Value::as_str) {
+            parsed.title = title.to_string();
+        }
+        if let Some(categories) = config
+            .get("categories")
+            .or_else(|| config.get("tabs"))
+            .and_then(toml::Value::as_array)
+        {
+            let categories = categories
+                .iter()
+                .filter_map(ChoiceWidget::option_from_toml)
+                .collect::<Vec<_>>();
+            if !categories.is_empty() {
+                parsed.categories = categories;
+            }
+        }
+        if let Some(options) = config.get("sort_options").and_then(toml::Value::as_array) {
+            let options = options
+                .iter()
+                .filter_map(ChoiceWidget::option_from_toml)
+                .collect::<Vec<_>>();
+            if !options.is_empty() {
+                parsed.sort_options = options;
+            }
+        }
+        parsed.authored_rect = authored_rect;
+        parsed.background_color =
+            Self::color_from_table(config, "background_color").unwrap_or(parsed.background_color);
+        parsed.title_background_color = Self::color_from_table(config, "title_background_color")
+            .unwrap_or(parsed.title_background_color);
+        parsed.border_color =
+            Self::color_from_table(config, "border_color").unwrap_or(parsed.border_color);
+        parsed.text_color =
+            Self::color_from_table(config, "text_color").unwrap_or(parsed.text_color);
+        parsed.muted_text_color =
+            Self::color_from_table(config, "muted_text_color").unwrap_or(parsed.muted_text_color);
+        parsed.slot_background_color = Self::color_from_table(config, "slot_background_color")
+            .unwrap_or(parsed.slot_background_color);
+        parsed.slot_border_color =
+            Self::color_from_table(config, "slot_border_color").unwrap_or(parsed.slot_border_color);
+        parsed.selected_slot_color = Self::color_from_table(config, "selected_slot_color")
+            .unwrap_or(parsed.selected_slot_color);
+        parsed.tab_background_color = Self::color_from_table(config, "tab_background_color")
+            .unwrap_or(parsed.tab_background_color);
+        parsed.tab_selected_color = Self::color_from_table(config, "tab_selected_color")
+            .unwrap_or(parsed.tab_selected_color);
+        parsed.dropdown_background_color =
+            Self::color_from_table(config, "dropdown_background_color")
+                .unwrap_or(parsed.dropdown_background_color);
+        parsed.dropdown_panel_color = Self::color_from_table(config, "dropdown_panel_color")
+            .unwrap_or(parsed.dropdown_panel_color);
+        parsed
+    }
+
+    fn equipment_panel_config(
+        config: &toml::Table,
+        authored_rect: Option<Rect>,
+    ) -> EquipmentPanelConfig {
+        let mut parsed = EquipmentPanelConfig::default();
+        parsed.padding = Self::layout_number(config, "padding")
+            .unwrap_or(parsed.padding)
+            .max(0.0);
+        parsed.title_height = Self::layout_number(config, "title_height")
+            .unwrap_or(parsed.title_height)
+            .max(20.0);
+        parsed.slot_size = Self::layout_number(config, "slot_size")
+            .or_else(|| Self::layout_number(config, "cell_size"))
+            .unwrap_or(parsed.slot_size)
+            .max(20.0);
+        parsed.spacing = Self::layout_number(config, "spacing")
+            .unwrap_or(parsed.spacing)
+            .max(0.0);
+        parsed.column_gap = Self::layout_number(config, "column_gap")
+            .unwrap_or(parsed.column_gap)
+            .max(0.0);
+        parsed.label_width = Self::layout_number(config, "label_width")
+            .unwrap_or(parsed.label_width)
+            .max(0.0);
+        parsed.avatar_width = Self::layout_number(config, "avatar_width")
+            .unwrap_or(parsed.avatar_width)
+            .max(24.0);
+        parsed.avatar_height = Self::layout_number(config, "avatar_height")
+            .unwrap_or(parsed.avatar_height)
+            .max(24.0);
+        parsed.avatar_scale = Self::layout_number(config, "avatar_scale")
+            .unwrap_or(parsed.avatar_scale)
+            .clamp(0.25, 4.0);
+        parsed.font = config
+            .get("font")
+            .and_then(toml::Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        parsed.font_size = Self::layout_number(config, "font_size")
+            .unwrap_or(parsed.font_size)
+            .max(6.0);
+        parsed.title_font_size = Self::layout_number(config, "title_font_size")
+            .unwrap_or(parsed.title_font_size)
+            .max(6.0);
+        if let Some(title) = config.get("title").and_then(toml::Value::as_str) {
+            parsed.title = title.trim().to_string();
+        }
+        let slots = |key: &str| {
+            config
+                .get(key)
+                .and_then(toml::Value::as_array)
+                .map(|values| {
+                    values
+                        .iter()
+                        .filter_map(toml::Value::as_str)
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(str::to_string)
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default()
+        };
+        parsed.left_slots = slots("left_slots");
+        parsed.right_slots = slots("right_slots");
+        parsed.authored_rect = authored_rect;
+        parsed.background_color =
+            Self::color_from_table(config, "background_color").unwrap_or(parsed.background_color);
+        parsed.title_background_color = Self::color_from_table(config, "title_background_color")
+            .unwrap_or(parsed.title_background_color);
+        parsed.border_color =
+            Self::color_from_table(config, "border_color").unwrap_or(parsed.border_color);
+        parsed.text_color =
+            Self::color_from_table(config, "text_color").unwrap_or(parsed.text_color);
+        parsed.muted_text_color =
+            Self::color_from_table(config, "muted_text_color").unwrap_or(parsed.muted_text_color);
+        parsed.slot_background_color = Self::color_from_table(config, "slot_background_color")
+            .unwrap_or(parsed.slot_background_color);
+        parsed.slot_border_color =
+            Self::color_from_table(config, "slot_border_color").unwrap_or(parsed.slot_border_color);
+        parsed.occupied_slot_color = Self::color_from_table(config, "occupied_slot_color")
+            .or_else(|| Self::color_from_table(config, "selected_slot_color"))
+            .unwrap_or(parsed.occupied_slot_color);
+        parsed
+    }
+
+    fn preferences_panel_config(config: &toml::Table) -> PreferencesPanelConfig {
+        let mut parsed = PreferencesPanelConfig::default();
+        parsed.width = Self::layout_number(config, "width")
+            .unwrap_or(parsed.width)
+            .max(180.0);
+        parsed.padding = Self::layout_number(config, "padding")
+            .unwrap_or(parsed.padding)
+            .max(0.0);
+        parsed.title_height = Self::layout_number(config, "title_height")
+            .unwrap_or(parsed.title_height)
+            .max(20.0);
+        parsed.row_height = Self::layout_number(config, "row_height")
+            .unwrap_or(parsed.row_height)
+            .max(20.0);
+        parsed.font = config
+            .get("font")
+            .and_then(toml::Value::as_str)
+            .unwrap_or("")
+            .trim()
+            .to_string();
+        parsed.font_size = Self::layout_number(config, "font_size")
+            .unwrap_or(parsed.font_size)
+            .max(6.0);
+        parsed.title_font_size = Self::layout_number(config, "title_font_size")
+            .unwrap_or(parsed.title_font_size)
+            .max(6.0);
+        if let Some(title) = config.get("title").and_then(toml::Value::as_str) {
+            parsed.title = title.trim().to_string();
+        }
+        parsed.background_color =
+            Self::color_from_table(config, "background_color").unwrap_or(parsed.background_color);
+        parsed.title_background_color = Self::color_from_table(config, "title_background_color")
+            .unwrap_or(parsed.title_background_color);
+        parsed.border_color =
+            Self::color_from_table(config, "border_color").unwrap_or(parsed.border_color);
+        parsed.text_color =
+            Self::color_from_table(config, "text_color").unwrap_or(parsed.text_color);
+        parsed.muted_text_color =
+            Self::color_from_table(config, "muted_text_color").unwrap_or(parsed.muted_text_color);
+        parsed
+    }
+
+    fn active_inventory_panel_config(&self) -> InventoryPanelConfig {
+        self.custom_inventory_panel_config
+            .clone()
+            .unwrap_or_else(|| self.toolbar_inventory_panel_config.clone())
+    }
+
+    fn catalog_panel_font<'a>(assets: &'a Assets, name: &str) -> Option<&'a Font> {
+        if !name.trim().is_empty()
+            && let Some(font) = assets.fonts.get(name.trim())
+        {
+            return Some(font);
+        }
+        Widget::fallback_font()
     }
 
     fn active_catalog_panel_config(&self) -> CatalogPanelConfig {
@@ -6906,12 +8948,42 @@ impl Client {
             self.toolbar_spellbook_config =
                 Self::catalog_panel_config(spellbook, None, None, assets);
         }
+        if let Some(inventory) = ui
+            .and_then(|ui| ui.get("inventory"))
+            .and_then(toml::Value::as_table)
+        {
+            self.toolbar_inventory_panel_config = Self::inventory_panel_config(inventory, None);
+        }
+        if let Some(equipment) = ui
+            .and_then(|ui| ui.get("equipment"))
+            .and_then(toml::Value::as_table)
+        {
+            self.toolbar_equipment_panel_config = Self::equipment_panel_config(equipment, None);
+        }
+        if let Some(preferences) = ui
+            .and_then(|ui| ui.get("preferences"))
+            .and_then(toml::Value::as_table)
+        {
+            self.toolbar_preferences_panel_config = Self::preferences_panel_config(preferences);
+        }
         if let Some(actions) = ui
             .and_then(|ui| ui.get("actions"))
             .and_then(toml::Value::as_table)
         {
-            self.toolbar_actions_panel_config =
-                Self::catalog_panel_config(actions, None, None, assets);
+            let mut config = Self::catalog_panel_config(actions, None, None, assets);
+            if !actions.contains_key("show_assign") {
+                config.show_assign = true;
+            }
+            if !actions.contains_key("show_details") {
+                config.show_details = false;
+            }
+            if !actions.contains_key("show_names") {
+                config.show_names = true;
+            }
+            if config.title.is_empty() {
+                config.title = "Actions".to_string();
+            }
+            self.toolbar_actions_panel_config = config;
         }
 
         let mut frame_textures = frame
@@ -7371,6 +9443,11 @@ impl Client {
                         widget.rect = rect;
                     }
                 }
+                "tab_bar" | "dropdown" => {
+                    if let Some(widget) = self.choice_widgets.get_mut(&sector_id) {
+                        widget.rect = rect;
+                    }
+                }
                 "messages" => {
                     for widget in self
                         .messages_widgets
@@ -7421,6 +9498,16 @@ impl Client {
                 }
                 "actions" => {
                     if let Some(config) = self.custom_actions_panel_config.as_mut() {
+                        config.authored_rect = Some(rect);
+                    }
+                }
+                "inventory" => {
+                    if let Some(config) = self.custom_inventory_panel_config.as_mut() {
+                        config.authored_rect = Some(rect);
+                    }
+                }
+                "equipment" => {
+                    if let Some(config) = self.custom_equipment_panel_config.as_mut() {
                         config.authored_rect = Some(rect);
                     }
                 }
@@ -7999,7 +10086,58 @@ impl Client {
                             if role == "spellbook" {
                                 self.custom_spellbook_config = Some(config);
                             } else {
+                                let mut config = config;
+                                if !ui.contains_key("show_assign") {
+                                    config.show_assign = true;
+                                }
+                                if !ui.contains_key("show_details") {
+                                    config.show_details = false;
+                                }
+                                if !ui.contains_key("show_names") {
+                                    config.show_names = true;
+                                }
+                                if config.title.is_empty() {
+                                    config.title = "Actions".to_string();
+                                }
                                 self.custom_actions_panel_config = Some(config);
+                            }
+                        } else if role == "inventory" {
+                            let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
+                                continue;
+                            };
+                            self.custom_inventory_panel_config =
+                                Some(Self::inventory_panel_config(ui, Some(rect)));
+                        } else if role == "equipment" {
+                            let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
+                                continue;
+                            };
+                            self.custom_equipment_panel_config =
+                                Some(Self::equipment_panel_config(ui, Some(rect)));
+                        } else if role == "tab_bar" || role == "dropdown" {
+                            let Some(ui) = table.get("ui").and_then(toml::Value::as_table) else {
+                                continue;
+                            };
+                            let kind = if role == "tab_bar" {
+                                ChoiceWidgetKind::TabBar
+                            } else {
+                                ChoiceWidgetKind::Dropdown
+                            };
+                            if let Some(mut choice) = ChoiceWidget::from_ui(
+                                widget.name.clone(),
+                                widget.id,
+                                Rect::new(x, y, width, height),
+                                kind,
+                                ui,
+                            ) {
+                                if let Some(value) = self.ui_state.get(&choice.binding) {
+                                    choice.sync_value(Some(value));
+                                } else {
+                                    self.ui_state.insert(
+                                        choice.binding.clone(),
+                                        choice.selected_value().to_string(),
+                                    );
+                                }
+                                self.choice_widgets.insert(widget.id, choice);
                             }
                         } else if role == "input" {
                             let mut binding = widget.name.clone();
@@ -8397,6 +10535,30 @@ impl Client {
         };
         let point = Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32);
 
+        if let Some(slot) = self
+            .inventory_panel_slots
+            .iter()
+            .find(|slot| slot.inventory_index.is_some() && slot.rect.contains(point))
+        {
+            Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, slot.rect);
+            return;
+        }
+
+        if let Some(slot) = self
+            .equipment_panel_slots
+            .iter()
+            .find(|slot| slot.rect.contains(point))
+        {
+            if item
+                .attributes
+                .get_str("slot")
+                .is_some_and(|item_slot| item_slot.trim().eq_ignore_ascii_case(&slot.slot))
+            {
+                Self::draw_drag_target_highlight(&mut self.target, &self.draw2d, slot.rect);
+            }
+            return;
+        }
+
         if let Some(panel) = self.open_container_panel
             && let Some(container) = self.open_container_item(map)
             && self
@@ -8604,29 +10766,31 @@ impl Client {
             );
         }
 
-        if let Some(title_rect) = layout.title_rect
-            && let Some(font) = self
-                .messages_font
-                .as_ref()
-                .or_else(|| assets.fonts.values().next())
-        {
-            let title = item
-                .attributes
-                .get_str("name")
-                .map(str::to_string)
-                .unwrap_or_else(|| "Container".to_string());
-            self.draw2d.text_rect_blend_safe(
-                self.target.pixels_mut(),
-                &title_rect,
-                stride,
-                font,
-                self.messages_font_size.clamp(12.0, 16.0),
-                &title,
-                &[236, 233, 214, 255],
-                draw2d::TheHorizontalAlign::Left,
-                draw2d::TheVerticalAlign::Center,
-                &safe,
-            );
+        if let Some(title_rect) = layout.title_rect {
+            let font = if let Some(font) = self.messages_font.as_ref() {
+                Some(font)
+            } else {
+                Widget::fallback_font()
+            };
+            if let Some(font) = font {
+                let title = item
+                    .attributes
+                    .get_str("name")
+                    .map(str::to_string)
+                    .unwrap_or_else(|| "Container".to_string());
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &title_rect,
+                    stride,
+                    font,
+                    self.messages_font_size.clamp(12.0, 16.0),
+                    &title,
+                    &[236, 233, 214, 255],
+                    draw2d::TheHorizontalAlign::Left,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
         }
         if let Some(close_rect) = layout.close_rect {
             let close_hovered = close_rect.contains(Vec2::new(
@@ -8723,6 +10887,845 @@ impl Client {
         }
     }
 
+    fn draw_inventory_panel(&mut self, map: &Map, assets: &Assets) {
+        let Some(layout) = self.inventory_panel_layout(map) else {
+            self.inventory_panel_rect = None;
+            self.inventory_panel_slots.clear();
+            return;
+        };
+        let Some(actor) = Self::resolve_party_entity(map, None) else {
+            self.close_inventory_panel();
+            return;
+        };
+        let config = self.active_inventory_panel_config();
+        self.inventory_panel_rect = Some(layout.rect);
+        self.inventory_panel_title_rect = Some(layout.title_rect);
+        self.inventory_panel_close_rect = Some(layout.close_rect);
+        self.inventory_panel_previous_page_rect = layout.previous_page_rect;
+        self.inventory_panel_next_page_rect = layout.next_page_rect;
+        self.inventory_panel_slots = layout.slots.clone();
+
+        let stride = self.target.stride();
+        let safe = (
+            0_isize,
+            0_isize,
+            self.target.dim().width as isize,
+            self.target.dim().height as isize,
+        );
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &(
+                layout.rect.x.round() as isize,
+                layout.rect.y.round() as isize,
+                layout.rect.width.round().max(1.0) as isize,
+                layout.rect.height.round().max(1.0) as isize,
+            ),
+            stride,
+            &config.background_color,
+            &safe,
+        );
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &(
+                layout.rect.x.round() as isize,
+                layout.rect.y.round() as isize,
+                layout.rect.width.round().max(1.0) as isize,
+                config.title_height.round().max(1.0) as isize,
+            ),
+            stride,
+            &config.title_background_color,
+            &safe,
+        );
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
+            &(
+                layout.rect.x.round().max(0.0) as usize,
+                layout.rect.y.round().max(0.0) as usize,
+                layout.rect.width.round().max(1.0) as usize,
+                layout.rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            &config.border_color,
+            1,
+        );
+
+        let font = Self::catalog_panel_font(assets, &config.font);
+        if let Some(font) = font {
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &(
+                    layout.title_rect.x.round() as isize,
+                    layout.title_rect.y.round() as isize,
+                    layout.title_rect.width.round().max(1.0) as isize,
+                    layout.title_rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                font,
+                config.title_font_size,
+                &config.title,
+                &config.text_color,
+                draw2d::TheHorizontalAlign::Center,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+        }
+
+        let close_hovered = layout.close_rect.contains(Vec2::new(
+            self.cursor_pos.x as f32,
+            self.cursor_pos.y as f32,
+        ));
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &(
+                layout.close_rect.x.round() as isize,
+                layout.close_rect.y.round() as isize,
+                layout.close_rect.width.round().max(1.0) as isize,
+                layout.close_rect.height.round().max(1.0) as isize,
+            ),
+            stride,
+            if close_hovered {
+                &[70, 62, 47, 245]
+            } else {
+                &[25, 27, 27, 230]
+            },
+            &safe,
+        );
+        Self::draw_close_x(
+            &self.draw2d,
+            &mut self.target,
+            layout.close_rect,
+            if close_hovered {
+                &config.text_color
+            } else {
+                &config.muted_text_color
+            },
+        );
+
+        if self.inventory_panel_tabs.is_none() {
+            self.inventory_panel_tabs = Some(Self::inventory_panel_choice(
+                &config,
+                ChoiceWidgetKind::TabBar,
+                u32::MAX - 20,
+                layout.tab_rect,
+                "inventory.category",
+                config.categories.clone(),
+            ));
+        }
+        if let Some(tabs) = self.inventory_panel_tabs.as_mut() {
+            tabs.rect = layout.tab_rect;
+            tabs.sync_value(self.ui_state.get("inventory.category").map(String::as_str));
+            tabs.draw(
+                &mut self.target,
+                assets,
+                &self.draw2d,
+                Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32),
+            );
+        }
+
+        for slot in &layout.slots {
+            let hovered = slot.rect.contains(Vec2::new(
+                self.cursor_pos.x as f32,
+                self.cursor_pos.y as f32,
+            ));
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    slot.rect.x.round() as isize,
+                    slot.rect.y.round() as isize,
+                    slot.rect.width.round().max(1.0) as isize,
+                    slot.rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                if hovered {
+                    &[33, 35, 31, 245]
+                } else {
+                    &config.slot_background_color
+                },
+                &safe,
+            );
+            self.draw2d.rect_outline_thickness(
+                self.target.pixels_mut(),
+                &(
+                    slot.rect.x.round().max(0.0) as usize,
+                    slot.rect.y.round().max(0.0) as usize,
+                    slot.rect.width.round().max(1.0) as usize,
+                    slot.rect.height.round().max(1.0) as usize,
+                ),
+                stride,
+                if slot.item_id == self.inventory_panel_selected_item {
+                    &config.selected_slot_color
+                } else {
+                    &config.slot_border_color
+                },
+                1,
+            );
+            let Some(index) = slot.inventory_index else {
+                continue;
+            };
+            let Some(item) = actor.inventory.get(index).and_then(|item| item.as_ref()) else {
+                continue;
+            };
+            Widget::draw_item_icon(
+                &mut self.target,
+                slot.rect,
+                assets,
+                item,
+                &self.draw2d,
+                self.animation_frame,
+            );
+            if item.stack_quantity() > 1
+                && let Some(font) = font
+            {
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        (slot.rect.x + 3.0).round() as isize,
+                        (slot.rect.y + slot.rect.height - 18.0).round() as isize,
+                        (slot.rect.width - 6.0).round().max(1.0) as isize,
+                        16,
+                    ),
+                    stride,
+                    font,
+                    config.font_size.max(11.0),
+                    &item.stack_quantity().to_string(),
+                    &config.text_color,
+                    draw2d::TheHorizontalAlign::Right,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
+        }
+
+        if let Some(font) = font {
+            let occupied = actor.inventory.iter().filter(|item| item.is_some()).count();
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &(
+                    layout.capacity_rect.x.round() as isize,
+                    layout.capacity_rect.y.round() as isize,
+                    layout.capacity_rect.width.round().max(1.0) as isize,
+                    layout.capacity_rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                font,
+                config.font_size,
+                &format!("{} / {}", occupied, actor.inventory.len()),
+                &config.muted_text_color,
+                draw2d::TheHorizontalAlign::Right,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+            if let (Some(previous), Some(next), Some(page_rect)) = (
+                layout.previous_page_rect,
+                layout.next_page_rect,
+                layout.page_rect,
+            ) {
+                for (rect, label) in [(previous, "‹"), (next, "›")] {
+                    self.draw2d.text_rect_blend_safe(
+                        self.target.pixels_mut(),
+                        &(
+                            rect.x.round() as isize,
+                            rect.y.round() as isize,
+                            rect.width.round() as isize,
+                            rect.height.round() as isize,
+                        ),
+                        stride,
+                        font,
+                        config.title_font_size,
+                        label,
+                        &config.text_color,
+                        draw2d::TheHorizontalAlign::Center,
+                        draw2d::TheVerticalAlign::Center,
+                        &safe,
+                    );
+                }
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        page_rect.x.round() as isize,
+                        page_rect.y.round() as isize,
+                        page_rect.width.round() as isize,
+                        page_rect.height.round() as isize,
+                    ),
+                    stride,
+                    font,
+                    config.font_size,
+                    &format!("{} / {}", layout.page + 1, layout.page_count),
+                    &config.muted_text_color,
+                    draw2d::TheHorizontalAlign::Center,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
+        }
+
+        if self.inventory_panel_sort.is_none() {
+            self.inventory_panel_sort = Some(Self::inventory_panel_choice(
+                &config,
+                ChoiceWidgetKind::Dropdown,
+                u32::MAX - 21,
+                layout.sort_rect,
+                "inventory.sort",
+                config.sort_options.clone(),
+            ));
+        }
+        if let Some(sort) = self.inventory_panel_sort.as_mut() {
+            sort.rect = layout.sort_rect;
+            sort.item_height = config.footer_height;
+            sort.sync_value(self.ui_state.get("inventory.sort").map(String::as_str));
+            sort.draw(
+                &mut self.target,
+                assets,
+                &self.draw2d,
+                Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32),
+            );
+        }
+    }
+
+    fn draw_equipment_panel(&mut self, map: &Map, assets: &Assets) {
+        let Some(layout) = self.equipment_panel_layout(map, assets) else {
+            self.equipment_panel_rect = None;
+            self.equipment_panel_slots.clear();
+            return;
+        };
+        let Some(actor) = Self::resolve_party_entity(map, None) else {
+            self.close_equipment_panel();
+            return;
+        };
+        let config = self.active_equipment_panel_config();
+        self.equipment_panel_rect = Some(layout.rect);
+        self.equipment_panel_title_rect = Some(layout.title_rect);
+        self.equipment_panel_close_rect = Some(layout.close_rect);
+        self.equipment_panel_avatar_rect = Some(layout.avatar_rect);
+        self.equipment_panel_slots = layout.slots.clone();
+        let stride = self.target.stride();
+        let safe = (
+            0_isize,
+            0_isize,
+            self.target.dim().width as isize,
+            self.target.dim().height as isize,
+        );
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &(
+                layout.rect.x.round() as isize,
+                layout.rect.y.round() as isize,
+                layout.rect.width.round().max(1.0) as isize,
+                layout.rect.height.round().max(1.0) as isize,
+            ),
+            stride,
+            &config.background_color,
+            &safe,
+        );
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &(
+                layout.title_rect.x.round() as isize,
+                layout.title_rect.y.round() as isize,
+                layout.title_rect.width.round().max(1.0) as isize,
+                layout.title_rect.height.round().max(1.0) as isize,
+            ),
+            stride,
+            &config.title_background_color,
+            &safe,
+        );
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
+            &(
+                layout.rect.x.round().max(0.0) as usize,
+                layout.rect.y.round().max(0.0) as usize,
+                layout.rect.width.round().max(1.0) as usize,
+                layout.rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            &config.border_color,
+            1,
+        );
+        let font = Self::catalog_panel_font(assets, &config.font);
+        if let Some(font) = font {
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &(
+                    layout.title_rect.x.round() as isize,
+                    layout.title_rect.y.round() as isize,
+                    layout.title_rect.width.round().max(1.0) as isize,
+                    layout.title_rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                font,
+                config.title_font_size,
+                &config.title,
+                &config.text_color,
+                draw2d::TheHorizontalAlign::Center,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+        }
+        let close_hovered = layout.close_rect.contains(Vec2::new(
+            self.cursor_pos.x as f32,
+            self.cursor_pos.y as f32,
+        ));
+        self.draw2d.blend_rect_safe(
+            self.target.pixels_mut(),
+            &(
+                layout.close_rect.x.round() as isize,
+                layout.close_rect.y.round() as isize,
+                layout.close_rect.width.round().max(1.0) as isize,
+                layout.close_rect.height.round().max(1.0) as isize,
+            ),
+            stride,
+            if close_hovered {
+                &[70, 62, 47, 245]
+            } else {
+                &[25, 27, 27, 230]
+            },
+            &safe,
+        );
+        Self::draw_close_x(
+            &self.draw2d,
+            &mut self.target,
+            layout.close_rect,
+            if close_hovered {
+                &config.text_color
+            } else {
+                &config.muted_text_color
+            },
+        );
+
+        self.equipment_panel_avatar.rect = layout.avatar_rect;
+        self.equipment_panel_avatar.border_size = 0;
+        self.equipment_panel_avatar.show_weapons = true;
+        Self::resize_widget_buffer(&mut self.equipment_panel_avatar.buffer, layout.avatar_rect);
+        self.equipment_panel_avatar.update_draw(
+            &mut self.target,
+            assets,
+            Some(actor),
+            &self.draw2d,
+        );
+
+        let cursor = Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32);
+        for slot in &layout.slots {
+            let hovered = slot.rect.contains(cursor);
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    slot.rect.x.round() as isize,
+                    slot.rect.y.round() as isize,
+                    slot.rect.width.round().max(1.0) as isize,
+                    slot.rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                if hovered {
+                    &[33, 35, 31, 245]
+                } else {
+                    &config.slot_background_color
+                },
+                &safe,
+            );
+            self.draw2d.rect_outline_thickness(
+                self.target.pixels_mut(),
+                &(
+                    slot.rect.x.round().max(0.0) as usize,
+                    slot.rect.y.round().max(0.0) as usize,
+                    slot.rect.width.round().max(1.0) as usize,
+                    slot.rect.height.round().max(1.0) as usize,
+                ),
+                stride,
+                if slot.item_id.is_some() {
+                    &config.occupied_slot_color
+                } else {
+                    &config.slot_border_color
+                },
+                1,
+            );
+            if let Some(item) = actor.get_equipped_item(&slot.slot) {
+                Widget::draw_item_icon(
+                    &mut self.target,
+                    slot.rect,
+                    assets,
+                    item,
+                    &self.draw2d,
+                    self.animation_frame,
+                );
+            }
+            if let Some(font) = font {
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        slot.label_rect.x.round() as isize,
+                        slot.label_rect.y.round() as isize,
+                        slot.label_rect.width.round().max(1.0) as isize,
+                        slot.label_rect.height.round().max(1.0) as isize,
+                    ),
+                    stride,
+                    font,
+                    config.font_size,
+                    &Self::equipment_slot_label(&slot.slot),
+                    &config.muted_text_color,
+                    if slot.rect.x < layout.avatar_rect.x {
+                        draw2d::TheHorizontalAlign::Left
+                    } else {
+                        draw2d::TheHorizontalAlign::Right
+                    },
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
+        }
+    }
+
+    fn preferences_choice(
+        config: &PreferencesPanelConfig,
+        id: u32,
+        rect: Rect,
+        binding: &str,
+        options: Vec<ChoiceOption>,
+        selected: usize,
+    ) -> ChoiceWidget {
+        ChoiceWidget {
+            name: binding.to_string(),
+            id,
+            rect,
+            kind: ChoiceWidgetKind::Dropdown,
+            binding: binding.to_string(),
+            options,
+            selected,
+            open: false,
+            font: config.font.clone(),
+            font_size: config.font_size,
+            spacing: 0.0,
+            text_padding: 8.0,
+            item_height: config.row_height,
+            indicator_size: 0.0,
+            equal_widths: false,
+            open_upwards: false,
+            background_color: [13, 16, 16, 245],
+            hover_color: [29, 33, 32, 245],
+            selected_color: [22, 29, 30, 245],
+            panel_color: [8, 11, 11, 252],
+            border_color: config.border_color,
+            text_color: config.text_color,
+            muted_text_color: config.muted_text_color,
+            indicator_color: [190, 156, 91, 255],
+            border_size: 1,
+        }
+    }
+
+    fn draw_preferences_panel(&mut self, assets: &Assets) {
+        if !self.preferences_panel_open {
+            self.preferences_panel_rect = None;
+            return;
+        }
+        let config = self.toolbar_preferences_panel_config.clone();
+        let height = config.title_height + config.padding * 2.0 + config.row_height * 3.0 + 12.0;
+        let x = 16.0;
+        let y = (self.target.dim().height as f32 - height - 72.0).max(2.0);
+        let rect = Rect::new(x, y, config.width, height);
+        let close_rect = Rect::new(x + config.width - 28.0, y + 6.0, 20.0, 20.0);
+        let label_width = 108.0;
+        let control_x = x + config.padding + label_width;
+        let control_width = config.width - config.padding * 2.0 - label_width;
+        let first_y = y + config.title_height + config.padding;
+        let tooltips_rect = Rect::new(control_x, first_y, control_width, config.row_height);
+        let delay_rect = Rect::new(
+            control_x,
+            first_y + config.row_height + 4.0,
+            control_width,
+            config.row_height,
+        );
+        let reset_rect = Rect::new(
+            x + config.padding,
+            first_y + (config.row_height + 4.0) * 2.0,
+            config.width - config.padding * 2.0,
+            config.row_height,
+        );
+        self.preferences_panel_rect = Some(rect);
+        self.preferences_panel_close_rect = Some(close_rect);
+        self.preferences_reset_rect = Some(reset_rect);
+        let stride = self.target.stride();
+        let safe = (
+            0_isize,
+            0_isize,
+            self.target.dim().width as isize,
+            self.target.dim().height as isize,
+        );
+        for (area, color) in [
+            (rect, config.background_color),
+            (
+                Rect::new(x, y, config.width, config.title_height),
+                config.title_background_color,
+            ),
+        ] {
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    area.x.round() as isize,
+                    area.y.round() as isize,
+                    area.width.round().max(1.0) as isize,
+                    area.height.round().max(1.0) as isize,
+                ),
+                stride,
+                &color,
+                &safe,
+            );
+        }
+        self.draw2d.rect_outline_thickness(
+            self.target.pixels_mut(),
+            &(
+                rect.x.round().max(0.0) as usize,
+                rect.y.round().max(0.0) as usize,
+                rect.width.round().max(1.0) as usize,
+                rect.height.round().max(1.0) as usize,
+            ),
+            stride,
+            &config.border_color,
+            1,
+        );
+        let font = Self::catalog_panel_font(assets, &config.font);
+        if let Some(font) = font {
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &(
+                    x as isize,
+                    y as isize,
+                    config.width as isize,
+                    config.title_height as isize,
+                ),
+                stride,
+                font,
+                config.title_font_size,
+                &config.title,
+                &config.text_color,
+                draw2d::TheHorizontalAlign::Center,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+            for (label, row_y) in [
+                ("Tooltips", first_y),
+                ("Tooltip delay", first_y + config.row_height + 4.0),
+            ] {
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        (x + config.padding).round() as isize,
+                        row_y.round() as isize,
+                        (label_width - 8.0).round() as isize,
+                        config.row_height.round() as isize,
+                    ),
+                    stride,
+                    font,
+                    config.font_size,
+                    label,
+                    &config.muted_text_color,
+                    draw2d::TheHorizontalAlign::Left,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
+            let hovered = reset_rect.contains(Vec2::new(
+                self.cursor_pos.x as f32,
+                self.cursor_pos.y as f32,
+            ));
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    reset_rect.x.round() as isize,
+                    reset_rect.y.round() as isize,
+                    reset_rect.width.round() as isize,
+                    reset_rect.height.round() as isize,
+                ),
+                stride,
+                if hovered {
+                    &[29, 33, 32, 245]
+                } else {
+                    &[13, 16, 16, 245]
+                },
+                &safe,
+            );
+            self.draw2d.text_rect_blend_safe(
+                self.target.pixels_mut(),
+                &(
+                    reset_rect.x.round() as isize,
+                    reset_rect.y.round() as isize,
+                    reset_rect.width.round() as isize,
+                    reset_rect.height.round() as isize,
+                ),
+                stride,
+                font,
+                config.font_size,
+                "Reset floating window positions",
+                &config.text_color,
+                draw2d::TheHorizontalAlign::Center,
+                draw2d::TheVerticalAlign::Center,
+                &safe,
+            );
+        }
+        let close_hovered = close_rect.contains(Vec2::new(
+            self.cursor_pos.x as f32,
+            self.cursor_pos.y as f32,
+        ));
+        Self::draw_close_x(
+            &self.draw2d,
+            &mut self.target,
+            close_rect,
+            if close_hovered {
+                &config.text_color
+            } else {
+                &config.muted_text_color
+            },
+        );
+
+        if self.preferences_tooltips_choice.is_none() {
+            self.preferences_tooltips_choice = Some(Self::preferences_choice(
+                &config,
+                u32::MAX - 30,
+                tooltips_rect,
+                "preferences.tooltips",
+                vec![
+                    ChoiceOption {
+                        label: "On".into(),
+                        value: "on".into(),
+                    },
+                    ChoiceOption {
+                        label: "Off".into(),
+                        value: "off".into(),
+                    },
+                ],
+                usize::from(!self.tooltips_enabled),
+            ));
+        }
+        if self.preferences_delay_choice.is_none() {
+            let selected = if self.tooltip_delay_ms == 0 {
+                0
+            } else if self.tooltip_delay_ms <= 350 {
+                1
+            } else {
+                2
+            };
+            self.preferences_delay_choice = Some(Self::preferences_choice(
+                &config,
+                u32::MAX - 31,
+                delay_rect,
+                "preferences.tooltip_delay",
+                vec![
+                    ChoiceOption {
+                        label: "Instant".into(),
+                        value: "instant".into(),
+                    },
+                    ChoiceOption {
+                        label: "Short".into(),
+                        value: "short".into(),
+                    },
+                    ChoiceOption {
+                        label: "Normal".into(),
+                        value: "normal".into(),
+                    },
+                ],
+                selected,
+            ));
+        }
+        let cursor = Vec2::new(self.cursor_pos.x as f32, self.cursor_pos.y as f32);
+        let tooltips_open = self
+            .preferences_tooltips_choice
+            .as_ref()
+            .is_some_and(|choice| choice.open);
+        if tooltips_open {
+            if let Some(choice) = self.preferences_delay_choice.as_mut() {
+                choice.rect = delay_rect;
+                choice.draw(&mut self.target, assets, &self.draw2d, cursor);
+            }
+            if let Some(choice) = self.preferences_tooltips_choice.as_mut() {
+                choice.rect = tooltips_rect;
+                choice.draw(&mut self.target, assets, &self.draw2d, cursor);
+            }
+        } else {
+            if let Some(choice) = self.preferences_tooltips_choice.as_mut() {
+                choice.rect = tooltips_rect;
+                choice.draw(&mut self.target, assets, &self.draw2d, cursor);
+            }
+            if let Some(choice) = self.preferences_delay_choice.as_mut() {
+                choice.rect = delay_rect;
+                choice.draw(&mut self.target, assets, &self.draw2d, cursor);
+            }
+        }
+    }
+
+    fn catalog_detail_rows(
+        description: RulesDescription,
+        state: &CommandState,
+    ) -> Vec<CatalogDetailRow> {
+        let mut summary = Vec::new();
+        let mut facts = Vec::new();
+        let mut effects = Vec::new();
+        for line in description.lines {
+            let Some((label, value)) = line.split_once(':') else {
+                summary.push(CatalogDetailRow {
+                    label: None,
+                    text: line,
+                    kind: CatalogDetailRowKind::Summary,
+                });
+                continue;
+            };
+            let label = label.trim();
+            let value = value.trim();
+            let is_fact = matches!(
+                label,
+                "Activation"
+                    | "Target"
+                    | "Range"
+                    | "Damage"
+                    | "Cooldown"
+                    | "Cost"
+                    | "Consumes"
+                    | "Requires"
+                    | "Requires Target"
+                    | "Invocation"
+            );
+            let row = CatalogDetailRow {
+                label: Some(label.to_string()),
+                text: value.to_string(),
+                kind: if is_fact {
+                    CatalogDetailRowKind::Fact
+                } else {
+                    CatalogDetailRowKind::Effect
+                },
+            };
+            if is_fact {
+                facts.push(row);
+            } else {
+                effects.push(row);
+            }
+        }
+
+        let mut rows = summary;
+        if !facts.is_empty() {
+            rows.push(CatalogDetailRow {
+                label: None,
+                text: "DETAILS".to_string(),
+                kind: CatalogDetailRowKind::Section,
+            });
+            rows.extend(facts);
+        }
+        if !effects.is_empty() {
+            rows.push(CatalogDetailRow {
+                label: None,
+                text: "EFFECTS".to_string(),
+                kind: CatalogDetailRowKind::Section,
+            });
+            rows.extend(effects);
+        }
+        if !state.enabled
+            && let Some(reason) = state.disabled_reason.as_deref()
+        {
+            rows.push(CatalogDetailRow {
+                label: None,
+                text: reason.to_string(),
+                kind: CatalogDetailRowKind::Warning,
+            });
+        }
+        rows
+    }
+
     fn draw_actions_panel(&mut self, map: &Map, assets: &Assets) {
         let Some(layout) = self.actions_panel_layout(map, assets) else {
             self.actions_panel_rect = None;
@@ -8731,6 +11734,13 @@ impl Client {
             self.actions_panel_assign_rect = None;
             self.actions_panel_previous_page_rect = None;
             self.actions_panel_next_page_rect = None;
+            self.actions_panel_scroll_track_rect = None;
+            self.actions_panel_scroll_thumb_rect = None;
+            self.actions_panel_page_count = 1;
+            self.actions_panel_detail_rect = None;
+            self.actions_panel_detail_scroll_track_rect = None;
+            self.actions_panel_detail_scroll_thumb_rect = None;
+            self.actions_panel_tabs.clear();
             self.actions_panel_entries.clear();
             return;
         };
@@ -8738,9 +11748,17 @@ impl Client {
         self.actions_panel_rect = Some(layout.rect);
         self.actions_panel_title_rect = Some(layout.title_rect);
         self.actions_panel_close_rect = Some(layout.close_rect);
-        self.actions_panel_assign_rect = Some(layout.assign_rect);
+        self.actions_panel_assign_rect = layout.assign_rect;
         self.actions_panel_previous_page_rect = layout.previous_page_rect;
         self.actions_panel_next_page_rect = layout.next_page_rect;
+        self.actions_panel_scroll_track_rect = layout.scroll_track_rect;
+        self.actions_panel_scroll_thumb_rect = layout.scroll_thumb_rect;
+        self.actions_panel_page_count = layout.page_count;
+        self.actions_panel_detail_rect = layout.detail_rect;
+        self.actions_panel_detail_scroll_track_rect = None;
+        self.actions_panel_detail_scroll_thumb_rect = None;
+        self.actions_panel_detail_scroll_max = 0.0;
+        self.actions_panel_tabs = layout.tabs.clone();
         self.actions_panel_entries = layout.entries.clone();
 
         let stride = self.target.stride();
@@ -8801,24 +11819,19 @@ impl Client {
         }
 
         let actor = Self::resolve_party_entity(map, None);
-        let class_name = actor
-            .and_then(|actor| {
-                actor
-                    .get_attr_string("class")
-                    .or_else(|| actor.get_attr_string("class_name"))
-            })
-            .unwrap_or_default();
-        let panel_title = self.actions_panel_content.title();
-        let title = if class_name.trim().is_empty() {
-            panel_title.to_string()
+        let title = if config.title.trim().is_empty() {
+            self.actions_panel_content.title()
         } else {
-            format!("{} — {}", panel_title, class_name.trim())
+            config.title.trim()
         };
-        let font = self
-            .messages_font
-            .as_ref()
-            .or_else(|| assets.fonts.values().next());
-        if let Some(font) = font {
+        let font = Self::catalog_panel_font(assets, &config.font);
+        let title_font_name = if config.title_font.trim().is_empty() {
+            config.font.as_str()
+        } else {
+            config.title_font.as_str()
+        };
+        let title_font = Self::catalog_panel_font(assets, title_font_name);
+        if let Some(title_font) = title_font {
             self.draw2d.text_rect_blend_safe(
                 self.target.pixels_mut(),
                 &(
@@ -8828,11 +11841,11 @@ impl Client {
                     layout.title_rect.height.round().max(1.0) as isize,
                 ),
                 stride,
-                font,
-                self.messages_font_size.clamp(13.0, 17.0),
-                &title,
+                title_font,
+                config.title_font_size,
+                title,
                 &config.text_color,
-                draw2d::TheHorizontalAlign::Left,
+                draw2d::TheHorizontalAlign::Center,
                 draw2d::TheVerticalAlign::Center,
                 &safe,
             );
@@ -8881,62 +11894,64 @@ impl Client {
             &config.text_color,
         );
 
-        let assign_hovered = layout.assign_rect.contains(Vec2::new(
-            self.cursor_pos.x as f32,
-            self.cursor_pos.y as f32,
-        ));
-        self.draw2d.blend_rect_safe(
-            self.target.pixels_mut(),
-            &(
-                layout.assign_rect.x.round() as isize,
-                layout.assign_rect.y.round() as isize,
-                layout.assign_rect.width.round().max(1.0) as isize,
-                layout.assign_rect.height.round().max(1.0) as isize,
-            ),
-            stride,
-            if self.actions_assignment_mode {
-                &[92, 78, 34, 245]
-            } else if assign_hovered {
-                &[70, 78, 88, 245]
-            } else {
-                &[42, 47, 54, 230]
-            },
-            &safe,
-        );
-        self.draw2d.rect_outline_thickness(
-            self.target.pixels_mut(),
-            &(
-                layout.assign_rect.x.round() as usize,
-                layout.assign_rect.y.round() as usize,
-                layout.assign_rect.width.round().max(1.0) as usize,
-                layout.assign_rect.height.round().max(1.0) as usize,
-            ),
-            stride,
-            if self.actions_assignment_mode {
-                &[255, 222, 116, 255]
-            } else {
-                &[98, 105, 116, 255]
-            },
-            1,
-        );
-        if let Some(font) = font {
-            self.draw2d.text_rect_blend_safe(
+        if let Some(assign_rect) = layout.assign_rect {
+            let assign_hovered = assign_rect.contains(Vec2::new(
+                self.cursor_pos.x as f32,
+                self.cursor_pos.y as f32,
+            ));
+            self.draw2d.blend_rect_safe(
                 self.target.pixels_mut(),
                 &(
-                    layout.assign_rect.x.round() as isize,
-                    layout.assign_rect.y.round() as isize,
-                    layout.assign_rect.width.round().max(1.0) as isize,
-                    layout.assign_rect.height.round().max(1.0) as isize,
+                    assign_rect.x.round() as isize,
+                    assign_rect.y.round() as isize,
+                    assign_rect.width.round().max(1.0) as isize,
+                    assign_rect.height.round().max(1.0) as isize,
                 ),
                 stride,
-                font,
-                11.0,
-                "Assign",
-                &config.text_color,
-                draw2d::TheHorizontalAlign::Center,
-                draw2d::TheVerticalAlign::Center,
+                if self.actions_assignment_mode {
+                    &[92, 78, 34, 245]
+                } else if assign_hovered {
+                    &[70, 78, 88, 245]
+                } else {
+                    &[42, 47, 54, 230]
+                },
                 &safe,
             );
+            self.draw2d.rect_outline_thickness(
+                self.target.pixels_mut(),
+                &(
+                    assign_rect.x.round() as usize,
+                    assign_rect.y.round() as usize,
+                    assign_rect.width.round().max(1.0) as usize,
+                    assign_rect.height.round().max(1.0) as usize,
+                ),
+                stride,
+                if self.actions_assignment_mode {
+                    &[255, 222, 116, 255]
+                } else {
+                    &config.border_color
+                },
+                1,
+            );
+            if let Some(font) = font {
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        assign_rect.x.round() as isize,
+                        assign_rect.y.round() as isize,
+                        assign_rect.width.round().max(1.0) as isize,
+                        assign_rect.height.round().max(1.0) as isize,
+                    ),
+                    stride,
+                    font,
+                    config.small_font_size,
+                    "Assign",
+                    &config.text_color,
+                    draw2d::TheHorizontalAlign::Center,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
         }
 
         if let (Some(previous), Some(next), Some(label)) = (
@@ -9017,6 +12032,88 @@ impl Client {
             }
         }
 
+        if let (Some(track), Some(thumb)) = (layout.scroll_track_rect, layout.scroll_thumb_rect) {
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    track.x.round() as isize,
+                    track.y.round() as isize,
+                    track.width.round().max(1.0) as isize,
+                    track.height.round().max(1.0) as isize,
+                ),
+                stride,
+                &[25, 27, 25, 220],
+                &safe,
+            );
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    thumb.x.round() as isize,
+                    thumb.y.round() as isize,
+                    thumb.width.round().max(1.0) as isize,
+                    thumb.height.round().max(1.0) as isize,
+                ),
+                stride,
+                &config.separator_color,
+                &safe,
+            );
+        }
+
+        for tab in &layout.tabs {
+            let selected = tab.id.eq_ignore_ascii_case(&self.actions_panel_tab);
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    tab.rect.x.round() as isize,
+                    tab.rect.y.round() as isize,
+                    tab.rect.width.round().max(1.0) as isize,
+                    tab.rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                if selected {
+                    &config.tab_selected_color
+                } else {
+                    &config.tab_background_color
+                },
+                &safe,
+            );
+            self.draw2d.rect_outline_thickness(
+                self.target.pixels_mut(),
+                &(
+                    tab.rect.x.round() as usize,
+                    tab.rect.y.round() as usize,
+                    tab.rect.width.round().max(1.0) as usize,
+                    tab.rect.height.round().max(1.0) as usize,
+                ),
+                stride,
+                &config.separator_color,
+                1,
+            );
+            if let Some(font) = font {
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        tab.rect.x.round() as isize + 4,
+                        tab.rect.y.round() as isize,
+                        (tab.rect.width - 8.0).round().max(1.0) as isize,
+                        tab.rect.height.round().max(1.0) as isize,
+                    ),
+                    stride,
+                    font,
+                    config.small_font_size,
+                    &tab.name,
+                    if selected {
+                        &config.text_color
+                    } else {
+                        &config.muted_text_color
+                    },
+                    draw2d::TheHorizontalAlign::Center,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
+        }
+
         if let Some(font) = font {
             for group in &layout.groups {
                 self.draw2d.text_rect_blend_safe(
@@ -9029,7 +12126,7 @@ impl Client {
                     ),
                     stride,
                     font,
-                    self.messages_font_size.clamp(11.0, 14.0),
+                    config.font_size,
                     &group.name,
                     &config.muted_text_color,
                     draw2d::TheHorizontalAlign::Left,
@@ -9037,6 +12134,325 @@ impl Client {
                     &safe,
                 );
             }
+            if let Some(empty_rect) = layout.empty_rect {
+                let message = match self.actions_panel_content {
+                    CatalogPanelContent::Actions => "No actions available for this character.",
+                    CatalogPanelContent::Spellbook => "No abilities available for this character.",
+                };
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        empty_rect.x.round() as isize,
+                        empty_rect.y.round() as isize,
+                        empty_rect.width.round().max(1.0) as isize,
+                        empty_rect.height.round().max(1.0) as isize,
+                    ),
+                    stride,
+                    font,
+                    config.font_size,
+                    message,
+                    &config.muted_text_color,
+                    draw2d::TheHorizontalAlign::Center,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+            }
+        }
+
+        let visible_selected = self
+            .actions_panel_selected_command
+            .as_ref()
+            .filter(|command| {
+                layout
+                    .entries
+                    .iter()
+                    .any(|entry| entry.command.eq_ignore_ascii_case(command))
+            });
+        let detail_command = visible_selected
+            .cloned()
+            .or_else(|| layout.entries.first().map(|entry| entry.command.clone()));
+        if self.actions_panel_selected_command.as_deref() != detail_command.as_deref() {
+            self.actions_panel_selected_command = detail_command.clone();
+            self.actions_panel_detail_scroll = 0.0;
+        }
+        if let Some(detail_rect) = layout.detail_rect {
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    detail_rect.x.round() as isize,
+                    detail_rect.y.round() as isize,
+                    detail_rect.width.round().max(1.0) as isize,
+                    detail_rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                &config.detail_background_color,
+                &safe,
+            );
+            self.draw2d.blend_rect_safe(
+                self.target.pixels_mut(),
+                &(
+                    detail_rect.x.round() as isize,
+                    detail_rect.y.round() as isize,
+                    1,
+                    detail_rect.height.round().max(1.0) as isize,
+                ),
+                stride,
+                &config.separator_color,
+                &safe,
+            );
+            if let (Some(command), Some(font), Some(title_font)) =
+                (detail_command.as_deref(), font, title_font)
+            {
+                let description = rules_ui::describe_command(assets, actor, command);
+                let state = rules_ui::command_state(assets, actor, command);
+                let title = description.title.clone();
+                let subtitle = description.subtitle.clone();
+                let rows = Self::catalog_detail_rows(description, &state);
+                let text_x = detail_rect.x + 12.0;
+                let text_width = (detail_rect.width - 32.0).max(1.0);
+                let mut text_y = detail_rect.y + 12.0;
+                self.draw2d.text_rect_blend_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        text_x.round() as isize,
+                        text_y.round() as isize,
+                        text_width.round() as isize,
+                        (config.title_font_size + 5.0).round() as isize,
+                    ),
+                    stride,
+                    title_font,
+                    (config.title_font_size - 2.0).max(8.0),
+                    &title,
+                    &config.text_color,
+                    draw2d::TheHorizontalAlign::Left,
+                    draw2d::TheVerticalAlign::Center,
+                    &safe,
+                );
+                text_y += config.title_font_size + 7.0;
+                if let Some(subtitle) = subtitle {
+                    let subtitle = subtitle.to_ascii_uppercase();
+                    self.draw2d.text_rect_blend_safe(
+                        self.target.pixels_mut(),
+                        &(
+                            text_x.round() as isize,
+                            text_y.round() as isize,
+                            text_width.round() as isize,
+                            (config.font_size + 4.0).round() as isize,
+                        ),
+                        stride,
+                        font,
+                        config.small_font_size,
+                        &subtitle,
+                        &[190, 156, 91, 255],
+                        draw2d::TheHorizontalAlign::Left,
+                        draw2d::TheVerticalAlign::Center,
+                        &safe,
+                    );
+                    text_y += config.small_font_size + 8.0;
+                }
+                self.draw2d.blend_rect_safe(
+                    self.target.pixels_mut(),
+                    &(
+                        text_x.round() as isize,
+                        text_y.round() as isize,
+                        text_width.round() as isize,
+                        1,
+                    ),
+                    stride,
+                    &config.separator_color,
+                    &safe,
+                );
+                text_y += 10.0;
+
+                let content_bottom = detail_rect.y + detail_rect.height - 10.0;
+                let content_height = (content_bottom - text_y).max(1.0);
+                let content_clip = (
+                    text_x.round() as isize,
+                    text_y.round() as isize,
+                    text_width.round() as isize,
+                    content_height.round() as isize,
+                );
+                let line_height = config.font_size + 4.0;
+                let fact_label_width = (text_width * 0.36).clamp(58.0, 82.0);
+                let fact_value_width = (text_width - fact_label_width - 6.0).max(1.0);
+                let mut rendered =
+                    Vec::<(CatalogDetailRowKind, Option<String>, String, f32)>::new();
+                for row in rows {
+                    let (width, before) = match row.kind {
+                        CatalogDetailRowKind::Summary => (text_width, 0.0),
+                        CatalogDetailRowKind::Section => (text_width, 8.0),
+                        CatalogDetailRowKind::Fact => (fact_value_width, 2.0),
+                        CatalogDetailRowKind::Effect => (text_width, 2.0),
+                        CatalogDetailRowKind::Warning => (text_width, 8.0),
+                    };
+                    let wrapped = if row.kind == CatalogDetailRowKind::Section {
+                        vec![row.text]
+                    } else {
+                        Self::wrap_tooltip_line(
+                            &self.draw2d,
+                            font,
+                            if row.kind == CatalogDetailRowKind::Section {
+                                config.small_font_size
+                            } else {
+                                config.font_size
+                            },
+                            &row.text,
+                            width,
+                        )
+                    };
+                    for (index, line) in wrapped.into_iter().enumerate() {
+                        rendered.push((
+                            row.kind,
+                            (index == 0).then(|| row.label.clone()).flatten(),
+                            line,
+                            if index == 0 { before } else { 0.0 },
+                        ));
+                    }
+                }
+                let total_height = rendered
+                    .iter()
+                    .map(|(kind, _, _, before)| {
+                        before
+                            + if *kind == CatalogDetailRowKind::Section {
+                                config.small_font_size + 5.0
+                            } else {
+                                line_height
+                            }
+                    })
+                    .sum::<f32>();
+                self.actions_panel_detail_scroll_max = (total_height - content_height).max(0.0);
+                self.actions_panel_detail_scroll = self
+                    .actions_panel_detail_scroll
+                    .clamp(0.0, self.actions_panel_detail_scroll_max);
+
+                let mut row_y = text_y - self.actions_panel_detail_scroll;
+                for (kind, label, line, before) in rendered {
+                    row_y += before;
+                    let height = if kind == CatalogDetailRowKind::Section {
+                        config.small_font_size + 5.0
+                    } else {
+                        line_height
+                    };
+                    if row_y + height >= text_y && row_y <= content_bottom {
+                        let (color, size) = match kind {
+                            CatalogDetailRowKind::Summary => {
+                                (config.muted_text_color, config.font_size)
+                            }
+                            CatalogDetailRowKind::Section => {
+                                ([190, 156, 91, 255], config.small_font_size)
+                            }
+                            CatalogDetailRowKind::Fact | CatalogDetailRowKind::Effect => {
+                                (config.text_color, config.font_size)
+                            }
+                            CatalogDetailRowKind::Warning => {
+                                ([220, 145, 108, 255], config.font_size)
+                            }
+                        };
+                        if kind == CatalogDetailRowKind::Fact {
+                            if let Some(label) = label.as_deref() {
+                                self.draw2d.text_rect_blend_safe_clip(
+                                    self.target.pixels_mut(),
+                                    &(
+                                        text_x.round() as isize,
+                                        row_y.round() as isize,
+                                        fact_label_width.round() as isize,
+                                        height.round() as isize,
+                                    ),
+                                    stride,
+                                    font,
+                                    config.small_font_size,
+                                    label,
+                                    &config.muted_text_color,
+                                    draw2d::TheHorizontalAlign::Left,
+                                    draw2d::TheVerticalAlign::Center,
+                                    &content_clip,
+                                );
+                            }
+                            self.draw2d.text_rect_blend_safe_clip(
+                                self.target.pixels_mut(),
+                                &(
+                                    (text_x + fact_label_width + 6.0).round() as isize,
+                                    row_y.round() as isize,
+                                    fact_value_width.round() as isize,
+                                    height.round() as isize,
+                                ),
+                                stride,
+                                font,
+                                size,
+                                &line,
+                                &color,
+                                draw2d::TheHorizontalAlign::Left,
+                                draw2d::TheVerticalAlign::Center,
+                                &content_clip,
+                            );
+                        } else {
+                            self.draw2d.text_rect_blend_safe_clip(
+                                self.target.pixels_mut(),
+                                &(
+                                    text_x.round() as isize,
+                                    row_y.round() as isize,
+                                    text_width.round() as isize,
+                                    height.round() as isize,
+                                ),
+                                stride,
+                                font,
+                                size,
+                                &line,
+                                &color,
+                                draw2d::TheHorizontalAlign::Left,
+                                draw2d::TheVerticalAlign::Center,
+                                &content_clip,
+                            );
+                        }
+                    }
+                    row_y += height;
+                }
+
+                if self.actions_panel_detail_scroll_max > 0.0 {
+                    let track = Rect::new(
+                        detail_rect.x + detail_rect.width - 8.0,
+                        text_y,
+                        4.0,
+                        content_height,
+                    );
+                    let thumb_height = (content_height * content_height / total_height)
+                        .clamp(24.0, content_height);
+                    let travel = (content_height - thumb_height).max(0.0);
+                    let progress = self.actions_panel_detail_scroll
+                        / self.actions_panel_detail_scroll_max.max(1.0);
+                    let thumb = Rect::new(
+                        track.x,
+                        track.y + travel * progress,
+                        track.width,
+                        thumb_height,
+                    );
+                    self.actions_panel_detail_scroll_track_rect = Some(track);
+                    self.actions_panel_detail_scroll_thumb_rect = Some(thumb);
+                    for (rect, color) in
+                        [(track, [25, 27, 25, 220]), (thumb, config.separator_color)]
+                    {
+                        self.draw2d.blend_rect_safe(
+                            self.target.pixels_mut(),
+                            &(
+                                rect.x.round() as isize,
+                                rect.y.round() as isize,
+                                rect.width.round().max(1.0) as isize,
+                                rect.height.round().max(1.0) as isize,
+                            ),
+                            stride,
+                            &color,
+                            &safe,
+                        );
+                    }
+                } else {
+                    self.actions_panel_detail_scroll_track_rect = None;
+                    self.actions_panel_detail_scroll_thumb_rect = None;
+                }
+            }
+        } else {
+            self.actions_panel_detail_scroll_track_rect = None;
+            self.actions_panel_detail_scroll_thumb_rect = None;
+            self.actions_panel_detail_scroll_max = 0.0;
         }
 
         for entry in &layout.entries {
@@ -9045,9 +12461,13 @@ impl Client {
                 self.cursor_pos.x as f32,
                 self.cursor_pos.y as f32,
             ));
-            let selected = parse_client_command(&entry.command)
-                .and_then(|binding| binding.intent_payload())
-                .is_some_and(|payload| payload.eq_ignore_ascii_case(self.intent.trim()));
+            let selected = self
+                .actions_panel_selected_command
+                .as_deref()
+                .is_some_and(|command| command.eq_ignore_ascii_case(&entry.command))
+                || parse_client_command(&entry.command)
+                    .and_then(|binding| binding.intent_payload())
+                    .is_some_and(|payload| payload.eq_ignore_ascii_case(self.intent.trim()));
             let assignment_selected = self
                 .pending_action_assignment
                 .as_deref()
@@ -9125,7 +12545,9 @@ impl Client {
                 visual_state,
                 Some(&entry.command),
             );
-            if !state.enabled || state.cooldown_remaining > 0.0 {
+            // Disabled icons are already converted to a muted grayscale by Widget.
+            // Only cooldowns need the additional masked darkening overlay here.
+            if state.cooldown_remaining > 0.0 {
                 Self::draw_command_state_overlay(
                     &mut self.target,
                     &self.draw2d,
@@ -9342,14 +12764,17 @@ impl Client {
     }
 
     fn draw_hover_tooltip(&mut self, map: &Map, assets: &Assets) {
-        if self.dragging_started || self.dragging_item_id.is_some() || self.dragging_container_panel
+        if !self.tooltips_enabled
+            || self.dragging_started
+            || self.dragging_item_id.is_some()
+            || self.dragging_container_panel
         {
             self.tooltip_hover_key = None;
             self.tooltip_hover_since = None;
             return;
         }
 
-        let Some((description, anchor, state, hover_key, delay, prefer_below)) =
+        let Some((description, anchor, state, hover_key, _delay, prefer_below)) =
             self.hover_description(map, assets)
         else {
             self.tooltip_hover_key = None;
@@ -9362,6 +12787,7 @@ impl Client {
             return;
         }
 
+        let delay = Duration::from_millis(self.tooltip_delay_ms);
         let now = Instant::now();
         if self.tooltip_hover_key.as_deref() != Some(hover_key.as_str()) {
             self.tooltip_hover_key = Some(hover_key);
@@ -9378,11 +12804,12 @@ impl Client {
             return;
         }
 
-        let Some(font) = self
-            .messages_font
-            .as_ref()
-            .or_else(|| assets.fonts.values().next())
-        else {
+        let font = if let Some(font) = self.messages_font.as_ref() {
+            Some(font)
+        } else {
+            Widget::fallback_font()
+        };
+        let Some(font) = font else {
             return;
         };
 
@@ -9617,11 +13044,67 @@ impl Client {
         bool,
     )> {
         let p = self.cursor_pos;
+        let point = Vec2::new(p.x as f32, p.y as f32);
+        if let Some(slot) = self
+            .equipment_panel_slots
+            .iter()
+            .find(|slot| slot.rect.contains(point))
+            && let Some(actor) = Self::resolve_party_entity(map, None)
+            && let Some(item) = actor.get_equipped_item(&slot.slot)
+        {
+            return Some((
+                rules_ui::describe_item(item, assets),
+                slot.rect,
+                None,
+                format!("equipment-panel:{}:{}", actor.id, item.id),
+                Duration::from_millis(650),
+                false,
+            ));
+        }
+        if self
+            .equipment_panel_rect
+            .is_some_and(|rect| rect.contains(point))
+            || self
+                .preferences_panel_rect
+                .is_some_and(|rect| rect.contains(point))
+        {
+            return None;
+        }
+        if let Some(slot) = self
+            .inventory_panel_slots
+            .iter()
+            .find(|slot| slot.rect.contains(point))
+            && let Some(index) = slot.inventory_index
+            && let Some(actor) = Self::resolve_party_entity(map, None)
+            && let Some(item) = actor.inventory.get(index).and_then(|item| item.as_ref())
+        {
+            return Some((
+                rules_ui::describe_item(item, assets),
+                slot.rect,
+                None,
+                format!("inventory-panel:{}:{}", actor.id, item.id),
+                Duration::from_millis(650),
+                false,
+            ));
+        }
+        if self
+            .inventory_panel_rect
+            .is_some_and(|rect| rect.contains(point))
+            || self
+                .inventory_panel_sort
+                .as_ref()
+                .is_some_and(|sort| sort.open && sort.popup_rect().contains(point))
+        {
+            return None;
+        }
         if let Some(entry) = self
             .actions_panel_entries
             .iter()
-            .find(|entry| entry.rect.contains(Vec2::new(p.x as f32, p.y as f32)))
+            .find(|entry| entry.rect.contains(point))
         {
+            if self.active_catalog_panel_config().show_details {
+                return None;
+            }
             let actor = Self::resolve_party_entity(map, None);
             let description = rules_ui::describe_command(assets, actor, &entry.command);
             let state = rules_ui::command_state(assets, actor, &entry.command);
@@ -10345,7 +13828,7 @@ mod tests {
     }
 
     #[test]
-    fn spellbook_command_reuses_catalog_panel_and_filters_to_spells() {
+    fn spellbook_command_reuses_the_complete_ability_catalogue() {
         let mut assets = Assets::default();
         assets.rules = r#"
             [identity.defaults]
@@ -10377,10 +13860,19 @@ mod tests {
         let layout = client
             .actions_panel_layout(&map, &assets)
             .expect("Spellbook should use the shared catalogue panel");
-        assert_eq!(layout.groups.len(), 1);
-        assert_eq!(layout.groups[0].name, "Spells");
-        assert_eq!(layout.entries.len(), 1);
-        assert_eq!(layout.entries[0].command, "rules.minor_heal");
+        assert_eq!(layout.groups.len(), 2);
+        assert_eq!(layout.groups[0].name, "Combat");
+        assert_eq!(layout.groups[1].name, "Spells");
+        assert_eq!(layout.entries.len(), 2);
+        assert_eq!(layout.entries[0].command, "rules.basic_attack");
+        assert_eq!(layout.entries[1].command, "rules.minor_heal");
+
+        client.actions_panel_tab = "spells".into();
+        let spells = client.actions_panel_layout(&map, &assets).unwrap();
+        assert_eq!(spells.groups.len(), 1);
+        assert_eq!(spells.groups[0].name, "Spells");
+        assert_eq!(spells.entries.len(), 1);
+        assert_eq!(spells.entries[0].command, "rules.minor_heal");
 
         assert!(client.apply_ui_command("actions"));
         assert_eq!(client.actions_panel_content, CatalogPanelContent::Actions);
@@ -10441,6 +13933,229 @@ mod tests {
         let second = client.actions_panel_layout(&map, &assets).unwrap();
         assert_eq!(second.entries.len(), 1);
         assert_eq!(second.entries[0].command, "rules.three");
+    }
+
+    #[test]
+    fn spellbook_keeps_authored_geometry_when_switching_tabs() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Warrior"
+
+            [classes.Warrior.action_bar]
+            main = ["rules.attack", "rules.gather"]
+
+            [actions.attack]
+            name = "Attack"
+            kind = "attack"
+
+            [actions.gather]
+            name = "Gather"
+            kind = "gather"
+        "#
+        .into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Warrior".into()));
+        let mut map = Map::default();
+        map.entities.push(player);
+        let table = r#"
+            columns = 4
+            rows = 3
+            cell_size = 48
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+        let mut client = Client::new();
+        client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+        client.toolbar_spellbook_config = Client::catalog_panel_config(&table, None, None, &assets);
+        client.apply_ui_command("spellbook");
+
+        let all = client.actions_panel_layout(&map, &assets).unwrap();
+        client.actions_panel_tab = "utility".into();
+        let utility = client.actions_panel_layout(&map, &assets).unwrap();
+
+        assert_eq!(utility.rect.x, all.rect.x);
+        assert_eq!(utility.rect.y, all.rect.y);
+        assert_eq!(utility.rect.width, all.rect.width);
+        assert_eq!(utility.rect.height, all.rect.height);
+    }
+
+    #[test]
+    fn spellbook_details_are_grouped_into_summary_facts_effects_and_warning() {
+        let description = RulesDescription {
+            title: "Power Strike".into(),
+            subtitle: Some("Attack".into()),
+            lines: vec![
+                "Make a heavier martial attack.".into(),
+                "Activation: 1 Action".into(),
+                "Range: Weapon".into(),
+                "Applies: Staggered".into(),
+            ],
+        };
+        let state = CommandState {
+            enabled: false,
+            disabled_reason: Some("Available at level 2".into()),
+            ..CommandState::default()
+        };
+
+        let rows = Client::catalog_detail_rows(description, &state);
+        assert!(
+            rows.iter()
+                .any(|row| row.kind == CatalogDetailRowKind::Summary)
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row.kind == CatalogDetailRowKind::Fact)
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row.kind == CatalogDetailRowKind::Effect)
+        );
+        assert!(
+            rows.iter()
+                .any(|row| row.kind == CatalogDetailRowKind::Warning)
+        );
+    }
+
+    #[test]
+    fn equipment_panel_uses_ruleset_owned_slots_around_the_avatar() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [equipment]
+            weapon_slots = ["grip", "guard"]
+            armor_slots = ["crown", "shell", "boots"]
+        "#
+        .into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        let mut map = Map::default();
+        map.entities.push(player);
+        let mut client = Client::new();
+        client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+
+        assert!(client.apply_ui_command("equipment"));
+        let layout = client
+            .equipment_panel_layout(&map, &assets)
+            .expect("Equipment should resolve ruleset-owned slots");
+        assert_eq!(
+            layout
+                .slots
+                .iter()
+                .map(|slot| slot.slot.as_str())
+                .collect::<Vec<_>>(),
+            vec!["grip", "crown", "boots", "guard", "shell"]
+        );
+        assert!(
+            layout.slots[..3]
+                .iter()
+                .all(|slot| slot.rect.x < layout.avatar_rect.x)
+        );
+        assert!(
+            layout.slots[3..]
+                .iter()
+                .all(|slot| slot.rect.x > layout.avatar_rect.x + layout.avatar_rect.width)
+        );
+    }
+
+    #[test]
+    fn equipment_and_preferences_configs_parse_toolbar_overrides() {
+        let equipment = r##"
+            slot_size = 60
+            avatar_scale = 1.25
+            left_slots = ["main_hand", "head"]
+            right_slots = ["off_hand"]
+            border_color = "#806739"
+        "##
+        .parse::<toml::Table>()
+        .unwrap();
+        let equipment = Client::equipment_panel_config(&equipment, None);
+        assert_eq!(equipment.slot_size, 60.0);
+        assert_eq!(equipment.avatar_scale, 1.25);
+        assert_eq!(equipment.left_slots, vec!["main_hand", "head"]);
+        assert_eq!(equipment.right_slots, vec!["off_hand"]);
+        assert_eq!(equipment.border_color, [128, 103, 57, 255]);
+
+        let preferences = r#"
+            width = 340
+            row_height = 38
+            title = "Interface"
+        "#
+        .parse::<toml::Table>()
+        .unwrap();
+        let preferences = Client::preferences_panel_config(&preferences);
+        assert_eq!(preferences.width, 340.0);
+        assert_eq!(preferences.row_height, 38.0);
+        assert_eq!(preferences.title, "Interface");
+
+        let mut client = Client::new();
+        assert!(client.apply_ui_command("preferences"));
+        assert!(client.preferences_panel_open);
+        assert!(client.apply_ui_command("preferences"));
+        assert!(!client.preferences_panel_open);
+    }
+
+    #[test]
+    fn toolbar_inventory_config_parses_grid_choices_and_style() {
+        let table = r##"
+            columns = 9
+            rows = 6
+            cell_size = 46
+            spacing = 3
+            padding = 8
+            font = "Project UI"
+            categories = [
+                { label = "All Items", value = "all" },
+                { label = "Gear", value = "equipment" },
+            ]
+            sort_options = ["Newest", "Name"]
+            border_color = "#8f7444"
+        "##
+        .parse::<toml::Table>()
+        .unwrap();
+
+        let config = Client::inventory_panel_config(&table, None);
+        assert_eq!(config.columns, 9);
+        assert_eq!(config.rows, 6);
+        assert_eq!(config.cell_size, 46.0);
+        assert_eq!(config.spacing, 3.0);
+        assert_eq!(config.padding, 8.0);
+        assert_eq!(config.font, "Project UI");
+        assert_eq!(config.categories[1].value, "equipment");
+        assert_eq!(config.sort_options[1].value, "name");
+        assert_eq!(config.border_color, [143, 116, 68, 255]);
+
+        let mut client = Client::new();
+        assert!(client.apply_ui_command("inventory"));
+        assert!(client.inventory_panel_open);
+        assert!(client.apply_ui_command("inventory"));
+        assert!(!client.inventory_panel_open);
+    }
+
+    #[test]
+    fn empty_spellbook_still_has_a_visible_panel() {
+        let mut assets = Assets::default();
+        assets.rules = r#"
+            [identity.defaults]
+            class = "Warrior"
+
+            [classes.Warrior.action_bar]
+            main = []
+        "#
+        .into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Warrior".into()));
+        let mut map = Map::default();
+        map.entities.push(player);
+        let mut client = Client::new();
+        client.target = TheRGBABuffer::new(TheDim::sized(1280, 720));
+
+        assert!(client.apply_ui_command("spellbook"));
+        let layout = client.actions_panel_layout(&map, &assets).unwrap();
+        assert!(layout.entries.is_empty());
+        assert!(layout.empty_rect.is_some());
+        assert!(layout.rect.height > layout.title_rect.height);
     }
 
     #[test]

@@ -3,6 +3,7 @@ use crate::collision_world::{
 };
 use crate::{Assets, Chunk, ChunkBuilder, Map, PixelSource};
 use scenevm::GeoId;
+use std::collections::HashMap;
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
@@ -76,6 +77,80 @@ impl GeometryObjectBuilder {
             .collect()
     }
 
+    /// Compute one world-space shading normal for every editable face corner.
+    ///
+    /// Group zero stays flat. Non-zero groups average area-weighted face normals only where the
+    /// faces share the same object vertex, so UV seams do not accidentally become shading seams.
+    fn face_corner_normals(object: &crate::GeometryObject) -> Vec<Vec<[f32; 3]>> {
+        let mut weighted_face_normals = Vec::with_capacity(object.faces.len());
+        for face in &object.faces {
+            let points = face
+                .indices
+                .iter()
+                .map(|index| object.vertices.get(*index).copied())
+                .collect::<Option<Vec<_>>>()
+                .map(|points| {
+                    points
+                        .into_iter()
+                        .map(|point| object.transform_point(point))
+                        .collect::<Vec<_>>()
+                });
+            let weighted = points
+                .as_deref()
+                .and_then(|points| {
+                    crate::triangulate_geometry_polygon(points).map(|triangles| {
+                        triangles
+                            .into_iter()
+                            .fold(Vec3::zero(), |normal, (a, b, c)| {
+                                normal + (points[b] - points[a]).cross(points[c] - points[a])
+                            })
+                    })
+                })
+                .unwrap_or_else(Vec3::zero);
+            weighted_face_normals.push(weighted);
+        }
+
+        let mut grouped = HashMap::<(usize, u32), Vec3<f32>>::new();
+        for (face, weighted) in object.faces.iter().zip(&weighted_face_normals) {
+            if face.smoothing_group == 0 || weighted.magnitude_squared() <= 1e-12 {
+                continue;
+            }
+            for vertex_index in &face.indices {
+                *grouped
+                    .entry((*vertex_index, face.smoothing_group))
+                    .or_insert_with(Vec3::zero) += *weighted;
+            }
+        }
+
+        object
+            .faces
+            .iter()
+            .zip(weighted_face_normals)
+            .map(|(face, weighted)| {
+                face.indices
+                    .iter()
+                    .map(|vertex_index| {
+                        let normal = if face.smoothing_group == 0 {
+                            weighted
+                        } else {
+                            grouped
+                                .get(&(*vertex_index, face.smoothing_group))
+                                .copied()
+                                .unwrap_or(weighted)
+                        };
+                        let length = normal.magnitude();
+                        if length > 1e-6 && length.is_finite() {
+                            let normal = normal / length;
+                            [normal.x, normal.y, normal.z]
+                        } else {
+                            [0.0, 0.0, 0.0]
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
     fn barycentric_2d(
         p: Vec2<f32>,
         a: Vec2<f32>,
@@ -108,19 +183,20 @@ impl GeometryObjectBuilder {
         uv: Vec2<f32>,
         face_uvs: &[Vec2<f32>],
         world_points: &[Vec3<f32>],
+        triangles: &[(usize, usize, usize)],
     ) -> Option<Vec3<f32>> {
         if face_uvs.len() < 3 || face_uvs.len() != world_points.len() {
             return None;
         }
-        for index in 1..face_uvs.len() - 1 {
-            let a = face_uvs[0];
-            let b = face_uvs[index];
-            let c = face_uvs[index + 1];
+        for &(a_index, b_index, c_index) in triangles {
+            let a = face_uvs[a_index];
+            let b = face_uvs[b_index];
+            let c = face_uvs[c_index];
             let Some((u, v, w)) = Self::barycentric_2d(uv, a, b, c) else {
                 continue;
             };
             return Some(
-                world_points[0] * u + world_points[index] * v + world_points[index + 1] * w,
+                world_points[a_index] * u + world_points[b_index] * v + world_points[c_index] * w,
             );
         }
         None
@@ -130,17 +206,40 @@ impl GeometryObjectBuilder {
         uv: Vec2<f32>,
         face_uvs: &[Vec2<f32>],
         paint_uvs: &[Vec2<f32>],
+        triangles: &[(usize, usize, usize)],
     ) -> Option<Vec2<f32>> {
         if face_uvs.len() < 3 || face_uvs.len() != paint_uvs.len() {
             return None;
         }
-        for index in 1..face_uvs.len() - 1 {
-            let Some((u, v, w)) =
-                Self::barycentric_2d(uv, face_uvs[0], face_uvs[index], face_uvs[index + 1])
+        for &(a, b, c) in triangles {
+            let Some((u, v, w)) = Self::barycentric_2d(uv, face_uvs[a], face_uvs[b], face_uvs[c])
             else {
                 continue;
             };
-            return Some(paint_uvs[0] * u + paint_uvs[index] * v + paint_uvs[index + 1] * w);
+            return Some(paint_uvs[a] * u + paint_uvs[b] * v + paint_uvs[c] * w);
+        }
+        None
+    }
+
+    fn normal_from_face_uv(
+        uv: Vec2<f32>,
+        face_uvs: &[Vec2<f32>],
+        face_normals: &[[f32; 3]],
+        triangles: &[(usize, usize, usize)],
+    ) -> Option<[f32; 3]> {
+        if face_uvs.len() < 3 || face_uvs.len() != face_normals.len() {
+            return None;
+        }
+        for &(a, b, c) in triangles {
+            let Some((u, v, w)) = Self::barycentric_2d(uv, face_uvs[a], face_uvs[b], face_uvs[c])
+            else {
+                continue;
+            };
+            let normal = Vec3::from(face_normals[a]) * u
+                + Vec3::from(face_normals[b]) * v
+                + Vec3::from(face_normals[c]) * w;
+            let normal = normal.try_normalized()?;
+            return Some([normal.x, normal.y, normal.z]);
         }
         None
     }
@@ -739,14 +838,23 @@ impl GeometryObjectBuilder {
         face_paint_uvs: &[Vec2<f32>],
         face_texture_uvs: Option<&[Vec2<f32>]>,
         world_points: &[Vec3<f32>],
+        face_normals: &[[f32; 3]],
         object_center: Vec3<f32>,
     ) -> bool {
         if cell_uvs.len() < 3
             || cell_uvs.len() != world_points.len()
+            || cell_uvs.len() != face_normals.len()
             || face_texture_uvs.is_some_and(|uvs| uvs.len() != cell_uvs.len())
         {
             return false;
         }
+        let projected_cell_uvs = cell_uvs
+            .iter()
+            .map(|point| Vec3::new(point.x, point.y, 0.0))
+            .collect::<Vec<_>>();
+        let Some(face_triangles) = crate::triangulate_geometry_polygon(&projected_cell_uvs) else {
+            return false;
+        };
 
         let min_uv = cell_uvs
             .iter()
@@ -790,8 +898,11 @@ impl GeometryObjectBuilder {
                 let mut vertices_world = Vec::with_capacity(4);
                 let mut paint_uvs = Vec::with_capacity(4);
                 let mut texture_uvs = Vec::with_capacity(4);
+                let mut normals = Vec::with_capacity(4);
                 for uv in corners_uv {
-                    let Some(world) = Self::world_from_face_uv(uv, cell_uvs, world_points) else {
+                    let Some(world) =
+                        Self::world_from_face_uv(uv, cell_uvs, world_points, &face_triangles)
+                    else {
                         vertices.clear();
                         vertices_world.clear();
                         break;
@@ -799,7 +910,8 @@ impl GeometryObjectBuilder {
                     let world = world + render_nudge;
                     vertices_world.push(world);
                     vertices.push([world.x, world.y, world.z, 1.0]);
-                    let Some(paint_uv) = Self::paint_uv_from_face_uv(uv, cell_uvs, face_paint_uvs)
+                    let Some(paint_uv) =
+                        Self::paint_uv_from_face_uv(uv, cell_uvs, face_paint_uvs, &face_triangles)
                     else {
                         vertices.clear();
                         vertices_world.clear();
@@ -807,10 +919,23 @@ impl GeometryObjectBuilder {
                         break;
                     };
                     paint_uvs.push([paint_uv.x, paint_uv.y]);
+                    let Some(normal) =
+                        Self::normal_from_face_uv(uv, cell_uvs, face_normals, &face_triangles)
+                    else {
+                        vertices.clear();
+                        vertices_world.clear();
+                        paint_uvs.clear();
+                        normals.clear();
+                        break;
+                    };
+                    normals.push(normal);
                     if let Some(face_texture_uvs) = face_texture_uvs {
-                        let Some(texture_uv) =
-                            Self::paint_uv_from_face_uv(uv, cell_uvs, face_texture_uvs)
-                        else {
+                        let Some(texture_uv) = Self::paint_uv_from_face_uv(
+                            uv,
+                            cell_uvs,
+                            face_texture_uvs,
+                            &face_triangles,
+                        ) else {
                             vertices.clear();
                             vertices_world.clear();
                             paint_uvs.clear();
@@ -832,11 +957,12 @@ impl GeometryObjectBuilder {
                     let tile_uvs = Self::tiled_face_base_uvs(&vertices_world);
                     Self::transformed_face_uvs(face, &tile_uvs, Some(&vertices_world))
                 };
-                vmchunk.add_poly_3d_painted(
+                vmchunk.add_poly_3d_painted_with_normals(
                     GeoId::GeometryObject(object_id),
                     tile_id,
                     vertices,
                     uvs,
+                    normals,
                     vec![(0, 1, 2), (0, 2, 3)],
                     0,
                     true,
@@ -884,8 +1010,9 @@ impl ChunkBuilder for GeometryObjectBuilder {
             }
             let object_center = Self::object_center(object, bbox);
             let object_material = Assets::object_material_meta(&object.properties);
+            let face_corner_normals = Self::face_corner_normals(object);
 
-            for face in &object.faces {
+            for (face_index, face) in object.faces.iter().enumerate() {
                 if face.indices.len() < 3 {
                     continue;
                 }
@@ -920,6 +1047,9 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 if vertices.len() < 3 {
                     continue;
                 }
+                let Some(indices) = crate::triangulate_geometry_polygon(&world_points) else {
+                    continue;
+                };
                 if face.auto_uv {
                     uvs = Self::auto_face_uvs(&local_points);
                 }
@@ -955,23 +1085,29 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         &paint_uvs,
                         transformed_face_uvs.as_deref(),
                         &world_points,
+                        face_corner_normals
+                            .get(face_index)
+                            .map(Vec::as_slice)
+                            .unwrap_or(&[]),
                         object_center,
                     ) {
                         continue;
                     }
                 }
 
-                let mut indices = Vec::with_capacity(vertices.len().saturating_sub(2));
-                for index in 1..vertices.len() - 1 {
-                    indices.push((0, index, index + 1));
-                }
                 let uvs = Self::transformed_face_uvs(face, &uvs, Some(&world_points));
+                let normals = face_corner_normals
+                    .get(face_index)
+                    .filter(|normals| normals.len() == vertices.len())
+                    .cloned()
+                    .unwrap_or_default();
 
-                vmchunk.add_poly_3d_painted(
+                vmchunk.add_poly_3d_painted_with_normals(
                     GeoId::GeometryObject(object.id),
                     tile_id,
                     vertices,
                     uvs,
+                    normals,
                     indices,
                     0,
                     true,
@@ -1095,6 +1231,90 @@ impl ChunkBuilder for GeometryObjectBuilder {
 mod tests {
     use super::*;
 
+    fn shading_test_face(indices: Vec<usize>, smoothing_group: u32) -> crate::GeometryFace {
+        crate::GeometryFace {
+            id: Uuid::new_v4(),
+            paint_surface_id: None,
+            indices,
+            uvs: Vec::new(),
+            paint_uvs: Vec::new(),
+            auto_uv: true,
+            texture_offset: Vec2::zero(),
+            texture_scale: Vec2::broadcast(1.0),
+            texture_rotation: 0.0,
+            tile: None,
+            tiles: Default::default(),
+            surface_points: Vec::new(),
+            surface_segments: Vec::new(),
+            smoothing_group,
+        }
+    }
+
+    #[test]
+    fn smoothing_groups_share_normals_only_across_matching_group_vertices() {
+        let mut object = crate::GeometryObject::new("Rounded corner");
+        object.vertices = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 0.0, 1.0),
+            Vec3::new(1.0, 1.0, 1.0),
+        ];
+        object.faces = vec![
+            shading_test_face(vec![0, 1, 2, 3], 7),
+            shading_test_face(vec![1, 4, 5, 2], 7),
+        ];
+
+        let smooth = GeometryObjectBuilder::face_corner_normals(&object);
+        assert_eq!(smooth[0][1], smooth[1][0]);
+        assert_eq!(smooth[0][2], smooth[1][3]);
+        assert!(smooth[0][1][0] < -0.6 && smooth[0][1][2] > 0.6);
+        assert_eq!(smooth[0][0], [0.0, 0.0, 1.0]);
+
+        object.faces[0].smoothing_group = 0;
+        object.faces[1].smoothing_group = 0;
+        let hard = GeometryObjectBuilder::face_corner_normals(&object);
+        assert_eq!(hard[0][1], [0.0, 0.0, 1.0]);
+        assert_eq!(hard[1][0], [-1.0, 0.0, 0.0]);
+    }
+
+    #[test]
+    fn rendered_concave_face_uses_earcut_triangles() {
+        let mut object = crate::GeometryObject::new("Concave face");
+        object.vertices = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 3.0),
+            Vec3::new(2.0, 0.0, 3.0),
+            Vec3::new(2.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 3.0),
+            Vec3::new(0.0, 0.0, 3.0),
+        ];
+        object.faces = vec![shading_test_face((0..8).collect(), 0)];
+        let object_id = object.id;
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+        let mut chunk = Chunk::new(Vec2::zero(), 16);
+        let mut vmchunk = scenevm::Chunk::new(Vec2::zero(), 16);
+        GeometryObjectBuilder.build(&map, &Assets::default(), &mut chunk, &mut vmchunk);
+
+        let poly = &vmchunk.polys3d_map[&GeoId::GeometryObject(object_id)][0];
+        let area = poly
+            .indices
+            .iter()
+            .map(|&(a, b, c)| {
+                let a = poly.vertices[a];
+                let b = poly.vertices[b];
+                let c = poly.vertices[c];
+                ((b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0])).abs() * 0.5
+            })
+            .sum::<f32>();
+        assert_eq!(poly.indices.len(), 6);
+        assert!((area - 7.0).abs() < 1e-5);
+    }
+
     #[test]
     fn linked_block_prop_instance_builds_render_geometry() {
         let object = crate::GeometryObject::box_from_bounds(
@@ -1168,6 +1388,7 @@ mod tests {
             tiles: Default::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
+            smoothing_group: 0,
         };
         let first = GeometryObjectBuilder::transformed_face_uvs(
             &face,
@@ -1200,6 +1421,7 @@ mod tests {
             tiles: Default::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
+            smoothing_group: 0,
         };
         let first = GeometryObjectBuilder::transformed_face_uvs(
             &face,
@@ -1426,6 +1648,7 @@ mod tests {
             tiles: Default::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
+            smoothing_group: 0,
         }];
 
         let mut map = Map::default();
@@ -1469,6 +1692,7 @@ mod tests {
             tiles: Default::default(),
             surface_points: Vec::new(),
             surface_segments: Vec::new(),
+            smoothing_group: 0,
         }];
 
         let mut map = Map::default();
@@ -1504,6 +1728,7 @@ mod tests {
                 tiles: Default::default(),
                 surface_points: Vec::new(),
                 surface_segments: Vec::new(),
+                smoothing_group: 0,
             }
         }
 

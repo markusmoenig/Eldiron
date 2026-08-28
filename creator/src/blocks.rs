@@ -7,7 +7,9 @@ pub const BLOCK_OPERATION_ERASE: i32 = 2;
 pub const BLOCK_STROKE_LINE: i32 = 0;
 pub const BLOCK_STROKE_RECT: i32 = 1;
 pub const DEFAULT_BLOCK_HEIGHT_CELLS: i32 = 2;
-pub const DEFAULT_BLOCK_SPAN_EXTRA_CELLS: i32 = 0;
+pub const DEFAULT_BLOCK_SPAN_EXTRA_CELLS: f32 = 0.0;
+pub const DEFAULT_BLOCK_DEPTH_EXTRA_CELLS: f32 = 0.0;
+pub const BLOCK_SIZE_STEP_CELLS: f32 = 0.25;
 pub const BLOCK_COLUMN_SEGMENTS: usize = 12;
 
 pub fn localized_block_asset_name(asset: &BlockAsset) -> String {
@@ -65,14 +67,17 @@ pub enum BlockComponentKind {
     DoorLintel,
     Stair,
     TableTop,
-    TableLegLeft,
-    TableLegRight,
+    TableLegLeftFront,
+    TableLegRightFront,
+    TableLegLeftBack,
+    TableLegRightBack,
 }
 
 #[derive(Clone, Copy)]
 pub struct BlockSizing {
     pub height_cells: i32,
-    pub span_extra_cells: i32,
+    pub span_extra_cells: f32,
+    pub depth_extra_cells: f32,
 }
 
 impl Default for BlockSizing {
@@ -80,6 +85,7 @@ impl Default for BlockSizing {
         Self {
             height_cells: DEFAULT_BLOCK_HEIGHT_CELLS,
             span_extra_cells: DEFAULT_BLOCK_SPAN_EXTRA_CELLS,
+            depth_extra_cells: DEFAULT_BLOCK_DEPTH_EXTRA_CELLS,
         }
     }
 }
@@ -455,10 +461,10 @@ const COLUMN_COMPONENTS: &[BlockComponentKind] = &[
 const PLAIN_COLUMN_COMPONENTS: &[BlockComponentKind] = &[BlockComponentKind::ColumnShaft];
 const TABLE_COMPONENTS: &[BlockComponentKind] = &[
     BlockComponentKind::TableTop,
-    BlockComponentKind::TableLegLeft,
-    BlockComponentKind::TableLegRight,
-    BlockComponentKind::TableLegLeft,
-    BlockComponentKind::TableLegRight,
+    BlockComponentKind::TableLegLeftFront,
+    BlockComponentKind::TableLegRightFront,
+    BlockComponentKind::TableLegLeftBack,
+    BlockComponentKind::TableLegRightBack,
 ];
 const DOORWAY_COMPONENTS: &[BlockComponentKind] = &[
     BlockComponentKind::DoorPostLeft,
@@ -646,7 +652,8 @@ pub fn block_asset(id: Uuid) -> Option<&'static BlockAsset> {
 pub fn block_sizing_from_context(server_ctx: &ServerContext) -> BlockSizing {
     BlockSizing {
         height_cells: server_ctx.block_height_cells.max(1),
-        span_extra_cells: server_ctx.block_span_extra_cells.max(0),
+        span_extra_cells: server_ctx.block_span_extra_cells.max(0.0),
+        depth_extra_cells: server_ctx.block_depth_extra_cells.max(0.0),
     }
 }
 
@@ -663,8 +670,10 @@ pub fn component_supports_height(component: BlockComponentKind) -> bool {
             | BlockComponentKind::DoorLintel
             | BlockComponentKind::Ceiling
             | BlockComponentKind::TableTop
-            | BlockComponentKind::TableLegLeft
-            | BlockComponentKind::TableLegRight
+            | BlockComponentKind::TableLegLeftFront
+            | BlockComponentKind::TableLegRightFront
+            | BlockComponentKind::TableLegLeftBack
+            | BlockComponentKind::TableLegRightBack
     )
 }
 
@@ -680,8 +689,21 @@ pub fn component_supports_width(component: BlockComponentKind) -> bool {
             | BlockComponentKind::DoorLintel
             | BlockComponentKind::Stair
             | BlockComponentKind::TableTop
-            | BlockComponentKind::TableLegLeft
-            | BlockComponentKind::TableLegRight
+            | BlockComponentKind::TableLegLeftFront
+            | BlockComponentKind::TableLegRightFront
+            | BlockComponentKind::TableLegLeftBack
+            | BlockComponentKind::TableLegRightBack
+    )
+}
+
+pub fn component_supports_depth(component: BlockComponentKind) -> bool {
+    matches!(
+        component,
+        BlockComponentKind::TableTop
+            | BlockComponentKind::TableLegLeftFront
+            | BlockComponentKind::TableLegRightFront
+            | BlockComponentKind::TableLegLeftBack
+            | BlockComponentKind::TableLegRightBack
     )
 }
 
@@ -699,6 +721,14 @@ pub fn asset_supports_width(asset: &BlockAsset) -> bool {
         .iter()
         .copied()
         .any(component_supports_width)
+}
+
+pub fn asset_supports_depth(asset: &BlockAsset) -> bool {
+    asset
+        .components
+        .iter()
+        .copied()
+        .any(component_supports_depth)
 }
 
 fn component_for(asset: &BlockAsset, index: usize) -> BlockComponentKind {
@@ -757,7 +787,8 @@ pub fn adjusted_block_box(
     let mut block_box = *asset.boxes.get(index)?;
     let component = component_for(asset, index);
     let height = sizing.height_cells.max(1) as f32;
-    let extra = sizing.span_extra_cells.max(0) as f32;
+    let extra = sizing.span_extra_cells.max(0.0);
+    let depth_extra = sizing.depth_extra_cells.max(0.0);
 
     match component {
         BlockComponentKind::Solid
@@ -786,7 +817,10 @@ pub fn adjusted_block_box(
             block_box.max.y = height;
             block_box.min.y = (height - thickness).max(0.0);
         }
-        BlockComponentKind::TableLegLeft | BlockComponentKind::TableLegRight => {
+        BlockComponentKind::TableLegLeftFront
+        | BlockComponentKind::TableLegRightFront
+        | BlockComponentKind::TableLegLeftBack
+        | BlockComponentKind::TableLegRightBack => {
             let top_thickness = 0.16;
             block_box.max.y = (height - top_thickness).max(block_box.min.y + 0.1);
         }
@@ -805,11 +839,15 @@ pub fn adjusted_block_box(
                 block_box.min.x -= extra;
                 block_box.max.x += extra;
             }
-            BlockComponentKind::DoorPostLeft | BlockComponentKind::TableLegLeft => {
+            BlockComponentKind::DoorPostLeft
+            | BlockComponentKind::TableLegLeftFront
+            | BlockComponentKind::TableLegLeftBack => {
                 block_box.min.x -= extra;
                 block_box.max.x -= extra;
             }
-            BlockComponentKind::DoorPostRight | BlockComponentKind::TableLegRight => {
+            BlockComponentKind::DoorPostRight
+            | BlockComponentKind::TableLegRightFront
+            | BlockComponentKind::TableLegRightBack => {
                 block_box.min.x += extra;
                 block_box.max.x += extra;
             }
@@ -817,6 +855,24 @@ pub fn adjusted_block_box(
             | BlockComponentKind::ColumnBase
             | BlockComponentKind::ColumnShaft
             | BlockComponentKind::ColumnCapital => {}
+        }
+    }
+
+    if depth_extra > 0.0 {
+        match component {
+            BlockComponentKind::TableTop => {
+                block_box.min.z -= depth_extra;
+                block_box.max.z += depth_extra;
+            }
+            BlockComponentKind::TableLegLeftFront | BlockComponentKind::TableLegRightFront => {
+                block_box.min.z -= depth_extra;
+                block_box.max.z -= depth_extra;
+            }
+            BlockComponentKind::TableLegLeftBack | BlockComponentKind::TableLegRightBack => {
+                block_box.min.z += depth_extra;
+                block_box.max.z += depth_extra;
+            }
+            _ => {}
         }
     }
 
@@ -958,7 +1014,8 @@ mod tests {
             .expect("Doorway block asset");
         let sizing = BlockSizing {
             height_cells: 2,
-            span_extra_cells: 1,
+            span_extra_cells: 1.0,
+            depth_extra_cells: 0.0,
         };
 
         let left = adjusted_block_box(asset, 0, sizing).unwrap();
@@ -983,7 +1040,8 @@ mod tests {
             .expect("Column block asset");
         let sizing = BlockSizing {
             height_cells: 4,
-            span_extra_cells: 0,
+            span_extra_cells: 0.0,
+            depth_extra_cells: 0.0,
         };
 
         let base = adjusted_block_box(asset, 0, sizing).unwrap();
@@ -1009,7 +1067,8 @@ mod tests {
             .expect("Plain Column block asset");
         let sizing = BlockSizing {
             height_cells: 4,
-            span_extra_cells: 0,
+            span_extra_cells: 0.0,
+            depth_extra_cells: 0.0,
         };
 
         let shaft = adjusted_block_box(asset, 0, sizing).unwrap();
@@ -1024,14 +1083,15 @@ mod tests {
     }
 
     #[test]
-    fn table_adjusts_height_and_width_without_thickening_its_legs() {
+    fn table_adjusts_all_dimensions_without_thickening_its_legs() {
         let asset = block_assets()
             .iter()
             .find(|asset| asset.name == "Table")
             .expect("Table block asset");
         let sizing = BlockSizing {
             height_cells: 3,
-            span_extra_cells: 1,
+            span_extra_cells: 1.0,
+            depth_extra_cells: 2.0,
         };
 
         let top = adjusted_block_box(asset, 0, sizing).unwrap();
@@ -1042,8 +1102,11 @@ mod tests {
 
         assert!(asset_supports_height(asset));
         assert!(asset_supports_width(asset));
+        assert!(asset_supports_depth(asset));
         assert_close(top.min.x, -1.0);
         assert_close(top.max.x, 3.0);
+        assert_close(top.min.z, -2.0);
+        assert_close(top.max.z, 3.0);
         assert_close(top.min.y, 2.84);
         assert_close(top.max.y, 3.0);
 
@@ -1056,5 +1119,9 @@ mod tests {
         assert_close(left_back.min.x, -0.90);
         assert_close(right_front.max.x, 2.90);
         assert_close(right_back.max.x, 2.90);
+        assert_close(left_front.min.z, -1.90);
+        assert_close(right_front.min.z, -1.90);
+        assert_close(left_back.max.z, 2.90);
+        assert_close(right_back.max.z, 2.90);
     }
 }

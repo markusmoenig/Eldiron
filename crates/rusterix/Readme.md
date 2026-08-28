@@ -14,7 +14,6 @@ Rusterix provides a complete game engine with a client-server architecture, a so
 - **Map System** — Region-based maps with sectors, linedefs, and tile layers
 - **Scripting** — Stack-based VM for entity behaviors and game logic, with host-callable functions for interacting with the game world
 - **UI Widgets** — Built-in widget system for HUD elements, menus, and in-game UI
-- **Shader Language** — Includes [Rusteria](https://crates.io/crates/rusteria), a procedural shader language for texture and material generation
 
 ## License
 

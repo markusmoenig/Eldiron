@@ -715,6 +715,7 @@ fn new_face(
         tiles: source.map_or_else(FxHashMap::default, |face| face.tiles.clone()),
         surface_points: Vec::new(),
         surface_segments: Vec::new(),
+        smoothing_group: source.map_or(0, |face| face.smoothing_group),
     }
 }
 

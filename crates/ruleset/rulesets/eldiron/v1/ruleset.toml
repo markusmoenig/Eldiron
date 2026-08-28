@@ -35,8 +35,23 @@ empty_visual = "tile_id = \"\" or avatar = \"\" disables inherited default visua
 
 [ui.commands.spellbook]
 name = "Spellbook"
-description = "Open the player-facing collection of known spells."
+description = "Open the player-facing collection of known abilities."
 icon = "ui_spellbook"
+
+[ui.commands.inventory]
+name = "Inventory"
+description = "Open the player inventory."
+icon = "ui_inventory"
+
+[ui.commands.equipment]
+name = "Equipment"
+description = "Open the player's equipped gear and avatar."
+icon = "ui_equipment"
+
+[ui.commands.preferences]
+name = "Preferences"
+description = "Open player interface preferences."
+icon = "ui_preferences"
 
 [ui.commands.actions]
 name = "Actions"

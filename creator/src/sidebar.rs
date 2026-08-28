@@ -2633,7 +2633,14 @@ impl Sidebar {
                     redraw = true;
                 } else
                 // Iterate actions
-                if let Some((accelerator, params, title, auto_apply)) = {
+                if let Some((
+                    action_id,
+                    accelerator,
+                    params,
+                    title,
+                    auto_apply,
+                    edit_display,
+                )) = {
                     // Loading an action mutates its cached parameters, but UI
                     // updates must happen after releasing the global action
                     // list lock. Parameter editors can synchronously generate
@@ -2647,14 +2654,27 @@ impl Sidebar {
                         }
                         action.load_params_project(project, server_ctx);
 
+                        let edit_display = action.edit_display();
+                        let auto_apply = (server_ctx.auto_action
+                            || action.role() == ActionRole::Camera)
+                            && edit_display.is_none();
+
                         (
+                            action.id().uuid,
                             action.accel(),
                             action.params(),
                             action.id().name,
-                            server_ctx.auto_action || action.role() == ActionRole::Camera,
+                            auto_apply,
+                            edit_display,
                         )
                     })
                 } {
+                    TOOLLIST.write().unwrap().begin_action_edit(
+                        action_id,
+                        server_ctx.pc,
+                        edit_display,
+                        ctx,
+                    );
                     self.show_action_toml_snapshot(ui, ctx, accelerator, &params, title);
 
                     if auto_apply {

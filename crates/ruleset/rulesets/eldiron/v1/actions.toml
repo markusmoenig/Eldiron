@@ -43,7 +43,7 @@ result = { apply_condition = "guarded" }
 
 [actions.guard.ui]
 # Actions can reuse a semantic item icon; they do not require one-off artwork.
-icon = "round_shield"
+icon = "guard"
 
 [actions.rally]
 name = "Rally"
@@ -55,7 +55,7 @@ cooldown = 10.0
 result = { apply_condition = "rallied" }
 
 [actions.rally.ui]
-icon = "basic_attack"
+icon = "rally"
 
 [actions.rally.fx.cast]
 preset = "hit_burst"
@@ -72,7 +72,7 @@ cooldown = 6.0
 result = { damage = "abilities.crushing_blow.damage" }
 
 [actions.crushing_blow.ui]
-icon = "power_strike"
+icon = "crushing_blow"
 
 [actions.crushing_blow.fx.impact]
 preset = "hit_burst"
@@ -89,7 +89,7 @@ cooldown = 12.0
 result = { apply_condition = "iron_guarded" }
 
 [actions.iron_guard.ui]
-icon = "round_shield"
+icon = "iron_guard"
 
 [actions.executioner_strike]
 name = "Executioner's Strike"
@@ -102,7 +102,7 @@ cooldown = 8.0
 result = { damage = "abilities.executioner_strike.damage" }
 
 [actions.executioner_strike.ui]
-icon = "power_strike"
+icon = "executioner_strike"
 
 [actions.executioner_strike.fx.impact]
 preset = "hit_burst"
@@ -121,7 +121,7 @@ cooldown = 4.0
 result = { damage = "abilities.aimed_shot.damage" }
 
 [actions.aimed_shot.ui]
-icon = "hunting_bow"
+icon = "aimed_shot"
 
 [actions.quick_step]
 name = "Quick Step"
@@ -133,7 +133,7 @@ cooldown = 9.0
 result = { apply_condition = "quick_step" }
 
 [actions.quick_step.ui]
-icon = "walk"
+icon = "quick_step"
 
 [actions.piercing_shot]
 name = "Piercing Shot"
@@ -146,7 +146,7 @@ cooldown = 6.0
 result = { damage = "abilities.piercing_shot.damage" }
 
 [actions.piercing_shot.ui]
-icon = "hunting_bow"
+icon = "piercing_shot"
 
 [actions.piercing_shot.fx.impact]
 preset = "hit_burst"
@@ -163,7 +163,7 @@ cooldown = 10.0
 result = { apply_condition = "hunter_focus" }
 
 [actions.hunter_focus.ui]
-icon = "look"
+icon = "hunter_focus"
 
 [actions.deadly_shot]
 name = "Deadly Shot"
@@ -176,7 +176,7 @@ cooldown = 8.0
 result = { damage = "abilities.deadly_shot.damage" }
 
 [actions.deadly_shot.ui]
-icon = "hunting_bow"
+icon = "deadly_shot"
 
 [actions.deadly_shot.fx.impact]
 preset = "hit_burst"
@@ -258,7 +258,7 @@ result = { apply_condition = "blessed" }
 invocations = [{ scheme = "words_of_power", sequence = ["YA"] }]
 
 [actions.blessing.ui]
-icon = "holy_light"
+icon = "blessing"
 
 [actions.blessing.fx.cast]
 preset = "holy_glow"
@@ -280,7 +280,7 @@ result = { apply_condition = "turned" }
 invocations = [{ scheme = "words_of_power", sequence = ["SAR", "IR"] }]
 
 [actions.turn_undead.ui]
-icon = "holy_light"
+icon = "turn_undead"
 
 [actions.turn_undead.fx.cast]
 preset = "holy_glow"
@@ -310,7 +310,7 @@ result = { healing = "spells.greater_heal.healing" }
 invocations = [{ scheme = "words_of_power", sequence = ["LO", "LO"] }]
 
 [actions.greater_heal.ui]
-icon = "minor_heal"
+icon = "greater_heal"
 
 [actions.greater_heal.fx.cast]
 preset = "rising_motes"
@@ -339,7 +339,7 @@ result = { damage = "spells.smite.damage" }
 invocations = [{ scheme = "words_of_power", sequence = ["FUL", "YA"] }]
 
 [actions.smite.ui]
-icon = "holy_light"
+icon = "smite"
 
 [actions.smite.fx.cast]
 preset = "holy_glow"
@@ -370,7 +370,7 @@ result = { apply_condition = "sanctuary" }
 invocations = [{ scheme = "words_of_power", sequence = ["SAR", "VI"] }]
 
 [actions.sanctuary.ui]
-icon = "round_shield"
+icon = "sanctuary"
 
 [actions.sanctuary.fx.cast]
 preset = "holy_glow"
@@ -396,7 +396,7 @@ result = { damage = "spells.fire_spark.damage" }
 invocations = [{ scheme = "words_of_power", sequence = ["FUL"] }]
 
 [actions.fire_spark.ui]
-icon = "holy_light"
+icon = "fire_spark"
 
 [actions.fire_spark.fx.travel]
 preset = "ember_trail"
@@ -471,7 +471,7 @@ cooldown = 2.5
 result = { item = "moonleaf", quantity = 2 }
 
 [actions.gather_moonleaf.ui]
-icon = "gather_herbs"
+icon = "gather_moonleaf"
 
 [actions.mine_sun_shards]
 name = "Mine Sun Shards"
@@ -485,7 +485,7 @@ cooldown = 4.0
 result = { item = "sun_shard", quantity = 2 }
 
 [actions.mine_sun_shards.ui]
-icon = "holy_light"
+icon = "mine_sun_shards"
 
 [actions.sift_grave_dust]
 name = "Sift Grave Dust"
@@ -499,7 +499,7 @@ cooldown = 3.0
 result = { item = "grave_dust", quantity = 2 }
 
 [actions.sift_grave_dust.ui]
-icon = "loot_corpse"
+icon = "sift_grave_dust"
 
 [actions.tap_ember_resin]
 name = "Tap Ember Resin"
@@ -513,7 +513,7 @@ cooldown = 3.0
 result = { item = "ember_resin", quantity = 2 }
 
 [actions.tap_ember_resin.ui]
-icon = "torch"
+icon = "tap_ember_resin"
 
 [actions.craft_blessed_herb]
 name = "Bless Herb"
@@ -524,7 +524,7 @@ target = "self"
 cooldown = 2.0
 
 [actions.craft_blessed_herb.ui]
-icon = "blessed_herb"
+icon = "craft_blessed_herb"
 
 [actions.craft_wooden_arrows]
 name = "Fletch Arrows"
@@ -535,7 +535,7 @@ target = "self"
 cooldown = 3.0
 
 [actions.craft_wooden_arrows.ui]
-icon = "wooden_arrows"
+icon = "craft_wooden_arrows"
 
 [actions.craft_hunting_bow]
 name = "Craft Bow"
@@ -546,7 +546,7 @@ target = "self"
 cooldown = 8.0
 
 [actions.craft_hunting_bow.ui]
-icon = "hunting_bow"
+icon = "craft_hunting_bow"
 
 [actions.distill_moonwater]
 name = "Distill Moonwater"
@@ -557,7 +557,7 @@ target = "self"
 cooldown = 4.0
 
 [actions.distill_moonwater.ui]
-icon = "minor_heal"
+icon = "distill_moonwater"
 
 [actions.prepare_consecrated_oil]
 name = "Prepare Consecrated Oil"
@@ -568,7 +568,7 @@ target = "self"
 cooldown = 5.0
 
 [actions.prepare_consecrated_oil.ui]
-icon = "holy_light"
+icon = "prepare_consecrated_oil"
 
 [actions.mix_warding_salt]
 name = "Mix Warding Salt"
@@ -579,7 +579,7 @@ target = "self"
 cooldown = 5.0
 
 [actions.mix_warding_salt.ui]
-icon = "round_shield"
+icon = "mix_warding_salt"
 
 [actions.shape_ember_beads]
 name = "Shape Ember Beads"
@@ -590,7 +590,7 @@ target = "self"
 cooldown = 4.0
 
 [actions.shape_ember_beads.ui]
-icon = "torch"
+icon = "shape_ember_beads"
 
 [actions.craft_ritual_censer]
 name = "Craft Ritual Censer"
@@ -601,7 +601,7 @@ target = "self"
 cooldown = 10.0
 
 [actions.craft_ritual_censer.ui]
-icon = "novice_mace"
+icon = "craft_ritual_censer"
 
 [actions.craft_sunward_charm]
 name = "Craft Sunward Charm"
@@ -612,4 +612,4 @@ target = "self"
 cooldown = 12.0
 
 [actions.craft_sunward_charm.ui]
-icon = "holy_light"
+icon = "craft_sunward_charm"

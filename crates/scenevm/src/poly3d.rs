@@ -8,6 +8,9 @@ pub struct Poly3D {
     pub tile_id: uuid::Uuid,
     pub vertices: Vec<[f32; 4]>, // world-space XYZ(W)
     pub uvs: Vec<[f32; 2]>,      // per-vertex UV
+    /// Optional per-vertex shading normals. An empty or mismatched array falls back to normals
+    /// generated from the triangle geometry.
+    pub normals: Vec<[f32; 3]>,
     pub indices: Vec<(usize, usize, usize)>,
     pub layer: i32, // for future (not used by ray depth)
     pub visible: bool,
@@ -39,6 +42,7 @@ impl Poly3D {
             tile_id,
             vertices,
             uvs,
+            normals: Vec::new(),
             indices,
             layer: 0,
             visible: true,
@@ -112,6 +116,7 @@ impl Poly3D {
             tile_id,
             vertices,
             uvs,
+            normals: Vec::new(),
             indices,
             layer: 0,
             visible: true,
@@ -195,6 +200,7 @@ impl Poly3D {
             tile_id,
             vertices,
             uvs,
+            normals: Vec::new(),
             indices,
             layer: 0,
             visible: true,
@@ -258,6 +264,7 @@ impl Poly3D {
             tile_id,
             vertices,
             uvs,
+            normals: Vec::new(),
             indices,
             layer: 0,
             visible: true,
@@ -297,6 +304,13 @@ impl Poly3D {
     #[inline]
     pub fn with_uvs(mut self, uvs: Vec<[f32; 2]>) -> Self {
         self.uvs = uvs;
+        self
+    }
+
+    /// Supply explicit per-vertex shading normals.
+    #[inline]
+    pub fn with_normals(mut self, normals: Vec<[f32; 3]>) -> Self {
+        self.normals = normals;
         self
     }
 

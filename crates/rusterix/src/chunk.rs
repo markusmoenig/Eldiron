@@ -1,8 +1,6 @@
 use crate::collision_world::ChunkCollision;
-use crate::{Assets, BBox, Batch2D, Batch3D, BillboardAnimation, CompiledLight, Texture};
-use rusteria::{Program, RenderBuffer, Rusteria};
+use crate::{BBox, Batch2D, Batch3D, BillboardAnimation, CompiledLight};
 use scenevm::GeoId;
-use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
@@ -41,14 +39,6 @@ pub struct Chunk {
 
     // Billboards (temporarily stored during build, transferred to SceneHandler)
     pub billboards: Vec<BillboardMetadata>,
-
-    /// The list of shaders for the Batches
-    pub shaders: Vec<Program>,
-
-    pub shader_textures: Vec<Option<Texture>>,
-
-    /// The list of shaders which have opacity
-    pub shaders_with_opacity: Vec<bool>,
 }
 
 impl Chunk {
@@ -66,61 +56,7 @@ impl Chunk {
             occluded_sectors: vec![],
             collision: ChunkCollision::new(),
             billboards: vec![],
-            shaders: vec![],
-            shader_textures: vec![],
-            shaders_with_opacity: vec![],
         }
-    }
-
-    /// Add a shader
-    pub fn add_shader(&mut self, code: &str, assets: &Assets) -> Option<usize> {
-        if code.is_empty() {
-            return None;
-        };
-
-        let mut rs: Rusteria = Rusteria::default();
-        let _module = match rs.parse_str(code) {
-            Ok(module) => match rs.compile(&module) {
-                Ok(()) => module,
-                Err(e) => {
-                    eprintln!("Error compiling module: {e}");
-                    return None;
-                }
-            },
-            Err(e) => {
-                eprintln!("Error parsing module: {e}");
-                return None;
-            }
-        };
-
-        let width = 64;
-        let height = 64;
-
-        let mut texture = None;
-
-        if let Some(shade_index) = rs.context.program.shade_index {
-            let mut rbuffer = Arc::new(Mutex::new(RenderBuffer::new(width, height)));
-            // let t0 = rs.get_time();
-            rs.shade(&mut rbuffer, shade_index, &assets.palette);
-            // let t1 = rs.get_time();
-            // println!("Rendered in {}ms", t1 - t0);
-
-            let b = rbuffer.lock().unwrap().as_rgba_bytes();
-
-            let mut tex = Texture::new(b, width, height);
-            tex.generate_normals(true);
-
-            texture = Some(tex);
-        }
-
-        let index = self.shaders.len();
-
-        self.shaders_with_opacity
-            .push(rs.context.program.shader_supports_opacity());
-        self.shaders.push(rs.context.program.clone());
-        self.shader_textures.push(texture);
-
-        Some(index)
     }
 
     /// Returns the sector occlusion at the given position.

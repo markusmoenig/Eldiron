@@ -1,3 +1,4 @@
+use crate::actions::action_edit::{ActionEditDisplay, ActionEditSession, ActionEditSessionResult};
 use crate::actions::geometry_face_ops::surface_segment_points;
 use crate::editor::{ACTIONLIST, DOCKMANAGER, RUSTERIX, SCENEMANAGER, SIDEBARMODE, UNDOMANAGER};
 use crate::prelude::*;
@@ -51,6 +52,7 @@ pub struct ToolList {
     prefab_preview_wire_rgb: [f32; 3],
     prefab_grid_rgb: [f32; 3],
     box_select_armed: bool,
+    action_edit_session: Option<ActionEditSession>,
     #[cfg(target_os = "macos")]
     macos_primary_orbit_drag: Option<MacOsPrimaryOrbitDrag>,
 }
@@ -229,6 +231,7 @@ impl ToolList {
     const GRID_SUBDIVISIONS: [f32; 6] = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
 
     pub fn reset_for_project_switch(&mut self, ctx: &mut TheContext) {
+        self.cancel_action_edit_session();
         self.authoring_mode = false;
         self.text_game_mode = false;
         self.palette_mode = false;
@@ -253,6 +256,139 @@ impl ToolList {
         );
         ctx.ui
             .set_widget_state(Self::PALETTE_BUTTON_NAME.to_string(), TheWidgetState::None);
+    }
+
+    fn restore_action_edit_display(action_id: Uuid, display: &ActionEditDisplay) {
+        if let Some(action) = ACTIONLIST.write().unwrap().get_action_by_id_mut(action_id) {
+            action.update_edit_display(display);
+        }
+    }
+
+    fn cancel_action_edit_session(&mut self) {
+        if let Some(session) = self.action_edit_session.take() {
+            Self::restore_action_edit_display(session.action_id, session.original_display());
+        }
+    }
+
+    /// Begin or replace the optional full-display editor owned by an action.
+    ///
+    /// `ProjectContext` is captured so the same host can safely serve the regular map view and
+    /// isolated Prefab view without leaking a session between them.
+    pub fn begin_action_edit(
+        &mut self,
+        action_id: Uuid,
+        project_context: ProjectContext,
+        display: Option<ActionEditDisplay>,
+        ctx: &mut TheContext,
+    ) {
+        if self
+            .action_edit_session
+            .as_ref()
+            .is_some_and(|session| session.is_for(action_id, project_context))
+        {
+            return;
+        }
+        self.cancel_action_edit_session();
+        if let Some(display) = display {
+            self.action_edit_session =
+                Some(ActionEditSession::new(action_id, project_context, display));
+            ctx.ui.set_focus(&TheId::named(
+                crate::utils::map_editor_render_view_name_for_context(project_context),
+            ));
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                "Edit or scale the profile in the viewport. Snap: 1-6 or comma/period. Return or Apply commits; Escape cancels."
+                    .to_string(),
+            ));
+            ctx.ui.redraw_all = true;
+        }
+    }
+
+    fn handle_action_edit_event(
+        &mut self,
+        event: &TheEvent,
+        ui: &TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        if self
+            .action_edit_session
+            .as_ref()
+            .is_some_and(|session| session.project_context != server_ctx.pc)
+        {
+            self.cancel_action_edit_session();
+            return false;
+        }
+
+        if matches!(
+            event,
+            TheEvent::StateChanged(id, _)
+                if id.name == "Action Apply" || id.name == "Project Action Apply"
+        ) {
+            self.action_edit_session = None;
+            return false;
+        }
+
+        let Some(session) = self.action_edit_session.as_mut() else {
+            return false;
+        };
+        if let Some(map) = project.get_map(server_ctx) {
+            session.set_grid_subdivisions(map.subdivisions);
+        }
+        let result = session.handle_event_with_modifiers(
+            event,
+            crate::utils::map_editor_render_view_name(server_ctx),
+            ui.logo || ui.ctrl,
+        );
+        match result {
+            ActionEditSessionResult::Ignored => false,
+            ActionEditSessionResult::Handled => {
+                ctx.ui.redraw_all = true;
+                true
+            }
+            ActionEditSessionResult::DisplayChanged(display) => {
+                if let Some(action) = ACTIONLIST
+                    .write()
+                    .unwrap()
+                    .get_action_by_id_mut(session.action_id)
+                {
+                    action.update_edit_display(&display);
+                }
+                ctx.ui.redraw_all = true;
+                true
+            }
+            ActionEditSessionResult::GridSubdivisionChanged(subdivision) => {
+                if let Some(map) = project.get_map_mut(server_ctx) {
+                    map.subdivisions = subdivision;
+                }
+                {
+                    let mut rusterix = RUSTERIX.write().unwrap();
+                    rusterix.set_dirty();
+                    rusterix.set_overlay_dirty();
+                }
+                ctx.ui.redraw_all = true;
+                true
+            }
+            ActionEditSessionResult::Commit => {
+                self.action_edit_session = None;
+                ctx.ui.send(TheEvent::StateChanged(
+                    TheId::named("Action Apply"),
+                    TheWidgetState::Clicked,
+                ));
+                true
+            }
+            ActionEditSessionResult::Cancel => {
+                let session = self.action_edit_session.take().unwrap();
+                Self::restore_action_edit_display(session.action_id, session.original_display());
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    "Action profile edit cancelled.".to_string(),
+                ));
+                ctx.ui.redraw_all = true;
+                true
+            }
+        }
     }
 
     fn handle_action_hud_icon_click(
@@ -1138,7 +1274,6 @@ impl ToolList {
                 (Some(old), Some(new))
                     if old.linedefs == new.linedefs
                         && old.properties == new.properties
-                        && old.shader == new.shader
                         && old.layer == new.layer => {}
                 _ => {
                     affected_sectors.insert(sector_id);
@@ -1448,7 +1583,6 @@ impl ToolList {
             let unchanged = matches!((old_sector, new_sector), (Some(old), Some(new))
                 if old.linedefs == new.linedefs
                     && old.properties == new.properties
-                    && old.shader == new.shader
                     && old.layer == new.layer);
             if unchanged {
                 continue;
@@ -1743,6 +1877,7 @@ impl ToolList {
             prefab_preview_wire_rgb: [83.0 / 255.0, 151.0 / 255.0, 207.0 / 255.0],
             prefab_grid_rgb: [57.0 / 255.0, 75.0 / 255.0, 105.0 / 255.0],
             box_select_armed: false,
+            action_edit_session: None,
             #[cfg(target_os = "macos")]
             macos_primary_orbit_drag: None,
         };
@@ -2232,6 +2367,16 @@ impl ToolList {
         server_ctx: &mut ServerContext,
         assets: &Assets,
     ) {
+        if self.action_edit_session.as_ref().is_some_and(|session| {
+            Some(session.action_id) == server_ctx.curr_action_id
+                && session.project_context == server_ctx.pc
+        }) {
+            if let Some(session) = self.action_edit_session.as_mut() {
+                session.set_grid_subdivisions(map.subdivisions);
+                session.draw(buffer, ctx);
+            }
+            return;
+        }
         self.game_tools[self.curr_game_tool].draw_hud(buffer, map, ctx, server_ctx, assets);
         crate::hud::Hud::draw_shortcut_guidance(buffer, map, ctx, server_ctx);
         if server_ctx.editor_view_mode == EditorViewMode::Orbit {
@@ -2253,6 +2398,9 @@ impl ToolList {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if self.handle_action_edit_event(event, ui, ctx, project, server_ctx) {
+            return true;
+        }
         if self.editor_mode && self.curr_editor_tool < self.editor_tools.len() {
             let should_forward_to_tool = match event {
                 // Keep tool switching and shortcuts handled by ToolList itself.
@@ -4502,18 +4650,36 @@ impl ToolList {
                     .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
             {
                 let rotation = server_ctx.block_rotation_quarters.rem_euclid(4);
-                let size_x = (if rotation % 2 == 0 {
-                    asset.footprint.x
+                let block_sizing = crate::blocks::block_sizing_from_context(server_ctx);
+                let width_extra = if crate::blocks::asset_supports_width(asset) {
+                    block_sizing.span_extra_cells
                 } else {
-                    asset.footprint.z
-                }) as f32
-                    * grid_step;
-                let size_z = (if rotation % 2 == 0 {
-                    asset.footprint.z
+                    0.0
+                };
+                let depth_extra = if crate::blocks::asset_supports_depth(asset) {
+                    block_sizing.depth_extra_cells
                 } else {
-                    asset.footprint.x
-                }) as f32
-                    * grid_step;
+                    0.0
+                };
+                let (footprint_x, footprint_z, offset_x, offset_z) = if rotation % 2 == 0 {
+                    (
+                        asset.footprint.x as f32 + width_extra * 2.0,
+                        asset.footprint.z as f32 + depth_extra * 2.0,
+                        -width_extra,
+                        -depth_extra,
+                    )
+                } else {
+                    (
+                        asset.footprint.z as f32 + depth_extra * 2.0,
+                        asset.footprint.x as f32 + width_extra * 2.0,
+                        -depth_extra,
+                        -width_extra,
+                    )
+                };
+                let size_x = footprint_x * grid_step;
+                let size_z = footprint_z * grid_step;
+                let outline_offset_x = offset_x * grid_step;
+                let outline_offset_z = offset_z * grid_step;
                 let hover_cell = Vec3::new(
                     (hit.x / grid_step).floor() as i32,
                     server_ctx.block_grid_level,
@@ -4538,21 +4704,30 @@ impl ToolList {
                 let erase_preview =
                     server_ctx.block_operation == crate::blocks::BLOCK_OPERATION_ERASE;
                 let fill_preview_boxes = !erase_preview && asset.name != "Stairs";
-                let block_sizing = crate::blocks::block_sizing_from_context(server_ctx);
 
                 for (cell_index, cell) in cells.iter().enumerate() {
                     let x0 = cell.x as f32 * grid_step;
                     let z0 = cell.z as f32 * grid_step;
                     let base = Vec3::new(x0, preview_base_y, z0);
+                    let outline_x0 = x0 + if erase_preview { 0.0 } else { outline_offset_x };
+                    let outline_z0 = z0 + if erase_preview { 0.0 } else { outline_offset_z };
                     let corners = [
-                        Vec3::new(x0, y, z0),
-                        Vec3::new(x0 + if erase_preview { grid_step } else { size_x }, y, z0),
+                        Vec3::new(outline_x0, y, outline_z0),
                         Vec3::new(
-                            x0 + if erase_preview { grid_step } else { size_x },
+                            outline_x0 + if erase_preview { grid_step } else { size_x },
                             y,
-                            z0 + if erase_preview { grid_step } else { size_z },
+                            outline_z0,
                         ),
-                        Vec3::new(x0, y, z0 + if erase_preview { grid_step } else { size_z }),
+                        Vec3::new(
+                            outline_x0 + if erase_preview { grid_step } else { size_x },
+                            y,
+                            outline_z0 + if erase_preview { grid_step } else { size_z },
+                        ),
+                        Vec3::new(
+                            outline_x0,
+                            y,
+                            outline_z0 + if erase_preview { grid_step } else { size_z },
+                        ),
                     ];
                     for (edge_index, (a, b)) in
                         [(0, 1), (1, 2), (2, 3), (3, 0)].into_iter().enumerate()

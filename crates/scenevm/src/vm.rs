@@ -147,6 +147,63 @@ fn poly_uses_clamped_uv(poly: &crate::Poly3D) -> bool {
         .all(|uv| uv[0] >= -0.001 && uv[0] <= 1.001 && uv[1] >= -0.001 && uv[1] <= 1.001)
 }
 
+/// Resolve both lighting normals and geometry-derived normals for a transformed polygon.
+///
+/// Explicit normals affect shading only. Geometry normals remain available for stable paint
+/// projection and surface identity, which must not change when an artist changes smoothing.
+fn resolved_poly_normals(
+    poly: &crate::Poly3D,
+    positions: &[[f32; 3]],
+    transform: Mat4<f32>,
+) -> (Vec<[f32; 3]>, Vec<[f32; 3]>) {
+    let mut geometry_normals = vec![[0.0, 0.0, 0.0]; positions.len()];
+    for &(a, b, c) in &poly.indices {
+        let (Some(pa), Some(pb), Some(pc)) = (positions.get(a), positions.get(b), positions.get(c))
+        else {
+            continue;
+        };
+        let e1 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
+        let e2 = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
+        let normal = [
+            e1[1] * e2[2] - e1[2] * e2[1],
+            e1[2] * e2[0] - e1[0] * e2[2],
+            e1[0] * e2[1] - e1[1] * e2[0],
+        ];
+        for index in [a, b, c] {
+            geometry_normals[index][0] += normal[0];
+            geometry_normals[index][1] += normal[1];
+            geometry_normals[index][2] += normal[2];
+        }
+    }
+    for normal in &mut geometry_normals {
+        let length = (normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]).sqrt();
+        if length > 1e-12 && length.is_finite() {
+            normal[0] /= length;
+            normal[1] /= length;
+            normal[2] /= length;
+        }
+    }
+
+    let mut shading_normals = geometry_normals.clone();
+    if poly.normals.len() == positions.len() {
+        for (index, normal) in poly.normals.iter().copied().enumerate() {
+            let transformed = transform * Vec4::new(normal[0], normal[1], normal[2], 0.0);
+            let length = (transformed.x * transformed.x
+                + transformed.y * transformed.y
+                + transformed.z * transformed.z)
+                .sqrt();
+            if length > 1e-12 && length.is_finite() {
+                shading_normals[index] = [
+                    transformed.x / length,
+                    transformed.y / length,
+                    transformed.z / length,
+                ];
+            }
+        }
+    }
+    (shading_normals, geometry_normals)
+}
+
 const TILE_INDEX_CLAMP_UV_FLAG_RUST: u32 = 0x4000_0000u32;
 const TILE_INDEX_PARTICLE_FLAG_RUST: u32 = 0x0800_0000u32;
 
@@ -9603,41 +9660,13 @@ impl VM {
 
                         let vcount = poly.vertices.len();
                         let mut poly_pos: Vec<[f32; 3]> = Vec::with_capacity(vcount);
-                        let mut poly_nrm: Vec<[f32; 3]> = vec![[0.0, 0.0, 0.0]; vcount];
 
                         for v in &poly.vertices {
                             let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
                             let w = if p.w != 0.0 { p.w } else { 1.0 };
                             poly_pos.push([p.x / w, p.y / w, p.z / w]);
                         }
-
-                        for &(a, b, c) in &poly.indices {
-                            let pa = poly_pos[a];
-                            let pb = poly_pos[b];
-                            let pc = poly_pos[c];
-                            let e1 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
-                            let e2 = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
-                            let nx = e1[1] * e2[2] - e1[2] * e2[1];
-                            let ny = e1[2] * e2[0] - e1[0] * e2[2];
-                            let nz = e1[0] * e2[1] - e1[1] * e2[0];
-                            poly_nrm[a][0] += nx;
-                            poly_nrm[a][1] += ny;
-                            poly_nrm[a][2] += nz;
-                            poly_nrm[b][0] += nx;
-                            poly_nrm[b][1] += ny;
-                            poly_nrm[b][2] += nz;
-                            poly_nrm[c][0] += nx;
-                            poly_nrm[c][1] += ny;
-                            poly_nrm[c][2] += nz;
-                        }
-                        for n in &mut poly_nrm {
-                            let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-                            if len > 1e-12 {
-                                n[0] /= len;
-                                n[1] /= len;
-                                n[2] /= len;
-                            }
-                        }
+                        let (poly_nrm, geometry_nrm) = resolved_poly_normals(poly, &poly_pos, m);
 
                         let base = v3.len() as u32;
 
@@ -9654,7 +9683,7 @@ impl VM {
                         // Validate blend_weights length matches vertices
                         let has_valid_blend = poly.tile_id2.is_some()
                             && poly.blend_weights.len() == poly.vertices.len();
-                        let paint_normal = poly_nrm
+                        let paint_normal = geometry_nrm
                             .iter()
                             .copied()
                             .find(|normal| {
@@ -10107,41 +10136,14 @@ impl VM {
 
                             let vcount = poly.vertices.len();
                             let mut poly_pos: Vec<[f32; 3]> = Vec::with_capacity(vcount);
-                            let mut poly_nrm: Vec<[f32; 3]> = vec![[0.0, 0.0, 0.0]; vcount];
 
                             for v in &poly.vertices {
                                 let p = m * Vec4::new(v[0], v[1], v[2], v[3]);
                                 let w = if p.w != 0.0 { p.w } else { 1.0 };
                                 poly_pos.push([p.x / w, p.y / w, p.z / w]);
                             }
-
-                            for &(a, b, c) in &poly.indices {
-                                let pa = poly_pos[a];
-                                let pb = poly_pos[b];
-                                let pc = poly_pos[c];
-                                let e1 = [pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2]];
-                                let e2 = [pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]];
-                                let nx = e1[1] * e2[2] - e1[2] * e2[1];
-                                let ny = e1[2] * e2[0] - e1[0] * e2[2];
-                                let nz = e1[0] * e2[1] - e1[1] * e2[0];
-                                poly_nrm[a][0] += nx;
-                                poly_nrm[a][1] += ny;
-                                poly_nrm[a][2] += nz;
-                                poly_nrm[b][0] += nx;
-                                poly_nrm[b][1] += ny;
-                                poly_nrm[b][2] += nz;
-                                poly_nrm[c][0] += nx;
-                                poly_nrm[c][1] += ny;
-                                poly_nrm[c][2] += nz;
-                            }
-                            for n in &mut poly_nrm {
-                                let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-                                if len > 1e-12 {
-                                    n[0] /= len;
-                                    n[1] /= len;
-                                    n[2] /= len;
-                                }
-                            }
+                            let (poly_nrm, geometry_nrm) =
+                                resolved_poly_normals(poly, &poly_pos, m);
 
                             let base = v3.len() as u32;
                             let mut tile_index2 = if let Some(tid2) = poly.tile_id2 {
@@ -10154,7 +10156,7 @@ impl VM {
                             }
                             let has_valid_blend = poly.tile_id2.is_some()
                                 && poly.blend_weights.len() == poly.vertices.len();
-                            let paint_normal = poly_nrm
+                            let paint_normal = geometry_nrm
                                 .iter()
                                 .copied()
                                 .find(|normal| {
@@ -13627,11 +13629,32 @@ fn light_flicker_multipliers(light: &Light, animation_counter: usize) -> (f32, f
 mod shader_tests {
     use super::{
         SCENEVM_3D_ORGANIC_BILLBOARD_WGSL, SCENEVM_3D_RASTER_WGSL, VM, light_flicker_multipliers,
-        screen_round_paint_brush_transform,
+        resolved_poly_normals, screen_round_paint_brush_transform,
     };
-    use crate::{Chunk, GeoId, Light};
+    use crate::{Chunk, GeoId, Light, Poly3D};
     use uuid::Uuid;
-    use vek::Vec3;
+    use vek::{Mat4, Vec3};
+
+    #[test]
+    fn explicit_normals_change_shading_without_changing_geometry_normals() {
+        let poly = Poly3D::poly(
+            GeoId::GeometryObject(Uuid::new_v4()),
+            Uuid::nil(),
+            vec![
+                [0.0, 0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0, 1.0],
+                [0.0, 1.0, 0.0, 1.0],
+            ],
+            vec![[0.0; 2]; 3],
+            vec![(0, 1, 2)],
+        )
+        .with_normals(vec![[1.0, 0.0, 0.0]; 3]);
+        let positions = vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+
+        let (shading, geometry) = resolved_poly_normals(&poly, &positions, Mat4::identity());
+        assert_eq!(shading, vec![[1.0, 0.0, 0.0]; 3]);
+        assert_eq!(geometry, vec![[0.0, 0.0, 1.0]; 3]);
+    }
 
     #[test]
     fn raster_shader_parses() {

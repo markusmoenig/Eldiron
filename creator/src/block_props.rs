@@ -1747,6 +1747,40 @@ pub fn unpack_selected_block_props(
     Ok(count)
 }
 
+/// Deletes a project Prefab that is no longer referenced by any region. Refusing
+/// referenced assets keeps linked instances resolvable and lets the caller offer
+/// an explicit delete-or-unpack workflow first.
+pub fn delete_unused_block_prop(project: &mut Project, asset_id: Uuid) -> Result<String, String> {
+    let asset = project
+        .block_props
+        .get(&asset_id)
+        .ok_or_else(|| fl!("error_prefab_select_project_prefab"))?;
+    let name = asset.name.clone();
+    let instance_count = project
+        .regions
+        .iter()
+        .map(|region| {
+            region
+                .map
+                .block_prop_instances
+                .iter()
+                .filter(|instance| instance.asset_id == asset_id)
+                .count()
+        })
+        .sum::<usize>();
+    if instance_count > 0 {
+        return Err(fl!(
+            "status_prefab_delete_in_use",
+            name = name.as_str(),
+            count = (instance_count as i64)
+        ));
+    }
+
+    project.block_props.shift_remove(&asset_id);
+    project.block_prop_paint.shift_remove(&asset_id);
+    Ok(name)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1771,6 +1805,41 @@ mod tests {
         server_ctx.pc = ProjectContext::Region(region_id);
         server_ctx.editor_view_mode = EditorViewMode::Orbit;
         (project, server_ctx, object_id)
+    }
+
+    #[test]
+    fn deleting_a_prefab_refuses_live_instances_then_removes_unused_asset_and_paint() {
+        let mut project = Project::default();
+        let mut region = Region::default();
+        let asset = rusterix::BlockPropAsset::new_authored(
+            "Chair",
+            vec![rusterix::GeometryObject::box_(
+                "Seat",
+                Vec3::zero(),
+                Vec3::one(),
+            )],
+        );
+        let asset_id = asset.id;
+        project.block_props.insert(asset_id, asset);
+        project
+            .block_prop_paint
+            .insert(asset_id, IsoPaintLayer::default());
+        region
+            .map
+            .block_prop_instances
+            .push(rusterix::BlockPropInstance::new(asset_id));
+        project.regions.push(region);
+
+        assert!(delete_unused_block_prop(&mut project, asset_id).is_err());
+        assert!(project.block_props.contains_key(&asset_id));
+
+        project.regions[0].map.block_prop_instances.clear();
+        assert_eq!(
+            delete_unused_block_prop(&mut project, asset_id).unwrap(),
+            "Chair"
+        );
+        assert!(!project.block_props.contains_key(&asset_id));
+        assert!(!project.block_prop_paint.contains_key(&asset_id));
     }
 
     #[test]

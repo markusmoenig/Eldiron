@@ -513,9 +513,6 @@ fn clear_map_for_build(map: &mut Map) {
     map.sectors.clear();
     map.surfaces.clear();
     map.profiles.clear();
-    map.softrigs.clear();
-    map.editing_rig = None;
-    map.soft_animator = None;
     map.properties.remove("tiles");
     map.properties.remove("blend_tiles");
     map.clear_temp();

@@ -1,7 +1,7 @@
 use vek::Vec2;
 
 /// Rectangle
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Rect {
     pub x: f32,
     pub y: f32,

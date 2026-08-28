@@ -114,9 +114,10 @@ or assigned with the panel's **Assign** mode. The resulting player override is
 persistent; the class action bar remains the fallback for slots without an
 override.
 
-`ui.spellbook` opens the same draggable catalogue shell filtered to actions
-with `kind = "spell"`. It uses the same ruleset icons, availability checks, and
-quick-slot assignment path.
+`ui.spellbook` opens the complete active-class ability catalogue in the configurable
+player-facing book. Action `kind` values organize entries into Combat, Spells, and
+Utility; they do not exclude non-magical abilities. The book uses the same ruleset
+icons, availability checks, and quick-slot assignment path.
 
 ```toml
 [actions.basic_attack]

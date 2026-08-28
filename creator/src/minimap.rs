@@ -622,7 +622,7 @@ pub fn draw_minimap(
             rusterix::Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
                 .background(background)
                 .ambient(Vec4::one())
-                .render_mode(rusterix::RenderMode::render_2d().ignore_background_shader(true))
+                .render_mode(rusterix::RenderMode::render_2d())
                 .rasterize(
                     &mut scene,
                     buffer.pixels_mut(),

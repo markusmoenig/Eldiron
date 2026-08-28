@@ -44,9 +44,6 @@ pub struct Batch2D {
 
     /// Indicates whether the batch receives lighting. True by default. Turn off for skybox etc.
     pub receives_light: bool,
-
-    /// Shader
-    pub shader: Option<usize>,
 }
 
 impl Default for Batch2D {
@@ -72,7 +69,6 @@ impl Batch2D {
             clipped_uvs: vec![],
             transform: Mat3::identity(),
             receives_light: true,
-            shader: None,
         }
     }
 
@@ -96,7 +92,6 @@ impl Batch2D {
             clipped_uvs: vec![],
             transform: Mat3::identity(),
             receives_light: true,
-            shader: None,
         }
     }
 
@@ -343,12 +338,6 @@ impl Batch2D {
     /// Set the source of pixels for this batch.
     pub fn source(mut self, pixel_source: PixelSource) -> Self {
         self.source = pixel_source;
-        self
-    }
-
-    /// Set the shader index for this batch
-    pub fn shader(mut self, shader: usize) -> Self {
-        self.shader = Some(shader);
         self
     }
 
