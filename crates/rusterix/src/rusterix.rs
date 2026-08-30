@@ -1044,6 +1044,29 @@ impl Rusterix {
             }
         }
 
+        // Wall defaults use direct colors so their geometry is readable before the user assigns
+        // project palette entries or materials. Register these independently of map discovery;
+        // incremental wall creation may build geometry before a map-wide source scan occurs.
+        for rgba in [
+            [104_u8, 94, 80, 255],
+            [123, 108, 86, 255],
+            [83, 82, 78, 255],
+            [52, 49, 44, 255],
+        ] {
+            let color = TheColor::new(
+                rgba[0] as f32 / 255.0,
+                rgba[1] as f32 / 255.0,
+                rgba[2] as f32 / 255.0,
+                1.0,
+            );
+            let tile_id = PixelSource::color_tile_uuid(&color);
+            all_tiles.entry(tile_id).or_insert_with(|| {
+                let mut tile = Tile::from_texture(Texture::from_color(rgba));
+                tile.id = tile_id;
+                tile
+            });
+        }
+
         all_tiles
     }
 

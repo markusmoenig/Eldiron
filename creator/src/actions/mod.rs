@@ -79,13 +79,54 @@ pub fn builder_item_graph_name_property_key(label: &str) -> String {
 }
 
 pub fn current_selection_tool_type(map: &Map) -> MapToolType {
-    if !map.selected_vertices.is_empty() {
+    if map.selected_wall_assembly.is_some() && !map.selected_wall_spans.is_empty() {
+        MapToolType::Wall
+    } else if !map.selected_vertices.is_empty() {
         MapToolType::Vertex
     } else if !map.selected_linedefs.is_empty() {
         MapToolType::Linedef
     } else {
         MapToolType::Sector
     }
+}
+
+pub fn wall_hud_material_slots(map: &Map) -> Option<Vec<ActionMaterialSlot>> {
+    let assembly_id = map.selected_wall_assembly?;
+    let span_id = *map.selected_wall_spans.first()?;
+    let assembly = map.wall_assembly(assembly_id)?;
+    let span = assembly.span(span_id)?;
+    let style = span.style_override.as_ref().unwrap_or(&assembly.style);
+    let surround_source = map
+        .selected_wall_opening
+        .and_then(|opening_id| assembly.opening(span_id, opening_id))
+        .map(|opening| opening.frame.pixel_source(style))
+        .unwrap_or_else(|| style.frame_pixel_source());
+    Some(vec![
+        ActionMaterialSlot {
+            label: "STONE".to_string(),
+            source: Some(style.primary_stone_source()),
+        },
+        ActionMaterialSlot {
+            label: "VAR 1".to_string(),
+            source: style.stone_variants.first().cloned(),
+        },
+        ActionMaterialSlot {
+            label: "VAR 2".to_string(),
+            source: style.stone_variants.get(1).cloned(),
+        },
+        ActionMaterialSlot {
+            label: "MORTAR".to_string(),
+            source: Some(style.mortar_pixel_source()),
+        },
+        ActionMaterialSlot {
+            label: "SURROUND".to_string(),
+            source: Some(surround_source),
+        },
+        ActionMaterialSlot {
+            label: "FLOOR".to_string(),
+            source: Some(assembly.floor_pixel_source()),
+        },
+    ])
 }
 
 fn builder_material_slots_from_properties(
@@ -349,6 +390,103 @@ pub fn apply_builder_hud_material_to_selection(
         return changed;
     }
     match server_ctx.curr_map_tool_type {
+        MapToolType::Wall => {
+            if slot_index > 5 {
+                return false;
+            }
+            let Some(assembly_id) = map.selected_wall_assembly else {
+                return false;
+            };
+            let Some(span_id) = map.selected_wall_spans.first().copied() else {
+                return false;
+            };
+            let selected_opening = map.selected_wall_opening;
+            let inherited = {
+                let Some(assembly) = map.wall_assembly(assembly_id) else {
+                    return false;
+                };
+                let Some(span) = assembly.span(span_id) else {
+                    return false;
+                };
+                span.style_override
+                    .clone()
+                    .unwrap_or_else(|| assembly.style.clone())
+            };
+            let Some(assembly) = map.wall_assembly_mut(assembly_id) else {
+                return false;
+            };
+            if slot_index == 5 {
+                if assembly.floor_source == source {
+                    return false;
+                }
+                assembly.floor_source = source;
+                map.rebuild_wall_geometry();
+                return true;
+            }
+            if slot_index == 4
+                && let Some(opening_id) = selected_opening
+            {
+                let Some(opening) = assembly.opening_mut(span_id, opening_id) else {
+                    return false;
+                };
+                if opening.frame.source == source {
+                    return false;
+                }
+                opening.frame.source = source;
+                map.rebuild_wall_geometry();
+                return true;
+            }
+            let Some(span) = assembly.span_mut(span_id) else {
+                return false;
+            };
+            let style = span.style_override.get_or_insert(inherited);
+            let changed = match slot_index {
+                0 => {
+                    let changed = style.stone_source != source || !style.stone_variants.is_empty();
+                    style.stone_source = source;
+                    style.stone_variants.clear();
+                    changed
+                }
+                1 | 2 => {
+                    let variant_index = slot_index as usize - 1;
+                    let fallback = style.primary_stone_source();
+                    let previous = style.stone_variants.get(variant_index).cloned();
+                    if let Some(source) = source {
+                        style
+                            .stone_variants
+                            .resize(variant_index.saturating_add(1), fallback);
+                        style.stone_variants[variant_index] = source;
+                    } else if variant_index < style.stone_variants.len() {
+                        style.stone_variants[variant_index] = fallback.clone();
+                        while style.stone_variants.last() == Some(&fallback) {
+                            style.stone_variants.pop();
+                        }
+                    }
+                    previous != style.stone_variants.get(variant_index).cloned()
+                }
+                3 => {
+                    if style.mortar_source == source {
+                        false
+                    } else {
+                        style.mortar_source = source;
+                        true
+                    }
+                }
+                _ => {
+                    if style.frame_source == source {
+                        false
+                    } else {
+                        style.frame_source = source;
+                        true
+                    }
+                }
+            };
+            if !changed {
+                return false;
+            }
+            map.rebuild_wall_geometry();
+            true
+        }
         MapToolType::Sector => {
             let Some(slot) = builder_hud_material_slots_for_selected_sector(map)
                 .and_then(|slots| slots.get(slot_index as usize).cloned())
@@ -1012,13 +1150,13 @@ pub trait Action: Send + Sync {
         false
     }
 
-    /// Optional full editor display owned by this action.
-    fn edit_display(&self) -> Option<action_edit::ActionEditDisplay> {
+    /// Optional full editor display owned by this action through the shared host.
+    fn editor_display(&self) -> Option<crate::editor_display::EditorDisplay> {
         None
     }
 
     /// Receive persistent data edited by the shared full-display host.
-    fn update_edit_display(&mut self, _display: &action_edit::ActionEditDisplay) -> bool {
+    fn update_editor_display(&mut self, _display: &crate::editor_display::EditorDisplay) -> bool {
         false
     }
 
@@ -1806,6 +1944,131 @@ mod tests {
         assert_eq!(
             builder_material_property_key("roofMat"),
             "builder_material_roof_mat"
+        );
+    }
+
+    #[test]
+    fn wall_material_slots_update_source_and_generated_faces() {
+        let mut map = Map::default();
+        let (assembly_id, span_id, _, _) = map
+            .connect_wall_points(Vec3::zero(), Vec3::new(2.0, 0.0, 0.0), 0.1)
+            .unwrap();
+        map.selected_wall_assembly = Some(assembly_id);
+        map.selected_wall_spans.push(span_id);
+        assert_eq!(wall_hud_material_slots(&map).unwrap().len(), 6);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.curr_map_tool_type = MapToolType::Wall;
+        let source = PixelSource::PaletteIndex(6);
+
+        assert!(apply_builder_hud_material_to_selection(
+            &mut map,
+            &server_ctx,
+            0,
+            Some(source.clone()),
+        ));
+        let style = map
+            .wall_assembly(assembly_id)
+            .unwrap()
+            .span(span_id)
+            .unwrap()
+            .style_override
+            .as_ref()
+            .unwrap();
+        assert_eq!(style.stone_source, Some(source.clone()));
+        assert!(style.stone_variants.is_empty());
+        assert!(map.geometry_objects.iter().any(|object| {
+            object
+                .faces
+                .iter()
+                .any(|face| face.tile.as_ref() == Some(&source))
+        }));
+
+        let variant = PixelSource::PaletteIndex(8);
+        assert!(apply_builder_hud_material_to_selection(
+            &mut map,
+            &server_ctx,
+            1,
+            Some(variant.clone()),
+        ));
+        let style = map
+            .wall_assembly(assembly_id)
+            .unwrap()
+            .span(span_id)
+            .unwrap()
+            .style_override
+            .as_ref()
+            .unwrap();
+        assert_eq!(style.stone_variants, vec![variant]);
+
+        let frame = PixelSource::PaletteIndex(11);
+        assert!(apply_builder_hud_material_to_selection(
+            &mut map,
+            &server_ctx,
+            4,
+            Some(frame.clone()),
+        ));
+        assert_eq!(
+            map.wall_assembly(assembly_id)
+                .unwrap()
+                .span(span_id)
+                .unwrap()
+                .style_override
+                .as_ref()
+                .unwrap()
+                .frame_source,
+            Some(frame)
+        );
+
+        let floor = PixelSource::TileId(Uuid::new_v4());
+        assert!(apply_builder_hud_material_to_selection(
+            &mut map,
+            &server_ctx,
+            5,
+            Some(floor.clone()),
+        ));
+        assert_eq!(
+            map.wall_assembly(assembly_id).unwrap().floor_source,
+            Some(floor)
+        );
+    }
+
+    #[test]
+    fn wall_surround_material_targets_the_selected_opening_override() {
+        let mut map = Map::default();
+        let (assembly_id, span_id, _, _) = map
+            .connect_wall_points(Vec3::zero(), Vec3::new(4.0, 0.0, 0.0), 0.1)
+            .unwrap();
+        let opening_id = map
+            .wall_assembly_mut(assembly_id)
+            .unwrap()
+            .add_opening(
+                span_id,
+                vek::Vec2::new(1.0, 0.0),
+                vek::Vec2::new(3.0, 2.5),
+                WallOpeningShape::Arch,
+            )
+            .unwrap();
+        map.selected_wall_assembly = Some(assembly_id);
+        map.selected_wall_spans.push(span_id);
+        map.selected_wall_opening = Some(opening_id);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.curr_map_tool_type = MapToolType::Wall;
+        let source = PixelSource::PaletteIndex(12);
+
+        assert!(apply_builder_hud_material_to_selection(
+            &mut map,
+            &server_ctx,
+            4,
+            Some(source.clone()),
+        ));
+        assert_eq!(
+            map.wall_assembly(assembly_id)
+                .unwrap()
+                .opening(span_id, opening_id)
+                .unwrap()
+                .frame
+                .source,
+            Some(source)
         );
     }
 }

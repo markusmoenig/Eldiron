@@ -50,10 +50,17 @@ impl PixelSource {
         Uuid::from_u128(0x50414C455454455F0000000000000000u128 | index as u128)
     }
 
+    pub fn color_tile_uuid(color: &TheColor) -> Uuid {
+        let rgba = color.to_u8_array();
+        let packed = u32::from_be_bytes(rgba);
+        Uuid::from_u128(0x434F_4C4F_525F_0000_0000_0000_0000_0000u128 | packed as u128)
+    }
+
     pub fn render_tile_id(&self, assets: &Assets) -> Option<Uuid> {
         match self {
             TileId(id) | MaterialId(id) => Some(*id),
             PaletteIndex(index) => Some(Self::palette_tile_uuid(*index)),
+            Color(color) => Some(Self::color_tile_uuid(color)),
             _ => self.tile_from_tile_list(assets).map(|tile| tile.id),
         }
     }

@@ -995,14 +995,22 @@ pub fn scenemanager_render_map(project: &Project, server_ctx: &ServerContext) {
 }
 
 pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) {
+    let mut material_maps = project
+        .regions
+        .iter()
+        .map(|region| &region.map)
+        .collect::<Vec<_>>();
+    if let Some(current_map) = project.get_map(server_ctx)
+        && !material_maps
+            .iter()
+            .any(|map| std::ptr::eq(*map, current_map))
+    {
+        material_maps.push(current_map);
+    }
     let (tile_list, tile_indices) = {
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.set_block_props(project.block_props.clone());
-        rusterix.set_tiles_for_maps(
-            project.tiles.clone(),
-            true,
-            project.regions.iter().map(|region| &region.map),
-        );
+        rusterix.set_tiles_for_maps(project.tiles.clone(), true, material_maps);
         (
             rusterix.assets.tile_list.clone(),
             rusterix.assets.tile_indices.clone(),
@@ -1104,6 +1112,26 @@ pub fn editor_scene_apply_map_edit(
     old_map: &Map,
     new_map: &Map,
 ) -> bool {
+    let has_unregistered_direct_color = {
+        let rusterix = RUSTERIX.read().unwrap();
+        new_map.geometry_objects.iter().any(|object| {
+            object.faces.iter().any(|face| {
+                face.tile.iter().chain(face.tiles.values()).any(|source| {
+                    let PixelSource::Color(color) = source else {
+                        return false;
+                    };
+                    rusterix
+                        .assets
+                        .tile_index(&PixelSource::color_tile_uuid(color))
+                        .is_none()
+                })
+            })
+        })
+    };
+    if has_unregistered_direct_color {
+        editor_scene_full_rebuild(project, server_ctx);
+        return false;
+    }
     if crate::toollist::ToolList::try_incremental_map_edit(old_map, new_map, server_ctx) {
         true
     } else {

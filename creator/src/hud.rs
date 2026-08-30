@@ -8,6 +8,7 @@ pub enum HudMode {
     Selection,
     Vertex,
     Linedef,
+    Wall,
     Sector,
     Effects,
     Rect,
@@ -384,8 +385,10 @@ impl Hud {
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             return None;
         }
-        if server_ctx.curr_map_tool_type == MapToolType::Linedef
-            && let Some(start) = map.curr_grid_pos_3d
+        if matches!(
+            server_ctx.curr_map_tool_type,
+            MapToolType::Linedef | MapToolType::Wall
+        ) && let Some(start) = map.curr_grid_pos_3d
             && let Some(end) = server_ctx.hover_cursor_3d
         {
             let length = (end - start).magnitude();
@@ -447,6 +450,11 @@ impl Hud {
         let action_item_slots = self.active_builder_item_slots(map, ctx, server_ctx);
         let action_material_slots = if action_item_slots.is_none() {
             crate::actions::builder_hud_material_slots_for_selected_geometry(map)
+                .or_else(|| {
+                    (self.mode == HudMode::Wall)
+                        .then(|| crate::actions::wall_hud_material_slots(map))
+                        .flatten()
+                })
                 .or_else(|| self.active_action_material_slots(map, ctx, server_ctx))
                 .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx))
         } else {
@@ -454,14 +462,20 @@ impl Hud {
         };
         let mut icons = 0;
 
-        if server_ctx.get_map_context() == MapContext::Region {
+        if server_ctx.get_map_context() == MapContext::Region
+            || (self.mode == HudMode::Wall
+                && matches!(
+                    server_ctx.get_map_context(),
+                    MapContext::Item | MapContext::Character
+                ))
+        {
             icons = if let Some(slots) = &action_item_slots {
                 slots.len() as i32
             } else if let Some(slots) = &action_material_slots {
                 slots.len() as i32
             } else if self.mode == HudMode::Vertex {
                 0
-            } else if self.mode == HudMode::Linedef {
+            } else if self.mode == HudMode::Linedef || self.mode == HudMode::Wall {
                 0
             } else {
                 1
@@ -693,7 +707,8 @@ impl Hud {
         // Show Subdivs
         if (map.camera == MapCamera::TwoD
             || server_ctx.get_map_context() == MapContext::Screen
-            || server_ctx.editor_view_mode != EditorViewMode::D2)
+            || server_ctx.editor_view_mode != EditorViewMode::D2
+            || self.mode == HudMode::Wall)
             && self.mode != HudMode::Terrain
             && self.mode != HudMode::Rect
         {
@@ -1050,6 +1065,50 @@ impl Hud {
                 .send(TheEvent::SetStatusText(TheId::empty(), "".into()));
         }*/
         false
+    }
+
+    /// Routes HUD input before a specialized geometry tool delegates the remaining event to the
+    /// shared object-editing engine. The visible HUD belongs to the specialized tool, so its hit
+    /// rectangles must be consulted before delegation.
+    pub fn handle_map_event_before_delegate(
+        &mut self,
+        event: &MapEvent,
+        map: &mut Map,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+    ) -> bool {
+        match *event {
+            MapEvent::MapClicked(coord) => self.clicked(coord.x, coord.y, map, ui, ctx, server_ctx),
+            MapEvent::MapDragged(coord) => self.dragged(coord.x, coord.y, map, ui, ctx, server_ctx),
+            MapEvent::MapHover(coord) => {
+                self.hovered(coord.x, coord.y, map, ui, ctx, server_ctx);
+                false
+            }
+            MapEvent::MapKey(key) if matches!(key, '1'..='6') => {
+                map.subdivisions = match key {
+                    '1' => 1.0,
+                    '2' => 2.0,
+                    '3' => 4.0,
+                    '4' => 8.0,
+                    '5' => 16.0,
+                    '6' => 32.0,
+                    _ => map.subdivisions,
+                };
+                {
+                    let mut rusterix = RUSTERIX.write().unwrap();
+                    rusterix.set_dirty();
+                    rusterix.set_overlay_dirty();
+                }
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Tool Changed"),
+                    TheValue::Empty,
+                ));
+                ctx.ui.redraw_all = true;
+                true
+            }
+            _ => false,
+        }
     }
 
     #[allow(clippy::collapsible_if)]

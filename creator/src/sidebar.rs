@@ -2639,7 +2639,7 @@ impl Sidebar {
                     params,
                     title,
                     auto_apply,
-                    edit_display,
+                    editor_display,
                 )) = {
                     // Loading an action mutates its cached parameters, but UI
                     // updates must happen after releasing the global action
@@ -2654,10 +2654,10 @@ impl Sidebar {
                         }
                         action.load_params_project(project, server_ctx);
 
-                        let edit_display = action.edit_display();
+                        let editor_display = action.editor_display();
                         let auto_apply = (server_ctx.auto_action
                             || action.role() == ActionRole::Camera)
-                            && edit_display.is_none();
+                            && editor_display.is_none();
 
                         (
                             action.id().uuid,
@@ -2665,14 +2665,14 @@ impl Sidebar {
                             action.params(),
                             action.id().name,
                             auto_apply,
-                            edit_display,
+                            editor_display,
                         )
                     })
                 } {
                     TOOLLIST.write().unwrap().begin_action_edit(
                         action_id,
                         server_ctx.pc,
-                        edit_display,
+                        editor_display,
                         ctx,
                     );
                     self.show_action_toml_snapshot(ui, ctx, accelerator, &params, title);

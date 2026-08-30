@@ -43,7 +43,15 @@ impl GeometryObjectBuilder {
         assets: &Assets,
     ) -> Uuid {
         let base_id = tile
-            .and_then(|source| source.render_tile_id(assets))
+            .and_then(|source| {
+                let tile_id = source.render_tile_id(assets)?;
+                if matches!(source, PixelSource::Color(_)) && assets.tile_index(&tile_id).is_none()
+                {
+                    None
+                } else {
+                    Some(tile_id)
+                }
+            })
             .unwrap_or_else(Self::default_tile_id);
 
         material

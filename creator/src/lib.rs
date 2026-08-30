@@ -13,6 +13,7 @@ pub mod dockmanager;
 pub mod docks;
 pub mod editcamera;
 pub mod editor;
+pub mod editor_display;
 pub mod editor_tools;
 pub mod hud;
 #[cfg(not(target_arch = "wasm32"))]
@@ -44,7 +45,7 @@ use rust_embed::RustEmbed;
 #[exclude = "*.DS_Store"]
 pub struct Embedded;
 
-pub const DEFAULT_VLAYOUT_RATIO: f32 = 0.62;
+pub const DEFAULT_VLAYOUT_RATIO: f32 = 0.70;
 
 #[allow(ambiguous_glob_reexports)]
 pub mod prelude {
@@ -54,6 +55,7 @@ pub mod prelude {
     pub use std::sync::{LazyLock, RwLock};
     pub use theframework::prelude::*;
 
+    pub use crate::editor_display::*;
     pub use crate::mapeditor::*;
     pub use crate::misc::*;
     // pub use crate::previewview::*;
@@ -74,6 +76,7 @@ pub mod prelude {
     pub use crate::tools::iso_paint::IsoPaintTool;
     pub use crate::tools::linedef::LinedefTool;
     pub use crate::tools::sector::SectorTool;
+    pub use crate::tools::wall::WallTool;
     // pub use crate::tools::tileset::TilesetTool;
     pub use crate::tools::vertex::VertexTool;
 

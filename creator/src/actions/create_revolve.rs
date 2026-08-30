@@ -1,5 +1,5 @@
-use crate::actions::action_edit::{ActionEditDisplay, ActionProfile2D, ActionProfilePreset};
 use crate::actions::geometry_face_ops::face_uvs_for_indices;
+use crate::editor_display::{EditorDisplay, EditorProfile2D, EditorProfilePreset};
 use crate::prelude::*;
 
 const SEGMENTS_ID: &str = "actionRevolveSegments";
@@ -8,7 +8,7 @@ const SMOOTH_ID: &str = "actionRevolveSmooth";
 pub struct CreateRevolve {
     id: TheId,
     nodeui: TheNodeUI,
-    profile: ActionProfile2D,
+    profile: EditorProfile2D,
 }
 
 #[derive(Clone, Debug)]
@@ -64,20 +64,20 @@ impl CreateRevolve {
         ]
     }
 
-    fn default_profile() -> ActionProfile2D {
+    fn default_profile() -> EditorProfile2D {
         let barrel = Self::barrel_profile();
         let pottery = Self::pottery_profile();
         let cup = Self::cup_profile();
-        let mut profile = ActionProfile2D::new("Revolve Profile", barrel.clone());
+        let mut profile = EditorProfile2D::new("Revolve Profile", barrel.clone());
         profile.presets = vec![
-            ActionProfilePreset::new("Barrel", barrel),
-            ActionProfilePreset::new("Pottery", pottery),
-            ActionProfilePreset::new("Cup", cup),
+            EditorProfilePreset::new("Barrel", barrel),
+            EditorProfilePreset::new("Pottery", pottery),
+            EditorProfilePreset::new("Cup", cup),
         ];
         profile
     }
 
-    fn clean_profile(profile: &ActionProfile2D) -> Vec<Vec2<f32>> {
+    fn clean_profile(profile: &EditorProfile2D) -> Vec<Vec2<f32>> {
         let mut points = Vec::with_capacity(profile.points.len());
         for point in &profile.points {
             if points.last().is_some_and(|previous: &Vec2<f32>| {
@@ -110,7 +110,7 @@ impl CreateRevolve {
     }
 
     pub(crate) fn build_object(
-        profile: &ActionProfile2D,
+        profile: &EditorProfile2D,
         segments: usize,
         smooth: bool,
     ) -> Option<rusterix::GeometryObject> {
@@ -264,12 +264,12 @@ impl Action for CreateRevolve {
             && server_ctx.editor_view_mode != EditorViewMode::D2
     }
 
-    fn edit_display(&self) -> Option<ActionEditDisplay> {
-        Some(ActionEditDisplay::Profile2D(self.profile.clone()))
+    fn editor_display(&self) -> Option<EditorDisplay> {
+        Some(EditorDisplay::Profile2D(self.profile.clone()))
     }
 
-    fn update_edit_display(&mut self, display: &ActionEditDisplay) -> bool {
-        let ActionEditDisplay::Profile2D(profile) = display;
+    fn update_editor_display(&mut self, display: &EditorDisplay) -> bool {
+        let EditorDisplay::Profile2D(profile) = display;
         if !profile.is_valid() || *profile == self.profile {
             return false;
         }

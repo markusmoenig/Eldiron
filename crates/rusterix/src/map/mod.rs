@@ -15,6 +15,7 @@ pub mod tile;
 pub mod tilesource;
 pub mod topology;
 pub mod vertex;
+pub mod wall;
 
 use crate::{BBox, GeometryObject, MapMini, PixelSource, Surface, Value, ValueContainer};
 use indexmap::IndexMap;
@@ -27,6 +28,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vek::{Vec2, Vec3, Vec4};
 use vertex::*;
+use wall::{WallAssembly, WallBrickPreview, WallOpeningPreview};
 
 use crate::{Entity, Item, Light};
 use block_prop::{BlockPropInstance, BlockPropSurfacePlacement};
@@ -116,6 +118,7 @@ pub enum MapToolType {
     Game,
     MiniMap,
     World,
+    Wall,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -151,6 +154,10 @@ pub struct Map {
     #[serde(default)]
     pub geometry_objects: Vec<GeometryObject>,
 
+    /// Editable source graphs for connected procedural walls.
+    #[serde(default)]
+    pub wall_assemblies: Vec<WallAssembly>,
+
     /// Linked instances of reusable Blocks & Props assets. Source geometry is
     /// resolved through the owning project's asset catalog.
     #[serde(default)]
@@ -179,6 +186,20 @@ pub struct Map {
     pub selected_sectors: Vec<u32>,
     #[serde(default)]
     pub selected_geometry_objects: Vec<Uuid>,
+    #[serde(skip)]
+    pub selected_wall_assembly: Option<Uuid>,
+    #[serde(skip)]
+    pub selected_wall_nodes: Vec<Uuid>,
+    #[serde(skip)]
+    pub selected_wall_spans: Vec<Uuid>,
+    #[serde(skip)]
+    pub selected_wall_opening: Option<Uuid>,
+    #[serde(skip)]
+    pub hovered_wall_span: Option<(Uuid, Uuid)>,
+    #[serde(skip)]
+    pub wall_brick_preview: Option<WallBrickPreview>,
+    #[serde(skip)]
+    pub wall_opening_preview: Option<WallOpeningPreview>,
     /// Editor selection of linked Block / Prop instances. Kept separate from
     /// resolved Geometry Object IDs so instance operations remain stable when
     /// an asset source changes.
@@ -510,6 +531,7 @@ impl Map {
             linedefs: vec![],
             sectors: vec![],
             geometry_objects: vec![],
+            wall_assemblies: vec![],
             block_prop_instances: vec![],
             block_prop_surface_placements: vec![],
 
@@ -523,6 +545,13 @@ impl Map {
             selected_linedefs: vec![],
             selected_sectors: vec![],
             selected_geometry_objects: vec![],
+            selected_wall_assembly: None,
+            selected_wall_nodes: vec![],
+            selected_wall_spans: vec![],
+            selected_wall_opening: None,
+            hovered_wall_span: None,
+            wall_brick_preview: None,
+            wall_opening_preview: None,
             selected_block_prop_instances: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],
@@ -555,6 +584,13 @@ impl Map {
         self.selected_linedefs = vec![];
         self.selected_sectors = vec![];
         self.selected_geometry_objects = vec![];
+        self.selected_wall_assembly = None;
+        self.selected_wall_nodes = vec![];
+        self.selected_wall_spans = vec![];
+        self.selected_wall_opening = None;
+        self.hovered_wall_span = None;
+        self.wall_brick_preview = None;
+        self.wall_opening_preview = None;
         self.selected_block_prop_instances = vec![];
         self.selected_geometry_vertices = vec![];
         self.selected_geometry_faces = vec![];
@@ -2276,6 +2312,10 @@ impl Map {
                 linedef.sector_ids = sector_ids;
             }
         }
+
+        // Wall meshes are derived from their persistent connected source graphs. Rebuilding here
+        // keeps loaded, pasted, and migrated maps from retaining stale structural previews.
+        self.rebuild_wall_geometry();
     }
 
     /// Alias for sanitize() to maintain backward compatibility.
@@ -2608,7 +2648,7 @@ impl Map {
         }
     }
 
-    /// Creates a geometry_clone clone of the map containing only vertices, linedefs, and sectors.
+    /// Creates an editable-geometry clone, including connected wall source graphs.
     pub fn geometry_clone(&self) -> Map {
         Map {
             id: Uuid::new_v4(),
@@ -2628,6 +2668,7 @@ impl Map {
             linedefs: self.linedefs.clone(),
             sectors: self.sectors.clone(),
             geometry_objects: self.geometry_objects.clone(),
+            wall_assemblies: self.wall_assemblies.clone(),
             block_prop_instances: self.block_prop_instances.clone(),
             block_prop_surface_placements: self.block_prop_surface_placements.clone(),
 
@@ -2641,6 +2682,13 @@ impl Map {
             selected_linedefs: vec![],
             selected_sectors: vec![],
             selected_geometry_objects: vec![],
+            selected_wall_assembly: None,
+            selected_wall_nodes: vec![],
+            selected_wall_spans: vec![],
+            selected_wall_opening: None,
+            hovered_wall_span: None,
+            wall_brick_preview: None,
+            wall_opening_preview: None,
             selected_block_prop_instances: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],

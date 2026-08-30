@@ -724,6 +724,12 @@ impl Tool for LinedefTool {
         if server_ctx.editor_view_mode != EditorViewMode::D2 {
             map.geometry_selection_mode = 3;
             if !detail_mode_3d {
+                if self
+                    .hud
+                    .handle_map_event_before_delegate(&map_event, map, ui, ctx, server_ctx)
+                {
+                    return None;
+                }
                 return self
                     .direct_geometry
                     .map_event(map_event, ui, ctx, map, server_ctx);

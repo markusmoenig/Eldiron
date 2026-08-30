@@ -17,6 +17,7 @@ pub mod rect;
 // pub mod render;
 pub mod sector;
 pub mod tile_picker;
+pub mod wall;
 // pub mod terrain;
 // pub mod tileset;
 pub mod entity;
@@ -91,6 +92,16 @@ pub trait Tool: Send + Sync {
         None
     }
 
+    /// Optional full-viewport editor owned by this persistent tool.
+    fn editor_display(&self) -> Option<crate::editor_display::EditorDisplay> {
+        None
+    }
+
+    /// Receive persistent display data edited by the shared viewport host.
+    fn update_editor_display(&mut self, _display: &crate::editor_display::EditorDisplay) -> bool {
+        false
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn tool_event(
         &mut self,
@@ -112,6 +123,17 @@ pub trait Tool: Send + Sync {
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
         None
+    }
+
+    /// Per-frame update for interactions that continue while the pointer is held stationary.
+    fn update(
+        &mut self,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _map: &mut Map,
+        _server_ctx: &mut ServerContext,
+    ) -> bool {
+        false
     }
 
     fn region_map_event(

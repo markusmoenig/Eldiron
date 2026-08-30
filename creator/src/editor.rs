@@ -8114,7 +8114,7 @@ impl TheTrait for Editor {
 
         // Docks
         let mut bottom_panels = DOCKMANAGER.write().unwrap().init_docks(ctx);
-        bottom_panels.limiter_mut().set_min_height(180);
+        bottom_panels.limiter_mut().set_min_height(140);
 
         let mut editor_canvas: TheCanvas = TheCanvas::new();
         editor_canvas.limiter_mut().set_min_height(240);
@@ -8661,6 +8661,15 @@ impl TheTrait for Editor {
             let id = toollist.get_current_tool().id().uuid;
 
             toollist.set_tool(id, ui, ctx, &mut self.project, &mut self.server_ctx);
+        }
+
+        if TOOLLIST.write().unwrap().update_current_tool(
+            ui,
+            ctx,
+            &mut self.project,
+            &mut self.server_ctx,
+        ) {
+            redraw = true;
         }
 
         // Get build results from the scene manager if any

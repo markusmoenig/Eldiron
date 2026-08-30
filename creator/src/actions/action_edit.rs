@@ -1,29 +1,38 @@
 use crate::prelude::*;
 
-/// A complete editor display optionally owned by the currently selected action.
+/// A complete editor display optionally owned by the current action or tool.
 ///
-/// The display is deliberately data-oriented. Persistent parameters remain on the action while
-/// hover, drag, pan, and zoom state live in [`ActionEditSession`]. Additional full-display editors
-/// (walls, paths, curves, and so on) can be added without teaching the map or Prefab editors about
-/// the action which requested them.
+/// The display is deliberately data-oriented. Persistent data remains on its owner while hover,
+/// drag, pan, and zoom state live in [`EditorDisplaySession`]. Additional displays can be added
+/// without teaching the map or Prefab editors which owner requested them.
 #[derive(Clone, Debug, PartialEq)]
-pub enum ActionEditDisplay {
-    Profile2D(ActionProfile2D),
+pub enum EditorDisplay {
+    Profile2D(EditorProfile2D),
 }
 
-/// Editable side profile used by revolve and future path/profile based actions.
+impl EditorDisplay {
+    pub fn status_text(&self) -> &'static str {
+        match self {
+            Self::Profile2D(_) => {
+                "Edit or scale the profile. Snap: 1-6 or comma/period. Return commits; Escape cancels."
+            }
+        }
+    }
+}
+
+/// Editable side profile used by revolve and future path/profile based owners.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ActionProfile2D {
+pub struct EditorProfile2D {
     pub title: String,
     pub points: Vec<Vec2<f32>>,
-    pub presets: Vec<ActionProfilePreset>,
+    pub presets: Vec<EditorProfilePreset>,
     pub axis_x: f32,
     pub grid_step: f32,
     pub minimum_points: usize,
     pub mirror_preview: bool,
 }
 
-impl ActionProfile2D {
+impl EditorProfile2D {
     pub fn new(title: impl Into<String>, points: Vec<Vec2<f32>>) -> Self {
         Self {
             title: title.into(),
@@ -54,7 +63,7 @@ impl ActionProfile2D {
                 .all(|point| point.x.is_finite() && point.y.is_finite() && point.x >= axis_x)
     }
 
-    pub fn dimensions(&self) -> ActionProfileDimensions {
+    pub fn dimensions(&self) -> EditorProfileDimensions {
         let min_y = self
             .points
             .iter()
@@ -72,7 +81,7 @@ impl ActionProfile2D {
             .iter()
             .map(|point| (point.x - self.axis_x).max(0.0))
             .fold(0.0, f32::max);
-        ActionProfileDimensions {
+        EditorProfileDimensions {
             min_y,
             max_y,
             radius,
@@ -83,12 +92,12 @@ impl ActionProfile2D {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct ActionProfilePreset {
+pub struct EditorProfilePreset {
     pub name: String,
     pub points: Vec<Vec2<f32>>,
 }
 
-impl ActionProfilePreset {
+impl EditorProfilePreset {
     pub fn new(name: impl Into<String>, points: Vec<Vec2<f32>>) -> Self {
         Self {
             name: name.into(),
@@ -98,7 +107,7 @@ impl ActionProfilePreset {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct ActionProfileDimensions {
+pub struct EditorProfileDimensions {
     pub min_y: f32,
     pub max_y: f32,
     pub radius: f32,
@@ -129,22 +138,28 @@ impl ProfileTransform {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ActionEditSessionResult {
+pub enum EditorDisplayResult {
     Ignored,
     Handled,
-    DisplayChanged(ActionEditDisplay),
+    DisplayChanged(EditorDisplay),
     GridSubdivisionChanged(f32),
     Commit,
     Cancel,
 }
 
-/// Shared transient host for an action-owned full editor display.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EditorDisplayOwner {
+    Action(Uuid),
+    Tool(Uuid),
+}
+
+/// Shared transient host for a full editor display.
 #[derive(Clone, Debug)]
-pub struct ActionEditSession {
-    pub action_id: Uuid,
+pub struct EditorDisplaySession {
+    pub owner: EditorDisplayOwner,
     pub project_context: ProjectContext,
-    original: ActionEditDisplay,
-    working: ActionEditDisplay,
+    original: EditorDisplay,
+    working: EditorDisplay,
     selected_point: Option<usize>,
     hovered_point: Option<usize>,
     dragging: bool,
@@ -158,7 +173,7 @@ pub struct ActionEditSession {
     last_transform: Option<ProfileTransform>,
 }
 
-impl ActionEditSession {
+impl EditorDisplaySession {
     const GRID_SUBDIVISIONS: [f32; 6] = [1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
     const GRID_BUTTON_X: i32 = 86;
     const GRID_BUTTON_Y: i32 = 10;
@@ -174,13 +189,21 @@ impl ActionEditSession {
     const PRESET_BUTTON_WIDTH: i32 = 76;
     const PRESET_BUTTON_HEIGHT: i32 = 24;
 
-    pub fn new(
-        action_id: Uuid,
+    pub fn new(action_id: Uuid, project_context: ProjectContext, display: EditorDisplay) -> Self {
+        Self::new_for_owner(
+            EditorDisplayOwner::Action(action_id),
+            project_context,
+            display,
+        )
+    }
+
+    pub fn new_for_owner(
+        owner: EditorDisplayOwner,
         project_context: ProjectContext,
-        display: ActionEditDisplay,
+        display: EditorDisplay,
     ) -> Self {
         Self {
-            action_id,
+            owner,
             project_context,
             original: display.clone(),
             working: display,
@@ -198,33 +221,33 @@ impl ActionEditSession {
         }
     }
 
-    pub fn original_display(&self) -> &ActionEditDisplay {
+    pub fn original_display(&self) -> &EditorDisplay {
         &self.original
     }
 
-    pub fn working_display(&self) -> &ActionEditDisplay {
+    pub fn working_display(&self) -> &EditorDisplay {
         &self.working
     }
 
-    pub fn is_for(&self, action_id: Uuid, project_context: ProjectContext) -> bool {
-        self.action_id == action_id && self.project_context == project_context
+    pub fn is_for(&self, owner: EditorDisplayOwner, project_context: ProjectContext) -> bool {
+        self.owner == owner && self.project_context == project_context
     }
 
-    fn profile(&self) -> &ActionProfile2D {
+    fn profile(&self) -> &EditorProfile2D {
         match &self.working {
-            ActionEditDisplay::Profile2D(profile) => profile,
+            EditorDisplay::Profile2D(profile) => profile,
         }
     }
 
-    fn profile_mut(&mut self) -> &mut ActionProfile2D {
+    fn profile_mut(&mut self) -> &mut EditorProfile2D {
         match &mut self.working {
-            ActionEditDisplay::Profile2D(profile) => profile,
+            EditorDisplay::Profile2D(profile) => profile,
         }
     }
 
-    fn original_profile(&self) -> &ActionProfile2D {
+    fn original_profile(&self) -> &EditorProfile2D {
         match &self.original {
-            ActionEditDisplay::Profile2D(profile) => profile,
+            EditorDisplay::Profile2D(profile) => profile,
         }
     }
 
@@ -480,7 +503,7 @@ impl ActionEditSession {
         &mut self,
         event: &TheEvent,
         render_view_name: &str,
-    ) -> ActionEditSessionResult {
+    ) -> EditorDisplayResult {
         self.handle_event_with_modifiers(event, render_view_name, false)
     }
 
@@ -489,70 +512,70 @@ impl ActionEditSession {
         event: &TheEvent,
         render_view_name: &str,
         command_zoom: bool,
-    ) -> ActionEditSessionResult {
+    ) -> EditorDisplayResult {
         let is_target = |id: &TheId| id.name == render_view_name;
         match event {
             TheEvent::RenderViewClicked(id, coord) if is_target(id) => {
                 if let Some(index) = self.preset_at(*coord) {
                     return if self.apply_profile_preset(index) {
-                        ActionEditSessionResult::DisplayChanged(self.working.clone())
+                        EditorDisplayResult::DisplayChanged(self.working.clone())
                     } else {
-                        ActionEditSessionResult::Handled
+                        EditorDisplayResult::Handled
                     };
                 }
                 if self.last_view_width >= 580 && Self::scale_track_rect().contains(*coord) {
                     self.dragging_profile_scale = true;
                     self.dragging = false;
                     return if self.scale_profile_from_slider(coord.x) {
-                        ActionEditSessionResult::DisplayChanged(self.working.clone())
+                        EditorDisplayResult::DisplayChanged(self.working.clone())
                     } else {
-                        ActionEditSessionResult::Handled
+                        EditorDisplayResult::Handled
                     };
                 }
                 if let Some(subdivision) = Self::grid_subdivision_at(*coord) {
                     self.set_grid_subdivisions(subdivision);
-                    return ActionEditSessionResult::GridSubdivisionChanged(subdivision);
+                    return EditorDisplayResult::GridSubdivisionChanged(subdivision);
                 }
                 if let Some(index) = self.nearest_point(*coord, 12.0) {
                     self.selected_point = Some(index);
                     self.dragging = true;
-                    return ActionEditSessionResult::Handled;
+                    return EditorDisplayResult::Handled;
                 }
                 if let Some(segment) = self.nearest_segment(*coord, 10.0)
                     && self.insert_point(segment, *coord)
                 {
-                    return ActionEditSessionResult::DisplayChanged(self.working.clone());
+                    return EditorDisplayResult::DisplayChanged(self.working.clone());
                 }
                 self.selected_point = None;
-                ActionEditSessionResult::Handled
+                EditorDisplayResult::Handled
             }
             TheEvent::RenderViewDragged(id, coord) if is_target(id) => {
                 if self.dragging_profile_scale && self.scale_profile_from_slider(coord.x) {
-                    ActionEditSessionResult::DisplayChanged(self.working.clone())
+                    EditorDisplayResult::DisplayChanged(self.working.clone())
                 } else if self.dragging && self.move_selected_point(*coord) {
-                    ActionEditSessionResult::DisplayChanged(self.working.clone())
+                    EditorDisplayResult::DisplayChanged(self.working.clone())
                 } else {
-                    ActionEditSessionResult::Handled
+                    EditorDisplayResult::Handled
                 }
             }
             TheEvent::RenderViewUp(id, _) if is_target(id) => {
                 self.dragging = false;
                 self.dragging_profile_scale = false;
-                ActionEditSessionResult::Handled
+                EditorDisplayResult::Handled
             }
             TheEvent::RenderViewHoverChanged(id, coord) if is_target(id) => {
                 self.hover_coord = Some(*coord);
                 self.hovered_point = self.nearest_point(*coord, 12.0);
-                ActionEditSessionResult::Handled
+                EditorDisplayResult::Handled
             }
             TheEvent::RenderViewLostHover(id) if is_target(id) => {
                 self.hover_coord = None;
                 self.hovered_point = None;
-                ActionEditSessionResult::Handled
+                EditorDisplayResult::Handled
             }
             TheEvent::RenderViewScrollBy(id, delta) if is_target(id) => {
                 self.pan += Vec2::new(delta.x as f32, delta.y as f32);
-                ActionEditSessionResult::Handled
+                EditorDisplayResult::Handled
             }
             TheEvent::RenderViewPreciseScrollBy(id, delta) if is_target(id) => {
                 if command_zoom {
@@ -563,26 +586,26 @@ impl ActionEditSession {
                     let delta = -delta;
                     self.pan += delta;
                 }
-                ActionEditSessionResult::Handled
+                EditorDisplayResult::Handled
             }
             TheEvent::RenderViewZoomBy(id, amount) if is_target(id) => {
                 self.zoom = (self.zoom * (*amount * 2.5).exp()).clamp(0.2, 8.0);
-                ActionEditSessionResult::Handled
+                EditorDisplayResult::Handled
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Delete)) => {
                 if self.delete_selected_point() {
-                    ActionEditSessionResult::DisplayChanged(self.working.clone())
+                    EditorDisplayResult::DisplayChanged(self.working.clone())
                 } else {
-                    ActionEditSessionResult::Handled
+                    EditorDisplayResult::Handled
                 }
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Return)) => {
-                ActionEditSessionResult::Commit
+                EditorDisplayResult::Commit
             }
             TheEvent::KeyCodeDown(TheValue::KeyCode(TheKeyCode::Escape)) => {
-                ActionEditSessionResult::Cancel
+                EditorDisplayResult::Cancel
             }
-            _ => ActionEditSessionResult::Ignored,
+            _ => EditorDisplayResult::Ignored,
         }
     }
 
@@ -1015,17 +1038,17 @@ mod tests {
     #[test]
     fn profile_validation_rejects_points_behind_the_axis() {
         let profile =
-            ActionProfile2D::new("Profile", vec![Vec2::new(0.0, 0.0), Vec2::new(-0.25, 1.0)]);
+            EditorProfile2D::new("Profile", vec![Vec2::new(0.0, 0.0), Vec2::new(-0.25, 1.0)]);
         assert!(!profile.is_valid());
     }
 
     #[test]
     fn session_keeps_original_and_working_displays_separate() {
-        let display = ActionEditDisplay::Profile2D(ActionProfile2D::new(
+        let display = EditorDisplay::Profile2D(EditorProfile2D::new(
             "Profile",
             vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)],
         ));
-        let mut session = ActionEditSession::new(
+        let mut session = EditorDisplaySession::new(
             Uuid::new_v4(),
             ProjectContext::Prefab(Uuid::new_v4()),
             display.clone(),
@@ -1038,7 +1061,7 @@ mod tests {
 
     #[test]
     fn profile_display_renders_in_a_shared_rgba_buffer() {
-        let display = ActionEditDisplay::Profile2D(ActionProfile2D::new(
+        let display = EditorDisplay::Profile2D(EditorProfile2D::new(
             "Profile",
             vec![
                 Vec2::new(0.0, 0.0),
@@ -1047,7 +1070,8 @@ mod tests {
                 Vec2::new(0.0, 2.0),
             ],
         ));
-        let mut session = ActionEditSession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
+        let mut session =
+            EditorDisplaySession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
         let mut buffer = TheRGBABuffer::new(TheDim::sized(320, 240));
         let mut ctx = TheContext::new(320, 240, 1.0);
         session.draw(&mut buffer, &mut ctx);
@@ -1062,11 +1086,11 @@ mod tests {
 
     #[test]
     fn one_session_routes_events_to_either_editor_view() {
-        let display = ActionEditDisplay::Profile2D(ActionProfile2D::new(
+        let display = EditorDisplay::Profile2D(EditorProfile2D::new(
             "Profile",
             vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)],
         ));
-        let mut session = ActionEditSession::new(
+        let mut session = EditorDisplaySession::new(
             Uuid::new_v4(),
             ProjectContext::Prefab(Uuid::new_v4()),
             display,
@@ -1081,13 +1105,31 @@ mod tests {
             "PrefabView",
         );
 
-        assert_eq!(regular, ActionEditSessionResult::Ignored);
-        assert_eq!(prefab, ActionEditSessionResult::Handled);
+        assert_eq!(regular, EditorDisplayResult::Ignored);
+        assert_eq!(prefab, EditorDisplayResult::Handled);
+    }
+
+    #[test]
+    fn session_can_be_owned_by_a_persistent_tool() {
+        let tool_id = Uuid::new_v4();
+        let context = ProjectContext::Prefab(Uuid::new_v4());
+        let display = EditorDisplay::Profile2D(EditorProfile2D::new(
+            "Tool Profile",
+            vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)],
+        ));
+        let session = EditorDisplaySession::new_for_owner(
+            EditorDisplayOwner::Tool(tool_id),
+            context,
+            display,
+        );
+
+        assert!(session.is_for(EditorDisplayOwner::Tool(tool_id), context));
+        assert!(!session.is_for(EditorDisplayOwner::Action(tool_id), context));
     }
 
     #[test]
     fn profile_dimensions_report_revolved_size() {
-        let profile = ActionProfile2D::new(
+        let profile = EditorProfile2D::new(
             "Profile",
             vec![
                 Vec2::new(0.0, -0.5),
@@ -1097,7 +1139,7 @@ mod tests {
         );
         assert_eq!(
             profile.dimensions(),
-            ActionProfileDimensions {
+            EditorProfileDimensions {
                 min_y: -0.5,
                 max_y: 2.5,
                 radius: 1.25,
@@ -1109,11 +1151,12 @@ mod tests {
 
     #[test]
     fn shared_grid_subdivision_overrides_the_action_fallback_step() {
-        let display = ActionEditDisplay::Profile2D(ActionProfile2D::new(
+        let display = EditorDisplay::Profile2D(EditorProfile2D::new(
             "Profile",
             vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)],
         ));
-        let mut session = ActionEditSession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
+        let mut session =
+            EditorDisplaySession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
         session.set_grid_subdivisions(8.0);
 
         assert_eq!(session.effective_grid_step(), 0.125);
@@ -1121,12 +1164,13 @@ mod tests {
 
     #[test]
     fn profile_grid_buttons_request_the_normal_editor_subdivision() {
-        let display = ActionEditDisplay::Profile2D(ActionProfile2D::new(
+        let display = EditorDisplay::Profile2D(EditorProfile2D::new(
             "Profile",
             vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)],
         ));
-        let mut session = ActionEditSession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
-        let rect = ActionEditSession::grid_button_rect(4);
+        let mut session =
+            EditorDisplaySession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
+        let rect = EditorDisplaySession::grid_button_rect(4);
         let result = session.handle_event(
             &TheEvent::RenderViewClicked(
                 TheId::named("PolyView"),
@@ -1135,15 +1179,12 @@ mod tests {
             "PolyView",
         );
 
-        assert_eq!(
-            result,
-            ActionEditSessionResult::GridSubdivisionChanged(16.0)
-        );
+        assert_eq!(result, EditorDisplayResult::GridSubdivisionChanged(16.0));
     }
 
     #[test]
     fn uniform_scale_keeps_the_axis_and_profile_bottom_anchored() {
-        let mut profile = ActionProfile2D::new(
+        let mut profile = EditorProfile2D::new(
             "Profile",
             vec![
                 Vec2::new(0.5, -1.0),
@@ -1153,8 +1194,9 @@ mod tests {
             ],
         );
         profile.axis_x = 0.5;
-        let display = ActionEditDisplay::Profile2D(profile);
-        let mut session = ActionEditSession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
+        let display = EditorDisplay::Profile2D(profile);
+        let mut session =
+            EditorDisplaySession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
 
         assert!(session.set_profile_scale(0.5));
         let dimensions = session.profile().dimensions();
@@ -1167,12 +1209,12 @@ mod tests {
 
     #[test]
     fn scale_slider_is_logarithmic_around_one_hundred_percent() {
-        let center = ActionEditSession::slider_x_from_scale(1.0);
-        assert_eq!(center, ActionEditSession::SCALE_TRACK_X + 70);
-        assert!((ActionEditSession::scale_from_slider_x(center) - 1.0).abs() < 1e-6);
+        let center = EditorDisplaySession::slider_x_from_scale(1.0);
+        assert_eq!(center, EditorDisplaySession::SCALE_TRACK_X + 70);
+        assert!((EditorDisplaySession::scale_from_slider_x(center) - 1.0).abs() < 1e-6);
         assert!(
-            (ActionEditSession::scale_from_slider_x(ActionEditSession::SCALE_TRACK_X)
-                - ActionEditSession::MIN_PROFILE_SCALE)
+            (EditorDisplaySession::scale_from_slider_x(EditorDisplaySession::SCALE_TRACK_X)
+                - EditorDisplaySession::MIN_PROFILE_SCALE)
                 .abs()
                 < 1e-6
         );
@@ -1181,11 +1223,12 @@ mod tests {
     #[test]
     fn profile_preset_replaces_points_and_resets_scale() {
         let mut profile =
-            ActionProfile2D::new("Profile", vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)]);
+            EditorProfile2D::new("Profile", vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)]);
         let preset_points = vec![Vec2::new(0.0, 0.0), Vec2::new(0.5, 2.0)];
-        profile.presets = vec![ActionProfilePreset::new("Tall", preset_points.clone())];
-        let display = ActionEditDisplay::Profile2D(profile);
-        let mut session = ActionEditSession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
+        profile.presets = vec![EditorProfilePreset::new("Tall", preset_points.clone())];
+        let display = EditorDisplay::Profile2D(profile);
+        let mut session =
+            EditorDisplaySession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
         session.set_profile_scale(2.0);
 
         assert!(session.apply_profile_preset(0));
@@ -1195,11 +1238,12 @@ mod tests {
 
     #[test]
     fn command_precise_scroll_zooms_instead_of_panning() {
-        let display = ActionEditDisplay::Profile2D(ActionProfile2D::new(
+        let display = EditorDisplay::Profile2D(EditorProfile2D::new(
             "Profile",
             vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)],
         ));
-        let mut session = ActionEditSession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
+        let mut session =
+            EditorDisplaySession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
 
         let result = session.handle_event_with_modifiers(
             &TheEvent::RenderViewPreciseScrollBy(TheId::named("PolyView"), Vec2::new(0, 10)),
@@ -1207,18 +1251,19 @@ mod tests {
             true,
         );
 
-        assert_eq!(result, ActionEditSessionResult::Handled);
+        assert_eq!(result, EditorDisplayResult::Handled);
         assert!(session.zoom > 1.0);
         assert_eq!(session.pan, Vec2::zero());
     }
 
     #[test]
     fn pinch_has_a_useful_zoom_scale() {
-        let display = ActionEditDisplay::Profile2D(ActionProfile2D::new(
+        let display = EditorDisplay::Profile2D(EditorProfile2D::new(
             "Profile",
             vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)],
         ));
-        let mut session = ActionEditSession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
+        let mut session =
+            EditorDisplaySession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
         session.handle_event(
             &TheEvent::RenderViewZoomBy(TheId::named("PolyView"), 0.1),
             "PolyView",

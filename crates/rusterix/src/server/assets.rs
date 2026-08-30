@@ -425,6 +425,26 @@ impl Assets {
     ) where
         I: IntoIterator<Item = &'a Map>,
     {
+        let maps = maps.into_iter().collect::<Vec<_>>();
+        for map in &maps {
+            for object in &map.geometry_objects {
+                for face in &object.faces {
+                    for source in face.tile.iter().chain(face.tiles.values()) {
+                        let PixelSource::Color(color) = source else {
+                            continue;
+                        };
+                        let tile_id = PixelSource::color_tile_uuid(color);
+                        tiles.entry(tile_id).or_insert_with(|| {
+                            let mut tile =
+                                Tile::from_texture(Texture::from_color(color.to_u8_array()));
+                            tile.id = tile_id;
+                            tile
+                        });
+                    }
+                }
+            }
+        }
+
         let mut required = Vec::new();
 
         for map in maps {
@@ -660,5 +680,22 @@ mod tests {
         assert_eq!(variant.id, variant_id);
         assert_eq!(variant.material.normalized_preset(), "stone");
         assert_eq!(variant.material.normalized_finish(), "wet");
+    }
+
+    #[test]
+    fn materialize_geometry_tiles_registers_direct_color_sources() {
+        let color = TheColor::new(0.3, 0.25, 0.2, 1.0);
+        let color_id = PixelSource::color_tile_uuid(&color);
+        let mut object = GeometryObject::box_("color", Vec3::zero(), Vec3::broadcast(1.0));
+        object.faces[0].tile = Some(PixelSource::Color(color.clone()));
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+        let mut tiles = IndexMap::new();
+
+        Assets::new().materialize_geometry_material_tiles_for_maps(&mut tiles, [&map]);
+
+        let tile = tiles.get(&color_id).expect("synthetic color tile");
+        assert_eq!(tile.id, color_id);
+        assert_eq!(tile.textures[0].data[0..4], color.to_u8_array());
     }
 }
