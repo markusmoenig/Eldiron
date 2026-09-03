@@ -11863,6 +11863,38 @@ impl VM {
             self.cached_static_tri_geo_ids.as_slice()
         };
         let paint_group_ids = self.cached_static_paint_group_ids.clone();
+        let face_normals: Vec<[f32; 3]> = {
+            let (source_vertices, source_indices) = if include_dynamic {
+                (self.cached_v3.as_slice(), self.cached_i3.as_slice())
+            } else {
+                (
+                    self.cached_static_v3.as_slice(),
+                    self.cached_static_i3.as_slice(),
+                )
+            };
+            source_indices
+                .chunks_exact(3)
+                .map(|triangle| {
+                    let Some(a) = source_vertices.get(triangle[0] as usize) else {
+                        return [0.0, 1.0, 0.0];
+                    };
+                    let Some(b) = source_vertices.get(triangle[1] as usize) else {
+                        return [0.0, 1.0, 0.0];
+                    };
+                    let Some(c) = source_vertices.get(triangle[2] as usize) else {
+                        return [0.0, 1.0, 0.0];
+                    };
+                    let a = Vec3::<f32>::from(a.pos);
+                    let b = Vec3::<f32>::from(b.pos);
+                    let c = Vec3::<f32>::from(c.pos);
+                    let normal = (b - a)
+                        .cross(c - a)
+                        .try_normalized()
+                        .unwrap_or_else(Vec3::unit_y);
+                    [normal.x, normal.y, normal.z]
+                })
+                .collect()
+        };
         let g = self.gpu.as_mut()?;
         if vertices.is_empty() {
             return Some(PaintSurfaceBuffer::new(fb_w, fb_h));
@@ -12039,6 +12071,10 @@ impl VM {
                     read_f32(world_base + 4),
                     read_f32(world_base + 8),
                 ];
+                let normal = face_normals
+                    .get(face_id)
+                    .copied()
+                    .unwrap_or([0.0, 1.0, 0.0]);
                 buffer.pixels[index] = crate::core::PaintSurfacePixel {
                     valid: true,
                     geo_id,
@@ -12060,7 +12096,7 @@ impl VM {
                     face_id: face_id as u32,
                     depth: (Vec3::from(world) - c.pos).dot(c.forward),
                     world,
-                    normal: [0.0, 1.0, 0.0],
+                    normal,
                     uv: [read_f32(meta_base), read_f32(meta_base + 4)],
                 };
             }

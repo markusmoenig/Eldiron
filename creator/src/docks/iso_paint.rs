@@ -19,6 +19,8 @@ const ISO_PAINT_MATERIAL_MODE: &str = "3D Paint Material Mode";
 const ISO_PAINT_OPERATION_GROUP: &str = "3D Paint Operation Group";
 const ISO_PAINT_LAYER_VISIBLE: &str = "3D Paint Layer Visible";
 const ISO_PAINT_CLEAR_ALL: &str = "3D Paint Clear All";
+const ISO_PAINT_FILL_SELECTION: &str = "3D Paint Fill Selection";
+const ISO_PAINT_CLEAR_SELECTION: &str = "3D Paint Clear Selection";
 const ISO_PAINT_CLIP_GROUP: &str = "3D Paint Clip Group";
 const ISO_PAINT_TOOL_SIZE: &str = "3D Paint Tool Size";
 const ISO_PAINT_TOOL_OPACITY: &str = "3D Paint Tool Opacity";
@@ -45,6 +47,7 @@ enum IsoPaintOperation {
     Draw,
     Erase,
     Pick,
+    Select,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -2900,6 +2903,7 @@ impl IsoPaintDock {
             IsoPaintOperation::Draw => 0,
             IsoPaintOperation::Erase => 1,
             IsoPaintOperation::Pick => 2,
+            IsoPaintOperation::Select => 3,
         }
     }
 
@@ -2907,6 +2911,7 @@ impl IsoPaintDock {
         match index {
             1 => IsoPaintOperation::Erase,
             2 => IsoPaintOperation::Pick,
+            3 => IsoPaintOperation::Select,
             _ => IsoPaintOperation::Draw,
         }
     }
@@ -2915,6 +2920,7 @@ impl IsoPaintDock {
         match key {
             "erase" => IsoPaintOperation::Erase,
             "pick" => IsoPaintOperation::Pick,
+            "select" => IsoPaintOperation::Select,
             _ => IsoPaintOperation::Draw,
         }
     }
@@ -2924,6 +2930,7 @@ impl IsoPaintDock {
             IsoPaintOperation::Draw => fl!("iso_paint_operation_draw"),
             IsoPaintOperation::Erase => fl!("iso_paint_operation_erase"),
             IsoPaintOperation::Pick => fl!("iso_paint_operation_pick"),
+            IsoPaintOperation::Select => fl!("iso_paint_operation_select"),
         }
     }
 
@@ -2932,6 +2939,7 @@ impl IsoPaintDock {
             IsoPaintOperation::Draw => "draw",
             IsoPaintOperation::Erase => "erase",
             IsoPaintOperation::Pick => "pick",
+            IsoPaintOperation::Select => "select",
         }
     }
 
@@ -3773,9 +3781,29 @@ impl Dock for IsoPaintDock {
             fl!("iso_paint_operation_pick"),
             fl!("status_iso_paint_operation_pick"),
         );
-        operation_group.set_item_width(74);
+        operation_group.add_text_status(
+            fl!("iso_paint_operation_select"),
+            fl!("status_iso_paint_operation_select"),
+        );
+        operation_group.set_item_width(66);
         operation_group.set_index(Self::operation_index(self.operation));
         toolbar.add_widget(Box::new(operation_group));
+
+        let mut fill_selection = TheTraybarButton::new(self.ui_id(ISO_PAINT_FILL_SELECTION));
+        fill_selection.set_text(fl!("iso_paint_fill_selection"));
+        fill_selection.set_status_text(&fl!("status_iso_paint_fill_selection"));
+        fill_selection.set_fixed_size(false);
+        fill_selection.limiter_mut().set_min_width(54);
+        fill_selection.limiter_mut().set_max_width(54);
+        toolbar.add_widget(Box::new(fill_selection));
+
+        let mut clear_selection = TheTraybarButton::new(self.ui_id(ISO_PAINT_CLEAR_SELECTION));
+        clear_selection.set_text(fl!("iso_paint_clear_selection"));
+        clear_selection.set_status_text(&fl!("status_iso_paint_clear_selection"));
+        clear_selection.set_fixed_size(false);
+        clear_selection.limiter_mut().set_min_width(64);
+        clear_selection.limiter_mut().set_max_width(64);
+        toolbar.add_widget(Box::new(clear_selection));
 
         let mut layer_visible = TheTraybarButton::new(self.ui_id(ISO_PAINT_LAYER_VISIBLE));
         layer_visible.set_text(fl!("iso_paint_layer_visible"));
@@ -3809,7 +3837,7 @@ impl Dock for IsoPaintDock {
         clip_group.set_index(Self::clip_index(self.clip_mode));
         toolbar.add_widget(Box::new(clip_group));
 
-        toolbar.set_reverse_index(Some(3));
+        toolbar.set_reverse_index(Some(5));
 
         toolbar_canvas.set_layout(toolbar);
         canvas.set_top(toolbar_canvas);
@@ -4021,6 +4049,10 @@ impl Dock for IsoPaintDock {
                     paint.surface_commit_strokes.clear();
                     paint.chunks.clear();
                     paint.baked_chunks.clear();
+                    let active_selection = paint.active_selection_id;
+                    paint
+                        .selection_masks
+                        .retain(|id, _| Some(*id) == active_selection);
                     let new_paint = paint.clone();
                     let undo_atom = match self.target {
                         IsoPaintTarget::Region => ProjectUndoAtom::RegionPaintEdit(
@@ -4042,6 +4074,86 @@ impl Dock for IsoPaintDock {
                         TheId::empty(),
                         fl!("status_iso_paint_clear_all_done"),
                     ));
+                }
+                return true;
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if self.is_ui_event(&id.name, ISO_PAINT_FILL_SELECTION) =>
+            {
+                let target_id = match self.target {
+                    IsoPaintTarget::Region => Some(server_ctx.curr_region),
+                    IsoPaintTarget::Prefab => match server_ctx.pc {
+                        ProjectContext::Prefab(asset_id) => Some(asset_id),
+                        _ => None,
+                    },
+                };
+                if let Some(target_id) = target_id
+                    && let Some(paint) = self.paint_layer_mut(project, server_ctx)
+                {
+                    let old_paint = paint.clone();
+                    if paint.fill_active_selection() {
+                        let new_paint = paint.clone();
+                        let undo_atom = match self.target {
+                            IsoPaintTarget::Region => ProjectUndoAtom::RegionPaintEdit(
+                                ProjectContext::Region(target_id),
+                                target_id,
+                                Box::new(old_paint),
+                                Box::new(new_paint),
+                            ),
+                            IsoPaintTarget::Prefab => ProjectUndoAtom::PrefabPaintEdit(
+                                ProjectContext::Prefab(target_id),
+                                target_id,
+                                Box::new(old_paint),
+                                Box::new(new_paint),
+                            ),
+                        };
+                        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                        ctx.ui.redraw_all = true;
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_iso_paint_fill_selection_done"),
+                        ));
+                    }
+                }
+                return true;
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if self.is_ui_event(&id.name, ISO_PAINT_CLEAR_SELECTION) =>
+            {
+                let target_id = match self.target {
+                    IsoPaintTarget::Region => Some(server_ctx.curr_region),
+                    IsoPaintTarget::Prefab => match server_ctx.pc {
+                        ProjectContext::Prefab(asset_id) => Some(asset_id),
+                        _ => None,
+                    },
+                };
+                if let Some(target_id) = target_id
+                    && let Some(paint) = self.paint_layer_mut(project, server_ctx)
+                {
+                    let old_paint = paint.clone();
+                    if paint.clear_active_selection() {
+                        let new_paint = paint.clone();
+                        let undo_atom = match self.target {
+                            IsoPaintTarget::Region => ProjectUndoAtom::RegionPaintEdit(
+                                ProjectContext::Region(target_id),
+                                target_id,
+                                Box::new(old_paint),
+                                Box::new(new_paint),
+                            ),
+                            IsoPaintTarget::Prefab => ProjectUndoAtom::PrefabPaintEdit(
+                                ProjectContext::Prefab(target_id),
+                                target_id,
+                                Box::new(old_paint),
+                                Box::new(new_paint),
+                            ),
+                        };
+                        UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
+                        ctx.ui.redraw_all = true;
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("status_iso_paint_clear_selection_done"),
+                        ));
+                    }
                 }
                 return true;
             }

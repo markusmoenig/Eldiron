@@ -14,6 +14,101 @@ const ISO_PAINT_MORTAR: &str = "3D Paint Mortar";
 const ISO_PAINT_PATTERN_DETAIL: &str = "3D Paint Pattern Detail";
 const ISO_PAINT_PATTERN_VARIATION: &str = "3D Paint Pattern Variation";
 
+#[derive(Clone)]
+struct IsoPaintSelectionProjection {
+    owner: IsoPaintOwner,
+    origin_world: Vec3<f32>,
+    normal: Vec3<f32>,
+    axis_u: Vec3<f32>,
+    axis_v: Vec3<f32>,
+    origin_surface: Vec2<f32>,
+    plane_distance: f32,
+    camera: scenevm::Camera3D,
+    viewport: Vec2<f32>,
+}
+
+impl IsoPaintSelectionProjection {
+    fn surface_at(&self, screen: Vec2<i32>) -> Option<Vec2<f32>> {
+        let ndc_x = screen.x as f32 / self.viewport.x * 2.0 - 1.0;
+        let ndc_y = 1.0 - screen.y as f32 / self.viewport.y * 2.0;
+        let aspect = self.viewport.x / self.viewport.y;
+        let (ray_origin, ray_direction) = match self.camera.kind {
+            scenevm::CameraKind::OrthoIso => (
+                self.camera.pos
+                    + self.camera.right * (ndc_x * self.camera.ortho_half_h * aspect)
+                    + self.camera.up * (ndc_y * self.camera.ortho_half_h),
+                self.camera.forward,
+            ),
+            scenevm::CameraKind::OrbitPersp | scenevm::CameraKind::FirstPersonPersp => {
+                let tan_half = (self.camera.vfov_deg.to_radians() * 0.5).tan();
+                (
+                    self.camera.pos,
+                    self.camera.forward
+                        + self.camera.right * (ndc_x * tan_half * aspect)
+                        + self.camera.up * (ndc_y * tan_half),
+                )
+            }
+        };
+        let denominator = ray_direction.dot(self.normal);
+        if !denominator.is_finite() || denominator.abs() <= 1.0e-6 {
+            return None;
+        }
+        let distance = (self.plane_distance - ray_origin.dot(self.normal)) / denominator;
+        let world = ray_origin + ray_direction * distance;
+        (distance.is_finite() && world.x.is_finite() && world.y.is_finite() && world.z.is_finite())
+            .then(|| self.surface_coord(world))
+    }
+
+    fn surface_coord(&self, world: Vec3<f32>) -> Vec2<f32> {
+        Vec2::new(world.dot(self.axis_u), world.dot(self.axis_v))
+    }
+
+    fn world_to_screen(&self, world: Vec3<f32>) -> Option<[i32; 2]> {
+        let relative = world - self.camera.pos;
+        let aspect = self.viewport.x / self.viewport.y;
+        let (ndc_x, ndc_y) = match self.camera.kind {
+            scenevm::CameraKind::OrthoIso => (
+                relative.dot(self.camera.right) / (self.camera.ortho_half_h * aspect),
+                relative.dot(self.camera.up) / self.camera.ortho_half_h,
+            ),
+            scenevm::CameraKind::OrbitPersp | scenevm::CameraKind::FirstPersonPersp => {
+                let depth = relative.dot(self.camera.forward);
+                if depth <= self.camera.near || depth >= self.camera.far {
+                    return None;
+                }
+                let tan_half = (self.camera.vfov_deg.to_radians() * 0.5).tan();
+                (
+                    relative.dot(self.camera.right) / (depth * tan_half * aspect),
+                    relative.dot(self.camera.up) / (depth * tan_half),
+                )
+            }
+        };
+        if !ndc_x.is_finite() || !ndc_y.is_finite() {
+            return None;
+        }
+        Some([
+            ((ndc_x + 1.0) * 0.5 * self.viewport.x).round() as i32,
+            ((1.0 - ndc_y) * 0.5 * self.viewport.y).round() as i32,
+        ])
+    }
+
+    fn outline(&self, bounds: [f32; 4]) -> Option<[[i32; 2]; 4]> {
+        let corners = [
+            Vec2::new(bounds[0], bounds[1]),
+            Vec2::new(bounds[2], bounds[1]),
+            Vec2::new(bounds[2], bounds[3]),
+            Vec2::new(bounds[0], bounds[3]),
+        ];
+        let mut outline = [[0; 2]; 4];
+        for (index, corner) in corners.into_iter().enumerate() {
+            let world =
+                self.axis_u * corner.x + self.axis_v * corner.y + self.normal * self.plane_distance;
+            outline[index] = self.world_to_screen(world)?;
+        }
+        Some(outline)
+    }
+}
+
 pub struct IsoPaintTool {
     id: TheId,
     painting: bool,
@@ -24,6 +119,10 @@ pub struct IsoPaintTool {
     stroke_before: Option<IsoPaintLayer>,
     stroke_changed: bool,
     paint_surface_cache: Option<scenevm::PaintSurfaceBuffer>,
+    selection_drag_start: Option<Vec2<i32>>,
+    selection_projection: Option<IsoPaintSelectionProjection>,
+    selection_move_bounds: Option<[f32; 4]>,
+    selection_grid_step: f32,
 }
 
 impl IsoPaintTool {
@@ -452,13 +551,70 @@ impl IsoPaintTool {
         y: i32,
         paint_geo: [u32; 4],
     ) -> Option<[f32; 4]> {
-        let dx = Self::surface_pixel_derivative(buffer, x, y, paint_geo, true)?;
-        let dy = Self::surface_pixel_derivative(buffer, x, y, paint_geo, false)?;
-        let transform = [dx[0], dy[0], dx[1], dy[1]];
-        let determinant = transform[0] * transform[3] - transform[1] * transform[2];
-        (transform.iter().all(|value| value.is_finite())
-            && determinant.is_finite()
-            && determinant.abs() > 1.0e-10)
+        if let (Some(dx), Some(dy)) = (
+            Self::surface_pixel_derivative(buffer, x, y, paint_geo, true),
+            Self::surface_pixel_derivative(buffer, x, y, paint_geo, false),
+        ) {
+            let transform = [dx[0], dy[0], dx[1], dy[1]];
+            let determinant = transform[0] * transform[3] - transform[1] * transform[2];
+            if transform.iter().all(|value| value.is_finite())
+                && determinant.is_finite()
+                && determinant.abs() > 1.0e-10
+            {
+                return Some(transform);
+            }
+        }
+
+        // Narrow mortar strips and bevel faces often have no matching pixel directly above or
+        // beside the sample. Fit the screen-to-UV transform from every nearby pixel on that face
+        // instead of dropping the face from the brush entirely.
+        let center = buffer.pixel(x, y)?;
+        let mut xx = 0.0_f32;
+        let mut xy = 0.0_f32;
+        let mut yy = 0.0_f32;
+        let mut ux = 0.0_f32;
+        let mut uy = 0.0_f32;
+        let mut vx = 0.0_f32;
+        let mut vy = 0.0_f32;
+        let mut samples = 0_u32;
+        for sample_y in y - 12..=y + 12 {
+            for sample_x in x - 12..=x + 12 {
+                let Some(pixel) = buffer
+                    .pixel(sample_x, sample_y)
+                    .filter(|pixel| pixel.valid && pixel.paint_geo == paint_geo)
+                else {
+                    continue;
+                };
+                let sx = (sample_x - x) as f32;
+                let sy = (sample_y - y) as f32;
+                if sx == 0.0 && sy == 0.0 {
+                    continue;
+                }
+                let du = pixel.uv[0] - center.uv[0];
+                let dv = pixel.uv[1] - center.uv[1];
+                xx += sx * sx;
+                xy += sx * sy;
+                yy += sy * sy;
+                ux += sx * du;
+                uy += sy * du;
+                vx += sx * dv;
+                vy += sy * dv;
+                samples += 1;
+            }
+        }
+        let determinant = xx * yy - xy * xy;
+        if samples < 3 || !determinant.is_finite() || determinant.abs() <= 1.0e-8 {
+            return None;
+        }
+        let transform = [
+            (ux * yy - uy * xy) / determinant,
+            (uy * xx - ux * xy) / determinant,
+            (vx * yy - vy * xy) / determinant,
+            (vy * xx - vx * xy) / determinant,
+        ];
+        transform
+            .iter()
+            .all(|value| value.is_finite())
             .then_some(transform)
     }
 
@@ -533,6 +689,242 @@ impl IsoPaintTool {
             .collect()
     }
 
+    fn selection_projection(
+        buffer: &scenevm::PaintSurfaceBuffer,
+        start: Vec2<i32>,
+        map: &Map,
+    ) -> Option<IsoPaintSelectionProjection> {
+        let mut clicked = None;
+        let mut clicked_distance = i32::MAX;
+        for y in start.y - 3..=start.y + 3 {
+            for x in start.x - 3..=start.x + 3 {
+                let Some(pixel) = buffer.pixel(x, y).copied().filter(|pixel| pixel.valid) else {
+                    continue;
+                };
+                let dx = x - start.x;
+                let dy = y - start.y;
+                let distance = dx * dx + dy * dy;
+                if distance < clicked_distance {
+                    clicked_distance = distance;
+                    clicked = Some(pixel);
+                }
+            }
+        }
+        let clicked = clicked?;
+        let owner = Self::owner_from_geo_id(clicked.geo_id);
+        let anchor = clicked;
+
+        let mut normal: Vec3<f32> = Vec3::from(anchor.normal).try_normalized()?;
+        let mut origin_world = Vec3::from(anchor.world);
+        if let IsoPaintOwner::GeometryObject(assembly_id) = &owner
+            && let Some((wall_origin, wall_normal)) =
+                map.wall_surface_frame_for_assembly(*assembly_id, origin_world, Some(normal))
+        {
+            origin_world = wall_origin;
+            normal = wall_normal;
+        }
+        let world_up = Vec3::<f32>::unit_y();
+        let (axis_u, axis_v) = if normal.y.abs() < 0.9 {
+            let axis_v = (world_up - normal * world_up.dot(normal)).try_normalized()?;
+            (axis_v.cross(normal).try_normalized()?, axis_v)
+        } else {
+            let world_right = Vec3::unit_x();
+            let axis_u = (world_right - normal * world_right.dot(normal))
+                .try_normalized()
+                .or_else(|| {
+                    let world_forward = Vec3::unit_z();
+                    (world_forward - normal * world_forward.dot(normal)).try_normalized()
+                })?;
+            (axis_u, normal.cross(axis_u).try_normalized()?)
+        };
+        let viewport = Vec2::new(buffer.width.max(1) as f32, buffer.height.max(1) as f32);
+        // Use the exact camera that produced the surface buffer. Reconstructing it from the
+        // editor camera can differ in its resolved center and shifts the projected outline away
+        // from the pixels that will be committed on release.
+        let camera = RUSTERIX.read().ok()?.scene_handler.vm.vm.camera3d;
+        Some(IsoPaintSelectionProjection {
+            owner,
+            origin_world,
+            normal,
+            axis_u,
+            axis_v,
+            origin_surface: Vec2::new(origin_world.dot(axis_u), origin_world.dot(axis_v)),
+            plane_distance: origin_world.dot(normal),
+            camera,
+            viewport,
+        })
+    }
+
+    fn selection_hit_pixel(
+        buffer: &scenevm::PaintSurfaceBuffer,
+        coord: Vec2<i32>,
+        selection: &IsoPaintSelection,
+    ) -> Option<scenevm::PaintSurfacePixel> {
+        let mut hit = None;
+        let mut best_distance = i32::MAX;
+        for y in coord.y - 3..=coord.y + 3 {
+            for x in coord.x - 3..=coord.x + 3 {
+                let Some(pixel) = buffer.pixel(x, y).copied().filter(|pixel| pixel.valid) else {
+                    continue;
+                };
+                let uv_pixel = [
+                    (pixel.uv[0] * ISO_PAINT_BAKED_PIXELS_PER_UV).round() as i32,
+                    (pixel.uv[1] * ISO_PAINT_BAKED_PIXELS_PER_UV).round() as i32,
+                ];
+                if !selection.contains(pixel.paint_geo, uv_pixel) {
+                    continue;
+                }
+                let dx = x - coord.x;
+                let dy = y - coord.y;
+                let distance = dx * dx + dy * dy;
+                if distance < best_distance {
+                    best_distance = distance;
+                    hit = Some(pixel);
+                }
+            }
+        }
+        hit
+    }
+
+    fn active_selection_bounds(
+        buffer: &scenevm::PaintSurfaceBuffer,
+        projection: &IsoPaintSelectionProjection,
+        selection: &IsoPaintSelection,
+    ) -> Option<[f32; 4]> {
+        let mut min = Vec2::broadcast(f32::INFINITY);
+        let mut max = Vec2::broadcast(f32::NEG_INFINITY);
+        let mut found = false;
+        for pixel in &buffer.pixels {
+            if !pixel.valid
+                || !projection
+                    .owner
+                    .same_paint_object(&Self::owner_from_geo_id(pixel.geo_id))
+            {
+                continue;
+            }
+            let relative = Vec3::from(pixel.world) - projection.origin_world;
+            if relative.dot(projection.normal).abs() > 0.75 {
+                continue;
+            }
+            let Some(pixel_normal) = Vec3::from(pixel.normal).try_normalized() else {
+                continue;
+            };
+            let uv_pixel = [
+                (pixel.uv[0] * ISO_PAINT_BAKED_PIXELS_PER_UV).round() as i32,
+                (pixel.uv[1] * ISO_PAINT_BAKED_PIXELS_PER_UV).round() as i32,
+            ];
+            if pixel_normal.dot(projection.normal).abs() < 0.55
+                || !selection.contains(pixel.paint_geo, uv_pixel)
+            {
+                continue;
+            }
+            let surface = projection.surface_coord(Vec3::from(pixel.world));
+            min.x = min.x.min(surface.x);
+            min.y = min.y.min(surface.y);
+            max.x = max.x.max(surface.x);
+            max.y = max.y.max(surface.y);
+            found = true;
+        }
+        found.then_some([min.x, min.y, max.x, max.y])
+    }
+
+    fn snapped_selection_bounds(&self, end: Vec2<i32>) -> Option<[f32; 4]> {
+        let projection = self.selection_projection.as_ref()?;
+        let step = self.selection_grid_step.max(0.0001);
+        let snap = |value: f32| (value / step).round() * step;
+        if let Some(bounds) = self.selection_move_bounds {
+            let delta = projection.surface_at(end)? - projection.origin_surface;
+            let delta = Vec2::new(snap(delta.x), snap(delta.y));
+            Some([
+                bounds[0] + delta.x,
+                bounds[1] + delta.y,
+                bounds[2] + delta.x,
+                bounds[3] + delta.y,
+            ])
+        } else {
+            let start = Vec2::new(
+                snap(projection.origin_surface.x),
+                snap(projection.origin_surface.y),
+            );
+            let end = projection.surface_at(end)?;
+            let end = Vec2::new(snap(end.x), snap(end.y));
+            Some([
+                start.x.min(end.x),
+                start.y.min(end.y),
+                start.x.max(end.x),
+                start.y.max(end.y),
+            ])
+        }
+    }
+
+    fn rectangle_selection(&self, bounds: [f32; 4]) -> Option<IsoPaintSelection> {
+        let buffer = self.paint_surface_cache.as_ref()?;
+        let projection = self.selection_projection.as_ref()?;
+        let mut selection = IsoPaintSelection::new(projection.owner.clone());
+        let mut extent_by_face: HashMap<[u32; 4], (i32, i32)> = HashMap::new();
+        for (index, pixel) in buffer.pixels.iter().enumerate() {
+            if !pixel.valid
+                || !projection
+                    .owner
+                    .same_paint_object(&Self::owner_from_geo_id(pixel.geo_id))
+            {
+                continue;
+            }
+            let relative = Vec3::from(pixel.world) - projection.origin_world;
+            if relative.dot(projection.normal).abs() > 0.75 {
+                continue;
+            }
+            let Some(pixel_normal) = Vec3::from(pixel.normal).try_normalized() else {
+                continue;
+            };
+            let surface = projection.surface_coord(Vec3::from(pixel.world));
+            if pixel_normal.dot(projection.normal).abs() < 0.55
+                || surface.x < bounds[0]
+                || surface.x > bounds[2]
+                || surface.y < bounds[1]
+                || surface.y > bounds[3]
+            {
+                continue;
+            }
+            let x = index as i32 % buffer.width as i32;
+            let y = index as i32 / buffer.width as i32;
+            let (extent_x, extent_y) =
+                *extent_by_face.entry(pixel.paint_geo).or_insert_with(|| {
+                    Self::screen_space_transform(buffer, x, y, pixel.paint_geo).map_or(
+                        (0, 0),
+                        |transform| {
+                            (
+                                (((transform[0].abs() + transform[1].abs())
+                                    * ISO_PAINT_BAKED_PIXELS_PER_UV
+                                    * 0.55)
+                                    .ceil() as i32)
+                                    .clamp(0, 8),
+                                (((transform[2].abs() + transform[3].abs())
+                                    * ISO_PAINT_BAKED_PIXELS_PER_UV
+                                    * 0.55)
+                                    .ceil() as i32)
+                                    .clamp(0, 8),
+                            )
+                        },
+                    )
+                });
+            let center = [
+                (pixel.uv[0] * ISO_PAINT_BAKED_PIXELS_PER_UV).round() as i32,
+                (pixel.uv[1] * ISO_PAINT_BAKED_PIXELS_PER_UV).round() as i32,
+            ];
+            for uv_y in center[1] - extent_y..=center[1] + extent_y {
+                for uv_x in center[0] - extent_x..=center[0] + extent_x {
+                    selection.set_pixel(
+                        Self::owner_from_geo_id(pixel.geo_id),
+                        pixel.paint_geo,
+                        [uv_x, uv_y],
+                    );
+                }
+            }
+        }
+        (!selection.is_empty()).then_some(selection)
+    }
+
     fn paint_viewport_size(ui: &mut TheUI, server_ctx: &ServerContext) -> Option<[i32; 2]> {
         let view_name = if server_ctx.pc.is_prefab() {
             "PrefabView"
@@ -557,6 +949,9 @@ impl IsoPaintTool {
         self.stroke_before = None;
         self.stroke_changed = false;
         self.paint_surface_cache = None;
+        self.selection_drag_start = None;
+        self.selection_projection = None;
+        self.selection_move_bounds = None;
     }
 }
 
@@ -575,6 +970,10 @@ impl Tool for IsoPaintTool {
             stroke_before: None,
             stroke_changed: false,
             paint_surface_cache: None,
+            selection_drag_start: None,
+            selection_projection: None,
+            selection_move_bounds: None,
+            selection_grid_step: 1.0,
         }
     }
 
@@ -614,6 +1013,7 @@ impl Tool for IsoPaintTool {
                 server_ctx.geometry_edit_mode = GeometryEditMode::Geometry;
                 server_ctx.hover_cursor = None;
                 server_ctx.iso_paint_hover_screen = None;
+                server_ctx.iso_paint_selection_rect = None;
 
                 let neutral_material = Self::neutral_material_palette(project);
                 if let ProjectContext::Prefab(asset_id) = server_ctx.pc {
@@ -683,6 +1083,9 @@ impl Tool for IsoPaintTool {
                 server_ctx.hover_cursor = None;
                 server_ctx.hover_cursor_3d = None;
                 server_ctx.iso_paint_hover_screen = None;
+                server_ctx.iso_paint_selection_rect = None;
+                RUSTERIX.write().unwrap().set_overlay_dirty();
+                ctx.ui.redraw_all = true;
                 if !server_ctx.pc.is_prefab()
                     && DOCKMANAGER.read().unwrap().dock == "3D Paint"
                     && let Some(prev) = self.previous_dock.take()
@@ -769,6 +1172,52 @@ impl Tool for IsoPaintTool {
                 }
                 self.painting = true;
                 self.stroke_before = Some(region.iso_paint.clone());
+                if region.iso_paint.active_operation == "select" {
+                    self.paint_surface_cache = Self::capture_paint_surface(viewport_size);
+                    let move_hit = self.paint_surface_cache.as_ref().and_then(|buffer| {
+                        region.iso_paint.active_selection().and_then(|selection| {
+                            Self::selection_hit_pixel(buffer, coord, selection)
+                        })
+                    });
+                    self.selection_projection = self
+                        .paint_surface_cache
+                        .as_ref()
+                        .and_then(|buffer| Self::selection_projection(buffer, coord, &region.map));
+                    self.selection_grid_step =
+                        ServerContext::edit_grid_step(region.map.subdivisions).max(0.01);
+                    let selection_grid_step = self.selection_grid_step;
+                    self.selection_move_bounds = self
+                        .paint_surface_cache
+                        .as_ref()
+                        .zip(self.selection_projection.as_ref())
+                        .and_then(|(buffer, projection)| {
+                            region.iso_paint.active_selection().and_then(|selection| {
+                                move_hit.and_then(|_| {
+                                    Self::active_selection_bounds(buffer, projection, selection)
+                                })
+                            })
+                        })
+                        .map(|bounds| {
+                            bounds.map(|value| {
+                                (value / selection_grid_step).round() * selection_grid_step
+                            })
+                        });
+                    self.selection_drag_start = self.selection_projection.as_ref().map(|_| coord);
+                    self.active_stroke = None;
+                    server_ctx.iso_paint_selection_rect = self
+                        .snapped_selection_bounds(coord)
+                        .and_then(|bounds| self.selection_projection.as_ref()?.outline(bounds));
+                    Self::request_paint_redraw(ctx);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        if self.selection_move_bounds.is_some() {
+                            fl!("status_iso_paint_selection_move")
+                        } else {
+                            fl!("status_iso_paint_selection_drag")
+                        },
+                    ));
+                    return None;
+                }
                 if Self::is_stamp_mode(&region.iso_paint) {
                     let point = Self::paint_point(coord, server_ctx, viewport_size);
                     self.stamp_clip_geo = Self::stamp_clip_geo(&region.iso_paint, &point);
@@ -831,6 +1280,16 @@ impl Tool for IsoPaintTool {
                 let viewport_size = Self::paint_viewport_size(ui, server_ctx);
                 server_ctx.iso_paint_hover_screen = Some(coord);
                 if self.painting
+                    && region.iso_paint.active_operation == "select"
+                    && self.selection_drag_start.is_some()
+                {
+                    server_ctx.iso_paint_selection_rect = self
+                        .snapped_selection_bounds(coord)
+                        .and_then(|bounds| self.selection_projection.as_ref()?.outline(bounds));
+                    Self::request_paint_redraw(ctx);
+                    return None;
+                }
+                if self.painting
                     && Self::is_stamp_mode(&region.iso_paint)
                     && Self::should_place_stamp(
                         self.last_stamp_screen,
@@ -875,6 +1334,42 @@ impl Tool for IsoPaintTool {
             MapUp(coord) => {
                 let viewport_size = Self::paint_viewport_size(ui, server_ctx);
                 server_ctx.iso_paint_hover_screen = Some(coord);
+                if self.painting
+                    && region.iso_paint.active_operation == "select"
+                    && self.selection_drag_start.is_some()
+                {
+                    let moved_without_delta = self.selection_move_bounds.is_some()
+                        && self.selection_drag_start == Some(coord);
+                    if !moved_without_delta {
+                        if let Some(selection) = self
+                            .snapped_selection_bounds(coord)
+                            .and_then(|bounds| self.rectangle_selection(bounds))
+                        {
+                            region.iso_paint.set_active_selection(selection);
+                            self.stroke_changed = true;
+                        }
+                    }
+                    let undo_atom = if self.stroke_changed {
+                        self.stroke_before.take().map(|old_paint| {
+                            ProjectUndoAtom::RegionPaintEdit(
+                                ProjectContext::Region(region.id),
+                                region.id,
+                                Box::new(old_paint),
+                                Box::new(region.iso_paint.clone()),
+                            )
+                        })
+                    } else {
+                        None
+                    };
+                    server_ctx.iso_paint_selection_rect = None;
+                    self.reset_stroke();
+                    Self::request_paint_redraw(ctx);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        fl!("status_iso_paint_selection_ready"),
+                    ));
+                    return undo_atom;
+                }
                 if self.painting
                     && Self::is_stamp_mode(&region.iso_paint)
                     && Self::should_place_stamp(
@@ -930,6 +1425,7 @@ impl Tool for IsoPaintTool {
             }
             MapEscape => {
                 server_ctx.iso_paint_hover_screen = None;
+                server_ctx.iso_paint_selection_rect = None;
                 if let Some(old_paint) = self.stroke_before.take() {
                     region.iso_paint = old_paint;
                 }
@@ -958,6 +1454,11 @@ impl Tool for IsoPaintTool {
         // Reuse the mature Region paint gesture implementation while storing
         // the resulting layer on the Prefab source instead of a region.
         let mut proxy = Region::default();
+        proxy.map.subdivisions = project
+            .prefab_editor_map
+            .as_ref()
+            .map(|map| map.subdivisions)
+            .unwrap_or(1.0);
         proxy.iso_paint = project
             .block_prop_paint
             .shift_remove(&asset_id)

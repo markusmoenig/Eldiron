@@ -110,7 +110,7 @@ pub const ISO_PAINT_BAKED_CHUNK_SIZE: i32 = 64;
 /// Paint coordinates are generated from stable surface space, independent of a material's UVs.
 pub const ISO_PAINT_BAKED_PIXELS_PER_UV: f32 = 32.0;
 pub const ISO_PAINT_NO_SURFACE_DEPTH: f32 = -1.0;
-pub const ISO_PAINT_BAKE_VERSION: u8 = 23;
+pub const ISO_PAINT_BAKE_VERSION: u8 = 24;
 /// UI brush size is measured in the old painter's diameter units. Two paint texels per size
 /// unit matches the visible cursor diameter at the current surface-coordinate density.
 const ISO_PAINT_UV_BRUSH_TEXELS_PER_SIZE: f32 = 2.0;
@@ -436,6 +436,10 @@ pub struct IsoPaintStroke {
     pub pattern_variation: f32,
     pub size: f32,
     pub opacity: f32,
+    #[serde(default)]
+    pub selection_id: Option<Uuid>,
+    #[serde(default)]
+    pub fill_selection: bool,
     pub points: Vec<IsoPaintPoint>,
     pub screen_bounds: [i32; 4],
 }
@@ -484,6 +488,8 @@ impl IsoPaintStroke {
             pattern_variation: pattern_variation.clamp(0.0, 1.0),
             size: size.max(0.01),
             opacity: opacity.clamp(0.0, 1.0),
+            selection_id: None,
+            fill_selection: false,
             points: vec![first_point],
             screen_bounds: [screen[0], screen[1], screen[0], screen[1]],
         }
@@ -531,6 +537,80 @@ pub struct IsoPaintBakedChunk {
     pub revision: u64,
     pub color_rgba: Vec<u8>,
     pub material_rgba: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct IsoPaintSelectionChunk {
+    pub owner: IsoPaintOwner,
+    pub paint_geo: [u32; 4],
+    pub origin: [i32; 2],
+    pub mask: Vec<u8>,
+}
+
+impl IsoPaintSelectionChunk {
+    pub fn new(owner: IsoPaintOwner, paint_geo: [u32; 4], origin: [i32; 2]) -> Self {
+        Self {
+            owner,
+            paint_geo,
+            origin,
+            mask: vec![
+                0;
+                ISO_PAINT_BAKED_CHUNK_SIZE as usize * ISO_PAINT_BAKED_CHUNK_SIZE as usize
+            ],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct IsoPaintSelection {
+    pub id: Uuid,
+    pub owner: IsoPaintOwner,
+    pub chunks: IndexMap<String, IsoPaintSelectionChunk>,
+}
+
+impl IsoPaintSelection {
+    pub fn new(owner: IsoPaintOwner) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            owner,
+            chunks: IndexMap::default(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.chunks
+            .values()
+            .all(|chunk| chunk.mask.iter().all(|value| *value == 0))
+    }
+
+    pub fn set_pixel(&mut self, owner: IsoPaintOwner, paint_geo: [u32; 4], uv_pixel: [i32; 2]) {
+        let origin = IsoPaintLayer::baked_chunk_origin_for_uv_pixel(uv_pixel);
+        let key = IsoPaintLayer::baked_chunk_key(paint_geo, origin);
+        let chunk = self
+            .chunks
+            .entry(key)
+            .or_insert_with(|| IsoPaintSelectionChunk::new(owner, paint_geo, origin));
+        let x = uv_pixel[0] - origin[0];
+        let y = uv_pixel[1] - origin[1];
+        if x >= 0 && y >= 0 && x < ISO_PAINT_BAKED_CHUNK_SIZE && y < ISO_PAINT_BAKED_CHUNK_SIZE {
+            chunk.mask[y as usize * ISO_PAINT_BAKED_CHUNK_SIZE as usize + x as usize] = 255;
+        }
+    }
+
+    pub fn contains(&self, paint_geo: [u32; 4], uv_pixel: [i32; 2]) -> bool {
+        let origin = IsoPaintLayer::baked_chunk_origin_for_uv_pixel(uv_pixel);
+        let key = IsoPaintLayer::baked_chunk_key(paint_geo, origin);
+        let Some(chunk) = self.chunks.get(&key) else {
+            return false;
+        };
+        let x = uv_pixel[0] - origin[0];
+        let y = uv_pixel[1] - origin[1];
+        x >= 0
+            && y >= 0
+            && x < ISO_PAINT_BAKED_CHUNK_SIZE
+            && y < ISO_PAINT_BAKED_CHUNK_SIZE
+            && chunk.mask[y as usize * ISO_PAINT_BAKED_CHUNK_SIZE as usize + x as usize] != 0
+    }
 }
 
 impl IsoPaintBakedChunk {
@@ -627,6 +707,16 @@ pub struct IsoPaintLayer {
     /// screen-space paint has intentionally no migration path.
     #[serde(default)]
     pub baked_version: u8,
+    /// Selection masks referenced by persistent strokes. They are kept in surface UV space so a
+    /// selection stays attached when the editor camera changes.
+    #[serde(default)]
+    pub selection_masks: IndexMap<Uuid, IsoPaintSelection>,
+    /// The current editor selection is transient; strokes retain the selected mask by ID.
+    #[serde(skip)]
+    pub active_selection_id: Option<Uuid>,
+    /// Only show the transient selection tint while the 3D Paint tool is active.
+    #[serde(skip)]
+    pub selection_visible: bool,
     #[serde(skip)]
     pub surface_commit_strokes: Vec<Uuid>,
     /// Runtime geometry owners that sample an asset-local surface layer. Linked Prefab instances
@@ -690,6 +780,9 @@ impl Default for IsoPaintLayer {
             screen_chunks: IndexMap::default(),
             baked_chunks: IndexMap::default(),
             baked_version: ISO_PAINT_BAKE_VERSION,
+            selection_masks: IndexMap::default(),
+            active_selection_id: None,
+            selection_visible: false,
             surface_commit_strokes: Vec::new(),
             surface_instance_owners: Vec::new(),
             active_operation: default_operation(),
@@ -719,6 +812,48 @@ impl Default for IsoPaintLayer {
 }
 
 impl IsoPaintLayer {
+    pub fn active_selection(&self) -> Option<&IsoPaintSelection> {
+        self.active_selection_id
+            .and_then(|id| self.selection_masks.get(&id))
+    }
+
+    pub fn set_active_selection(&mut self, selection: IsoPaintSelection) {
+        let id = selection.id;
+        let previous = self.active_selection_id;
+        self.selection_masks.insert(id, selection);
+        self.active_selection_id = Some(id);
+        if let Some(previous) = previous
+            && previous != id
+            && !self.selection_is_referenced(previous)
+        {
+            self.selection_masks.shift_remove(&previous);
+        }
+    }
+
+    pub fn clear_active_selection(&mut self) -> bool {
+        let Some(id) = self.active_selection_id.take() else {
+            return false;
+        };
+        if !self.selection_is_referenced(id) {
+            self.selection_masks.shift_remove(&id);
+        }
+        true
+    }
+
+    fn selection_is_referenced(&self, selection_id: Uuid) -> bool {
+        self.chunks.values().any(|chunk| {
+            chunk
+                .strokes
+                .iter()
+                .any(|stroke| stroke.selection_id == Some(selection_id))
+        })
+    }
+
+    fn active_selection_allows(&self, paint_geo: [u32; 4], uv_pixel: [i32; 2]) -> bool {
+        self.active_selection()
+            .is_none_or(|selection| selection.contains(paint_geo, uv_pixel))
+    }
+
     fn point_brush_transform(&self, point: &IsoPaintPoint) -> [f32; 4] {
         if point.screen_space_brush {
             let transform = point.brush_transform.map(|transform| {
@@ -1003,6 +1138,9 @@ impl IsoPaintLayer {
         };
         for y in center[1] - extent_y..=center[1] + extent_y {
             for x in center[0] - extent_x..=center[0] + extent_x {
+                if !self.active_selection_allows(paint_geo, [x, y]) {
+                    continue;
+                }
                 let local =
                     brush_local_offset(transform, [(x - center[0]) as f32, (y - center[1]) as f32]);
                 let Some(mut color) = iso_paint_brush::sample_pixel(
@@ -1088,6 +1226,8 @@ impl IsoPaintLayer {
     }
 
     fn bake_stroke(&mut self, stroke: &IsoPaintStroke) {
+        let saved_selection_id = self.active_selection_id;
+        self.active_selection_id = stroke.selection_id;
         let saved = (
             self.active_operation.clone(),
             self.active_brush.clone(),
@@ -1128,7 +1268,9 @@ impl IsoPaintLayer {
         let clip_owner = Self::is_surface_clip(&stroke.clip)
             .then(|| stroke.points.first().and_then(|point| point.owner.clone()))
             .flatten();
-        if stroke.points.iter().any(|point| point.screen_space_brush) {
+        if stroke.fill_selection {
+            self.paint_baked_selection_fill();
+        } else if stroke.points.iter().any(|point| point.screen_space_brush) {
             let mut previous_by_face = std::collections::HashMap::new();
             for point in &stroke.points {
                 if let Some(paint_geo) = point.paint_geo {
@@ -1167,6 +1309,63 @@ impl IsoPaintLayer {
             self.active_size,
             self.active_opacity,
         ) = saved;
+        self.active_selection_id = saved_selection_id;
+    }
+
+    fn paint_baked_selection_fill(&mut self) {
+        let Some(selection) = self.active_selection().cloned() else {
+            return;
+        };
+        let brush = self.active_brush.clone();
+        let shape = self.active_brush_shape.clone();
+        let color = self.active_color;
+        let palette = self.active_palette_colors.clone();
+        let radius = (self.active_size * ISO_PAINT_UV_BRUSH_TEXELS_PER_SIZE)
+            .round()
+            .clamp(2.0, 96.0) as i32;
+        let selection_bits = selection.id.as_u128();
+        let selection_seed = selection_bits as u32
+            ^ (selection_bits >> 32) as u32
+            ^ (selection_bits >> 64) as u32
+            ^ (selection_bits >> 96) as u32;
+        for chunk in selection.chunks.values() {
+            let sample = IsoPaintBrushSample {
+                brush: &brush,
+                shape: &shape,
+                color,
+                palette: &palette,
+                opacity: 1.0,
+                radius,
+                seed: selection_seed,
+            };
+            for (index, coverage) in chunk.mask.iter().copied().enumerate() {
+                if coverage == 0 {
+                    continue;
+                }
+                let x = chunk.origin[0] + (index % ISO_PAINT_BAKED_CHUNK_SIZE as usize) as i32;
+                let y = chunk.origin[1] + (index / ISO_PAINT_BAKED_CHUNK_SIZE as usize) as i32;
+                let mut sampled_color = if brush == "brick" {
+                    self.paint_baked_pattern_color(x, y)
+                } else {
+                    let Some(sampled) = iso_paint_brush::sample_tiled_pixel(&sample, x, y) else {
+                        continue;
+                    };
+                    sampled
+                };
+                if sampled_color[3] == 0 {
+                    continue;
+                }
+                let sampled_coverage = ((coverage as u16 * sampled_color[3] as u16) / 255) as u8;
+                sampled_color[3] = sampled_coverage;
+                self.write_baked_pixel(
+                    &chunk.owner,
+                    chunk.paint_geo,
+                    [x, y],
+                    sampled_color,
+                    sampled_coverage,
+                );
+            }
+        }
     }
 
     /// Rebuild the transient surface-space bake from persistent surface strokes. Stamps are
@@ -1191,6 +1390,13 @@ impl IsoPaintLayer {
     pub fn ensure_baked_paint_current(&mut self) -> bool {
         if self.baked_version == ISO_PAINT_BAKE_VERSION {
             return false;
+        }
+        // Version 24 only changes how newly authored selection-fill strokes are sampled. Existing
+        // version-23 baked pixels are already valid and must not trigger a full project-wide paint
+        // rebuild during loading.
+        if self.baked_version == 23 && ISO_PAINT_BAKE_VERSION == 24 {
+            self.baked_version = ISO_PAINT_BAKE_VERSION;
+            return true;
         }
         self.rebuild_baked_paint();
         self.surface_commit_strokes.clear();
@@ -1336,6 +1542,7 @@ impl IsoPaintLayer {
             self.active_opacity,
             first_point,
         );
+        stroke.selection_id = self.active_selection_id;
         stroke.order = self.next_paint_order();
         let id = stroke.id;
         let chunk = self
@@ -1345,6 +1552,68 @@ impl IsoPaintLayer {
         chunk.revision = chunk.revision.wrapping_add(1);
         chunk.strokes.push(stroke);
         id
+    }
+
+    pub fn fill_active_selection(&mut self) -> bool {
+        let Some(selection) = self.active_selection().cloned() else {
+            return false;
+        };
+        let first_pixel = selection.chunks.values().find_map(|chunk| {
+            chunk
+                .mask
+                .iter()
+                .position(|coverage| *coverage != 0)
+                .map(|index| {
+                    let x = chunk.origin[0] + (index % ISO_PAINT_BAKED_CHUNK_SIZE as usize) as i32;
+                    let y = chunk.origin[1] + (index / ISO_PAINT_BAKED_CHUNK_SIZE as usize) as i32;
+                    (chunk.owner.clone(), chunk.paint_geo, [x, y])
+                })
+        });
+        let Some((owner, paint_geo, uv_pixel)) = first_pixel else {
+            return false;
+        };
+        let first_point = IsoPaintPoint::new([0, 0], None, Some(owner))
+            .with_surface_uv(Some(Vec2::new(
+                uv_pixel[0] as f32 / ISO_PAINT_BAKED_PIXELS_PER_UV,
+                uv_pixel[1] as f32 / ISO_PAINT_BAKED_PIXELS_PER_UV,
+            )))
+            .with_paint_geo(Some(paint_geo));
+        let mut stroke = IsoPaintStroke::new(
+            "draw".to_string(),
+            self.active_brush.clone(),
+            self.active_brush_shape.clone(),
+            self.active_material.clone(),
+            self.active_finish.clone(),
+            self.active_material_id,
+            self.active_material_mode.clone(),
+            self.active_clip.clone(),
+            self.active_color,
+            self.active_palette_indices.clone(),
+            self.active_palette_colors.clone(),
+            self.active_pattern_kind.clone(),
+            self.active_pattern_scale,
+            self.active_pattern_mortar,
+            self.active_pattern_detail,
+            self.active_pattern_variation,
+            self.active_size,
+            self.active_opacity,
+            first_point,
+        );
+        stroke.selection_id = Some(selection.id);
+        stroke.fill_selection = true;
+        stroke.order = self.next_paint_order();
+        let operation = std::mem::replace(&mut self.active_operation, "draw".to_string());
+        self.paint_baked_selection_fill();
+        self.active_operation = operation;
+        let origin = self.chunk_origin_for_screen([0, 0]);
+        let key = Self::chunk_key(origin);
+        let chunk = self
+            .chunks
+            .entry(key)
+            .or_insert_with(|| IsoPaintChunk::new(origin));
+        chunk.revision = chunk.revision.wrapping_add(1);
+        chunk.strokes.push(stroke);
+        true
     }
 
     pub fn add_stamp(&mut self, point: IsoPaintPoint) -> Uuid {

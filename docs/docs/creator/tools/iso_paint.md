@@ -28,10 +28,18 @@ It is intended for:
 
 The 3D Paint toolbar contains:
 
-- **Draw / Erase / Pick**: choose the editing operation
+- **Draw / Erase / Pick / Select**: paint, remove paint, sample settings, or drag a surface-aligned rectangular selection over visible 3D surfaces
+- **Fill**: fill the active selection with the current brush, including generated and organic patterns
+- **Clear Sel.**: remove the active selection without removing its paint
 - **Visible**: show or hide the authored 3D Paint layer in the editor render
 - **Clear All**: remove the current region's 3D Paint layer with undo support
 - **No Clip / Surface**: continue across visible 3D surfaces or constrain the whole stroke to the surface where it started
+
+Choose **Select**, then drag over a wall, floor, or other surface to create a rectangular selection.
+The selection follows that surface and snaps to the current grid. Drag inside an existing selection
+to move it. While a selection is active, **Draw** and **Erase** affect only the selected area, **Fill**
+applies the current brush throughout it, and **Clear Sel.** removes the selection without removing
+its paint. Selection and painting changes support undo.
 
 ## Brush Presets
 

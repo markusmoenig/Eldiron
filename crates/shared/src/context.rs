@@ -523,6 +523,8 @@ pub struct ServerContext {
     pub hover_cursor_3d: Option<Vec3<f32>>,
     /// Current 3D Paint hover position in render-buffer screen coordinates.
     pub iso_paint_hover_screen: Option<Vec2<i32>>,
+    /// Live projected quadrilateral while authoring a surface-anchored 3D Paint selection.
+    pub iso_paint_selection_rect: Option<[[i32; 2]; 4]>,
     /// Ray origin for the current 3D hover position.
     pub hover_ray_origin_3d: Option<Vec3<f32>>,
     /// Ray direction for the current 3D hover hit.
@@ -760,6 +762,7 @@ impl ServerContext {
             hover_cursor: None,
             hover_cursor_3d: None,
             iso_paint_hover_screen: None,
+            iso_paint_selection_rect: None,
             hover_ray_origin_3d: None,
             hover_ray_dir_3d: None,
             hover_surface: None,

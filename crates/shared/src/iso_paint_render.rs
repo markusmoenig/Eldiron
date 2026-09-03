@@ -410,6 +410,84 @@ impl IsoPaintRenderer {
         chunks
     }
 
+    /// Compose the transient editor selection into a render-only copy of the authored chunks.
+    /// The mask lives in the same stable per-face UV space as paint, so this highlight follows
+    /// the selected wall surfaces instead of behaving like a screen-space rectangle.
+    fn surface_chunks_with_selection(
+        layer: &IsoPaintLayer,
+    ) -> IndexMap<String, IsoPaintBakedChunk> {
+        let mut chunks = if layer.visible {
+            layer.baked_chunks.clone()
+        } else {
+            IndexMap::default()
+        };
+        let Some(selection) = layer
+            .selection_visible
+            .then(|| layer.active_selection())
+            .flatten()
+        else {
+            return chunks;
+        };
+
+        for selection_chunk in selection.chunks.values() {
+            let existing_key = chunks.iter().find_map(|(key, chunk)| {
+                (chunk.paint_geo == selection_chunk.paint_geo
+                    && chunk.origin == selection_chunk.origin)
+                    .then(|| key.clone())
+            });
+            let key = existing_key.unwrap_or_else(|| {
+                let key = format!(
+                    "selection:{}:{}:{}:{}:{}:{}",
+                    selection_chunk.paint_geo[0],
+                    selection_chunk.paint_geo[1],
+                    selection_chunk.paint_geo[2],
+                    selection_chunk.paint_geo[3],
+                    selection_chunk.origin[0],
+                    selection_chunk.origin[1]
+                );
+                chunks.insert(
+                    key.clone(),
+                    IsoPaintBakedChunk::new(
+                        selection_chunk.owner.clone(),
+                        selection_chunk.paint_geo,
+                        selection_chunk.origin,
+                    ),
+                );
+                key
+            });
+            let Some(chunk) = chunks.get_mut(&key) else {
+                continue;
+            };
+            let chunk_size = ISO_PAINT_BAKED_CHUNK_SIZE as usize;
+            for (index, selected) in selection_chunk.mask.iter().copied().enumerate() {
+                if selected == 0 {
+                    continue;
+                }
+                let local_x = index % chunk_size;
+                let local_y = index / chunk_size;
+                let uv_pixel = [
+                    selection_chunk.origin[0] + local_x as i32,
+                    selection_chunk.origin[1] + local_y as i32,
+                ];
+                let boundary = [(-1, 0), (1, 0), (0, -1), (0, 1)].iter().any(|offset| {
+                    !selection.contains(
+                        selection_chunk.paint_geo,
+                        [uv_pixel[0] + offset.0, uv_pixel[1] + offset.1],
+                    )
+                });
+                if boundary {
+                    Self::iso_paint_blend_pixel_at(
+                        &mut chunk.color_rgba,
+                        index * 4,
+                        [42, 174, 255, 220],
+                    );
+                }
+            }
+            chunk.revision = chunk.revision.wrapping_add(1);
+        }
+        chunks
+    }
+
     pub fn upload_surface_paint_cached(
         render_cache: &mut IsoPaintRenderCache,
         layer: &mut IsoPaintLayer,
@@ -430,9 +508,12 @@ impl IsoPaintRenderer {
             chunk.origin.hash(&mut hasher);
             chunk.revision.hash(&mut hasher);
         }
+        layer.selection_visible.hash(&mut hasher);
+        layer.active_selection_id.hash(&mut hasher);
         layer.surface_instance_owners.hash(&mut hasher);
         let surface_key = hasher.finish();
-        if !layer.visible || layer.baked_chunks.is_empty() {
+        let has_selection = layer.selection_visible && layer.active_selection().is_some();
+        if (!layer.visible || layer.baked_chunks.is_empty()) && !has_selection {
             if render_cache.surface_uploaded_key.take().is_some() {
                 vm.execute(Atom::ClearRaster3DPaintOverlay);
                 return true;
@@ -442,8 +523,9 @@ impl IsoPaintRenderer {
         if render_cache.surface_uploaded_key == Some(surface_key) {
             return false;
         }
+        let display_chunks = Self::surface_chunks_with_selection(layer);
         let Some((width, height, color_rgba, material_rgba, entries)) =
-            Self::build_surface_paint_atlas(&layer.baked_chunks)
+            Self::build_surface_paint_atlas(&display_chunks)
         else {
             return false;
         };

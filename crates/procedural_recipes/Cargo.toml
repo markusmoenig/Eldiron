@@ -26,5 +26,5 @@ cli = ["dep:ureq"]
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-theframework = { path = "../theframework", version = "0.93.0", default-features = false }
+theframework = { path = "../theframework", version = "0.94.0", default-features = false }
 ureq = { version = "2.10.1", optional = true }

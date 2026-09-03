@@ -1787,18 +1787,46 @@ impl Editor {
         buffer: &mut TheRGBABuffer,
         layer: &IsoPaintLayer,
         hover: Option<Vec2<i32>>,
+        selection_rect: Option<[[i32; 2]; 4]>,
     ) {
-        if !layer.visible || layer.active_operation == "pick" && hover.is_none() {
+        if !layer.visible && layer.active_operation != "select"
+            || layer.active_operation == "pick" && hover.is_none()
+        {
+            return;
+        }
+        let dim = *buffer.dim();
+        if dim.width <= 0 || dim.height <= 0 {
+            return;
+        }
+
+        if layer.active_operation == "select" {
+            let Some(outline) = selection_rect else {
+                return;
+            };
+            let pixels = buffer.pixels_mut();
+            let width = dim.width as usize;
+            let height = dim.height as usize;
+            let color = [42, 174, 255, 230];
+            for edge in 0..4 {
+                let a = outline[edge];
+                let b = outline[(edge + 1) % 4];
+                let dx = b[0] - a[0];
+                let dy = b[1] - a[1];
+                let steps = dx.abs().max(dy.abs()).max(1);
+                for step in 0..=steps {
+                    let t = step as f32 / steps as f32;
+                    let x = (a[0] as f32 + dx as f32 * t).round() as i32;
+                    let y = (a[1] as f32 + dy as f32 * t).round() as i32;
+                    Self::iso_paint_blend_pixel(pixels, width, height, x, y, color);
+                    Self::iso_paint_blend_pixel(pixels, width, height, x + 1, y, color);
+                }
+            }
             return;
         }
 
         let Some(hover) = hover else {
             return;
         };
-        let dim = *buffer.dim();
-        if dim.width <= 0 || dim.height <= 0 {
-            return;
-        }
 
         let radius = (layer.active_size * 2.0).round().clamp(3.0, 96.0) as i32;
         let outer = radius + 2;
@@ -9287,6 +9315,9 @@ impl TheTrait for Editor {
                                     &rusterix.assets.block_props,
                                     &prefab_paint_catalog,
                                 );
+                                // Selection highlighting is an editor aid and must never leak into
+                                // the running game, even when the Paint tool remains selected.
+                                iso_paint.selection_visible = false;
                                 let has_iso_paint = iso_paint.visible
                                     && (!iso_paint.surface_commit_strokes.is_empty()
                                         || !iso_paint.chunks.is_empty()
@@ -9382,10 +9413,15 @@ impl TheTrait for Editor {
                                     self.project.block_prop_paint.get(&asset_id).cloned()
                                 })
                                 .unwrap_or_default();
-                            let has_prefab_paint = prefab_paint.visible
+                            prefab_paint.selection_visible =
+                                self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint;
+                            let has_prefab_selection = prefab_paint.selection_visible
+                                && prefab_paint.active_selection().is_some();
+                            let has_prefab_paint = (prefab_paint.visible
                                 && (!prefab_paint.surface_commit_strokes.is_empty()
                                     || !prefab_paint.chunks.is_empty()
-                                    || !prefab_paint.baked_chunks.is_empty());
+                                    || !prefab_paint.baked_chunks.is_empty()))
+                                || has_prefab_selection;
                             if has_prefab_paint {
                                 let view = rusterix
                                     .client
@@ -9521,10 +9557,15 @@ impl TheTrait for Editor {
                                     &rusterix.assets.block_props,
                                     &prefab_paint_catalog,
                                 );
-                                let has_iso_paint = combined_iso_paint.visible
+                                combined_iso_paint.selection_visible =
+                                    self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint;
+                                let has_iso_paint_selection = combined_iso_paint.selection_visible
+                                    && combined_iso_paint.active_selection().is_some();
+                                let has_iso_paint = (combined_iso_paint.visible
                                     && (!combined_iso_paint.surface_commit_strokes.is_empty()
                                         || !combined_iso_paint.chunks.is_empty()
-                                        || !combined_iso_paint.baked_chunks.is_empty());
+                                        || !combined_iso_paint.baked_chunks.is_empty()))
+                                    || has_iso_paint_selection;
                                 if has_iso_paint {
                                     let view = rusterix.client.camera_d3.view_matrix_for_surface(
                                         dim.width as f32,
@@ -9862,6 +9903,7 @@ impl TheTrait for Editor {
                                 buffer,
                                 &iso_paint,
                                 self.server_ctx.iso_paint_hover_screen,
+                                self.server_ctx.iso_paint_selection_rect,
                             );
                         }
                     }

@@ -3117,6 +3117,39 @@ impl Map {
         fallback_normal: Option<Vec3<f32>>,
     ) -> Option<(Vec3<f32>, Vec3<f32>)> {
         let (assembly_id, span_id) = self.wall_source_for_geometry_object(object_id)?;
+        self.wall_surface_frame_for_span(assembly_id, span_id, hit, fallback_normal)
+    }
+
+    /// Resolve a grouped masonry paint hit to the nearest smooth parent wall plane. Paint-group
+    /// IDs identify the complete wall assembly rather than one generated brick object.
+    pub fn wall_surface_frame_for_assembly(
+        &self,
+        assembly_id: Uuid,
+        hit: Vec3<f32>,
+        fallback_normal: Option<Vec3<f32>>,
+    ) -> Option<(Vec3<f32>, Vec3<f32>)> {
+        let assembly = self.wall_assembly(assembly_id)?;
+        let span_id = assembly
+            .spans
+            .iter()
+            .filter_map(|span| {
+                let coordinates = assembly.span_coordinates(span.id, hit)?;
+                let center = assembly.span_point(span.id, coordinates)?;
+                let delta = Vec3::new(hit.x - center.x, 0.0, hit.z - center.z);
+                Some((span.id, delta.magnitude_squared()))
+            })
+            .min_by(|left, right| left.1.total_cmp(&right.1))?
+            .0;
+        self.wall_surface_frame_for_span(assembly_id, span_id, hit, fallback_normal)
+    }
+
+    fn wall_surface_frame_for_span(
+        &self,
+        assembly_id: Uuid,
+        span_id: Uuid,
+        hit: Vec3<f32>,
+        fallback_normal: Option<Vec3<f32>>,
+    ) -> Option<(Vec3<f32>, Vec3<f32>)> {
         let assembly = self.wall_assembly(assembly_id)?;
         let span = assembly.span(span_id)?;
         let style = span.style_override.as_ref().unwrap_or(&assembly.style);

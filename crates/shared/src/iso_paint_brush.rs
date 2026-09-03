@@ -879,3 +879,28 @@ pub fn sample_pixel(params: &IsoPaintBrushSample<'_>, ox: i32, oy: i32) -> Optio
         color
     })
 }
+
+/// Samples a brush as a seamless surface pattern instead of as one circular dab. This is used by
+/// selection Fill: nearby deterministic dabs overlap so organic brushes retain their grain,
+/// blades and palette variation without exposing a repeated circular edge.
+pub fn sample_tiled_pixel(params: &IsoPaintBrushSample<'_>, x: i32, y: i32) -> Option<[u8; 4]> {
+    let radius = params.radius.max(1);
+    let spacing = ((radius as f32) * 1.35).round().max(1.0) as i32;
+    let cell_x = x.div_euclid(spacing);
+    let cell_y = y.div_euclid(spacing);
+    let mut out = None;
+    for offset_y in -1..=1 {
+        for offset_x in -1..=1 {
+            let grid_x = cell_x + offset_x;
+            let grid_y = cell_y + offset_y;
+            let center_x = grid_x * spacing;
+            let center_y = grid_y * spacing;
+            let mut sample = *params;
+            sample.seed ^= hash_u32(grid_x, grid_y, 0x51ec_7105);
+            if let Some(color) = sample_pixel(&sample, x - center_x, y - center_y) {
+                out = blend_over(out, color);
+            }
+        }
+    }
+    out
+}
