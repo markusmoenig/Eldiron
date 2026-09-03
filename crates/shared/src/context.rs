@@ -469,6 +469,8 @@ pub struct ServerContext {
     pub curr_block_asset_name: Option<String>,
     /// Whether the Block tool is currently active.
     pub block_tool_active: bool,
+    /// Effect selected in the maximized Prefab Effects editor.
+    pub selected_prefab_effect_id: Option<Uuid>,
     /// World size of one block grid cell.
     pub block_grid_cell_size: f32,
     /// Active block stack level.
@@ -629,8 +631,8 @@ pub struct ServerContext {
     /// The index of the selected icon in the hud
     pub selected_hud_icon_index: i32,
 
-    ///Switch for showing 3D editing geometry
-    pub show_editing_geometry: bool,
+    /// Whether the editor construction grid is visible in 3D views.
+    pub show_editor_grid: bool,
 
     /// Editor-only visibility filter for geometry.
     pub editing_geo_filter: EditingGeoFilter,
@@ -731,6 +733,7 @@ impl ServerContext {
             curr_block_asset_id: None,
             curr_block_asset_name: None,
             block_tool_active: false,
+            selected_prefab_effect_id: None,
             block_grid_cell_size: 1.0,
             block_grid_level: 0,
             block_rotation_quarters: 0,
@@ -809,7 +812,7 @@ impl ServerContext {
             editing_view_iso_scale_by_map: FxHashMap::default(),
 
             selected_hud_icon_index: 0,
-            show_editing_geometry: true,
+            show_editor_grid: true,
             editing_geo_filter: EditingGeoFilter::All,
             gizmo_mode: GizmoMode::XZ,
             geometry_edit_mode: GeometryEditMode::Geometry,

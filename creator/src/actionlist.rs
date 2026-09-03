@@ -108,6 +108,16 @@ impl ActionList {
             crate::actions::create_geometry_box::CreateGeometryBox::new(),
         );
         list.register(
+            "geometry.create_rounded_box",
+            Geometry,
+            crate::actions::create_primitives::CreateRoundedBox::new(),
+        );
+        list.register(
+            "geometry.create_cylinder",
+            Geometry,
+            crate::actions::create_primitives::CreateCylinder::new(),
+        );
+        list.register(
             "geometry.create_revolve",
             Geometry,
             crate::actions::create_revolve::CreateRevolve::new(),
@@ -141,6 +151,26 @@ impl ActionList {
             "prefab.unpack",
             Prefab,
             crate::actions::prefabs::UnpackPrefab::new(),
+        );
+        list.register(
+            "prefab.rotate_placed",
+            Prefab,
+            crate::actions::prefabs::RotatePlacedPrefab::new(),
+        );
+        list.register(
+            "prefab.flip_mounted",
+            Prefab,
+            crate::actions::prefabs::FlipMountedPrefab::new(),
+        );
+        list.register(
+            "prefab.detach",
+            Prefab,
+            crate::actions::prefabs::DetachMountedPrefab::new(),
+        );
+        list.register(
+            "prefab.reattach",
+            Prefab,
+            crate::actions::prefabs::ReattachMountedPrefab::new(),
         );
         list.register(
             "face.create_cutout",
@@ -220,9 +250,24 @@ impl ActionList {
             crate::actions::edit_face_texture::EditFaceTexture::new(),
         );
         list.register(
+            "face.edit_emission",
+            Face,
+            crate::actions::edit_face_emission::EditFaceEmission::new(),
+        );
+        list.register(
+            "face.edit_particles",
+            Face,
+            crate::actions::edit_face_particles::EditFaceParticles::new(),
+        );
+        list.register(
             "geometry.edit",
             Geometry,
             crate::actions::edit_geometry::EditGeometry::new(),
+        );
+        list.register(
+            "geometry.bevel_edges",
+            Geometry,
+            crate::actions::edge_bevel::EdgeBevel::new(),
         );
         list.register(
             "face.cut_opening",
@@ -302,9 +347,9 @@ impl ActionList {
         );
         list.register("map.split", Map, crate::actions::split::Split::new());
         list.register(
-            "view.toggle_editing_geometry",
+            "view.toggle_grid",
             View,
-            crate::actions::toggle_editing_geo::ToggleEditingGeo::new(),
+            crate::actions::toggle_grid::ToggleGrid::new(),
         );
         list.register(
             "view.toggle_preview_post",

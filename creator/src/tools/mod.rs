@@ -20,6 +20,7 @@ pub mod tile_picker;
 pub mod wall;
 // pub mod terrain;
 // pub mod tileset;
+pub mod effects;
 pub mod entity;
 pub mod vertex;
 

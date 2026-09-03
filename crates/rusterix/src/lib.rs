@@ -135,7 +135,7 @@ pub use crate::render_settings::RenderSettings;
 #[cfg(feature = "graphics")]
 pub use crate::rusterix::Rusterix;
 #[cfg(feature = "graphics")]
-pub use crate::scene_handler::SceneHandler;
+pub use crate::scene_handler::{ParticleDebugStats, ParticlePipelineStats, SceneHandler};
 #[cfg(feature = "graphics")]
 pub use crate::scenebuilder::{d2preview::D2PreviewBuilder, d3builder::D3Builder};
 pub use crate::{
@@ -167,29 +167,31 @@ pub use crate::{
         bbox::BBox,
         block_prop::{
             BlockPropAsset, BlockPropAssetLayer, BlockPropAttachment, BlockPropComponent,
-            BlockPropFaceRef, BlockPropGeometryDiagnostic, BlockPropGeometryDiagnosticKind,
-            BlockPropGeometryResolution, BlockPropGeometrySource, BlockPropInstance,
-            BlockPropInteractionHit, BlockPropInteractionTarget, BlockPropOccupancyPolicy,
-            BlockPropOccupant, BlockPropPart, BlockPropPlacementProfile, BlockPropSemanticShape,
-            BlockPropSupportSurface, BlockPropSupportSurfaceHit, BlockPropSurfacePlacement,
-            BlockPropTransform, block_prop_door_controls_part, block_prop_door_is_open,
-            block_prop_instance_object_id, block_prop_interaction_verb,
-            block_prop_interaction_world_anchor, block_prop_part_world_anchor,
-            block_prop_support_surface_local_point, block_prop_support_surface_world_point,
-            block_prop_support_surface_world_transform,
+            BlockPropEffectResolution, BlockPropFaceRef, BlockPropGeometryDiagnostic,
+            BlockPropGeometryDiagnosticKind, BlockPropGeometryResolution, BlockPropGeometrySource,
+            BlockPropHostAttachment, BlockPropInstance, BlockPropInteractionHit,
+            BlockPropInteractionTarget, BlockPropLightEffect, BlockPropOccupancyPolicy,
+            BlockPropOccupant, BlockPropPart, BlockPropParticleEffect, BlockPropPlacementMode,
+            BlockPropPlacementProfile, BlockPropSemanticShape, BlockPropSupportSurface,
+            BlockPropSupportSurfaceHit, BlockPropSurfacePlacement, BlockPropTransform,
+            ResolvedBlockPropLightEffect, ResolvedBlockPropParticleEffect,
+            block_prop_door_controls_part, block_prop_door_is_open, block_prop_instance_object_id,
+            block_prop_interaction_verb, block_prop_interaction_world_anchor,
+            block_prop_part_world_anchor, block_prop_support_surface_local_point,
+            block_prop_support_surface_world_point, block_prop_support_surface_world_transform,
             block_prop_surface_placement_world_position, identity_block_prop_transform,
-            multiply_block_prop_transforms, resolve_block_prop_asset, resolve_block_prop_geometry,
-            resolve_block_prop_interaction_hit, resolve_block_prop_preview_geometry,
-            resolve_block_prop_support_surface_hit,
+            multiply_block_prop_transforms, resolve_block_prop_asset, resolve_block_prop_effects,
+            resolve_block_prop_geometry, resolve_block_prop_interaction_hit,
+            resolve_block_prop_preview_geometry, resolve_block_prop_support_surface_hit,
             resolve_block_prop_support_surface_hit_at_point,
             resolve_block_prop_support_surface_hit_at_world_point, set_block_prop_door_open,
             sync_block_prop_surface_item_positions,
         },
         geometry_object::{
-            GeometryFace, GeometryObject, GeometryObjectKind, GeometrySurfacePoint,
-            GeometrySurfacePointMode, GeometrySurfaceSegment, GeometrySurfaceSegmentMode,
-            geometry_face_effective_paint_surface_id, geometry_face_paint_uvs,
-            remap_geometry_face_paint_uvs, triangulate_geometry_polygon,
+            FaceEmission, FaceParticleEmission, GeometryFace, GeometryObject, GeometryObjectKind,
+            GeometrySurfacePoint, GeometrySurfacePointMode, GeometrySurfaceSegment,
+            GeometrySurfaceSegmentMode, geometry_face_effective_paint_surface_id,
+            geometry_face_paint_uvs, remap_geometry_face_paint_uvs, triangulate_geometry_polygon,
         },
         light::CompiledLight,
         light::Light,
@@ -202,7 +204,7 @@ pub use crate::{
             OrganicBushCluster, OrganicGrowthShape, OrganicVineStroke,
             default_organic_bush_clusters, default_organic_vine_strokes,
         },
-        particle::{Particle, ParticleEmitter},
+        particle::{Particle, ParticleEmissionShape, ParticleEmitter, ParticleEmitterDef},
         pixelsource::NoiseTarget,
         pixelsource::PixelSource,
         sector::Sector,
@@ -216,9 +218,10 @@ pub use crate::{
         topology::MapTopology,
         vertex::Vertex,
         wall::{
-            WallAssembly, WallBrickKey, WallBrickPreview, WallGeometryLayer, WallJunctionKind,
-            WallMasonryPattern, WallNode, WallOpening, WallOpeningFrame, WallOpeningPreview,
-            WallOpeningShape, WallOpeningSurround, WallSpan, WallStyle,
+            WallAreaSurface, WallAreaSurfacePreview, WallAssembly, WallBrickKey, WallBrickPreview,
+            WallGeometryLayer, WallJunctionKind, WallMasonryPattern, WallNode, WallOpening,
+            WallOpeningFrame, WallOpeningPreview, WallOpeningShape, WallOpeningSurround, WallSpan,
+            WallStyle, WallSurfaceEdge,
         },
     },
     material_profile::MaterialProfile,
@@ -276,35 +279,42 @@ pub mod prelude {
     pub use crate::{Batch2D, Batch3D, CullMode, GeometrySource, PrimitiveMode};
     pub use crate::{
         BlockPropAsset, BlockPropAssetLayer, BlockPropAttachment, BlockPropComponent,
-        BlockPropFaceRef, BlockPropGeometryDiagnostic, BlockPropGeometryDiagnosticKind,
-        BlockPropGeometryResolution, BlockPropGeometrySource, BlockPropInstance,
-        BlockPropInteractionHit, BlockPropInteractionTarget, BlockPropOccupancyPolicy,
-        BlockPropOccupant, BlockPropPart, BlockPropPlacementProfile, BlockPropSemanticShape,
-        BlockPropSupportSurface, BlockPropSupportSurfaceHit, BlockPropSurfacePlacement,
-        BlockPropTransform, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget,
+        BlockPropEffectResolution, BlockPropFaceRef, BlockPropGeometryDiagnostic,
+        BlockPropGeometryDiagnosticKind, BlockPropGeometryResolution, BlockPropGeometrySource,
+        BlockPropHostAttachment, BlockPropInstance, BlockPropInteractionHit,
+        BlockPropInteractionTarget, BlockPropLightEffect, BlockPropOccupancyPolicy,
+        BlockPropOccupant, BlockPropPart, BlockPropParticleEffect, BlockPropPlacementMode,
+        BlockPropPlacementProfile, BlockPropSemanticShape, BlockPropSupportSurface,
+        BlockPropSupportSurfaceHit, BlockPropSurfacePlacement, BlockPropTransform, FaceEmission,
+        FaceParticleEmission, Light, LightType, Map, MapMeta, MapToolType, NoiseTarget,
         OrganicBushCluster, OrganicGrowthShape, OrganicVineStroke, Particle, ParticleEmitter,
-        PixelSource, Sector, Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature,
-        TileGeometryOperation, TileGroup, TileGroupMemberRef, TileLightEffect, TileNicheGeometry,
-        TileParticleEffect, TileRole, TileSource, Vertex, WallAssembly, WallBrickKey,
-        WallBrickPreview, WallGeometryLayer, WallJunctionKind, WallMasonryPattern, WallNode,
-        WallOpening, WallOpeningFrame, WallOpeningPreview, WallOpeningShape, WallOpeningSurround,
-        WallSpan, WallStyle, block_prop_door_controls_part, block_prop_interaction_verb,
+        ParticleEmitterDef, PixelSource, ResolvedBlockPropLightEffect,
+        ResolvedBlockPropParticleEffect, Sector, Tile, TileAttachment, TileBoxGeometry,
+        TileGeometryFeature, TileGeometryOperation, TileGroup, TileGroupMemberRef, TileLightEffect,
+        TileNicheGeometry, TileParticleEffect, TileRole, TileSource, Vertex, WallAreaSurface,
+        WallAreaSurfacePreview, WallAssembly, WallBrickKey, WallBrickPreview, WallGeometryLayer,
+        WallJunctionKind, WallMasonryPattern, WallNode, WallOpening, WallOpeningFrame,
+        WallOpeningPreview, WallOpeningShape, WallOpeningSurround, WallSpan, WallStyle,
+        WallSurfaceEdge, block_prop_door_controls_part, block_prop_interaction_verb,
         block_prop_part_world_anchor, block_prop_support_surface_local_point,
         block_prop_support_surface_world_point, block_prop_support_surface_world_transform,
         block_prop_surface_placement_world_position, default_organic_bush_clusters,
-        default_organic_vine_strokes, resolve_block_prop_interaction_hit,
-        resolve_block_prop_support_surface_hit, resolve_block_prop_support_surface_hit_at_point,
+        default_organic_vine_strokes, resolve_block_prop_effects,
+        resolve_block_prop_interaction_hit, resolve_block_prop_support_surface_hit,
+        resolve_block_prop_support_surface_hit_at_point,
         resolve_block_prop_support_surface_hit_at_world_point,
         sync_block_prop_surface_item_positions,
     };
     #[cfg(feature = "graphics")]
     pub use crate::{Command, Daylight, MsgParser, Tok};
     pub use crate::{D3Camera, D3FirstPCamera, D3IsoCamera, D3OrbitCamera};
+    #[cfg(feature = "graphics")]
+    pub use crate::{
+        ParticleDebugStats, ParticlePipelineStats, RenderSettings, Rusterix, SceneHandler,
+    };
     pub use crate::{
         Rect, Scene, SceneManager, SceneManagerCmd, SceneManagerResult, Value, ValueContainer,
     };
-    #[cfg(feature = "graphics")]
-    pub use crate::{RenderSettings, Rusterix, SceneHandler};
     pub use crate::{RepeatMode, SampleMode, Texture};
     pub use crate::{pixel_to_vec4, vec4_to_pixel};
 }

@@ -160,17 +160,20 @@ mod tests {
         assert!(ToolList::is_prefab_tool_command_id("tool.sector"));
         assert!(ToolList::is_prefab_tool_command_id("tool.iso_paint"));
         assert!(ToolList::is_prefab_tool_command_id("tool.tile_picker"));
+        assert!(ToolList::is_prefab_tool_command_id("tool.effects"));
         assert!(ToolList::is_prefab_tool_command_id("tool.wall"));
         assert!(!ToolList::is_prefab_tool_command_id("tool.entity"));
         assert!(!ToolList::is_prefab_tool_command_id("tool.game"));
     }
 
     #[test]
-    fn tile_picker_tool_is_only_available_in_prefab_mode() {
+    fn prefab_authoring_tools_are_only_available_in_prefab_mode() {
         let mut tools = ToolList::new();
         assert!(!tools.game_tool_is_available("tool.tile_picker"));
+        assert!(!tools.game_tool_is_available("tool.effects"));
         tools.prefab_mode = true;
         assert!(tools.game_tool_is_available("tool.tile_picker"));
+        assert!(tools.game_tool_is_available("tool.effects"));
     }
 
     #[test]
@@ -1954,6 +1957,7 @@ impl ToolList {
             "tool.tile_picker",
             crate::tools::tile_picker::TilePickerTool::new(),
         );
+        list.register_game_tool("tool.effects", crate::tools::effects::EffectsTool::new());
         list.register_game_tool("tool.rect", RectTool::new());
         list.register_game_tool("tool.entity", crate::tools::entity::EntityTool::new());
         list.register_game_tool("tool.blocks", crate::tools::blocks::BlockTool::new());
@@ -1987,6 +1991,112 @@ impl ToolList {
 
     fn overlay_color(rgb: [f32; 3], alpha: f32) -> [f32; 4] {
         [rgb[0], rgb[1], rgb[2], alpha]
+    }
+
+    fn add_construction_grid_3d(
+        &self,
+        rusterix: &mut rusterix::Rusterix,
+        map: &Map,
+        server_ctx: &ServerContext,
+    ) {
+        let block_grid_active = server_ctx.block_tool_active;
+        let base_step = if block_grid_active {
+            server_ctx.block_grid_cell_size.max(0.05)
+        } else {
+            ServerContext::edit_grid_step(map.subdivisions).max(0.01)
+        };
+        let grid_bbox = map.bbox().expanded(Vec2::new(16.0, 16.0));
+        let span = (grid_bbox.max.x - grid_bbox.min.x)
+            .max(grid_bbox.max.y - grid_bbox.min.y)
+            .max(16.0);
+        let mut display_step = base_step;
+        while span / display_step > 256.0 {
+            display_step *= 2.0;
+        }
+
+        let min_x_step = (grid_bbox.min.x.min(-8.0) / display_step).floor() as i32;
+        let max_x_step = (grid_bbox.max.x.max(8.0) / display_step).ceil() as i32;
+        let min_z_step = (grid_bbox.min.y.min(-8.0) / display_step).floor() as i32;
+        let max_z_step = (grid_bbox.max.y.max(8.0) / display_step).ceil() as i32;
+        let min_x = min_x_step as f32 * display_step;
+        let max_x = max_x_step as f32 * display_step;
+        let min_z = min_z_step as f32 * display_step;
+        let max_z = max_z_step as f32 * display_step;
+        let grid_base_y = if block_grid_active {
+            server_ctx.block_grid_level as f32 * base_step
+        } else {
+            0.0
+        };
+        let grid_y = grid_base_y + 0.012;
+        let minor = Self::overlay_color(self.prefab_grid_rgb, 0.48);
+        let whole = Self::overlay_color(self.prefab_grid_rgb, 0.66);
+        let major = Self::overlay_color(self.prefab_preview_wire_rgb, 0.78);
+        let x_axis = [0.88, 0.28, 0.24, 0.96];
+        let z_axis = [0.25, 0.52, 0.94, 0.96];
+        let mut grid_index = 0u32;
+
+        for x_step in min_x_step..=max_x_step {
+            let x = x_step as f32 * display_step;
+            if x.abs() <= 0.0001 {
+                continue;
+            }
+            let base_units = x / base_step;
+            let is_whole = (base_units - base_units.round()).abs() <= 0.0001;
+            let is_major = is_whole && (base_units.round() as i32).rem_euclid(4) == 0;
+            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                GeoId::Unknown(0xE300_0000u32.wrapping_add(grid_index)),
+                Vec3::new(x, grid_y, min_z),
+                Vec3::new(x, grid_y, max_z),
+                if is_major {
+                    major
+                } else if is_whole {
+                    whole
+                } else {
+                    minor
+                },
+                8,
+            );
+            grid_index = grid_index.wrapping_add(1);
+        }
+
+        for z_step in min_z_step..=max_z_step {
+            let z = z_step as f32 * display_step;
+            if z.abs() <= 0.0001 {
+                continue;
+            }
+            let base_units = z / base_step;
+            let is_whole = (base_units - base_units.round()).abs() <= 0.0001;
+            let is_major = is_whole && (base_units.round() as i32).rem_euclid(4) == 0;
+            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                GeoId::Unknown(0xE301_0000u32.wrapping_add(grid_index)),
+                Vec3::new(min_x, grid_y, z),
+                Vec3::new(max_x, grid_y, z),
+                if is_major {
+                    major
+                } else if is_whole {
+                    whole
+                } else {
+                    minor
+                },
+                8,
+            );
+            grid_index = grid_index.wrapping_add(1);
+        }
+
+        rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+            GeoId::Unknown(0xE302_0000),
+            Vec3::new(min_x, grid_y + 0.004, 0.0),
+            Vec3::new(max_x, grid_y + 0.004, 0.0),
+            x_axis,
+            9,
+        );
+        rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+            GeoId::Unknown(0xE302_0001),
+            Vec3::new(0.0, grid_y + 0.004, min_z),
+            Vec3::new(0.0, grid_y + 0.004, max_z),
+            z_axis,
+            9,
+        );
     }
 
     fn register_game_tool<T: Tool + 'static>(&mut self, command_id: &'static str, tool: T) {
@@ -2049,7 +2159,9 @@ impl ToolList {
                 let command_id = self
                     .game_tool_descriptor_by_id(tool.id().uuid)
                     .map(|descriptor| descriptor.command_id.as_str());
-                if !self.prefab_mode && command_id == Some("tool.tile_picker") {
+                if !self.prefab_mode
+                    && matches!(command_id, Some("tool.tile_picker" | "tool.effects"))
+                {
                     continue;
                 }
                 if self.prefab_mode && !command_id.is_some_and(Self::is_prefab_tool_command_id) {
@@ -2135,6 +2247,7 @@ impl ToolList {
                 | "tool.wall"
                 | "tool.iso_paint"
                 | "tool.tile_picker"
+                | "tool.effects"
         )
     }
 
@@ -2837,12 +2950,21 @@ impl ToolList {
                     && project
                         .get_map(server_ctx)
                         .is_some_and(|map| !map.selected_geometry_objects.is_empty());
+                let preserve_prefab_instance_shortcut = plain_key
+                    && polyview_focused
+                    && server_ctx.editor_view_mode != EditorViewMode::D2
+                    && server_ctx.curr_map_tool_type == MapToolType::Selection
+                    && matches!(c, 'r' | 'R' | 'f' | 'F' | 'd' | 'D' | 'a' | 'A')
+                    && project
+                        .get_map(server_ctx)
+                        .is_some_and(|map| !map.selected_block_prop_instances.is_empty());
 
                 if plain_key
                     && !text_input_focused
                     && !server_ctx.game_input_mode
                     && !server_ctx.text_game_mode
                     && !preserve_geometry_object_shortcut
+                    && !preserve_prefab_instance_shortcut
                     && !suppress_tool_accel
                 {
                     let mut tool_uuid = None;
@@ -2957,7 +3079,7 @@ impl ToolList {
                                 && !server_ctx.game_input_mode
                                 && server_ctx.curr_map_tool_type != MapToolType::Game
                             {
-                                if *c == 'd' || *c == 'D' {
+                                if (*c == 'd' || *c == 'D') && !preserve_prefab_instance_shortcut {
                                     server_ctx.geometry_edit_mode = GeometryEditMode::Detail;
                                     self.update_geometry_overlay_3d(project, server_ctx);
                                     RUSTERIX.write().unwrap().set_dirty();
@@ -4502,7 +4624,7 @@ impl ToolList {
         if self.editor_mode || !self.game_tool_command_ids.contains_key(command_id) {
             return false;
         }
-        if command_id == "tool.tile_picker" {
+        if matches!(command_id, "tool.tile_picker" | "tool.effects") {
             return self.prefab_mode;
         }
         !self.prefab_mode || Self::is_prefab_tool_command_id(command_id)
@@ -4553,15 +4675,13 @@ impl ToolList {
 
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.scene_handler.clear_overlay();
-        // rusterix.scene_handler.vm.set_layer_activity_logging(true);
-
-        if !server_ctx.show_editing_geometry {
-            drop(rusterix);
-            self.update_tool_preview_overlay_3d(project, server_ctx);
-            let mut rusterix = RUSTERIX.write().unwrap();
-            rusterix.scene_handler.set_overlay();
-            return;
+        rusterix.client.scene.d3_overlay.clear();
+        if server_ctx.show_editor_grid
+            && let Some(map) = project.get_map(server_ctx)
+        {
+            self.add_construction_grid_3d(&mut rusterix, map, server_ctx);
         }
+        // rusterix.scene_handler.vm.set_layer_activity_logging(true);
 
         // basis_vectors returns (forward, right, up)
         let (cam_forward, cam_right, cam_up) = rusterix.client.camera_d3.basis_vectors();
@@ -4579,7 +4699,6 @@ impl ToolList {
                 (distance * (camera_fov * 0.5).tan() * 0.045).clamp(0.055, 0.28)
             }
         };
-        rusterix.client.scene.d3_overlay.clear();
         let thickness = 0.15;
 
         if let Some(map) = project.get_map(server_ctx) {
@@ -4626,26 +4745,14 @@ impl ToolList {
             };
 
             let block_grid_active = server_ctx.block_tool_active;
-            let prefab_grid_minor = Self::overlay_color(self.prefab_grid_rgb, 0.42);
-            let prefab_grid_major = Self::overlay_color(self.prefab_grid_rgb, 0.58);
-            let prefab_grid_axis = Self::overlay_color(self.prefab_preview_wire_rgb, 0.72);
             let prefab_preview_color = Self::overlay_color(self.prefab_preview_wire_rgb, 0.92);
             let prefab_preview_footprint_color =
                 Self::overlay_color(self.prefab_preview_wire_rgb, 0.95);
-            let grid_bbox = map.bbox().expanded(Vec2::new(16.0, 16.0));
             let grid_step = if block_grid_active {
                 server_ctx.block_grid_cell_size.max(0.05)
             } else {
                 ServerContext::edit_grid_step(map.subdivisions)
             };
-            let min_x_step = (grid_bbox.min.x.min(-8.0) / grid_step).floor() as i32;
-            let max_x_step = (grid_bbox.max.x.max(8.0) / grid_step).ceil() as i32;
-            let min_z_step = (grid_bbox.min.y.min(-8.0) / grid_step).floor() as i32;
-            let max_z_step = (grid_bbox.max.y.max(8.0) / grid_step).ceil() as i32;
-            let min_x = min_x_step as f32 * grid_step;
-            let max_x = max_x_step as f32 * grid_step;
-            let min_z = min_z_step as f32 * grid_step;
-            let max_z = max_z_step as f32 * grid_step;
             let grid_base_y = if block_grid_active {
                 server_ctx.block_grid_level as f32 * grid_step
             } else {
@@ -4656,87 +4763,6 @@ impl ToolList {
             } else {
                 0.012
             };
-            let mut grid_index = 0u32;
-
-            for x_step in min_x_step..=max_x_step {
-                let x = x_step as f32 * grid_step;
-                if x.abs() <= 0.0001 {
-                    continue;
-                }
-                let whole_unit = x.round() as i32;
-                let is_whole = (x - whole_unit as f32).abs() <= 0.0001;
-                let is_major = is_whole && whole_unit % 4 == 0;
-                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
-                    GeoId::Unknown(0xE300_0000u32.wrapping_add(grid_index)),
-                    Vec3::new(x, grid_y, min_z),
-                    Vec3::new(x, grid_y, max_z),
-                    if block_grid_active && is_major {
-                        prefab_grid_major
-                    } else if block_grid_active {
-                        prefab_grid_minor
-                    } else if is_major {
-                        [0.15, 0.15, 0.15, 0.36]
-                    } else if is_whole {
-                        [0.11, 0.11, 0.11, 0.28]
-                    } else {
-                        [0.09, 0.09, 0.09, 0.18]
-                    },
-                    10,
-                );
-                grid_index = grid_index.wrapping_add(1);
-            }
-
-            for z_step in min_z_step..=max_z_step {
-                let z = z_step as f32 * grid_step;
-                if z.abs() <= 0.0001 {
-                    continue;
-                }
-                let whole_unit = z.round() as i32;
-                let is_whole = (z - whole_unit as f32).abs() <= 0.0001;
-                let is_major = is_whole && whole_unit % 4 == 0;
-                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
-                    GeoId::Unknown(0xE301_0000u32.wrapping_add(grid_index)),
-                    Vec3::new(min_x, grid_y, z),
-                    Vec3::new(max_x, grid_y, z),
-                    if block_grid_active && is_major {
-                        prefab_grid_major
-                    } else if block_grid_active {
-                        prefab_grid_minor
-                    } else if is_major {
-                        [0.15, 0.15, 0.15, 0.36]
-                    } else if is_whole {
-                        [0.11, 0.11, 0.11, 0.28]
-                    } else {
-                        [0.09, 0.09, 0.09, 0.18]
-                    },
-                    10,
-                );
-                grid_index = grid_index.wrapping_add(1);
-            }
-
-            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
-                GeoId::Unknown(0xE302_0000),
-                Vec3::new(min_x, grid_y + 0.004, 0.0),
-                Vec3::new(max_x, grid_y + 0.004, 0.0),
-                if block_grid_active {
-                    prefab_grid_axis
-                } else {
-                    [0.15, 0.15, 0.15, 0.42]
-                },
-                11,
-            );
-            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
-                GeoId::Unknown(0xE302_0001),
-                Vec3::new(0.0, grid_y + 0.004, min_z),
-                Vec3::new(0.0, grid_y + 0.004, max_z),
-                if block_grid_active {
-                    prefab_grid_axis
-                } else {
-                    [0.15, 0.15, 0.15, 0.42]
-                },
-                11,
-            );
-
             if block_grid_active
                 && let Some(asset_id) = server_ctx.curr_block_asset_id
                 && let Some(asset) = crate::blocks::block_asset(asset_id)
@@ -4952,7 +4978,13 @@ impl ToolList {
             if block_grid_active
                 && let Some(asset_id) = server_ctx.curr_block_asset_id
                 && crate::blocks::block_asset(asset_id).is_none()
-                && rusterix.assets.block_props.contains_key(&asset_id)
+                && rusterix
+                    .assets
+                    .block_props
+                    .get(&asset_id)
+                    .is_some_and(|asset| {
+                        asset.placement.mode == rusterix::BlockPropPlacementMode::Ground
+                    })
                 && let Some(hit) = crate::blocks::block_grid_plane_hit(server_ctx)
                     .or(server_ctx.hover_cursor_3d)
                     .or(server_ctx.hover_surface_hit_pos)
@@ -5051,6 +5083,73 @@ impl ToolList {
                                 );
                             }
                         }
+                    }
+                }
+            }
+
+            if block_grid_active
+                && server_ctx.block_operation != crate::blocks::BLOCK_OPERATION_ERASE
+                && let Some(asset_id) = server_ctx.curr_block_asset_id
+                && let Some(asset) = rusterix.assets.block_props.get(&asset_id).cloned()
+                && asset.placement.mode != rusterix::BlockPropPlacementMode::Ground
+            {
+                let valid = crate::blocks::prefab_surface_placement_valid(&asset, map, server_ctx);
+                let placement_color = if valid {
+                    [0.26, 0.92, 0.42, 0.98]
+                } else {
+                    [0.96, 0.22, 0.18, 0.98]
+                };
+                if let Some(instance) =
+                    crate::blocks::surface_prefab_preview_instance(&asset, map, server_ctx)
+                {
+                    let resolved = rusterix::resolve_block_prop_geometry(
+                        &[instance],
+                        &rusterix.assets.block_props,
+                    );
+                    let mut line_index = 0u32;
+                    for object in &resolved.geometry_objects {
+                        for face in &object.faces {
+                            if face.indices.len() < 2 {
+                                continue;
+                            }
+                            for edge_index in 0..face.indices.len() {
+                                let Some(a) = object.vertices.get(face.indices[edge_index]) else {
+                                    continue;
+                                };
+                                let Some(b) = object
+                                    .vertices
+                                    .get(face.indices[(edge_index + 1) % face.indices.len()])
+                                else {
+                                    continue;
+                                };
+                                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                    GeoId::Unknown(0xE30C_0000u32.wrapping_add(line_index)),
+                                    object.transform_point(*a) + cam_forward * -0.006,
+                                    object.transform_point(*b) + cam_forward * -0.006,
+                                    placement_color,
+                                    15,
+                                );
+                                line_index = line_index.wrapping_add(1);
+                            }
+                        }
+                    }
+                } else if let Some(hit) = server_ctx
+                    .hover_surface_hit_pos
+                    .or(server_ctx.hover_cursor_3d)
+                    .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+                {
+                    let size = overlay_world_size(hit).clamp(0.08, 0.28);
+                    for (index, axis) in [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()]
+                        .into_iter()
+                        .enumerate()
+                    {
+                        rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                            GeoId::Unknown(0xE30D_0000u32.wrapping_add(index as u32)),
+                            hit - axis * size,
+                            hit + axis * size,
+                            placement_color,
+                            17,
+                        );
                     }
                 }
             }
@@ -5219,6 +5318,173 @@ impl ToolList {
                     );
                 }
             };
+            if server_ctx.curr_map_tool_type == MapToolType::Effects
+                && let Some(asset_id) = server_ctx.curr_block_asset_id
+                && let Some(asset) = rusterix.assets.block_props.get(&asset_id).cloned()
+            {
+                let instance = rusterix::BlockPropInstance::new(asset_id);
+                // Disabled effects still need editor handles so they can be
+                // selected, repositioned, and switched back on.
+                let mut preview_asset = asset.clone();
+                for effect in &mut preview_asset.particle_effects {
+                    effect.enabled = true;
+                }
+                for effect in &mut preview_asset.light_effects {
+                    effect.enabled = true;
+                }
+                let mut preview_catalog = rusterix.assets.block_props.clone();
+                preview_catalog.insert(asset_id, preview_asset);
+                let resolved = rusterix::resolve_block_prop_effects(&[instance], &preview_catalog);
+                let mut handles = resolved
+                    .particles
+                    .iter()
+                    .map(|effect| (effect.effect_id, effect.origin, effect.direction))
+                    .collect::<Vec<_>>();
+                for light in &resolved.lights {
+                    let direction = asset
+                        .light_effects
+                        .iter()
+                        .find(|effect| effect.id == light.effect_id)
+                        .and_then(|effect| {
+                            asset.find_part(effect.part_id).and_then(|part| {
+                                part.attachments
+                                    .iter()
+                                    .find(|attachment| attachment.id == effect.attachment_id)
+                            })
+                        })
+                        .map(|attachment| Vec3::from(attachment.direction))
+                        .and_then(|direction| direction.try_normalized())
+                        .unwrap_or(Vec3::unit_y());
+                    handles.push((light.effect_id, light.position, direction));
+                }
+                for (index, (effect_id, origin, direction)) in handles.into_iter().enumerate() {
+                    let selected = server_ctx.selected_prefab_effect_id == Some(effect_id);
+                    let size = overlay_world_size(origin);
+                    let marker_size = (size * 1.25).clamp(0.08, 0.24);
+                    let direction_length = (size * 5.5).clamp(0.35, 1.35);
+                    let direction_end = origin + direction * direction_length;
+                    let move_id = 0xEFFE_0000u32.wrapping_add(index as u32);
+                    let direction_id = 0xEFFF_0000u32.wrapping_add(index as u32);
+                    push_cube_marker(
+                        &mut rusterix,
+                        GeoId::Gizmo(move_id),
+                        selected,
+                        origin + view_nudge,
+                        marker_size,
+                        if selected { 0.95 } else { 0.72 },
+                        47,
+                    );
+                    rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                        GeoId::Gizmo(direction_id),
+                        origin + view_nudge,
+                        direction_end + view_nudge,
+                        if selected {
+                            [1.0, 0.68, 0.20, 1.0]
+                        } else {
+                            [0.44, 0.78, 1.0, 0.92]
+                        },
+                        48,
+                    );
+                    push_cube_marker(
+                        &mut rusterix,
+                        GeoId::Gizmo(direction_id),
+                        selected,
+                        direction_end + view_nudge,
+                        marker_size * 0.72,
+                        0.90,
+                        49,
+                    );
+
+                    if selected
+                        && let Some(effect) = asset
+                            .particle_effects
+                            .iter()
+                            .find(|effect| effect.id == effect_id)
+                    {
+                        let half: Vec3<f32> = Vec3::from(effect.emitter.spawn_area);
+                        let corners = [
+                            origin + Vec3::new(-half.x, -half.y, -half.z),
+                            origin + Vec3::new(half.x, -half.y, -half.z),
+                            origin + Vec3::new(half.x, half.y, -half.z),
+                            origin + Vec3::new(-half.x, half.y, -half.z),
+                            origin + Vec3::new(-half.x, -half.y, half.z),
+                            origin + Vec3::new(half.x, -half.y, half.z),
+                            origin + Vec3::new(half.x, half.y, half.z),
+                            origin + Vec3::new(-half.x, half.y, half.z),
+                        ];
+                        for (edge_index, (a, b)) in [
+                            (0, 1),
+                            (1, 2),
+                            (2, 3),
+                            (3, 0),
+                            (4, 5),
+                            (5, 6),
+                            (6, 7),
+                            (7, 4),
+                            (0, 4),
+                            (1, 5),
+                            (2, 6),
+                            (3, 7),
+                        ]
+                        .into_iter()
+                        .enumerate()
+                        {
+                            rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                GeoId::Unknown(
+                                    0xEFFC_0000u32
+                                        .wrapping_add((index as u32) << 5)
+                                        .wrapping_add(edge_index as u32),
+                                ),
+                                corners[a] + view_nudge,
+                                corners[b] + view_nudge,
+                                [0.40, 0.92, 1.0, 0.86],
+                                46,
+                            );
+                        }
+                    } else if selected
+                        && let Some(light) = asset
+                            .light_effects
+                            .iter()
+                            .find(|light| light.id == effect_id)
+                    {
+                        let radius = light.range.max(0.01);
+                        let segments = 32u32;
+                        for segment in 0..segments {
+                            let a = segment as f32 / segments as f32 * std::f32::consts::TAU;
+                            let b = (segment + 1) as f32 / segments as f32 * std::f32::consts::TAU;
+                            for (plane, (from, to)) in [
+                                (
+                                    0u32,
+                                    (
+                                        origin + Vec3::new(a.cos() * radius, 0.0, a.sin() * radius),
+                                        origin + Vec3::new(b.cos() * radius, 0.0, b.sin() * radius),
+                                    ),
+                                ),
+                                (
+                                    1u32,
+                                    (
+                                        origin + Vec3::new(a.cos() * radius, a.sin() * radius, 0.0),
+                                        origin + Vec3::new(b.cos() * radius, b.sin() * radius, 0.0),
+                                    ),
+                                ),
+                            ] {
+                                rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
+                                    GeoId::Unknown(
+                                        0xEFFD_0000u32
+                                            .wrapping_add((index as u32) << 7)
+                                            .wrapping_add(plane << 6)
+                                            .wrapping_add(segment),
+                                    ),
+                                    from + view_nudge,
+                                    to + view_nudge,
+                                    [1.0, 0.72, 0.24, 0.72],
+                                    46,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
             if server_ctx.curr_map_tool_type == MapToolType::Selection
                 && server_ctx.geometry_gizmo_op == GeometryGizmoOp::Move
                 && !map.selected_block_prop_instances.is_empty()
@@ -5266,12 +5532,45 @@ impl ToolList {
                         .first()
                         .map(|id| (id.as_u128() as u32) & 0x0000_F000)
                         .unwrap_or(0);
-                    for (axis_id, delta, color) in [
-                        (1, Vec3::new(axis_len, 0.0, 0.0), [0.86, 0.22, 0.22, 1.0]),
-                        (2, Vec3::new(0.0, axis_len, 0.0), [0.28, 0.78, 0.32, 1.0]),
-                        (3, Vec3::new(0.0, 0.0, axis_len), [0.32, 0.48, 0.94, 1.0]),
-                    ] {
-                        let handle_center = center + delta + view_nudge;
+                    let local_axes = selected_instances.first().and_then(|instance| {
+                        let rusterix::BlockPropHostAttachment::WallSpan {
+                            assembly_id,
+                            span_id,
+                            along,
+                            height,
+                            side,
+                            ..
+                        } = instance.host_attachment.as_ref()?;
+                        let assembly = map.wall_assembly(*assembly_id)?;
+                        let length = assembly.span_length(*span_id)?;
+                        let epsilon = (length * 0.01).clamp(0.005, 0.05);
+                        let before = assembly
+                            .span_point(*span_id, Vec2::new((along - epsilon).max(0.0), *height))?;
+                        let after = assembly.span_point(
+                            *span_id,
+                            Vec2::new((along + epsilon).min(length), *height),
+                        )?;
+                        let tangent = Vec3::new(after.x - before.x, 0.0, after.z - before.z)
+                            .try_normalized()?;
+                        let outward = Vec3::new(-tangent.z, 0.0, tangent.x)
+                            * if *side < 0.0 { -1.0 } else { 1.0 };
+                        Some([tangent, Vec3::unit_y(), outward])
+                    });
+                    let axes = if let Some(local_axes) = local_axes {
+                        [
+                            (201, local_axes[0], [0.86, 0.22, 0.22, 1.0]),
+                            (202, local_axes[1], [0.28, 0.78, 0.32, 1.0]),
+                            (203, local_axes[2], [0.32, 0.48, 0.94, 1.0]),
+                        ]
+                    } else {
+                        [
+                            (1, Vec3::unit_x(), [0.86, 0.22, 0.22, 1.0]),
+                            (2, Vec3::unit_y(), [0.28, 0.78, 0.32, 1.0]),
+                            (3, Vec3::unit_z(), [0.32, 0.48, 0.94, 1.0]),
+                        ]
+                    };
+                    for (axis_id, axis, color) in axes {
+                        let handle_center = center + axis * axis_len + view_nudge;
                         rusterix.scene_handler.overlay_3d.add_hardware_line_3d(
                             GeoId::Gizmo(axis_id),
                             center + view_nudge,
@@ -6961,6 +7260,7 @@ impl ToolList {
                 | MapToolType::Vertex
                 | MapToolType::Linedef
                 | MapToolType::Sector
+                | MapToolType::Effects
         ) {
             rusterix.scene_handler.vm.set_active_vm(2);
             if let Some((GeoId::Gizmo(axis), pos, _)) = rusterix.scene_handler.vm.pick_geo_id_at_uv(
@@ -7016,14 +7316,16 @@ impl ToolList {
             {
                 return Some((raw.0, raw.1));
             }
-            if matches!(
-                server_ctx.curr_map_tool_type,
-                MapToolType::Selection
-                    | MapToolType::Vertex
-                    | MapToolType::Linedef
-                    | MapToolType::Sector
-                    | MapToolType::Wall
-            ) && matches!(raw.0, GeoId::GeometryObject(_))
+            if (server_ctx.block_tool_active
+                || matches!(
+                    server_ctx.curr_map_tool_type,
+                    MapToolType::Selection
+                        | MapToolType::Vertex
+                        | MapToolType::Linedef
+                        | MapToolType::Sector
+                        | MapToolType::Wall
+                ))
+                && matches!(raw.0, GeoId::GeometryObject(_))
             {
                 return Some((raw.0, raw.1));
             }

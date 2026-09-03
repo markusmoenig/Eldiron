@@ -17,6 +17,9 @@ const GIZMO_RESIZE_Y_MIN: u32 = 103;
 const GIZMO_RESIZE_Y_MAX: u32 = 104;
 const GIZMO_RESIZE_Z_MIN: u32 = 105;
 const GIZMO_RESIZE_Z_MAX: u32 = 106;
+const GIZMO_PREFAB_LOCAL_X: u32 = 201;
+const GIZMO_PREFAB_LOCAL_Y: u32 = 202;
+const GIZMO_PREFAB_LOCAL_Z: u32 = 203;
 
 pub struct GeometryTool {
     id: TheId,
@@ -96,7 +99,8 @@ fn gizmo_axis(axis_id: u32) -> Option<Vec3<f32>> {
 
 fn gizmo_kind(axis_id: u32) -> Option<GizmoDragKind> {
     match axis_id {
-        GIZMO_AXIS_X | GIZMO_AXIS_Y | GIZMO_AXIS_Z => Some(GizmoDragKind::Move),
+        GIZMO_AXIS_X | GIZMO_AXIS_Y | GIZMO_AXIS_Z | GIZMO_PREFAB_LOCAL_X
+        | GIZMO_PREFAB_LOCAL_Y | GIZMO_PREFAB_LOCAL_Z => Some(GizmoDragKind::Move),
         GIZMO_RESIZE_X_MIN => Some(GizmoDragKind::Resize {
             component: 0,
             sign: -1.0,
@@ -123,6 +127,55 @@ fn gizmo_kind(axis_id: u32) -> Option<GizmoDragKind> {
         }),
         _ => None,
     }
+}
+
+fn gizmo_axis_for_map(map: &Map, axis_id: u32) -> Option<Vec3<f32>> {
+    let column = match axis_id {
+        GIZMO_PREFAB_LOCAL_X => Some(0),
+        GIZMO_PREFAB_LOCAL_Y => Some(1),
+        GIZMO_PREFAB_LOCAL_Z => Some(2),
+        _ => None,
+    };
+    if let Some(column) = column {
+        let selected_id = map.selected_block_prop_instances.first()?;
+        let instance = map
+            .block_prop_instances
+            .iter()
+            .find(|instance| instance.id == *selected_id)?;
+        if let Some(rusterix::BlockPropHostAttachment::WallSpan {
+            assembly_id,
+            span_id,
+            along,
+            height,
+            side,
+            ..
+        }) = instance.host_attachment.as_ref()
+        {
+            let assembly = map.wall_assembly(*assembly_id)?;
+            let length = assembly.span_length(*span_id)?;
+            let epsilon = (length * 0.01).clamp(0.005, 0.05);
+            let before =
+                assembly.span_point(*span_id, Vec2::new((along - epsilon).max(0.0), *height))?;
+            let after =
+                assembly.span_point(*span_id, Vec2::new((along + epsilon).min(length), *height))?;
+            let tangent =
+                Vec3::new(after.x - before.x, 0.0, after.z - before.z).try_normalized()?;
+            let outward =
+                Vec3::new(-tangent.z, 0.0, tangent.x) * if *side < 0.0 { -1.0 } else { 1.0 };
+            return Some(match column {
+                0 => tangent,
+                1 => Vec3::unit_y(),
+                _ => outward,
+            });
+        }
+        return Vec3::new(
+            instance.world_transform[column][0],
+            instance.world_transform[column][1],
+            instance.world_transform[column][2],
+        )
+        .try_normalized();
+    }
+    gizmo_axis(axis_id)
 }
 
 fn vec_component(value: Vec3<f32>, component: usize) -> f32 {
@@ -364,6 +417,75 @@ fn geometry_bounds(vertices: &[Vec3<f32>]) -> Option<(Vec3<f32>, Vec3<f32>)> {
         found = true;
     }
     found.then_some((min, max))
+}
+
+fn rebuild_parametric_geometry(object: &mut rusterix::GeometryObject) -> bool {
+    let generator = object.properties.get_str("generator").unwrap_or_default();
+    if !matches!(generator, "rounded_box" | "cylinder") {
+        return false;
+    }
+    let Some((min, max)) = geometry_bounds(&object.vertices) else {
+        return false;
+    };
+    let mut segments = object
+        .properties
+        .get_int_default(
+            "primitive_segments",
+            if generator == "cylinder" { 16 } else { 3 },
+        )
+        .max(if generator == "cylinder" { 3 } else { 1 }) as usize;
+    if generator == "rounded_box" {
+        segments = segments.min(8);
+    }
+    let smooth = object.properties.get_bool_default("primitive_smooth", true);
+    let generated = if generator == "rounded_box" {
+        rusterix::GeometryObject::rounded_box_from_bounds(
+            object.name.clone(),
+            min,
+            max,
+            object
+                .properties
+                .get_float_default("primitive_radius", 0.15),
+            segments,
+            smooth,
+        )
+    } else {
+        rusterix::GeometryObject::cylinder_from_bounds(
+            object.name.clone(),
+            min,
+            max,
+            segments,
+            smooth,
+        )
+    };
+    object.replace_mesh_preserving_face_sources(generated);
+    true
+}
+
+fn rebuild_selected_parametric_geometry(map: &mut Map) -> bool {
+    let selected = map.selected_geometry_objects.clone();
+    let mut changed = false;
+    for object in &mut map.geometry_objects {
+        if selected.contains(&object.id) {
+            changed |= rebuild_parametric_geometry(object);
+        }
+    }
+    if changed {
+        map.update_surfaces();
+    }
+    changed
+}
+
+fn rebuild_parametric_geometry_for_id(map: &mut Map, object_id: Uuid) -> bool {
+    let changed = map
+        .geometry_objects
+        .iter_mut()
+        .find(|object| object.id == object_id)
+        .is_some_and(rebuild_parametric_geometry);
+    if changed {
+        map.update_surfaces();
+    }
+    changed
 }
 
 fn resize_selected_geometry(map: &mut Map, delta_size: Vec3<f32>) -> bool {
@@ -2905,7 +3027,9 @@ impl Tool for GeometryTool {
                 self.rectangle_mode = false;
 
                 if let Some((axis, gizmo_kind)) = server_ctx.geo_hit.and_then(|hit| match hit {
-                    GeoId::Gizmo(axis_id) => gizmo_axis(axis_id).zip(gizmo_kind(axis_id)),
+                    GeoId::Gizmo(axis_id) => {
+                        gizmo_axis_for_map(map, axis_id).zip(gizmo_kind(axis_id))
+                    }
                     _ => None,
                 }) {
                     if map.selected_geometry_objects.is_empty()
@@ -3367,6 +3491,7 @@ impl Tool for GeometryTool {
                 }
                 if moving_prefab_instances {
                     let subdivisions = map.subdivisions;
+                    let mut moved_hosted_ids = Vec::new();
                     for (selected_id, start_transform) in &drag.start_instance_transforms {
                         if let Some(instance) = map
                             .block_prop_instances
@@ -3382,7 +3507,18 @@ impl Tool for GeometryTool {
                                     subdivisions,
                                 )
                             };
+                            if instance.host_attachment.is_some() {
+                                moved_hosted_ids.push(*selected_id);
+                            }
                         }
+                    }
+                    let mut refreshed_host = false;
+                    for instance_id in moved_hosted_ids {
+                        refreshed_host |=
+                            map.refresh_wall_host_from_instance_transform(instance_id);
+                    }
+                    if refreshed_host {
+                        map.sync_wall_hosted_block_props();
                     }
                     sync_block_prop_surface_items(map);
                     if let Some(anchor) = next_axis_anchor {
@@ -3545,6 +3681,9 @@ impl Tool for GeometryTool {
                 if drag.changed
                     && let Some(old_map) = undo_map
                 {
+                    if matches!(drag.gizmo_kind, Some(GizmoDragKind::Resize { .. })) {
+                        rebuild_parametric_geometry_for_id(map, drag.object_id);
+                    }
                     if drag.vertex_indices.is_some()
                         && !matches!(drag.gizmo_kind, Some(GizmoDragKind::Resize { .. }))
                     {
@@ -3581,6 +3720,25 @@ impl Tool for GeometryTool {
                 None
             }
             MapDelete => {
+                if !map.selected_block_prop_instances.is_empty() {
+                    let old_map = map.clone();
+                    let selected = map
+                        .selected_block_prop_instances
+                        .iter()
+                        .copied()
+                        .collect::<FxHashSet<_>>();
+                    map.block_prop_instances
+                        .retain(|instance| !selected.contains(&instance.id));
+                    map.block_prop_surface_placements
+                        .retain(|placement| !selected.contains(&placement.prop_instance_id));
+                    map.selected_block_prop_instances.clear();
+                    sync_block_prop_surface_items(map);
+                    return Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
+                        Box::new(old_map),
+                        Box::new(map.clone()),
+                    ));
+                }
                 if map.selected_geometry_objects.is_empty() {
                     return None;
                 }
@@ -3611,6 +3769,78 @@ impl Tool for GeometryTool {
             }
             MapKey(key) => {
                 let step = ServerContext::edit_grid_step(map.subdivisions);
+                if !map.selected_block_prop_instances.is_empty()
+                    && matches!(key, 'r' | 'R' | 'f' | 'F' | 'd' | 'D' | 'a' | 'A')
+                {
+                    let old_map = map.clone();
+                    let selected = map.selected_block_prop_instances.clone();
+                    let mut changed = false;
+                    match key.to_ascii_lowercase() {
+                        'r' => {
+                            let turns = if key == 'R' { -1 } else { 1 };
+                            for instance_id in selected {
+                                changed |= map.rotate_block_prop_placement(instance_id, turns);
+                            }
+                        }
+                        'f' => {
+                            for instance_id in selected {
+                                changed |= map.flip_wall_hosted_block_prop(instance_id);
+                            }
+                        }
+                        'd' => {
+                            for instance_id in selected {
+                                changed |= map.detach_block_prop(instance_id);
+                            }
+                        }
+                        'a' => {
+                            if let Some(GeoId::GeometryObject(object_id)) = server_ctx.geo_hit {
+                                let normal =
+                                    server_ctx.hover_surface_normal.unwrap_or(Vec3::unit_z());
+                                for instance_id in selected {
+                                    let offset = map
+                                        .block_prop_instances
+                                        .iter()
+                                        .find(|instance| instance.id == instance_id)
+                                        .and_then(|instance| {
+                                            RUSTERIX
+                                                .read()
+                                                .ok()?
+                                                .assets
+                                                .block_props
+                                                .get(&instance.asset_id)
+                                                .map(|asset| asset.placement.surface_offset)
+                                        })
+                                        .unwrap_or(0.0);
+                                    changed |= map.attach_block_prop_to_wall_surface(
+                                        instance_id,
+                                        object_id,
+                                        server_ctx.geo_hit_pos,
+                                        normal,
+                                        offset,
+                                    );
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                    if changed {
+                        sync_block_prop_surface_items(map);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Geometry Overlay 3D"),
+                            TheValue::Empty,
+                        ));
+                        return Some(ProjectUndoAtom::MapEdit(
+                            server_ctx.pc,
+                            Box::new(old_map),
+                            Box::new(map.clone()),
+                        ));
+                    }
+                    return None;
+                }
                 if matches!(key, 'r' | 'R')
                     && !map.selected_geometry_objects.is_empty()
                     && map.selected_geometry_faces.is_empty()
@@ -3782,6 +4012,7 @@ impl Tool for GeometryTool {
                 if !resize_selected_geometry(map, delta_size) {
                     return None;
                 }
+                rebuild_selected_parametric_geometry(map);
                 sanitize_geometry_selection(map);
                 RUSTERIX.write().unwrap().set_overlay_dirty();
                 Some(ProjectUndoAtom::MapEdit(

@@ -15,6 +15,13 @@ enum WallInteractionMode {
     Select,
     Opening,
     Brick,
+    Surface,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WallBuildMode {
+    Line,
+    Ring,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -35,6 +42,9 @@ enum WallStyleField {
     FrameWidth,
     FrameDepth,
     ArchStones,
+    SurfaceElevation,
+    SurfaceThickness,
+    SurfaceClearance,
 }
 
 struct HeldWallAdjustment {
@@ -50,8 +60,15 @@ struct WallNodeDrag {
     node_id: Uuid,
     pressed_at: Vec2<i32>,
     start_position: Vec3<f32>,
+    connect_from: Option<Vec3<f32>>,
     previous: Map,
     changed: bool,
+}
+
+struct WallRingDrag {
+    center: Vec3<f32>,
+    assembly_id: Option<Uuid>,
+    previous: Map,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -87,11 +104,16 @@ pub struct WallTool {
     opening_shape: WallOpeningShape,
     opening_surround: WallOpeningSurround,
     interaction_mode: WallInteractionMode,
+    build_mode: WallBuildMode,
     build_style: WallStyle,
     build_auto_floor: bool,
     held_adjustment: Option<HeldWallAdjustment>,
     node_drag: Option<WallNodeDrag>,
+    ring_drag: Option<WallRingDrag>,
     opening_drag: Option<WallOpeningDrag>,
+    surface_elevation: f32,
+    surface_thickness: f32,
+    surface_clearance: f32,
 }
 
 impl WallTool {
@@ -187,6 +209,16 @@ impl WallTool {
         map.curr_grid_pos_3d = None;
     }
 
+    fn cancel_ring_drag(&mut self, map: &mut Map) {
+        if let Some(drag) = self.ring_drag.take() {
+            *map = drag.previous;
+            map.rebuild_wall_geometry();
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.set_dirty();
+            rusterix.set_overlay_dirty();
+        }
+    }
+
     fn cancel_opening(&mut self, map: &mut Map) {
         let had_preview = map.wall_opening_preview.take().is_some();
         self.opening_armed = false;
@@ -208,6 +240,15 @@ impl WallTool {
         }
     }
 
+    fn cancel_surface_preview(&mut self, map: &mut Map) {
+        if map.wall_surface_preview.take().is_some() {
+            map.rebuild_wall_geometry();
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.set_dirty();
+            rusterix.set_overlay_dirty();
+        }
+    }
+
     fn panel_rect() -> TheDim {
         TheDim::rect(
             Self::PANEL_X,
@@ -218,7 +259,83 @@ impl WallTool {
     }
 
     fn panel_mode_rect(index: i32) -> TheDim {
-        TheDim::rect(Self::PANEL_X + 10 + index * 63, Self::PANEL_Y + 34, 58, 26)
+        TheDim::rect(Self::PANEL_X + 10 + index * 51, Self::PANEL_Y + 34, 49, 26)
+    }
+
+    fn panel_build_mode_rect(index: i32) -> TheDim {
+        TheDim::rect(
+            Self::PANEL_X + 14 + index * 125,
+            Self::PANEL_Y + 76,
+            121,
+            28,
+        )
+    }
+
+    fn update_ring_preview(
+        map: &mut Map,
+        drag: &mut WallRingDrag,
+        style: &WallStyle,
+        auto_floor: bool,
+        radius: f32,
+    ) -> bool {
+        let positions = [
+            drag.center + Vec3::new(radius, 0.0, 0.0),
+            drag.center + Vec3::new(0.0, 0.0, radius),
+            drag.center + Vec3::new(-radius, 0.0, 0.0),
+            drag.center + Vec3::new(0.0, 0.0, -radius),
+        ];
+        let assembly_id = if let Some(id) = drag.assembly_id {
+            id
+        } else {
+            let mut assembly = WallAssembly::new(format!("Ring {}", map.wall_assemblies.len() + 1));
+            assembly.style = style.clone();
+            assembly.auto_floor = auto_floor;
+            let nodes = positions.map(|position| assembly.add_node(position));
+            for index in 0..4 {
+                let Ok(span_id) = assembly.add_span(nodes[index], nodes[(index + 1) % 4]) else {
+                    return false;
+                };
+                if let Some(span) = assembly.span_mut(span_id) {
+                    span.curve_offset = -0.585_786_4 * radius;
+                    span.curve_segments = 12;
+                }
+            }
+            let id = assembly.id;
+            map.wall_assemblies.push(assembly);
+            drag.assembly_id = Some(id);
+            id
+        };
+
+        let Some(assembly) = map.wall_assembly_mut(assembly_id) else {
+            return false;
+        };
+        for (node, position) in assembly.nodes.iter_mut().zip(positions) {
+            node.position = position;
+        }
+        for span in &mut assembly.spans {
+            span.curve_offset = -0.585_786_4 * radius;
+        }
+        map.rebuild_wall_geometry();
+        map.clear_selection();
+        map.selected_wall_assembly = Some(assembly_id);
+        if let Some((node_ids, span_ids)) = map.wall_assembly(assembly_id).map(|assembly| {
+            (
+                assembly
+                    .nodes
+                    .iter()
+                    .map(|node| node.id)
+                    .collect::<Vec<_>>(),
+                assembly
+                    .spans
+                    .iter()
+                    .map(|span| span.id)
+                    .collect::<Vec<_>>(),
+            )
+        }) {
+            map.selected_wall_nodes = node_ids;
+            map.selected_wall_spans = span_ids;
+        }
+        true
     }
 
     fn panel_adjust_rect(&self, row: i32, plus: bool) -> TheDim {
@@ -257,7 +374,7 @@ impl WallTool {
         match self.interaction_mode {
             WallInteractionMode::Build => &[
                 (WallStyleField::Masonry, "Masonry"),
-                (WallStyleField::AutoFloor, "Auto floor"),
+                (WallStyleField::AutoFloor, "Create floor"),
                 (WallStyleField::Height, "Height"),
                 (WallStyleField::Thickness, "Thickness"),
                 (WallStyleField::BrickWidth, "Stone width"),
@@ -267,7 +384,7 @@ impl WallTool {
             ],
             WallInteractionMode::Select => &[
                 (WallStyleField::Masonry, "Masonry"),
-                (WallStyleField::AutoFloor, "Auto floor"),
+                (WallStyleField::AutoFloor, "Floor"),
                 (WallStyleField::Height, "Height"),
                 (WallStyleField::Thickness, "Thickness"),
                 (WallStyleField::Curve, "Curve"),
@@ -288,6 +405,11 @@ impl WallTool {
                 (WallStyleField::FrameWidth, "Surround width"),
                 (WallStyleField::FrameDepth, "Relief depth"),
                 (WallStyleField::ArchStones, "Arch stones"),
+            ],
+            WallInteractionMode::Surface => &[
+                (WallStyleField::SurfaceElevation, "Elevation"),
+                (WallStyleField::SurfaceThickness, "Thickness"),
+                (WallStyleField::SurfaceClearance, "Clearance"),
             ],
         }
     }
@@ -515,6 +637,7 @@ impl WallTool {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) {
+        self.cancel_ring_drag(map);
         if mode == WallInteractionMode::Opening {
             if server_ctx.editor_view_mode == EditorViewMode::D2 {
                 ctx.ui.send(TheEvent::SetStatusText(
@@ -535,10 +658,26 @@ impl WallTool {
             self.opening_armed = false;
             self.opening_anchor = None;
             map.wall_opening_preview = None;
+            map.selected_wall_surface = None;
             self.interaction_mode = WallInteractionMode::Opening;
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),
                 "Opening mode: click an opening to edit it, or click empty wall to create one."
+                    .to_string(),
+            ));
+            ctx.ui.redraw_all = true;
+            return;
+        }
+        if mode == WallInteractionMode::Surface {
+            self.cancel_brick_preview(map);
+            self.finish_run(map);
+            self.opening_armed = false;
+            self.opening_anchor = None;
+            map.wall_opening_preview = None;
+            self.interaction_mode = WallInteractionMode::Surface;
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(),
+                "Surface mode: click a bounded wall area to create or edit its fitted surface."
                     .to_string(),
             ));
             ctx.ui.redraw_all = true;
@@ -575,7 +714,9 @@ impl WallTool {
                 .unwrap_or_else(|| assembly.style.clone());
         }
         self.cancel_brick_preview(map);
+        self.cancel_surface_preview(map);
         map.selected_wall_opening = None;
+        map.selected_wall_surface = None;
         self.interaction_mode = mode;
         map.hovered_wall_span = None;
         self.finish_run(map);
@@ -590,7 +731,7 @@ impl WallTool {
             WallInteractionMode::Brick => {
                 "Brick mode: hover a brick for a live removal preview; click to remove or restore it."
             }
-            WallInteractionMode::Opening => unreachable!(),
+            WallInteractionMode::Opening | WallInteractionMode::Surface => unreachable!(),
         };
         ctx.ui
             .send(TheEvent::SetStatusText(TheId::empty(), message.to_string()));
@@ -627,28 +768,39 @@ impl WallTool {
                 Box::new(map.clone()),
             ));
         }
-        let span_id = *map.selected_wall_spans.first()?;
-        let inherited = {
-            let assembly = map.wall_assembly(assembly_id)?;
-            assembly
-                .span(span_id)?
+        let span_ids = map.selected_wall_spans.clone();
+        if span_ids.is_empty() {
+            return None;
+        }
+        let assembly = map.wall_assembly_mut(assembly_id)?;
+        let assembly_style = assembly.style.clone();
+        let mut changed = false;
+        for span_id in span_ids {
+            let Some(span) = assembly.span_mut(span_id) else {
+                continue;
+            };
+            let inherited = span
                 .style_override
                 .clone()
-                .unwrap_or_else(|| assembly.style.clone())
-        };
-        let assembly = map.wall_assembly_mut(assembly_id)?;
-        let span = assembly.span_mut(span_id)?;
-        match field {
-            WallStyleField::Curve => {
-                span.curve_offset = (span.curve_offset + delta).clamp(-100.0, 100.0)
+                .unwrap_or_else(|| assembly_style.clone());
+            match field {
+                WallStyleField::Curve => {
+                    span.curve_offset = (span.curve_offset + delta).clamp(-100.0, 100.0)
+                }
+                WallStyleField::CurveSegments => {
+                    span.curve_segments =
+                        ((span.curve_segments as f32 + delta).round() as i32).clamp(2, 64) as u16
+                }
+                _ => Self::adjust_style_value(
+                    span.style_override.get_or_insert(inherited),
+                    field,
+                    delta,
+                ),
             }
-            WallStyleField::CurveSegments => {
-                span.curve_segments =
-                    ((span.curve_segments as f32 + delta).round() as i32).clamp(2, 64) as u16
-            }
-            _ => {
-                Self::adjust_style_value(span.style_override.get_or_insert(inherited), field, delta)
-            }
+            changed = true;
+        }
+        if !changed {
+            return None;
         }
         map.rebuild_wall_geometry();
         let mut rusterix = RUSTERIX.write().unwrap();
@@ -668,6 +820,16 @@ impl WallTool {
         field: WallStyleField,
         delta: f32,
     ) -> Option<ProjectUndoAtom> {
+        if self.interaction_mode == WallInteractionMode::Surface
+            && matches!(
+                field,
+                WallStyleField::SurfaceElevation
+                    | WallStyleField::SurfaceThickness
+                    | WallStyleField::SurfaceClearance
+            )
+        {
+            return self.adjust_area_surface(map, server_ctx, field, delta);
+        }
         if self.interaction_mode != WallInteractionMode::Opening
             || map.selected_wall_opening.is_none()
             || !matches!(
@@ -721,6 +883,69 @@ impl WallTool {
         ))
     }
 
+    fn adjust_area_surface(
+        &mut self,
+        map: &mut Map,
+        server_ctx: &ServerContext,
+        field: WallStyleField,
+        delta: f32,
+    ) -> Option<ProjectUndoAtom> {
+        let previous = map.clone();
+        let selected = map.selected_wall_assembly.zip(map.selected_wall_surface);
+        let mut changed_persistent = false;
+        if let Some((assembly_id, surface_id)) = selected
+            && let Some(surface) = map
+                .wall_assembly_mut(assembly_id)
+                .and_then(|assembly| assembly.area_surface_mut(surface_id))
+        {
+            match field {
+                WallStyleField::SurfaceElevation => {
+                    surface.elevation = (surface.elevation + delta).clamp(-100.0, 100.0)
+                }
+                WallStyleField::SurfaceThickness => {
+                    surface.thickness = (surface.thickness + delta).clamp(0.005, 10.0)
+                }
+                WallStyleField::SurfaceClearance => {
+                    surface.clearance = (surface.clearance + delta).clamp(0.0, 10.0)
+                }
+                _ => return None,
+            }
+            self.surface_elevation = surface.elevation;
+            self.surface_thickness = surface.thickness;
+            self.surface_clearance = surface.clearance;
+            changed_persistent = true;
+        } else {
+            match field {
+                WallStyleField::SurfaceElevation => {
+                    self.surface_elevation = (self.surface_elevation + delta).clamp(-100.0, 100.0)
+                }
+                WallStyleField::SurfaceThickness => {
+                    self.surface_thickness = (self.surface_thickness + delta).clamp(0.005, 10.0)
+                }
+                WallStyleField::SurfaceClearance => {
+                    self.surface_clearance = (self.surface_clearance + delta).clamp(0.0, 10.0)
+                }
+                _ => return None,
+            }
+            if let Some(preview) = map.wall_surface_preview.as_mut() {
+                preview.surface.elevation = self.surface_elevation;
+                preview.surface.thickness = self.surface_thickness;
+                preview.surface.clearance = self.surface_clearance;
+            }
+        }
+        if changed_persistent {
+            map.rebuild_wall_geometry();
+        } else if map.wall_surface_preview.is_some() {
+            map.rebuild_wall_geometry_with_surface_preview();
+        }
+        let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix.set_dirty();
+        rusterix.set_overlay_dirty();
+        changed_persistent.then(|| {
+            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(previous), Box::new(map.clone()))
+        })
+    }
+
     fn adjust_style_value(style: &mut WallStyle, field: WallStyleField, delta: f32) {
         match field {
             WallStyleField::Masonry => {
@@ -759,6 +984,9 @@ impl WallTool {
                     ((style.arch_stones as f32 + delta).round() as i32).clamp(3, 32) as u16
             }
             WallStyleField::Curve | WallStyleField::CurveSegments => {}
+            WallStyleField::SurfaceElevation
+            | WallStyleField::SurfaceThickness
+            | WallStyleField::SurfaceClearance => {}
         }
     }
 
@@ -779,6 +1007,10 @@ impl WallTool {
             WallStyleField::Irregularity
             | WallStyleField::Damage
             | WallStyleField::StoneVariation => 0.05,
+            WallStyleField::SurfaceElevation => 0.25,
+            WallStyleField::SurfaceThickness | WallStyleField::SurfaceClearance => {
+                (step * 0.25).min(0.05)
+            }
         }
     }
 
@@ -813,13 +1045,31 @@ impl WallTool {
         point: Vec3<f32>,
     ) -> Option<(Uuid, Uuid)> {
         if let Some(GeoId::GeometryObject(object_id)) = server_ctx.geo_hit
-            && let Some(source) = map.wall_source_for_geometry_object(object_id)
+            && let Some(source) = Self::editable_wall_source_for_geometry_object(map, object_id)
         {
             return Some(source);
         }
         (server_ctx.editor_view_mode == EditorViewMode::D2)
             .then(|| map.nearest_wall_span(point, Self::snap_distance(map).max(0.2)))
             .flatten()
+    }
+
+    /// Generated floors retain their wall source IDs for materials and rebuilds,
+    /// but clicking one must behave like clicking empty construction space. If
+    /// floors participate in span hit-testing, every point in the room projects
+    /// onto the floor's nominal source span and can select one of its endpoints.
+    fn editable_wall_source_for_geometry_object(
+        map: &Map,
+        object_id: Uuid,
+    ) -> Option<(Uuid, Uuid)> {
+        let object = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)?;
+        if object.properties.get_bool_default("wall_auto_floor", false) {
+            return None;
+        }
+        map.wall_source_for_geometry_object(object_id)
     }
 
     fn wall_node_at_pointer(
@@ -829,7 +1079,8 @@ impl WallTool {
     ) -> Option<(Uuid, Uuid, Option<Uuid>)> {
         let threshold = Self::snap_distance(map).max(0.16);
         if let Some(GeoId::GeometryObject(object_id)) = server_ctx.geo_hit
-            && let Some((assembly_id, span_id)) = map.wall_source_for_geometry_object(object_id)
+            && let Some((assembly_id, span_id)) =
+                Self::editable_wall_source_for_geometry_object(map, object_id)
             && let Some(assembly) = map.wall_assembly(assembly_id)
             && let Some(span) = assembly.span(span_id)
             && let Some(length) = assembly.span_length(span_id)
@@ -865,16 +1116,37 @@ impl WallTool {
         )
     }
 
-    fn select_span(map: &mut Map, assembly_id: Uuid, span_id: Uuid) {
-        let endpoint_ids = map
-            .wall_assembly(assembly_id)
-            .and_then(|assembly| assembly.span(span_id))
-            .map(|span| [span.start_node, span.end_node]);
-        map.clear_selection();
-        map.selected_wall_assembly = Some(assembly_id);
-        map.selected_wall_spans.push(span_id);
-        if let Some(endpoint_ids) = endpoint_ids {
-            map.selected_wall_nodes.extend(endpoint_ids);
+    fn select_span(map: &mut Map, assembly_id: Uuid, span_id: Uuid, additive: bool) {
+        let keep_existing = additive && map.selected_wall_assembly == Some(assembly_id);
+        if !keep_existing {
+            map.clear_selection();
+            map.selected_wall_assembly = Some(assembly_id);
+            map.selected_wall_spans.push(span_id);
+        } else if let Some(index) = map
+            .selected_wall_spans
+            .iter()
+            .position(|selected| *selected == span_id)
+        {
+            map.selected_wall_spans.remove(index);
+        } else {
+            map.selected_wall_spans.push(span_id);
+        }
+        map.selected_wall_opening = None;
+        map.selected_wall_surface = None;
+        let selected_nodes = map.wall_assembly(assembly_id).map(|assembly| {
+            let mut nodes = Vec::new();
+            for selected_span in &map.selected_wall_spans {
+                if let Some(span) = assembly.span(*selected_span) {
+                    nodes.extend([span.start_node, span.end_node]);
+                }
+            }
+            nodes.sort_unstable();
+            nodes.dedup();
+            nodes
+        });
+        map.selected_wall_nodes = selected_nodes.unwrap_or_default();
+        if map.selected_wall_spans.is_empty() {
+            map.selected_wall_assembly = None;
         }
     }
 
@@ -903,6 +1175,170 @@ impl WallTool {
             map.selected_wall_spans.push(span_id);
         }
         Some(position)
+    }
+
+    fn select_area_surface(map: &mut Map, assembly_id: Uuid, surface_id: Uuid) -> bool {
+        let Some(boundary) = map
+            .wall_assembly(assembly_id)
+            .and_then(|assembly| assembly.area_surface(surface_id))
+            .map(|surface| surface.boundary.clone())
+        else {
+            return false;
+        };
+        map.clear_selection();
+        map.selected_wall_assembly = Some(assembly_id);
+        map.selected_wall_surface = Some(surface_id);
+        map.selected_wall_spans = boundary.iter().map(|edge| edge.span_id).collect();
+        map.selected_wall_spans.sort_unstable();
+        map.selected_wall_spans.dedup();
+        map.selected_wall_nodes = map
+            .wall_assembly(assembly_id)
+            .map(|assembly| {
+                let mut nodes = boundary
+                    .iter()
+                    .filter_map(|edge| assembly.span(edge.span_id))
+                    .flat_map(|span| [span.start_node, span.end_node])
+                    .collect::<Vec<_>>();
+                nodes.sort_unstable();
+                nodes.dedup();
+                nodes
+            })
+            .unwrap_or_default();
+        true
+    }
+
+    fn surface_hit(map: &Map, server_ctx: &ServerContext) -> Option<(Uuid, Uuid)> {
+        let GeoId::GeometryObject(object_id) = server_ctx.geo_hit? else {
+            return None;
+        };
+        map.wall_area_surface_for_geometry_object(object_id)
+    }
+
+    fn update_surface_preview(&mut self, map: &mut Map, point: Vec3<f32>) {
+        let mut resolved_map = map.clone();
+        resolved_map.wall_surface_preview = None;
+        let contacts = resolved_map.resolve_wall_endpoint_contacts(0.05);
+        let Some((assembly_id, boundary)) = resolved_map.wall_surface_region_at(point) else {
+            self.cancel_surface_preview(map);
+            return;
+        };
+        if resolved_map
+            .wall_assembly(assembly_id)
+            .is_some_and(|assembly| {
+                assembly
+                    .area_surfaces
+                    .iter()
+                    .any(|surface| surface.boundary == boundary)
+            })
+        {
+            self.cancel_surface_preview(map);
+            return;
+        }
+        let unchanged = map.wall_surface_preview.as_ref().is_some_and(|preview| {
+            preview.assembly_id == assembly_id
+                && preview.surface.boundary == boundary
+                && (preview.surface.elevation - self.surface_elevation).abs() <= 1e-6
+                && (preview.surface.thickness - self.surface_thickness).abs() <= 1e-6
+                && (preview.surface.clearance - self.surface_clearance).abs() <= 1e-6
+        });
+        if unchanged {
+            return;
+        }
+        let source = resolved_map
+            .wall_assembly(assembly_id)
+            .map(WallAssembly::floor_pixel_source);
+        let mut surface = WallAreaSurface::new(boundary);
+        if let Some(preview) = map.wall_surface_preview.as_ref()
+            && preview.assembly_id == assembly_id
+            && preview.surface.boundary == surface.boundary
+        {
+            surface.id = preview.surface.id;
+        }
+        surface.elevation = self.surface_elevation;
+        surface.thickness = self.surface_thickness;
+        surface.clearance = self.surface_clearance;
+        surface.source = source;
+        map.wall_surface_preview = Some(WallAreaSurfacePreview {
+            assembly_id,
+            surface,
+            wall_assemblies: (contacts > 0).then(|| resolved_map.wall_assemblies.clone()),
+            block_prop_instances: (contacts > 0).then(|| resolved_map.block_prop_instances.clone()),
+        });
+        map.rebuild_wall_geometry_with_surface_preview();
+        let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix.set_dirty();
+        rusterix.set_overlay_dirty();
+    }
+
+    fn place_span(
+        &mut self,
+        map: &mut Map,
+        start: Vec3<f32>,
+        end: Vec3<f32>,
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) -> Option<ProjectUndoAtom> {
+        let mut placed_style = self.build_style.clone();
+        if let Some(assembly_id) = map.selected_wall_assembly
+            && let Some(span_id) = map.selected_wall_spans.first().copied()
+            && let Some(assembly) = map.wall_assembly(assembly_id)
+            && let Some(span) = assembly.span(span_id)
+        {
+            let selected_style = span.style_override.as_ref().unwrap_or(&assembly.style);
+            placed_style.stone_source = selected_style.stone_source.clone();
+            placed_style.stone_variants = selected_style.stone_variants.clone();
+            placed_style.mortar_source = selected_style.mortar_source.clone();
+            placed_style.frame_source = selected_style.frame_source.clone();
+            placed_style.stone_variation = selected_style.stone_variation;
+        }
+        let previous = map.clone();
+        match map.connect_wall_points(start, end, Self::snap_distance(map)) {
+            Ok((assembly_id, span_id, start_node, end_node)) => {
+                if let Some(assembly) = map.wall_assembly_mut(assembly_id) {
+                    if assembly.spans.len() == 1 {
+                        assembly.auto_floor = self.build_auto_floor;
+                    }
+                    if let Some(span) = assembly.span_mut(span_id) {
+                        span.style_override = Some(placed_style);
+                    }
+                }
+                map.rebuild_wall_geometry();
+                map.clear_selection();
+                map.selected_wall_assembly = Some(assembly_id);
+                map.selected_wall_spans.push(span_id);
+                map.selected_wall_nodes.extend([start_node, end_node]);
+                let continued_point = map
+                    .wall_assembly(assembly_id)
+                    .and_then(|assembly| assembly.node(end_node))
+                    .map(|node| node.position)
+                    .unwrap_or(end);
+                self.anchor = Some(continued_point);
+                self.hover = Some(continued_point);
+                map.curr_grid_pos_3d = Some(continued_point);
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    "Wall span added. Continue clicking, or press Escape to finish.".to_string(),
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Geometry Overlay 3D"),
+                    TheValue::Empty,
+                ));
+                Some(ProjectUndoAtom::MapEdit(
+                    server_ctx.pc,
+                    Box::new(previous),
+                    Box::new(map.clone()),
+                ))
+            }
+            Err(message) => {
+                ctx.ui
+                    .send(TheEvent::SetStatusText(TheId::empty(), message));
+                None
+            }
+        }
     }
 
     fn draw_panel_button(
@@ -992,7 +1428,11 @@ impl WallTool {
                 22,
             ),
             stride,
-            "HUD: STONE · VAR1 · VAR2 · MORTAR",
+            if self.interaction_mode == WallInteractionMode::Surface {
+                "HUD: SURFACE"
+            } else {
+                "HUD: STONE · VAR1 · VAR2 · MORTAR"
+            },
             TheFontSettings {
                 size: 10.5,
                 ..Default::default()
@@ -1009,6 +1449,7 @@ impl WallTool {
             (WallInteractionMode::Select, "SELECT"),
             (WallInteractionMode::Opening, "HOLE"),
             (WallInteractionMode::Brick, "BRICK"),
+            (WallInteractionMode::Surface, "SURF"),
         ]
         .into_iter()
         .enumerate()
@@ -1038,6 +1479,22 @@ impl WallTool {
             stride,
             &[36, 39, 44, 250],
         );
+        if self.interaction_mode == WallInteractionMode::Build {
+            for (index, (mode, label)) in
+                [(WallBuildMode::Line, "LINE"), (WallBuildMode::Ring, "RING")]
+                    .into_iter()
+                    .enumerate()
+            {
+                Self::draw_panel_button(
+                    buffer,
+                    ctx,
+                    Self::panel_build_mode_rect(index as i32),
+                    label,
+                    self.build_mode == mode,
+                    true,
+                );
+            }
+        }
         let selected_opening = map.selected_wall_assembly.and_then(|assembly_id| {
             let span_id = *map.selected_wall_spans.first()?;
             let opening_id = map.selected_wall_opening?;
@@ -1050,6 +1507,10 @@ impl WallTool {
                 .unwrap_or(&assembly.style);
             Some((opening, style))
         });
+        let selected_surface = map.selected_wall_assembly.and_then(|assembly_id| {
+            let surface_id = map.selected_wall_surface?;
+            map.wall_assembly(assembly_id)?.area_surface(surface_id)
+        });
         let selection = map
             .selected_wall_assembly
             .and_then(|assembly_id| {
@@ -1061,8 +1522,13 @@ impl WallTool {
                 } else {
                     span.style_override.as_ref().unwrap_or(&assembly.style)
                 };
+                let selected_count = map.selected_wall_spans.len();
                 Some((
-                    assembly.name.clone(),
+                    if selected_count > 1 {
+                        format!("{} spans", selected_count)
+                    } else {
+                        assembly.name.clone()
+                    },
                     assembly.span_length(span_id)?,
                     span.curve_offset,
                     span.curve_segments,
@@ -1116,7 +1582,15 @@ impl WallTool {
                     )
                 })
             });
-        let (selection_line, detail_line) = if let Some((opening, _)) = selected_opening {
+        let (selection_line, detail_line) = if let Some(surface) = selected_surface {
+            (
+                "Selected: Area surface".to_string(),
+                format!(
+                    "Elevation {:.2}  •  Thickness {:.2}  •  Clearance {:.3}",
+                    surface.elevation, surface.thickness, surface.clearance
+                ),
+            )
+        } else if let Some((opening, _)) = selected_opening {
             (
                 format!("Selected: {:?} opening", opening.shape),
                 format!(
@@ -1159,38 +1633,40 @@ impl WallTool {
                 "Choose SELECT, then click the visible wall".to_string(),
             )
         };
-        for (line, y, color, size) in [
-            (
-                selection_line.as_str(),
-                Self::PANEL_Y + 72,
-                [233, 234, 238, 255],
-                12.5,
-            ),
-            (
-                detail_line.as_str(),
-                Self::PANEL_Y + 91,
-                [158, 162, 171, 255],
-                11.0,
-            ),
-        ] {
-            ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
-                &(
-                    (Self::PANEL_X + 18) as usize,
-                    y as usize,
-                    (Self::PANEL_WIDTH - 36) as usize,
-                    18,
+        if self.interaction_mode != WallInteractionMode::Build {
+            for (line, y, color, size) in [
+                (
+                    selection_line.as_str(),
+                    Self::PANEL_Y + 72,
+                    [233, 234, 238, 255],
+                    12.5,
                 ),
-                stride,
-                line,
-                TheFontSettings {
-                    size,
-                    ..Default::default()
-                },
-                &color,
-                TheHorizontalAlign::Left,
-                TheVerticalAlign::Center,
-            );
+                (
+                    detail_line.as_str(),
+                    Self::PANEL_Y + 91,
+                    [158, 162, 171, 255],
+                    11.0,
+                ),
+            ] {
+                ctx.draw.text_rect_blend(
+                    buffer.pixels_mut(),
+                    &(
+                        (Self::PANEL_X + 18) as usize,
+                        y as usize,
+                        (Self::PANEL_WIDTH - 36) as usize,
+                        18,
+                    ),
+                    stride,
+                    line,
+                    TheFontSettings {
+                        size,
+                        ..Default::default()
+                    },
+                    &color,
+                    TheHorizontalAlign::Left,
+                    TheVerticalAlign::Center,
+                );
+            }
         }
 
         for (row, (field, label)) in self.visible_style_fields().iter().copied().enumerate() {
@@ -1237,9 +1713,29 @@ impl WallTool {
                         WallStyleField::FrameWidth => format!("{frame_width:.2}"),
                         WallStyleField::FrameDepth => format!("{frame_depth:.2}"),
                         WallStyleField::ArchStones => arch_stones.to_string(),
+                        WallStyleField::SurfaceElevation => selected_surface
+                            .map(|surface| format!("{:.2}", surface.elevation))
+                            .unwrap_or_else(|| format!("{:.2}", self.surface_elevation)),
+                        WallStyleField::SurfaceThickness => selected_surface
+                            .map(|surface| format!("{:.2}", surface.thickness))
+                            .unwrap_or_else(|| format!("{:.2}", self.surface_thickness)),
+                        WallStyleField::SurfaceClearance => selected_surface
+                            .map(|surface| format!("{:.3}", surface.clearance))
+                            .unwrap_or_else(|| format!("{:.3}", self.surface_clearance)),
                     },
                 )
-                .unwrap_or_else(|| "—".to_string());
+                .unwrap_or_else(|| match field {
+                    WallStyleField::SurfaceElevation => {
+                        format!("{:.2}", self.surface_elevation)
+                    }
+                    WallStyleField::SurfaceThickness => {
+                        format!("{:.2}", self.surface_thickness)
+                    }
+                    WallStyleField::SurfaceClearance => {
+                        format!("{:.3}", self.surface_clearance)
+                    }
+                    _ => "—".to_string(),
+                });
             let row_offset = if self.interaction_mode == WallInteractionMode::Opening {
                 2
             } else {
@@ -1361,6 +1857,9 @@ impl WallTool {
         }
 
         let guidance = match self.interaction_mode {
+            WallInteractionMode::Build if self.build_mode == WallBuildMode::Ring => {
+                "Drag center to radius  •  releases to Line"
+            }
             WallInteractionMode::Build => "B  Build  •  Drag nodes  •  Esc finishes",
             WallInteractionMode::Select => "S  Click a wall span to edit it",
             WallInteractionMode::Opening if self.opening_anchor.is_some() => {
@@ -1371,6 +1870,7 @@ impl WallTool {
             }
             WallInteractionMode::Opening => "Click opening to edit, empty wall to create",
             WallInteractionMode::Brick => "R  Hover a brick; click to remove / restore",
+            WallInteractionMode::Surface => "U  Click a bounded area  •  Delete removes",
         };
         ctx.draw.text_rect_blend(
             buffer.pixels_mut(),
@@ -1408,11 +1908,16 @@ impl Tool for WallTool {
             opening_shape: WallOpeningShape::Rectangular,
             opening_surround: WallOpeningSurround::Blocks,
             interaction_mode: WallInteractionMode::Build,
+            build_mode: WallBuildMode::Line,
             build_style: WallStyle::default(),
             build_auto_floor: false,
             held_adjustment: None,
             node_drag: None,
+            ring_drag: None,
             opening_drag: None,
+            surface_elevation: 0.25,
+            surface_thickness: 0.08,
+            surface_clearance: 0.015,
         }
     }
 
@@ -1440,12 +1945,15 @@ impl Tool for WallTool {
             Activate => {
                 self.held_adjustment = None;
                 self.node_drag = None;
+                self.ring_drag = None;
                 self.opening_drag = None;
+                self.build_mode = WallBuildMode::Line;
                 server_ctx.curr_map_tool_type = MapToolType::Wall;
                 server_ctx.hover_cursor = None;
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     self.cancel_opening(map);
                     self.cancel_brick_preview(map);
+                    self.cancel_surface_preview(map);
                     self.interaction_mode = WallInteractionMode::Build;
                     map.clear_selection();
                     map.curr_grid_pos_3d = None;
@@ -1461,13 +1969,17 @@ impl Tool for WallTool {
                 self.held_adjustment = None;
                 self.node_drag = None;
                 self.opening_drag = None;
+                self.build_mode = WallBuildMode::Line;
                 server_ctx.curr_map_tool_type = MapToolType::General;
                 server_ctx.hover_cursor = None;
                 if let Some(map) = project.get_map_mut(server_ctx) {
+                    self.cancel_ring_drag(map);
                     self.finish_run(map);
                     self.cancel_opening(map);
                     self.cancel_brick_preview(map);
+                    self.cancel_surface_preview(map);
                     map.selected_wall_opening = None;
+                    map.selected_wall_surface = None;
                     map.hovered_wall_span = None;
                 }
                 true
@@ -1533,6 +2045,10 @@ impl Tool for WallTool {
                 self.set_interaction_mode(WallInteractionMode::Brick, map, ctx, server_ctx);
                 None
             }
+            MapKey(key) if matches!(key, 'u' | 'U') => {
+                self.set_interaction_mode(WallInteractionMode::Surface, map, ctx, server_ctx);
+                None
+            }
             MapHover(coord) => {
                 self.hud.hovered(coord.x, coord.y, map, ui, ctx, server_ctx);
                 if Self::panel_rect().contains(coord) {
@@ -1555,6 +2071,32 @@ impl Tool for WallTool {
                 };
                 if map.hovered_wall_span != previous_hovered_span {
                     RUSTERIX.write().unwrap().set_overlay_dirty();
+                }
+                if self.interaction_mode == WallInteractionMode::Surface {
+                    let hit_existing = Self::surface_hit(map, server_ctx).is_some_and(
+                        |(assembly_id, surface_id)| {
+                            map.wall_assembly(assembly_id)
+                                .and_then(|assembly| assembly.area_surface(surface_id))
+                                .is_some()
+                        },
+                    );
+                    let hit_preview = Self::surface_hit(map, server_ctx).is_some_and(
+                        |(assembly_id, surface_id)| {
+                            map.wall_surface_preview.as_ref().is_some_and(|preview| {
+                                preview.assembly_id == assembly_id
+                                    && preview.surface.id == surface_id
+                            })
+                        },
+                    );
+                    if hit_existing {
+                        self.cancel_surface_preview(map);
+                    } else if !hit_preview {
+                        if let Some(point) = self.hover {
+                            self.update_surface_preview(map, point);
+                        } else {
+                            self.cancel_surface_preview(map);
+                        }
+                    }
                 }
                 if self.interaction_mode == WallInteractionMode::Brick {
                     if let Some((assembly_id, span_id, key, _)) =
@@ -1616,6 +2158,7 @@ impl Tool for WallTool {
                         WallInteractionMode::Select,
                         WallInteractionMode::Opening,
                         WallInteractionMode::Brick,
+                        WallInteractionMode::Surface,
                     ]
                     .into_iter()
                     .enumerate()
@@ -1625,8 +2168,35 @@ impl Tool for WallTool {
                             return None;
                         }
                     }
+                    if self.interaction_mode == WallInteractionMode::Build {
+                        for (index, build_mode) in [WallBuildMode::Line, WallBuildMode::Ring]
+                            .into_iter()
+                            .enumerate()
+                        {
+                            if Self::panel_build_mode_rect(index as i32).contains(coord) {
+                                self.cancel_ring_drag(map);
+                                self.finish_run(map);
+                                self.build_mode = build_mode;
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    match build_mode {
+                                        WallBuildMode::Line => {
+                                            "Line mode: click points to add connected walls."
+                                        }
+                                        WallBuildMode::Ring => {
+                                            "Ring mode: click its center, then drag to set the radius."
+                                        }
+                                    }
+                                    .to_string(),
+                                ));
+                                ctx.ui.redraw_all = true;
+                                return None;
+                            }
+                        }
+                    }
                     if map.selected_wall_assembly.is_some()
                         || self.interaction_mode == WallInteractionMode::Build
+                        || self.interaction_mode == WallInteractionMode::Surface
                     {
                         for (row, (field, _)) in
                             self.visible_style_fields().iter().copied().enumerate()
@@ -1640,9 +2210,13 @@ impl Tool for WallTool {
                                     let direction = if plus { 1.0 } else { -1.0 };
                                     let amount = Self::adjustment_amount(map, field);
                                     let delta = amount * direction;
-                                    let previous = (self.interaction_mode
-                                        != WallInteractionMode::Build)
-                                        .then(|| map.clone());
+                                    let previous =
+                                        if self.interaction_mode == WallInteractionMode::Surface {
+                                            map.selected_wall_surface.is_some().then(|| map.clone())
+                                        } else {
+                                            (self.interaction_mode != WallInteractionMode::Build)
+                                                .then(|| map.clone())
+                                        };
                                     let undo =
                                         self.adjust_wall_field(map, server_ctx, field, delta);
                                     ctx.ui.redraw_all = true;
@@ -1784,6 +2358,114 @@ impl Tool for WallTool {
                 }
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     return None;
+                }
+                if self.interaction_mode == WallInteractionMode::Surface {
+                    if let Some((assembly_id, surface_id)) = Self::surface_hit(map, server_ctx)
+                        && let Some(surface) = map
+                            .wall_assembly(assembly_id)
+                            .and_then(|assembly| assembly.area_surface(surface_id))
+                            .cloned()
+                    {
+                        self.cancel_surface_preview(map);
+                        if Self::select_area_surface(map, assembly_id, surface_id) {
+                            self.surface_elevation = surface.elevation;
+                            self.surface_thickness = surface.thickness;
+                            self.surface_clearance = surface.clearance;
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                "Area surface selected. Adjust its fit or apply a Surface material."
+                                    .to_string(),
+                            ));
+                            ctx.ui.send(TheEvent::Custom(
+                                TheId::named("Map Selection Changed"),
+                                TheValue::Empty,
+                            ));
+                            RUSTERIX.write().unwrap().set_overlay_dirty();
+                            ctx.ui.redraw_all = true;
+                        }
+                        return None;
+                    }
+
+                    let preview = if let Some(preview) = map.wall_surface_preview.take() {
+                        Some(preview)
+                    } else {
+                        let point = self.pointer_position(ui, map, coord, server_ctx)?;
+                        let mut resolved_map = map.clone();
+                        resolved_map.wall_surface_preview = None;
+                        let contacts = resolved_map.resolve_wall_endpoint_contacts(0.05);
+                        resolved_map
+                            .wall_surface_region_at(point)
+                            .map(|(assembly_id, boundary)| {
+                                let mut surface = WallAreaSurface::new(boundary);
+                                surface.elevation = self.surface_elevation;
+                                surface.thickness = self.surface_thickness;
+                                surface.clearance = self.surface_clearance;
+                                surface.source = resolved_map
+                                    .wall_assembly(assembly_id)
+                                    .map(WallAssembly::floor_pixel_source);
+                                WallAreaSurfacePreview {
+                                    assembly_id,
+                                    surface,
+                                    wall_assemblies: (contacts > 0)
+                                        .then(|| resolved_map.wall_assemblies.clone()),
+                                    block_prop_instances: (contacts > 0)
+                                        .then(|| resolved_map.block_prop_instances.clone()),
+                                }
+                            })
+                    };
+                    let Some(preview) = preview else {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "No bounded wall area here. The surrounding wall nodes must form a closed region."
+                                .to_string(),
+                        ));
+                        return None;
+                    };
+                    let mut previous = map.clone();
+                    previous.wall_surface_preview = None;
+                    previous.rebuild_wall_geometry();
+                    let assembly_id = preview.assembly_id;
+                    let surface_id = preview.surface.id;
+                    if let Some(wall_assemblies) = preview.wall_assemblies {
+                        map.wall_assemblies = wall_assemblies;
+                    }
+                    if let Some(block_prop_instances) = preview.block_prop_instances {
+                        map.block_prop_instances = block_prop_instances;
+                    }
+                    let Some(assembly) = map.wall_assembly_mut(assembly_id) else {
+                        return None;
+                    };
+                    if let Some(existing) = assembly
+                        .area_surfaces
+                        .iter()
+                        .find(|surface| surface.boundary == preview.surface.boundary)
+                        .map(|surface| surface.id)
+                    {
+                        map.rebuild_wall_geometry();
+                        Self::select_area_surface(map, assembly_id, existing);
+                        return None;
+                    }
+                    assembly.area_surfaces.push(preview.surface);
+                    map.rebuild_wall_geometry();
+                    Self::select_area_surface(map, assembly_id, surface_id);
+                    let mut rusterix = RUSTERIX.write().unwrap();
+                    rusterix.set_dirty();
+                    rusterix.set_overlay_dirty();
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Fitted area surface created. Use the Surface HUD slot for its coal tile or color."
+                            .to_string(),
+                    ));
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.redraw_all = true;
+                    return Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
+                        Box::new(previous),
+                        Box::new(map.clone()),
+                    ));
                 }
                 if self.interaction_mode == WallInteractionMode::Brick {
                     let Some((assembly_id, span_id, key, _)) = Self::brick_pointer(map, server_ctx)
@@ -1954,19 +2636,39 @@ impl Tool for WallTool {
                         }
                     }
                 }
+                if self.interaction_mode == WallInteractionMode::Build
+                    && self.build_mode == WallBuildMode::Ring
+                {
+                    let center = self.raw_pointer_position(ui, map, coord, server_ctx, None)?;
+                    let previous = map.clone();
+                    map.clear_selection();
+                    self.anchor = Some(center);
+                    self.hover = Some(center);
+                    map.curr_grid_pos_3d = Some(center);
+                    self.ring_drag = Some(WallRingDrag {
+                        center,
+                        assembly_id: None,
+                        previous,
+                    });
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Drag outward to set the wall ring radius.".to_string(),
+                    ));
+                    ctx.ui.redraw_all = true;
+                    return None;
+                }
                 let point = self.pointer_position(ui, map, coord, server_ctx)?;
                 if self.interaction_mode == WallInteractionMode::Build
-                    && (self.anchor.is_none()
-                        || self.anchor.is_some_and(|anchor| {
-                            Vec3::new(anchor.x - point.x, 0.0, anchor.z - point.z)
-                                .magnitude_squared()
-                                <= Self::snap_distance(map).powi(2)
-                        }))
                     && let Some((assembly_id, node_id, preferred_span)) =
                         Self::wall_node_at_pointer(map, server_ctx, point)
                     && let Some(position) =
                         Self::select_node(map, assembly_id, node_id, preferred_span)
                 {
+                    let connect_from = self.anchor.filter(|anchor| {
+                        Vec3::new(anchor.x - position.x, 0.0, anchor.z - position.z)
+                            .magnitude_squared()
+                            > Self::snap_distance(map).powi(2)
+                    });
                     self.anchor = Some(position);
                     self.hover = Some(position);
                     map.curr_grid_pos_3d = Some(position);
@@ -1975,13 +2677,19 @@ impl Tool for WallTool {
                         node_id,
                         pressed_at: coord,
                         start_position: position,
+                        connect_from,
                         previous: map.clone(),
                         changed: false,
                     });
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
-                        "Wall node selected. Drag to reshape every connected wall, or click another point to continue building."
-                            .to_string(),
+                        if connect_from.is_some() {
+                            "Release to connect the active wall to this node, or drag to move the node instead."
+                                .to_string()
+                        } else {
+                            "Wall node selected. Drag to reshape every connected wall, or click another point to continue building."
+                                .to_string()
+                        },
                     ));
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
@@ -1995,25 +2703,21 @@ impl Tool for WallTool {
                     if let Some((assembly_id, span_id)) =
                         Self::wall_span_at_pointer(map, server_ctx, point)
                     {
-                        Self::select_span(map, assembly_id, span_id);
-                        if ui.shift {
-                            self.interaction_mode = WallInteractionMode::Build;
-                            self.anchor =
-                                Self::closest_span_endpoint(map, assembly_id, span_id, point);
-                            self.hover = self.anchor;
-                            map.curr_grid_pos_3d = self.anchor;
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                "Build mode: continuing from the selected wall endpoint."
-                                    .to_string(),
-                            ));
-                        } else {
-                            ctx.ui.send(TheEvent::SetStatusText(
-                                TheId::empty(),
-                                "Wall span selected. Use the Wall panel, or choose STONE/MORTAR in the HUD and apply a palette material."
-                                    .to_string(),
-                            ));
-                        }
+                        Self::select_span(map, assembly_id, span_id, ui.shift);
+                        let count = map.selected_wall_spans.len();
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            if count == 0 {
+                                "Wall selection cleared.".to_string()
+                            } else if count > 1 {
+                                format!(
+                                    "{count} wall spans selected. Settings and HUD materials apply to the whole selection."
+                                )
+                            } else {
+                                "Wall span selected. Shift-click adds spans; Wall settings and HUD materials apply to the selection."
+                                    .to_string()
+                            },
+                        ));
                     } else {
                         map.clear_selection();
                         ctx.ui.send(TheEvent::SetStatusText(
@@ -2034,7 +2738,7 @@ impl Tool for WallTool {
                     && let Some((assembly_id, span_id)) =
                         Self::wall_span_at_pointer(map, server_ctx, point)
                 {
-                    Self::select_span(map, assembly_id, span_id);
+                    Self::select_span(map, assembly_id, span_id, false);
                     if let Some(endpoint) =
                         Self::closest_span_endpoint(map, assembly_id, span_id, point)
                     {
@@ -2069,70 +2773,32 @@ impl Tool for WallTool {
                     return None;
                 };
 
-                let mut placed_style = self.build_style.clone();
-                if let Some(assembly_id) = map.selected_wall_assembly
-                    && let Some(span_id) = map.selected_wall_spans.first().copied()
-                    && let Some(assembly) = map.wall_assembly(assembly_id)
-                    && let Some(span) = assembly.span(span_id)
-                {
-                    let selected_style = span.style_override.as_ref().unwrap_or(&assembly.style);
-                    placed_style.stone_source = selected_style.stone_source.clone();
-                    placed_style.stone_variants = selected_style.stone_variants.clone();
-                    placed_style.mortar_source = selected_style.mortar_source.clone();
-                    placed_style.frame_source = selected_style.frame_source.clone();
-                    placed_style.stone_variation = selected_style.stone_variation;
-                }
-                let previous = map.clone();
-                match map.connect_wall_points(start, point, Self::snap_distance(map)) {
-                    Ok((assembly_id, span_id, start_node, end_node)) => {
-                        if let Some(assembly) = map.wall_assembly_mut(assembly_id) {
-                            if assembly.spans.len() == 1 {
-                                assembly.auto_floor = self.build_auto_floor;
-                            }
-                            if let Some(span) = assembly.span_mut(span_id) {
-                                span.style_override = Some(placed_style);
-                            }
-                        }
-                        map.rebuild_wall_geometry();
-                        map.clear_selection();
-                        map.selected_wall_assembly = Some(assembly_id);
-                        map.selected_wall_spans.push(span_id);
-                        map.selected_wall_nodes.extend([start_node, end_node]);
-                        let continued_point = map
-                            .wall_assembly(assembly_id)
-                            .and_then(|assembly| assembly.node(end_node))
-                            .map(|node| node.position)
-                            .unwrap_or(point);
-                        self.anchor = Some(continued_point);
-                        self.hover = Some(continued_point);
-                        map.curr_grid_pos_3d = Some(continued_point);
-                        ctx.ui.send(TheEvent::SetStatusText(
-                            TheId::empty(),
-                            "Wall span added. Continue clicking, or press Escape to finish."
-                                .to_string(),
-                        ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Map Selection Changed"),
-                            TheValue::Empty,
-                        ));
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Geometry Overlay 3D"),
-                            TheValue::Empty,
-                        ));
-                        Some(ProjectUndoAtom::MapEdit(
-                            server_ctx.pc,
-                            Box::new(previous),
-                            Box::new(map.clone()),
-                        ))
-                    }
-                    Err(message) => {
-                        ctx.ui
-                            .send(TheEvent::SetStatusText(TheId::empty(), message));
-                        None
-                    }
-                }
+                self.place_span(map, start, point, ctx, server_ctx)
             }
             MapDragged(coord) => {
+                if let Some(center) = self.ring_drag.as_ref().map(|drag| drag.center) {
+                    let Some(point) =
+                        self.raw_pointer_position(ui, map, coord, server_ctx, Some(center.y))
+                    else {
+                        return None;
+                    };
+                    let delta = Vec3::new(point.x - center.x, 0.0, point.z - center.z);
+                    let step = ServerContext::edit_grid_step(map.subdivisions).max(0.05);
+                    let radius = ((delta.magnitude() / step).round() * step).max(step);
+                    let style = self.build_style.clone();
+                    let auto_floor = self.build_auto_floor;
+                    let changed = self.ring_drag.as_mut().is_some_and(|drag| {
+                        Self::update_ring_preview(map, drag, &style, auto_floor, radius)
+                    });
+                    if changed {
+                        self.hover = Some(point);
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        rusterix.set_dirty();
+                        rusterix.set_overlay_dirty();
+                        ctx.ui.redraw_all = true;
+                    }
+                    return None;
+                }
                 if let Some(drag) = self.opening_drag.as_ref() {
                     let Some((assembly_id, span_id, coordinates)) =
                         Self::selected_wall_plane_coordinates(map, server_ctx)
@@ -2195,6 +2861,28 @@ impl Tool for WallTool {
                 None
             }
             MapUp(_) => {
+                if let Some(drag) = self.ring_drag.take() {
+                    self.build_mode = WallBuildMode::Line;
+                    self.anchor = None;
+                    self.hover = None;
+                    map.curr_grid_pos_3d = None;
+                    if drag.assembly_id.is_some() {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "Wall ring created; Build returned to Line mode.".to_string(),
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                        return Some(ProjectUndoAtom::MapEdit(
+                            server_ctx.pc,
+                            Box::new(drag.previous),
+                            Box::new(map.clone()),
+                        ));
+                    }
+                    return None;
+                }
                 if let Some(drag) = self.opening_drag.take() {
                     if drag.changed {
                         ctx.ui.send(TheEvent::Custom(
@@ -2221,6 +2909,9 @@ impl Tool for WallTool {
                             Box::new(map.clone()),
                         ));
                     }
+                    if let Some(start) = drag.connect_from {
+                        return self.place_span(map, start, drag.start_position, ctx, server_ctx);
+                    }
                     return None;
                 }
                 let held = self.held_adjustment.take()?;
@@ -2233,6 +2924,17 @@ impl Tool for WallTool {
                 })
             }
             MapEscape => {
+                if self.ring_drag.is_some() {
+                    self.cancel_ring_drag(map);
+                    self.build_mode = WallBuildMode::Line;
+                    self.finish_run(map);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Wall ring cancelled; Build returned to Line mode.".to_string(),
+                    ));
+                    ctx.ui.redraw_all = true;
+                    return None;
+                }
                 if self.opening_armed {
                     self.cancel_opening(map);
                     ctx.ui.send(TheEvent::SetStatusText(
@@ -2259,6 +2961,16 @@ impl Tool for WallTool {
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
                         "Brick editing finished; wall selection preserved.".to_string(),
+                    ));
+                    ctx.ui.redraw_all = true;
+                    return None;
+                }
+                if self.interaction_mode == WallInteractionMode::Surface {
+                    self.cancel_surface_preview(map);
+                    map.selected_wall_surface = None;
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Surface selection cleared. Click another bounded wall area.".to_string(),
                     ));
                     ctx.ui.redraw_all = true;
                     return None;
@@ -2290,6 +3002,35 @@ impl Tool for WallTool {
                 let mut rusterix = RUSTERIX.write().unwrap();
                 rusterix.set_dirty();
                 rusterix.set_overlay_dirty();
+                ctx.ui.redraw_all = true;
+                Some(ProjectUndoAtom::MapEdit(
+                    server_ctx.pc,
+                    Box::new(previous),
+                    Box::new(map.clone()),
+                ))
+            }
+            MapDelete
+                if self.interaction_mode == WallInteractionMode::Surface
+                    && map.selected_wall_surface.is_some() =>
+            {
+                let assembly_id = map.selected_wall_assembly?;
+                let surface_id = map.selected_wall_surface?;
+                let previous = map.clone();
+                if !map
+                    .wall_assembly_mut(assembly_id)?
+                    .remove_area_surface(surface_id)
+                {
+                    return None;
+                }
+                map.selected_wall_surface = None;
+                map.rebuild_wall_geometry();
+                let mut rusterix = RUSTERIX.write().unwrap();
+                rusterix.set_dirty();
+                rusterix.set_overlay_dirty();
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    "Area surface removed.".to_string(),
+                ));
                 ctx.ui.redraw_all = true;
                 Some(ProjectUndoAtom::MapEdit(
                     server_ctx.pc,
@@ -2384,5 +3125,48 @@ impl Tool for WallTool {
         }
         self.hud.draw(buffer, map, ctx, server_ctx, None, assets);
         self.draw_wall_panel(buffer, map, ctx, server_ctx);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generated_floor_is_not_a_wall_editing_hit_target() {
+        let mut map = Map::default();
+        let mut assembly = WallAssembly::new("Room".to_string());
+        assembly.auto_floor = true;
+        let start = assembly.add_node(Vec3::new(0.0, 0.0, 0.0));
+        let end = assembly.add_node(Vec3::new(4.0, 0.0, 0.0));
+        let span_id = assembly.add_span(start, end).unwrap();
+        let assembly_id = assembly.id;
+        map.wall_assemblies.push(assembly);
+        map.rebuild_wall_geometry();
+
+        let floor_id = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.properties.get_bool_default("wall_auto_floor", false))
+            .map(|object| object.id)
+            .expect("automatic floor geometry");
+        let span_object_id = map
+            .geometry_objects
+            .iter()
+            .find(|object| {
+                object.properties.get_id("wall_span_id") == Some(span_id)
+                    && !object.properties.get_bool_default("wall_auto_floor", false)
+            })
+            .map(|object| object.id)
+            .expect("wall span geometry");
+
+        assert_eq!(
+            WallTool::editable_wall_source_for_geometry_object(&map, floor_id),
+            None
+        );
+        assert_eq!(
+            WallTool::editable_wall_source_for_geometry_object(&map, span_object_id),
+            Some((assembly_id, span_id))
+        );
     }
 }

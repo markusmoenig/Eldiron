@@ -63,6 +63,12 @@ struct FittedSelection {
     loops: [Vec<usize>; 2],
 }
 
+struct FittedInput {
+    source: rusterix::GeometryObject,
+    source_face: Option<rusterix::GeometryFace>,
+    frame: FittedFrame,
+}
+
 fn normalized_edge(a: usize, b: usize) -> Edge {
     if a < b { (a, b) } else { (b, a) }
 }
@@ -506,6 +512,158 @@ fn fitted_frame(
     })
 }
 
+fn geometry_fitted_input(map: &Map) -> Result<FittedInput, FittedGeometryError> {
+    let selection = fitted_selection(map)?;
+    let source = map.geometry_objects[selection.object_index].clone();
+    let frame = fitted_frame(&source, &selection.loops)?;
+    let source_face = selection
+        .band_faces
+        .first()
+        .and_then(|face_index| source.faces.get(*face_index))
+        .cloned();
+    Ok(FittedInput {
+        source,
+        source_face,
+        frame,
+    })
+}
+
+fn wall_opening_fitted_input(map: &Map) -> Result<FittedInput, FittedGeometryError> {
+    let assembly_id = map
+        .selected_wall_assembly
+        .ok_or(FittedGeometryError::Selection)?;
+    let span_id = map
+        .selected_wall_spans
+        .first()
+        .copied()
+        .ok_or(FittedGeometryError::Selection)?;
+    let opening_id = map
+        .selected_wall_opening
+        .ok_or(FittedGeometryError::Selection)?;
+    let assembly = map
+        .wall_assembly(assembly_id)
+        .ok_or(FittedGeometryError::Selection)?;
+    let span = assembly
+        .span(span_id)
+        .ok_or(FittedGeometryError::Selection)?;
+    let opening = assembly
+        .opening(span_id, opening_id)
+        .ok_or(FittedGeometryError::Selection)?;
+    let style = span.style_override.as_ref().unwrap_or(&assembly.style);
+    let length = assembly
+        .span_length(span_id)
+        .ok_or(FittedGeometryError::Contours)?;
+    let along = opening.center.clamp(0.0, length);
+    let middle_height = opening.bottom + opening.height * 0.5;
+    let center = assembly
+        .span_point(span_id, Vec2::new(along, middle_height))
+        .ok_or(FittedGeometryError::Contours)?;
+    let epsilon = (length * 0.01).clamp(0.005, 0.05);
+    let before = assembly
+        .span_point(
+            span_id,
+            Vec2::new((along - epsilon).max(0.0), middle_height),
+        )
+        .ok_or(FittedGeometryError::Contours)?;
+    let after = assembly
+        .span_point(
+            span_id,
+            Vec2::new((along + epsilon).min(length), middle_height),
+        )
+        .ok_or(FittedGeometryError::Contours)?;
+    let horizontal_axis = Vec3::new(after.x - before.x, 0.0, after.z - before.z)
+        .try_normalized()
+        .ok_or(FittedGeometryError::Contours)?;
+    let vertical_axis = Vec3::unit_y();
+    let depth_axis = horizontal_axis
+        .cross(vertical_axis)
+        .try_normalized()
+        .ok_or(FittedGeometryError::Contours)?;
+
+    let half_width = opening.width * 0.5;
+    let half_height = opening.height * 0.5;
+    let mut polygon = match opening.shape {
+        rusterix::WallOpeningShape::Rectangular => vec![
+            Vec2::new(-half_width, -half_height),
+            Vec2::new(half_width, -half_height),
+            Vec2::new(half_width, half_height),
+            Vec2::new(-half_width, half_height),
+        ],
+        rusterix::WallOpeningShape::Arch => {
+            let radius_y = opening.effective_arch_radius();
+            let spring = half_height - radius_y;
+            let mut points = vec![
+                Vec2::new(-half_width, -half_height),
+                Vec2::new(half_width, -half_height),
+            ];
+            points.extend((0..=32).map(|segment| {
+                let angle = segment as f32 / 32.0 * std::f32::consts::PI;
+                Vec2::new(angle.cos() * half_width, spring + angle.sin() * radius_y)
+            }));
+            points
+        }
+    };
+    polygon.dedup_by(|left, right| (*left - *right).magnitude_squared() <= 1e-10);
+    if polygon.len() >= 2 && (polygon[0] - polygon[polygon.len() - 1]).magnitude_squared() <= 1e-10
+    {
+        polygon.pop();
+    }
+    if polygon.len() < 3 {
+        return Err(FittedGeometryError::Contours);
+    }
+    if polygon_area(&polygon) < 0.0 {
+        polygon.reverse();
+    }
+
+    let mut source_face = new_face(Vec::new(), None);
+    source_face.tile = Some(opening.frame.pixel_source(style));
+    Ok(FittedInput {
+        source: rusterix::GeometryObject::new("Wall Opening"),
+        source_face: Some(source_face),
+        frame: FittedFrame {
+            center,
+            depth_axis,
+            horizontal_axis,
+            vertical_axis,
+            polygon,
+            original_depth: style.thickness.max(0.01),
+        },
+    })
+}
+
+fn fitted_input(map: &Map) -> Result<FittedInput, FittedGeometryError> {
+    if map.selected_wall_opening.is_some() {
+        wall_opening_fitted_input(map)
+    } else {
+        geometry_fitted_input(map)
+    }
+}
+
+fn fitted_input_is_available(map: &Map) -> bool {
+    if map.selected_wall_opening.is_some() {
+        let Some(assembly_id) = map.selected_wall_assembly else {
+            return false;
+        };
+        let Some(span_id) = map.selected_wall_spans.first().copied() else {
+            return false;
+        };
+        let Some(opening_id) = map.selected_wall_opening else {
+            return false;
+        };
+        let Some(assembly) = map.wall_assembly(assembly_id) else {
+            return false;
+        };
+        assembly
+            .span_length(span_id)
+            .is_some_and(|length| length > 1e-5)
+            && assembly
+                .opening(span_id, opening_id)
+                .is_some_and(|opening| opening.width > 1e-5 && opening.height > 1e-5)
+    } else {
+        fitted_selection(map).is_ok()
+    }
+}
+
 fn clip_polygon_half_plane(
     polygon: &[Vec2<f32>],
     inside: impl Fn(Vec2<f32>) -> bool,
@@ -808,18 +966,17 @@ fn create_fitted_geometry(
     map: &mut Map,
     mut options: FittedOptions,
 ) -> Result<Vec<Uuid>, FittedGeometryError> {
-    let selection = fitted_selection(map)?;
-    let source = map.geometry_objects[selection.object_index].clone();
-    let frame = fitted_frame(&source, &selection.loops)?;
+    let FittedInput {
+        source,
+        source_face,
+        frame,
+    } = fitted_input(map)?;
     if !options.depth.is_finite() || options.depth <= 0.0 {
         options.depth = frame.original_depth.max(0.01);
     }
     let full_bounds = polygon_bounds(&frame.polygon).ok_or(FittedGeometryError::Contours)?;
     let split_x = (full_bounds.0.x + full_bounds.1.x) * 0.5;
-    let source_face = selection
-        .band_faces
-        .first()
-        .and_then(|face_index| source.faces.get(*face_index));
+    let source_face = source_face.as_ref();
     let leaves = match options.leaves {
         FittedLeaves::Single => vec![build_fitted_leaf(
             &source,
@@ -957,16 +1114,13 @@ impl Action for CreateFittedGeometry {
     fn is_applicable(&self, map: &Map, _ctx: &mut TheContext, server_ctx: &ServerContext) -> bool {
         server_ctx.get_map_context() == MapContext::Region
             && server_ctx.editor_view_mode != EditorViewMode::D2
-            && fitted_selection(map).is_ok()
+            && fitted_input_is_available(map)
     }
 
     fn load_params(&mut self, map: &Map) {
-        if let Ok(selection) = fitted_selection(map) {
-            let source = &map.geometry_objects[selection.object_index];
-            if let Ok(frame) = fitted_frame(source, &selection.loops) {
-                self.nodeui
-                    .set_f32_value("actionFittedDepth", frame.original_depth.max(0.01));
-            }
+        if let Ok(input) = fitted_input(map) {
+            self.nodeui
+                .set_f32_value("actionFittedDepth", input.frame.original_depth.max(0.01));
         }
     }
 
@@ -1087,6 +1241,24 @@ mod tests {
         map.selected_geometry_objects.push(object_id);
         map.selected_geometry_vertices = (0..8).map(|index| (object_id, index)).collect();
         (map, object_id)
+    }
+
+    fn selected_wall_opening_map(shape: rusterix::WallOpeningShape) -> Map {
+        let mut map = Map::new();
+        let mut assembly = rusterix::WallAssembly::new("Wall");
+        assembly.style.thickness = 0.4;
+        let start = assembly.add_node(Vec3::new(0.0, 0.0, 0.0));
+        let end = assembly.add_node(Vec3::new(4.0, 0.0, 0.0));
+        let span_id = assembly.add_span(start, end).unwrap();
+        let opening_id = assembly
+            .add_opening(span_id, Vec2::new(1.0, 0.0), Vec2::new(3.0, 2.5), shape)
+            .unwrap();
+        let assembly_id = assembly.id;
+        map.wall_assemblies.push(assembly);
+        map.selected_wall_assembly = Some(assembly_id);
+        map.selected_wall_spans.push(span_id);
+        map.selected_wall_opening = Some(opening_id);
+        map
     }
 
     #[test]
@@ -1221,6 +1393,59 @@ mod tests {
         assert!(edge_counts.values().all(|count| *count == 2));
         assert_eq!(map.selected_geometry_objects, vec![fitted_id]);
         assert_eq!(map.selected_geometry_faces.len(), fitted.faces.len());
+    }
+
+    #[test]
+    fn creates_fitted_geometry_directly_from_selected_wall_opening() {
+        let mut map = selected_wall_opening_map(rusterix::WallOpeningShape::Rectangular);
+        let input = fitted_input(&map).expect("selected wall opening should be a fitted source");
+        assert!((input.frame.original_depth - 0.4).abs() < 0.001);
+        assert_eq!(
+            polygon_bounds(&input.frame.polygon).unwrap().0,
+            Vec2::new(-1.0, -1.25)
+        );
+        assert_eq!(
+            polygon_bounds(&input.frame.polygon).unwrap().1,
+            Vec2::new(1.0, 1.25)
+        );
+
+        let fitted_ids = create_fitted_geometry(
+            &mut map,
+            FittedOptions {
+                depth: 0.4,
+                ..Default::default()
+            },
+        )
+        .expect("wall opening should create fitted geometry");
+        let fitted = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == fitted_ids[0])
+            .unwrap();
+        let min_z = fitted
+            .vertices
+            .iter()
+            .map(|vertex| vertex.z)
+            .fold(f32::INFINITY, f32::min);
+        let max_z = fitted
+            .vertices
+            .iter()
+            .map(|vertex| vertex.z)
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!((min_z + 0.2).abs() < 0.001);
+        assert!((max_z - 0.2).abs() < 0.001);
+    }
+
+    #[test]
+    fn selected_arch_wall_opening_supplies_curved_fitted_profile() {
+        let map = selected_wall_opening_map(rusterix::WallOpeningShape::Arch);
+        let input = fitted_input(&map).expect("selected arch should be a fitted source");
+        let (min, max) = polygon_bounds(&input.frame.polygon).unwrap();
+        assert!((min.x + 1.0).abs() < 0.001);
+        assert!((max.x - 1.0).abs() < 0.001);
+        assert!((min.y + 1.25).abs() < 0.001);
+        assert!((max.y - 1.25).abs() < 0.001);
+        assert!(input.frame.polygon.len() > 20);
     }
 
     #[test]

@@ -220,6 +220,15 @@ pub struct IsoPaintPoint {
     /// Stored per point so rebaking keeps the footprint authored from that camera angle.
     #[serde(default)]
     pub brush_transform: Option<[f32; 4]>,
+    /// New direct-paint points store `brush_transform` as surface UV change per screen pixel.
+    /// Older points used a normalized surface-local transform, so this flag also preserves
+    /// compatibility when their derived paint is rebuilt.
+    #[serde(default)]
+    pub screen_space_brush: bool,
+    /// Screen position of the sampled face relative to the shared brush center. A projected
+    /// dab can therefore retain one circular footprint while touching several separate faces.
+    #[serde(default)]
+    pub brush_screen_offset: [f32; 2],
     pub owner: Option<IsoPaintOwner>,
 }
 
@@ -234,6 +243,8 @@ impl IsoPaintPoint {
             camera_scale: None,
             viewport_size: None,
             brush_transform: None,
+            screen_space_brush: false,
+            brush_screen_offset: [0.0; 2],
             owner,
         }
     }
@@ -265,6 +276,17 @@ impl IsoPaintPoint {
 
     pub fn with_brush_transform(mut self, brush_transform: Option<[f32; 4]>) -> Self {
         self.brush_transform = brush_transform;
+        self
+    }
+
+    pub fn with_screen_space_brush(
+        mut self,
+        brush_transform: Option<[f32; 4]>,
+        screen_offset: [f32; 2],
+    ) -> Self {
+        self.brush_transform = brush_transform;
+        self.screen_space_brush = brush_transform.is_some();
+        self.brush_screen_offset = screen_offset;
         self
     }
 }
@@ -698,7 +720,17 @@ impl Default for IsoPaintLayer {
 
 impl IsoPaintLayer {
     fn point_brush_transform(&self, point: &IsoPaintPoint) -> [f32; 4] {
-        if self.active_brush == "material" {
+        if point.screen_space_brush {
+            let transform = point.brush_transform.map(|transform| {
+                [
+                    transform[0] * ISO_PAINT_BAKED_PIXELS_PER_UV,
+                    transform[1] * ISO_PAINT_BAKED_PIXELS_PER_UV,
+                    transform[2] * ISO_PAINT_BAKED_PIXELS_PER_UV,
+                    transform[3] * ISO_PAINT_BAKED_PIXELS_PER_UV,
+                ]
+            });
+            validated_brush_transform(transform).unwrap_or([1.0, 0.0, 0.0, 1.0])
+        } else if self.active_brush == "material" {
             [1.0, 0.0, 0.0, 1.0]
         } else {
             validated_brush_transform(point.brush_transform).unwrap_or([1.0, 0.0, 0.0, 1.0])
@@ -913,35 +945,49 @@ impl IsoPaintLayer {
         ]
     }
 
-    fn paint_baked_at_point(&mut self, point: &IsoPaintPoint, clip_geo: Option<[u32; 4]>) {
+    fn paint_baked_at_point(&mut self, point: &IsoPaintPoint, clip_owner: Option<&IsoPaintOwner>) {
         let (Some(owner), Some(uv), Some(paint_geo)) =
             (point.owner.as_ref(), point.surface_uv, point.paint_geo)
         else {
             return;
         };
         if Self::is_surface_clip(&self.active_clip)
-            && clip_geo.is_some_and(|clip_geo| clip_geo != paint_geo)
+            && clip_owner.is_some_and(|clip_owner| !clip_owner.same_paint_object(owner))
         {
             return;
         }
-        let center = [
-            (uv[0] * ISO_PAINT_BAKED_PIXELS_PER_UV).round() as i32,
-            (uv[1] * ISO_PAINT_BAKED_PIXELS_PER_UV).round() as i32,
+        let transform = self.point_brush_transform(point);
+        let mut center = [
+            uv[0] * ISO_PAINT_BAKED_PIXELS_PER_UV,
+            uv[1] * ISO_PAINT_BAKED_PIXELS_PER_UV,
         ];
+        if point.screen_space_brush {
+            center[0] -= transform[0] * point.brush_screen_offset[0]
+                + transform[1] * point.brush_screen_offset[1];
+            center[1] -= transform[2] * point.brush_screen_offset[0]
+                + transform[3] * point.brush_screen_offset[1];
+        }
+        let center = [center[0].round() as i32, center[1].round() as i32];
         let radius = (self.active_size * ISO_PAINT_UV_BRUSH_TEXELS_PER_SIZE)
             .round()
             .clamp(1.0, 96.0) as i32;
-        let transform = self.point_brush_transform(point);
         let extent_x = (radius as f32
             * (transform[0] * transform[0] + transform[1] * transform[1]).sqrt())
         .ceil() as i32;
         let extent_y = (radius as f32
             * (transform[2] * transform[2] + transform[3] * transform[3]).sqrt())
         .ceil() as i32;
-        let mut seed = paint_geo[0] ^ paint_geo[1].rotate_left(7) ^ paint_geo[2].rotate_left(13);
-        seed ^= paint_geo[3].rotate_left(19);
-        seed ^= (center[0] as u32).wrapping_mul(0x9e37_79b9);
-        seed ^= (center[1] as u32).wrapping_mul(0x85eb_ca6b);
+        let mut seed = if point.screen_space_brush {
+            (point.screen[0] as u32).wrapping_mul(0x9e37_79b9)
+                ^ (point.screen[1] as u32).wrapping_mul(0x85eb_ca6b)
+        } else {
+            paint_geo[0] ^ paint_geo[1].rotate_left(7) ^ paint_geo[2].rotate_left(13)
+        };
+        if !point.screen_space_brush {
+            seed ^= paint_geo[3].rotate_left(19);
+            seed ^= (center[0] as u32).wrapping_mul(0x9e37_79b9);
+            seed ^= (center[1] as u32).wrapping_mul(0x85eb_ca6b);
+        }
         let brush = self.active_brush.clone();
         let shape = self.active_brush_shape.clone();
         let color = self.active_color;
@@ -982,7 +1028,7 @@ impl IsoPaintLayer {
         &mut self,
         a: &IsoPaintPoint,
         b: &IsoPaintPoint,
-        clip_geo: Option<[u32; 4]>,
+        clip_owner: Option<&IsoPaintOwner>,
     ) {
         let (Some(uv_a), Some(uv_b), Some(paint_geo_a), Some(paint_geo_b)) =
             (a.surface_uv, b.surface_uv, a.paint_geo, b.paint_geo)
@@ -990,21 +1036,26 @@ impl IsoPaintLayer {
             return;
         };
         if paint_geo_a != paint_geo_b {
-            self.paint_baked_at_point(b, clip_geo);
+            self.paint_baked_at_point(b, clip_owner);
             return;
         }
         let ax = uv_a[0] * ISO_PAINT_BAKED_PIXELS_PER_UV;
         let ay = uv_a[1] * ISO_PAINT_BAKED_PIXELS_PER_UV;
         let bx = uv_b[0] * ISO_PAINT_BAKED_PIXELS_PER_UV;
         let by = uv_b[1] * ISO_PAINT_BAKED_PIXELS_PER_UV;
-        let spacing_transform = if self.active_brush == "material" {
-            [1.0, 0.0, 0.0, 1.0]
+        let mut midpoint = b.clone();
+        midpoint.brush_transform =
+            interpolated_brush_transform(a.brush_transform, b.brush_transform, 0.5);
+        midpoint.screen_space_brush = a.screen_space_brush || b.screen_space_brush;
+        let spacing_transform = self.point_brush_transform(&midpoint);
+        let distance = if a.screen_space_brush && b.screen_space_brush {
+            let dx = (b.screen[0] - a.screen[0]) as f32;
+            let dy = (b.screen[1] - a.screen[1]) as f32;
+            (dx * dx + dy * dy).sqrt()
         } else {
-            interpolated_brush_transform(a.brush_transform, b.brush_transform, 0.5)
-                .unwrap_or([1.0, 0.0, 0.0, 1.0])
+            let local_delta = brush_local_offset(spacing_transform, [bx - ax, by - ay]);
+            (local_delta[0].powi(2) + local_delta[1].powi(2)).sqrt()
         };
-        let local_delta = brush_local_offset(spacing_transform, [bx - ax, by - ay]);
-        let distance = (local_delta[0].powi(2) + local_delta[1].powi(2)).sqrt();
         let radius = (self.active_size * ISO_PAINT_UV_BRUSH_TEXELS_PER_SIZE)
             .round()
             .max(1.0);
@@ -1014,6 +1065,10 @@ impl IsoPaintLayer {
         for step in 0..=steps {
             let t = step as f32 / steps.max(1) as f32;
             let mut point = b.clone();
+            point.screen = [
+                (a.screen[0] as f32 + (b.screen[0] - a.screen[0]) as f32 * t).round() as i32,
+                (a.screen[1] as f32 + (b.screen[1] - a.screen[1]) as f32 * t).round() as i32,
+            ];
             point.surface_uv = Some([
                 uv_a[0] + (uv_b[0] - uv_a[0]) * t,
                 uv_a[1] + (uv_b[1] - uv_a[1]) * t,
@@ -1021,7 +1076,14 @@ impl IsoPaintLayer {
             point.paint_geo = Some(paint_geo_a);
             point.brush_transform =
                 interpolated_brush_transform(a.brush_transform, b.brush_transform, t);
-            self.paint_baked_at_point(&point, clip_geo);
+            point.screen_space_brush = a.screen_space_brush || b.screen_space_brush;
+            point.brush_screen_offset = [
+                a.brush_screen_offset[0]
+                    + (b.brush_screen_offset[0] - a.brush_screen_offset[0]) * t,
+                a.brush_screen_offset[1]
+                    + (b.brush_screen_offset[1] - a.brush_screen_offset[1]) * t,
+            ];
+            self.paint_baked_at_point(&point, clip_owner);
         }
     }
 
@@ -1063,14 +1125,29 @@ impl IsoPaintLayer {
         self.active_size = stroke.size;
         self.active_opacity = stroke.opacity;
 
-        let clip_geo = Self::is_surface_clip(&stroke.clip)
-            .then(|| stroke.points.first().and_then(|point| point.paint_geo))
+        let clip_owner = Self::is_surface_clip(&stroke.clip)
+            .then(|| stroke.points.first().and_then(|point| point.owner.clone()))
             .flatten();
-        if let Some(first) = stroke.points.first() {
-            self.paint_baked_at_point(first, clip_geo);
-        }
-        for points in stroke.points.windows(2) {
-            self.paint_baked_segment(&points[0], &points[1], clip_geo);
+        if stroke.points.iter().any(|point| point.screen_space_brush) {
+            let mut previous_by_face = std::collections::HashMap::new();
+            for point in &stroke.points {
+                if let Some(paint_geo) = point.paint_geo {
+                    if let Some(previous) = previous_by_face.insert(paint_geo, point.clone()) {
+                        self.paint_baked_segment(&previous, point, clip_owner.as_ref());
+                    } else {
+                        self.paint_baked_at_point(point, clip_owner.as_ref());
+                    }
+                } else {
+                    self.paint_baked_at_point(point, clip_owner.as_ref());
+                }
+            }
+        } else {
+            if let Some(first) = stroke.points.first() {
+                self.paint_baked_at_point(first, clip_owner.as_ref());
+            }
+            for points in stroke.points.windows(2) {
+                self.paint_baked_segment(&points[0], &points[1], clip_owner.as_ref());
+            }
         }
 
         (
@@ -1107,6 +1184,18 @@ impl IsoPaintLayer {
         for stroke in &strokes {
             self.bake_stroke(stroke);
         }
+    }
+
+    /// Migrates derived paint data on the persistent layer rather than on a short-lived render
+    /// clone. Returning whether anything changed lets callers invalidate their upload cache once.
+    pub fn ensure_baked_paint_current(&mut self) -> bool {
+        if self.baked_version == ISO_PAINT_BAKE_VERSION {
+            return false;
+        }
+        self.rebuild_baked_paint();
+        self.surface_commit_strokes.clear();
+        self.baked_version = ISO_PAINT_BAKE_VERSION;
+        true
     }
 
     pub fn stroke_first_owner(&self, stroke_id: Uuid) -> Option<IsoPaintOwner> {
@@ -1222,7 +1311,8 @@ impl IsoPaintLayer {
     }
 
     pub fn begin_stroke(&mut self, first_point: IsoPaintPoint) -> Uuid {
-        self.paint_baked_at_point(&first_point, first_point.paint_geo);
+        let clip_owner = first_point.owner.clone();
+        self.paint_baked_at_point(&first_point, clip_owner.as_ref());
         let origin = self.chunk_origin_for_screen(first_point.screen);
         let key = Self::chunk_key(origin);
         let mut stroke = IsoPaintStroke::new(
@@ -1372,11 +1462,84 @@ impl IsoPaintLayer {
             }
         }
         if let Some((previous_point, current_point)) = baked_segment {
-            let clip_geo = self.stroke_first_paint_geo(stroke_id);
-            self.paint_baked_segment(&previous_point, &current_point, clip_geo);
+            let clip_owner = self.stroke_first_owner(stroke_id);
+            self.paint_baked_segment(&previous_point, &current_point, clip_owner.as_ref());
             return true;
         }
         false
+    }
+
+    /// Append one projected brush sample for every visible face below the same screen-space dab.
+    /// Continuity and spacing are tracked per face; treating the batch as a normal point sequence
+    /// would discard all but the first face because every point shares the brush-center position.
+    pub fn append_projected_points(&mut self, stroke_id: Uuid, points: Vec<IsoPaintPoint>) -> bool {
+        if points.is_empty() {
+            return false;
+        }
+        let clip_owner = self.stroke_first_owner(stroke_id);
+        let Some((stroke_size, stroke_clip, existing_points)) = self
+            .chunks
+            .values()
+            .flat_map(|chunk| &chunk.strokes)
+            .find(|stroke| stroke.id == stroke_id)
+            .map(|stroke| (stroke.size, stroke.clip.clone(), stroke.points.clone()))
+        else {
+            return false;
+        };
+        let min_spacing = (stroke_size * 0.75).round().clamp(1.0, 12.0) as i32;
+        let mut accepted = Vec::new();
+        let mut paint_steps = Vec::new();
+        for point in points {
+            if Self::is_surface_clip(&stroke_clip)
+                && clip_owner.as_ref().is_some_and(|owner| {
+                    point
+                        .owner
+                        .as_ref()
+                        .is_none_or(|point_owner| !owner.same_paint_object(point_owner))
+                })
+            {
+                continue;
+            }
+            let previous = accepted
+                .iter()
+                .rev()
+                .chain(existing_points.iter().rev())
+                .find(|previous: &&IsoPaintPoint| previous.paint_geo == point.paint_geo)
+                .cloned();
+            if let Some(previous) = previous.as_ref() {
+                let dx = point.screen[0] - previous.screen[0];
+                let dy = point.screen[1] - previous.screen[1];
+                if dx * dx + dy * dy < min_spacing * min_spacing {
+                    continue;
+                }
+            }
+            paint_steps.push((previous, point.clone()));
+            accepted.push(point);
+        }
+        if accepted.is_empty() {
+            return false;
+        }
+        for chunk in self.chunks.values_mut() {
+            if let Some(stroke) = chunk
+                .strokes
+                .iter_mut()
+                .find(|stroke| stroke.id == stroke_id)
+            {
+                for point in accepted {
+                    stroke.append_point(point);
+                }
+                chunk.revision = chunk.revision.wrapping_add(1);
+                break;
+            }
+        }
+        for (previous, point) in paint_steps {
+            if let Some(previous) = previous {
+                self.paint_baked_segment(&previous, &point, clip_owner.as_ref());
+            } else {
+                self.paint_baked_at_point(&point, clip_owner.as_ref());
+            }
+        }
+        true
     }
 
     pub fn take_stroke(&mut self, stroke_id: Uuid) -> Option<IsoPaintStroke> {
@@ -1721,7 +1884,7 @@ mod tests {
     }
 
     #[test]
-    fn object_clip_rejects_points_on_another_owner() {
+    fn surface_clip_rejects_points_on_another_owner() {
         let mut layer = IsoPaintLayer::default();
         layer.active_clip = "surface".to_string();
         let first = IsoPaintPoint::new([10, 12], None, Some(IsoPaintOwner::Sector(1)))
@@ -1742,7 +1905,7 @@ mod tests {
     }
 
     #[test]
-    fn object_clip_rejects_another_surface_of_the_same_owner() {
+    fn surface_clip_accepts_another_surface_of_the_same_owner() {
         let mut layer = IsoPaintLayer::default();
         layer.active_clip = "surface".to_string();
         let first = IsoPaintPoint::new([10, 12], None, Some(IsoPaintOwner::Sector(1)))
@@ -1758,7 +1921,13 @@ mod tests {
             layer
                 .baked_chunks
                 .values()
-                .all(|chunk| chunk.paint_geo == [1, 0, 0, 1])
+                .any(|chunk| chunk.paint_geo == [1, 0, 0, 1])
+        );
+        assert!(
+            layer
+                .baked_chunks
+                .values()
+                .any(|chunk| chunk.paint_geo == [1, 0, 0, 2])
         );
     }
 }

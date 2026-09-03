@@ -3,6 +3,7 @@ use crate::docks::palette::PaletteDock;
 use crate::docks::tiles::TilesDock;
 use crate::editor::{RUSTERIX, SCENEMANAGER, TOOLLIST, UNDOMANAGER};
 use crate::prelude::*;
+use scenevm::GeoId;
 
 const PREFAB_VIEW: &str = "PrefabView";
 const MAP_VIEW: &str = "PolyView";
@@ -33,6 +34,45 @@ const PART_PREVIEW_DOOR: &str = "Prefab Editor Preview Door";
 const SUPPORT_SURFACE_CREATE: &str = "Prefab Editor Create Support Surface";
 const SUPPORT_SURFACE_EDIT: &str = "Prefab Editor Edit Support Surface";
 const SUPPORT_SURFACE_REMOVE: &str = "Prefab Editor Remove Support Surface";
+const EFFECT_TREE: &str = "Prefab Editor Effect Tree";
+const EFFECT_PRESET_STRIP: &str = "Prefab Editor Effect Preset Strip";
+const EFFECT_APPLY_PRESET: &str = "Prefab Editor Apply Effect Preset";
+const EFFECT_FINISH_PRESET: &str = "Prefab Editor Finish Effect Preset";
+const EFFECT_INSPECTOR_PAGES: &str = "Prefab Editor Effect Inspector Pages";
+const EFFECT_INSPECTOR_STACK: &str = "Prefab Editor Effect Inspector Stack";
+const PARTICLE_EFFECT_ITEM: &str = "Prefab Editor Particle Effect";
+const LIGHT_EFFECT_ITEM: &str = "Prefab Editor Light Effect";
+const EFFECT_ADD_PARTICLES: &str = "Prefab Editor Add Particles";
+const EFFECT_ADD_LIGHT: &str = "Prefab Editor Add Light";
+const EFFECT_DUPLICATE: &str = "Prefab Editor Duplicate Effect";
+const EFFECT_REMOVE: &str = "Prefab Editor Remove Effect";
+const EFFECT_ENABLED: &str = "Prefab Editor Effect Enabled";
+const EFFECT_PART: &str = "Prefab Editor Effect Part";
+const EFFECT_NAME: &str = "Prefab Editor Effect Name";
+const EFFECT_POSITION: &str = "Prefab Editor Effect Position";
+const EFFECT_DIRECTION: &str = "Prefab Editor Effect Direction";
+const EFFECT_RATE: &str = "Prefab Editor Effect Rate";
+const EFFECT_SPREAD: &str = "Prefab Editor Effect Spread";
+const EFFECT_LIFETIME: &str = "Prefab Editor Effect Lifetime";
+const EFFECT_RADIUS: &str = "Prefab Editor Effect Radius";
+const EFFECT_SPEED: &str = "Prefab Editor Effect Speed";
+const EFFECT_COLOR: &str = "Prefab Editor Effect Color";
+const EFFECT_COLOR_RAMP: &str = "Prefab Editor Effect Color Ramp";
+const EFFECT_EMISSION_SHAPE: &str = "Prefab Editor Effect Emission Shape";
+const EFFECT_FIT_PART_TOP: &str = "Prefab Editor Effect Fit Part Top";
+const EFFECT_EMISSION_WIDTH: &str = "Prefab Editor Effect Emission Width";
+const EFFECT_EMISSION_HEIGHT: &str = "Prefab Editor Effect Emission Height";
+const EFFECT_EMISSION_DEPTH: &str = "Prefab Editor Effect Emission Depth";
+const EFFECT_SIZE_PROFILE: &str = "Prefab Editor Effect Size Profile";
+const EFFECT_FADE_PROFILE: &str = "Prefab Editor Effect Fade Profile";
+const EFFECT_GRAVITY: &str = "Prefab Editor Effect Gravity";
+const EFFECT_TURBULENCE: &str = "Prefab Editor Effect Turbulence";
+const EFFECT_INTENSITY: &str = "Prefab Editor Light Intensity";
+const EFFECT_RANGE: &str = "Prefab Editor Light Range";
+const EFFECT_FLICKER: &str = "Prefab Editor Light Flicker";
+const EFFECT_LIGHT_LIFT: &str = "Prefab Editor Light Lift";
+const EFFECT_PLACEMENT_MODE: &str = "Prefab Editor Placement Mode";
+const EFFECT_SURFACE_OFFSET: &str = "Prefab Editor Surface Offset";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum PrefabEditorMode {
@@ -41,6 +81,16 @@ enum PrefabEditorMode {
     Paint,
     Tiles,
     Palette,
+    Effects,
+}
+
+struct PrefabEffectDrag {
+    effect_id: Uuid,
+    direction_handle: bool,
+    origin: Vec3<f32>,
+    plane_normal: Vec3<f32>,
+    before: Box<Project>,
+    changed: bool,
 }
 
 impl PrefabEditorMode {
@@ -50,6 +100,7 @@ impl PrefabEditorMode {
             Self::Paint => 1,
             Self::Tiles => 2,
             Self::Palette => 3,
+            Self::Effects => 4,
         }
     }
 }
@@ -64,6 +115,11 @@ pub struct PrefabsEditorDock {
     mode: PrefabEditorMode,
     selected_part_id: Option<Uuid>,
     selected_support_surface_id: Option<Uuid>,
+    selected_effect_id: Option<Uuid>,
+    effect_inspector_page: usize,
+    effect_preset_applying: bool,
+    effect_drag: Option<PrefabEffectDrag>,
+    effect_part_options: Vec<Uuid>,
     parent_options: Vec<Option<Uuid>>,
     assignment_options: Vec<Uuid>,
     door_preview_open: bool,
@@ -73,6 +129,70 @@ pub struct PrefabsEditorDock {
 }
 
 impl PrefabsEditorDock {
+    fn effect_id_for_gizmo(asset: &rusterix::BlockPropAsset, gizmo: u32) -> Option<(Uuid, bool)> {
+        let (index, direction) = if (0xEFFE_0000..0xEFFF_0000).contains(&gizmo) {
+            ((gizmo - 0xEFFE_0000) as usize, false)
+        } else if gizmo >= 0xEFFF_0000 {
+            ((gizmo - 0xEFFF_0000) as usize, true)
+        } else {
+            return None;
+        };
+        let id = asset
+            .particle_effects
+            .iter()
+            .map(|effect| effect.id)
+            .chain(asset.light_effects.iter().map(|effect| effect.id))
+            .nth(index)?;
+        Some((id, direction))
+    }
+
+    fn effect_attachment_ref(
+        asset: &rusterix::BlockPropAsset,
+        effect_id: Uuid,
+    ) -> Option<(Uuid, Uuid)> {
+        asset
+            .particle_effects
+            .iter()
+            .find(|effect| effect.id == effect_id)
+            .map(|effect| (effect.part_id, effect.attachment_id))
+            .or_else(|| {
+                asset
+                    .light_effects
+                    .iter()
+                    .find(|effect| effect.id == effect_id)
+                    .map(|effect| (effect.part_id, effect.attachment_id))
+            })
+    }
+
+    fn effect_attachment_mut(
+        asset: &mut rusterix::BlockPropAsset,
+        effect_id: Uuid,
+    ) -> Option<&mut rusterix::BlockPropAttachment> {
+        let (part_id, attachment_id) = Self::effect_attachment_ref(asset, effect_id)?;
+        asset
+            .parts
+            .iter_mut()
+            .find(|part| part.id == part_id)?
+            .attachments
+            .iter_mut()
+            .find(|attachment| attachment.id == attachment_id)
+    }
+
+    fn ray_drag_point(
+        server_ctx: &ServerContext,
+        origin: Vec3<f32>,
+        normal: Vec3<f32>,
+    ) -> Option<Vec3<f32>> {
+        let ray_origin = server_ctx.hover_ray_origin_3d?;
+        let ray_direction = server_ctx.hover_ray_dir_3d?;
+        let denominator = ray_direction.dot(normal);
+        if denominator.abs() <= 1e-6 {
+            return None;
+        }
+        let t = (origin - ray_origin).dot(normal) / denominator;
+        (t >= 0.0).then_some(ray_origin + ray_direction * t)
+    }
+
     fn translated_view_event(event: &TheEvent) -> Option<TheEvent> {
         let map_id = || TheId::named(MAP_VIEW);
         match event {
@@ -265,6 +385,314 @@ impl PrefabsEditorDock {
         canvas
     }
 
+    fn effects_canvas() -> TheCanvas {
+        let mut canvas = TheCanvas::new();
+
+        let mut toolbar_canvas = TheCanvas::new();
+        toolbar_canvas.set_widget(TheTraybar::new(TheId::empty()));
+        let mut toolbar = TheHLayout::new(TheId::named("Prefab Effect Actions"));
+        toolbar.set_background_color(None);
+        toolbar.set_margin(Vec4::new(6, 2, 6, 2));
+        toolbar.set_padding(5);
+        for (id, label) in [
+            (EFFECT_ADD_PARTICLES, "Add Particles"),
+            (EFFECT_ADD_LIGHT, "Add Light"),
+            (EFFECT_DUPLICATE, "Duplicate"),
+            (EFFECT_REMOVE, "Remove"),
+        ] {
+            let mut button = TheTraybarButton::new(TheId::named(id));
+            button.set_text(label.to_string());
+            button.set_fixed_size(false);
+            toolbar.add_widget(Box::new(button));
+        }
+        toolbar_canvas.set_layout(toolbar);
+
+        let mut tree_canvas = TheCanvas::new();
+        tree_canvas.set_layout(TheTreeLayout::new(TheId::named(EFFECT_TREE)));
+
+        let configure_layout = |layout: &mut TheTextLayout| {
+            layout.set_margin(Vec4::new(8, 8, 8, 8));
+            layout.set_padding(7);
+            layout.set_text_margin(8);
+            layout.set_fixed_text_width(100);
+            layout.set_text_align(TheHorizontalAlign::Right);
+        };
+        let add_edit = |layout: &mut TheTextLayout, id: &str, label: &str, status: &str| {
+            let mut edit = TheTextLineEdit::new(TheId::named(id));
+            edit.limiter_mut().set_max_width(i32::MAX);
+            edit.set_status_text(status);
+            layout.add_pair(label.to_string(), Box::new(edit));
+        };
+        let add_number = |layout: &mut TheTextLayout,
+                          id: &str,
+                          label: &str,
+                          status: &str,
+                          range: std::ops::RangeInclusive<f32>| {
+            let mut edit = TheTextLineEdit::new(TheId::named(id));
+            edit.limiter_mut().set_max_width(i32::MAX);
+            edit.set_range(TheValue::RangeF32(range));
+            edit.set_status_text(status);
+            layout.add_pair(label.to_string(), Box::new(edit));
+        };
+
+        let mut setup_canvas = TheCanvas::new();
+        let mut setup = TheTextLayout::new(TheId::named("Prefab Effect Setup Inspector"));
+        configure_layout(&mut setup);
+        let mut placement = TheGroupButton::new(TheId::named(EFFECT_PLACEMENT_MODE));
+        for label in ["Ground", "Wall", "Surface", "Free"] {
+            placement.add_text_status(label.to_string(), format!("Mount on {label}"));
+        }
+        placement.set_index(0);
+        setup.add_pair("Mount".to_string(), Box::new(placement));
+        add_number(
+            &mut setup,
+            EFFECT_SURFACE_OFFSET,
+            "Surface offset",
+            "Distance from the mounting surface",
+            0.0..=5.0,
+        );
+
+        let mut enabled = TheCheckButton::new(TheId::named(EFFECT_ENABLED));
+        enabled.set_status_text("Temporarily enable or disable the selected effect");
+        setup.add_pair("Enabled".to_string(), Box::new(enabled));
+
+        let mut part = TheDropdownMenu::new(TheId::named(EFFECT_PART));
+        part.limiter_mut().set_max_width(i32::MAX);
+        part.set_status_text("Prefab part which owns this effect attachment");
+        setup.add_pair("Attach to".to_string(), Box::new(part));
+        add_edit(
+            &mut setup,
+            EFFECT_NAME,
+            "Name",
+            "Name shown in the effect list",
+        );
+        add_edit(
+            &mut setup,
+            EFFECT_POSITION,
+            "Position",
+            "Local attachment position: x, y, z",
+        );
+        add_edit(
+            &mut setup,
+            EFFECT_DIRECTION,
+            "Direction",
+            "Emission direction: x, y, z",
+        );
+
+        let mut color_ramp = ThePaletteIndexRowPicker::new(TheId::named(EFFECT_COLOR_RAMP));
+        color_ramp.set_selected_indices(vec![0, 0, 0, 0]);
+        color_ramp.set_status_text("Choose four particle colors from birth to fade-out");
+        setup.add_pair("Colors".to_string(), Box::new(color_ramp));
+        setup_canvas.set_layout(setup);
+
+        let mut emission_canvas = TheCanvas::new();
+        let mut emission = TheTextLayout::new(TheId::named("Prefab Effect Emission Inspector"));
+        configure_layout(&mut emission);
+        let mut emission_shape = TheGroupButton::new(TheId::named(EFFECT_EMISSION_SHAPE));
+        for (label, status) in [
+            ("Point", "Emit at the attachment origin"),
+            ("Box", "Emit throughout a box around the attachment"),
+            ("Surface", "Emit across a horizontal rectangular surface"),
+        ] {
+            emission_shape.add_text_status(label.to_string(), status.to_string());
+        }
+        emission_shape.set_index(0);
+        emission.add_pair("Emit from".to_string(), Box::new(emission_shape));
+        let mut fit_part = TheTraybarButton::new(TheId::named(EFFECT_FIT_PART_TOP));
+        fit_part.set_text("Fit attached part top".to_string());
+        fit_part.set_fixed_size(false);
+        fit_part.limiter_mut().set_max_width(i32::MAX);
+        fit_part.set_status_text("Cover the complete top surface of the attached Prefab part");
+        emission.add_pair("Bounds".to_string(), Box::new(fit_part));
+        for (id, label, status, range) in [
+            (
+                EFFECT_RATE,
+                "Amount",
+                "Particles emitted per second",
+                0.0..=200.0,
+            ),
+            (
+                EFFECT_EMISSION_WIDTH,
+                "Width",
+                "Full width of the emission region",
+                0.0..=20.0,
+            ),
+            (
+                EFFECT_EMISSION_HEIGHT,
+                "Height",
+                "Full height of a box emission region",
+                0.0..=20.0,
+            ),
+            (
+                EFFECT_EMISSION_DEPTH,
+                "Depth",
+                "Full depth of the emission region",
+                0.0..=20.0,
+            ),
+            (
+                EFFECT_SPREAD,
+                "Spread",
+                "How widely particles fan out",
+                0.0..=std::f32::consts::PI,
+            ),
+            (
+                EFFECT_SPEED,
+                "Speed",
+                "Average particle movement speed",
+                0.0..=10.0,
+            ),
+            (
+                EFFECT_TURBULENCE,
+                "Random motion",
+                "Random motion strength",
+                0.0..=5.0,
+            ),
+        ] {
+            add_number(&mut emission, id, label, status, range);
+        }
+        add_edit(
+            &mut emission,
+            EFFECT_GRAVITY,
+            "Gravity",
+            "World acceleration: x, y, z",
+        );
+        emission_canvas.set_layout(emission);
+
+        let mut lifetime_canvas = TheCanvas::new();
+        let mut lifetime = TheTextLayout::new(TheId::named("Prefab Effect Lifetime Inspector"));
+        configure_layout(&mut lifetime);
+        for (id, label, status, range) in [
+            (
+                EFFECT_LIFETIME,
+                "Duration",
+                "Average particle lifetime in seconds",
+                0.01..=20.0,
+            ),
+            (
+                EFFECT_RADIUS,
+                "Particle size",
+                "Average particle size in world units",
+                0.001..=2.0,
+            ),
+        ] {
+            add_number(&mut lifetime, id, label, status, range);
+        }
+        let mut size_profile = TheGroupButton::new(TheId::named(EFFECT_SIZE_PROFILE));
+        for (label, status) in [
+            ("Grow", "Particles expand over their lifetime"),
+            ("Steady", "Particles keep roughly the same size"),
+            ("Shrink", "Particles become smaller over their lifetime"),
+        ] {
+            size_profile.add_text_status(label.to_string(), status.to_string());
+        }
+        lifetime.add_pair("Size behavior".to_string(), Box::new(size_profile));
+        let mut fade_profile = TheGroupButton::new(TheId::named(EFFECT_FADE_PROFILE));
+        for (label, status) in [
+            ("Soft", "Fade in and out smoothly"),
+            ("Late", "Stay visible, then fade near the end"),
+            ("None", "Keep opacity throughout the lifetime"),
+        ] {
+            fade_profile.add_text_status(label.to_string(), status.to_string());
+        }
+        lifetime.add_pair("Fade".to_string(), Box::new(fade_profile));
+        lifetime_canvas.set_layout(lifetime);
+
+        let mut light_canvas = TheCanvas::new();
+        let mut light = TheTextLayout::new(TheId::named("Prefab Effect Light Inspector"));
+        configure_layout(&mut light);
+        let mut light_color = ThePaletteIndexPicker::new(TheId::named(EFFECT_COLOR));
+        light_color.set_status_text("Choose the emitted light color from the project palette");
+        light.add_pair("Color".to_string(), Box::new(light_color));
+        for (id, label, status, range) in [
+            (
+                EFFECT_INTENSITY,
+                "Brightness",
+                "Light intensity",
+                0.0..=20.0,
+            ),
+            (
+                EFFECT_RANGE,
+                "Range",
+                "Light range in world units",
+                0.0..=50.0,
+            ),
+            (
+                EFFECT_FLICKER,
+                "Flicker",
+                "Random light intensity variation",
+                0.0..=1.0,
+            ),
+            (
+                EFFECT_LIGHT_LIFT,
+                "Height",
+                "Vertical offset from the attachment",
+                -5.0..=5.0,
+            ),
+        ] {
+            add_number(&mut light, id, label, status, range);
+        }
+        light_canvas.set_layout(light);
+
+        let mut inspector_stack = TheStackLayout::new(TheId::named(EFFECT_INSPECTOR_STACK));
+        inspector_stack.add_canvas(setup_canvas);
+        inspector_stack.add_canvas(emission_canvas);
+        inspector_stack.add_canvas(lifetime_canvas);
+        inspector_stack.add_canvas(light_canvas);
+        let mut inspector = TheCanvas::new();
+        inspector.set_layout(inspector_stack);
+
+        let mut pages_canvas = TheCanvas::new();
+        pages_canvas.limiter_mut().set_min_height(28);
+        pages_canvas.limiter_mut().set_max_height(28);
+        let mut pages_layout = TheHLayout::new(TheId::named("Prefab Effect Inspector Tabs"));
+        pages_layout.limiter_mut().set_min_height(28);
+        pages_layout.limiter_mut().set_max_height(28);
+        pages_layout.set_margin(Vec4::new(8, 3, 8, 2));
+        let mut pages = TheGroupButton::new(TheId::named(EFFECT_INSPECTOR_PAGES));
+        for (label, status) in [
+            ("Setup", "Attachment and particle colors"),
+            ("Emission", "Where particles are born and how they move"),
+            ("Lifetime", "Particle size and fading"),
+            ("Light", "Light emission settings"),
+        ] {
+            pages.add_text_status(label.to_string(), status.to_string());
+        }
+        pages.set_index(0);
+        pages_layout.add_widget(Box::new(pages));
+        pages_canvas.set_layout(pages_layout);
+
+        let mut inspector_panel = TheCanvas::new();
+        inspector_panel.set_top(pages_canvas);
+        inspector_panel.set_center(inspector);
+
+        let mut split = TheSharedHLayout::new(TheId::named("Prefab Effects Shared HLayout"));
+        split.set_shared_ratio(0.25);
+        split.set_mode(TheSharedHLayoutMode::Shared);
+        split.add_canvas(tree_canvas);
+        split.add_canvas(inspector_panel);
+
+        let mut preset_canvas = TheCanvas::new();
+        preset_canvas.limiter_mut().set_min_height(50);
+        preset_canvas.limiter_mut().set_max_height(50);
+        let mut presets = TheScrollableIconRow::new(TheId::named(EFFECT_PRESET_STRIP));
+        presets.set_tile_width(82);
+        presets.set_icon_padding(3);
+        presets.set_show_labels(true);
+        presets.limiter_mut().set_min_height(58);
+        presets.limiter_mut().set_max_height(58);
+        presets.set_items(Self::effect_preset_items());
+        preset_canvas.set_widget(presets);
+
+        let mut content = TheCanvas::new();
+        let mut split_canvas = TheCanvas::new();
+        split_canvas.set_layout(split);
+        content.set_top(preset_canvas);
+        content.set_center(split_canvas);
+        canvas.set_top(toolbar_canvas);
+        canvas.set_center(content);
+        canvas
+    }
+
     fn support_surface_popup_canvas() -> TheCanvas {
         let mut canvas = TheCanvas::new();
         canvas.limiter_mut().set_max_size(Vec2::new(420, 154));
@@ -435,6 +863,21 @@ impl PrefabsEditorDock {
         let Some(asset) = project.block_props.get(&asset_id) else {
             return;
         };
+        if let Some(widget) = ui.get_widget(EFFECT_PLACEMENT_MODE)
+            && let Some(group) = widget.as_group_button()
+        {
+            group.set_index(match asset.placement.mode {
+                rusterix::BlockPropPlacementMode::Ground => 0,
+                rusterix::BlockPropPlacementMode::Wall => 1,
+                rusterix::BlockPropPlacementMode::AnySurface => 2,
+                rusterix::BlockPropPlacementMode::Free => 3,
+            });
+        }
+        ui.set_widget_value(
+            EFFECT_SURFACE_OFFSET,
+            ctx,
+            TheValue::Text(format!("{:.3}", asset.placement.surface_offset)),
+        );
         if self.selected_support_surface_id.is_none()
             && let Some(object_id) = project
                 .prefab_editor_map
@@ -783,6 +1226,1010 @@ impl PrefabsEditorDock {
         }
     }
 
+    fn parse_vec3(value: &str) -> Option<[f32; 3]> {
+        let values = value
+            .split([',', ' '])
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| value.trim().parse::<f32>())
+            .collect::<Result<Vec<_>, _>>()
+            .ok()?;
+        (values.len() == 3).then(|| [values[0], values[1], values[2]])
+    }
+
+    fn effect_range_around(center: f32, variation: f32) -> (f32, f32) {
+        let center = center.max(0.0);
+        let variation = variation.clamp(0.0, 0.95);
+        (center * (1.0 - variation), center * (1.0 + variation))
+    }
+
+    fn effect_palette_index(project: &Project, color: [u8; 4]) -> i32 {
+        project
+            .art_palette
+            .find_closest_color_index(&TheColor::from(color))
+            .unwrap_or(project.art_palette.current_index as usize) as i32
+    }
+
+    fn effect_palette_color(project: &Project, index: u16) -> Option<[u8; 4]> {
+        project
+            .art_palette
+            .colors
+            .get(index as usize)
+            .and_then(|color| color.as_ref())
+            .map(TheColor::to_u8_array)
+    }
+
+    fn effect_color_ramp_slot(id: &str) -> Option<usize> {
+        id.strip_prefix(EFFECT_COLOR_RAMP)?
+            .trim()
+            .parse::<usize>()
+            .ok()?
+            .checked_sub(1)
+            .filter(|slot| *slot < 4)
+    }
+
+    fn fit_particle_emission_to_part_top(
+        asset: &mut rusterix::BlockPropAsset,
+        effect_id: Uuid,
+    ) -> bool {
+        let Some((part_id, attachment_id)) = asset
+            .particle_effects
+            .iter()
+            .find(|effect| effect.id == effect_id)
+            .map(|effect| (effect.part_id, effect.attachment_id))
+        else {
+            return false;
+        };
+
+        let Some(part) = asset.find_part(part_id) else {
+            return false;
+        };
+        let mut min = Vec3::broadcast(f32::INFINITY);
+        let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+        let mut found = false;
+        for object in part.geometry_source.geometry_objects() {
+            for vertex in &object.vertices {
+                let point = object.transform_point(*vertex);
+                min = min.map2(point, f32::min);
+                max = max.map2(point, f32::max);
+                found = true;
+            }
+        }
+        if !found {
+            return false;
+        }
+
+        let center = (min + max) * 0.5;
+        let half = ((max - min) * 0.5).map(|value| value.max(0.0));
+        let position = [center.x, max.y, center.z];
+        let spawn_area = [half.x, 0.0, half.z];
+        let mut changed = false;
+        if let Some(effect) = asset
+            .particle_effects
+            .iter_mut()
+            .find(|effect| effect.id == effect_id)
+        {
+            changed |= effect.emitter.emission_shape != rusterix::ParticleEmissionShape::Surface;
+            changed |= effect.emitter.spawn_area != spawn_area;
+            effect.emitter.emission_shape = rusterix::ParticleEmissionShape::Surface;
+            effect.emitter.spawn_area = spawn_area;
+        }
+        if let Some(attachment) = asset
+            .parts
+            .iter_mut()
+            .find(|part| part.id == part_id)
+            .and_then(|part| {
+                part.attachments
+                    .iter_mut()
+                    .find(|attachment| attachment.id == attachment_id)
+            })
+        {
+            changed |= attachment.position != position;
+            attachment.position = position;
+            attachment.direction = [0.0, 1.0, 0.0];
+        }
+        changed
+    }
+
+    const PARTICLE_PRESETS: [&'static str; 7] =
+        ["Flame", "Smoke", "Vapor", "Fog", "Sparks", "Embers", "Dust"];
+
+    fn particle_preset_definition(preset: &str) -> (&'static str, rusterix::ParticleEmitterDef) {
+        if preset == "Flame" {
+            return ("Flame", crate::blocks::stonefall_torch_flame_emitter());
+        }
+        if preset == "Smoke" {
+            return ("Smoke", crate::blocks::smoke_emitter(9.0, 1.0));
+        }
+        let mut emitter = rusterix::ParticleEmitterDef::default();
+        let (name, color) = match preset {
+            "Fog" => {
+                emitter.rate = 14.0;
+                emitter.spread = 1.15;
+                emitter.lifetime_range = (2.0, 4.5);
+                emitter.radius_range = (0.035, 0.11);
+                emitter.speed_range = (0.03, 0.16);
+                emitter.spawn_area = [0.35, 0.03, 0.35];
+                emitter.emission_shape = rusterix::ParticleEmissionShape::Surface;
+                emitter.size_curve = [0.75, 1.1, 1.55, 2.0];
+                emitter.opacity_curve = [0.0, 0.52, 0.32, 0.0];
+                emitter.gravity = [0.0, 0.025, 0.0];
+                emitter.turbulence = 0.08;
+                ("Fog", [170, 184, 190, 125])
+            }
+            "Vapor" => {
+                emitter.rate = 18.0;
+                emitter.spread = 0.24;
+                emitter.lifetime_range = (0.8, 2.2);
+                emitter.radius_range = (0.012, 0.045);
+                emitter.speed_range = (0.1, 0.36);
+                emitter.spawn_area = [0.14, 0.015, 0.14];
+                emitter.emission_shape = rusterix::ParticleEmissionShape::Surface;
+                emitter.size_curve = [0.45, 0.85, 1.3, 1.65];
+                emitter.opacity_curve = [0.0, 0.7, 0.38, 0.0];
+                emitter.gravity = [0.0, 0.1, 0.0];
+                emitter.turbulence = 0.16;
+                ("Vapor", [188, 205, 211, 150])
+            }
+            "Sparks" => {
+                emitter.rate = 12.0;
+                emitter.spread = 0.85;
+                emitter.lifetime_range = (0.25, 0.9);
+                emitter.radius_range = (0.003, 0.012);
+                emitter.speed_range = (0.5, 1.8);
+                emitter.spawn_area = [0.04, 0.02, 0.04];
+                emitter.size_curve = [1.0, 0.8, 0.4, 0.05];
+                emitter.opacity_curve = [1.0, 1.0, 0.72, 0.0];
+                emitter.gravity = [0.0, -1.8, 0.0];
+                emitter.turbulence = 0.05;
+                ("Sparks", [255, 176, 52, 255])
+            }
+            "Embers" => {
+                emitter.rate = 5.0;
+                emitter.spread = 0.75;
+                emitter.lifetime_range = (0.65, 2.0);
+                emitter.radius_range = (0.002, 0.008);
+                emitter.speed_range = (0.18, 0.65);
+                emitter.spawn_area = [0.12, 0.02, 0.12];
+                emitter.emission_shape = rusterix::ParticleEmissionShape::Surface;
+                emitter.size_curve = [1.0, 0.9, 0.55, 0.05];
+                emitter.opacity_curve = [1.0, 1.0, 0.75, 0.0];
+                emitter.gravity = [0.0, 0.05, 0.0];
+                emitter.turbulence = 0.18;
+                ("Embers", [255, 112, 30, 255])
+            }
+            "Dust" => {
+                emitter.rate = 7.0;
+                emitter.spread = 1.3;
+                emitter.lifetime_range = (1.8, 4.0);
+                emitter.radius_range = (0.004, 0.018);
+                emitter.speed_range = (0.015, 0.09);
+                emitter.spawn_area = [0.4, 0.18, 0.4];
+                emitter.emission_shape = rusterix::ParticleEmissionShape::Box;
+                emitter.size_curve = [0.75, 1.0, 1.0, 0.7];
+                emitter.opacity_curve = [0.0, 0.58, 0.45, 0.0];
+                emitter.gravity = [0.0, -0.008, 0.0];
+                emitter.turbulence = 0.1;
+                ("Dust", [182, 158, 119, 135])
+            }
+            _ => return ("Flame", crate::blocks::stonefall_torch_flame_emitter()),
+        };
+        emitter.color = color;
+        emitter.color_ramp = Some(if name == "Flame" || name == "Sparks" || name == "Embers" {
+            [
+                [255, 242, 168, 255],
+                [255, 193, 79, 255],
+                [240, 100, 31, 255],
+                [64, 16, 8, 0],
+            ]
+        } else {
+            [
+                color,
+                color,
+                [color[0] / 2, color[1] / 2, color[2] / 2, color[3]],
+                [0, 0, 0, 0],
+            ]
+        });
+        (name, emitter)
+    }
+
+    fn effect_preset_items() -> Vec<TheScrollableIconRowItem> {
+        Self::PARTICLE_PRESETS
+            .iter()
+            .map(|preset| {
+                let (name, _) = Self::particle_preset_definition(preset);
+                let mut item = TheScrollableIconRowItem::new(name);
+                item.status = format!("Apply the {name} preset to the selected particles");
+                item.icon = Some(Self::effect_preset_icon(name));
+                item
+            })
+            .collect()
+    }
+
+    fn effect_preset_icon(preset: &str) -> TheRGBABuffer {
+        let mut icon = TheRGBABuffer::new(TheDim::sized(48, 28));
+        match preset {
+            "Flame" => {
+                Self::draw_effect_icon_disc(&mut icon, 16, 8, 16, [239, 80, 26, 255]);
+                Self::draw_effect_icon_disc(&mut icon, 19, 11, 10, [255, 191, 54, 255]);
+                Self::draw_effect_icon_disc(&mut icon, 22, 15, 5, [255, 242, 172, 255]);
+            }
+            "Smoke" => {
+                Self::draw_effect_icon_disc(&mut icon, 10, 13, 11, [82, 88, 96, 220]);
+                Self::draw_effect_icon_disc(&mut icon, 18, 8, 14, [111, 117, 125, 210]);
+                Self::draw_effect_icon_disc(&mut icon, 29, 12, 10, [76, 81, 89, 190]);
+            }
+            "Vapor" => {
+                for x in [14, 23, 32] {
+                    icon.draw_line(x, 23, x - 2, 15, [174, 207, 218, 220]);
+                    icon.draw_line(x - 2, 15, x + 2, 8, [205, 228, 234, 180]);
+                }
+            }
+            "Fog" => {
+                icon.draw_horizontal_line(7, 39, 10, [154, 174, 184, 180]);
+                icon.draw_horizontal_line(12, 43, 15, [190, 205, 211, 205]);
+                icon.draw_horizontal_line(5, 34, 20, [132, 151, 162, 160]);
+            }
+            "Sparks" => {
+                for (x, y) in [(12, 19), (20, 9), (29, 17), (37, 7)] {
+                    icon.draw_line(x - 2, y, x + 2, y, [255, 185, 54, 255]);
+                    icon.draw_line(x, y - 2, x, y + 2, [255, 232, 128, 255]);
+                }
+            }
+            "Embers" => {
+                for (x, y, size) in [(9, 17, 4), (17, 9, 3), (25, 18, 5), (35, 11, 3)] {
+                    Self::draw_effect_icon_disc(&mut icon, x, y, size, [255, 104, 28, 255]);
+                }
+            }
+            _ => {
+                for (x, y, size) in [
+                    (7, 9, 3),
+                    (14, 18, 2),
+                    (21, 12, 3),
+                    (28, 21, 2),
+                    (35, 8, 2),
+                    (40, 16, 3),
+                ] {
+                    Self::draw_effect_icon_disc(&mut icon, x, y, size, [191, 166, 125, 220]);
+                }
+            }
+        }
+        icon
+    }
+
+    fn draw_effect_icon_disc(icon: &mut TheRGBABuffer, x: i32, y: i32, size: i32, color: [u8; 4]) {
+        icon.draw_disc(&TheDim::new(x, y, size, size), &color, 0.0, &[0, 0, 0, 0]);
+    }
+
+    fn add_particle_preset(
+        &mut self,
+        project: &mut Project,
+        asset_id: Uuid,
+        preset: &str,
+    ) -> Result<Uuid, String> {
+        let asset = project
+            .block_props
+            .get_mut(&asset_id)
+            .ok_or_else(|| "Prefab is missing".to_string())?;
+        let part_id = self
+            .selected_part_id
+            .filter(|part_id| asset.find_part(*part_id).is_some())
+            .or_else(|| asset.parts.first().map(|part| part.id))
+            .ok_or_else(|| "Create a Prefab part before adding an effect".to_string())?;
+        let part = asset
+            .parts
+            .iter_mut()
+            .find(|part| part.id == part_id)
+            .expect("validated part");
+        let attachment_id = Uuid::new_v4();
+        part.attachments.push(rusterix::BlockPropAttachment {
+            id: attachment_id,
+            name: format!("{preset} Emitter"),
+            position: part.pivot,
+            direction: [0.0, 1.0, 0.0],
+            up: [0.0, 0.0, 1.0],
+        });
+
+        let (name, emitter) = Self::particle_preset_definition(preset);
+        let effect_id = Uuid::new_v4();
+        asset
+            .particle_effects
+            .push(rusterix::BlockPropParticleEffect {
+                id: effect_id,
+                name: name.to_string(),
+                part_id,
+                attachment_id,
+                enabled: true,
+                emitter,
+            });
+        self.selected_part_id = Some(part_id);
+        self.selected_effect_id = Some(effect_id);
+        Ok(effect_id)
+    }
+
+    fn apply_particle_preset(
+        &mut self,
+        project: &mut Project,
+        asset_id: Uuid,
+        preset: &str,
+    ) -> Result<(), String> {
+        let effect_id = self
+            .selected_effect_id
+            .ok_or_else(|| "Select a particle effect first".to_string())?;
+        let asset = project
+            .block_props
+            .get_mut(&asset_id)
+            .ok_or_else(|| "Prefab is missing".to_string())?;
+        let effect_index = asset
+            .particle_effects
+            .iter()
+            .position(|effect| effect.id == effect_id)
+            .ok_or_else(|| "Select a particle effect first".to_string())?;
+        let (name, mut emitter) = Self::particle_preset_definition(preset);
+        let (part_id, attachment_id) = {
+            let effect = &mut asset.particle_effects[effect_index];
+            // Presets are absolute visual definitions. The source footprint is
+            // layout authored on the Prefab, so it remains independent of the
+            // selected visual style.
+            emitter.emission_shape = effect.emitter.emission_shape;
+            emitter.spawn_area = effect.emitter.spawn_area;
+
+            effect.name = name.to_string();
+            effect.emitter = emitter;
+            (effect.part_id, effect.attachment_id)
+        };
+        if let Some(attachment) = asset
+            .parts
+            .iter_mut()
+            .find(|part| part.id == part_id)
+            .and_then(|part| {
+                part.attachments
+                    .iter_mut()
+                    .find(|attachment| attachment.id == attachment_id)
+            })
+        {
+            attachment.name = format!("{name} Emitter");
+        }
+        Ok(())
+    }
+
+    fn add_light_effect(&mut self, project: &mut Project, asset_id: Uuid) -> Result<Uuid, String> {
+        let asset = project
+            .block_props
+            .get_mut(&asset_id)
+            .ok_or_else(|| "Prefab is missing".to_string())?;
+        let linked = self.selected_effect_id.and_then(|effect_id| {
+            asset
+                .particle_effects
+                .iter()
+                .find(|effect| effect.id == effect_id)
+                .map(|effect| (effect.part_id, effect.attachment_id))
+        });
+        let (part_id, attachment_id) = if let Some(linked) = linked {
+            linked
+        } else {
+            let part_id = self
+                .selected_part_id
+                .filter(|part_id| asset.find_part(*part_id).is_some())
+                .or_else(|| asset.parts.first().map(|part| part.id))
+                .ok_or_else(|| "Create a Prefab part before adding a light".to_string())?;
+            let part = asset
+                .parts
+                .iter_mut()
+                .find(|part| part.id == part_id)
+                .expect("validated part");
+            let attachment_id = Uuid::new_v4();
+            part.attachments.push(rusterix::BlockPropAttachment {
+                id: attachment_id,
+                name: "Light".to_string(),
+                position: part.pivot,
+                direction: [0.0, 1.0, 0.0],
+                up: [0.0, 0.0, 1.0],
+            });
+            (part_id, attachment_id)
+        };
+        let id = Uuid::new_v4();
+        asset.light_effects.push(rusterix::BlockPropLightEffect {
+            id,
+            name: "Fire Light".to_string(),
+            part_id,
+            attachment_id,
+            enabled: true,
+            color: [255, 154, 69, 255],
+            intensity: 2.0,
+            range: 4.0,
+            flicker: 0.2,
+            lift: 0.04,
+        });
+        self.selected_part_id = Some(part_id);
+        self.selected_effect_id = Some(id);
+        Ok(id)
+    }
+
+    fn duplicate_selected_effect(
+        &mut self,
+        project: &mut Project,
+        asset_id: Uuid,
+    ) -> Result<Uuid, String> {
+        let effect_id = self
+            .selected_effect_id
+            .ok_or_else(|| "Select an effect to duplicate".to_string())?;
+        let asset = project
+            .block_props
+            .get_mut(&asset_id)
+            .ok_or_else(|| "Prefab is missing".to_string())?;
+
+        if let Some(mut effect) = asset
+            .particle_effects
+            .iter()
+            .find(|effect| effect.id == effect_id)
+            .cloned()
+        {
+            let mut attachment = asset
+                .find_part(effect.part_id)
+                .and_then(|part| {
+                    part.attachments
+                        .iter()
+                        .find(|attachment| attachment.id == effect.attachment_id)
+                })
+                .cloned()
+                .ok_or_else(|| "The effect attachment is missing".to_string())?;
+            attachment.id = Uuid::new_v4();
+            attachment.name = format!("{} Copy", attachment.name);
+            let attachment_id = attachment.id;
+            asset
+                .parts
+                .iter_mut()
+                .find(|part| part.id == effect.part_id)
+                .expect("validated effect part")
+                .attachments
+                .push(attachment);
+            effect.id = Uuid::new_v4();
+            effect.attachment_id = attachment_id;
+            effect.name = format!("{} Copy", effect.name);
+            let id = effect.id;
+            asset.particle_effects.push(effect);
+            self.selected_effect_id = Some(id);
+            return Ok(id);
+        }
+
+        if let Some(mut effect) = asset
+            .light_effects
+            .iter()
+            .find(|effect| effect.id == effect_id)
+            .cloned()
+        {
+            let mut attachment = asset
+                .find_part(effect.part_id)
+                .and_then(|part| {
+                    part.attachments
+                        .iter()
+                        .find(|attachment| attachment.id == effect.attachment_id)
+                })
+                .cloned()
+                .ok_or_else(|| "The light attachment is missing".to_string())?;
+            attachment.id = Uuid::new_v4();
+            attachment.name = format!("{} Copy", attachment.name);
+            let attachment_id = attachment.id;
+            asset
+                .parts
+                .iter_mut()
+                .find(|part| part.id == effect.part_id)
+                .expect("validated light part")
+                .attachments
+                .push(attachment);
+            effect.id = Uuid::new_v4();
+            effect.attachment_id = attachment_id;
+            effect.name = format!("{} Copy", effect.name);
+            let id = effect.id;
+            asset.light_effects.push(effect);
+            self.selected_effect_id = Some(id);
+            return Ok(id);
+        }
+
+        Err("The selected effect is missing".to_string())
+    }
+
+    fn move_selected_effect_to_part(
+        &mut self,
+        project: &mut Project,
+        asset_id: Uuid,
+        target_part_id: Uuid,
+    ) -> Result<bool, String> {
+        let effect_id = self
+            .selected_effect_id
+            .ok_or_else(|| "Select an effect first".to_string())?;
+        let asset = project
+            .block_props
+            .get_mut(&asset_id)
+            .ok_or_else(|| "Prefab is missing".to_string())?;
+        if asset.find_part(target_part_id).is_none() {
+            return Err("The target part is missing".to_string());
+        }
+        let source = asset
+            .particle_effects
+            .iter()
+            .find(|effect| effect.id == effect_id)
+            .map(|effect| (effect.part_id, effect.attachment_id, true))
+            .or_else(|| {
+                asset
+                    .light_effects
+                    .iter()
+                    .find(|effect| effect.id == effect_id)
+                    .map(|effect| (effect.part_id, effect.attachment_id, false))
+            })
+            .ok_or_else(|| "The selected effect is missing".to_string())?;
+        if source.0 == target_part_id {
+            return Ok(false);
+        }
+
+        let mut attachment = asset
+            .find_part(source.0)
+            .and_then(|part| {
+                part.attachments
+                    .iter()
+                    .find(|attachment| attachment.id == source.1)
+            })
+            .cloned()
+            .ok_or_else(|| "The effect attachment is missing".to_string())?;
+        attachment.id = Uuid::new_v4();
+        let new_attachment_id = attachment.id;
+        asset
+            .parts
+            .iter_mut()
+            .find(|part| part.id == target_part_id)
+            .expect("validated target part")
+            .attachments
+            .push(attachment);
+
+        if source.2 {
+            let effect = asset
+                .particle_effects
+                .iter_mut()
+                .find(|effect| effect.id == effect_id)
+                .expect("validated particle effect");
+            effect.part_id = target_part_id;
+            effect.attachment_id = new_attachment_id;
+        } else {
+            let effect = asset
+                .light_effects
+                .iter_mut()
+                .find(|effect| effect.id == effect_id)
+                .expect("validated light effect");
+            effect.part_id = target_part_id;
+            effect.attachment_id = new_attachment_id;
+        }
+
+        let old_attachment_still_used = asset
+            .particle_effects
+            .iter()
+            .any(|effect| effect.part_id == source.0 && effect.attachment_id == source.1)
+            || asset
+                .light_effects
+                .iter()
+                .any(|effect| effect.part_id == source.0 && effect.attachment_id == source.1);
+        if !old_attachment_still_used
+            && let Some(part) = asset.parts.iter_mut().find(|part| part.id == source.0)
+        {
+            part.attachments
+                .retain(|attachment| attachment.id != source.1);
+        }
+        self.selected_part_id = Some(target_part_id);
+        Ok(true)
+    }
+
+    fn sync_effect_editor(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        asset_id: Uuid,
+    ) {
+        let Some(asset) = project.block_props.get(&asset_id) else {
+            return;
+        };
+        if let Some(widget) = ui.get_widget(EFFECT_INSPECTOR_PAGES)
+            && let Some(group) = widget.as_group_button()
+        {
+            group.set_index(self.effect_inspector_page as i32);
+        }
+        if let Some(stack) = ui.get_stack_layout(EFFECT_INSPECTOR_STACK) {
+            stack.set_index(self.effect_inspector_page);
+        }
+        if let Some(widget) = ui.get_widget(EFFECT_PLACEMENT_MODE)
+            && let Some(group) = widget.as_group_button()
+        {
+            group.set_index(match asset.placement.mode {
+                rusterix::BlockPropPlacementMode::Ground => 0,
+                rusterix::BlockPropPlacementMode::Wall => 1,
+                rusterix::BlockPropPlacementMode::AnySurface => 2,
+                rusterix::BlockPropPlacementMode::Free => 3,
+            });
+        }
+        ui.set_widget_value(
+            EFFECT_SURFACE_OFFSET,
+            ctx,
+            TheValue::Text(format!("{:.3}", asset.placement.surface_offset)),
+        );
+        if self.selected_effect_id.is_none_or(|id| {
+            asset.particle_effects.iter().all(|effect| effect.id != id)
+                && asset.light_effects.iter().all(|effect| effect.id != id)
+        }) {
+            self.selected_effect_id = asset
+                .particle_effects
+                .first()
+                .map(|effect| effect.id)
+                .or_else(|| asset.light_effects.first().map(|effect| effect.id));
+        }
+        if let Some(tree) = ui.get_tree_layout(EFFECT_TREE) {
+            let root = tree.get_root();
+            root.childs.clear();
+            root.widgets.clear();
+            let mut asset_node = TheTreeNode::new(TheId::named_with_id(&asset.name, asset.id));
+            asset_node.set_open(true);
+            for effect in &asset.particle_effects {
+                let mut item =
+                    TheTreeItem::new(TheId::named_with_id(PARTICLE_EFFECT_ITEM, effect.id));
+                item.set_text(format!(
+                    "Particles: {}{}",
+                    effect.name,
+                    if effect.enabled { "" } else { " (off)" }
+                ));
+                asset_node.add_widget(Box::new(item));
+            }
+            for effect in &asset.light_effects {
+                let mut item = TheTreeItem::new(TheId::named_with_id(LIGHT_EFFECT_ITEM, effect.id));
+                item.set_text(format!(
+                    "Light: {}{}",
+                    effect.name,
+                    if effect.enabled { "" } else { " (off)" }
+                ));
+                asset_node.add_widget(Box::new(item));
+            }
+            root.add_child(asset_node);
+            if let Some(id) = self.selected_effect_id {
+                let name = if asset.particle_effects.iter().any(|effect| effect.id == id) {
+                    PARTICLE_EFFECT_ITEM
+                } else {
+                    LIGHT_EFFECT_ITEM
+                };
+                tree.new_item_selected(TheId::named_with_id(name, id));
+            }
+        }
+
+        let particle = self
+            .selected_effect_id
+            .and_then(|id| asset.particle_effects.iter().find(|effect| effect.id == id));
+        let light = self
+            .selected_effect_id
+            .and_then(|id| asset.light_effects.iter().find(|effect| effect.id == id));
+        if let Some(effect) = particle
+            && let Some(index) = Self::PARTICLE_PRESETS
+                .iter()
+                .position(|preset| *preset == effect.name)
+            && let Some(widget) = ui.get_widget(EFFECT_PRESET_STRIP)
+            && let Some(strip) = widget.as_any().downcast_mut::<TheScrollableIconRow>()
+        {
+            strip.set_selected(index);
+        }
+        if let Some(widget) = ui.get_widget(EFFECT_EMISSION_SHAPE)
+            && let Some(group) = widget.as_group_button()
+        {
+            group.set_index(match particle.map(|effect| effect.emitter.emission_shape) {
+                Some(rusterix::ParticleEmissionShape::Point) => 0,
+                Some(rusterix::ParticleEmissionShape::Box) => 1,
+                Some(rusterix::ParticleEmissionShape::Surface) => 2,
+                None => 0,
+            });
+        }
+        if let Some(widget) = ui.get_widget(EFFECT_SIZE_PROFILE)
+            && let Some(group) = widget.as_group_button()
+        {
+            let index = particle
+                .map(|effect| {
+                    let curve = effect.emitter.size_curve;
+                    if curve[3] > curve[0] * 1.15 {
+                        0
+                    } else if curve[3] < curve[0] * 0.75 {
+                        2
+                    } else {
+                        1
+                    }
+                })
+                .unwrap_or(1);
+            group.set_index(index);
+        }
+        if let Some(widget) = ui.get_widget(EFFECT_FADE_PROFILE)
+            && let Some(group) = widget.as_group_button()
+        {
+            let index = particle
+                .map(|effect| {
+                    let curve = effect.emitter.opacity_curve;
+                    if curve[3] > 0.75 {
+                        2
+                    } else if curve[2] > 0.75 {
+                        1
+                    } else {
+                        0
+                    }
+                })
+                .unwrap_or(0);
+            group.set_index(index);
+        }
+        let selected_part_id = particle
+            .map(|effect| effect.part_id)
+            .or_else(|| light.map(|effect| effect.part_id));
+        let enabled = particle
+            .map(|effect| effect.enabled)
+            .or_else(|| light.map(|effect| effect.enabled))
+            .unwrap_or(false);
+        ctx.ui.set_widget_state(
+            EFFECT_ENABLED.to_string(),
+            if enabled {
+                TheWidgetState::Selected
+            } else {
+                TheWidgetState::None
+            },
+        );
+        self.effect_part_options.clear();
+        if let Some(dropdown) = ui.get_drop_down_menu(EFFECT_PART) {
+            dropdown.clear_options();
+            for part in &asset.parts {
+                dropdown.add_option(part.name.clone());
+                self.effect_part_options.push(part.id);
+            }
+            let selected = self
+                .effect_part_options
+                .iter()
+                .position(|part_id| Some(*part_id) == selected_part_id)
+                .unwrap_or(0);
+            dropdown.set_selected_index(selected as i32);
+        }
+        let attachment = particle
+            .map(|effect| (effect.part_id, effect.attachment_id))
+            .or_else(|| light.map(|effect| (effect.part_id, effect.attachment_id)))
+            .and_then(|(part_id, attachment_id)| {
+                asset.find_part(part_id).and_then(|part| {
+                    part.attachments
+                        .iter()
+                        .find(|attachment| attachment.id == attachment_id)
+                })
+            });
+        let set_text = |ui: &mut TheUI, id: &str, value: String, ctx: &mut TheContext| {
+            ui.set_widget_value(id, ctx, TheValue::Text(value));
+        };
+        set_text(
+            ui,
+            EFFECT_NAME,
+            particle
+                .map(|effect| effect.name.clone())
+                .or_else(|| light.map(|effect| effect.name.clone()))
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_POSITION,
+            attachment
+                .map(|a| {
+                    format!(
+                        "{:.3}, {:.3}, {:.3}",
+                        a.position[0], a.position[1], a.position[2]
+                    )
+                })
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_DIRECTION,
+            attachment
+                .map(|a| {
+                    format!(
+                        "{:.3}, {:.3}, {:.3}",
+                        a.direction[0], a.direction[1], a.direction[2]
+                    )
+                })
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_RATE,
+            particle
+                .map(|e| format!("{:.3}", e.emitter.rate))
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_SPREAD,
+            particle
+                .map(|e| format!("{:.3}", e.emitter.spread))
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_LIFETIME,
+            particle
+                .map(|e| {
+                    format!(
+                        "{:.3}",
+                        (e.emitter.lifetime_range.0 + e.emitter.lifetime_range.1) * 0.5
+                    )
+                })
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_RADIUS,
+            particle
+                .map(|e| {
+                    format!(
+                        "{:.3}",
+                        (e.emitter.radius_range.0 + e.emitter.radius_range.1) * 0.5
+                    )
+                })
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_SPEED,
+            particle
+                .map(|e| {
+                    format!(
+                        "{:.3}",
+                        (e.emitter.speed_range.0 + e.emitter.speed_range.1) * 0.5
+                    )
+                })
+                .unwrap_or_default(),
+            ctx,
+        );
+        for (id, axis) in [
+            (EFFECT_EMISSION_WIDTH, 0),
+            (EFFECT_EMISSION_HEIGHT, 1),
+            (EFFECT_EMISSION_DEPTH, 2),
+        ] {
+            set_text(
+                ui,
+                id,
+                particle
+                    .map(|effect| format!("{:.3}", effect.emitter.spawn_area[axis] * 2.0))
+                    .unwrap_or_default(),
+                ctx,
+            );
+        }
+        set_text(
+            ui,
+            EFFECT_GRAVITY,
+            particle
+                .map(|e| {
+                    format!(
+                        "{:.3}, {:.3}, {:.3}",
+                        e.emitter.gravity[0], e.emitter.gravity[1], e.emitter.gravity[2]
+                    )
+                })
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_TURBULENCE,
+            particle
+                .map(|e| format!("{:.3}", e.emitter.turbulence))
+                .unwrap_or_default(),
+            ctx,
+        );
+        if let Some(widget) = ui.get_widget(EFFECT_COLOR)
+            && let Some(picker) = widget.as_any().downcast_mut::<ThePaletteIndexPicker>()
+        {
+            picker.set_palette(project.art_palette.clone());
+            picker.set_selected_index(
+                light
+                    .map(|effect| effect.color)
+                    .map(|color| Self::effect_palette_index(project, color))
+                    .unwrap_or(project.art_palette.current_index as i32),
+            );
+        }
+        if let Some(widget) = ui.get_widget(EFFECT_COLOR_RAMP)
+            && let Some(picker) = widget.as_any().downcast_mut::<ThePaletteIndexRowPicker>()
+        {
+            picker.set_palette(project.art_palette.clone());
+            picker.set_selected_indices(
+                particle
+                    .and_then(|effect| effect.emitter.color_ramp)
+                    .map(|ramp| {
+                        ramp.into_iter()
+                            .map(|color| Self::effect_palette_index(project, color))
+                            .collect()
+                    })
+                    .unwrap_or_else(|| vec![project.art_palette.current_index as i32; 4]),
+            );
+        }
+        set_text(
+            ui,
+            EFFECT_INTENSITY,
+            light
+                .map(|e| format!("{:.3}", e.intensity))
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_RANGE,
+            light.map(|e| format!("{:.3}", e.range)).unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_FLICKER,
+            light
+                .map(|e| format!("{:.3}", e.flicker))
+                .unwrap_or_default(),
+            ctx,
+        );
+        set_text(
+            ui,
+            EFFECT_LIGHT_LIFT,
+            light.map(|e| format!("{:.3}", e.lift)).unwrap_or_default(),
+            ctx,
+        );
+        for id in [
+            EFFECT_NAME,
+            EFFECT_POSITION,
+            EFFECT_DIRECTION,
+            EFFECT_ENABLED,
+            EFFECT_PART,
+            EFFECT_DUPLICATE,
+            EFFECT_REMOVE,
+        ] {
+            if self.selected_effect_id.is_some() {
+                ui.set_enabled(id, ctx);
+            } else {
+                ui.set_disabled(id, ctx);
+            }
+        }
+        for id in [
+            EFFECT_RATE,
+            EFFECT_SPREAD,
+            EFFECT_LIFETIME,
+            EFFECT_RADIUS,
+            EFFECT_SPEED,
+            EFFECT_EMISSION_WIDTH,
+            EFFECT_EMISSION_HEIGHT,
+            EFFECT_EMISSION_DEPTH,
+            EFFECT_SIZE_PROFILE,
+            EFFECT_FADE_PROFILE,
+            EFFECT_GRAVITY,
+            EFFECT_TURBULENCE,
+            EFFECT_COLOR_RAMP,
+            EFFECT_EMISSION_SHAPE,
+            EFFECT_FIT_PART_TOP,
+        ] {
+            if particle.is_some() {
+                ui.set_enabled(id, ctx);
+            } else {
+                ui.set_disabled(id, ctx);
+            }
+        }
+        for id in [
+            EFFECT_COLOR,
+            EFFECT_INTENSITY,
+            EFFECT_RANGE,
+            EFFECT_FLICKER,
+            EFFECT_LIGHT_LIFT,
+        ] {
+            if light.is_some() {
+                ui.set_enabled(id, ctx);
+            } else {
+                ui.set_disabled(id, ctx);
+            }
+        }
+        ctx.ui.relayout = true;
+    }
+
     fn sync_mode(&self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
         if let Some(stack) = ui.get_stack_layout(MODE_STACK) {
             stack.set_index(self.mode.index() as usize);
@@ -828,6 +2275,7 @@ impl PrefabsEditorDock {
         match tools.current_game_tool_command_id() {
             Some("tool.iso_paint") => PrefabEditorMode::Paint,
             Some("tool.tile_picker") => PrefabEditorMode::Tiles,
+            Some("tool.effects") => PrefabEditorMode::Effects,
             _ => PrefabEditorMode::Parts,
         }
     }
@@ -948,6 +2396,11 @@ impl Dock for PrefabsEditorDock {
             mode: PrefabEditorMode::Parts,
             selected_part_id: None,
             selected_support_surface_id: None,
+            selected_effect_id: None,
+            effect_inspector_page: 0,
+            effect_preset_applying: false,
+            effect_drag: None,
+            effect_part_options: Vec::new(),
             parent_options: Vec::new(),
             assignment_options: Vec::new(),
             door_preview_open: false,
@@ -975,6 +2428,7 @@ impl Dock for PrefabsEditorDock {
         stack.add_canvas(self.paint_dock.setup(ctx));
         stack.add_canvas(self.tiles_dock.setup(ctx));
         stack.add_canvas(self.palette_dock.setup(ctx));
+        stack.add_canvas(Self::effects_canvas());
         lower_content.set_layout(stack);
 
         // Actions live in the global sidebar. Keeping another action list here
@@ -997,6 +2451,10 @@ impl Dock for PrefabsEditorDock {
         };
         self.mode = PrefabEditorMode::Parts;
         self.selected_support_surface_id = None;
+        self.selected_effect_id = None;
+        self.effect_preset_applying = false;
+        self.effect_drag = None;
+        server_ctx.selected_prefab_effect_id = None;
         self.door_preview_open = false;
         self.sync_mode(ui, ctx, project);
         self.sync_part_tree(ui, ctx, project, asset_id);
@@ -1025,6 +2483,82 @@ impl Dock for PrefabsEditorDock {
         let Some(asset_id) = Self::active_asset_id(server_ctx) else {
             return false;
         };
+        if self.mode == PrefabEditorMode::Effects {
+            match event {
+                TheEvent::RenderViewClicked(id, _) if id.name == PREFAB_VIEW => {
+                    if let Some(GeoId::Gizmo(gizmo)) = server_ctx.geo_hit
+                        && let Some(asset) = project.block_props.get(&asset_id)
+                        && let Some((effect_id, direction_handle)) =
+                            Self::effect_id_for_gizmo(asset, gizmo)
+                        && let Some((part_id, attachment_id)) =
+                            Self::effect_attachment_ref(asset, effect_id)
+                        && let Some(attachment) = asset.find_part(part_id).and_then(|part| {
+                            part.attachments.iter().find(|a| a.id == attachment_id)
+                        })
+                    {
+                        self.selected_effect_id = Some(effect_id);
+                        server_ctx.selected_prefab_effect_id = Some(effect_id);
+                        let origin = Vec3::from(attachment.position);
+                        let plane_normal = server_ctx
+                            .hover_ray_dir_3d
+                            .and_then(|direction| direction.try_normalized())
+                            .unwrap_or(Vec3::unit_z());
+                        self.effect_drag = Some(PrefabEffectDrag {
+                            effect_id,
+                            direction_handle,
+                            origin,
+                            plane_normal,
+                            before: Box::new(project.clone()),
+                            changed: false,
+                        });
+                        self.sync_effect_editor(ui, ctx, project, asset_id);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Geometry Overlay 3D"),
+                            TheValue::Empty,
+                        ));
+                        return true;
+                    }
+                }
+                TheEvent::RenderViewDragged(id, _) if id.name == PREFAB_VIEW => {
+                    if let Some(drag) = self.effect_drag.as_mut()
+                        && let Some(point) =
+                            Self::ray_drag_point(server_ctx, drag.origin, drag.plane_normal)
+                        && let Some(asset) = project.block_props.get_mut(&asset_id)
+                        && let Some(attachment) = Self::effect_attachment_mut(asset, drag.effect_id)
+                    {
+                        if drag.direction_handle {
+                            if let Some(direction) = (point - drag.origin).try_normalized() {
+                                attachment.direction = [direction.x, direction.y, direction.z];
+                                drag.changed = true;
+                            }
+                        } else {
+                            attachment.position = [point.x, point.y, point.z];
+                            drag.origin = point;
+                            drag.changed = true;
+                        }
+                        Self::sync_prefab_runtime(project);
+                        self.sync_effect_editor(ui, ctx, project, asset_id);
+                        if let Some(translated) = Self::translated_view_event(event) {
+                            ctx.ui.send(translated);
+                        }
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Geometry Overlay 3D"),
+                            TheValue::Empty,
+                        ));
+                        return true;
+                    }
+                }
+                TheEvent::RenderViewUp(id, _) if id.name == PREFAB_VIEW => {
+                    if let Some(drag) = self.effect_drag.take() {
+                        if drag.changed {
+                            Self::push_project_undo(*drag.before, project, ctx);
+                        }
+                        return true;
+                    }
+                }
+                _ => {}
+            }
+        }
         if let Some(event) = Self::translated_view_event(event) {
             if self.close_door_preview(project, asset_id, server_ctx) {
                 self.sync_part_tree(ui, ctx, project, asset_id);
@@ -1056,18 +2590,37 @@ impl Dock for PrefabsEditorDock {
                 return true;
             }
         }
-        if self.mode == PrefabEditorMode::Palette
-            && self
+        if self.mode == PrefabEditorMode::Palette {
+            let edits_prefab = self.palette_dock.edits_map_for_event(event);
+            let handled = self
                 .palette_dock
-                .handle_event(event, ui, ctx, project, server_ctx)
-        {
-            return true;
+                .handle_event(event, ui, ctx, project, server_ctx);
+            if edits_prefab {
+                match crate::block_props::sync_prefab_editor(project, asset_id) {
+                    Ok(()) => Self::sync_prefab_runtime(project),
+                    Err(message) => ctx
+                        .ui
+                        .send(TheEvent::SetStatusText(TheId::empty(), message)),
+                }
+            }
+            if handled || edits_prefab {
+                return true;
+            }
         }
 
         match event {
             TheEvent::Custom(id, _) if id.name == "Tool Changed" => {
                 self.close_door_preview(project, asset_id, server_ctx);
                 self.mode = Self::active_tool_mode();
+                if let Some(layout) = ui.get_sharedvlayout("Prefab Editor Shared VLayout") {
+                    // Effects need enough vertical room for two compact
+                    // property columns while keeping a useful live viewport.
+                    layout.set_shared_ratio(if self.mode == PrefabEditorMode::Effects {
+                        0.56
+                    } else {
+                        0.68
+                    });
+                }
                 self.sync_mode(ui, ctx, project);
                 if self.mode == PrefabEditorMode::Parts {
                     self.sync_part_inspector(ui, ctx, project, asset_id);
@@ -1078,8 +2631,671 @@ impl Dock for PrefabsEditorDock {
                     self.tiles_dock.activate(ui, ctx, project, server_ctx);
                 } else if self.mode == PrefabEditorMode::Palette {
                     self.palette_dock.activate(ui, ctx, project, server_ctx);
+                } else if self.mode == PrefabEditorMode::Effects {
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                    server_ctx.selected_prefab_effect_id = self.selected_effect_id;
                 }
                 ctx.ui.redraw_all = true;
+                true
+            }
+            TheEvent::NewListItemSelected(id, layout_id)
+                if layout_id.name == EFFECT_TREE
+                    && (id.name == PARTICLE_EFFECT_ITEM || id.name == LIGHT_EFFECT_ITEM) =>
+            {
+                self.selected_effect_id = Some(id.uuid);
+                if id.name == LIGHT_EFFECT_ITEM {
+                    self.effect_inspector_page = 3;
+                } else if self.effect_inspector_page == 3 {
+                    self.effect_inspector_page = 1;
+                }
+                server_ctx.selected_prefab_effect_id = Some(id.uuid);
+                self.sync_effect_editor(ui, ctx, project, asset_id);
+                ctx.ui.redraw_all = true;
+                true
+            }
+            TheEvent::IndexChanged(id, index) if id.name == EFFECT_INSPECTOR_PAGES => {
+                self.effect_inspector_page = (*index).min(3);
+                if let Some(stack) = ui.get_stack_layout(EFFECT_INSPECTOR_STACK) {
+                    stack.set_index(self.effect_inspector_page);
+                }
+                ctx.ui.relayout = true;
+                ctx.ui.redraw_all = true;
+                true
+            }
+            TheEvent::IndexChanged(id, index) if id.name == EFFECT_PRESET_STRIP => {
+                self.effect_preset_applying = true;
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named(EFFECT_APPLY_PRESET),
+                    TheValue::Int(*index as i32),
+                ));
+                true
+            }
+            TheEvent::Custom(id, TheValue::Int(index)) if id.name == EFFECT_APPLY_PRESET => {
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named(EFFECT_FINISH_PRESET),
+                    TheValue::Empty,
+                ));
+                let Some(preset) = usize::try_from(*index)
+                    .ok()
+                    .and_then(|index| Self::PARTICLE_PRESETS.get(index))
+                    .copied()
+                else {
+                    return true;
+                };
+                let Some(before) = project.block_props.get(&asset_id).cloned() else {
+                    return true;
+                };
+                match self.apply_particle_preset(project, asset_id, preset) {
+                    Ok(()) => {
+                        if let Some(after) = project.block_props.get(&asset_id).cloned() {
+                            UNDOMANAGER.write().unwrap().add_undo(
+                                ProjectUndoAtom::PrefabAssetEdit(
+                                    asset_id,
+                                    Box::new(before),
+                                    Box::new(after),
+                                ),
+                                ctx,
+                            );
+                        }
+                        Self::sync_prefab_runtime(project);
+                        RUSTERIX
+                            .write()
+                            .unwrap()
+                            .scene_handler
+                            .reset_builder_particle_emitters();
+                        self.sync_effect_editor(ui, ctx, project, asset_id);
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            format!("Applied {preset} to the selected particles"),
+                        ));
+                        ctx.ui.redraw_all = true;
+                    }
+                    Err(message) => ctx
+                        .ui
+                        .send(TheEvent::SetStatusText(TheId::empty(), message)),
+                }
+                true
+            }
+            TheEvent::Custom(id, _) if id.name == EFFECT_FINISH_PRESET => {
+                self.effect_preset_applying = false;
+                true
+            }
+            TheEvent::ValueChanged(_, _) if self.effect_preset_applying => true,
+            TheEvent::IndexChanged(id, index) if id.name == EFFECT_PLACEMENT_MODE => {
+                let before = project.clone();
+                if let Some(asset) = project.block_props.get_mut(&asset_id) {
+                    asset.placement.mode = match index {
+                        1 => rusterix::BlockPropPlacementMode::Wall,
+                        2 => rusterix::BlockPropPlacementMode::AnySurface,
+                        3 => rusterix::BlockPropPlacementMode::Free,
+                        _ => rusterix::BlockPropPlacementMode::Ground,
+                    };
+                    asset.placement.snap_to_grid = *index == 0;
+                    asset.placement.snap_to_surfaces = *index != 3;
+                    Self::push_project_undo(before, project, ctx);
+                    Self::sync_prefab_runtime(project);
+                    ctx.ui.redraw_all = true;
+                }
+                true
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if id.name == EFFECT_ADD_PARTICLES =>
+            {
+                let before = project.clone();
+                let preset = "Flame";
+                match self.add_particle_preset(project, asset_id, preset) {
+                    Ok(_) => {
+                        server_ctx.selected_prefab_effect_id = self.selected_effect_id;
+                        Self::push_project_undo(before, project, ctx);
+                        Self::sync_prefab_runtime(project);
+                        self.sync_effect_editor(ui, ctx, project, asset_id);
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            format!("Added {preset} particles"),
+                        ));
+                        ctx.ui.redraw_all = true;
+                    }
+                    Err(message) => ctx
+                        .ui
+                        .send(TheEvent::SetStatusText(TheId::empty(), message)),
+                }
+                true
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == EFFECT_ADD_LIGHT => {
+                let before = project.clone();
+                match self.add_light_effect(project, asset_id) {
+                    Ok(_) => {
+                        self.effect_inspector_page = 3;
+                        server_ctx.selected_prefab_effect_id = self.selected_effect_id;
+                        Self::push_project_undo(before, project, ctx);
+                        Self::sync_prefab_runtime(project);
+                        self.sync_effect_editor(ui, ctx, project, asset_id);
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "Added Prefab light".to_string(),
+                        ));
+                        ctx.ui.redraw_all = true;
+                    }
+                    Err(message) => ctx
+                        .ui
+                        .send(TheEvent::SetStatusText(TheId::empty(), message)),
+                }
+                true
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == EFFECT_DUPLICATE => {
+                let before = project.clone();
+                match self.duplicate_selected_effect(project, asset_id) {
+                    Ok(_) => {
+                        server_ctx.selected_prefab_effect_id = self.selected_effect_id;
+                        Self::push_project_undo(before, project, ctx);
+                        Self::sync_prefab_runtime(project);
+                        self.sync_effect_editor(ui, ctx, project, asset_id);
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "Duplicated Prefab effect".to_string(),
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Geometry Overlay 3D"),
+                            TheValue::Empty,
+                        ));
+                        ctx.ui.redraw_all = true;
+                    }
+                    Err(message) => ctx
+                        .ui
+                        .send(TheEvent::SetStatusText(TheId::empty(), message)),
+                }
+                true
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked) if id.name == EFFECT_REMOVE => {
+                let Some(effect_id) = self.selected_effect_id else {
+                    return true;
+                };
+                let before = project.clone();
+                let mut removed_attachment = None;
+                if let Some(asset) = project.block_props.get_mut(&asset_id) {
+                    if let Some(index) = asset
+                        .particle_effects
+                        .iter()
+                        .position(|effect| effect.id == effect_id)
+                    {
+                        let effect = asset.particle_effects.remove(index);
+                        removed_attachment = Some((effect.part_id, effect.attachment_id));
+                    } else if let Some(index) = asset
+                        .light_effects
+                        .iter()
+                        .position(|effect| effect.id == effect_id)
+                    {
+                        let effect = asset.light_effects.remove(index);
+                        removed_attachment = Some((effect.part_id, effect.attachment_id));
+                    }
+                    if let Some((part_id, attachment_id)) = removed_attachment {
+                        let still_used = asset.particle_effects.iter().any(|effect| {
+                            effect.part_id == part_id && effect.attachment_id == attachment_id
+                        }) || asset.light_effects.iter().any(|effect| {
+                            effect.part_id == part_id && effect.attachment_id == attachment_id
+                        });
+                        if !still_used
+                            && let Some(part) =
+                                asset.parts.iter_mut().find(|part| part.id == part_id)
+                        {
+                            part.attachments
+                                .retain(|attachment| attachment.id != attachment_id);
+                        }
+                    }
+                }
+                self.selected_effect_id = None;
+                server_ctx.selected_prefab_effect_id = None;
+                Self::push_project_undo(before, project, ctx);
+                Self::sync_prefab_runtime(project);
+                self.sync_effect_editor(ui, ctx, project, asset_id);
+                ctx.ui.redraw_all = true;
+                true
+            }
+            TheEvent::StateChanged(id, state) if id.name == EFFECT_ENABLED => {
+                let Some(effect_id) = self.selected_effect_id else {
+                    return true;
+                };
+                let enabled = *state == TheWidgetState::Selected;
+                let before = project.clone();
+                let mut changed = false;
+                if let Some(asset) = project.block_props.get_mut(&asset_id) {
+                    if let Some(effect) = asset
+                        .particle_effects
+                        .iter_mut()
+                        .find(|effect| effect.id == effect_id)
+                    {
+                        changed = effect.enabled != enabled;
+                        effect.enabled = enabled;
+                    } else if let Some(effect) = asset
+                        .light_effects
+                        .iter_mut()
+                        .find(|effect| effect.id == effect_id)
+                    {
+                        changed = effect.enabled != enabled;
+                        effect.enabled = enabled;
+                    }
+                }
+                if changed {
+                    Self::push_project_undo(before, project, ctx);
+                    Self::sync_prefab_runtime(project);
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Update Geometry Overlay 3D"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.redraw_all = true;
+                }
+                true
+            }
+            TheEvent::IndexChanged(id, index) if id.name == EFFECT_PART => {
+                let Some(part_id) = self.effect_part_options.get(*index).copied() else {
+                    return true;
+                };
+                let before = project.clone();
+                match self.move_selected_effect_to_part(project, asset_id, part_id) {
+                    Ok(true) => {
+                        Self::push_project_undo(before, project, ctx);
+                        Self::sync_prefab_runtime(project);
+                        self.sync_effect_editor(ui, ctx, project, asset_id);
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "Moved effect attachment to the selected Prefab part".to_string(),
+                        ));
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Update Geometry Overlay 3D"),
+                            TheValue::Empty,
+                        ));
+                        ctx.ui.redraw_all = true;
+                    }
+                    Ok(false) => {}
+                    Err(message) => {
+                        self.sync_effect_editor(ui, ctx, project, asset_id);
+                        ctx.ui
+                            .send(TheEvent::SetStatusText(TheId::empty(), message));
+                    }
+                }
+                true
+            }
+            TheEvent::IndexChanged(id, index) if id.name == EFFECT_EMISSION_SHAPE => {
+                let Some(effect_id) = self.selected_effect_id else {
+                    return true;
+                };
+                let shape = match index {
+                    0 => rusterix::ParticleEmissionShape::Point,
+                    2 => rusterix::ParticleEmissionShape::Surface,
+                    _ => rusterix::ParticleEmissionShape::Box,
+                };
+                let before = project.clone();
+                let mut changed = false;
+                if let Some(effect) = project.block_props.get_mut(&asset_id).and_then(|asset| {
+                    asset
+                        .particle_effects
+                        .iter_mut()
+                        .find(|effect| effect.id == effect_id)
+                }) {
+                    changed = effect.emitter.emission_shape != shape;
+                    effect.emitter.emission_shape = shape;
+                    let spawn_area = match shape {
+                        rusterix::ParticleEmissionShape::Point => [0.0; 3],
+                        rusterix::ParticleEmissionShape::Box
+                            if effect.emitter.spawn_area == [0.0; 3] =>
+                        {
+                            [0.25, 0.25, 0.25]
+                        }
+                        rusterix::ParticleEmissionShape::Surface
+                            if effect.emitter.spawn_area == [0.0; 3] =>
+                        {
+                            [0.5, 0.0, 0.5]
+                        }
+                        _ => effect.emitter.spawn_area,
+                    };
+                    if effect.emitter.spawn_area != spawn_area {
+                        effect.emitter.spawn_area = spawn_area;
+                        changed = true;
+                    }
+                }
+                if changed {
+                    Self::push_project_undo(before, project, ctx);
+                    Self::sync_prefab_runtime(project);
+                    RUSTERIX
+                        .write()
+                        .unwrap()
+                        .scene_handler
+                        .reset_builder_particle_emitters();
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                    ctx.ui.redraw_all = true;
+                }
+                true
+            }
+            TheEvent::IndexChanged(id, index)
+                if id.name == EFFECT_SIZE_PROFILE || id.name == EFFECT_FADE_PROFILE =>
+            {
+                let Some(effect_id) = self.selected_effect_id else {
+                    return true;
+                };
+                let before = project.clone();
+                let mut changed = false;
+                if let Some(effect) = project.block_props.get_mut(&asset_id).and_then(|asset| {
+                    asset
+                        .particle_effects
+                        .iter_mut()
+                        .find(|effect| effect.id == effect_id)
+                }) {
+                    if id.name == EFFECT_SIZE_PROFILE {
+                        let curve = match index {
+                            0 => [0.55, 0.9, 1.35, 1.8],
+                            2 => [1.0, 0.75, 0.4, 0.05],
+                            _ => [1.0; 4],
+                        };
+                        changed = effect.emitter.size_curve != curve;
+                        effect.emitter.size_curve = curve;
+                    } else {
+                        let curve = match index {
+                            1 => [1.0, 1.0, 0.9, 0.0],
+                            2 => [1.0; 4],
+                            _ => [0.0, 1.0, 0.55, 0.0],
+                        };
+                        changed = effect.emitter.opacity_curve != curve;
+                        effect.emitter.opacity_curve = curve;
+                    }
+                }
+                if changed {
+                    Self::push_project_undo(before, project, ctx);
+                    Self::sync_prefab_runtime(project);
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                    ctx.ui.redraw_all = true;
+                }
+                true
+            }
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if id.name == EFFECT_FIT_PART_TOP =>
+            {
+                let Some(effect_id) = self.selected_effect_id else {
+                    return true;
+                };
+                let before = project.clone();
+                let changed = project
+                    .block_props
+                    .get_mut(&asset_id)
+                    .is_some_and(|asset| Self::fit_particle_emission_to_part_top(asset, effect_id));
+                if changed {
+                    Self::push_project_undo(before, project, ctx);
+                    Self::sync_prefab_runtime(project);
+                    RUSTERIX
+                        .write()
+                        .unwrap()
+                        .scene_handler
+                        .reset_builder_particle_emitters();
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Emission now covers the attached part's top surface".to_string(),
+                    ));
+                    ctx.ui.redraw_all = true;
+                }
+                true
+            }
+            TheEvent::PaletteIndexChanged(id, palette_index)
+                if id.name == EFFECT_COLOR || Self::effect_color_ramp_slot(&id.name).is_some() =>
+            {
+                let Some(effect_id) = self.selected_effect_id else {
+                    return true;
+                };
+                let Some(palette_color) = Self::effect_palette_color(project, *palette_index)
+                else {
+                    return true;
+                };
+                let before = project.clone();
+                let mut changed = false;
+                if let Some(asset) = project.block_props.get_mut(&asset_id) {
+                    if id.name == EFFECT_COLOR {
+                        if let Some(effect) = asset
+                            .particle_effects
+                            .iter_mut()
+                            .find(|effect| effect.id == effect_id)
+                        {
+                            changed = effect.emitter.color != palette_color;
+                            effect.emitter.color = palette_color;
+                        } else if let Some(effect) = asset
+                            .light_effects
+                            .iter_mut()
+                            .find(|effect| effect.id == effect_id)
+                        {
+                            changed = effect.color != palette_color;
+                            effect.color = palette_color;
+                        }
+                    } else if let Some(slot) = Self::effect_color_ramp_slot(&id.name)
+                        && let Some(effect) = asset
+                            .particle_effects
+                            .iter_mut()
+                            .find(|effect| effect.id == effect_id)
+                    {
+                        let mut ramp = effect
+                            .emitter
+                            .color_ramp
+                            .unwrap_or([effect.emitter.color; 4]);
+                        let mut color = palette_color;
+                        // Lifetime fading is authored separately from the palette.
+                        // Keep the stop's alpha while replacing its visible color.
+                        color[3] = ramp[slot][3];
+                        changed = ramp[slot] != color;
+                        ramp[slot] = color;
+                        effect.emitter.color_ramp = Some(ramp);
+                    }
+                }
+                if changed {
+                    Self::push_project_undo(before, project, ctx);
+                    Self::sync_prefab_runtime(project);
+                    if id.name != EFFECT_COLOR {
+                        RUSTERIX
+                            .write()
+                            .unwrap()
+                            .scene_handler
+                            .reset_builder_particle_emitters();
+                    }
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                    ctx.ui.redraw_all = true;
+                }
+                true
+            }
+            TheEvent::ValueChanged(id, value) if id.name == EFFECT_SURFACE_OFFSET => {
+                if let Some(offset) = value.to_f32()
+                    && offset >= 0.0
+                {
+                    let before = project.clone();
+                    if let Some(asset) = project.block_props.get_mut(&asset_id) {
+                        if (asset.placement.surface_offset - offset).abs() > f32::EPSILON {
+                            asset.placement.surface_offset = offset;
+                            Self::push_project_undo(before, project, ctx);
+                            Self::sync_prefab_runtime(project);
+                        }
+                    }
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                } else {
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "Surface offset must be zero or greater".to_string(),
+                    ));
+                }
+                true
+            }
+            TheEvent::ValueChanged(id, value)
+                if matches!(
+                    id.name.as_str(),
+                    EFFECT_NAME
+                        | EFFECT_POSITION
+                        | EFFECT_DIRECTION
+                        | EFFECT_RATE
+                        | EFFECT_SPREAD
+                        | EFFECT_LIFETIME
+                        | EFFECT_RADIUS
+                        | EFFECT_SPEED
+                        | EFFECT_EMISSION_WIDTH
+                        | EFFECT_EMISSION_HEIGHT
+                        | EFFECT_EMISSION_DEPTH
+                        | EFFECT_GRAVITY
+                        | EFFECT_TURBULENCE
+                        | EFFECT_INTENSITY
+                        | EFFECT_RANGE
+                        | EFFECT_FLICKER
+                        | EFFECT_LIGHT_LIFT
+                ) =>
+            {
+                let Some(effect_id) = self.selected_effect_id else {
+                    return true;
+                };
+                let text = value.to_string().unwrap_or_default();
+                let number = value.to_f32().or_else(|| text.trim().parse::<f32>().ok());
+                let before = project.clone();
+                let mut changed = false;
+                if let Some(asset) = project.block_props.get_mut(&asset_id) {
+                    let particle_index = asset
+                        .particle_effects
+                        .iter()
+                        .position(|effect| effect.id == effect_id);
+                    let light_index = asset
+                        .light_effects
+                        .iter()
+                        .position(|effect| effect.id == effect_id);
+                    let attachment_ref = particle_index
+                        .map(|index| {
+                            let effect = &asset.particle_effects[index];
+                            (effect.part_id, effect.attachment_id)
+                        })
+                        .or_else(|| {
+                            light_index.map(|index| {
+                                let effect = &asset.light_effects[index];
+                                (effect.part_id, effect.attachment_id)
+                            })
+                        });
+                    match id.name.as_str() {
+                        EFFECT_NAME => {
+                            let name = text.trim();
+                            if !name.is_empty() {
+                                if let Some(index) = particle_index {
+                                    asset.particle_effects[index].name = name.to_string();
+                                } else if let Some(index) = light_index {
+                                    asset.light_effects[index].name = name.to_string();
+                                }
+                                changed = true;
+                            }
+                        }
+                        EFFECT_POSITION | EFFECT_DIRECTION => {
+                            if let Some(vector) = Self::parse_vec3(&text)
+                                && let Some((part_id, attachment_id)) = attachment_ref
+                                && let Some(attachment) = asset
+                                    .parts
+                                    .iter_mut()
+                                    .find(|part| part.id == part_id)
+                                    .and_then(|part| {
+                                        part.attachments
+                                            .iter_mut()
+                                            .find(|attachment| attachment.id == attachment_id)
+                                    })
+                            {
+                                if id.name == EFFECT_POSITION {
+                                    attachment.position = vector;
+                                } else {
+                                    let direction = Vec3::new(vector[0], vector[1], vector[2])
+                                        .try_normalized()
+                                        .unwrap_or(Vec3::unit_y());
+                                    attachment.direction = [direction.x, direction.y, direction.z];
+                                }
+                                changed = true;
+                            }
+                        }
+                        EFFECT_RATE | EFFECT_SPREAD => {
+                            if let Some(index) = particle_index
+                                && let Some(number) = number
+                            {
+                                if id.name == EFFECT_RATE {
+                                    asset.particle_effects[index].emitter.rate = number.max(0.0);
+                                } else {
+                                    asset.particle_effects[index].emitter.spread =
+                                        number.clamp(0.0, std::f32::consts::PI);
+                                }
+                                changed = true;
+                            }
+                        }
+                        EFFECT_LIFETIME | EFFECT_RADIUS | EFFECT_SPEED => {
+                            if let Some(index) = particle_index
+                                && let Some(center) = number
+                            {
+                                if id.name == EFFECT_LIFETIME {
+                                    let range = Self::effect_range_around(center, 0.2);
+                                    asset.particle_effects[index].emitter.lifetime_range = range;
+                                } else if id.name == EFFECT_RADIUS {
+                                    let range = Self::effect_range_around(center, 0.25);
+                                    asset.particle_effects[index].emitter.radius_range = range;
+                                } else {
+                                    let range = Self::effect_range_around(center, 0.3);
+                                    asset.particle_effects[index].emitter.speed_range = range;
+                                }
+                                changed = true;
+                            }
+                        }
+                        EFFECT_EMISSION_WIDTH | EFFECT_EMISSION_HEIGHT | EFFECT_EMISSION_DEPTH => {
+                            if let Some(index) = particle_index
+                                && let Some(number) = number
+                            {
+                                let axis = match id.name.as_str() {
+                                    EFFECT_EMISSION_HEIGHT => 1,
+                                    EFFECT_EMISSION_DEPTH => 2,
+                                    _ => 0,
+                                };
+                                asset.particle_effects[index].emitter.spawn_area[axis] =
+                                    number.abs() * 0.5;
+                                changed = true;
+                            }
+                        }
+                        EFFECT_GRAVITY => {
+                            if let Some(index) = particle_index
+                                && let Some(vector) = Self::parse_vec3(&text)
+                            {
+                                asset.particle_effects[index].emitter.gravity = vector;
+                                changed = true;
+                            }
+                        }
+                        EFFECT_TURBULENCE => {
+                            if let Some(index) = particle_index
+                                && let Some(number) = number
+                            {
+                                asset.particle_effects[index].emitter.turbulence = number.max(0.0);
+                                changed = true;
+                            }
+                        }
+                        EFFECT_INTENSITY | EFFECT_RANGE | EFFECT_FLICKER | EFFECT_LIGHT_LIFT => {
+                            if let Some(index) = light_index
+                                && let Some(number) = number
+                            {
+                                if id.name == EFFECT_INTENSITY {
+                                    asset.light_effects[index].intensity = number.max(0.0);
+                                } else if id.name == EFFECT_RANGE {
+                                    asset.light_effects[index].range = number.max(0.0);
+                                } else if id.name == EFFECT_FLICKER {
+                                    asset.light_effects[index].flicker = number.max(0.0);
+                                } else {
+                                    asset.light_effects[index].lift = number;
+                                }
+                                changed = true;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                if changed {
+                    Self::push_project_undo(before, project, ctx);
+                    Self::sync_prefab_runtime(project);
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                    ctx.ui.redraw_all = true;
+                } else {
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        "The effect value is invalid; the previous value was restored".to_string(),
+                    ));
+                }
                 true
             }
             TheEvent::SnapperStateChanged(id, _, _)
@@ -1817,6 +4033,8 @@ impl Dock for PrefabsEditorDock {
                     self.tiles_dock.activate(ui, ctx, project, server_ctx);
                 } else if self.mode == PrefabEditorMode::Palette {
                     self.palette_dock.activate(ui, ctx, project, server_ctx);
+                } else if self.mode == PrefabEditorMode::Effects {
+                    self.sync_effect_editor(ui, ctx, project, asset_id);
                 }
                 true
             }
@@ -1863,5 +4081,66 @@ mod tests {
         assert_eq!(PrefabEditorMode::Paint.index(), 1);
         assert_eq!(PrefabEditorMode::Tiles.index(), 2);
         assert_eq!(PrefabEditorMode::Palette.index(), 3);
+        assert_eq!(PrefabEditorMode::Effects.index(), 4);
+    }
+
+    #[test]
+    fn prefab_effects_can_be_duplicated_and_moved_between_parts() {
+        let mut project = Project::default();
+        let mut asset = rusterix::BlockPropAsset::new("Effect Test");
+        asset
+            .parts
+            .push(rusterix::BlockPropPart::new_authored("Body", Vec::new()));
+        asset
+            .parts
+            .push(rusterix::BlockPropPart::new_authored("Top", Vec::new()));
+        let asset_id = asset.id;
+        let body_id = asset.parts[0].id;
+        let top_id = asset.parts[1].id;
+        project.block_props.insert(asset_id, asset);
+
+        let mut dock = PrefabsEditorDock::new();
+        dock.selected_part_id = Some(body_id);
+        let original_id = dock
+            .add_particle_preset(&mut project, asset_id, "Flame")
+            .unwrap();
+        let copy_id = dock
+            .duplicate_selected_effect(&mut project, asset_id)
+            .unwrap();
+        assert_ne!(original_id, copy_id);
+
+        let asset = project.block_props.get(&asset_id).unwrap();
+        let original = asset
+            .particle_effects
+            .iter()
+            .find(|effect| effect.id == original_id)
+            .unwrap();
+        let copy = asset
+            .particle_effects
+            .iter()
+            .find(|effect| effect.id == copy_id)
+            .unwrap();
+        assert_ne!(original.attachment_id, copy.attachment_id);
+        assert_eq!(copy.part_id, body_id);
+
+        assert!(
+            dock.move_selected_effect_to_part(&mut project, asset_id, top_id)
+                .unwrap()
+        );
+        let asset = project.block_props.get(&asset_id).unwrap();
+        let copy = asset
+            .particle_effects
+            .iter()
+            .find(|effect| effect.id == copy_id)
+            .unwrap();
+        assert_eq!(copy.part_id, top_id);
+        assert!(
+            asset
+                .find_part(top_id)
+                .unwrap()
+                .attachments
+                .iter()
+                .any(|attachment| attachment.id == copy.attachment_id)
+        );
     }
 }

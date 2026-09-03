@@ -36,6 +36,11 @@ use std::{
 };
 use uuid::Uuid;
 use vek::{Mat3, Mat4, Vec2, Vec3, Vec4};
+
+/// Hard safety limit for transparent particle billboards in one VM layer.
+/// Particle simulation remains intact when this limit is reached, allowing an
+/// effect to recover cleanly as other particles expire or emitters disappear.
+pub const MAX_DYNAMIC_PARTICLE_BILLBOARDS: usize = 8_192;
 use wgpu::util::DeviceExt;
 
 // --- Scene-wide acceleration structure (BVH over all 3D geometry) ---
@@ -3164,6 +3169,8 @@ pub struct VM {
 
     pub lights: FxHashMap<GeoId, Light>,
     dynamic_objects: Vec<DynamicObject>,
+    dynamic_particle_count: usize,
+    dropped_dynamic_particles: usize,
     dynamic_avatar_objects: FxHashMap<GeoId, DynamicObject>,
     dynamic_avatar_data: FxHashMap<GeoId, DynamicAvatarData>,
     organic_billboards: OrganicBillboardData,
@@ -3183,6 +3190,9 @@ pub struct VM {
     cached_static_i3: Vec<u32>,
     cached_static_tri_visibility: Vec<bool>,
     cached_static_tri_geo_ids: Vec<GeoId>,
+    /// Paint-only grouping for static geometry. This lets one authored surface (for example a
+    /// connected procedural wall) span several independently selectable geometry objects.
+    cached_static_paint_group_ids: FxHashMap<GeoId, GeoId>,
     cached_static_raster_visible_indices: Vec<u32>,
     cached_static_raster_opaque_indices: Vec<u32>,
     cached_static_raster_paint_alpha_indices: Vec<u32>,
@@ -3457,6 +3467,9 @@ impl VM {
         let mut stats = VMDebugStats {
             chunks: self.chunks_map.len(),
             dynamics: self.dynamic_objects.len(),
+            particle_dynamics: self.dynamic_particle_count,
+            dropped_particle_dynamics: self.dropped_dynamic_particles,
+            particle_dynamic_budget: MAX_DYNAMIC_PARTICLE_BILLBOARDS,
             lights: self.lights.len(),
             cached_v3: self.cached_v3.len(),
             cached_i3: self.cached_i3.len(),
@@ -3478,6 +3491,16 @@ impl VM {
             }
         }
         stats
+    }
+
+    /// Cheap particle-only counters for frame diagnostics. Unlike
+    /// `debug_stats`, this does not walk static scene chunks.
+    pub fn particle_dynamic_stats(&self) -> (usize, usize, usize) {
+        (
+            self.dynamic_particle_count,
+            self.dropped_dynamic_particles,
+            MAX_DYNAMIC_PARTICLE_BILLBOARDS,
+        )
     }
 
     /// Enable/disable ping-pong rendering for this VM. Disabling drops the extra textures.
@@ -3834,6 +3857,14 @@ impl VM {
             return;
         }
 
+        if object.kind == DynamicKind::ParticleBillboard {
+            if self.dynamic_particle_count >= MAX_DYNAMIC_PARTICLE_BILLBOARDS {
+                self.dropped_dynamic_particles = self.dropped_dynamic_particles.saturating_add(1);
+                return;
+            }
+            self.dynamic_particle_count = self.dynamic_particle_count.saturating_add(1);
+        }
+
         let (axis_r, axis_u) = VM::sanitize_billboard_axes(object.view_right, object.view_up);
         object.view_right = axis_r;
         object.view_up = axis_u;
@@ -3877,12 +3908,25 @@ impl VM {
         }
     }
 
+    #[inline]
+    fn paint_group_geo_id(&self, geo_id: GeoId) -> GeoId {
+        self.cached_static_paint_group_ids
+            .get(&geo_id)
+            .copied()
+            .unwrap_or(geo_id)
+    }
+
     fn raster3d_paint_alpha_matches(&self, geo_id: GeoId) -> bool {
+        let paint_group_id = self.paint_group_geo_id(geo_id);
         self.raster3d_paint_alpha_geo_ids.contains(&geo_id)
+            || self.raster3d_paint_alpha_geo_ids.contains(&paint_group_id)
             || self
                 .raster3d_paint_alpha_geo_ids
                 .iter()
-                .any(|paint_geo_id| Self::geo_id_object_matches(*paint_geo_id, geo_id))
+                .any(|paint_geo_id| {
+                    Self::geo_id_object_matches(*paint_geo_id, geo_id)
+                        || Self::geo_id_object_matches(*paint_geo_id, paint_group_id)
+                })
     }
 
     fn dynamic_object_order(a: &DynamicObject, b: &DynamicObject) -> Ordering {
@@ -4590,6 +4634,7 @@ impl VM {
         self.cached_static_i3.clear();
         self.cached_static_tri_visibility.clear();
         self.cached_static_tri_geo_ids.clear();
+        self.cached_static_paint_group_ids.clear();
         self.cached_static_raster_visible_indices.clear();
         self.cached_static_raster_opaque_indices.clear();
         self.cached_static_raster_paint_alpha_indices.clear();
@@ -5057,6 +5102,8 @@ impl VM {
             transform3d: Mat4::identity(),
             lights: FxHashMap::default(),
             dynamic_objects: Vec::new(),
+            dynamic_particle_count: 0,
+            dropped_dynamic_particles: 0,
             dynamic_avatar_objects: FxHashMap::default(),
             dynamic_avatar_data: FxHashMap::default(),
             organic_billboards: OrganicBillboardData::default(),
@@ -5073,6 +5120,7 @@ impl VM {
             cached_static_i3: Vec::new(),
             cached_static_tri_visibility: Vec::new(),
             cached_static_tri_geo_ids: Vec::new(),
+            cached_static_paint_group_ids: FxHashMap::default(),
             cached_static_raster_visible_indices: Vec::new(),
             cached_static_raster_opaque_indices: Vec::new(),
             cached_static_raster_paint_alpha_indices: Vec::new(),
@@ -5592,6 +5640,8 @@ impl VM {
                 self.sdf_data_dirty = true;
                 self.mark_all_geometry_dirty();
                 self.dynamic_objects.clear();
+                self.dynamic_particle_count = 0;
+                self.dropped_dynamic_particles = 0;
                 self.dynamic_avatar_objects.clear();
                 self.dynamic_avatar_data.clear();
                 self.organic_billboards = OrganicBillboardData {
@@ -5604,6 +5654,8 @@ impl VM {
                 self.shared_atlas.clear();
                 self.mark_all_geometry_dirty();
                 self.dynamic_objects.clear();
+                self.dynamic_particle_count = 0;
+                self.dropped_dynamic_particles = 0;
                 self.dynamic_avatar_objects.clear();
                 self.organic_billboards = OrganicBillboardData {
                     dirty: true,
@@ -5617,6 +5669,8 @@ impl VM {
                 self.accel_dirty = true;
                 self.mark_2d_dirty();
                 self.dynamic_objects.clear();
+                self.dynamic_particle_count = 0;
+                self.dropped_dynamic_particles = 0;
                 self.dynamic_avatar_objects.clear();
                 self.organic_billboards = OrganicBillboardData {
                     dirty: true,
@@ -5704,6 +5758,8 @@ impl VM {
             }
             Atom::ClearDynamics => {
                 self.dynamic_objects.clear();
+                self.dynamic_particle_count = 0;
+                self.dropped_dynamic_particles = 0;
                 self.dynamic_avatar_objects.clear();
             }
             Atom::AddDynamic { object } => {
@@ -10125,9 +10181,16 @@ impl VM {
                 i3 = Vec::new();
                 tri_visibility = Vec::new();
                 tri_geo_ids = Vec::new();
+                let mut paint_group_ids = FxHashMap::default();
 
                 for ch in self.chunks_map.values() {
                     for poly_list in ch.polys3d_map.values() {
+                        if let Some((poly_id, paint_group_id)) = poly_list
+                            .iter()
+                            .find_map(|poly| poly.paint_group_id.map(|group| (poly.id, group)))
+                        {
+                            paint_group_ids.insert(poly_id, paint_group_id);
+                        }
                         for poly in poly_list {
                             let tile_index = match self.shared_atlas.tile_index(&poly.tile_id) {
                                 Some(idx) => idx,
@@ -10228,6 +10291,7 @@ impl VM {
                 self.cached_static_i3 = i3;
                 self.cached_static_tri_visibility = tri_visibility;
                 self.cached_static_tri_geo_ids = tri_geo_ids;
+                self.cached_static_paint_group_ids = paint_group_ids;
                 self.cached_static_raster_indices_valid = false;
             }
 
@@ -11443,6 +11507,7 @@ impl VM {
         (self.cached_static_v3.len() as u64).hash(&mut hasher);
         (self.cached_static_i3.len() as u64).hash(&mut hasher);
         (self.cached_static_tri_geo_ids.len() as u64).hash(&mut hasher);
+        self.cached_static_paint_group_ids.len().hash(&mut hasher);
         for value in [
             self.camera3d.pos.x,
             self.camera3d.pos.y,
@@ -11467,15 +11532,18 @@ impl VM {
         self.cached_static_tri_visibility.hash(&mut hasher);
         if let Some(first) = self.cached_static_tri_geo_ids.first() {
             first.hash(&mut hasher);
+            self.paint_group_geo_id(*first).hash(&mut hasher);
         }
         if let Some(mid) = self
             .cached_static_tri_geo_ids
             .get(self.cached_static_tri_geo_ids.len() / 2)
         {
             mid.hash(&mut hasher);
+            self.paint_group_geo_id(*mid).hash(&mut hasher);
         }
         if let Some(last) = self.cached_static_tri_geo_ids.last() {
             last.hash(&mut hasher);
+            self.paint_group_geo_id(*last).hash(&mut hasher);
         }
         hasher.finish()
     }
@@ -11794,6 +11862,7 @@ impl VM {
         } else {
             self.cached_static_tri_geo_ids.as_slice()
         };
+        let paint_group_ids = self.cached_static_paint_group_ids.clone();
         let g = self.gpu.as_mut()?;
         if vertices.is_empty() {
             return Some(PaintSurfaceBuffer::new(fb_w, fb_h));
@@ -11957,9 +12026,13 @@ impl VM {
                     continue;
                 }
                 let face_id = face_id_f.round() as usize;
-                let Some(geo_id) = geo_ids.get(face_id).copied() else {
+                let Some(source_geo_id) = geo_ids.get(face_id).copied() else {
                     continue;
                 };
+                let geo_id = paint_group_ids
+                    .get(&source_geo_id)
+                    .copied()
+                    .unwrap_or(source_geo_id);
                 let index = y * fb_w as usize + x;
                 let world = [
                     read_f32(world_base),
@@ -11983,7 +12056,7 @@ impl VM {
                         }
                     })
                     .map(|vertex| vertex.paint_geo)
-                    .unwrap_or_else(|| Self::paint_geo_id_packed(geo_id)),
+                    .unwrap_or_else(|| Self::paint_geo_id_packed(source_geo_id)),
                     face_id: face_id as u32,
                     depth: (Vec3::from(world) - c.pos).dot(c.forward),
                     world,
@@ -12088,12 +12161,13 @@ impl VM {
                 continue;
             }
 
-            let geo_id = geo_ids.get(tri_idx).copied().unwrap_or(GeoId::Unknown(0));
+            let source_geo_id = geo_ids.get(tri_idx).copied().unwrap_or(GeoId::Unknown(0));
+            let geo_id = self.paint_group_geo_id(source_geo_id);
             let face_id = tri_idx as u32;
             let avatar = if include_dynamic
                 && (a.tile_index2 | b.tile_index2 | c.tile_index2) & TILE_INDEX_AVATAR_FLAG_CPU != 0
             {
-                self.dynamic_avatar_data.get(&geo_id)
+                self.dynamic_avatar_data.get(&source_geo_id)
             } else {
                 None
             };
@@ -12294,7 +12368,7 @@ impl VM {
                                 depth[index] = d;
                                 buffer.pixels[index] = crate::core::PaintSurfacePixel {
                                     valid: true,
-                                    geo_id: poly.id,
+                                    geo_id: poly.paint_group_id.unwrap_or(poly.id),
                                     paint_geo,
                                     face_id: face,
                                     depth: d,
@@ -12367,7 +12441,8 @@ impl VM {
                 continue;
             }
             let w = 1.0 - u - v;
-            let geo_id = self.cached_static_tri_geo_ids.get(tri_idx).copied()?;
+            let source_geo_id = self.cached_static_tri_geo_ids.get(tri_idx).copied()?;
+            let geo_id = self.paint_group_geo_id(source_geo_id);
             let normal = triangle_normal(a.pos, b.pos, c.pos)?;
             let world = [
                 a.pos[0] * w + b.pos[0] * u + c.pos[0] * v,

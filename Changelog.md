@@ -12,6 +12,25 @@
 - Maximized **Prefab** editing now includes a Prefab-only **Tile Picker** tool alongside geometry and 3D Paint tools.
 - The Creator now starts with the **Object** tool selected instead of the Face tool.
 - Added **Create Unit Box**, which places a fixed 1 × 1 × 1 modeling primitive centered on the selected surface without fitting its dimensions to that surface.
+- Added **Revolve** profile editing with presets, snapping, whole-profile scaling, and editable mesh output.
+- Added a connected masonry **Wall Tool** with curved spans, openings, block surrounds, material variation, and damage controls.
+- Added a one-shot Wall **Ring** gesture for wells, towers, and other closed round masonry.
+- Added Wall **Surface** mode for live fitted, height-adjustable solid surfaces inside bounded straight or curved wall regions.
+- Added Prefab-owned particle and light authoring with live previews, presets, surface emission, palette ramps, and mount settings.
+- Made bundled Prefabs editable as project copies and added authored wall-torch, candle, and ground-light Prefabs.
+- Added rotate, flip, detach, and reattach actions for placed linked Prefabs.
+- Added parametric **Rounded Box** and **Cylinder** primitives that remain adjustable before conversion to ordinary geometry.
+- Added a localized **Duplicate Prefab** command that creates an independent copy of all Prefab authoring data.
+- Added **Edge Bevel** with adjustable width, segments, and roundness for selected editable mesh edges.
+- Added persistent **Face Emission** for real-time light from any selected 3D face, including regenerated Wall surfaces.
+- Added face-authored smoke particles distributed across selected geometry, including regenerated Wall surfaces.
+- Face particle ramps can optionally stay linked to project palette entries.
+- Added particle performance diagnostics and an 8,192-billboard safety budget per rendered scene layer.
+- Made connected procedural Wall masonry one continuous 3D Paint target across bricks, spans, and bonded corners.
+- Made 3D Paint project one screen-sized organic brush footprint continuously across adjacent Wall bricks instead of filling each small face.
+- Face emission lights now use the true area-weighted center of irregular and curved surfaces.
+- Added a persistent XZ construction grid with major lines and colored axes to every 3D editor camera.
+- **Create Fitted Geometry** now builds solid, split, or barred inserts directly from selected rectangular or arched Wall openings without requiring connected brick edges.
 - Added a shared, camera-synchronized **Orbit ViewCube** to the region and Prefab editors; clicking a visible face aligns the camera to that axis.
 - Refined 3D navigation with explicit **B: Box Select** in Orbit mode and always-available **WASD** movement in a focused First Person viewport; right mouse and Space now control looking without enabling panning.
 - Added the new black-and-blue Creator theme and made it the default, replacing legacy image-based widget chrome with theme-driven rendering and extensible action-group colors. The UI pass also adds delayed localized hover help, compact sidebar and camera navigation, a taller menu-bar timeline option, contextual editor shortcut guidance, and clearer flat status surfaces.
@@ -37,6 +56,23 @@
 
 ### Creator
 
+- Fixed legacy 3D Paint bakes being rebuilt on every frame from temporary render copies, which made painted projects extremely slow to load and navigate.
+- Fixed Wall Surface mode choosing the whole room when a separate curved wall terminates on two existing wall spans.
+- Fixed Wall Surface creation moving wall-mounted Prefabs when it split their host spans.
+- Fixed **Edit Face Emission** changing the map before Apply when Automatic was disabled.
+- Changed Wall Surface elevation controls to consistent 0.25-unit steps.
+- Shortened the Wall Surface tab label so it fits the compact tool panel.
+- Fixed dropdown and palette popups selecting entries below the pointer when they were shifted to stay inside the window.
+- Fixed Wall Build mode treating automatic room floors as their source wall span, preventing new wall runs from being started inside an existing room.
+- Fixed colors applied in the Prefab editor remaining isolated from the backing Prefab and its linked world instances.
+- Fixed Wall floors requiring a closed loop; open wall networks now derive a floor from their authored area and can add it later with the Floor toggle.
+- Fixed Build mode creating new spans instead of letting existing wall nodes be selected and dragged.
+- Fixed Build mode treating a clicked target node only as a drag handle instead of connecting the active wall run to it.
+- Fixed automatic floors bridging diagonally across concave corners after a wall network was closed or divided by an internal wall.
+- Fixed generated Wall floors being excluded from walkable mesh collision as though they were solid-object undersides.
+- Added Shift multi-selection for wall spans, with shared Wall settings and HUD material application across the selection.
+- Fixed wall-mounted Prefabs using irregular brick-face normals or editor-overlay hits instead of the smooth parent wall plane.
+- Replaced the obsolete, locking **Toggle Editing Geometry** action with a localized **Toggle Grid** action for 2D and 3D construction-grid visibility.
 - Fixed the Screen editor losing—or rendering almost invisibly—its 2D grid when the shared editing-geometry overlay was disabled, rebuilt, or composited over black. Screen grids and widget bounds now remain clearly visible as part of the screen-authoring canvas.
 - Fixed **Edit Tile Meta Data** dropping `gameplay_tags` when its TOML attribute list was applied. Gameplay tags now round-trip as a string array, remain visible as `gameplay_tags = []` when empty, and are clearly distinguished from the visual tile alias in inline comments and documentation.
 - Fixed project-edited item icons only updating in the Creator tree. Painted On/Off frames now refresh the live runtime immediately and override ordinary item artwork in game UI, 2D previews, and 3D world billboards, including state-tiled and non-ruleset items.

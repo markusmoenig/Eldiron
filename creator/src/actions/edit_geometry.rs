@@ -17,6 +17,11 @@ struct GeometryBounds {
 }
 
 impl EditGeometry {
+    const SHAPE_TYPE: &'static str = "primitiveType";
+    const SHAPE_RADIUS: &'static str = "primitiveRadius";
+    const SHAPE_SEGMENTS: &'static str = "primitiveSegments";
+    const SHAPE_SMOOTH: &'static str = "primitiveSmooth";
+
     fn material_preset_labels() -> Vec<String> {
         vec![
             fl!("material_preset_default"),
@@ -85,6 +90,13 @@ impl EditGeometry {
             let local = (*vertex - from.center) / safe_size;
             *vertex = to.center + local * to.size;
         }
+    }
+
+    fn replace_topology(
+        object: &mut rusterix::GeometryObject,
+        generated: rusterix::GeometryObject,
+    ) {
+        object.replace_mesh_preserving_face_sources(generated);
     }
 }
 
@@ -213,6 +225,42 @@ impl Action for EditGeometry {
         ));
         nodeui.add_item(TheNodeUIItem::CloseTree);
 
+        nodeui.add_item(TheNodeUIItem::OpenTree("shape".into()));
+        nodeui.add_item(TheNodeUIItem::Selector(
+            Self::SHAPE_TYPE.into(),
+            "Shape".into(),
+            "Choose Mesh to apply a parametric shape as ordinary editable geometry.".into(),
+            vec![
+                "Mesh / Applied".to_string(),
+                "Rounded Box".to_string(),
+                "Cylinder".to_string(),
+            ],
+            0,
+        ));
+        nodeui.add_item(TheNodeUIItem::FloatEditSlider(
+            Self::SHAPE_RADIUS.into(),
+            "Corner radius".into(),
+            "Used by Rounded Box.".into(),
+            0.15,
+            0.0..=128.0,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::IntEditSlider(
+            Self::SHAPE_SEGMENTS.into(),
+            "Segments".into(),
+            "Corner or radial resolution.".into(),
+            3,
+            1..=128,
+            false,
+        ));
+        nodeui.add_item(TheNodeUIItem::Checkbox(
+            Self::SHAPE_SMOOTH.into(),
+            "Smooth".into(),
+            "Share normals across curved surfaces.".into(),
+            true,
+        ));
+        nodeui.add_item(TheNodeUIItem::CloseTree);
+
         Self {
             id: TheId::named(&fl!("action_edit_geometry")),
             nodeui,
@@ -283,6 +331,33 @@ impl Action for EditGeometry {
         self.nodeui.set_f32_value("width", bounds.size.x.max(0.05));
         self.nodeui.set_f32_value("height", bounds.size.y.max(0.05));
         self.nodeui.set_f32_value("depth", bounds.size.z.max(0.05));
+        let generator = object.properties.get_str("generator").unwrap_or_default();
+        self.nodeui.set_i32_value(
+            Self::SHAPE_TYPE,
+            match generator {
+                "rounded_box" => 1,
+                "cylinder" => 2,
+                _ => 0,
+            },
+        );
+        self.nodeui.set_f32_value(
+            Self::SHAPE_RADIUS,
+            object.properties.get_float_default(
+                "primitive_radius",
+                bounds.size.x.min(bounds.size.y).min(bounds.size.z) * 0.15,
+            ),
+        );
+        self.nodeui.set_i32_value(
+            Self::SHAPE_SEGMENTS,
+            object.properties.get_int_default(
+                "primitive_segments",
+                if generator == "cylinder" { 16 } else { 3 },
+            ),
+        );
+        self.nodeui.set_bool_value(
+            Self::SHAPE_SMOOTH,
+            object.properties.get_bool_default("primitive_smooth", true),
+        );
     }
 
     fn apply(
@@ -381,9 +456,68 @@ impl Action for EditGeometry {
         let existing_material_finish = object
             .properties
             .get_str_default("material_finish", "natural".to_string());
+        let existing_generator = object
+            .properties
+            .get_str_default("generator", String::new());
+        let primitive_type = self
+            .nodeui
+            .get_i32_value(Self::SHAPE_TYPE)
+            .unwrap_or(0)
+            .clamp(0, 2);
+        let primitive_radius = self
+            .nodeui
+            .get_f32_value(Self::SHAPE_RADIUS)
+            .unwrap_or(0.15)
+            .max(0.0);
+        let primitive_segments = self
+            .nodeui
+            .get_i32_value(Self::SHAPE_SEGMENTS)
+            .unwrap_or(3)
+            .clamp(1, 128);
+        let effective_segments = if primitive_type == 1 {
+            primitive_segments.min(8)
+        } else if primitive_type == 2 {
+            primitive_segments.max(3)
+        } else {
+            primitive_segments
+        };
+        let primitive_smooth = self
+            .nodeui
+            .get_bool_value(Self::SHAPE_SMOOTH)
+            .unwrap_or(true);
+        let desired_generator = match primitive_type {
+            1 => "rounded_box",
+            2 => "cylinder",
+            _ => "",
+        };
+        let existing_primitive = matches!(existing_generator.as_str(), "rounded_box" | "cylinder");
+        let generator_changed = if primitive_type == 0 {
+            existing_primitive
+        } else {
+            existing_generator != desired_generator
+        };
+        let primitive_params_changed = primitive_type != 0
+            && ((primitive_type == 1
+                && (object
+                    .properties
+                    .get_float_default("primitive_radius", primitive_radius)
+                    - primitive_radius)
+                    .abs()
+                    > 0.0001)
+                || object
+                    .properties
+                    .get_int_default("primitive_segments", effective_segments)
+                    != effective_segments
+                || object
+                    .properties
+                    .get_bool_default("primitive_smooth", primitive_smooth)
+                    != primitive_smooth);
+        let bounds_changed = (to.center - from.center).magnitude_squared() > 0.000001
+            || (to.size - from.size).magnitude_squared() > 0.000001;
 
-        if (to.center - from.center).magnitude_squared() <= 0.000001
-            && (to.size - from.size).magnitude_squared() <= 0.000001
+        if !bounds_changed
+            && !generator_changed
+            && !primitive_params_changed
             && name == object.name
             && group == object.group
             && visible == object.visible
@@ -428,7 +562,65 @@ impl Action for EditGeometry {
                     .set("material_finish", Value::Str(material_finish));
             }
         }
-        Self::refit_vertices(&mut object.vertices, from, to);
+        if primitive_type == 1 && (bounds_changed || generator_changed || primitive_params_changed)
+        {
+            let half = to.size * 0.5;
+            let generated = rusterix::GeometryObject::rounded_box_from_bounds(
+                object.name.clone(),
+                to.center - half,
+                to.center + half,
+                primitive_radius,
+                effective_segments as usize,
+                primitive_smooth,
+            );
+            Self::replace_topology(object, generated);
+        } else if primitive_type == 2
+            && (bounds_changed || generator_changed || primitive_params_changed)
+        {
+            let half = to.size * 0.5;
+            let generated = rusterix::GeometryObject::cylinder_from_bounds(
+                object.name.clone(),
+                to.center - half,
+                to.center + half,
+                effective_segments as usize,
+                primitive_smooth,
+            );
+            Self::replace_topology(object, generated);
+        } else if bounds_changed {
+            Self::refit_vertices(&mut object.vertices, from, to);
+        }
+
+        if primitive_type == 0 {
+            if existing_primitive {
+                object.properties.remove("generator");
+                object.properties.remove("primitive_radius");
+                object.properties.remove("primitive_segments");
+                object.properties.remove("primitive_smooth");
+                object.kind = if server_ctx.pc.is_prefab() {
+                    rusterix::GeometryObjectKind::Prop
+                } else {
+                    rusterix::GeometryObjectKind::Brush
+                };
+            }
+        } else {
+            object
+                .properties
+                .set("generator", Value::Str(desired_generator.to_string()));
+            if primitive_type == 1 {
+                object
+                    .properties
+                    .set("primitive_radius", Value::Float(primitive_radius));
+            } else {
+                object.properties.remove("primitive_radius");
+            }
+            object
+                .properties
+                .set("primitive_segments", Value::Int(effective_segments));
+            object
+                .properties
+                .set("primitive_smooth", Value::Bool(primitive_smooth));
+            object.kind = rusterix::GeometryObjectKind::Generated;
+        }
 
         map.update_surfaces();
         RUSTERIX.write().unwrap().set_dirty();

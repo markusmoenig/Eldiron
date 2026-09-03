@@ -367,6 +367,18 @@ impl PaletteDock {
         format!("{}{name}", self.widget_prefix)
     }
 
+    /// Returns true when an embedded Palette dock event can change the map
+    /// being authored. The Prefab editor uses this to persist direct surface
+    /// color changes into the backing asset, not just its isolated edit map.
+    pub(crate) fn edits_map_for_event(&self, event: &TheEvent) -> bool {
+        matches!(
+            event,
+            TheEvent::StateChanged(id, TheWidgetState::Clicked)
+                if id.name == self.widget_name("Palette Dock Apply Color")
+                    || id.name == self.widget_name("Palette Dock Clear Color")
+        )
+    }
+
     fn material_preset_labels() -> Vec<String> {
         vec![
             fl!("material_preset_default"),

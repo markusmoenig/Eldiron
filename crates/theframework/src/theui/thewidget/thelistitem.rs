@@ -343,22 +343,52 @@ impl TheWidget for TheListItem {
             shrinker.shrink_by(9, 0, 0, 0);
             let mut rect: (usize, usize, usize, usize) =
                 self.dim.to_buffer_shrunk_utuple(&shrinker);
+            let text_width = rect.2.saturating_sub(right_width as usize);
+            let text_block_top = rect.1 + 3;
+            let text_block_height = rect.3.saturating_sub(6);
+            let title_height = if self.sub_text.is_empty() {
+                text_block_height
+            } else {
+                text_block_height / 2
+            };
 
             ctx.draw.text_rect_blend(
                 buffer.pixels_mut(),
-                &(rect.0, rect.1, rect.2 - right_width as usize, rect.3),
+                &(rect.0, text_block_top, text_width, title_height.max(1)),
                 stride,
                 &self.text,
                 TheFontSettings {
-                    size: 13.0,
+                    size: self.text_size,
                     ..Default::default()
                 },
-                style.theme().color(ListItemText),
+                self.text_color
+                    .as_ref()
+                    .unwrap_or(style.theme().color(ListItemText)),
                 TheHorizontalAlign::Left,
                 TheVerticalAlign::Center,
             );
 
-            rect.0 += rect.2 - right_width as usize;
+            if !self.sub_text.is_empty() {
+                let sub_text_top = text_block_top + title_height;
+                let sub_text_height = text_block_height.saturating_sub(title_height);
+                ctx.draw.text_rect_blend(
+                    buffer.pixels_mut(),
+                    &(rect.0, sub_text_top, text_width, sub_text_height.max(1)),
+                    stride,
+                    &self.sub_text,
+                    TheFontSettings {
+                        size: self.sub_text_size,
+                        ..Default::default()
+                    },
+                    self.sub_text_color
+                        .as_ref()
+                        .unwrap_or(style.theme().color(ListItemText)),
+                    TheHorizontalAlign::Left,
+                    TheVerticalAlign::Center,
+                );
+            }
+
+            rect.0 += text_width;
 
             for (width, value) in self.values.iter() {
                 ctx.draw.rect(

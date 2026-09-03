@@ -13,6 +13,7 @@ use crate::{
 };
 use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
 use indexmap::IndexMap;
+use instant::Instant;
 use rust_embed::EmbeddedFile;
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, Chunk, DynamicObject, GeoId, Light, SceneVM};
@@ -43,6 +44,25 @@ struct BuilderParticleSource {
     origin: Vec3<f32>,
     direction: Vec3<f32>,
     size_scale: f32,
+}
+
+/// Snapshot of one particle pipeline after its most recent dynamic rebuild.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ParticlePipelineStats {
+    pub active_emitters: usize,
+    pub active_particles: usize,
+    pub rendered_billboards: usize,
+    pub dropped_billboards: usize,
+    pub billboard_budget: usize,
+    pub simulation_steps: usize,
+    pub update_build_ms: f64,
+}
+
+/// Lightweight diagnostics for the independent 2D and 3D particle pipelines.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ParticleDebugStats {
+    pub d2: ParticlePipelineStats,
+    pub d3: ParticlePipelineStats,
 }
 
 impl BillboardAnimState {
@@ -275,6 +295,7 @@ pub struct SceneHandler {
     game_tick_fps: f32,
     pending_particle_steps_2d: usize,
     pending_particle_steps_3d: usize,
+    particle_debug_stats: ParticleDebugStats,
 }
 
 impl Default for SceneHandler {
@@ -340,6 +361,53 @@ impl SceneHandler {
         for _ in 0..steps {
             emitter.update(Self::PARTICLE_SIM_STEP * Self::PARTICLE_TIME_SCALE);
         }
+    }
+
+    fn record_particle_stats_2d(&mut self, started: Instant, simulation_steps: usize) {
+        let update_build_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        let (rendered_billboards, dropped_billboards, billboard_budget) =
+            self.vm.vm.particle_dynamic_stats();
+        self.particle_debug_stats.d2 = ParticlePipelineStats {
+            active_emitters: self.tile_emitters_2d.len() + self.builder_emitters_2d.len(),
+            active_particles: self
+                .tile_emitters_2d
+                .values()
+                .chain(self.builder_emitters_2d.values())
+                .map(|emitter| emitter.particles.len())
+                .sum(),
+            rendered_billboards,
+            dropped_billboards,
+            billboard_budget,
+            simulation_steps,
+            update_build_ms,
+        };
+    }
+
+    fn record_particle_stats_3d(&mut self, started: Instant, simulation_steps: usize) {
+        let update_build_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        let (rendered_billboards, dropped_billboards, billboard_budget) =
+            self.vm.vm.particle_dynamic_stats();
+        self.particle_debug_stats.d3 = ParticlePipelineStats {
+            active_emitters: self.campfire_emitters.len()
+                + self.tile_emitters_3d.len()
+                + self.builder_emitters_3d.len(),
+            active_particles: self
+                .campfire_emitters
+                .values()
+                .chain(self.tile_emitters_3d.values())
+                .chain(self.builder_emitters_3d.values())
+                .map(|emitter| emitter.particles.len())
+                .sum(),
+            rendered_billboards,
+            dropped_billboards,
+            billboard_budget,
+            simulation_steps,
+            update_build_ms,
+        };
+    }
+
+    pub fn particle_debug_stats(&self) -> ParticleDebugStats {
+        self.particle_debug_stats
     }
 
     fn effective_tile_light_range(range: f32) -> f32 {
@@ -410,6 +478,73 @@ impl SceneHandler {
                     .with_flicker(light.flicker),
             });
         }
+
+        for object in map.geometry_objects.iter().filter(|object| object.visible) {
+            let object_center = if object.vertices.is_empty() {
+                Vec3::zero()
+            } else {
+                object
+                    .vertices
+                    .iter()
+                    .map(|point| object.transform_point(*point))
+                    .fold(Vec3::zero(), |center, point| center + point)
+                    / object.vertices.len() as f32
+            };
+            for face in &object.faces {
+                let surface_id = crate::geometry_face_effective_paint_surface_id(face);
+                let Some(emission) = map.face_emissions.get(&surface_id) else {
+                    continue;
+                };
+                let points = face
+                    .indices
+                    .iter()
+                    .filter_map(|index| object.vertices.get(*index).copied())
+                    .map(|point| object.transform_point(point))
+                    .collect::<Vec<_>>();
+                if points.len() < 3 || points.len() != face.indices.len() {
+                    continue;
+                }
+                let Some(triangle_indices) = crate::triangulate_geometry_polygon(&points) else {
+                    continue;
+                };
+                let mut center = Vec3::zero();
+                let mut normal = Vec3::zero();
+                let mut total_area = 0.0;
+                for (a, b, c) in triangle_indices {
+                    let cross = (points[b] - points[a]).cross(points[c] - points[a]);
+                    let area = cross.magnitude() * 0.5;
+                    center += (points[a] + points[b] + points[c]) / 3.0 * area;
+                    total_area += area;
+                    normal += cross;
+                }
+                if total_area <= 1e-8 {
+                    continue;
+                }
+                center /= total_area;
+                let Some(mut normal) = normal.try_normalized() else {
+                    continue;
+                };
+                if normal.dot(center - object_center) < 0.0 {
+                    normal = -normal;
+                }
+                let mut color: Vec3<f32> =
+                    Vec3::from(emission.color).map(|channel: f32| channel.clamp(0.0, 1.0));
+                if linear_color {
+                    color = color.map(|channel| channel.powf(2.2));
+                }
+                let end_distance = emission.end_distance.max(0.05);
+                self.vm.execute(Atom::AddLight {
+                    id: GeoId::Unknown(0xFACE_0000 ^ Self::hash_u32_uuid(face.id)),
+                    light: Light::new_pointlight(center + normal * emission.offset)
+                        .with_color(color)
+                        .with_intensity(emission.intensity.max(0.0))
+                        .with_emitting(emission.intensity > 0.0)
+                        .with_start_distance(emission.start_distance.clamp(0.0, end_distance))
+                        .with_end_distance(end_distance)
+                        .with_flicker(emission.flicker.max(0.0)),
+                });
+            }
+        }
     }
 
     fn update_generated_item_avatar_data(&mut self, active_geo: &FxHashSet<GeoId>) {
@@ -440,6 +575,35 @@ impl SceneHandler {
 
     fn ruleset_fx_particle_sprite_tile_id() -> Uuid {
         Uuid::from_u128(0x656c_6469_726f_6e5f_6678_5f70_6172_74)
+    }
+
+    fn prefab_particle_sprite_tile_id(effect_id: Uuid) -> Uuid {
+        Uuid::from_u128(effect_id.as_u128() ^ 0x705f_7072_6566_6162_5f65_6666_6563_74)
+    }
+
+    /// Keep authored Prefab particle sprites on the same ramp-aware path as
+    /// procedural recipe particles. This is refreshed whenever Prefabs change,
+    /// so palette edits are visible immediately in the editor preview.
+    pub fn sync_prefab_particle_sprites(
+        &mut self,
+        block_props: &IndexMap<Uuid, crate::BlockPropAsset>,
+    ) {
+        for effect in block_props
+            .values()
+            .flat_map(|asset| asset.particle_effects.iter())
+        {
+            let sprite = Self::build_particle_sprite_texture(
+                effect.emitter.color,
+                effect.emitter.color_ramp.as_ref(),
+            );
+            self.vm.execute(Atom::AddTile {
+                id: Self::prefab_particle_sprite_tile_id(effect.id),
+                width: sprite.width as u32,
+                height: sprite.height as u32,
+                frames: vec![sprite.data],
+                material_frames: sprite.data_ext.clone().map(|ext| vec![ext]),
+            });
+        }
     }
 
     fn build_particle_sprite_texture(color: [u8; 4], ramp: Option<&[[u8; 4]; 4]>) -> Texture {
@@ -799,6 +963,62 @@ impl SceneHandler {
             word[..chunk.len()].copy_from_slice(chunk);
             acc.wrapping_mul(16777619) ^ u32::from_le_bytes(word)
         })
+    }
+
+    fn hash_face_emissions(hasher: &mut rustc_hash::FxHasher, map: &Map) {
+        let mut emissions = map.face_emissions.iter().collect::<Vec<_>>();
+        emissions.sort_unstable_by_key(|(id, _)| id.as_u128());
+        hasher.write_u64(emissions.len() as u64);
+        for (id, emission) in emissions {
+            hasher.write(id.as_bytes());
+            for channel in emission.color {
+                hasher.write_u32(channel.to_bits());
+            }
+            hasher.write_u32(emission.intensity.to_bits());
+            hasher.write_u32(emission.start_distance.to_bits());
+            hasher.write_u32(emission.end_distance.to_bits());
+            hasher.write_u32(emission.offset.to_bits());
+            hasher.write_u32(emission.flicker.to_bits());
+        }
+    }
+
+    fn hash_face_particle_emissions(hasher: &mut rustc_hash::FxHasher, map: &Map) {
+        let mut emissions = map.face_particle_emissions.iter().collect::<Vec<_>>();
+        emissions.sort_unstable_by_key(|(id, _)| id.as_u128());
+        hasher.write_u64(emissions.len() as u64);
+        for (id, emission) in emissions {
+            let emitter = &emission.emitter;
+            hasher.write(id.as_bytes());
+            hasher.write_u32(emission.offset.to_bits());
+            hasher.write_u32(emitter.rate.to_bits());
+            hasher.write_u32(emitter.spread.to_bits());
+            for value in [
+                emitter.lifetime_range.0,
+                emitter.lifetime_range.1,
+                emitter.radius_range.0,
+                emitter.radius_range.1,
+                emitter.speed_range.0,
+                emitter.speed_range.1,
+                emitter.turbulence,
+            ] {
+                hasher.write_u32(value.to_bits());
+            }
+            hasher.write(&emitter.color);
+            if let Some(ramp) = emitter.color_ramp {
+                for color in ramp {
+                    hasher.write(&color);
+                }
+            }
+            for palette_index in emission.palette_indices {
+                match palette_index {
+                    Some(index) => {
+                        hasher.write_u8(1);
+                        hasher.write_u16(index);
+                    }
+                    None => hasher.write_u8(0),
+                }
+            }
+        }
     }
 
     fn ruleset_fx_should_render(&mut self, item: &Item) -> bool {
@@ -1413,6 +1633,167 @@ impl SceneHandler {
         out
     }
 
+    fn face_particle_sources(map: &Map, assets: &Assets) -> Vec<BuilderParticleSource> {
+        let mut out = Vec::new();
+        for object in map.geometry_objects.iter().filter(|object| object.visible) {
+            let object_center = if object.vertices.is_empty() {
+                Vec3::zero()
+            } else {
+                object
+                    .vertices
+                    .iter()
+                    .map(|point| object.transform_point(*point))
+                    .fold(Vec3::zero(), |center, point| center + point)
+                    / object.vertices.len() as f32
+            };
+            for face in &object.faces {
+                let surface_id = crate::geometry_face_effective_paint_surface_id(face);
+                let Some(settings) = map.face_particle_emissions.get(&surface_id) else {
+                    continue;
+                };
+                let points = face
+                    .indices
+                    .iter()
+                    .filter_map(|index| object.vertices.get(*index).copied())
+                    .map(|point| object.transform_point(point))
+                    .collect::<Vec<_>>();
+                if points.len() < 3 || points.len() != face.indices.len() {
+                    continue;
+                }
+                let Some(triangle_indices) = crate::triangulate_geometry_polygon(&points) else {
+                    continue;
+                };
+                let mut center = Vec3::zero();
+                let mut normal = Vec3::<f32>::zero();
+                let mut total_area = 0.0;
+                for (a, b, c) in &triangle_indices {
+                    let cross = (points[*b] - points[*a]).cross(points[*c] - points[*a]);
+                    let area = cross.magnitude() * 0.5;
+                    center += (points[*a] + points[*b] + points[*c]) / 3.0 * area;
+                    total_area += area;
+                    normal += cross;
+                }
+                if total_area <= 1e-8 {
+                    continue;
+                }
+                center /= total_area;
+                let Some(mut normal) = normal.try_normalized() else {
+                    continue;
+                };
+                if normal.dot(center - object_center) < 0.0 {
+                    normal = -normal;
+                }
+                let origin = center + normal * settings.offset;
+                let mut emitter_def = settings.emitter.clone();
+                let mut ramp = emitter_def.color_ramp.unwrap_or([emitter_def.color; 4]);
+                for (slot, palette_index) in settings.palette_indices.iter().enumerate() {
+                    let Some(palette_index) = palette_index else {
+                        continue;
+                    };
+                    let Some(Some(color)) = assets.palette.colors.get(*palette_index as usize)
+                    else {
+                        continue;
+                    };
+                    ramp[slot] = color.to_u8_array();
+                }
+                emitter_def.color = ramp[1];
+                emitter_def.color_ramp = Some(ramp);
+                let mut emitter = emitter_def.instantiate(origin, normal);
+                emitter.emission_shape = crate::ParticleEmissionShape::Surface;
+                emitter.spawn_surface_triangles = triangle_indices
+                    .into_iter()
+                    .map(|(a, b, c)| {
+                        [
+                            points[a] + normal * settings.offset,
+                            points[b] + normal * settings.offset,
+                            points[c] + normal * settings.offset,
+                        ]
+                    })
+                    .collect();
+                let key = Self::tile_particle_key(12, Self::hash_u32_uuid(surface_id), 0);
+                out.push(BuilderParticleSource {
+                    key,
+                    light_id: GeoId::Unknown(0xB183_0000 ^ key),
+                    sprite_tile_id: Self::ruleset_fx_particle_sprite_tile_id(),
+                    emitter,
+                    light_override: None,
+                    emit_implicit_light: false,
+                    origin,
+                    direction: normal,
+                    size_scale: 1.0,
+                });
+            }
+        }
+        out
+    }
+
+    fn prefab_effect_resolution(map: &Map, assets: &Assets) -> crate::BlockPropEffectResolution {
+        if let Some(asset_id) = map.properties.get_id("prefab_effect_preview_asset_id") {
+            let preview = crate::BlockPropInstance {
+                id: Uuid::nil(),
+                asset_id,
+                world_transform: crate::identity_block_prop_transform(),
+                parameter_overrides: Default::default(),
+                runtime_state: Default::default(),
+                overrides: Default::default(),
+                host_attachment: None,
+            };
+            crate::resolve_block_prop_effects(&[preview], &assets.block_props)
+        } else {
+            crate::resolve_block_prop_effects(&map.block_prop_instances, &assets.block_props)
+        }
+    }
+
+    fn prefab_particle_sources(map: &Map, assets: &Assets) -> Vec<BuilderParticleSource> {
+        Self::prefab_effect_resolution(map, assets)
+            .particles
+            .into_iter()
+            .map(|effect| {
+                let instance_hash = Self::hash_u32_uuid(effect.instance_id);
+                let effect_hash = Self::hash_u32_uuid(effect.effect_id);
+                let key = Self::tile_particle_key(10, instance_hash, effect_hash);
+                BuilderParticleSource {
+                    key,
+                    light_id: GeoId::Unknown(0xB181_0000 ^ key),
+                    sprite_tile_id: Self::prefab_particle_sprite_tile_id(effect.effect_id),
+                    emitter: effect.emitter.instantiate(effect.origin, effect.direction),
+                    light_override: None,
+                    emit_implicit_light: false,
+                    origin: effect.origin,
+                    direction: effect.direction,
+                    size_scale: 1.0,
+                }
+            })
+            .collect()
+    }
+
+    fn add_prefab_lights(&mut self, map: &Map, assets: &Assets, linear_color: bool) {
+        for effect in Self::prefab_effect_resolution(map, assets).lights {
+            let instance_hash = Self::hash_u32_uuid(effect.instance_id);
+            let effect_hash = Self::hash_u32_uuid(effect.effect_id);
+            let key = Self::tile_particle_key(11, instance_hash, effect_hash);
+            let mut color = Vec3::new(
+                effect.color[0] as f32 / 255.0,
+                effect.color[1] as f32 / 255.0,
+                effect.color[2] as f32 / 255.0,
+            );
+            if linear_color {
+                color = color.map(|channel| channel.powf(2.2));
+            }
+            let range = Self::effective_tile_light_range(effect.range);
+            self.vm.execute(Atom::AddLight {
+                id: GeoId::Unknown(0xB182_0000 ^ key),
+                light: Light::new_pointlight(effect.position)
+                    .with_color(color)
+                    .with_intensity(Self::effective_tile_light_intensity(effect.intensity))
+                    .with_emitting(true)
+                    .with_start_distance(Self::effective_tile_light_start_distance(range))
+                    .with_end_distance(range)
+                    .with_flicker(effect.flicker.max(0.0)),
+            });
+        }
+    }
+
     fn rebuild_builder_particles_2d(
         &mut self,
         map: &Map,
@@ -1426,6 +1807,8 @@ impl SceneHandler {
             .into_iter()
             .chain(Self::builder_vertex_particle_sources(map, assets).into_iter())
             .chain(Self::builder_geometry_object_particle_sources(map, assets).into_iter())
+            .chain(Self::face_particle_sources(map, assets).into_iter())
+            .chain(Self::prefab_particle_sources(map, assets).into_iter())
         {
             active_emitters.insert(source.key);
             let emitter = self
@@ -1439,6 +1822,7 @@ impl SceneHandler {
                     emitter.particles.clear();
                     emitter
                 });
+            emitter.sync_settings_from(&source.emitter);
             emitter.origin = source.origin;
             emitter.direction = source.direction;
             Self::advance_emitter(emitter, particle_steps);
@@ -1487,6 +1871,8 @@ impl SceneHandler {
             .into_iter()
             .chain(Self::builder_vertex_particle_sources(map, assets).into_iter())
             .chain(Self::builder_geometry_object_particle_sources(map, assets).into_iter())
+            .chain(Self::face_particle_sources(map, assets).into_iter())
+            .chain(Self::prefab_particle_sources(map, assets).into_iter())
         {
             active_emitters.insert(source.key);
             let emitter = self
@@ -1500,6 +1886,7 @@ impl SceneHandler {
                     emitter.particles.clear();
                     emitter
                 });
+            emitter.sync_settings_from(&source.emitter);
             emitter.origin = source.origin;
             emitter.direction = source.direction;
             Self::advance_emitter(emitter, particle_steps);
@@ -1552,7 +1939,10 @@ impl SceneHandler {
             for (index, particle) in emitter.particles.iter().enumerate() {
                 has_particles = true;
                 let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
-                let size = (particle.radius * 4.6 * source.size_scale).max(0.28);
+                // Authored prefab effects can intentionally use very small motes (sparks,
+                // dust, thin fog). A large renderer-side minimum made every preset look
+                // like the same oversized billboard and effectively ignored radius_range.
+                let size = (particle.radius * 2.0 * source.size_scale).max(0.015);
                 let center = particle.pos + Vec3::new(0.0, size * 0.2, 0.0);
                 let tint = Vec3::new(
                     (particle.color[0] as f32 / 255.0).powf(2.2),
@@ -1579,9 +1969,9 @@ impl SceneHandler {
                     .unwrap_or([source.emitter.color; 4]);
                 let base_size = ((source.emitter.radius_range.0 + source.emitter.radius_range.1)
                     * 0.5
-                    * 7.5
+                    * 3.0
                     * source.size_scale)
-                    .max(0.42);
+                    .max(0.025);
                 for (layer, (color, scale, yoff, opacity)) in [
                     (ramp[1], 1.0f32, base_size * 0.03, 0.98f32),
                     (ramp[0], 0.82f32, base_size * 0.14, 1.0f32),
@@ -2200,6 +2590,18 @@ impl SceneHandler {
         self.mark_dynamics_dirty();
     }
 
+    /// Restart authored/builder particle simulations without disturbing base
+    /// geometry, lights, billboards, or other runtime overlays. This is used
+    /// when a Prefab emitter is replaced by a different preset so particles
+    /// born under the previous definition cannot linger in the new effect.
+    pub fn reset_builder_particle_emitters(&mut self) {
+        self.builder_emitters_2d.clear();
+        self.builder_emitters_3d.clear();
+        self.pending_particle_steps_2d = 0;
+        self.pending_particle_steps_3d = 0;
+        self.mark_dynamics_dirty();
+    }
+
     pub fn add_sector_campfire_lights(&mut self, map: &Map) {
         let mut top_floor_y_by_sector: FxHashMap<u32, f32> = FxHashMap::default();
         for surface in map.surfaces.values() {
@@ -2391,6 +2793,7 @@ impl SceneHandler {
             game_tick_fps: 4.0, // default 250ms ticks
             pending_particle_steps_2d: 0,
             pending_particle_steps_3d: 0,
+            particle_debug_stats: ParticleDebugStats::default(),
         }
     }
 
@@ -2564,6 +2967,8 @@ impl SceneHandler {
         hasher.write_u64(map.linedefs.len() as u64);
         hasher.write_u64(map.vertices.len() as u64);
         hasher.write_u64(map.geometry_objects.len() as u64);
+        Self::hash_face_emissions(&mut hasher, map);
+        Self::hash_face_particle_emissions(&mut hasher, map);
         hasher.write_u64(map.items.len() as u64);
         hasher.write_u64(map.entities.len() as u64);
 
@@ -2758,6 +3163,8 @@ impl SceneHandler {
         hasher.write_u64(map.linedefs.len() as u64);
         hasher.write_u64(map.vertices.len() as u64);
         hasher.write_u64(map.geometry_objects.len() as u64);
+        Self::hash_face_emissions(&mut hasher, map);
+        Self::hash_face_particle_emissions(&mut hasher, map);
         hasher.write_u64(map.items.len() as u64);
         hasher.write_u64(map.entities.len() as u64);
         hasher.write_u8(u8::from(self.entity_item_selection_visible));
@@ -3311,8 +3718,11 @@ impl SceneHandler {
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
         self.add_authored_map_lights(map, false);
+        self.add_prefab_lights(map, assets, false);
+        let particle_started = Instant::now();
         let _has_tile_particles = self.rebuild_tile_particles_2d(map, assets, particle_steps);
         let _has_builder_particles = self.rebuild_builder_particles_2d(map, assets, particle_steps);
+        self.record_particle_stats_2d(particle_started, particle_steps);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_generated_item_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();
@@ -3568,13 +3978,16 @@ impl SceneHandler {
         self.vm.execute(Atom::ClearDynamics);
         self.vm.execute(Atom::ClearLights);
         self.add_authored_map_lights(map, true);
+        self.add_prefab_lights(map, assets, true);
         self.add_sector_campfire_lights(map);
+        let particle_started = Instant::now();
         let _has_campfire_particles =
             self.rebuild_campfire_particles(map, camera, assets, particle_steps);
         let _has_tile_particles =
             self.rebuild_tile_particles_3d(map, camera, assets, particle_steps);
         let _has_builder_particles =
             self.rebuild_builder_particles_3d(map, camera, assets, particle_steps);
+        self.record_particle_stats_3d(particle_started, particle_steps);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_generated_item_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_impact_geo: FxHashSet<GeoId> = FxHashSet::default();

@@ -23,6 +23,9 @@ pub struct Poly3D {
     /// Optional source identity used to keep legacy object-local paint attached
     /// when the rendered geometry has an instance-specific ID.
     pub paint_source_id: Option<GeoId>,
+    /// Optional authoring group used only by paint picking and Surface clipping.
+    /// Geometry selection and collision continue to use `id`.
+    pub paint_group_id: Option<GeoId>,
     /// Per-vertex paint coordinates, independent from material UVs.
     pub paint_uvs: Vec<[f32; 2]>,
 }
@@ -51,6 +54,7 @@ impl Poly3D {
             blend_weights: Vec::new(),
             paint_surface_id: None,
             paint_source_id: None,
+            paint_group_id: None,
             paint_uvs: Vec::new(),
         }
     }
@@ -125,6 +129,7 @@ impl Poly3D {
             blend_weights: Vec::new(),
             paint_surface_id: None,
             paint_source_id: None,
+            paint_group_id: None,
             paint_uvs: Vec::new(),
         }
     }
@@ -209,6 +214,7 @@ impl Poly3D {
             blend_weights: Vec::new(),
             paint_surface_id: None,
             paint_source_id: None,
+            paint_group_id: None,
             paint_uvs: Vec::new(),
         }
     }
@@ -273,6 +279,7 @@ impl Poly3D {
             blend_weights: Vec::new(),
             paint_surface_id: None,
             paint_source_id: None,
+            paint_group_id: None,
             paint_uvs: Vec::new(),
         }
     }

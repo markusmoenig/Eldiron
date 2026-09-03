@@ -1001,7 +1001,10 @@ impl Rusterix {
     }
 
     pub fn set_block_props(&mut self, block_props: IndexMap<Uuid, BlockPropAsset>) {
+        self.scene_handler
+            .sync_prefab_particle_sprites(&block_props);
         self.assets.set_block_props(block_props);
+        self.scene_handler.mark_dynamics_dirty();
     }
 
     pub fn set_tiles_for_maps<'a, I>(
@@ -1072,6 +1075,8 @@ impl Rusterix {
 
     fn apply_tiles(&mut self, all_tiles: IndexMap<Uuid, Tile>, editor: bool) {
         self.scene_handler.build_atlas(&all_tiles, editor);
+        self.scene_handler
+            .sync_prefab_particle_sprites(&self.assets.block_props);
         self.assets.set_tiles(all_tiles);
         let palette: Vec<vek::Vec4<f32>> = self
             .assets

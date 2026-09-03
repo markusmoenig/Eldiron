@@ -4,10 +4,11 @@ use crate::blocks::{
     block_sizing_from_context, block_stroke_cells, block_surface_base_y, component_uses_cylinder,
     cylinder_vertices_and_faces, default_block_asset_id, localized_block_asset_name,
 };
-use crate::editor::DOCKMANAGER;
+use crate::editor::{DOCKMANAGER, RUSTERIX};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
+use scenevm::GeoId;
 
 pub struct BlockTool {
     id: TheId,
@@ -15,6 +16,9 @@ pub struct BlockTool {
     drag_start_cell: Option<Vec3<i32>>,
     drag_end_cell: Option<Vec3<i32>>,
     drag_base_y: Option<f32>,
+    drag_surface_hit: Option<Vec3<f32>>,
+    drag_surface_normal: Option<Vec3<f32>>,
+    drag_surface_geo: Option<GeoId>,
     drag_changed: bool,
 }
 
@@ -22,6 +26,9 @@ pub struct BlockTool {
 struct BlockPlacement {
     cell: Vec3<i32>,
     base_y: f32,
+    hit: Vec3<f32>,
+    normal: Option<Vec3<f32>>,
+    geo_id: Option<GeoId>,
 }
 
 impl BlockTool {
@@ -67,6 +74,9 @@ impl BlockTool {
         Some(BlockPlacement {
             cell: Self::snapped_grid_cell(point, cell_size, server_ctx.block_grid_level),
             base_y: block_surface_base_y(server_ctx, grid_y).unwrap_or(grid_y),
+            hit: server_ctx.hover_surface_hit_pos.unwrap_or(point),
+            normal: server_ctx.hover_surface_normal,
+            geo_id: server_ctx.geo_hit,
         })
     }
 
@@ -381,10 +391,118 @@ impl BlockTool {
         instance
     }
 
+    fn make_surface_prop_instance(
+        asset: &rusterix::BlockPropAsset,
+        map: &Map,
+        hit: Vec3<f32>,
+        normal: Option<Vec3<f32>>,
+        geo_id: Option<GeoId>,
+        quarter_turns: i32,
+    ) -> Option<rusterix::BlockPropInstance> {
+        let mode = asset.placement.mode;
+        if mode == rusterix::BlockPropPlacementMode::Free {
+            let cell = Vec3::zero();
+            let mut instance = Self::make_prop_instance(asset.id, cell, hit.y, 1.0, quarter_turns);
+            instance.world_transform[3][0] = hit.x;
+            instance.world_transform[3][2] = hit.z;
+            return Some(instance);
+        }
+
+        let (hit, normal) = if mode == rusterix::BlockPropPlacementMode::Wall
+            && let Some(GeoId::GeometryObject(object_id)) = geo_id
+            && let Some((wall_hit, wall_normal)) =
+                map.wall_surface_frame_for_geometry_object(object_id, hit, normal)
+        {
+            (wall_hit, Some(wall_normal))
+        } else {
+            (hit, normal)
+        };
+        let normal = normal?.try_normalized()?;
+        if mode == rusterix::BlockPropPlacementMode::Wall && normal.y.abs() > 0.72 {
+            return None;
+        }
+        let angle = quarter_turns.rem_euclid(4) as f32 * std::f32::consts::FRAC_PI_2;
+        let (sin, cos) = angle.sin_cos();
+        let (mut right, mut up, forward) = if mode == rusterix::BlockPropPlacementMode::Wall {
+            let forward = Vec3::new(normal.x, 0.0, normal.z).try_normalized()?;
+            (
+                Vec3::unit_y().cross(forward).try_normalized()?,
+                Vec3::unit_y(),
+                forward,
+            )
+        } else {
+            let up = normal;
+            let reference = if up.z.abs() < 0.9 {
+                Vec3::unit_z()
+            } else {
+                Vec3::unit_x()
+            };
+            let forward = (reference - up * reference.dot(up)).try_normalized()?;
+            (up.cross(forward).try_normalized()?, up, forward)
+        };
+        let rotated_right = right * cos + up * sin;
+        let rotated_up = up * cos - right * sin;
+        right = rotated_right;
+        up = rotated_up;
+
+        let mut instance = rusterix::BlockPropInstance::new(asset.id);
+        instance.world_transform[0][0] = right.x;
+        instance.world_transform[0][1] = right.y;
+        instance.world_transform[0][2] = right.z;
+        instance.world_transform[1][0] = up.x;
+        instance.world_transform[1][1] = up.y;
+        instance.world_transform[1][2] = up.z;
+        instance.world_transform[2][0] = forward.x;
+        instance.world_transform[2][1] = forward.y;
+        instance.world_transform[2][2] = forward.z;
+        let origin = hit + normal * asset.placement.surface_offset;
+        instance.world_transform[3][0] = origin.x;
+        instance.world_transform[3][1] = origin.y;
+        instance.world_transform[3][2] = origin.z;
+
+        if mode == rusterix::BlockPropPlacementMode::Wall
+            && let Some(GeoId::GeometryObject(object_id)) = geo_id
+            && let Some((assembly_id, span_id)) = map.wall_source_for_geometry_object(object_id)
+            && let Some(assembly) = map.wall_assembly(assembly_id)
+            && let Some(coordinates) = assembly.span_coordinates(span_id, hit)
+        {
+            let length = assembly.span_length(span_id)?;
+            let epsilon = (length * 0.01).clamp(0.005, 0.05);
+            let before = assembly.span_point(
+                span_id,
+                Vec2::new((coordinates.x - epsilon).max(0.0), coordinates.y),
+            )?;
+            let after = assembly.span_point(
+                span_id,
+                Vec2::new((coordinates.x + epsilon).min(length), coordinates.y),
+            )?;
+            let tangent =
+                Vec3::new(after.x - before.x, 0.0, after.z - before.z).try_normalized()?;
+            let canonical = Vec3::new(-tangent.z, 0.0, tangent.x).try_normalized()?;
+            instance.host_attachment = Some(rusterix::BlockPropHostAttachment::WallSpan {
+                assembly_id,
+                span_id,
+                along: coordinates.x,
+                height: coordinates.y,
+                side: if canonical.dot(normal) < 0.0 {
+                    -1.0
+                } else {
+                    1.0
+                },
+                offset: asset.placement.surface_offset,
+                rotation_quarters: quarter_turns.rem_euclid(4),
+            });
+        }
+        Some(instance)
+    }
+
     fn clear_drag(&mut self, server_ctx: &mut ServerContext) {
         self.drag_start_cell = None;
         self.drag_end_cell = None;
         self.drag_base_y = None;
+        self.drag_surface_hit = None;
+        self.drag_surface_normal = None;
+        self.drag_surface_geo = None;
         self.drag_changed = false;
         server_ctx.block_drag_base_y = None;
         server_ctx.block_drag_start_cell = None;
@@ -400,6 +518,9 @@ impl BlockTool {
         self.drag_start_cell = Some(cell);
         self.drag_end_cell = Some(cell);
         self.drag_base_y = Some(placement.base_y);
+        self.drag_surface_hit = Some(placement.hit);
+        self.drag_surface_normal = placement.normal;
+        self.drag_surface_geo = placement.geo_id;
         self.drag_changed = false;
         server_ctx.block_drag_base_y = Some(placement.base_y);
         server_ctx.block_drag_start_cell = Some(cell);
@@ -469,6 +590,7 @@ impl BlockTool {
 
         let mut created = Vec::new();
         let mut created_props = Vec::new();
+        let mut invalid_surface = false;
         let mut asset_name = fl!("block_asset_instances");
         if operation != BLOCK_OPERATION_ERASE {
             let asset_id = Self::selected_asset_id(server_ctx);
@@ -490,14 +612,38 @@ impl BlockTool {
                     .curr_block_asset_name
                     .clone()
                     .unwrap_or_else(|| "Project Prop".to_string());
-                for cell in &cells {
-                    created_props.push(Self::make_prop_instance(
-                        asset_id,
-                        *cell,
-                        base_y,
-                        cell_size,
-                        server_ctx.block_rotation_quarters,
-                    ));
+                let asset = RUSTERIX
+                    .read()
+                    .unwrap()
+                    .assets
+                    .block_props
+                    .get(&asset_id)
+                    .cloned();
+                if let Some(asset) = asset {
+                    if asset.placement.mode == rusterix::BlockPropPlacementMode::Ground {
+                        for cell in &cells {
+                            created_props.push(Self::make_prop_instance(
+                                asset_id,
+                                *cell,
+                                base_y,
+                                cell_size,
+                                server_ctx.block_rotation_quarters,
+                            ));
+                        }
+                    } else if let Some(hit) = self.drag_surface_hit
+                        && let Some(instance) = Self::make_surface_prop_instance(
+                            &asset,
+                            map,
+                            hit,
+                            self.drag_surface_normal,
+                            self.drag_surface_geo,
+                            server_ctx.block_rotation_quarters,
+                        )
+                    {
+                        created_props.push(instance);
+                    } else {
+                        invalid_surface = true;
+                    }
                 }
             }
         }
@@ -507,6 +653,12 @@ impl BlockTool {
             && removed.is_empty()
             && removed_props.is_empty()
         {
+            if invalid_surface {
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    "This Prefab cannot be mounted on the selected surface".to_string(),
+                ));
+            }
             return None;
         }
 
@@ -522,6 +674,7 @@ impl BlockTool {
         } else if !created_props.is_empty() {
             map.clear_selection();
             map.block_prop_instances.extend(created_props);
+            map.sync_wall_hosted_block_props();
         } else {
             map.selected_geometry_objects.clear();
         }
@@ -566,6 +719,9 @@ impl Tool for BlockTool {
             drag_start_cell: None,
             drag_end_cell: None,
             drag_base_y: None,
+            drag_surface_hit: None,
+            drag_surface_normal: None,
+            drag_surface_geo: None,
             drag_changed: false,
         }
     }

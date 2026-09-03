@@ -294,11 +294,12 @@ impl CreateGeometryBox {
         )
     }
 
-    fn viewport_center_position(
+    pub(crate) fn viewport_center_position(
         ui: &mut TheUI,
         server_ctx: &mut ServerContext,
     ) -> Option<Vec3<f32>> {
-        let render_view = ui.get_render_view("PolyView")?;
+        let render_view =
+            ui.get_render_view(crate::utils::map_editor_render_view_name(server_ctx))?;
         let dim = *render_view.dim();
         if dim.width <= 0 || dim.height <= 0 {
             return None;
@@ -323,6 +324,43 @@ impl CreateGeometryBox {
         }
 
         None
+    }
+
+    pub(crate) fn bounds_for_primitive(
+        map: &Map,
+        ui: &mut TheUI,
+        server_ctx: &mut ServerContext,
+        size: Vec3<f32>,
+    ) -> Option<(Vec3<f32>, Vec3<f32>)> {
+        let step = ServerContext::edit_grid_step(map.subdivisions);
+        if !map.selected_geometry_vertices.is_empty() {
+            let (anchor, normal, face_min, face_max) = Self::selected_edge_face_anchor(map)?;
+            let size = Self::size_for_anchor(size, step, normal, face_min, face_max, true);
+            return Some(Self::box_bounds_from_face_anchor(
+                anchor, normal, face_min, face_max, size, step, false,
+            ));
+        }
+        if let Some((anchor, normal, face_min, face_max)) = Self::selected_face_anchor(map) {
+            return Some(Self::box_bounds_from_face_anchor(
+                anchor, normal, face_min, face_max, size, step, true,
+            ));
+        }
+        if server_ctx.pc.is_prefab() {
+            let half = size * 0.5;
+            return Some((
+                Vec3::new(-half.x, 0.0, -half.z),
+                Vec3::new(half.x, size.y, half.z),
+            ));
+        }
+        let position = Self::viewport_center_position(ui, server_ctx)
+            .or(map.curr_grid_pos_3d)
+            .unwrap_or(server_ctx.geo_hit_pos);
+        let min = Vec3::new(
+            Self::snapped(position.x, step),
+            Self::snapped(position.y, step),
+            Self::snapped(position.z, step),
+        );
+        Some((min, min + size))
     }
 }
 

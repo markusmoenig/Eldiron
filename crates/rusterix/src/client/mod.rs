@@ -621,6 +621,7 @@ struct ClientDrawDebugTiming {
     button_draw: Duration,
     button_overlay: Duration,
     misc: Duration,
+    particle_stats: crate::ParticleDebugStats,
 }
 
 #[derive(Default)]
@@ -644,6 +645,7 @@ struct ClientDrawDebugSample {
     button_draw: Duration,
     button_overlay: Duration,
     misc: Duration,
+    particle_stats: crate::ParticleDebugStats,
 }
 
 impl ClientDrawDebugTiming {
@@ -670,6 +672,7 @@ impl ClientDrawDebugTiming {
         self.button_draw += sample.button_draw;
         self.button_overlay += sample.button_overlay;
         self.misc += sample.misc;
+        self.particle_stats = sample.particle_stats;
 
         let elapsed = now.saturating_duration_since(window_started);
         if elapsed < Duration::from_secs(2) {
@@ -700,6 +703,25 @@ impl ClientDrawDebugTiming {
             avg_ms(self.button_draw),
             avg_ms(self.button_overlay),
             avg_ms(self.misc),
+        );
+        let d2 = self.particle_stats.d2;
+        let d3 = self.particle_stats.d3;
+        eprintln!(
+            "[RenderDebug][Particles] 2d emitters={} active={} billboards={}/{} dropped={} steps={} last_update_build_ms={:.2} 3d emitters={} active={} billboards={}/{} dropped={} steps={} last_update_build_ms={:.2}",
+            d2.active_emitters,
+            d2.active_particles,
+            d2.rendered_billboards,
+            d2.billboard_budget,
+            d2.dropped_billboards,
+            d2.simulation_steps,
+            d2.update_build_ms,
+            d3.active_emitters,
+            d3.active_particles,
+            d3.rendered_billboards,
+            d3.billboard_budget,
+            d3.dropped_billboards,
+            d3.simulation_steps,
+            d3.update_build_ms,
         );
         *self = Self {
             window_started: Some(now),
@@ -1834,6 +1856,11 @@ impl Client {
             1.0,
         );
         let transform = translation_matrix * scale_matrix;
+        let rendered_grid_size = if self.builder_d2.draw_grid {
+            map.grid_size
+        } else {
+            0.0
+        };
 
         let mut rast = Rasterizer::setup(Some(transform), Mat4::identity(), Mat4::identity())
             .render_mode(RenderMode::render_2d());
@@ -1858,7 +1885,7 @@ impl Client {
                 .vm
                 .execute(scenevm::Atom::SetTransform2D(transform));
             scene_handler.vm.execute(scenevm::Atom::SetGP0(Vec4::new(
-                map.grid_size,
+                rendered_grid_size,
                 map.subdivisions,
                 map.offset.x,
                 -map.offset.y,
@@ -1935,6 +1962,11 @@ impl Client {
             1.0,
         );
         let transform = translation_matrix * scale_matrix;
+        let rendered_grid_size = if self.builder_d2.draw_grid {
+            map.grid_size
+        } else {
+            0.0
+        };
         let top_left = Vec2::new(
             (-screen_size.x / 2.0 - map.offset.x) / map.grid_size,
             (map.offset.y - screen_size.y / 2.0) / map.grid_size,
@@ -1950,7 +1982,7 @@ impl Client {
         scene_handler.vm.set_active_vm(0);
         if matches!(scenevm_mode_2d, scenevm::RenderMode::Compute2D) {
             scene_handler.vm.execute(scenevm::Atom::SetGP0(Vec4::new(
-                map.grid_size,
+                rendered_grid_size,
                 map.subdivisions,
                 map.offset.x,
                 -map.offset.y,
@@ -1983,7 +2015,7 @@ impl Client {
         scene_handler.apply_runtime_render_state_2d();
         if matches!(scenevm_mode_2d, scenevm::RenderMode::Compute2D) {
             scene_handler.vm.execute(scenevm::Atom::SetGP0(Vec4::new(
-                map.grid_size,
+                rendered_grid_size,
                 map.subdivisions,
                 map.offset.x,
                 -map.offset.y,
@@ -2005,7 +2037,7 @@ impl Client {
                 .execute(scenevm::Atom::SetTransform2D(transform));
             // 2D overlay shader expects grid params in GP0 and a non-zero GP2.x to draw background/grid.
             scene_handler.vm.execute(scenevm::Atom::SetGP0(Vec4::new(
-                map.grid_size,
+                rendered_grid_size,
                 map.subdivisions,
                 map.offset.x,
                 -map.offset.y,
@@ -3772,6 +3804,7 @@ impl Client {
                 button_draw: debug_button_draw,
                 button_overlay: debug_button_overlay,
                 misc: debug_misc,
+                particle_stats: scene_handler.particle_debug_stats(),
             });
         }
     }

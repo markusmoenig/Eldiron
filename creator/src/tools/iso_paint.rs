@@ -3,6 +3,7 @@ use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
 use rusterix::material_library::MaterialDefinition;
+use std::collections::HashMap;
 
 const ISO_PAINT_MIN_BRUSH_SIZE: f32 = 0.05;
 const ISO_PAINT_MAX_PAINT_BRUSH_SIZE: f32 = 16.0;
@@ -22,6 +23,7 @@ pub struct IsoPaintTool {
     stamp_clip_geo: Option<[u32; 4]>,
     stroke_before: Option<IsoPaintLayer>,
     stroke_changed: bool,
+    paint_surface_cache: Option<scenevm::PaintSurfaceBuffer>,
 }
 
 impl IsoPaintTool {
@@ -366,6 +368,171 @@ impl IsoPaintTool {
             .with_brush_transform(brush_transform)
     }
 
+    fn capture_paint_surface(
+        viewport_size: Option<[i32; 2]>,
+    ) -> Option<scenevm::PaintSurfaceBuffer> {
+        let [width, height] = viewport_size?;
+        if width <= 0 || height <= 0 {
+            return None;
+        }
+        let mut rusterix = RUSTERIX.write().ok()?;
+        rusterix
+            .scene_handler
+            .vm
+            .paint_surface_buffer_gpu(width as u32, height as u32)
+            .or_else(|| {
+                Some(
+                    rusterix
+                        .scene_handler
+                        .vm
+                        .paint_surface_buffer(width as u32, height as u32),
+                )
+            })
+    }
+
+    fn surface_pixel_derivative(
+        buffer: &scenevm::PaintSurfaceBuffer,
+        x: i32,
+        y: i32,
+        paint_geo: [u32; 4],
+        horizontal: bool,
+    ) -> Option<[f32; 2]> {
+        let center = buffer.pixel(x, y)?;
+        let matching = |px: i32, py: i32| {
+            buffer
+                .pixel(px, py)
+                .filter(|pixel| pixel.valid && pixel.paint_geo == paint_geo)
+        };
+        let mut negative = None;
+        let mut positive = None;
+        for distance in 1..=4 {
+            if negative.is_none() {
+                let (px, py) = if horizontal {
+                    (x - distance, y)
+                } else {
+                    (x, y - distance)
+                };
+                negative = matching(px, py).map(|pixel| (distance as f32, pixel));
+            }
+            if positive.is_none() {
+                let (px, py) = if horizontal {
+                    (x + distance, y)
+                } else {
+                    (x, y + distance)
+                };
+                positive = matching(px, py).map(|pixel| (distance as f32, pixel));
+            }
+            if negative.is_some() && positive.is_some() {
+                break;
+            }
+        }
+        match (negative, positive) {
+            (Some((negative_distance, negative)), Some((positive_distance, positive))) => {
+                let distance = negative_distance + positive_distance;
+                Some([
+                    (positive.uv[0] - negative.uv[0]) / distance,
+                    (positive.uv[1] - negative.uv[1]) / distance,
+                ])
+            }
+            (Some((distance, negative)), None) => Some([
+                (center.uv[0] - negative.uv[0]) / distance,
+                (center.uv[1] - negative.uv[1]) / distance,
+            ]),
+            (None, Some((distance, positive))) => Some([
+                (positive.uv[0] - center.uv[0]) / distance,
+                (positive.uv[1] - center.uv[1]) / distance,
+            ]),
+            (None, None) => None,
+        }
+    }
+
+    fn screen_space_transform(
+        buffer: &scenevm::PaintSurfaceBuffer,
+        x: i32,
+        y: i32,
+        paint_geo: [u32; 4],
+    ) -> Option<[f32; 4]> {
+        let dx = Self::surface_pixel_derivative(buffer, x, y, paint_geo, true)?;
+        let dy = Self::surface_pixel_derivative(buffer, x, y, paint_geo, false)?;
+        let transform = [dx[0], dy[0], dx[1], dy[1]];
+        let determinant = transform[0] * transform[3] - transform[1] * transform[2];
+        (transform.iter().all(|value| value.is_finite())
+            && determinant.is_finite()
+            && determinant.abs() > 1.0e-10)
+            .then_some(transform)
+    }
+
+    fn projected_paint_points(
+        &self,
+        coord: Vec2<i32>,
+        layer: &IsoPaintLayer,
+        viewport_size: Option<[i32; 2]>,
+    ) -> Vec<IsoPaintPoint> {
+        let Some(buffer) = self.paint_surface_cache.as_ref() else {
+            return Vec::new();
+        };
+        let radius = (layer.active_size * 2.0).round().clamp(1.0, 96.0) as i32;
+        let radius_squared = radius * radius;
+        let mut faces: HashMap<[u32; 4], (i32, i32, i32, scenevm::PaintSurfacePixel)> =
+            HashMap::new();
+        for y in coord.y - radius..=coord.y + radius {
+            for x in coord.x - radius..=coord.x + radius {
+                let dx = x - coord.x;
+                let dy = y - coord.y;
+                let distance_squared = dx * dx + dy * dy;
+                if distance_squared > radius_squared {
+                    continue;
+                }
+                let Some(pixel) = buffer.pixel(x, y).copied().filter(|pixel| pixel.valid) else {
+                    continue;
+                };
+                let entry = faces
+                    .entry(pixel.paint_geo)
+                    .or_insert((distance_squared, x, y, pixel));
+                if distance_squared < entry.0 {
+                    *entry = (distance_squared, x, y, pixel);
+                }
+            }
+        }
+        let mut faces: Vec<_> = faces.into_values().collect();
+        faces.sort_by_key(|entry| entry.0);
+        let clip_owner = faces
+            .first()
+            .map(|entry| Self::owner_from_geo_id(entry.3.geo_id));
+        let camera_scale = RUSTERIX
+            .read()
+            .ok()
+            .map(|rusterix| rusterix.client.camera_d3.scale());
+        faces
+            .into_iter()
+            .filter(|(_, _, _, pixel)| {
+                !matches!(layer.active_clip.as_str(), "surface" | "object")
+                    || clip_owner.as_ref().is_none_or(|owner| {
+                        owner.same_paint_object(&Self::owner_from_geo_id(pixel.geo_id))
+                    })
+            })
+            .filter_map(|(_, x, y, pixel)| {
+                let transform = Self::screen_space_transform(buffer, x, y, pixel.paint_geo)?;
+                Some(
+                    IsoPaintPoint::new(
+                        [coord.x, coord.y],
+                        Some(Vec3::from(pixel.world)),
+                        Some(Self::owner_from_geo_id(pixel.geo_id)),
+                    )
+                    .with_surface_uv(Some(Vec2::from(pixel.uv)))
+                    .with_paint_geo(Some(pixel.paint_geo))
+                    .with_surface_normal(Some(Vec3::from(pixel.normal)))
+                    .with_camera_scale(camera_scale)
+                    .with_viewport_size(viewport_size)
+                    .with_screen_space_brush(
+                        Some(transform),
+                        [(x - coord.x) as f32, (y - coord.y) as f32],
+                    ),
+                )
+            })
+            .collect()
+    }
+
     fn paint_viewport_size(ui: &mut TheUI, server_ctx: &ServerContext) -> Option<[i32; 2]> {
         let view_name = if server_ctx.pc.is_prefab() {
             "PrefabView"
@@ -389,6 +556,7 @@ impl IsoPaintTool {
         self.stamp_clip_geo = None;
         self.stroke_before = None;
         self.stroke_changed = false;
+        self.paint_surface_cache = None;
     }
 }
 
@@ -406,6 +574,7 @@ impl Tool for IsoPaintTool {
             stamp_clip_geo: None,
             stroke_before: None,
             stroke_changed: false,
+            paint_surface_cache: None,
         }
     }
 
@@ -619,8 +788,21 @@ impl Tool for IsoPaintTool {
                     ));
                     return None;
                 }
-                let point = Self::paint_point(coord, server_ctx, viewport_size);
+                self.paint_surface_cache = Self::capture_paint_surface(viewport_size);
+                let mut projected_points =
+                    self.projected_paint_points(coord, &region.iso_paint, viewport_size);
+                let point = if projected_points.is_empty() {
+                    Self::paint_point(coord, server_ctx, viewport_size)
+                } else {
+                    projected_points.remove(0)
+                };
                 let stroke_id = region.iso_paint.begin_stroke(point);
+                if region
+                    .iso_paint
+                    .append_projected_points(stroke_id, projected_points)
+                {
+                    self.stroke_changed = true;
+                }
                 let (stroke_opacity, stroke_material_mode) = region
                     .iso_paint
                     .chunks
@@ -670,8 +852,17 @@ impl Tool for IsoPaintTool {
                 if self.painting
                     && let Some(stroke_id) = self.active_stroke
                 {
-                    let point = Self::paint_point(coord, server_ctx, viewport_size);
-                    if region.iso_paint.append_point(stroke_id, point) {
+                    let projected_points =
+                        self.projected_paint_points(coord, &region.iso_paint, viewport_size);
+                    let changed = if projected_points.is_empty() {
+                        let point = Self::paint_point(coord, server_ctx, viewport_size);
+                        region.iso_paint.append_point(stroke_id, point)
+                    } else {
+                        region
+                            .iso_paint
+                            .append_projected_points(stroke_id, projected_points)
+                    };
+                    if changed {
                         self.stroke_changed = true;
                     }
                     Self::request_paint_redraw(ctx);
@@ -700,8 +891,17 @@ impl Tool for IsoPaintTool {
                 } else if self.painting
                     && let Some(stroke_id) = self.active_stroke
                 {
-                    let point = Self::paint_point(coord, server_ctx, viewport_size);
-                    if region.iso_paint.append_point(stroke_id, point) {
+                    let projected_points =
+                        self.projected_paint_points(coord, &region.iso_paint, viewport_size);
+                    let changed = if projected_points.is_empty() {
+                        let point = Self::paint_point(coord, server_ctx, viewport_size);
+                        region.iso_paint.append_point(stroke_id, point)
+                    } else {
+                        region
+                            .iso_paint
+                            .append_projected_points(stroke_id, projected_points)
+                    };
+                    if changed {
                         self.stroke_changed = true;
                     }
                     region.iso_paint.mark_stroke_for_screen_commit(stroke_id);

@@ -1,4 +1,4 @@
-use crate::{GeometryObject, GeometryObjectKind, Value, ValueContainer};
+use crate::{GeometryObject, GeometryObjectKind, ParticleEmitterDef, Value, ValueContainer};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -86,6 +86,20 @@ fn transform_block_prop_point(transform: BlockPropTransform, point: [f32; 3]) ->
             + point[1] * transform[1][2]
             + point[2] * transform[2][2]
             + transform[3][2],
+    )
+}
+
+fn transform_block_prop_direction(transform: BlockPropTransform, direction: [f32; 3]) -> Vec3<f32> {
+    Vec3::new(
+        direction[0] * transform[0][0]
+            + direction[1] * transform[1][0]
+            + direction[2] * transform[2][0],
+        direction[0] * transform[0][1]
+            + direction[1] * transform[1][1]
+            + direction[2] * transform[2][1],
+        direction[0] * transform[0][2]
+            + direction[1] * transform[1][2]
+            + direction[2] * transform[2][2],
     )
 }
 
@@ -262,6 +276,12 @@ pub struct BlockPropAsset {
     pub interaction_targets: Vec<BlockPropInteractionTarget>,
     #[serde(default)]
     pub components: Vec<BlockPropComponent>,
+    /// Visual effects authored as part of the Prefab. These are independent of
+    /// Tiles and procedural recipes and follow their owning part hierarchy.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub particle_effects: Vec<BlockPropParticleEffect>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub light_effects: Vec<BlockPropLightEffect>,
     #[serde(default)]
     pub default_state: ValueContainer,
     #[serde(default)]
@@ -282,6 +302,8 @@ impl BlockPropAsset {
             support_surfaces: Vec::new(),
             interaction_targets: Vec::new(),
             components: Vec::new(),
+            particle_effects: Vec::new(),
+            light_effects: Vec::new(),
             default_state: ValueContainer::default(),
             placement: BlockPropPlacementProfile::default(),
         }
@@ -403,10 +425,18 @@ pub struct BlockPropAttachment {
     pub position: [f32; 3],
     #[serde(default = "default_attachment_direction")]
     pub direction: [f32; 3],
+    /// Local up vector. Together with `direction` this preserves roll and gives
+    /// surface-mounted effects a complete authoring frame.
+    #[serde(default = "default_attachment_up")]
+    pub up: [f32; 3],
 }
 
 fn default_attachment_direction() -> [f32; 3] {
     [0.0, 0.0, 1.0]
+}
+
+fn default_attachment_up() -> [f32; 3] {
+    [0.0, 1.0, 0.0]
 }
 
 impl Default for BlockPropAttachment {
@@ -416,8 +446,85 @@ impl Default for BlockPropAttachment {
             name: "Attachment".to_string(),
             position: [0.0; 3],
             direction: default_attachment_direction(),
+            up: default_attachment_up(),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct BlockPropParticleEffect {
+    pub id: Uuid,
+    pub name: String,
+    pub part_id: Uuid,
+    pub attachment_id: Uuid,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub emitter: ParticleEmitterDef,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct BlockPropLightEffect {
+    pub id: Uuid,
+    pub name: String,
+    pub part_id: Uuid,
+    pub attachment_id: Uuid,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    #[serde(default = "default_prefab_light_color")]
+    pub color: [u8; 4],
+    #[serde(default = "default_prefab_light_intensity")]
+    pub intensity: f32,
+    #[serde(default = "default_prefab_light_range")]
+    pub range: f32,
+    #[serde(default)]
+    pub flicker: f32,
+    #[serde(default)]
+    pub lift: f32,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_prefab_light_color() -> [u8; 4] {
+    [255, 160, 72, 255]
+}
+
+fn default_prefab_light_intensity() -> f32 {
+    2.0
+}
+
+fn default_prefab_light_range() -> f32 {
+    4.0
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedBlockPropParticleEffect {
+    pub instance_id: Uuid,
+    pub asset_id: Uuid,
+    pub effect_id: Uuid,
+    pub origin: Vec3<f32>,
+    pub direction: Vec3<f32>,
+    pub emitter: ParticleEmitterDef,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedBlockPropLightEffect {
+    pub instance_id: Uuid,
+    pub asset_id: Uuid,
+    pub effect_id: Uuid,
+    pub position: Vec3<f32>,
+    pub color: [u8; 4],
+    pub intensity: f32,
+    pub range: f32,
+    pub flicker: f32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BlockPropEffectResolution {
+    pub particles: Vec<ResolvedBlockPropParticleEffect>,
+    pub lights: Vec<ResolvedBlockPropLightEffect>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -436,6 +543,11 @@ pub struct BlockPropPlacementProfile {
     pub supports_rectangle_stroke: bool,
     #[serde(default)]
     pub parameters: ValueContainer,
+    #[serde(default)]
+    pub mode: BlockPropPlacementMode,
+    /// Distance between the Prefab origin and the picked mounting surface.
+    #[serde(default)]
+    pub surface_offset: f32,
 }
 
 impl Default for BlockPropPlacementProfile {
@@ -448,8 +560,19 @@ impl Default for BlockPropPlacementProfile {
             supports_line_stroke: false,
             supports_rectangle_stroke: false,
             parameters: ValueContainer::default(),
+            mode: BlockPropPlacementMode::Ground,
+            surface_offset: 0.0,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BlockPropPlacementMode {
+    #[default]
+    Ground,
+    Wall,
+    AnySurface,
+    Free,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -557,6 +680,10 @@ pub struct BlockPropInstance {
     pub runtime_state: ValueContainer,
     #[serde(default)]
     pub overrides: ValueContainer,
+    /// Optional semantic host. The cached world transform remains usable when
+    /// the host disappears, while valid hosts can recompute it after edits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_attachment: Option<BlockPropHostAttachment>,
 }
 
 impl BlockPropInstance {
@@ -568,8 +695,28 @@ impl BlockPropInstance {
             parameter_overrides: ValueContainer::default(),
             runtime_state: ValueContainer::default(),
             overrides: ValueContainer::default(),
+            host_attachment: None,
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub enum BlockPropHostAttachment {
+    WallSpan {
+        assembly_id: Uuid,
+        span_id: Uuid,
+        /// Arc distance from the span's start node.
+        along: f32,
+        /// Height above the wall path.
+        height: f32,
+        /// Canonical perpendicular side: -1 or +1.
+        side: f32,
+        /// Additional distance away from the wall center plane.
+        offset: f32,
+        /// Rotation around the mounting normal in quarter turns.
+        #[serde(default)]
+        rotation_quarters: i32,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -1310,6 +1457,83 @@ pub fn resolve_block_prop_geometry(
     resolution
 }
 
+/// Resolve all Prefab-owned effects into world space. Effects use the same
+/// part hierarchy and runtime motion as geometry, so an attachment on a moving
+/// door or lid remains synchronized without invisible proxy geometry.
+pub fn resolve_block_prop_effects(
+    instances: &[BlockPropInstance],
+    assets: &IndexMap<Uuid, BlockPropAsset>,
+) -> BlockPropEffectResolution {
+    let mut resolution = BlockPropEffectResolution::default();
+
+    for instance in instances {
+        let Some(asset) = assets.get(&instance.asset_id) else {
+            continue;
+        };
+
+        let resolve_attachment = |part_id: Uuid, attachment_id: Uuid| {
+            let part = asset.find_part(part_id)?;
+            let attachment = part
+                .attachments
+                .iter()
+                .find(|attachment| attachment.id == attachment_id)?;
+            let mut diagnostics = Vec::new();
+            let part_transform = resolved_part_transform(asset, instance, part, &mut diagnostics);
+            if !diagnostics.is_empty() {
+                return None;
+            }
+            let world_transform =
+                multiply_block_prop_transforms(part_transform, instance.world_transform);
+            let origin = transform_block_prop_point(world_transform, attachment.position);
+            let direction = transform_block_prop_direction(world_transform, attachment.direction)
+                .try_normalized()
+                .unwrap_or(Vec3::unit_y());
+            Some((origin, direction))
+        };
+
+        for effect in asset
+            .particle_effects
+            .iter()
+            .filter(|effect| effect.enabled)
+        {
+            let Some((origin, attachment_direction)) =
+                resolve_attachment(effect.part_id, effect.attachment_id)
+            else {
+                continue;
+            };
+            // The attachment frame is shared by every effect on it and is the
+            // authoritative direction edited by the Prefab viewport gizmo.
+            let direction = attachment_direction;
+            resolution.particles.push(ResolvedBlockPropParticleEffect {
+                instance_id: instance.id,
+                asset_id: asset.id,
+                effect_id: effect.id,
+                origin,
+                direction,
+                emitter: effect.emitter.clone(),
+            });
+        }
+
+        for effect in asset.light_effects.iter().filter(|effect| effect.enabled) {
+            let Some((origin, _)) = resolve_attachment(effect.part_id, effect.attachment_id) else {
+                continue;
+            };
+            resolution.lights.push(ResolvedBlockPropLightEffect {
+                instance_id: instance.id,
+                asset_id: asset.id,
+                effect_id: effect.id,
+                position: origin + Vec3::new(0.0, effect.lift, 0.0),
+                color: effect.color,
+                intensity: effect.intensity,
+                range: effect.range,
+                flicker: effect.flicker,
+            });
+        }
+    }
+
+    resolution
+}
+
 /// Resolve one asset for an editor-only state preview while preserving source
 /// object IDs. The result must never be written back as authored geometry.
 pub fn resolve_block_prop_preview_geometry(
@@ -1323,6 +1547,7 @@ pub fn resolve_block_prop_preview_geometry(
         parameter_overrides: ValueContainer::default(),
         runtime_state,
         overrides: ValueContainer::default(),
+        host_attachment: None,
     };
     let mut resolution = BlockPropGeometryResolution::default();
     for part in &asset.parts {
@@ -1365,6 +1590,57 @@ pub fn resolve_block_prop_asset<'a>(
 mod tests {
     use super::*;
     use vek::Vec3;
+
+    #[test]
+    fn prefab_effects_follow_part_and_instance_transforms() {
+        let mut asset = BlockPropAsset::new_authored("Torch", Vec::new());
+        let part_id = asset.parts[0].id;
+        let attachment_id = Uuid::new_v4();
+        asset.parts[0].attachments.push(BlockPropAttachment {
+            id: attachment_id,
+            name: "Flame".to_string(),
+            position: [0.25, 1.5, -0.4],
+            direction: [0.0, 1.0, 0.0],
+            up: [0.0, 0.0, 1.0],
+        });
+        let particle_id = Uuid::new_v4();
+        asset.particle_effects.push(BlockPropParticleEffect {
+            id: particle_id,
+            name: "Flame".to_string(),
+            part_id,
+            attachment_id,
+            enabled: true,
+            emitter: ParticleEmitterDef::default(),
+        });
+        let light_id = Uuid::new_v4();
+        asset.light_effects.push(BlockPropLightEffect {
+            id: light_id,
+            name: "Fire Light".to_string(),
+            part_id,
+            attachment_id,
+            enabled: true,
+            color: [255, 128, 32, 255],
+            intensity: 2.0,
+            range: 4.0,
+            flicker: 0.2,
+            lift: 0.1,
+        });
+
+        let mut instance = BlockPropInstance::new(asset.id);
+        instance.world_transform[3][0] = 4.0;
+        instance.world_transform[3][1] = 2.0;
+        instance.world_transform[3][2] = 8.0;
+        let mut assets = IndexMap::new();
+        assets.insert(asset.id, asset);
+
+        let resolved = resolve_block_prop_effects(&[instance], &assets);
+        assert_eq!(resolved.particles.len(), 1);
+        assert_eq!(resolved.lights.len(), 1);
+        assert_eq!(resolved.particles[0].effect_id, particle_id);
+        assert_eq!(resolved.particles[0].origin, Vec3::new(4.25, 3.5, 7.6));
+        assert_eq!(resolved.lights[0].effect_id, light_id);
+        assert_eq!(resolved.lights[0].position, Vec3::new(4.25, 3.6, 7.6));
+    }
 
     #[test]
     fn authored_asset_keeps_geometry_and_semantic_face_references() {

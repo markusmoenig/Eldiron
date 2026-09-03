@@ -11,6 +11,11 @@ pub enum ProjectUndoAtom {
     RegionEdit(ProjectContext, Box<Region>, Box<Region>),
     RegionPaintEdit(ProjectContext, Uuid, Box<IsoPaintLayer>, Box<IsoPaintLayer>),
     PrefabPaintEdit(ProjectContext, Uuid, Box<IsoPaintLayer>, Box<IsoPaintLayer>),
+    PrefabAssetEdit(
+        Uuid,
+        Box<rusterix::BlockPropAsset>,
+        Box<rusterix::BlockPropAsset>,
+    ),
     TilePickerEdit(Box<Project>, Box<Project>),
     ProjectEdit(String, Box<Project>, Box<Project>),
     AddRegion(Region),
@@ -230,6 +235,27 @@ impl ProjectUndoAtom {
         ctx.ui.redraw_all = true;
     }
 
+    fn apply_prefab_asset_state(
+        project: &mut Project,
+        ctx: &mut TheContext,
+        asset_id: Uuid,
+        restored_asset: &rusterix::BlockPropAsset,
+    ) {
+        project.block_props.insert(asset_id, restored_asset.clone());
+        let prefabs = project.block_props.clone();
+        {
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.set_block_props(prefabs.clone());
+            rusterix.scene_handler.reset_builder_particle_emitters();
+        }
+        SCENEMANAGER.write().unwrap().set_block_props(prefabs);
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
+            TheValue::Empty,
+        ));
+        ctx.ui.redraw_all = true;
+    }
+
     /// Returns the ProjectContext for the MapEdit
     pub fn pc(&self) -> Option<ProjectContext> {
         match self {
@@ -237,6 +263,7 @@ impl ProjectUndoAtom {
             RegionEdit(pc, _, _) => Some(*pc),
             RegionPaintEdit(pc, _, _, _) => Some(*pc),
             PrefabPaintEdit(pc, _, _, _) => Some(*pc),
+            PrefabAssetEdit(asset_id, _, _) => Some(ProjectContext::Prefab(*asset_id)),
             _ => None,
         }
     }
@@ -248,6 +275,7 @@ impl ProjectUndoAtom {
             RegionEdit(_, _, _) => "Region Edit".to_string(),
             RegionPaintEdit(_, _, _, _) => "3D Paint Edit".to_string(),
             PrefabPaintEdit(_, _, _, _) => "Prefab Paint Edit".to_string(),
+            PrefabAssetEdit(_, _, _) => "Prefab Effect Preset".to_string(),
             TilePickerEdit(_, _) => "Tile Picker Edit".to_string(),
             ProjectEdit(label, _, _) => label.clone(),
             AddRegion(region) => format!("Add Region: {}", region.name),
@@ -344,6 +372,9 @@ impl ProjectUndoAtom {
             }
             PrefabPaintEdit(_, asset_id, old, _) => {
                 Self::apply_prefab_paint_state(project, ctx, *asset_id, old);
+            }
+            PrefabAssetEdit(asset_id, old, _) => {
+                Self::apply_prefab_asset_state(project, ctx, *asset_id, old);
             }
             TilePickerEdit(old, _new) => {
                 *project = (*old.clone()).clone();
@@ -1034,6 +1065,9 @@ impl ProjectUndoAtom {
             }
             PrefabPaintEdit(_, asset_id, _, new) => {
                 Self::apply_prefab_paint_state(project, ctx, *asset_id, new);
+            }
+            PrefabAssetEdit(asset_id, _, new) => {
+                Self::apply_prefab_asset_state(project, ctx, *asset_id, new);
             }
             TilePickerEdit(_old, new) => {
                 *project = (*new.clone()).clone();

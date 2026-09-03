@@ -138,7 +138,7 @@ impl TheWidget for TheDropdownMenu {
                 if !self.options.is_empty() {
                     let y: i32 = coord.y - 20 + self.safety_offset.y;
                     if y >= 0 {
-                        let index = y / 20;
+                        let index = y / 21;
                         if index < self.options.len() as i32 && index != self.selected {
                             self.selected = index;
                         }
@@ -288,12 +288,6 @@ impl TheWidget for TheDropdownMenu {
         let height = 2 + len * 20 + (if len > 1 { len - 1 } else { 0 });
 
         let mut dim = TheDim::new(self.dim.x, self.dim.y + 20, width as i32, height as i32);
-        dim.buffer_x = self.dim.x;
-        dim.buffer_y = self.dim.y + 20;
-
-        // Store the overlay offset (will be adjusted by parent if embedded)
-        self.overlay_offset = Vec2::new(self.dim.x, self.dim.y + 20);
-
         self.safety_offset = Vec2::zero();
 
         // Safety check for width being larger than the window width
@@ -307,6 +301,14 @@ impl TheWidget for TheDropdownMenu {
             self.safety_offset.y = dim.y + height as i32 - ctx.height as i32 + 5;
             dim.y -= self.safety_offset.y;
         }
+
+        // The overlay buffer must follow the safety-adjusted screen position. Keeping the
+        // original buffer offset draws the popup in one place while hit testing uses another.
+        dim.buffer_x = dim.x;
+        dim.buffer_y = dim.y;
+
+        // Store the overlay offset (will be adjusted by parent if embedded).
+        self.overlay_offset = Vec2::new(dim.x, dim.y);
 
         let mut buffer = TheRGBABuffer::new(dim);
         ctx.draw.rect(

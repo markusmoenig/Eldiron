@@ -33,6 +33,10 @@ impl GeometryObjectBuilder {
             .unwrap_or(object.id)
     }
 
+    fn paint_group_object_id(object: &crate::GeometryObject) -> Option<Uuid> {
+        object.properties.get_id("paint_group_object_id")
+    }
+
     fn default_tile_id() -> Uuid {
         Uuid::parse_str(DEFAULT_GEOMETRY_TILE_ID).unwrap_or_else(|_| Uuid::nil())
     }
@@ -841,6 +845,7 @@ impl GeometryObjectBuilder {
         vmchunk: &mut scenevm::Chunk,
         object_id: Uuid,
         paint_object_id: Uuid,
+        paint_group_object_id: Option<Uuid>,
         material: Option<&crate::TileMaterialMeta>,
         cell_uvs: &[Vec2<f32>],
         face_paint_uvs: &[Vec2<f32>],
@@ -979,6 +984,7 @@ impl GeometryObjectBuilder {
                         crate::geometry_face_effective_paint_surface_id(face),
                     ),
                     Some(GeoId::GeometryObject(paint_object_id)),
+                    paint_group_object_id.map(GeoId::GeometryObject),
                     paint_uvs,
                 );
             }
@@ -1088,6 +1094,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         vmchunk,
                         object.id,
                         paint_object_id,
+                        Self::paint_group_object_id(object),
                         object_material.as_ref(),
                         cell_uvs,
                         &paint_uvs,
@@ -1124,6 +1131,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                         crate::geometry_face_effective_paint_surface_id(face),
                     ),
                     Some(GeoId::GeometryObject(paint_object_id)),
+                    Self::paint_group_object_id(object).map(GeoId::GeometryObject),
                     paint_uvs.iter().map(|uv| [uv.x, uv.y]).collect(),
                 );
             }
@@ -1166,6 +1174,15 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 .iter()
                 .map(|vertex| object.transform_point(*vertex).y)
                 .fold(f32::INFINITY, f32::min);
+            let object_max_y = object
+                .vertices
+                .iter()
+                .map(|vertex| object.transform_point(*vertex).y)
+                .fold(f32::NEG_INFINITY, f32::max);
+            // A closed solid's lowest horizontal face is its underside and must not become
+            // walkable. A genuinely planar object has no underside, though: authored floor
+            // polygons and generated Wall floors intentionally consist of one horizontal face.
+            let object_is_planar = object_max_y - object_min_y <= 1e-3;
             for (face_index, face) in object.faces.iter().enumerate() {
                 let Some(world_points) = Self::face_world_points(object, face) else {
                     continue;
@@ -1184,7 +1201,7 @@ impl ChunkBuilder for GeometryObjectBuilder {
                 if normal.y >= 0.55 || raw_normal.y.abs() >= 0.55 {
                     let height = world_points.iter().map(|point| point.y).sum::<f32>()
                         / world_points.len() as f32;
-                    if height <= object_min_y + 1e-3 {
+                    if !object_is_planar && height <= object_min_y + 1e-3 {
                         continue;
                     }
                     let polygon_2d = world_points
@@ -1672,6 +1689,35 @@ mod tests {
                 .iter()
                 .any(|floor| floor.geo_id == GeoId::GeometryObject(object_id)
                     && (floor.height - 0.5).abs() < 1e-4)
+        );
+    }
+
+    #[test]
+    fn collision_keeps_single_face_planar_floor_objects_walkable() {
+        let mut object = crate::GeometryObject::new("Planar Floor");
+        let object_id = object.id;
+        object.vertices = vec![
+            Vec3::new(0.0, -0.002, 0.0),
+            Vec3::new(0.0, -0.002, 2.0),
+            Vec3::new(2.0, -0.002, 2.0),
+            Vec3::new(2.0, -0.002, 0.0),
+        ];
+        object.faces = vec![shading_test_face(vec![0, 1, 2, 3], 0)];
+
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+
+        let assets = Assets::default();
+        let mut builder = GeometryObjectBuilder;
+        let collision = builder.build_collision(&map, &assets, Vec2::zero(), 16);
+
+        assert!(
+            collision
+                .walkable_floors
+                .iter()
+                .any(|floor| floor.geo_id == GeoId::GeometryObject(object_id)
+                    && (floor.height + 0.002).abs() < 1e-4),
+            "a planar floor has no underside to exclude from collision"
         );
     }
 

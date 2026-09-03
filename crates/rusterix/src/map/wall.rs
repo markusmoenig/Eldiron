@@ -3,13 +3,19 @@ use uuid::Uuid;
 use vek::Vec3;
 
 use super::Map;
-use crate::{GeometryFace, GeometryObject, GeometryObjectKind, PixelSource, Value};
+use crate::{
+    BlockPropHostAttachment, BlockPropInstance, GeometryFace, GeometryObject, GeometryObjectKind,
+    PixelSource, Value, identity_block_prop_transform,
+};
 use theframework::prelude::{FxHashMap, TheColor};
 
 const GENERATED_WALL_TAG: &str = "eldiron_generated_wall";
 const GENERATED_WALL_ID_MASK: u128 = 0x5741_4C4C_0000_0000_0000_0000_0000_0000;
 const GENERATED_WALL_JUNCTION_ID_MASK: u128 = 0x4A55_4E43_5449_4F4E_0000_0000_0000_0000;
 const GENERATED_WALL_FLOOR_ID_MASK: u128 = 0x464C_4F4F_525F_0000_0000_0000_0000_0000;
+const GENERATED_WALL_SURFACE_ID_MASK: u128 = 0x5355_5246_4143_455F_0000_0000_0000_0000;
+const WALL_SPLIT_NODE_ID_MASK: u128 = 0x5350_4C49_545F_4E4F_4445_0000_0000_0000;
+const WALL_SPLIT_SPAN_ID_MASK: u128 = 0x5350_4C49_545F_5350_414E_0000_0000_0000;
 
 /// Shared construction defaults for every span in a connected wall assembly.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -227,6 +233,52 @@ pub struct WallSpan {
     pub openings: Vec<WallOpening>,
     #[serde(default)]
     pub removed_bricks: Vec<WallBrickKey>,
+}
+
+/// One directed wall span in the boundary of a fitted area surface.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+pub struct WallSurfaceEdge {
+    pub span_id: Uuid,
+    pub forward: bool,
+}
+
+/// A horizontal surface fitted to one bounded face of the connected wall graph.
+/// Keeping the directed span boundary instead of baked vertices lets the surface follow later
+/// wall-node moves and curve edits.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WallAreaSurface {
+    pub id: Uuid,
+    pub boundary: Vec<WallSurfaceEdge>,
+    pub elevation: f32,
+    pub thickness: f32,
+    pub clearance: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<PixelSource>,
+}
+
+impl WallAreaSurface {
+    pub fn new(boundary: Vec<WallSurfaceEdge>) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            boundary,
+            elevation: 0.25,
+            thickness: 0.08,
+            clearance: 0.015,
+            source: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct WallAreaSurfacePreview {
+    pub assembly_id: Uuid,
+    pub surface: WallAreaSurface,
+    /// A transient, topologically welded copy used when visually touching wall runs have not yet
+    /// been joined at endpoint-on-span contacts. Committing the preview promotes this graph.
+    pub wall_assemblies: Option<Vec<WallAssembly>>,
+    /// Host attachments must be promoted together with a split wall graph. Otherwise an attachment
+    /// on the second half of a split span keeps the old distance and jumps to the new span end.
+    pub block_prop_instances: Option<Vec<BlockPropInstance>>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -496,6 +548,8 @@ pub struct WallAssembly {
     pub auto_floor: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub floor_source: Option<PixelSource>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub area_surfaces: Vec<WallAreaSurface>,
 }
 
 impl WallAssembly {
@@ -508,6 +562,7 @@ impl WallAssembly {
             style: WallStyle::default(),
             auto_floor: false,
             floor_source: None,
+            area_surfaces: Vec::new(),
         }
     }
 
@@ -587,6 +642,25 @@ impl WallAssembly {
             .openings
             .iter_mut()
             .find(|opening| opening.id == opening_id)
+    }
+
+    pub fn area_surface(&self, surface_id: Uuid) -> Option<&WallAreaSurface> {
+        self.area_surfaces
+            .iter()
+            .find(|surface| surface.id == surface_id)
+    }
+
+    pub fn area_surface_mut(&mut self, surface_id: Uuid) -> Option<&mut WallAreaSurface> {
+        self.area_surfaces
+            .iter_mut()
+            .find(|surface| surface.id == surface_id)
+    }
+
+    pub fn remove_area_surface(&mut self, surface_id: Uuid) -> bool {
+        let previous_len = self.area_surfaces.len();
+        self.area_surfaces
+            .retain(|surface| surface.id != surface_id);
+        self.area_surfaces.len() != previous_len
     }
 
     pub fn opening_at(&self, span_id: Uuid, coordinates: vek::Vec2<f32>) -> Option<Uuid> {
@@ -817,6 +891,117 @@ impl WallAssembly {
         Ok(id)
     }
 
+    /// Splits a straight span at an interior point while retaining its authored settings. Curved
+    /// spans are deliberately left intact: endpoint contacts normally land on the straight host
+    /// wall, while the contacting wall is free to remain curved.
+    fn split_straight_span_at(
+        &mut self,
+        span_id: Uuid,
+        point: Vec3<f32>,
+    ) -> Option<(Uuid, Uuid, f32)> {
+        let span = self.span(span_id)?.clone();
+        if span.curve_offset.abs() > 1e-5 {
+            return None;
+        }
+        let length = self.span_length(span_id)?;
+        let coordinates = self.span_coordinates(span_id, point)?;
+        let split = coordinates.x;
+        if split <= 1e-4 || split >= length - 1e-4 {
+            return None;
+        }
+        // Do not silently damage authored features that cross the requested junction.
+        if !span.removed_bricks.is_empty()
+            || span.openings.iter().any(|opening| {
+                opening.center - opening.width * 0.5 < split
+                    && opening.center + opening.width * 0.5 > split
+            })
+        {
+            return None;
+        }
+
+        let projected = self.span_point(span_id, vek::Vec2::new(split, 0.0))?;
+        let split_key = (split * 10_000.0).round().max(0.0) as u128;
+        let node_id = Uuid::from_u128(
+            span_id.as_u128() ^ WALL_SPLIT_NODE_ID_MASK ^ split_key.rotate_left(37),
+        );
+        let second_id = Uuid::from_u128(
+            span_id.as_u128() ^ WALL_SPLIT_SPAN_ID_MASK ^ split_key.rotate_left(71),
+        );
+        self.nodes.push(WallNode {
+            id: node_id,
+            position: projected,
+        });
+        let mut first = span.clone();
+        first.end_node = node_id;
+        first.openings = span
+            .openings
+            .iter()
+            .filter(|opening| opening.center <= split)
+            .cloned()
+            .collect();
+        let mut second = span;
+        second.id = second_id;
+        second.start_node = node_id;
+        second.openings = second
+            .openings
+            .into_iter()
+            .filter_map(|mut opening| {
+                (opening.center > split).then(|| {
+                    opening.center -= split;
+                    opening
+                })
+            })
+            .collect();
+        let span_index = self
+            .spans
+            .iter()
+            .position(|candidate| candidate.id == span_id)?;
+        self.spans[span_index] = first;
+        self.spans.insert(span_index + 1, second);
+        for surface in &mut self.area_surfaces {
+            let mut boundary = Vec::with_capacity(surface.boundary.len() + 1);
+            for edge in surface.boundary.iter().copied() {
+                if edge.span_id != span_id {
+                    boundary.push(edge);
+                } else if edge.forward {
+                    boundary.push(edge);
+                    boundary.push(WallSurfaceEdge {
+                        span_id: second_id,
+                        forward: true,
+                    });
+                } else {
+                    boundary.push(WallSurfaceEdge {
+                        span_id: second_id,
+                        forward: false,
+                    });
+                    boundary.push(edge);
+                }
+            }
+            surface.boundary = boundary;
+        }
+        Some((node_id, second_id, split))
+    }
+
+    fn weld_node_into(&mut self, node_id: Uuid, junction_id: Uuid) -> bool {
+        if node_id == junction_id
+            || self.node(node_id).is_none()
+            || self.node(junction_id).is_none()
+        {
+            return node_id == junction_id;
+        }
+        for span in &mut self.spans {
+            if span.start_node == node_id {
+                span.start_node = junction_id;
+            }
+            if span.end_node == node_id {
+                span.end_node = junction_id;
+            }
+        }
+        self.nodes.retain(|node| node.id != node_id);
+        self.spans.retain(|span| span.start_node != span.end_node);
+        true
+    }
+
     pub fn connected_spans(&self, node_id: Uuid) -> impl Iterator<Item = &WallSpan> {
         self.spans
             .iter()
@@ -884,48 +1069,53 @@ impl WallAssembly {
     }
 
     fn closed_floor_outline(&self) -> Option<Vec<Vec3<f32>>> {
-        if self.nodes.len() < 3
-            || self.spans.len() != self.nodes.len()
-            || self
+        let simple_loop = self.nodes.len() >= 3
+            && self.spans.len() == self.nodes.len()
+            && self
                 .nodes
                 .iter()
-                .any(|node| self.connected_spans(node.id).count() != 2)
-        {
-            return None;
+                .all(|node| self.connected_spans(node.id).count() == 2);
+        if simple_loop {
+            let start_node = self.nodes.first()?.id;
+            let mut current_node = start_node;
+            let mut previous_span = None;
+            let mut outline = Vec::new();
+            for _ in 0..self.spans.len() {
+                let span = self
+                    .connected_spans(current_node)
+                    .find(|span| Some(span.id) != previous_span)?;
+                let path = self.span_path(span)?;
+                let (points, next_node) = if span.start_node == current_node {
+                    (path.points, span.end_node)
+                } else {
+                    (path.points.into_iter().rev().collect(), span.start_node)
+                };
+                outline.extend(points.into_iter().take_while(|point| {
+                    self.node(next_node).map_or(true, |next| {
+                        (*point - next.position).magnitude_squared() > 1e-10
+                    })
+                }));
+                previous_span = Some(span.id);
+                current_node = next_node;
+            }
+            if current_node == start_node && outline.len() >= 3 {
+                return Self::prepare_floor_outline(outline);
+            }
         }
 
-        let start_node = self.nodes.first()?.id;
-        let mut current_node = start_node;
-        let mut previous_span = None;
-        let mut outline = Vec::new();
-        for _ in 0..self.spans.len() {
-            let span = self
-                .connected_spans(current_node)
-                .find(|span| Some(span.id) != previous_span)?;
-            let path = self.span_path(span)?;
-            let (points, next_node) = if span.start_node == current_node {
-                (path.points, span.end_node)
-            } else {
-                (path.points.into_iter().rev().collect(), span.start_node)
-            };
-            outline.extend(points.into_iter().take_while(|point| {
-                self.node(next_node).map_or(true, |next| {
-                    (*point - next.position).magnitude_squared() > 1e-10
-                })
-            }));
-            previous_span = Some(span.id);
-            current_node = next_node;
-        }
-        if current_node != start_node || outline.len() < 3 {
-            return None;
-        }
+        // Internal walls turn an otherwise closed room into a branched planar graph. Its outside
+        // face still traces the original room perimeter; using that face avoids the convex-hull
+        // fallback filling concave corners after a fitted enclosure is joined to the room.
+        let (_, boundary) = self
+            .wall_surface_faces()?
+            .into_iter()
+            .filter(|(area, _)| *area < -1e-5)
+            .min_by(|left, right| left.0.total_cmp(&right.0))?;
+        Self::prepare_floor_outline(self.wall_surface_boundary_outline(&boundary)?)
+    }
 
-        let floor_y = self
-            .nodes
-            .iter()
-            .map(|node| node.position.y)
-            .fold(f32::MAX, f32::min)
-            - 0.002;
+    fn prepare_floor_outline(mut outline: Vec<Vec3<f32>>) -> Option<Vec<Vec3<f32>>> {
+        let floor_y = outline.iter().map(|point| point.y).fold(f32::MAX, f32::min) - 0.002;
         for point in &mut outline {
             point.y = floor_y;
         }
@@ -944,8 +1134,361 @@ impl WallAssembly {
         Some(outline)
     }
 
+    fn floor_area_outline(&self) -> Option<Vec<Vec3<f32>>> {
+        // Treat the authored wall network as an area boundary rather than requiring an exact
+        // graph loop. Each path segment contributes its full wall footprint; the outer hull then
+        // gives open U/L-shaped rooms a useful floor and gives a single wall a narrow floor strip.
+        let mut points = Vec::new();
+        for span in &self.spans {
+            let path = self.span_path(span)?;
+            let style = span.style_override.as_ref().unwrap_or(&self.style);
+            let half_width = (style.thickness * 0.5).max(0.01);
+            for pair in path.points.windows(2) {
+                let Some(tangent) =
+                    Vec3::new(pair[1].x - pair[0].x, 0.0, pair[1].z - pair[0].z).try_normalized()
+                else {
+                    continue;
+                };
+                let side = Vec3::new(-tangent.z, 0.0, tangent.x) * half_width;
+                for endpoint in pair {
+                    points.push(Vec3::new(
+                        endpoint.x + side.x,
+                        endpoint.y,
+                        endpoint.z + side.z,
+                    ));
+                    points.push(Vec3::new(
+                        endpoint.x - side.x,
+                        endpoint.y,
+                        endpoint.z - side.z,
+                    ));
+                }
+            }
+        }
+        if points.len() < 3 {
+            return None;
+        }
+
+        points.sort_by(|a, b| a.x.total_cmp(&b.x).then_with(|| a.z.total_cmp(&b.z)));
+        points.dedup_by(|a, b| (a.x - b.x).abs() <= 1e-5 && (a.z - b.z).abs() <= 1e-5);
+        if points.len() < 3 {
+            return None;
+        }
+
+        let cross = |a: Vec3<f32>, b: Vec3<f32>, c: Vec3<f32>| {
+            (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x)
+        };
+        let mut lower = Vec::new();
+        for point in points.iter().copied() {
+            while lower.len() >= 2
+                && cross(lower[lower.len() - 2], lower[lower.len() - 1], point) <= 1e-6
+            {
+                lower.pop();
+            }
+            lower.push(point);
+        }
+        let mut upper = Vec::new();
+        for point in points.iter().rev().copied() {
+            while upper.len() >= 2
+                && cross(upper[upper.len() - 2], upper[upper.len() - 1], point) <= 1e-6
+            {
+                upper.pop();
+            }
+            upper.push(point);
+        }
+        lower.pop();
+        upper.pop();
+        let mut outline = lower;
+        outline.extend(upper);
+        if outline.len() < 3 {
+            return None;
+        }
+
+        Self::prepare_floor_outline(outline)
+    }
+
+    fn wall_surface_edge_nodes(&self, edge: WallSurfaceEdge) -> Option<(Uuid, Uuid)> {
+        let span = self.span(edge.span_id)?;
+        Some(if edge.forward {
+            (span.start_node, span.end_node)
+        } else {
+            (span.end_node, span.start_node)
+        })
+    }
+
+    fn wall_surface_edge_points(&self, edge: WallSurfaceEdge) -> Option<Vec<Vec3<f32>>> {
+        let span = self.span(edge.span_id)?;
+        let mut points = self.span_path(span)?.points;
+        if !edge.forward {
+            points.reverse();
+        }
+        Some(points)
+    }
+
+    fn wall_surface_edge_direction(&self, edge: WallSurfaceEdge) -> Option<vek::Vec2<f32>> {
+        let points = self.wall_surface_edge_points(edge)?;
+        let direction = *points.get(1)? - *points.first()?;
+        vek::Vec2::new(direction.x, direction.z).try_normalized()
+    }
+
+    fn wall_surface_boundary_outline(
+        &self,
+        boundary: &[WallSurfaceEdge],
+    ) -> Option<Vec<Vec3<f32>>> {
+        if boundary.len() < 3 {
+            return None;
+        }
+        let mut outline = Vec::new();
+        for edge in boundary {
+            let points = self.wall_surface_edge_points(*edge)?;
+            for point in points {
+                if outline
+                    .last()
+                    .is_none_or(|last: &Vec3<f32>| (*last - point).magnitude_squared() > 1e-10)
+                {
+                    outline.push(point);
+                }
+            }
+        }
+        if outline.len() >= 2
+            && (outline[0] - outline[outline.len() - 1]).magnitude_squared() <= 1e-10
+        {
+            outline.pop();
+        }
+        (outline.len() >= 3).then_some(outline)
+    }
+
+    fn wall_surface_polygon_area(outline: &[Vec3<f32>]) -> f32 {
+        outline
+            .iter()
+            .zip(outline.iter().cycle().skip(1))
+            .map(|(current, next)| current.x * next.z - next.x * current.z)
+            .sum::<f32>()
+            * 0.5
+    }
+
+    fn wall_surface_polygon_contains(outline: &[Vec3<f32>], point: vek::Vec2<f32>) -> bool {
+        if outline.len() < 3 {
+            return false;
+        }
+        let mut inside = false;
+        let mut previous = outline.len() - 1;
+        for current in 0..outline.len() {
+            let a = vek::Vec2::new(outline[current].x, outline[current].z);
+            let b = vek::Vec2::new(outline[previous].x, outline[previous].z);
+            if (a.y > point.y) != (b.y > point.y)
+                && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x
+            {
+                inside = !inside;
+            }
+            previous = current;
+        }
+        inside
+    }
+
+    /// Finds the smallest bounded graph face containing the supplied X/Z point. Each directed
+    /// half-edge walks the face on its left, using the actual curve tangent at junctions.
+    pub fn wall_surface_region_at(&self, point: vek::Vec2<f32>) -> Option<Vec<WallSurfaceEdge>> {
+        self.wall_surface_faces()?
+            .into_iter()
+            .filter(|(area, boundary)| {
+                *area > 1e-5
+                    && self
+                        .wall_surface_boundary_outline(boundary)
+                        .is_some_and(|outline| Self::wall_surface_polygon_contains(&outline, point))
+            })
+            .min_by(|left, right| left.0.total_cmp(&right.0))
+            .map(|(_, boundary)| boundary)
+    }
+
+    fn wall_surface_faces(&self) -> Option<Vec<(f32, Vec<WallSurfaceEdge>)>> {
+        let half_edges = self
+            .spans
+            .iter()
+            .flat_map(|span| {
+                [
+                    WallSurfaceEdge {
+                        span_id: span.id,
+                        forward: true,
+                    },
+                    WallSurfaceEdge {
+                        span_id: span.id,
+                        forward: false,
+                    },
+                ]
+            })
+            .collect::<Vec<_>>();
+        let mut visited = std::collections::HashSet::<WallSurfaceEdge>::new();
+        let mut faces = Vec::<(f32, Vec<WallSurfaceEdge>)>::new();
+
+        for seed in half_edges.iter().copied() {
+            if visited.contains(&seed) {
+                continue;
+            }
+            let mut boundary = Vec::new();
+            let mut current = seed;
+            for _ in 0..half_edges.len().saturating_add(1) {
+                if !visited.insert(current) && current != seed {
+                    boundary.clear();
+                    break;
+                }
+                boundary.push(current);
+                let (_, end_node) = self.wall_surface_edge_nodes(current)?;
+                let twin = WallSurfaceEdge {
+                    span_id: current.span_id,
+                    forward: !current.forward,
+                };
+                let mut outgoing = half_edges
+                    .iter()
+                    .copied()
+                    .filter(|edge| {
+                        self.wall_surface_edge_nodes(*edge)
+                            .is_some_and(|(start, _)| start == end_node)
+                    })
+                    .filter_map(|edge| {
+                        let direction = self.wall_surface_edge_direction(edge)?;
+                        Some((edge, direction.y.atan2(direction.x)))
+                    })
+                    .collect::<Vec<_>>();
+                outgoing.sort_by(|left, right| left.1.total_cmp(&right.1));
+                let twin_index = outgoing.iter().position(|(edge, _)| *edge == twin)?;
+                current = outgoing[(twin_index + outgoing.len() - 1) % outgoing.len()].0;
+                if current == seed {
+                    break;
+                }
+            }
+            if boundary.len() < 3 || current != seed {
+                continue;
+            }
+            let Some(outline) = self.wall_surface_boundary_outline(&boundary) else {
+                continue;
+            };
+            let area = Self::wall_surface_polygon_area(&outline);
+            if area.abs() > 1e-5 {
+                faces.push((area, boundary));
+            }
+        }
+        Some(faces)
+    }
+
+    fn inset_wall_surface_outline(outline: &[Vec3<f32>], clearance: f32) -> Option<Vec<Vec3<f32>>> {
+        if clearance <= 1e-6 {
+            return Some(outline.to_vec());
+        }
+        let y = outline.first()?.y;
+        let points = outline
+            .iter()
+            .map(|point| vek::Vec2::new(point.x, point.z))
+            .collect::<Vec<_>>();
+        let cross = |a: vek::Vec2<f32>, b: vek::Vec2<f32>| a.x * b.y - a.y * b.x;
+        let mut inset = Vec::with_capacity(points.len());
+        for index in 0..points.len() {
+            let previous = points[(index + points.len() - 1) % points.len()];
+            let current = points[index];
+            let next = points[(index + 1) % points.len()];
+            let before = (current - previous).try_normalized()?;
+            let after = (next - current).try_normalized()?;
+            let before_normal = vek::Vec2::new(-before.y, before.x);
+            let after_normal = vek::Vec2::new(-after.y, after.x);
+            let line_a = previous + before_normal * clearance;
+            let line_b = current + after_normal * clearance;
+            let denominator = cross(before, after);
+            let candidate = if denominator.abs() > 1e-5 {
+                line_a + before * (cross(line_b - line_a, after) / denominator)
+            } else {
+                current
+                    + (before_normal + after_normal)
+                        .try_normalized()
+                        .unwrap_or(before_normal)
+                        * clearance
+            };
+            // Avoid extreme mitres at very acute wall junctions.
+            let offset = candidate - current;
+            let limited = if offset.magnitude() > clearance * 6.0 {
+                current + offset.normalized() * clearance * 6.0
+            } else {
+                candidate
+            };
+            inset.push(Vec3::new(limited.x, y, limited.y));
+        }
+        (Self::wall_surface_polygon_area(&inset) > 1e-5).then_some(inset)
+    }
+
+    fn area_surface_geometry(&self, surface: &WallAreaSurface) -> Option<GeometryObject> {
+        let mut outline = self.wall_surface_boundary_outline(&surface.boundary)?;
+        if Self::wall_surface_polygon_area(&outline) < 0.0 {
+            outline.reverse();
+        }
+        outline = Self::inset_wall_surface_outline(&outline, surface.clearance.max(0.0))?;
+        let base_y = surface
+            .boundary
+            .iter()
+            .filter_map(|edge| self.wall_surface_edge_nodes(*edge))
+            .filter_map(|(node, _)| self.node(node).map(|node| node.position.y))
+            .fold(f32::INFINITY, f32::min);
+        if !base_y.is_finite() {
+            return None;
+        }
+        let top_y = base_y + surface.elevation;
+        let thickness = surface.thickness.max(0.005);
+        for point in &mut outline {
+            point.y = top_y;
+        }
+        // Clockwise X/Z winding produces an upward-facing Y normal.
+        outline.reverse();
+
+        let source = surface
+            .source
+            .clone()
+            .unwrap_or_else(|| self.floor_pixel_source());
+        let count = outline.len();
+        let mut object = GeometryObject::new(format!("{} / Area Surface", self.name));
+        object.id = generated_wall_surface_object_id(surface.id);
+        object.kind = GeometryObjectKind::Generated;
+        object.vertices.extend(outline.iter().copied());
+        object.vertices.extend(
+            outline
+                .iter()
+                .map(|point| *point - Vec3::unit_y() * thickness),
+        );
+        object.faces.push(wall_face(
+            surface.id,
+            0,
+            (0..count).collect(),
+            Some(&source),
+        ));
+        object.faces.push(wall_face(
+            surface.id,
+            1,
+            (count..count * 2).rev().collect(),
+            Some(&source),
+        ));
+        for index in 0..count {
+            let next = (index + 1) % count;
+            object.faces.push(wall_face(
+                surface.id,
+                index + 2,
+                vec![index, count + index, count + next, next],
+                Some(&source),
+            ));
+        }
+        object.tags.push(GENERATED_WALL_TAG.to_string());
+        object
+            .properties
+            .set("wall_assembly_id", Value::Id(self.id));
+        object
+            .properties
+            .set("wall_area_surface_id", Value::Id(surface.id));
+        object
+            .properties
+            .set("wall_area_surface", Value::Bool(true));
+        object.ensure_face_paint_data();
+        Some(object)
+    }
+
     fn structural_floor_geometry(&self) -> Option<GeometryObject> {
-        let outline = self.closed_floor_outline()?;
+        let outline = self
+            .closed_floor_outline()
+            .or_else(|| self.floor_area_outline())?;
         let primary_span = self.spans.first()?;
         let source = self.floor_pixel_source();
         let mut object = GeometryObject::new(format!("{} / Auto Floor", self.name));
@@ -985,6 +1528,11 @@ impl WallAssembly {
                 self.auto_floor
                     .then(|| self.structural_floor_geometry())
                     .flatten(),
+            )
+            .chain(
+                self.area_surfaces
+                    .iter()
+                    .filter_map(|surface| self.area_surface_geometry(surface)),
             )
             .collect()
     }
@@ -1100,6 +1648,9 @@ impl WallAssembly {
             .properties
             .set("wall_span_id", Value::Id(primary_span.id));
         object.properties.set("wall_node_id", Value::Id(node.id));
+        object
+            .properties
+            .set("paint_group_object_id", Value::Id(self.id));
         object.ensure_face_paint_data();
         Some(object)
     }
@@ -1313,6 +1864,9 @@ impl WallAssembly {
             .properties
             .set("wall_assembly_id", Value::Id(self.id));
         object.properties.set("wall_span_id", Value::Id(span.id));
+        object
+            .properties
+            .set("paint_group_object_id", Value::Id(self.id));
         object.ensure_face_paint_data();
         Some(object)
     }
@@ -2464,6 +3018,10 @@ fn generated_wall_floor_object_id(assembly_id: Uuid) -> Uuid {
     Uuid::from_u128(assembly_id.as_u128() ^ GENERATED_WALL_FLOOR_ID_MASK)
 }
 
+fn generated_wall_surface_object_id(surface_id: Uuid) -> Uuid {
+    Uuid::from_u128(surface_id.as_u128() ^ GENERATED_WALL_SURFACE_ID_MASK)
+}
+
 fn wall_face(
     span_id: Uuid,
     face_index: usize,
@@ -2512,6 +3070,398 @@ impl Map {
         let span_id = object.properties.get_id("wall_span_id")?;
         self.wall_assembly(assembly_id)?.span(span_id)?;
         Some((assembly_id, span_id))
+    }
+
+    pub fn wall_area_surface_for_geometry_object(&self, object_id: Uuid) -> Option<(Uuid, Uuid)> {
+        let object = self
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)?;
+        let assembly_id = object.properties.get_id("wall_assembly_id")?;
+        let surface_id = object.properties.get_id("wall_area_surface_id")?;
+        (self
+            .wall_assembly(assembly_id)
+            .is_some_and(|assembly| assembly.area_surface(surface_id).is_some())
+            || self.wall_surface_preview.as_ref().is_some_and(|preview| {
+                preview.assembly_id == assembly_id && preview.surface.id == surface_id
+            }))
+        .then_some((assembly_id, surface_id))
+    }
+
+    pub fn wall_surface_region_at(
+        &self,
+        position: Vec3<f32>,
+    ) -> Option<(Uuid, Vec<WallSurfaceEdge>)> {
+        let point = vek::Vec2::new(position.x, position.z);
+        self.wall_assemblies
+            .iter()
+            .filter_map(|assembly| {
+                let boundary = assembly.wall_surface_region_at(point)?;
+                let outline = assembly.wall_surface_boundary_outline(&boundary)?;
+                Some((
+                    assembly.id,
+                    boundary,
+                    WallAssembly::wall_surface_polygon_area(&outline).abs(),
+                ))
+            })
+            .min_by(|left, right| left.2.total_cmp(&right.2))
+            .map(|(assembly_id, boundary, _)| (assembly_id, boundary))
+    }
+
+    /// Resolve a hit on generated masonry back to the smooth parent wall plane. Generated bricks
+    /// have bevelled and damaged faces whose individual normals are unsuitable for mounted props.
+    pub fn wall_surface_frame_for_geometry_object(
+        &self,
+        object_id: Uuid,
+        hit: Vec3<f32>,
+        fallback_normal: Option<Vec3<f32>>,
+    ) -> Option<(Vec3<f32>, Vec3<f32>)> {
+        let (assembly_id, span_id) = self.wall_source_for_geometry_object(object_id)?;
+        let assembly = self.wall_assembly(assembly_id)?;
+        let span = assembly.span(span_id)?;
+        let style = span.style_override.as_ref().unwrap_or(&assembly.style);
+        let coordinates = assembly.span_coordinates(span_id, hit)?;
+        let length = assembly.span_length(span_id)?;
+        let along = coordinates.x.clamp(0.0, length);
+        let center = assembly.span_point(span_id, vek::Vec2::new(along, coordinates.y))?;
+        let epsilon = (length * 0.01).clamp(0.005, 0.05);
+        let before = assembly.span_point(
+            span_id,
+            vek::Vec2::new((along - epsilon).max(0.0), coordinates.y),
+        )?;
+        let after = assembly.span_point(
+            span_id,
+            vek::Vec2::new((along + epsilon).min(length), coordinates.y),
+        )?;
+        let tangent = Vec3::new(after.x - before.x, 0.0, after.z - before.z).try_normalized()?;
+        let canonical = Vec3::new(-tangent.z, 0.0, tangent.x);
+        let signed_distance = (hit - center).dot(canonical);
+        let side = if signed_distance.abs() > (style.thickness * 0.05).max(0.002) {
+            signed_distance.signum()
+        } else {
+            let fallback = fallback_normal
+                .map(|normal| Vec3::new(normal.x, 0.0, normal.z))
+                .and_then(|normal| normal.try_normalized())
+                .unwrap_or(canonical);
+            if canonical.dot(fallback) < 0.0 {
+                -1.0
+            } else {
+                1.0
+            }
+        };
+        let outward = canonical * side;
+        Some((center + outward * style.thickness * 0.5, outward))
+    }
+
+    /// Recompute mounted Prefab transforms from stable wall/span coordinates.
+    /// The last transform is retained if a referenced wall was deleted.
+    pub fn sync_wall_hosted_block_props(&mut self) -> usize {
+        let updates = self
+            .block_prop_instances
+            .iter()
+            .filter_map(|instance| {
+                let BlockPropHostAttachment::WallSpan {
+                    assembly_id,
+                    span_id,
+                    along,
+                    height,
+                    side,
+                    offset,
+                    rotation_quarters,
+                } = instance.host_attachment.as_ref()?;
+                let assembly = self.wall_assembly(*assembly_id)?;
+                let span = assembly.span(*span_id)?;
+                let style = span.style_override.as_ref().unwrap_or(&assembly.style);
+                let length = assembly.span_length(*span_id)?;
+                let along = along.clamp(0.0, length);
+                let point = assembly.span_point(*span_id, vek::Vec2::new(along, *height))?;
+                let epsilon = (length * 0.01).clamp(0.005, 0.05);
+                let before = assembly.span_point(
+                    *span_id,
+                    vek::Vec2::new((along - epsilon).max(0.0), *height),
+                )?;
+                let after = assembly.span_point(
+                    *span_id,
+                    vek::Vec2::new((along + epsilon).min(length), *height),
+                )?;
+                let tangent =
+                    Vec3::new(after.x - before.x, 0.0, after.z - before.z).try_normalized()?;
+                let side = if *side < 0.0 { -1.0 } else { 1.0 };
+                let outward = Vec3::new(-tangent.z, 0.0, tangent.x) * side;
+                let mut up = Vec3::unit_y();
+                let mut right = up.cross(outward).try_normalized()?;
+                let angle = rotation_quarters.rem_euclid(4) as f32 * std::f32::consts::FRAC_PI_2;
+                let (sin, cos) = angle.sin_cos();
+                let rotated_right = right * cos + up * sin;
+                let rotated_up = up * cos - right * sin;
+                right = rotated_right;
+                up = rotated_up;
+                let origin = point + outward * (style.thickness * 0.5 + offset.max(0.0));
+                let mut transform = identity_block_prop_transform();
+                transform[0][0] = right.x;
+                transform[0][1] = right.y;
+                transform[0][2] = right.z;
+                transform[1][0] = up.x;
+                transform[1][1] = up.y;
+                transform[1][2] = up.z;
+                transform[2][0] = outward.x;
+                transform[2][1] = outward.y;
+                transform[2][2] = outward.z;
+                transform[3][0] = origin.x;
+                transform[3][1] = origin.y;
+                transform[3][2] = origin.z;
+                Some((instance.id, transform))
+            })
+            .collect::<Vec<_>>();
+        for (instance_id, transform) in &updates {
+            if let Some(instance) = self
+                .block_prop_instances
+                .iter_mut()
+                .find(|instance| instance.id == *instance_id)
+            {
+                instance.world_transform = *transform;
+            }
+        }
+        updates.len()
+    }
+
+    /// Re-project a moved mounted instance onto its existing wall span and
+    /// update the semantic host coordinates. This lets the ordinary object
+    /// move gizmo edit along, height, side, and standoff without detaching.
+    pub fn refresh_wall_host_from_instance_transform(&mut self, instance_id: Uuid) -> bool {
+        let Some(instance) = self
+            .block_prop_instances
+            .iter()
+            .find(|instance| instance.id == instance_id)
+        else {
+            return false;
+        };
+        let Some(BlockPropHostAttachment::WallSpan {
+            assembly_id,
+            span_id,
+            rotation_quarters,
+            ..
+        }) = instance.host_attachment.as_ref().cloned()
+        else {
+            return false;
+        };
+        let origin = Vec3::new(
+            instance.world_transform[3][0],
+            instance.world_transform[3][1],
+            instance.world_transform[3][2],
+        );
+        let Some(assembly) = self.wall_assembly(assembly_id) else {
+            return false;
+        };
+        let Some(coordinates) = assembly.span_coordinates(span_id, origin) else {
+            return false;
+        };
+        let Some(length) = assembly.span_length(span_id) else {
+            return false;
+        };
+        let along = coordinates.x.clamp(0.0, length);
+        let Some(center) = assembly.span_point(span_id, vek::Vec2::new(along, coordinates.y))
+        else {
+            return false;
+        };
+        let epsilon = (length * 0.01).clamp(0.005, 0.05);
+        let Some(before) = assembly.span_point(
+            span_id,
+            vek::Vec2::new((along - epsilon).max(0.0), coordinates.y),
+        ) else {
+            return false;
+        };
+        let Some(after) = assembly.span_point(
+            span_id,
+            vek::Vec2::new((along + epsilon).min(length), coordinates.y),
+        ) else {
+            return false;
+        };
+        let Some(tangent) = Vec3::new(after.x - before.x, 0.0, after.z - before.z).try_normalized()
+        else {
+            return false;
+        };
+        let canonical = Vec3::new(-tangent.z, 0.0, tangent.x);
+        let signed_distance = (origin - center).dot(canonical);
+        let side = if signed_distance < 0.0 { -1.0 } else { 1.0 };
+        let thickness = assembly
+            .span(span_id)
+            .and_then(|span| span.style_override.as_ref())
+            .unwrap_or(&assembly.style)
+            .thickness;
+        let offset = (signed_distance.abs() - thickness * 0.5).max(0.0);
+        let Some(instance) = self
+            .block_prop_instances
+            .iter_mut()
+            .find(|instance| instance.id == instance_id)
+        else {
+            return false;
+        };
+        instance.host_attachment = Some(BlockPropHostAttachment::WallSpan {
+            assembly_id,
+            span_id,
+            along,
+            height: coordinates.y,
+            side,
+            offset,
+            rotation_quarters,
+        });
+        true
+    }
+
+    pub fn flip_wall_hosted_block_prop(&mut self, instance_id: Uuid) -> bool {
+        let Some(instance) = self
+            .block_prop_instances
+            .iter_mut()
+            .find(|instance| instance.id == instance_id)
+        else {
+            return false;
+        };
+        let Some(BlockPropHostAttachment::WallSpan { side, .. }) =
+            instance.host_attachment.as_mut()
+        else {
+            return false;
+        };
+        *side *= -1.0;
+        self.sync_wall_hosted_block_props();
+        true
+    }
+
+    pub fn rotate_wall_hosted_block_prop(&mut self, instance_id: Uuid, turns: i32) -> bool {
+        let Some(instance) = self
+            .block_prop_instances
+            .iter_mut()
+            .find(|instance| instance.id == instance_id)
+        else {
+            return false;
+        };
+        let Some(BlockPropHostAttachment::WallSpan {
+            rotation_quarters, ..
+        }) = instance.host_attachment.as_mut()
+        else {
+            return false;
+        };
+        *rotation_quarters = (*rotation_quarters + turns).rem_euclid(4);
+        self.sync_wall_hosted_block_props();
+        true
+    }
+
+    /// Rotate a placed Prefab. Mounted instances roll around the surface
+    /// normal; free/ground instances yaw around world Y.
+    pub fn rotate_block_prop_placement(&mut self, instance_id: Uuid, turns: i32) -> bool {
+        if self.rotate_wall_hosted_block_prop(instance_id, turns) {
+            return true;
+        }
+        let Some(instance) = self
+            .block_prop_instances
+            .iter_mut()
+            .find(|instance| instance.id == instance_id)
+        else {
+            return false;
+        };
+        let angle = turns as f32 * std::f32::consts::FRAC_PI_2;
+        let (sin, cos) = angle.sin_cos();
+        for column in [0usize, 2] {
+            let x = instance.world_transform[column][0];
+            let z = instance.world_transform[column][2];
+            instance.world_transform[column][0] = x * cos + z * sin;
+            instance.world_transform[column][2] = -x * sin + z * cos;
+        }
+        true
+    }
+
+    pub fn detach_block_prop(&mut self, instance_id: Uuid) -> bool {
+        let Some(instance) = self
+            .block_prop_instances
+            .iter_mut()
+            .find(|instance| instance.id == instance_id)
+        else {
+            return false;
+        };
+        instance.host_attachment.take().is_some()
+    }
+
+    /// Attach an existing instance to the exact generated wall surface under
+    /// the cursor. Geometry IDs are resolved back to stable assembly/span IDs.
+    pub fn attach_block_prop_to_wall_surface(
+        &mut self,
+        instance_id: Uuid,
+        object_id: Uuid,
+        hit: Vec3<f32>,
+        normal: Vec3<f32>,
+        offset: f32,
+    ) -> bool {
+        let Some((assembly_id, span_id)) = self.wall_source_for_geometry_object(object_id) else {
+            return false;
+        };
+        let Some(assembly) = self.wall_assembly(assembly_id) else {
+            return false;
+        };
+        let Some(coordinates) = assembly.span_coordinates(span_id, hit) else {
+            return false;
+        };
+        let Some(length) = assembly.span_length(span_id) else {
+            return false;
+        };
+        let along = coordinates.x.clamp(0.0, length);
+        let epsilon = (length * 0.01).clamp(0.005, 0.05);
+        let Some(before) = assembly.span_point(
+            span_id,
+            vek::Vec2::new((along - epsilon).max(0.0), coordinates.y),
+        ) else {
+            return false;
+        };
+        let Some(after) = assembly.span_point(
+            span_id,
+            vek::Vec2::new((along + epsilon).min(length), coordinates.y),
+        ) else {
+            return false;
+        };
+        let Some(tangent) = Vec3::new(after.x - before.x, 0.0, after.z - before.z).try_normalized()
+        else {
+            return false;
+        };
+        let canonical = Vec3::new(-tangent.z, 0.0, tangent.x);
+        let center = assembly
+            .span_point(span_id, vek::Vec2::new(along, coordinates.y))
+            .unwrap_or(hit);
+        let signed_distance = (hit - center).dot(canonical);
+        let side = if signed_distance.abs() > 0.002 {
+            signed_distance.signum()
+        } else {
+            let normal = Vec3::new(normal.x, 0.0, normal.z)
+                .try_normalized()
+                .unwrap_or(canonical);
+            if canonical.dot(normal) < 0.0 {
+                -1.0
+            } else {
+                1.0
+            }
+        };
+        let Some(instance) = self
+            .block_prop_instances
+            .iter_mut()
+            .find(|instance| instance.id == instance_id)
+        else {
+            return false;
+        };
+        let rotation_quarters = match instance.host_attachment.as_ref() {
+            Some(BlockPropHostAttachment::WallSpan {
+                rotation_quarters, ..
+            }) => *rotation_quarters,
+            None => 0,
+        };
+        instance.host_attachment = Some(BlockPropHostAttachment::WallSpan {
+            assembly_id,
+            span_id,
+            along,
+            height: coordinates.y,
+            side,
+            offset: offset.max(0.0),
+            rotation_quarters,
+        });
+        self.sync_wall_hosted_block_props();
+        true
     }
 
     pub fn nearest_wall_span(
@@ -2571,6 +3521,124 @@ impl Map {
             .map(|(assembly_id, node_id, _)| (assembly_id, node_id))
     }
 
+    /// Turns visually touching open wall endpoints into real graph junctions. This is primarily
+    /// used by fitted area surfaces: an independently drawn curved forge front may terminate in
+    /// the middle of two room-wall spans and still needs to divide the room into two bounded faces.
+    pub fn resolve_wall_endpoint_contacts(&mut self, tolerance: f32) -> usize {
+        let tolerance = tolerance.clamp(0.001, 0.1);
+        let mut resolved = 0;
+        for _ in 0..128 {
+            let endpoints = self
+                .wall_assemblies
+                .iter()
+                .flat_map(|assembly| {
+                    assembly.nodes.iter().filter_map(|node| {
+                        (assembly.connected_spans(node.id).count() == 1).then_some((
+                            assembly.id,
+                            node.id,
+                            node.position,
+                        ))
+                    })
+                })
+                .collect::<Vec<_>>();
+            let mut contact = None;
+            for (source_assembly, source_node, position) in endpoints {
+                let candidate = self
+                    .wall_assemblies
+                    .iter()
+                    .flat_map(|assembly| {
+                        assembly.spans.iter().filter_map(move |span| {
+                            if assembly.id == source_assembly
+                                && (span.start_node == source_node || span.end_node == source_node)
+                            {
+                                return None;
+                            }
+                            if span.curve_offset.abs() > 1e-5 || !span.removed_bricks.is_empty() {
+                                return None;
+                            }
+                            let length = assembly.span_length(span.id)?;
+                            let coordinates = assembly.span_coordinates(span.id, position)?;
+                            if coordinates.x <= tolerance || coordinates.x >= length - tolerance {
+                                return None;
+                            }
+                            let projected =
+                                assembly.span_point(span.id, vek::Vec2::new(coordinates.x, 0.0))?;
+                            let distance =
+                                Vec3::new(projected.x - position.x, 0.0, projected.z - position.z)
+                                    .magnitude();
+                            ((projected.y - position.y).abs() <= tolerance && distance <= tolerance)
+                                .then_some((assembly.id, span.id, coordinates.x, distance))
+                        })
+                    })
+                    .min_by(|left, right| left.3.total_cmp(&right.3));
+                if let Some((target_assembly, target_span, _, _)) = candidate {
+                    contact = Some((
+                        source_assembly,
+                        source_node,
+                        target_assembly,
+                        target_span,
+                        position,
+                    ));
+                    break;
+                }
+            }
+            let Some((source_assembly, source_node, target_assembly, target_span, position)) =
+                contact
+            else {
+                break;
+            };
+            let Some((junction_node, second_span, split)) = self
+                .wall_assembly_mut(target_assembly)
+                .and_then(|assembly| assembly.split_straight_span_at(target_span, position))
+            else {
+                break;
+            };
+
+            for instance in &mut self.block_prop_instances {
+                let Some(BlockPropHostAttachment::WallSpan {
+                    assembly_id,
+                    span_id,
+                    along,
+                    ..
+                }) = instance.host_attachment.as_mut()
+                else {
+                    continue;
+                };
+                if *assembly_id == target_assembly && *span_id == target_span && *along > split {
+                    *span_id = second_span;
+                    *along -= split;
+                }
+            }
+
+            if target_assembly != source_assembly {
+                if self
+                    .merge_wall_assemblies(target_assembly, source_assembly)
+                    .is_err()
+                {
+                    break;
+                }
+                for instance in &mut self.block_prop_instances {
+                    if let Some(BlockPropHostAttachment::WallSpan { assembly_id, .. }) =
+                        instance.host_attachment.as_mut()
+                        && *assembly_id == source_assembly
+                    {
+                        *assembly_id = target_assembly;
+                    }
+                }
+            }
+            if let Some(assembly) = self.wall_assembly_mut(target_assembly) {
+                assembly.weld_node_into(source_node, junction_node);
+            }
+            for node in &mut self.selected_wall_nodes {
+                if *node == source_node {
+                    *node = junction_node;
+                }
+            }
+            resolved += 1;
+        }
+        resolved
+    }
+
     /// Combines two previously separate networks when a newly placed span connects them.
     pub fn merge_wall_assemblies(
         &mut self,
@@ -2612,6 +3680,7 @@ impl Map {
         }
         target.nodes.extend(source.nodes);
         target.spans.extend(source.spans);
+        target.area_surfaces.extend(source.area_surfaces);
         if self.selected_wall_assembly == Some(source_id) {
             self.selected_wall_assembly = Some(target_id);
         }
@@ -2678,6 +3747,7 @@ impl Map {
                 .iter()
                 .flat_map(WallAssembly::structural_geometry),
         );
+        self.sync_wall_hosted_block_props();
     }
 
     /// Rebuilds generated walls with the transient opening drag applied. The source graph is not
@@ -2717,6 +3787,32 @@ impl Map {
                 .find(|assembly| assembly.id == preview.assembly_id)
         {
             let _ = assembly.set_brick_removed(preview.span_id, preview.key, preview.remove);
+        }
+        let generated = assemblies
+            .iter()
+            .flat_map(WallAssembly::structural_geometry)
+            .collect::<Vec<_>>();
+        self.geometry_objects.retain(|object| {
+            !object
+                .tags
+                .iter()
+                .any(|tag| tag.as_str() == GENERATED_WALL_TAG)
+        });
+        self.geometry_objects.extend(generated);
+    }
+
+    pub fn rebuild_wall_geometry_with_surface_preview(&mut self) {
+        let mut assemblies = self
+            .wall_surface_preview
+            .as_ref()
+            .and_then(|preview| preview.wall_assemblies.clone())
+            .unwrap_or_else(|| self.wall_assemblies.clone());
+        if let Some(preview) = self.wall_surface_preview.clone()
+            && let Some(assembly) = assemblies
+                .iter_mut()
+                .find(|assembly| assembly.id == preview.assembly_id)
+        {
+            assembly.area_surfaces.push(preview.surface);
         }
         let generated = assemblies
             .iter()
@@ -2772,7 +3868,40 @@ mod tests {
     }
 
     #[test]
-    fn auto_floor_is_generated_only_for_a_closed_wall_loop() {
+    fn structural_masonry_shares_one_paint_group_without_grouping_the_floor() {
+        let mut wall = WallAssembly::new("Paintable room corner");
+        wall.auto_floor = true;
+        let southwest = wall.add_node(Vec3::zero());
+        let southeast = wall.add_node(Vec3::unit_x());
+        let northeast = wall.add_node(Vec3::new(1.0, 0.0, 1.0));
+        let northwest = wall.add_node(Vec3::unit_z());
+        wall.add_span(southwest, southeast).unwrap();
+        wall.add_span(southeast, northeast).unwrap();
+        wall.add_span(northeast, northwest).unwrap();
+        wall.add_span(northwest, southwest).unwrap();
+
+        let geometry = wall.structural_geometry();
+        let masonry = geometry
+            .iter()
+            .filter(|object| {
+                object.properties.get_id("wall_span_id").is_some()
+                    && object.properties.get_bool("wall_auto_floor") != Some(true)
+            })
+            .collect::<Vec<_>>();
+        assert!(masonry.len() >= 4);
+        assert!(
+            masonry
+                .iter()
+                .all(|object| object.properties.get_id("paint_group_object_id") == Some(wall.id))
+        );
+        assert!(geometry.iter().any(|object| {
+            object.properties.get_bool("wall_auto_floor") == Some(true)
+                && object.properties.get_id("paint_group_object_id").is_none()
+        }));
+    }
+
+    #[test]
+    fn auto_floor_uses_the_authored_area_without_requiring_a_closed_loop() {
         let mut wall = WallAssembly::new("Room");
         wall.auto_floor = true;
         let a = wall.add_node(Vec3::new(0.0, 0.0, 0.0));
@@ -2783,12 +3912,41 @@ mod tests {
         wall.add_span(b, c).unwrap();
         wall.add_span(c, d).unwrap();
 
-        assert!(wall.structural_floor_geometry().is_none());
-        wall.add_span(d, a).unwrap();
         let floor = wall.structural_floor_geometry().unwrap();
-        assert_eq!(floor.vertices.len(), 4);
+        assert!(floor.vertices.len() >= 4);
         assert_eq!(floor.faces.len(), 1);
         assert_eq!(floor.properties.get_bool("wall_auto_floor"), Some(true));
+
+        wall.add_span(d, a).unwrap();
+        assert!(wall.structural_floor_geometry().is_some());
+    }
+
+    #[test]
+    fn closed_concave_floor_preserves_the_wall_path_instead_of_using_its_hull() {
+        let mut wall = WallAssembly::new("Concave room");
+        let nodes = [
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 3.0),
+            Vec3::new(2.0, 0.0, 3.0),
+            Vec3::new(2.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ]
+        .into_iter()
+        .map(|position| wall.add_node(position))
+        .collect::<Vec<_>>();
+        for index in 0..nodes.len() {
+            wall.add_span(nodes[index], nodes[(index + 1) % nodes.len()])
+                .unwrap();
+        }
+
+        let outline = wall.closed_floor_outline().unwrap();
+        assert_eq!(outline.len(), nodes.len());
+        assert!(
+            outline
+                .iter()
+                .any(|point| (point.x - 2.0).abs() < 1e-5 && (point.z - 1.0).abs() < 1e-5)
+        );
     }
 
     #[test]
@@ -2840,6 +3998,103 @@ mod tests {
         assert!((wall.span_length(horizontal).unwrap() - 3.0).abs() < 1e-5);
         assert!((wall.span_length(vertical).unwrap() - 5.0_f32.sqrt()).abs() < 1e-5);
         assert_eq!(wall.junction_kind(shared), Some(WallJunctionKind::Corner));
+    }
+
+    #[test]
+    fn wall_hosted_prefab_follows_span_edits() {
+        let mut map = Map::default();
+        let mut wall = WallAssembly::new("Host wall");
+        wall.style.thickness = 0.4;
+        let start = wall.add_node(Vec3::zero());
+        let end = wall.add_node(Vec3::new(4.0, 0.0, 0.0));
+        let span_id = wall.add_span(start, end).unwrap();
+        let assembly_id = wall.id;
+        map.wall_assemblies.push(wall);
+
+        let mut instance = crate::BlockPropInstance::new(Uuid::new_v4());
+        instance.host_attachment = Some(BlockPropHostAttachment::WallSpan {
+            assembly_id,
+            span_id,
+            along: 2.0,
+            height: 1.0,
+            side: 1.0,
+            offset: 0.1,
+            rotation_quarters: 0,
+        });
+        map.block_prop_instances.push(instance);
+        assert_eq!(map.sync_wall_hosted_block_props(), 1);
+        let first = map.block_prop_instances[0].world_transform[3];
+        assert!((first[0] - 2.0).abs() < 1e-4);
+        assert!((first[1] - 1.0).abs() < 1e-4);
+        assert!((first[2] - 0.3).abs() < 1e-4);
+
+        map.wall_assembly_mut(assembly_id)
+            .unwrap()
+            .set_node_position(end, Vec3::new(0.0, 0.0, 4.0))
+            .unwrap();
+        map.rebuild_wall_geometry();
+        let moved = map.block_prop_instances[0].world_transform[3];
+        assert!((moved[0] + 0.3).abs() < 1e-4);
+        assert!((moved[1] - 1.0).abs() < 1e-4);
+        assert!((moved[2] - 2.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn mounted_prefab_move_flip_rotate_and_detach_update_host_state() {
+        let mut map = Map::default();
+        let mut wall = WallAssembly::new("Editable host");
+        wall.style.thickness = 0.4;
+        let start = wall.add_node(Vec3::zero());
+        let end = wall.add_node(Vec3::new(4.0, 0.0, 0.0));
+        let span_id = wall.add_span(start, end).unwrap();
+        let assembly_id = wall.id;
+        map.wall_assemblies.push(wall);
+        map.rebuild_wall_geometry();
+
+        let mut instance = crate::BlockPropInstance::new(Uuid::new_v4());
+        let instance_id = instance.id;
+        instance.host_attachment = Some(BlockPropHostAttachment::WallSpan {
+            assembly_id,
+            span_id,
+            along: 1.0,
+            height: 1.0,
+            side: 1.0,
+            offset: 0.1,
+            rotation_quarters: 0,
+        });
+        map.block_prop_instances.push(instance);
+        map.sync_wall_hosted_block_props();
+
+        map.block_prop_instances[0].world_transform[3][0] = 2.25;
+        map.block_prop_instances[0].world_transform[3][1] = 1.75;
+        map.block_prop_instances[0].world_transform[3][2] = 0.55;
+        assert!(map.refresh_wall_host_from_instance_transform(instance_id));
+        map.sync_wall_hosted_block_props();
+        let Some(BlockPropHostAttachment::WallSpan {
+            along,
+            height,
+            offset,
+            ..
+        }) = map.block_prop_instances[0].host_attachment.as_ref()
+        else {
+            panic!("mounted host missing");
+        };
+        assert!((*along - 2.25).abs() < 1e-4);
+        assert!((*height - 1.75).abs() < 1e-4);
+        assert!((*offset - 0.35).abs() < 1e-4);
+
+        assert!(map.flip_wall_hosted_block_prop(instance_id));
+        assert!(map.block_prop_instances[0].world_transform[3][2] < 0.0);
+        assert!(map.rotate_block_prop_placement(instance_id, 1));
+        let Some(BlockPropHostAttachment::WallSpan {
+            rotation_quarters, ..
+        }) = map.block_prop_instances[0].host_attachment.as_ref()
+        else {
+            panic!("mounted host missing");
+        };
+        assert_eq!(*rotation_quarters, 1);
+        assert!(map.detach_block_prop(instance_id));
+        assert!(map.block_prop_instances[0].host_attachment.is_none());
     }
 
     #[test]

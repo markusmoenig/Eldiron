@@ -17,7 +17,10 @@ pub mod topology;
 pub mod vertex;
 pub mod wall;
 
-use crate::{BBox, GeometryObject, MapMini, PixelSource, Surface, Value, ValueContainer};
+use crate::{
+    BBox, FaceEmission, FaceParticleEmission, GeometryObject, MapMini, PixelSource, Surface, Value,
+    ValueContainer,
+};
 use indexmap::IndexMap;
 use std::collections::VecDeque;
 use theframework::prelude::{FxHashMap, FxHashSet};
@@ -28,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use vek::{Vec2, Vec3, Vec4};
 use vertex::*;
-use wall::{WallAssembly, WallBrickPreview, WallOpeningPreview};
+use wall::{WallAreaSurfacePreview, WallAssembly, WallBrickPreview, WallOpeningPreview};
 
 use crate::{Entity, Item, Light};
 use block_prop::{BlockPropInstance, BlockPropSurfacePlacement};
@@ -154,6 +157,15 @@ pub struct Map {
     #[serde(default)]
     pub geometry_objects: Vec<GeometryObject>,
 
+    /// Light emitters authored on geometry faces, keyed by effective paint-surface identity.
+    /// Keeping this outside generated meshes makes the setting survive procedural rebuilds.
+    #[serde(default)]
+    pub face_emissions: FxHashMap<Uuid, FaceEmission>,
+
+    /// Particle emitters authored on geometry faces, keyed by effective paint-surface identity.
+    #[serde(default)]
+    pub face_particle_emissions: FxHashMap<Uuid, FaceParticleEmission>,
+
     /// Editable source graphs for connected procedural walls.
     #[serde(default)]
     pub wall_assemblies: Vec<WallAssembly>,
@@ -195,11 +207,15 @@ pub struct Map {
     #[serde(skip)]
     pub selected_wall_opening: Option<Uuid>,
     #[serde(skip)]
+    pub selected_wall_surface: Option<Uuid>,
+    #[serde(skip)]
     pub hovered_wall_span: Option<(Uuid, Uuid)>,
     #[serde(skip)]
     pub wall_brick_preview: Option<WallBrickPreview>,
     #[serde(skip)]
     pub wall_opening_preview: Option<WallOpeningPreview>,
+    #[serde(skip)]
+    pub wall_surface_preview: Option<WallAreaSurfacePreview>,
     /// Editor selection of linked Block / Prop instances. Kept separate from
     /// resolved Geometry Object IDs so instance operations remain stable when
     /// an asset source changes.
@@ -531,6 +547,8 @@ impl Map {
             linedefs: vec![],
             sectors: vec![],
             geometry_objects: vec![],
+            face_emissions: FxHashMap::default(),
+            face_particle_emissions: FxHashMap::default(),
             wall_assemblies: vec![],
             block_prop_instances: vec![],
             block_prop_surface_placements: vec![],
@@ -549,9 +567,11 @@ impl Map {
             selected_wall_nodes: vec![],
             selected_wall_spans: vec![],
             selected_wall_opening: None,
+            selected_wall_surface: None,
             hovered_wall_span: None,
             wall_brick_preview: None,
             wall_opening_preview: None,
+            wall_surface_preview: None,
             selected_block_prop_instances: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],
@@ -588,9 +608,11 @@ impl Map {
         self.selected_wall_nodes = vec![];
         self.selected_wall_spans = vec![];
         self.selected_wall_opening = None;
+        self.selected_wall_surface = None;
         self.hovered_wall_span = None;
         self.wall_brick_preview = None;
         self.wall_opening_preview = None;
+        self.wall_surface_preview = None;
         self.selected_block_prop_instances = vec![];
         self.selected_geometry_vertices = vec![];
         self.selected_geometry_faces = vec![];
@@ -2668,6 +2690,8 @@ impl Map {
             linedefs: self.linedefs.clone(),
             sectors: self.sectors.clone(),
             geometry_objects: self.geometry_objects.clone(),
+            face_emissions: self.face_emissions.clone(),
+            face_particle_emissions: self.face_particle_emissions.clone(),
             wall_assemblies: self.wall_assemblies.clone(),
             block_prop_instances: self.block_prop_instances.clone(),
             block_prop_surface_placements: self.block_prop_surface_placements.clone(),
@@ -2686,9 +2710,11 @@ impl Map {
             selected_wall_nodes: vec![],
             selected_wall_spans: vec![],
             selected_wall_opening: None,
+            selected_wall_surface: None,
             hovered_wall_span: None,
             wall_brick_preview: None,
             wall_opening_preview: None,
+            wall_surface_preview: None,
             selected_block_prop_instances: vec![],
             selected_geometry_vertices: vec![],
             selected_geometry_faces: vec![],

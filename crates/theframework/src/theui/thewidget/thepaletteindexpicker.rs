@@ -317,9 +317,6 @@ impl TheWidget for ThePaletteIndexPicker {
         let height = padding * 2 + rows * cell + (rows.saturating_sub(1)) * spacing;
 
         let mut dim = TheDim::new(self.dim.x, self.dim.y + 20, width as i32, height as i32);
-        dim.buffer_x = self.dim.x;
-        dim.buffer_y = self.dim.y + 20;
-        self.overlay_offset = Vec2::new(self.dim.x, self.dim.y + 20);
         self.safety_offset = Vec2::zero();
 
         if dim.x + width as i32 > ctx.width as i32 {
@@ -330,6 +327,10 @@ impl TheWidget for ThePaletteIndexPicker {
             self.safety_offset.y = dim.y + height as i32 - ctx.height as i32 + 5;
             dim.y -= self.safety_offset.y;
         }
+
+        dim.buffer_x = dim.x;
+        dim.buffer_y = dim.y;
+        self.overlay_offset = Vec2::new(dim.x, dim.y);
 
         let mut buffer = TheRGBABuffer::new(dim);
         ctx.draw.rect(
@@ -407,7 +408,10 @@ impl ThePaletteIndexPicker {
         let cell = 18i32;
         let padding = 10i32;
         let spacing = 2i32;
-        let local = Vec2::new(coord.x, coord.y - 20);
+        let local = Vec2::new(
+            coord.x + self.safety_offset.x,
+            coord.y - 20 + self.safety_offset.y,
+        );
         if local.x < padding || local.y < padding {
             return None;
         }
@@ -751,9 +755,6 @@ impl TheWidget for ThePaletteIndexRowPicker {
         let height = padding * 2 + rows * cell + (rows.saturating_sub(1)) * spacing;
 
         let mut dim = TheDim::new(self.dim.x, self.dim.y + 20, width as i32, height as i32);
-        dim.buffer_x = self.dim.x;
-        dim.buffer_y = self.dim.y + 20;
-        self.overlay_offset = Vec2::new(self.dim.x, self.dim.y + 20);
         self.safety_offset = Vec2::zero();
 
         if dim.x + width as i32 > ctx.width as i32 {
@@ -764,6 +765,10 @@ impl TheWidget for ThePaletteIndexRowPicker {
             self.safety_offset.y = dim.y + height as i32 - ctx.height as i32 + 5;
             dim.y -= self.safety_offset.y;
         }
+
+        dim.buffer_x = dim.x;
+        dim.buffer_y = dim.y;
+        self.overlay_offset = Vec2::new(dim.x, dim.y);
 
         let mut buffer = TheRGBABuffer::new(dim);
         ctx.draw.rect(
@@ -884,7 +889,10 @@ impl ThePaletteIndexRowPicker {
         let cell = 18i32;
         let padding = 10i32;
         let spacing = 2i32;
-        let local = Vec2::new(coord.x, coord.y - 20);
+        let local = Vec2::new(
+            coord.x + self.safety_offset.x,
+            coord.y - 20 + self.safety_offset.y,
+        );
         if local.x < padding || local.y < padding {
             return None;
         }

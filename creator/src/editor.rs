@@ -213,9 +213,12 @@ struct StarterProjectManifest {
 struct StarterProjectManifestEntry {
     id: String,
     title: String,
+    #[serde(default)]
+    dimension: String,
     description: String,
     project_path: String,
-    image: String,
+    #[serde(default)]
+    preview: Option<String>,
 }
 
 #[derive(Clone)]
@@ -223,6 +226,7 @@ struct StarterProjectEntry {
     id: Uuid,
     manifest_id: String,
     title: String,
+    dimension: String,
     description: String,
     project_path: String,
     preview: Option<TheRGBATile>,
@@ -301,6 +305,9 @@ impl Editor {
         "https://raw.githubusercontent.com/markusmoenig/Eldiron/master/";
     const STARTER_LIST_ID: &'static str = "Starter Project List";
     const STARTER_PREVIEW_ID: &'static str = "Starter Project Preview";
+    const STARTER_PREVIEW_KIND_ID: &'static str = "Starter Project Preview Kind";
+    const STARTER_PREVIEW_TITLE_ID: &'static str = "Starter Project Preview Title";
+    const STARTER_PREVIEW_DESCRIPTION_ID: &'static str = "Starter Project Preview Description";
     const STARTER_CREATE_ID: &'static str = "Starter Project Create";
     const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
 
@@ -3769,7 +3776,7 @@ impl Editor {
     fn iso_paint_stroke_anchor(
         stroke: &IsoPaintStroke,
     ) -> (Option<[i32; 2]>, Option<[f32; 3]>, Option<f32>) {
-        if stroke.clip == "object"
+        if matches!(stroke.clip.as_str(), "surface" | "object")
             && let Some(point) = stroke
                 .points
                 .iter()
@@ -4452,9 +4459,13 @@ impl Editor {
             .into_iter()
             .map(|entry| StarterProjectEntry {
                 id: Uuid::new_v4(),
-                preview: Self::load_starter_preview(&entry.image),
+                preview: entry
+                    .preview
+                    .as_deref()
+                    .and_then(Self::load_starter_preview),
                 manifest_id: entry.id,
                 title: entry.title,
+                dimension: entry.dimension,
                 description: entry.description,
                 project_path: entry.project_path,
             })
@@ -4693,46 +4704,120 @@ impl Editor {
         self.starter_project_loader_rx = None;
         self.selected_starter_manifest_id = None;
 
-        let width = 980;
-        let height = 340;
-        let bottom_bar_height = 32;
-        let preview_size = height;
+        let width = 900;
+        let height = 430;
+        let intro_height = 58;
+        let bottom_bar_height = 46;
+        let list_width = 560;
+        let preview_height = 191;
 
         let mut dialog = TheCanvas::new();
         dialog.limiter_mut().set_max_size(Vec2::new(width, height));
+        dialog.bottom_is_expanding = true;
 
-        let mut left = TheCanvas::new();
-        left.limiter_mut()
-            .set_max_size(Vec2::new(preview_size, preview_size));
-        let mut preview = TheIconView::new(TheId::named(Self::STARTER_PREVIEW_ID));
-        preview
+        let mut intro_canvas = TheCanvas::new();
+        intro_canvas
             .limiter_mut()
-            .set_max_size(Vec2::new(preview_size, preview_size));
-        preview.set_border_color(Some([120, 120, 120, 255]));
-        preview.set_background_color(Some([218, 211, 177, 255]));
-        preview.set_alpha_mode(true);
-        if let Some(tile) = ctx.ui.icon("lord").cloned().map(TheRGBATile::buffer) {
-            preview.set_rgba_tile(tile);
-        }
-        left.set_widget(preview);
-        dialog.set_left(left);
+            .set_max_size(Vec2::new(width, intro_height));
+        let mut intro = TheVLayout::new(TheId::named("Starter Project Intro"));
+        intro
+            .limiter_mut()
+            .set_max_size(Vec2::new(width, intro_height));
+        intro.set_background_color(Some(TheThemeColors::ListLayoutBackground));
+        intro.set_alignment(TheHorizontalAlign::Left);
+        intro.set_margin(Vec4::new(16, 7, 16, 6));
+        intro.set_padding(0);
 
-        let mut center = TheCanvas::new();
-        center
+        let mut intro_title = TheText::new(TheId::named("Starter Project Intro Title"));
+        intro_title.set_text(fl!("starter_intro_title"));
+        intro_title.set_text_size(16.0);
+        intro_title.set_text_color(WHITE);
+        intro.add_widget(Box::new(intro_title));
+
+        let mut intro_sub = TheText::new(TheId::named("Starter Project Intro Sub"));
+        intro_sub.set_text(fl!("starter_intro_sub"));
+        intro_sub.set_text_size(12.0);
+        intro_sub.set_text_color([170, 176, 184, 255]);
+        intro.add_widget(Box::new(intro_sub));
+        intro_canvas.set_layout(intro);
+        dialog.set_top(intro_canvas);
+
+        let mut content = TheCanvas::new();
+
+        let mut list_canvas = TheCanvas::new();
+        list_canvas
             .limiter_mut()
-            .set_max_size(Vec2::new(width - (preview_size + 20), preview_size));
+            .set_max_size(Vec2::new(list_width, height));
         let mut list = TheListLayout::new(TheId::named(Self::STARTER_LIST_ID));
-        list.set_item_size(52);
+        list.limiter_mut().set_max_width(list_width);
+        list.set_item_size(70);
+        list.set_margin(Vec4::new(10, 10, 10, 10));
         let mut item = TheListItem::new(TheId::named("Starter Project Loading"));
         item.set_text(fl!("starter_loading"));
         item.set_sub_text(fl!("starter_loading_sub"));
-        item.set_size(52);
+        item.set_size(70);
         item.set_text_color(WHITE);
         item.set_text_size(14.0);
+        item.set_sub_text_color([170, 176, 184, 255]);
         item.set_sub_text_size(12.0);
         list.add_item(item, ctx);
-        center.set_layout(list);
-        dialog.set_center(center);
+        list_canvas.set_layout(list);
+        content.set_left(list_canvas);
+
+        let mut details = TheCanvas::new();
+        let mut preview_canvas = TheCanvas::new();
+        preview_canvas
+            .limiter_mut()
+            .set_max_size(Vec2::new(width - list_width, preview_height));
+        let mut preview = TheIconView::new(TheId::named(Self::STARTER_PREVIEW_ID));
+        preview
+            .limiter_mut()
+            .set_max_size(Vec2::new(width - list_width, preview_height));
+        preview.set_border_color(Some([65, 71, 79, 255]));
+        preview.set_background_color(Some([24, 27, 31, 255]));
+        preview.set_alpha_mode(true);
+        preview_canvas.set_widget(preview);
+        details.set_top(preview_canvas);
+
+        let mut preview_details_canvas = TheCanvas::new();
+        preview_details_canvas
+            .limiter_mut()
+            .set_max_size(Vec2::new(width - list_width, height - preview_height));
+        let mut preview_details = TheVLayout::new(TheId::named("Starter Project Preview Details"));
+        preview_details.set_background_color(Some(TheThemeColors::ListLayoutBackground));
+        preview_details.set_alignment(TheHorizontalAlign::Left);
+        preview_details.set_margin(Vec4::new(16, 12, 16, 12));
+        preview_details.set_padding(2);
+
+        let mut preview_kind = TheText::new(TheId::named(Self::STARTER_PREVIEW_KIND_ID));
+        preview_kind.set_text(String::new());
+        preview_kind.set_text_size(11.0);
+        preview_kind.set_text_color([104, 169, 232, 255]);
+        preview_details.add_widget(Box::new(preview_kind));
+
+        let mut preview_title = TheText::new(TheId::named(Self::STARTER_PREVIEW_TITLE_ID));
+        preview_title.set_text(fl!("starter_loading"));
+        preview_title.set_text_size(16.0);
+        preview_title.set_text_color(WHITE);
+        preview_details.add_widget(Box::new(preview_title));
+
+        let mut preview_description =
+            TheTextView::new(TheId::named(Self::STARTER_PREVIEW_DESCRIPTION_ID));
+        preview_description
+            .limiter_mut()
+            .set_max_size(Vec2::new(width - list_width - 32, 58));
+        preview_description.set_text(String::new());
+        preview_description.set_font_size(11.0);
+        preview_description.set_selectable(false);
+        preview_description.set_word_wrap(true);
+        preview_description.set_padding((0, 3, 0, 0));
+        preview_description.draw_background(false);
+        preview_description.draw_border(false);
+        preview_details.add_widget(Box::new(preview_description));
+        preview_details_canvas.set_layout(preview_details);
+        details.set_center(preview_details_canvas);
+        content.set_center(details);
+        dialog.set_center(content);
 
         let mut bottom = TheCanvas::new();
         bottom
@@ -4743,17 +4828,23 @@ impl Editor {
             .limiter_mut()
             .set_max_size(Vec2::new(width, bottom_bar_height));
         actions.set_background_color(Some(TheThemeColors::ListLayoutBackground));
-        actions.set_margin(Vec4::new(10, 2, 10, 2));
+        actions.set_margin(Vec4::new(16, 8, 10, 8));
         actions.set_padding(8);
         actions.set_reverse_index(Some(2));
 
-        let mut create = TheTraybarButton::new(TheId::named(Self::STARTER_CREATE_ID));
-        create.set_text(fl!("starter_choose"));
-        actions.add_widget(Box::new(create));
+        let mut note = TheText::new(TheId::named("Starter Project Note"));
+        note.set_text(fl!("starter_unsaved_note"));
+        note.set_text_size(11.0);
+        note.set_text_color([145, 152, 161, 255]);
+        actions.add_widget(Box::new(note));
 
         let mut cancel = TheTraybarButton::new(TheId::named(Self::STARTER_CANCEL_ID));
         cancel.set_text(fl!("starter_cancel"));
         actions.add_widget(Box::new(cancel));
+
+        let mut create = TheTraybarButton::new(TheId::named(Self::STARTER_CREATE_ID));
+        create.set_text(fl!("starter_create"));
+        actions.add_widget(Box::new(create));
 
         bottom.set_layout(actions);
         dialog.set_bottom(bottom);
@@ -4763,11 +4854,13 @@ impl Editor {
             self.starter_projects = starters;
             self.rebuild_starter_project_list(ui, ctx);
             if let Some(first) = self.starter_projects.first() {
-                self.selected_starter_manifest_id = Some(first.manifest_id.clone());
+                let manifest_id = first.manifest_id.clone();
+                self.selected_starter_manifest_id = Some(manifest_id.clone());
                 ctx.ui.send(TheEvent::StateChanged(
                     TheId::named_with_id("Starter Project List Item", first.id),
                     TheWidgetState::Selected,
                 ));
+                self.update_starter_project_preview(&manifest_id, ui, ctx);
                 ui.set_enabled(Self::STARTER_CREATE_ID, ctx);
             } else {
                 ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
@@ -4787,27 +4880,61 @@ impl Editor {
     fn rebuild_starter_project_list(&self, ui: &mut TheUI, ctx: &mut TheContext) {
         if let Some(list) = ui.get_list_layout(Self::STARTER_LIST_ID) {
             list.clear();
-            list.set_item_size(52);
+            list.set_item_size(70);
             for (index, entry) in self.starter_projects.iter().enumerate() {
                 let mut item =
                     TheListItem::new(TheId::named_with_id("Starter Project List Item", entry.id));
                 item.set_text(entry.title.clone());
-                item.set_sub_text(entry.description.clone());
-                item.set_size(52);
+                item.set_sub_text(entry.dimension.clone());
+                item.set_size(70);
                 item.set_text_color(WHITE);
                 item.set_text_size(14.0);
+                item.set_sub_text_color([104, 169, 232, 255]);
                 item.set_sub_text_size(12.0);
                 if index == 0 {
                     item.set_state(TheWidgetState::Selected);
                 }
-                if let Some(preview) = &entry.preview
-                    && let Some(first) = preview.buffer.first()
-                {
-                    item.set_icon(first.clone());
-                }
                 list.add_item(item, ctx);
             }
         }
+    }
+
+    fn update_starter_project_preview(
+        &self,
+        manifest_id: &str,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+    ) {
+        let Some(entry) = self
+            .starter_projects
+            .iter()
+            .find(|entry| entry.manifest_id == manifest_id)
+        else {
+            return;
+        };
+
+        if let Some(widget) = ui.get_widget(Self::STARTER_PREVIEW_ID)
+            && let Some(preview) = widget.as_icon_view()
+        {
+            preview.set_rgba_tile(entry.preview.clone().unwrap_or_default());
+        }
+        ui.set_widget_value(
+            Self::STARTER_PREVIEW_KIND_ID,
+            ctx,
+            TheValue::Text(entry.dimension.to_uppercase()),
+        );
+        ui.set_widget_value(
+            Self::STARTER_PREVIEW_TITLE_ID,
+            ctx,
+            TheValue::Text(entry.title.clone()),
+        );
+        ui.set_widget_value(
+            Self::STARTER_PREVIEW_DESCRIPTION_ID,
+            ctx,
+            TheValue::Text(entry.description.clone()),
+        );
+        ctx.ui.relayout = true;
+        ctx.ui.redraw_all = true;
     }
 
     fn open_project_as_session(
@@ -8789,22 +8916,40 @@ impl TheTrait for Editor {
             self.starter_projects = starters;
             self.rebuild_starter_project_list(ui, ctx);
             if let Some(first) = self.starter_projects.first() {
-                self.selected_starter_manifest_id = Some(first.manifest_id.clone());
+                let manifest_id = first.manifest_id.clone();
+                self.selected_starter_manifest_id = Some(manifest_id.clone());
                 ctx.ui.send(TheEvent::StateChanged(
                     TheId::named_with_id("Starter Project List Item", first.id),
                     TheWidgetState::Selected,
                 ));
+                self.update_starter_project_preview(&manifest_id, ui, ctx);
                 ui.set_enabled(Self::STARTER_CREATE_ID, ctx);
             } else if let Some(list) = ui.get_list_layout(Self::STARTER_LIST_ID) {
                 list.clear();
                 let mut item = TheListItem::new(TheId::named("Starter Project Empty"));
                 item.set_text(fl!("starter_empty"));
                 item.set_sub_text(fl!("starter_empty_sub"));
-                item.set_size(52);
+                item.set_size(70);
                 item.set_text_color(WHITE);
                 item.set_text_size(14.0);
+                item.set_sub_text_color([170, 176, 184, 255]);
                 item.set_sub_text_size(12.0);
                 list.add_item(item, ctx);
+                ui.set_widget_value(
+                    Self::STARTER_PREVIEW_KIND_ID,
+                    ctx,
+                    TheValue::Text(String::new()),
+                );
+                ui.set_widget_value(
+                    Self::STARTER_PREVIEW_TITLE_ID,
+                    ctx,
+                    TheValue::Text(fl!("starter_empty")),
+                );
+                ui.set_widget_value(
+                    Self::STARTER_PREVIEW_DESCRIPTION_ID,
+                    ctx,
+                    TheValue::Text(String::new()),
+                );
             }
             self.starter_loader_rx = None;
             ctx.ui.relayout = true;
@@ -8831,8 +8976,12 @@ impl TheTrait for Editor {
             ui.set_widget_value(
                 Self::STARTER_CREATE_ID,
                 ctx,
-                TheValue::Text(fl!("starter_choose")),
+                TheValue::Text(fl!("starter_create")),
             );
+            // The tray button sizes itself from its label. Re-layout after
+            // replacing the longer loading text so a failed load restores the
+            // compact action button instead of retaining the loading width.
+            ctx.ui.relayout = true;
             ui.set_enabled(Self::STARTER_CREATE_ID, ctx);
 
             if let Some(project) = project {
@@ -8871,6 +9020,9 @@ impl TheTrait for Editor {
                 let server_state = rusterix.server.state;
                 let is_running = server_state == rusterix::ServerState::Running;
                 let animate_editor = self.server_ctx.editor_view_mode == EditorViewMode::D2;
+                let preview_prefab_effects = self.server_ctx.pc.is_prefab()
+                    && self.server_ctx.curr_map_tool_type == MapToolType::Effects
+                    && self.server_ctx.editor_view_mode != EditorViewMode::D2;
                 if Self::should_advance_animation_frame(
                     server_state,
                     self.server_ctx.editor_view_mode,
@@ -8885,6 +9037,11 @@ impl TheTrait for Editor {
                     // either value changes the dynamics hash and would rebuild
                     // a generated scene for hundreds of milliseconds per frame.
                     rusterix.scene_handler.tick_particle_clock_2d();
+                } else if preview_prefab_effects {
+                    // The isolated Prefab FX editor is deliberately live. It
+                    // contains only one asset, so advancing its 3D emitters is
+                    // bounded and gives authors immediate lifetime feedback.
+                    rusterix.scene_handler.tick_particle_clock_3d();
                 }
             }
 
@@ -9080,6 +9237,9 @@ impl TheTrait for Editor {
                 buffer.resize(dim.width, dim.height);
 
                 {
+                    for paint in self.project.block_prop_paint.values_mut() {
+                        paint.ensure_baked_paint_current();
+                    }
                     let prefab_paint_catalog = self.project.block_prop_paint.clone();
                     // If we are drawing billboard vertices in the geometry overlay, update them.
                     if !running_game_mode && self.server_ctx.editor_view_mode != EditorViewMode::D2
@@ -9098,6 +9258,7 @@ impl TheTrait for Editor {
                     }
 
                     let rusterix = &mut RUSTERIX.write().unwrap();
+                    rusterix.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
 
                     if running_game_mode {
                         let game_messages = if self.server_ctx.text_game_mode {
@@ -9118,6 +9279,7 @@ impl TheTrait for Editor {
                         for r in &mut self.project.regions {
                             if r.map.name == rusterix.client.current_map {
                                 let region_id = r.id;
+                                r.iso_paint.ensure_baked_paint_current();
                                 let mut iso_paint = r.iso_paint.clone();
                                 crate::block_props::merge_prefab_paint_for_map(
                                     &mut iso_paint,
@@ -9276,6 +9438,12 @@ impl TheTrait for Editor {
                                 self.iso_paint_render_cache = Default::default();
                             }
                             if let Some(map) = self.project.get_map(&self.server_ctx) {
+                                // The isolated Prefab scene has no running game
+                                // widget to build its dynamic layer. Build it
+                                // here so authored particles and lights are
+                                // actually uploaded before the viewport draw.
+                                let animation_frame = rusterix.client.animation_frame;
+                                rusterix.build_dynamics_3d(map, animation_frame);
                                 rusterix.draw_d3_with_editor_background(
                                     map,
                                     render_view.render_buffer_mut().pixels_mut(),
@@ -9345,6 +9513,7 @@ impl TheTrait for Editor {
                                 let animation_frame = rusterix.client.animation_frame;
                                 rusterix.build_dynamics_3d(&region.map, animation_frame);
                                 let editor_neutral_background = !is_running;
+                                region.iso_paint.ensure_baked_paint_current();
                                 let mut combined_iso_paint = region.iso_paint.clone();
                                 crate::block_props::merge_prefab_paint_for_map(
                                     &mut combined_iso_paint,
@@ -9510,10 +9679,7 @@ impl TheTrait for Editor {
                                 if self.server_ctx.editor_view_mode == EditorViewMode::D2
                                     && rusterix.scene_handler.vm.vm_layer_count() > 1
                                 {
-                                    rusterix.scene_handler.vm.set_layer_enabled(
-                                        1,
-                                        self.server_ctx.show_editing_geometry,
-                                    );
+                                    rusterix.scene_handler.vm.set_layer_enabled(1, true);
                                 }
                                 rusterix.draw_scene(
                                     map,
@@ -9589,18 +9755,11 @@ impl TheTrait for Editor {
                             rusterix
                                 .client
                                 .set_map_tool_type_d2(self.server_ctx.curr_map_tool_type);
-                            let editing_screen =
-                                self.server_ctx.get_map_context() == MapContext::Screen;
-                            let show_editor_overlay =
-                                editing_screen || self.server_ctx.show_editing_geometry;
                             if let Some(map) = self.project.get_map_mut(&self.server_ctx) {
                                 if rusterix.scene_handler.vm.vm_layer_count() > 1 {
                                     // A screen's grid and widget bounds are the editing canvas,
-                                    // so they remain visible even when region geometry is hidden.
-                                    rusterix
-                                        .scene_handler
-                                        .vm
-                                        .set_layer_enabled(1, show_editor_overlay);
+                                    // and editing guides remain available in every 2D context.
+                                    rusterix.scene_handler.vm.set_layer_enabled(1, true);
                                 }
                                 if let Some(hover_cursor) = self.server_ctx.hover_cursor {
                                     rusterix.client.set_map_hover_info_d2(
@@ -9652,10 +9811,7 @@ impl TheTrait for Editor {
                                         true,
                                     );
                                     if rusterix.scene_handler.vm.vm_layer_count() > 1 {
-                                        rusterix
-                                            .scene_handler
-                                            .vm
-                                            .set_layer_enabled(1, show_editor_overlay);
+                                        rusterix.scene_handler.vm.set_layer_enabled(1, true);
                                     }
                                     rusterix.draw_custom_d2(
                                         &map,
@@ -9672,10 +9828,7 @@ impl TheTrait for Editor {
                                         true,
                                     );
                                     if rusterix.scene_handler.vm.vm_layer_count() > 1 {
-                                        rusterix
-                                            .scene_handler
-                                            .vm
-                                            .set_layer_enabled(1, show_editor_overlay);
+                                        rusterix.scene_handler.vm.set_layer_enabled(1, true);
                                     }
                                     rusterix.draw_custom_d2(
                                         map,
@@ -10483,11 +10636,15 @@ impl TheTrait for Editor {
                     } else if id.name == "Starter Project List Item"
                         && state == TheWidgetState::Selected
                     {
-                        self.selected_starter_manifest_id = self
+                        let selected_manifest_id = self
                             .starter_projects
                             .iter()
                             .find(|entry| entry.id == id.uuid)
                             .map(|entry| entry.manifest_id.clone());
+                        self.selected_starter_manifest_id = selected_manifest_id.clone();
+                        if let Some(manifest_id) = selected_manifest_id {
+                            self.update_starter_project_preview(&manifest_id, ui, ctx);
+                        }
                         redraw = true;
                     } else if id.name == Self::STARTER_CREATE_ID {
                         let selected_manifest_id =
@@ -10527,6 +10684,9 @@ impl TheTrait for Editor {
                                     ctx,
                                     TheValue::Text(fl!("starter_loading_project")),
                                 );
+                                // The button was initially measured for its action label.
+                                // Re-layout so the loading label is not clipped.
+                                ctx.ui.relayout = true;
                                 ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),

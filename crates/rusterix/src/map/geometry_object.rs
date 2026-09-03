@@ -1,4 +1,4 @@
-use crate::{BBox, PixelSource, ValueContainer};
+use crate::{BBox, ParticleEmissionShape, ParticleEmitterDef, PixelSource, ValueContainer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use theframework::prelude::FxHashMap;
@@ -10,6 +10,109 @@ pub enum GeometryObjectKind {
     Brush,
     Prop,
     Generated,
+}
+
+/// A persistent light source authored from a geometry face. The map stores these by the face's
+/// effective paint-surface ID so generated faces can be rebuilt without losing their emission.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FaceEmission {
+    #[serde(default = "default_face_emission_color")]
+    pub color: [f32; 3],
+    #[serde(default = "default_face_emission_intensity")]
+    pub intensity: f32,
+    #[serde(default = "default_face_emission_start_distance")]
+    pub start_distance: f32,
+    #[serde(default = "default_face_emission_end_distance")]
+    pub end_distance: f32,
+    #[serde(default = "default_face_emission_offset")]
+    pub offset: f32,
+    #[serde(default)]
+    pub flicker: f32,
+}
+
+impl Default for FaceEmission {
+    fn default() -> Self {
+        Self {
+            color: default_face_emission_color(),
+            intensity: default_face_emission_intensity(),
+            start_distance: default_face_emission_start_distance(),
+            end_distance: default_face_emission_end_distance(),
+            offset: default_face_emission_offset(),
+            flicker: 0.0,
+        }
+    }
+}
+
+fn default_face_emission_color() -> [f32; 3] {
+    [1.0, 0.28, 0.05]
+}
+
+fn default_face_emission_intensity() -> f32 {
+    2.0
+}
+
+fn default_face_emission_start_distance() -> f32 {
+    0.25
+}
+
+fn default_face_emission_end_distance() -> f32 {
+    4.0
+}
+
+fn default_face_emission_offset() -> f32 {
+    0.04
+}
+
+/// Persistent particles authored on a geometry face. The containing map keys this by effective
+/// paint-surface ID, just like [`FaceEmission`], so generated Wall faces keep the effect when the
+/// procedural mesh is rebuilt.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct FaceParticleEmission {
+    #[serde(default)]
+    pub emitter: ParticleEmitterDef,
+    #[serde(default = "default_face_particle_offset")]
+    pub offset: f32,
+    /// Optional project-palette references for the four lifetime ramp colors. A missing entry
+    /// keeps using the literal color stored in `emitter.color_ramp`, which preserves authored
+    /// colors when a project has no matching palette entry.
+    #[serde(default)]
+    pub palette_indices: [Option<u16>; 4],
+}
+
+impl Default for FaceParticleEmission {
+    fn default() -> Self {
+        let mut emitter = ParticleEmitterDef::default();
+        emitter.direction = Vec3::unit_y();
+        emitter.spread = 0.24;
+        emitter.rate = 12.0;
+        emitter.color = [64, 62, 58, 120];
+        emitter.color_ramp = Some([
+            [48, 46, 43, 118],
+            [76, 74, 70, 96],
+            [108, 106, 102, 52],
+            [138, 138, 138, 0],
+        ]);
+        emitter.color_variation = 10;
+        emitter.lifetime_range = (1.4, 2.8);
+        emitter.radius_range = (0.03, 0.09);
+        emitter.speed_range = (0.08, 0.22);
+        emitter.spawn_area = [0.0; 3];
+        emitter.emission_shape = ParticleEmissionShape::Surface;
+        emitter.flame_base = false;
+        emitter.size_curve = [0.55, 0.9, 1.25, 1.55];
+        emitter.opacity_curve = [0.12, 0.82, 0.42, 0.0];
+        emitter.gravity = [0.0, 0.06, 0.0];
+        emitter.turbulence = 0.1;
+        Self {
+            emitter,
+            offset: default_face_particle_offset(),
+            palette_indices: [None; 4],
+        }
+    }
+}
+
+fn default_face_particle_offset() -> f32 {
+    0.02
 }
 
 impl Default for GeometryObjectKind {
@@ -280,6 +383,167 @@ impl GeometryObject {
         object
     }
 
+    /// Create a cuboid with a true geometric corner radius. The surface is
+    /// built from shared vertices so smoothing groups remain continuous across
+    /// planar faces, cylindrical edges, and spherical corners.
+    pub fn rounded_box_from_bounds(
+        name: impl Into<String>,
+        min: Vec3<f32>,
+        max: Vec3<f32>,
+        radius: f32,
+        segments: usize,
+        smooth: bool,
+    ) -> Self {
+        let center = (min + max) * 0.5;
+        let half = (max - min).map(f32::abs) * 0.5;
+        let radius = radius.max(0.0).min(half.x.min(half.y).min(half.z));
+        if radius <= 1e-5 {
+            return Self::box_from_bounds(name, center - half, center + half);
+        }
+
+        let inner = (half - Vec3::broadcast(radius)).map(|value| value.max(0.0));
+        let samples = [
+            rounded_axis_samples(half.x, inner.x, segments),
+            rounded_axis_samples(half.y, inner.y, segments),
+            rounded_axis_samples(half.z, inner.z, segments),
+        ];
+        let mut object = Self::new(name);
+        let mut vertex_map = FxHashMap::<[i32; 3], usize>::default();
+
+        for (fixed_axis, u_axis, v_axis) in [(0usize, 1usize, 2usize), (1, 2, 0), (2, 0, 1)] {
+            for sign in [-1.0f32, 1.0] {
+                let expected = component_axis(fixed_axis) * sign;
+                let mut grid = vec![vec![0usize; samples[u_axis].len()]; samples[v_axis].len()];
+                for (v_index, v) in samples[v_axis].iter().copied().enumerate() {
+                    for (u_index, u) in samples[u_axis].iter().copied().enumerate() {
+                        let mut source = Vec3::zero();
+                        set_component(&mut source, fixed_axis, component(half, fixed_axis) * sign);
+                        set_component(&mut source, u_axis, u);
+                        set_component(&mut source, v_axis, v);
+                        let local = rounded_box_surface_point(source, inner, radius);
+                        let world = center + local;
+                        let key = [
+                            (world.x * 1_000_000.0).round() as i32,
+                            (world.y * 1_000_000.0).round() as i32,
+                            (world.z * 1_000_000.0).round() as i32,
+                        ];
+                        let vertex_index = *vertex_map.entry(key).or_insert_with(|| {
+                            let index = object.vertices.len();
+                            object.vertices.push(world);
+                            index
+                        });
+                        grid[v_index][u_index] = vertex_index;
+                    }
+                }
+                for v_index in 0..grid.len().saturating_sub(1) {
+                    for u_index in 0..grid[v_index].len().saturating_sub(1) {
+                        let mut indices = vec![
+                            grid[v_index][u_index],
+                            grid[v_index][u_index + 1],
+                            grid[v_index + 1][u_index + 1],
+                            grid[v_index + 1][u_index],
+                        ];
+                        let normal = (object.vertices[indices[1]] - object.vertices[indices[0]])
+                            .cross(object.vertices[indices[2]] - object.vertices[indices[0]]);
+                        if normal.dot(expected) < 0.0 {
+                            indices.reverse();
+                        }
+                        let mut surface = face(indices);
+                        surface.smoothing_group = if smooth { 1 } else { 0 };
+                        object.faces.push(surface);
+                    }
+                }
+            }
+        }
+        object.ensure_face_paint_data();
+        object
+    }
+
+    /// Create a vertical circular or elliptical cylinder bounded by `min` and
+    /// `max`. Caps remain flat while side faces can share smooth normals.
+    pub fn cylinder_from_bounds(
+        name: impl Into<String>,
+        min: Vec3<f32>,
+        max: Vec3<f32>,
+        segments: usize,
+        smooth: bool,
+    ) -> Self {
+        let segments = segments.max(3);
+        let center = (min + max) * 0.5;
+        let radius_x = ((max.x - min.x).abs() * 0.5).max(0.0001);
+        let radius_z = ((max.z - min.z).abs() * 0.5).max(0.0001);
+        let bottom = min.y.min(max.y);
+        let top = min.y.max(max.y);
+        let mut object = Self::new(name);
+        object.vertices.reserve(segments * 2);
+        for y in [bottom, top] {
+            for segment in 0..segments {
+                let angle = std::f32::consts::TAU * segment as f32 / segments as f32;
+                object.vertices.push(Vec3::new(
+                    center.x + radius_x * angle.cos(),
+                    y,
+                    center.z + radius_z * angle.sin(),
+                ));
+            }
+        }
+        for segment in 0..segments {
+            let next = (segment + 1) % segments;
+            let mut surface = face(vec![segment, next, next + segments, segment + segments]);
+            surface.smoothing_group = if smooth { 1 } else { 0 };
+            object.faces.push(surface);
+        }
+        object
+            .faces
+            .push(face((0..segments).rev().collect::<Vec<_>>()));
+        object
+            .faces
+            .push(face((segments..segments * 2).collect::<Vec<_>>()));
+        object.ensure_face_paint_data();
+        object
+    }
+
+    /// Replace only this object's mesh while retaining the closest authored
+    /// face source and automatic texture transform for every generated face. This lets
+    /// parametric edits change topology without unexpectedly returning a
+    /// painted object to the checker material.
+    pub fn replace_mesh_preserving_face_sources(&mut self, mut replacement: Self) {
+        let source_faces = self
+            .faces
+            .iter()
+            .filter_map(|face| {
+                geometry_face_normal(&self.vertices, face).map(|normal| {
+                    (
+                        normal,
+                        face.tile.clone(),
+                        face.texture_offset,
+                        face.texture_scale,
+                        face.texture_rotation,
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+
+        for face in &mut replacement.faces {
+            let Some(normal) = geometry_face_normal(&replacement.vertices, face) else {
+                continue;
+            };
+            let Some((_, tile, texture_offset, texture_scale, texture_rotation)) = source_faces
+                .iter()
+                .max_by(|left, right| left.0.dot(normal).total_cmp(&right.0.dot(normal)))
+            else {
+                continue;
+            };
+            face.tile = tile.clone();
+            face.texture_offset = *texture_offset;
+            face.texture_scale = *texture_scale;
+            face.texture_rotation = *texture_rotation;
+        }
+
+        self.vertices = replacement.vertices;
+        self.faces = replacement.faces;
+        self.ensure_face_paint_data();
+    }
+
     pub fn bbox(&self) -> Option<BBox> {
         let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
         let mut max = Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
@@ -430,6 +694,67 @@ pub fn remap_geometry_face_paint_uvs(
                 .unwrap_or_else(Vec2::zero)
         })
         .collect()
+}
+
+fn component(value: Vec3<f32>, axis: usize) -> f32 {
+    match axis {
+        0 => value.x,
+        1 => value.y,
+        _ => value.z,
+    }
+}
+
+fn set_component(value: &mut Vec3<f32>, axis: usize, component: f32) {
+    match axis {
+        0 => value.x = component,
+        1 => value.y = component,
+        _ => value.z = component,
+    }
+}
+
+fn component_axis(axis: usize) -> Vec3<f32> {
+    match axis {
+        0 => Vec3::unit_x(),
+        1 => Vec3::unit_y(),
+        _ => Vec3::unit_z(),
+    }
+}
+
+fn rounded_axis_samples(half: f32, inner: f32, segments: usize) -> Vec<f32> {
+    let segments = segments.max(1);
+    let radius = (half - inner).max(0.0);
+    let mut samples = Vec::with_capacity(segments * 2 + 2);
+    for index in 0..=segments {
+        samples.push(-half + radius * index as f32 / segments as f32);
+    }
+    if inner > 1e-5 {
+        samples.push(inner);
+    }
+    for index in 1..=segments {
+        samples.push(inner + radius * index as f32 / segments as f32);
+    }
+    samples.dedup_by(|a, b| (*a - *b).abs() <= 1e-6);
+    samples
+}
+
+fn rounded_box_surface_point(source: Vec3<f32>, inner: Vec3<f32>, radius: f32) -> Vec3<f32> {
+    let core = Vec3::new(
+        source.x.clamp(-inner.x, inner.x),
+        source.y.clamp(-inner.y, inner.y),
+        source.z.clamp(-inner.z, inner.z),
+    );
+    let offset = source - core;
+    core + offset.try_normalized().unwrap_or_else(Vec3::unit_y) * radius
+}
+
+fn geometry_face_normal(vertices: &[Vec3<f32>], face: &GeometryFace) -> Option<Vec3<f32>> {
+    let first = *vertices.get(*face.indices.first()?)?;
+    let mut normal = Vec3::zero();
+    for index in 1..face.indices.len().saturating_sub(1) {
+        normal += (*vertices.get(face.indices[index])? - first)
+            .cross(*vertices.get(face.indices[index + 1])? - first);
+    }
+    normal.try_normalized()
 }
 
 pub fn identity_transform() -> [[f32; 4]; 4] {

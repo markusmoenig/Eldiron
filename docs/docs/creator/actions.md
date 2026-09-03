@@ -33,9 +33,12 @@ This is a presentation change, not a rename of the underlying action or its save
 | Sidebar label | Stable ID |
 | --- | --- |
 | Camera: 3D Iso Camera | `camera.isometric` |
+| Face: Edit Face Emission | `face.edit_emission` |
+| Face: Edit Face Particles | `face.edit_particles` |
 | Face: Face Extrude | `face.extrude` |
 | Bake: Render | `bake.render` |
 | Tile: Edit Tile Meta Data | `tile.edit_metadata` |
+| View: Toggle Grid | `view.toggle_grid` |
 
 Use the interactive Console's `actions` command or Scepter's `action.list` command to discover the live catalog, including group, display name, applicability, shortcut, and stable ID. This keeps automation compatible when a label is translated or refined. See [Console](console#actions-and-tools) and [Scepter: Remote Editing](scepter_remote_editing#creator-actions-and-tools).
 
@@ -295,9 +298,11 @@ Options:
 
 ### Create Fitted Geometry
 
-Create an independent solid that exactly matches an existing opening, including rectangular, arched, concave, and irregular contours. In the 3D Edge Tool, select one opening rim edge, press **C** to select that closed contour, then press **L** to include the matching contour across the opening depth. Run **Create Fitted Geometry** to copy the selected reveal band, reverse its side faces for the new solid, and triangulate caps on both ends.
+Create independent fitted geometry for an existing opening, including rectangular, arched, concave, and irregular contours. For a Wall Tool opening, select the opening itself and run **Create Fitted Geometry**; the action reads the authored opening profile and wall thickness directly, so generated bricks do not need to form one editable contour. For ordinary geometry, use the 3D Edge Tool: select one opening rim edge and press **C** to select its closed contour. The action derives the opposite rim from the connected reveal faces.
 
-The source wall is not modified. The new Geometry Object inherits the opening's transform and adjacent face materials, and is selected immediately so it can be inset, reshaped, painted, or converted into a Prefab.
+The action can produce one leaf or two center-split leaves, use a custom depth centered in the opening, and create either a solid panel or a barred gate. The generated leaves are ordinary editable Geometry Objects.
+
+The source wall is not modified. A Wall opening supplies its world-space frame and surround material; an ordinary mesh opening supplies its object transform and adjacent face material. The result is selected immediately so it can be inset, reshaped, painted, or converted into a Prefab.
 
 ### Duplicate
 
@@ -346,6 +351,39 @@ Options:
 * `texture_scale_x`: scale the source horizontally. Larger values cover more surface area; smaller values repeat more tightly.
 * `texture_scale_y`: scale the source vertically. Larger values cover more surface area; smaller values repeat more tightly.
 * `texture_rotation`: rotate the source in degrees around the face UV center.
+
+### Edit Face Emission
+
+Emit real-time light from any selected 3D face. Emission is stored by the face's persistent surface identity, so it also survives regeneration of Wall surfaces. The light follows later object transforms and regenerated surface geometry, and its source uses the triangulated surface's area-weighted center rather than an AABB or vertex average.
+
+For a visibly glowing coal or lava face, combine this action with an **Emissive** 3D Paint material; face emission supplies the light cast into the scene, while the material controls the appearance of the source surface.
+
+Options:
+
+* `emission_enabled`: add or remove emission on the selected faces.
+* `emission_color`: emitted light color.
+* `emission_intensity`: light strength.
+* `emission_soft_radius`: fully lit inner distance before falloff.
+* `emission_range`: maximum light distance.
+* `emission_offset`: move the light slightly along the face normal.
+* `emission_flicker`: animate the intensity for fire-like sources.
+
+### Edit Face Particles
+
+Emit smoke-like particles across the full area of any selected 3D face. Concave faces use their actual triangulated shape instead of a rectangular approximation, and generated Wall surfaces retain the effect after rebuilding.
+
+Options:
+
+* `particles_enabled`: add or remove particles on the selected faces.
+* `particles_amount`: particles emitted per second across the entire face.
+* `particles_size`: average particle size.
+* `particles_speed`: initial rise speed away from the face.
+* `particles_lifetime`: average particle lifetime.
+* `particles_drift`: random atmospheric motion.
+* `particles_offset`: move the emitter slightly along the face normal.
+* `particles_color_1` through `particles_color_4`: particle colors over their lifetime.
+* `particles_palette_linked`: resolve the ramp from project palette entries while retaining the literal colors as fallbacks.
+* `particles_palette_colors`: four optional palette indices from particle birth to fade-out.
 
 ### Edit Geometry
 
@@ -489,9 +527,11 @@ Options:
 * `curve_mode`: `Line` or `Arc`.
 * `curve_amount`: curve strength. Positive and negative values bend the arc in opposite directions.
 
-### Toggle Editing Geometry
+### Toggle Grid
 
-Toggle the editor geometry overlay on or off. This affects the editor viewport and does not change project geometry.
+*Shortcut: Ctrl/Cmd + T*
+
+Toggle the construction grid in both 2D and 3D editor views. Editing geometry, selection handles, and surface guides remain visible when the grid is hidden. This is an editor-view preference and does not change project geometry.
 
 Options: none.
 

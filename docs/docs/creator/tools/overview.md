@@ -127,6 +127,10 @@ In 3D views:
 
 This keeps the familiar 2D tool vocabulary while changing the 3D behavior to direct object, face, edge, and vertex editing.
 
+The **Wall Tool** also provides **Surface** mode for fireplaces, forge beds, raised platforms, and similar inserts. Hover inside a region enclosed by connected wall spans to preview the fitted surface, then click to create it. Independently drawn wall runs whose endpoints touch the middle of existing straight walls are resolved into fitted junctions, so a curved forge front can divide a larger room into its own surface region. Elevation uses 0.25-unit steps; thickness and wall clearance remain independently adjustable, and the **Surface** HUD material slot accepts the same colors and tiles as other geometry. Because the fitted boundary stores its source wall spans, it follows later node moves and curve changes; Delete removes the selected surface.
+
+In **Build** mode, choose **Ring**, click the center, and drag the radius to create a closed four-span curved wall for wells, round rooms, or towers. Releasing finishes the ring and returns Build to **Line**, keeping the normal Wall panel compact. The generated nodes and spans remain editable like any other connected wall.
+
 ## Authoring Mode
 
 The tool strip also contains an **Authoring** toggle. When enabled, contexts that would normally show the **Tiles** dock show the **Authoring** dock instead.

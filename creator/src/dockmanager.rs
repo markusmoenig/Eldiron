@@ -350,16 +350,42 @@ impl DockManager {
     ) {
         self.remember_normal_split(ui);
         if self.dock == "Prefabs" {
-            let Some(asset_id) = server_ctx
-                .curr_block_asset_id
-                .filter(|id| project.block_props.contains_key(id))
-            else {
+            let mut asset_id = server_ctx.curr_block_asset_id;
+            if let Some(id) = asset_id
+                && !project.block_props.contains_key(&id)
+                && let Some(built_in) = crate::blocks::block_asset(id)
+            {
+                let editable = crate::blocks::editable_prefab_from_block_asset(built_in);
+                let editable_id = editable.id;
+                let editable_name = editable.name.clone();
+                project.block_props.insert(editable_id, editable);
+                server_ctx.curr_block_asset_id = Some(editable_id);
+                server_ctx.curr_block_asset_name = Some(editable_name.clone());
+                asset_id = Some(editable_id);
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
-                    fl!("status_prefab_editor_select_project_prefab"),
+                    format!("Created editable Prefab '{editable_name}' from the built-in asset"),
+                ));
+            }
+            if let Some(id) = asset_id
+                && !project.block_props.contains_key(&id)
+                && let Some(bundled) = crate::blocks::bundled_effect_prefab(id)
+            {
+                project.block_props.insert(id, bundled.clone());
+            }
+            let Some(asset_id) = asset_id.filter(|id| project.block_props.contains_key(id)) else {
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    "Select a Prefab to edit".to_string(),
                 ));
                 return;
             };
+            let prefab_changed =
+                crate::blocks::upgrade_legacy_effect_prefab_geometry(project, asset_id)
+                    | crate::blocks::ensure_prefab_default_surfaces(project, asset_id);
+            if prefab_changed {
+                crate::undo::project_helper::refresh_palette_runtime(project);
+            }
             if let Err(message) = crate::block_props::begin_prefab_editor(project, asset_id) {
                 ctx.ui
                     .send(TheEvent::SetStatusText(TheId::empty(), message));
@@ -425,9 +451,17 @@ impl DockManager {
                 group.set_index(EditorViewMode::Orbit.to_index());
             }
             crate::utils::editor_scene_full_rebuild(project, server_ctx);
+            let initial_tool = project
+                .block_props
+                .get(&asset_id)
+                .is_some_and(|asset| {
+                    !asset.particle_effects.is_empty() || !asset.light_effects.is_empty()
+                })
+                .then_some("tool.effects")
+                .unwrap_or("tool.geometry");
             ctx.ui.send(TheEvent::Custom(
                 TheId::named("Set Tool"),
-                TheValue::Text("tool.geometry".to_string()),
+                TheValue::Text(initial_tool.to_string()),
             ));
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),

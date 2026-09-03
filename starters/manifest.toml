@@ -4,7 +4,8 @@ title = "Hideout 2D"
 dimension = "2D"
 description = "A compact 2D starter featuring 2D & text play, combat, item use, gate unlocking, and a merchant."
 project_path = "starters/projects/Hideout2D.eldiron"
-image = "starters/images/logo.png"
+# Optional. Omit the preview field to leave the preview pane empty.
+# preview = "starters/images/hideout-2d-preview.png"
 
 [[starter]]
 id = "starter-3d"
@@ -12,7 +13,7 @@ title = "3D Starter"
 dimension = "3D"
 description = "A compact 3D starter scene with editable geometry, a floor, wall, and player."
 project_path = "starters/projects/3DStarter.eldiron"
-image = "starters/images/logo.png"
+# preview = "starters/images/3d-starter-preview.png"
 
 [[starter]]
 id = "gate"
@@ -20,12 +21,12 @@ title = "Gate"
 dimension = "3D"
 description = "A compact 3D starter featuring block editing, stairs, mesh navigation, and an 8-direction avatar."
 project_path = "starters/projects/Gate.eldiron"
-image = "starters/images/logo.png"
+# preview = "starters/images/gate-preview.png"
 
 [[starter]]
 id = "stonefall-dungeon"
 title = "Stonefall Dungeon"
 dimension = "3D"
-description = "A Dungeon Master-style example featuring a first-person dungeon, combat, spells, inventory, procedural architecture, and multiple character classes."
+description = "A first-person dungeon with combat, spells, inventory, and multiple character classes."
 project_path = "starters/projects/StonefallDungeon.eldiron"
-image = "starters/images/logo.png"
+# preview = "starters/images/stonefall-dungeon-preview.png"

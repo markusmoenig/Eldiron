@@ -31,6 +31,8 @@ pub fn begin_prefab_editor(project: &mut Project, asset_id: Uuid) -> Result<(), 
         .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?;
     let mut map = Map::default();
     map.name = asset.name.clone();
+    map.properties
+        .set("prefab_effect_preview_asset_id", Value::Id(asset.id));
     let mut part_by_object = IndexMap::default();
     for part in &asset.parts {
         for object in part.geometry_source.geometry_objects() {
@@ -66,6 +68,23 @@ pub fn prefab_editor_camera_frame(project: &Project) -> Option<(Vec3<f32>, f32)>
             max.y = max.y.max(point.y);
             max.z = max.z.max(point.z);
             found = true;
+        }
+    }
+
+    if let Some(asset_id) = map.properties.get_id("prefab_effect_preview_asset_id")
+        && let Some(asset) = project.block_props.get(&asset_id)
+    {
+        for part in &asset.parts {
+            for attachment in &part.attachments {
+                let point = Vec3::from(attachment.position);
+                min.x = min.x.min(point.x);
+                min.y = min.y.min(point.y);
+                min.z = min.z.min(point.z);
+                max.x = max.x.max(point.x);
+                max.y = max.y.max(point.y);
+                max.z = max.z.max(point.z);
+                found = true;
+            }
         }
     }
 
@@ -541,6 +560,12 @@ pub fn remove_prefab_part(
         component.properties.get_id("part_id") != Some(part_id)
             && component.properties.get_id("secondary_part_id") != Some(part_id)
     });
+    asset
+        .particle_effects
+        .retain(|effect| effect.part_id != part_id);
+    asset
+        .light_effects
+        .retain(|effect| effect.part_id != part_id);
     for owner in project.prefab_editor_part_by_object.values_mut() {
         if *owner == part_id {
             *owner = fallback_id;
@@ -1445,7 +1470,14 @@ fn remap_semantic_shape_ids(
     }
 }
 
-fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> FxHashMap<Uuid, Uuid> {
+#[derive(Default)]
+struct AssetInternalIdRemap {
+    surface_ids: FxHashMap<Uuid, Uuid>,
+    object_ids: FxHashMap<Uuid, Uuid>,
+    paint_ids: FxHashMap<[u32; 4], [u32; 4]>,
+}
+
+fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> AssetInternalIdRemap {
     let part_ids = asset
         .parts
         .iter()
@@ -1458,6 +1490,8 @@ fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> FxHash
         .collect::<FxHashMap<_, _>>();
     let mut object_ids = FxHashMap::default();
     let mut face_ids = FxHashMap::default();
+    let mut attachment_ids = FxHashMap::default();
+    let mut paint_ids = FxHashMap::default();
 
     for part in &mut asset.parts {
         part.id = part_ids[&part.id];
@@ -1465,7 +1499,9 @@ fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> FxHash
             .parent_part_id
             .and_then(|parent_id| part_ids.get(&parent_id).copied());
         for attachment in &mut part.attachments {
+            let old_id = attachment.id;
             attachment.id = Uuid::new_v4();
+            attachment_ids.insert(old_id, attachment.id);
         }
         let objects = match &mut part.geometry_source {
             rusterix::BlockPropGeometrySource::Authored { geometry_objects } => geometry_objects,
@@ -1477,10 +1513,23 @@ fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> FxHash
             let old_object_id = object.id;
             object.id = Uuid::new_v4();
             object_ids.insert(old_object_id, object.id);
+            let mut paint_surface_ids = FxHashMap::default();
             for face in &mut object.faces {
+                let old_surface_id = rusterix::geometry_face_effective_paint_surface_id(face);
+                let old_paint_id = persistent_geometry_paint_id(old_object_id, old_surface_id);
                 let old_face_id = face.id;
                 face.id = Uuid::new_v4();
                 face_ids.insert(old_face_id, face.id);
+                if face.paint_surface_id.is_some() {
+                    face.paint_surface_id = Some(
+                        *paint_surface_ids
+                            .entry(old_surface_id)
+                            .or_insert_with(Uuid::new_v4),
+                    );
+                }
+                let new_surface_id = rusterix::geometry_face_effective_paint_surface_id(face);
+                let new_paint_id = persistent_geometry_paint_id(object.id, new_surface_id);
+                paint_ids.insert(old_paint_id, new_paint_id);
             }
         }
     }
@@ -1498,6 +1547,28 @@ fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> FxHash
                 .set("secondary_part_id", Value::Id(*remapped));
         }
         component.id = component_ids[&component.id];
+    }
+    for effect in &mut asset.particle_effects {
+        effect.id = Uuid::new_v4();
+        effect.part_id = part_ids
+            .get(&effect.part_id)
+            .copied()
+            .unwrap_or(effect.part_id);
+        effect.attachment_id = attachment_ids
+            .get(&effect.attachment_id)
+            .copied()
+            .unwrap_or(effect.attachment_id);
+    }
+    for effect in &mut asset.light_effects {
+        effect.id = Uuid::new_v4();
+        effect.part_id = part_ids
+            .get(&effect.part_id)
+            .copied()
+            .unwrap_or(effect.part_id);
+        effect.attachment_id = attachment_ids
+            .get(&effect.attachment_id)
+            .copied()
+            .unwrap_or(effect.attachment_id);
     }
 
     let mut surface_ids = FxHashMap::default();
@@ -1520,7 +1591,107 @@ fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> FxHash
             .and_then(|component_id| component_ids.get(&component_id).copied());
         remap_semantic_shape_ids(&mut target.shape, &object_ids, &face_ids);
     }
-    surface_ids
+    AssetInternalIdRemap {
+        surface_ids,
+        object_ids,
+        paint_ids,
+    }
+}
+
+fn remap_prefab_paint_owner(owner: &mut Option<IsoPaintOwner>, object_ids: &FxHashMap<Uuid, Uuid>) {
+    if let Some(IsoPaintOwner::GeometryObject(object_id)) = owner
+        && let Some(remapped) = object_ids.get(object_id)
+    {
+        *object_id = *remapped;
+    }
+}
+
+fn remap_prefab_paint_layer(layer: &mut IsoPaintLayer, remap: &AssetInternalIdRemap) {
+    let mut stroke_ids = FxHashMap::default();
+    for chunk in layer.chunks.values_mut() {
+        for stroke in &mut chunk.strokes {
+            let old_stroke_id = stroke.id;
+            stroke.id = Uuid::new_v4();
+            stroke_ids.insert(old_stroke_id, stroke.id);
+            for point in &mut stroke.points {
+                remap_prefab_paint_owner(&mut point.owner, &remap.object_ids);
+                if let Some(paint_id) = point.paint_geo
+                    && let Some(remapped) = remap.paint_ids.get(&paint_id)
+                {
+                    point.paint_geo = Some(*remapped);
+                }
+            }
+        }
+        for stamp in &mut chunk.stamps {
+            stamp.id = Uuid::new_v4();
+            remap_prefab_paint_owner(&mut stamp.owner, &remap.object_ids);
+            if let Some(paint_id) = stamp.paint_geo
+                && let Some(remapped) = remap.paint_ids.get(&paint_id)
+            {
+                stamp.paint_geo = Some(*remapped);
+            }
+        }
+    }
+
+    let baked_chunks = std::mem::take(&mut layer.baked_chunks);
+    for (_, mut chunk) in baked_chunks {
+        let mut owner = Some(chunk.owner.clone());
+        remap_prefab_paint_owner(&mut owner, &remap.object_ids);
+        if let Some(owner) = owner {
+            chunk.owner = owner;
+        }
+        if let Some(remapped) = remap.paint_ids.get(&chunk.paint_geo) {
+            chunk.paint_geo = *remapped;
+        }
+        let key = baked_paint_chunk_key(chunk.paint_geo, chunk.origin);
+        layer.baked_chunks.insert(key, chunk);
+    }
+    layer.surface_commit_strokes = layer
+        .surface_commit_strokes
+        .iter()
+        .filter_map(|stroke_id| stroke_ids.get(stroke_id).copied())
+        .collect();
+    layer.surface_instance_owners.clear();
+    layer.screen_chunks.clear();
+}
+
+fn detach_prefab_geometry_sources(asset: &mut rusterix::BlockPropAsset) {
+    for part in &mut asset.parts {
+        if let rusterix::BlockPropGeometrySource::Recipe {
+            generated_cache, ..
+        } = &part.geometry_source
+        {
+            part.geometry_source = rusterix::BlockPropGeometrySource::Authored {
+                geometry_objects: generated_cache.clone(),
+            };
+        }
+    }
+}
+
+/// Create an independent project-owned copy of an entire Prefab asset. Every
+/// nested identity is regenerated so geometry, semantics, attachments,
+/// components, particles, and lights can be edited without touching the
+/// source. Asset-local 3D paint is cloned and remapped to the new geometry.
+pub fn duplicate_block_prop_asset(
+    project: &mut Project,
+    source: &rusterix::BlockPropAsset,
+    name: impl Into<String>,
+) -> Uuid {
+    let source_asset_id = source.id;
+    let mut duplicate = source.clone();
+    duplicate.id = Uuid::new_v4();
+    duplicate.name = name.into();
+    duplicate.alias.clear();
+    detach_prefab_geometry_sources(&mut duplicate);
+    let remap = regenerate_asset_internal_ids(&mut duplicate);
+    let duplicate_id = duplicate.id;
+    project.block_props.insert(duplicate_id, duplicate);
+
+    if let Some(mut paint) = project.block_prop_paint.get(&source_asset_id).cloned() {
+        remap_prefab_paint_layer(&mut paint, &remap);
+        project.block_prop_paint.insert(duplicate_id, paint);
+    }
+    duplicate_id
 }
 
 /// Creates an authored asset from the current object selection. Source objects
@@ -1663,9 +1834,14 @@ pub fn make_selected_block_prop_unique(
         .ok_or_else(|| fl!("error_prefab_unique_project_only"))?;
     unique_asset.id = Uuid::new_v4();
     unique_asset.name = format!("{} Copy", unique_asset.name);
-    let surface_ids = regenerate_asset_internal_ids(&mut unique_asset);
+    detach_prefab_geometry_sources(&mut unique_asset);
+    let id_remap = regenerate_asset_internal_ids(&mut unique_asset);
     let unique_asset_id = unique_asset.id;
     project.block_props.insert(unique_asset_id, unique_asset);
+    if let Some(mut paint) = project.block_prop_paint.get(&source_asset_id).cloned() {
+        remap_prefab_paint_layer(&mut paint, &id_remap);
+        project.block_prop_paint.insert(unique_asset_id, paint);
+    }
 
     let map = project
         .get_map_mut(server_ctx)
@@ -1678,7 +1854,7 @@ pub fn make_selected_block_prop_unique(
     instance.asset_id = unique_asset_id;
     for placement in &mut map.block_prop_surface_placements {
         if placement.prop_instance_id == instance_id
-            && let Some(surface_id) = surface_ids.get(&placement.surface_id)
+            && let Some(surface_id) = id_remap.surface_ids.get(&placement.surface_id)
         {
             placement.surface_id = *surface_id;
         }

@@ -258,7 +258,7 @@ impl IsoPaintRenderer {
         let radius = (stroke.size * 0.5).max(1.0);
         let writes_material = stroke.brush != "screen";
         for point in stroke.points {
-            if stroke.clip == "object"
+            if matches!(stroke.clip.as_str(), "surface" | "object")
                 && point
                     .owner
                     .as_ref()
@@ -418,14 +418,9 @@ impl IsoPaintRenderer {
         // The first UV experiment stored camera-space/circle bakes in the same field. There is
         // no compatibility requirement for that discarded system: never display those pixels as
         // if they belonged to the current UV brush implementation.
-        if layer.baked_version != ISO_PAINT_BAKE_VERSION {
-            // Current 3D strokes keep stable surface coordinates, so rebake them when the
-            // implementation changes. Legacy screen-space points have no such coordinates and
-            // naturally produce no pixels here.
-            layer.rebuild_baked_paint();
-            layer.surface_commit_strokes.clear();
-            layer.baked_version = ISO_PAINT_BAKE_VERSION;
-        }
+        // Callers normally migrate the persistent authoring layer before making a render clone.
+        // Keep this fallback for direct users of the renderer.
+        layer.ensure_baked_paint_current();
         let mut hasher = DefaultHasher::new();
         layer.visible.hash(&mut hasher);
         layer.baked_chunks.len().hash(&mut hasher);
@@ -4185,7 +4180,7 @@ impl IsoPaintRenderer {
         Option<f32>,
         Option<[i32; 2]>,
     ) {
-        if stroke.clip == "object"
+        if matches!(stroke.clip.as_str(), "surface" | "object")
             && let Some(point) = stroke
                 .points
                 .iter()

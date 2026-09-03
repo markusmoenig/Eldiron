@@ -1637,6 +1637,40 @@ mod tests {
         asset.category = "Furniture".to_string();
         let asset_id = asset.id;
         let part_id = asset.parts[0].id;
+        let attachment_id = Uuid::new_v4();
+        asset.parts[0]
+            .attachments
+            .push(rusterix::BlockPropAttachment {
+                id: attachment_id,
+                name: "Flame origin".to_string(),
+                position: [0.0, 0.8, 0.0],
+                direction: [0.0, 1.0, 0.0],
+                up: [0.0, 0.0, 1.0],
+            });
+        asset.placement.mode = rusterix::BlockPropPlacementMode::Wall;
+        asset.placement.surface_offset = 0.03;
+        asset
+            .particle_effects
+            .push(rusterix::BlockPropParticleEffect {
+                id: Uuid::new_v4(),
+                name: "Flame".to_string(),
+                part_id,
+                attachment_id,
+                enabled: true,
+                emitter: rusterix::ParticleEmitterDef::default(),
+            });
+        asset.light_effects.push(rusterix::BlockPropLightEffect {
+            id: Uuid::new_v4(),
+            name: "Fire light".to_string(),
+            part_id,
+            attachment_id,
+            enabled: true,
+            color: [255, 144, 64, 255],
+            intensity: 2.0,
+            range: 4.0,
+            flicker: 0.2,
+            lift: 0.05,
+        });
         let surface_id = Uuid::new_v4();
         asset.support_surfaces.push(BlockPropSupportSurface {
             id: surface_id,
@@ -1661,8 +1695,19 @@ mod tests {
             .prefab_editor_part_by_object
             .insert(object_id, part_id);
 
-        let instance = rusterix::BlockPropInstance::new(asset_id);
+        let mut instance = rusterix::BlockPropInstance::new(asset_id);
         let instance_id = instance.id;
+        let assembly_id = Uuid::new_v4();
+        let span_id = Uuid::new_v4();
+        instance.host_attachment = Some(rusterix::BlockPropHostAttachment::WallSpan {
+            assembly_id,
+            span_id,
+            along: 1.5,
+            height: 1.25,
+            side: -1.0,
+            offset: 0.03,
+            rotation_quarters: 2,
+        });
         project.regions[0].map.block_prop_instances.push(instance);
         let mut local_transform = identity_block_prop_transform();
         local_transform[3][1] = 0.05;
@@ -1686,6 +1731,12 @@ mod tests {
             .get(&asset_id)
             .expect("restored block/prop asset");
         assert_eq!(restored_asset.name, "Table");
+        assert_eq!(
+            restored_asset.placement.mode,
+            rusterix::BlockPropPlacementMode::Wall
+        );
+        assert_eq!(restored_asset.particle_effects.len(), 1);
+        assert_eq!(restored_asset.light_effects.len(), 1);
         assert!(restored_asset.find_support_surface(surface_id).is_some());
         assert!(
             restored.block_prop_paint[&asset_id]
@@ -1697,6 +1748,18 @@ mod tests {
         assert_eq!(
             restored.regions[0].map.block_prop_instances[0].asset_id,
             asset_id
+        );
+        assert_eq!(
+            restored.regions[0].map.block_prop_instances[0].host_attachment,
+            Some(rusterix::BlockPropHostAttachment::WallSpan {
+                assembly_id,
+                span_id,
+                along: 1.5,
+                height: 1.25,
+                side: -1.0,
+                offset: 0.03,
+                rotation_quarters: 2,
+            })
         );
         assert_eq!(
             restored.regions[0].map.block_prop_surface_placements[0].occupant,

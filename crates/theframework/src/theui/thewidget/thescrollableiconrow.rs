@@ -32,6 +32,7 @@ pub struct TheScrollableIconRow {
     tile_width: i32,
     icon_padding: i32,
     gap: i32,
+    show_labels: bool,
     is_dirty: bool,
 }
 
@@ -88,6 +89,7 @@ impl TheWidget for TheScrollableIconRow {
             tile_width: 64,
             icon_padding: 3,
             gap: 5,
+            show_labels: false,
             is_dirty: true,
         }
     }
@@ -224,7 +226,8 @@ impl TheWidget for TheScrollableIconRow {
         );
         self.rectangles.clear();
 
-        let tile_h = (self.dim.height - 8).clamp(20, 38);
+        let max_tile_height = if self.show_labels { 50 } else { 38 };
+        let tile_h = (self.dim.height - 8).clamp(20, max_tile_height);
         for (index, item) in self.items.iter().enumerate() {
             let x = 7 + index as i32 * (self.tile_width + self.gap) - self.scroll_offset;
             let y = 4;
@@ -245,12 +248,13 @@ impl TheWidget for TheScrollableIconRow {
             ctx.draw
                 .rect(tile_buffer.pixels_mut(), &outer, tile_stride, bg);
             if let Some(icon) = item.icon.as_ref() {
+                let label_height = if self.show_labels { 13 } else { 0 };
                 let padding = self.icon_padding.min(self.tile_width / 2).min(tile_h / 2);
                 let preview = (
                     padding as usize,
                     padding as usize,
                     (self.tile_width - padding * 2).max(1) as usize,
-                    (tile_h - padding * 2).max(1) as usize,
+                    (tile_h - padding * 2 - label_height).max(1) as usize,
                 );
                 ctx.draw.blend_scale_chunk(
                     tile_buffer.pixels_mut(),
@@ -259,6 +263,27 @@ impl TheWidget for TheScrollableIconRow {
                     icon.pixels(),
                     &(icon.dim().width as usize, icon.dim().height as usize),
                 );
+                if self.show_labels {
+                    let label_rect = (
+                        2,
+                        (tile_h - label_height).max(0) as usize,
+                        (self.tile_width - 4).max(1) as usize,
+                        label_height as usize,
+                    );
+                    ctx.draw.text_rect_blend(
+                        tile_buffer.pixels_mut(),
+                        &label_rect,
+                        tile_stride,
+                        &item.label,
+                        TheFontSettings {
+                            size: 9.0,
+                            ..Default::default()
+                        },
+                        style.theme().color(ListItemText),
+                        TheHorizontalAlign::Center,
+                        TheVerticalAlign::Center,
+                    );
+                }
             } else {
                 ctx.draw.text_rect_blend(
                     tile_buffer.pixels_mut(),
@@ -304,6 +329,7 @@ pub trait TheScrollableIconRowTrait {
     fn selected(&self) -> usize;
     fn set_tile_width(&mut self, width: i32);
     fn set_icon_padding(&mut self, padding: i32);
+    fn set_show_labels(&mut self, show: bool);
 }
 
 impl TheScrollableIconRowTrait for TheScrollableIconRow {
@@ -331,6 +357,11 @@ impl TheScrollableIconRowTrait for TheScrollableIconRow {
 
     fn set_icon_padding(&mut self, padding: i32) {
         self.icon_padding = padding.clamp(0, 24);
+        self.is_dirty = true;
+    }
+
+    fn set_show_labels(&mut self, show: bool) {
+        self.show_labels = show;
         self.is_dirty = true;
     }
 }

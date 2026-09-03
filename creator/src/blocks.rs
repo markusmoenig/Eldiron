@@ -649,6 +649,915 @@ pub fn block_asset(id: Uuid) -> Option<&'static BlockAsset> {
     block_assets().iter().find(|asset| asset.id == id)
 }
 
+fn style_effect_geometry(
+    mut object: rusterix::GeometryObject,
+    color: [u8; 4],
+    material: &str,
+) -> rusterix::GeometryObject {
+    object
+        .properties
+        .set("prefab_default_color", Value::Color(TheColor::from(color)));
+    object
+        .properties
+        .set("prefab_material_hint", Value::Str(material.to_string()));
+    object
+}
+
+fn effect_geometry_box(
+    name: &str,
+    min: Vec3<f32>,
+    max: Vec3<f32>,
+    color: [u8; 4],
+    material: &str,
+) -> rusterix::GeometryObject {
+    let mut object = rusterix::GeometryObject::box_from_bounds(name.to_string(), min, max);
+    object.kind = rusterix::GeometryObjectKind::Prop;
+    style_effect_geometry(object, color, material)
+}
+
+fn effect_geometry_face(indices: Vec<usize>, smoothing_group: u32) -> rusterix::GeometryFace {
+    rusterix::GeometryFace {
+        id: Uuid::new_v4(),
+        paint_surface_id: None,
+        uvs: indices.iter().map(|_| Vec2::zero()).collect(),
+        indices,
+        paint_uvs: Vec::new(),
+        auto_uv: true,
+        texture_offset: Vec2::zero(),
+        texture_scale: Vec2::broadcast(1.0),
+        texture_rotation: 0.0,
+        tile: None,
+        tiles: FxHashMap::default(),
+        surface_points: Vec::new(),
+        surface_segments: Vec::new(),
+        smoothing_group,
+    }
+}
+
+/// A cylinder aligned between two authored points. This is used instead of
+/// placeholder boxes for fixtures whose silhouette depends on their angle.
+fn effect_geometry_cylinder(
+    name: &str,
+    start: Vec3<f32>,
+    end: Vec3<f32>,
+    radius: f32,
+    segments: usize,
+    color: [u8; 4],
+    material: &str,
+) -> rusterix::GeometryObject {
+    let axis = (end - start).try_normalized().unwrap_or_else(Vec3::unit_y);
+    let reference = if axis.y.abs() < 0.92 {
+        Vec3::unit_y()
+    } else {
+        Vec3::unit_x()
+    };
+    let side_a = axis
+        .cross(reference)
+        .try_normalized()
+        .unwrap_or_else(Vec3::unit_z);
+    let side_b = axis.cross(side_a).normalized();
+    let segments = segments.max(6);
+    let mut vertices = Vec::with_capacity(segments * 2);
+    for center in [start, end] {
+        for index in 0..segments {
+            let angle = index as f32 / segments as f32 * std::f32::consts::TAU;
+            vertices.push(center + side_a * angle.cos() * radius + side_b * angle.sin() * radius);
+        }
+    }
+    let mut faces = Vec::with_capacity(segments + 2);
+    for index in 0..segments {
+        let next = (index + 1) % segments;
+        faces.push(effect_geometry_face(
+            vec![index, next, next + segments, index + segments],
+            1,
+        ));
+    }
+    faces.push(effect_geometry_face((0..segments).rev().collect(), 0));
+    faces.push(effect_geometry_face((segments..segments * 2).collect(), 0));
+    let mut object = rusterix::GeometryObject::new(name);
+    object.kind = rusterix::GeometryObjectKind::Prop;
+    object.vertices = vertices;
+    object.faces = faces;
+    object.ensure_face_paint_data();
+    style_effect_geometry(object, color, material)
+}
+
+fn effect_surface_defaults(object: &rusterix::GeometryObject) -> ([u8; 4], String, String) {
+    let name = object.name.to_ascii_lowercase();
+    let inferred = if name.contains("iron")
+        || name.contains("grate")
+        || name.contains("metal")
+        || name.contains("plate")
+        || name.contains("basket")
+        || name.contains("rail")
+    {
+        ([48, 52, 57, 255], "metal")
+    } else if name.contains("wood")
+        || name.contains("log")
+        || name.contains("torch")
+        || name.contains("table")
+        || name.contains("door")
+    {
+        ([91, 49, 24, 255], "wood")
+    } else if name.contains("wax") || name.contains("candle") {
+        ([224, 207, 164, 255], "wax")
+    } else if name.contains("ember") || name.contains("burning") {
+        ([142, 48, 20, 255], "emissive")
+    } else if name.contains("stone")
+        || name.contains("wall")
+        || name.contains("floor")
+        || name.contains("ceiling")
+        || name.contains("column")
+        || name.contains("block")
+        || name.contains("stair")
+    {
+        ([112, 106, 94, 255], "stone")
+    } else {
+        ([126, 118, 104, 255], "default")
+    };
+    let color = object
+        .properties
+        .get_color_default("prefab_default_color", TheColor::from(inferred.0));
+    let material = object
+        .properties
+        .get_str_default("prefab_material_hint", inferred.1.to_string());
+    let finish = if material == "metal" {
+        "matte"
+    } else {
+        "natural"
+    };
+    (color.to_u8_array(), material, finish.to_string())
+}
+
+pub fn prefab_object_default_color(object: &rusterix::GeometryObject) -> [u8; 4] {
+    effect_surface_defaults(object).0
+}
+
+fn palette_color_distance(a: [u8; 4], b: [u8; 4]) -> u32 {
+    a[..3]
+        .iter()
+        .zip(&b[..3])
+        .map(|(a, b)| {
+            let delta = *a as i32 - *b as i32;
+            (delta * delta) as u32
+        })
+        .sum()
+}
+
+fn prefab_palette_slot(project: &mut Project, color: [u8; 4], material: &str, finish: &str) -> u16 {
+    project.ensure_art_palette_materials_len();
+    let best_matching_material = project
+        .art_palette
+        .colors
+        .iter()
+        .enumerate()
+        .filter_map(|(index, entry)| {
+            let entry = entry.as_ref()?;
+            let palette_material = project.art_palette_materials.get(index)?;
+            (palette_material.preset == material)
+                .then_some((index, palette_color_distance(entry.to_u8_array(), color)))
+        })
+        .min_by_key(|(_, distance)| *distance)
+        .filter(|(_, distance)| *distance <= 6_000)
+        .map(|(index, _)| index);
+    if let Some(index) = best_matching_material {
+        return index as u16;
+    }
+
+    if let Some(index) = project
+        .art_palette
+        .colors
+        .iter()
+        .position(|entry| entry.as_ref().is_none_or(|color| color.a <= f32::EPSILON))
+    {
+        project.art_palette.colors[index] = Some(TheColor::from(color));
+        project.ensure_art_palette_materials_len();
+        if let Some(palette_material) = project.art_palette_materials.get_mut(index) {
+            palette_material.preset = material.to_string();
+            palette_material.finish = finish.to_string();
+        }
+        return index as u16;
+    }
+
+    project
+        .art_palette
+        .find_closest_color_index(&TheColor::from(color))
+        .unwrap_or(project.art_palette.current_index as usize) as u16
+}
+
+/// Resolve only genuinely unassigned faces. Existing tile, color, material,
+/// and painted-face assignments remain exactly as authored.
+pub fn ensure_prefab_default_surfaces(project: &mut Project, asset_id: Uuid) -> bool {
+    let Some(mut asset) = project.block_props.get(&asset_id).cloned() else {
+        return false;
+    };
+    let mut changed = false;
+    for part in &mut asset.parts {
+        let objects = match &mut part.geometry_source {
+            rusterix::BlockPropGeometrySource::Authored { geometry_objects } => geometry_objects,
+            rusterix::BlockPropGeometrySource::Recipe {
+                generated_cache, ..
+            } => generated_cache,
+        };
+        for object in objects {
+            let (color, material, finish) = effect_surface_defaults(object);
+            let mut palette_slot = None;
+            for face in &mut object.faces {
+                if face.tile.is_some() || !face.tiles.is_empty() {
+                    continue;
+                }
+                let slot = *palette_slot
+                    .get_or_insert_with(|| prefab_palette_slot(project, color, &material, &finish));
+                face.tile = Some(rusterix::PixelSource::PaletteIndex(slot));
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        project.block_props.insert(asset_id, asset);
+    }
+    changed
+}
+
+pub(crate) fn fire_emitter(rate: f32, scale: f32) -> rusterix::ParticleEmitterDef {
+    let mut emitter = rusterix::ParticleEmitterDef::default();
+    emitter.rate = rate;
+    emitter.spread = 0.48;
+    emitter.lifetime_range = (0.32, 0.86);
+    emitter.radius_range = (0.025 * scale, 0.075 * scale);
+    emitter.speed_range = (0.28 * scale, 0.78 * scale);
+    emitter.spawn_area = [0.055 * scale, 0.015, 0.055 * scale];
+    emitter.color = [255, 154, 61, 255];
+    emitter.color_ramp = Some([
+        [255, 245, 174, 255],
+        [255, 190, 68, 255],
+        [238, 84, 25, 220],
+        [56, 12, 5, 0],
+    ]);
+    emitter.flame_base = true;
+    emitter.size_curve = [0.72, 1.0, 0.68, 0.12];
+    emitter.opacity_curve = [1.0, 0.92, 0.58, 0.0];
+    emitter.gravity = [0.0, 0.16, 0.0];
+    emitter.turbulence = 0.22;
+    emitter
+}
+
+/// The authored flame used by Stonefall's wall torch. Keep the Prefab editor's
+/// Flame preset on the same visual baseline as the shipped dungeon content.
+pub(crate) fn stonefall_torch_flame_emitter() -> rusterix::ParticleEmitterDef {
+    let mut emitter = rusterix::ParticleEmitterDef::default();
+    emitter.direction = Vec3::new(0.0, 1.0, 0.0);
+    emitter.spread = 0.48;
+    emitter.rate = 25.0;
+    emitter.color = [255, 154, 61, 255];
+    emitter.color_ramp = Some([
+        [255, 242, 168, 255],
+        [255, 193, 79, 255],
+        [240, 100, 31, 255],
+        [64, 16, 8, 255],
+    ]);
+    emitter.color_variation = 20;
+    emitter.lifetime_range = (0.32, 0.78);
+    emitter.radius_range = (0.025, 0.065);
+    emitter.speed_range = (0.28, 0.72);
+    emitter.spawn_area = [0.045, 0.015, 0.035];
+    emitter.flame_base = true;
+    emitter
+}
+
+pub(crate) fn smoke_emitter(rate: f32, scale: f32) -> rusterix::ParticleEmitterDef {
+    let mut emitter = rusterix::ParticleEmitterDef::default();
+    emitter.rate = rate;
+    emitter.spread = 0.28;
+    emitter.lifetime_range = (1.5, 3.4);
+    emitter.radius_range = (0.07 * scale, 0.20 * scale);
+    emitter.speed_range = (0.12 * scale, 0.32 * scale);
+    emitter.spawn_area = [0.06 * scale, 0.02, 0.06 * scale];
+    emitter.color = [92, 92, 88, 120];
+    emitter.color_ramp = Some([
+        [58, 54, 48, 135],
+        [88, 84, 78, 105],
+        [120, 118, 112, 54],
+        [140, 140, 140, 0],
+    ]);
+    emitter.size_curve = [0.65, 1.0, 1.45, 1.9];
+    emitter.opacity_curve = [0.15, 0.82, 0.48, 0.0];
+    emitter.gravity = [0.0, 0.08, 0.0];
+    emitter.turbulence = 0.12;
+    emitter
+}
+
+fn make_effect_prefab(
+    id: Uuid,
+    name: &str,
+    geometry: Vec<rusterix::GeometryObject>,
+    attachment_position: [f32; 3],
+    placement_mode: rusterix::BlockPropPlacementMode,
+    particles: Vec<(&str, rusterix::ParticleEmitterDef)>,
+    light: bool,
+) -> rusterix::BlockPropAsset {
+    let part_id = Uuid::from_u128(id.as_u128().wrapping_add(0x100));
+    let attachment_id = Uuid::from_u128(id.as_u128().wrapping_add(0x200));
+    let mut part = rusterix::BlockPropPart::new_authored("Body", geometry);
+    part.id = part_id;
+    part.attachments.push(rusterix::BlockPropAttachment {
+        id: attachment_id,
+        name: "Effect origin".to_string(),
+        position: attachment_position,
+        direction: [0.0, 1.0, 0.0],
+        up: [0.0, 0.0, 1.0],
+    });
+    let mut asset = rusterix::BlockPropAsset::new(name);
+    asset.id = id;
+    asset.alias = name.to_ascii_lowercase().replace(' ', "-");
+    asset.category = "Effects".to_string();
+    asset.tags = vec!["effect".to_string()];
+    asset.parts.push(part);
+    asset.placement.mode = placement_mode;
+    asset.placement.snap_to_surfaces = true;
+    asset.placement.snap_to_grid = placement_mode == rusterix::BlockPropPlacementMode::Ground;
+    asset.placement.surface_offset = if placement_mode == rusterix::BlockPropPlacementMode::Wall {
+        0.015
+    } else {
+        0.0
+    };
+    for (index, (particle_name, emitter)) in particles.into_iter().enumerate() {
+        asset
+            .particle_effects
+            .push(rusterix::BlockPropParticleEffect {
+                id: Uuid::from_u128(id.as_u128().wrapping_add(0x300 + index as u128)),
+                name: particle_name.to_string(),
+                part_id,
+                attachment_id,
+                enabled: true,
+                emitter,
+            });
+    }
+    if light {
+        asset.light_effects.push(rusterix::BlockPropLightEffect {
+            id: Uuid::from_u128(id.as_u128().wrapping_add(0x400)),
+            name: "Fire light".to_string(),
+            part_id,
+            attachment_id,
+            enabled: true,
+            color: [255, 151, 65, 255],
+            intensity: 2.4,
+            range: 4.5,
+            flicker: 0.22,
+            lift: 0.05,
+        });
+    }
+    asset
+}
+
+static BUNDLED_EFFECT_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(|| {
+    let wall_torch_id = Uuid::from_u128(0xB10C_EFFE_0000_0000_0000_0000_0000_0001);
+    let campfire_id = Uuid::from_u128(0xB10C_EFFE_0000_0000_0000_0000_0000_0002);
+    let vapor_grate_id = Uuid::from_u128(0xB10C_EFFE_0000_0000_0000_0000_0000_0003);
+    let candle_cluster_id = Uuid::from_u128(0xB10C_EFFE_0000_0000_0000_0000_0000_0004);
+    let iron_brazier_id = Uuid::from_u128(0xB10C_EFFE_0000_0000_0000_0000_0000_0005);
+    const IRON: [u8; 4] = [48, 52, 57, 255];
+    const WOOD: [u8; 4] = [91, 49, 24, 255];
+    const CHARRED: [u8; 4] = [45, 24, 17, 255];
+    const EMBER: [u8; 4] = [142, 48, 20, 255];
+    const WAX: [u8; 4] = [224, 207, 164, 255];
+    vec![
+        make_effect_prefab(
+            wall_torch_id,
+            "Wall Torch",
+            vec![
+                effect_geometry_cylinder(
+                    "Wall plate",
+                    Vec3::new(0.0, 0.48, -0.055),
+                    Vec3::new(0.0, 0.48, 0.045),
+                    0.17,
+                    12,
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Iron bracket",
+                    Vec3::new(0.0, 0.48, 0.03),
+                    Vec3::new(0.0, 0.74, 0.29),
+                    0.035,
+                    10,
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Iron socket",
+                    Vec3::new(0.0, 0.68, 0.24),
+                    Vec3::new(0.0, 0.82, 0.37),
+                    0.105,
+                    12,
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Wooden torch",
+                    Vec3::new(0.0, 0.73, 0.29),
+                    Vec3::new(0.0, 1.23, 0.74),
+                    0.055,
+                    12,
+                    WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Iron torch band",
+                    Vec3::new(0.0, 1.10, 0.62),
+                    Vec3::new(0.0, 1.17, 0.68),
+                    0.073,
+                    12,
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Burning tip",
+                    Vec3::new(0.0, 1.18, 0.69),
+                    Vec3::new(0.0, 1.34, 0.83),
+                    0.095,
+                    12,
+                    CHARRED,
+                    "wood",
+                ),
+            ],
+            [0.0, 1.36, 0.85],
+            rusterix::BlockPropPlacementMode::Wall,
+            vec![
+                ("Flame", stonefall_torch_flame_emitter()),
+                ("Smoke", smoke_emitter(5.0, 0.7)),
+            ],
+            true,
+        ),
+        make_effect_prefab(
+            campfire_id,
+            "Campfire",
+            vec![
+                effect_geometry_box(
+                    "Log A",
+                    Vec3::new(-0.62, 0.06, -0.12),
+                    Vec3::new(0.62, 0.22, 0.12),
+                    WOOD,
+                    "wood",
+                ),
+                effect_geometry_box(
+                    "Log B",
+                    Vec3::new(-0.12, 0.12, -0.62),
+                    Vec3::new(0.12, 0.28, 0.62),
+                    WOOD,
+                    "wood",
+                ),
+                effect_geometry_box(
+                    "Embers",
+                    Vec3::new(-0.30, 0.02, -0.30),
+                    Vec3::new(0.30, 0.13, 0.30),
+                    EMBER,
+                    "emissive",
+                ),
+            ],
+            [0.0, 0.24, 0.0],
+            rusterix::BlockPropPlacementMode::Ground,
+            vec![
+                ("Flame", fire_emitter(46.0, 1.5)),
+                ("Smoke", smoke_emitter(8.0, 1.25)),
+            ],
+            true,
+        ),
+        make_effect_prefab(
+            vapor_grate_id,
+            "Vapor Grate",
+            vec![
+                effect_geometry_box(
+                    "Grate rim north",
+                    Vec3::new(-0.65, 0.00, -0.65),
+                    Vec3::new(0.65, 0.08, -0.50),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Grate rim south",
+                    Vec3::new(-0.65, 0.00, 0.50),
+                    Vec3::new(0.65, 0.08, 0.65),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Grate rim west",
+                    Vec3::new(-0.65, 0.00, -0.50),
+                    Vec3::new(-0.50, 0.08, 0.50),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Grate rim east",
+                    Vec3::new(0.50, 0.00, -0.50),
+                    Vec3::new(0.65, 0.08, 0.50),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Grate bar A",
+                    Vec3::new(-0.34, 0.02, -0.50),
+                    Vec3::new(-0.25, 0.07, 0.50),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Grate bar B",
+                    Vec3::new(-0.05, 0.02, -0.50),
+                    Vec3::new(0.05, 0.07, 0.50),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Grate bar C",
+                    Vec3::new(0.25, 0.02, -0.50),
+                    Vec3::new(0.34, 0.07, 0.50),
+                    IRON,
+                    "metal",
+                ),
+            ],
+            [0.0, 0.04, 0.0],
+            rusterix::BlockPropPlacementMode::Ground,
+            vec![("Vapor", {
+                let mut vapor = smoke_emitter(16.0, 1.5);
+                vapor.color = [158, 178, 184, 105];
+                vapor
+            })],
+            false,
+        ),
+        {
+            let mut candles = make_effect_prefab(
+                candle_cluster_id,
+                "Candle Cluster",
+                vec![
+                    effect_geometry_cylinder(
+                        "Iron candle tray",
+                        Vec3::new(0.0, 0.015, 0.0),
+                        Vec3::new(0.0, 0.065, 0.0),
+                        0.38,
+                        16,
+                        IRON,
+                        "metal",
+                    ),
+                    effect_geometry_cylinder(
+                        "Tall candle",
+                        Vec3::new(-0.12, 0.06, 0.03),
+                        Vec3::new(-0.12, 0.62, 0.03),
+                        0.075,
+                        12,
+                        WAX,
+                        "wax",
+                    ),
+                    effect_geometry_cylinder(
+                        "Short candle",
+                        Vec3::new(0.13, 0.06, 0.10),
+                        Vec3::new(0.13, 0.40, 0.10),
+                        0.09,
+                        12,
+                        WAX,
+                        "wax",
+                    ),
+                    effect_geometry_cylinder(
+                        "Rear candle",
+                        Vec3::new(0.06, 0.06, -0.14),
+                        Vec3::new(0.06, 0.50, -0.14),
+                        0.065,
+                        12,
+                        WAX,
+                        "wax",
+                    ),
+                ],
+                [-0.12, 0.65, 0.03],
+                rusterix::BlockPropPlacementMode::Ground,
+                vec![("Tall candle flame", fire_emitter(15.0, 0.42))],
+                true,
+            );
+            let part_id = candles.parts[0].id;
+            for (index, (name, position)) in [
+                ("Short candle flame", [0.13, 0.43, 0.10]),
+                ("Rear candle flame", [0.06, 0.53, -0.14]),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let attachment_id = Uuid::from_u128(
+                    candle_cluster_id
+                        .as_u128()
+                        .wrapping_add(0x210 + index as u128),
+                );
+                candles.parts[0]
+                    .attachments
+                    .push(rusterix::BlockPropAttachment {
+                        id: attachment_id,
+                        name: name.to_string(),
+                        position,
+                        direction: [0.0, 1.0, 0.0],
+                        up: [0.0, 0.0, 1.0],
+                    });
+                candles
+                    .particle_effects
+                    .push(rusterix::BlockPropParticleEffect {
+                        id: Uuid::from_u128(
+                            candle_cluster_id
+                                .as_u128()
+                                .wrapping_add(0x310 + index as u128),
+                        ),
+                        name: name.to_string(),
+                        part_id,
+                        attachment_id,
+                        enabled: true,
+                        emitter: fire_emitter(13.0, 0.36),
+                    });
+            }
+            candles
+        },
+        make_effect_prefab(
+            iron_brazier_id,
+            "Iron Brazier",
+            vec![
+                effect_geometry_cylinder(
+                    "Iron foot",
+                    Vec3::new(0.0, 0.02, 0.0),
+                    Vec3::new(0.0, 0.10, 0.0),
+                    0.43,
+                    16,
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Iron pedestal",
+                    Vec3::new(0.0, 0.08, 0.0),
+                    Vec3::new(0.0, 0.38, 0.0),
+                    0.12,
+                    12,
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Iron fire bowl",
+                    Vec3::new(0.0, 0.33, 0.0),
+                    Vec3::new(0.0, 0.50, 0.0),
+                    0.52,
+                    16,
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Ember bed",
+                    Vec3::new(0.0, 0.49, 0.0),
+                    Vec3::new(0.0, 0.55, 0.0),
+                    0.40,
+                    16,
+                    EMBER,
+                    "emissive",
+                ),
+                effect_geometry_box(
+                    "Cage rail north",
+                    Vec3::new(-0.48, 0.66, -0.47),
+                    Vec3::new(0.48, 0.72, -0.42),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Cage rail south",
+                    Vec3::new(-0.48, 0.66, 0.42),
+                    Vec3::new(0.48, 0.72, 0.47),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Cage rail west",
+                    Vec3::new(-0.47, 0.66, -0.42),
+                    Vec3::new(-0.42, 0.72, 0.42),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Cage rail east",
+                    Vec3::new(0.42, 0.66, -0.42),
+                    Vec3::new(0.47, 0.72, 0.42),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Cage post northwest",
+                    Vec3::new(-0.48, 0.45, -0.48),
+                    Vec3::new(-0.40, 0.76, -0.40),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Cage post northeast",
+                    Vec3::new(0.40, 0.45, -0.48),
+                    Vec3::new(0.48, 0.76, -0.40),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Cage post southwest",
+                    Vec3::new(-0.48, 0.45, 0.40),
+                    Vec3::new(-0.40, 0.76, 0.48),
+                    IRON,
+                    "metal",
+                ),
+                effect_geometry_box(
+                    "Cage post southeast",
+                    Vec3::new(0.40, 0.45, 0.40),
+                    Vec3::new(0.48, 0.76, 0.48),
+                    IRON,
+                    "metal",
+                ),
+            ],
+            [0.0, 0.57, 0.0],
+            rusterix::BlockPropPlacementMode::Ground,
+            vec![
+                ("Flame", fire_emitter(52.0, 1.15)),
+                ("Smoke", smoke_emitter(7.0, 0.85)),
+            ],
+            true,
+        ),
+    ]
+});
+
+pub fn bundled_effect_prefabs() -> &'static [rusterix::BlockPropAsset] {
+    &BUNDLED_EFFECT_PREFABS
+}
+
+pub fn bundled_effect_prefab(id: Uuid) -> Option<&'static rusterix::BlockPropAsset> {
+    bundled_effect_prefabs().iter().find(|asset| asset.id == id)
+}
+
+/// Migrate the original three-box Wall Torch placeholder without replacing
+/// the user's particle or light edits on the project-owned Prefab.
+pub fn upgrade_legacy_effect_prefab_geometry(project: &mut Project, asset_id: Uuid) -> bool {
+    let Some(project_asset) = project.block_props.get(&asset_id) else {
+        return false;
+    };
+    let object_names = project_asset
+        .parts
+        .first()
+        .map(|part| {
+            part.geometry_source
+                .geometry_objects()
+                .iter()
+                .map(|object| object.name.as_str())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if object_names != ["Wall plate", "Torch stem", "Fire basket"] {
+        return false;
+    }
+    let Some(bundled) = bundled_effect_prefab(asset_id) else {
+        return false;
+    };
+    let Some(project_part) = project
+        .block_props
+        .get_mut(&asset_id)
+        .and_then(|asset| asset.parts.first_mut())
+    else {
+        return false;
+    };
+    let Some(bundled_part) = bundled.parts.first() else {
+        return false;
+    };
+    project_part.geometry_source = bundled_part.geometry_source.clone();
+    project_part.attachments = bundled_part.attachments.clone();
+    true
+}
+
+fn prefab_surface_hit_and_normal(
+    map: &Map,
+    server_ctx: &ServerContext,
+) -> Option<(Vec3<f32>, Option<Vec3<f32>>)> {
+    let hit = server_ctx
+        .hover_surface_hit_pos
+        .or(server_ctx.hover_cursor_3d)
+        .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))?;
+    let normal = server_ctx.hover_surface_normal;
+    if let Some(scenevm::GeoId::GeometryObject(object_id)) = server_ctx.geo_hit
+        && let Some((wall_hit, wall_normal)) =
+            map.wall_surface_frame_for_geometry_object(object_id, hit, normal)
+    {
+        return Some((wall_hit, Some(wall_normal)));
+    }
+    Some((hit, normal))
+}
+
+pub fn prefab_surface_placement_valid(
+    asset: &rusterix::BlockPropAsset,
+    map: &Map,
+    server_ctx: &ServerContext,
+) -> bool {
+    let has_hit = server_ctx.hover_surface_hit_pos.is_some()
+        || server_ctx.hover_cursor_3d.is_some()
+        || server_ctx.geo_hit.is_some();
+    match asset.placement.mode {
+        rusterix::BlockPropPlacementMode::Ground => has_hit,
+        rusterix::BlockPropPlacementMode::Free => has_hit,
+        rusterix::BlockPropPlacementMode::AnySurface => {
+            has_hit && server_ctx.hover_surface_normal.is_some()
+        }
+        rusterix::BlockPropPlacementMode::Wall => {
+            has_hit
+                && prefab_surface_hit_and_normal(map, server_ctx)
+                    .and_then(|(_, normal)| normal)
+                    .is_some_and(|normal| normal.y.abs() <= 0.72)
+        }
+    }
+}
+
+/// Build the live placement preview frame for a surface-mounted Prefab.
+pub fn surface_prefab_preview_instance(
+    asset: &rusterix::BlockPropAsset,
+    map: &Map,
+    server_ctx: &ServerContext,
+) -> Option<rusterix::BlockPropInstance> {
+    if !prefab_surface_placement_valid(asset, map, server_ctx) {
+        return None;
+    }
+    let (hit, normal) = prefab_surface_hit_and_normal(map, server_ctx)?;
+    if asset.placement.mode == rusterix::BlockPropPlacementMode::Free {
+        let mut instance = rusterix::BlockPropInstance::new(asset.id);
+        instance.world_transform[3][0] = hit.x;
+        instance.world_transform[3][1] = hit.y;
+        instance.world_transform[3][2] = hit.z;
+        return Some(instance);
+    }
+    let normal = normal?.try_normalized()?;
+    if asset.placement.mode == rusterix::BlockPropPlacementMode::Wall && normal.y.abs() > 0.72 {
+        return None;
+    }
+    let (mut right, mut up, forward) =
+        if asset.placement.mode == rusterix::BlockPropPlacementMode::Wall {
+            let forward = Vec3::new(normal.x, 0.0, normal.z).try_normalized()?;
+            (
+                Vec3::unit_y().cross(forward).try_normalized()?,
+                Vec3::unit_y(),
+                forward,
+            )
+        } else {
+            let up = normal;
+            let reference = if up.z.abs() < 0.9 {
+                Vec3::unit_z()
+            } else {
+                Vec3::unit_x()
+            };
+            let forward = (reference - up * reference.dot(up)).try_normalized()?;
+            (up.cross(forward).try_normalized()?, up, forward)
+        };
+    let angle =
+        server_ctx.block_rotation_quarters.rem_euclid(4) as f32 * std::f32::consts::FRAC_PI_2;
+    let (sin, cos) = angle.sin_cos();
+    let rotated_right = right * cos + up * sin;
+    let rotated_up = up * cos - right * sin;
+    right = rotated_right;
+    up = rotated_up;
+    let origin = hit + normal * asset.placement.surface_offset;
+    let mut instance = rusterix::BlockPropInstance::new(asset.id);
+    for (column, axis) in [right, up, forward].into_iter().enumerate() {
+        instance.world_transform[column][0] = axis.x;
+        instance.world_transform[column][1] = axis.y;
+        instance.world_transform[column][2] = axis.z;
+    }
+    instance.world_transform[3][0] = origin.x;
+    instance.world_transform[3][1] = origin.y;
+    instance.world_transform[3][2] = origin.z;
+    Some(instance)
+}
+
+/// Convert one immutable built-in catalog entry into an ordinary project
+/// Prefab. Editing therefore uses the same geometry/effect pipeline as every
+/// user-authored asset instead of a reduced, hard-coded representation.
+pub fn editable_prefab_from_block_asset(asset: &BlockAsset) -> rusterix::BlockPropAsset {
+    let geometry = asset
+        .boxes
+        .iter()
+        .enumerate()
+        .filter_map(|(index, _)| {
+            adjusted_rotated_bounds(asset, index, BlockSizing::default(), 0).map(|(min, max)| {
+                let mut object = rusterix::GeometryObject::box_from_bounds(
+                    format!("{} Part {}", asset.name, index + 1),
+                    min,
+                    max,
+                );
+                object.kind = rusterix::GeometryObjectKind::Prop;
+                object
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut prefab =
+        rusterix::BlockPropAsset::new_authored(localized_block_asset_name(asset), geometry);
+    prefab.alias = asset.name.to_ascii_lowercase().replace(' ', "-");
+    prefab.category = "Built-in Copy".to_string();
+    prefab.placement.footprint = [
+        asset.footprint.x.max(1) as u32,
+        asset.footprint.y.max(1) as u32,
+        asset.footprint.z.max(1) as u32,
+    ];
+    prefab
+}
+
 pub fn block_sizing_from_context(server_ctx: &ServerContext) -> BlockSizing {
     BlockSizing {
         height_cells: server_ctx.block_height_cells.max(1),

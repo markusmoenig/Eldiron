@@ -266,6 +266,7 @@ impl Chunk {
             blend_weights: Vec::new(),
             paint_surface_id: None,
             paint_source_id: None,
+            paint_group_id: None,
             paint_uvs: Vec::new(),
         });
     }
@@ -296,6 +297,7 @@ impl Chunk {
             visible,
             paint_surface_id,
             paint_source_id,
+            None,
             paint_uvs,
         );
     }
@@ -314,6 +316,7 @@ impl Chunk {
         visible: bool,
         paint_surface_id: [u32; 4],
         paint_source_id: Option<GeoId>,
+        paint_group_id: Option<GeoId>,
         paint_uvs: Vec<[f32; 2]>,
     ) {
         self.add_poly_3d(id, tile_id, vertices, uvs, indices, layer, visible);
@@ -325,6 +328,7 @@ impl Chunk {
             poly.normals = normals;
             poly.paint_surface_id = Some(paint_surface_id);
             poly.paint_source_id = paint_source_id;
+            poly.paint_group_id = paint_group_id;
             poly.paint_uvs = paint_uvs;
         }
     }
@@ -384,6 +388,7 @@ impl Chunk {
             blend_weights,
             paint_surface_id: None,
             paint_source_id: None,
+            paint_group_id: None,
             paint_uvs: Vec::new(),
         });
     }
@@ -462,6 +467,7 @@ impl Chunk {
             blend_weights: Vec::new(),
             paint_surface_id: None,
             paint_source_id: None,
+            paint_group_id: None,
             paint_uvs: Vec::new(),
         };
         self.polys3d_map.entry(id).or_default().push(poly);
@@ -558,6 +564,7 @@ impl Chunk {
             blend_weights: Vec::new(),
             paint_surface_id: None,
             paint_source_id: None,
+            paint_group_id: None,
             paint_uvs: Vec::new(),
         };
         self.polys3d_map.entry(id).or_default().push(poly);

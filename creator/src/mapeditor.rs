@@ -17,7 +17,21 @@ pub(crate) fn geometry_selection_status_text(
 
     if !map.selected_block_prop_instances.is_empty() {
         let count = map.selected_block_prop_instances.len();
-        return Some(fl!("status_prefab_instances_selected", count = count));
+        let mounted = map.selected_block_prop_instances.iter().any(|selected_id| {
+            map.block_prop_instances
+                .iter()
+                .find(|instance| instance.id == *selected_id)
+                .is_some_and(|instance| instance.host_attachment.is_some())
+        });
+        return Some(if mounted {
+            format!(
+                "{count} Prefab instance(s) · Move gizmo adjusts wall position/height/offset · R rotate · F flip · D detach · hover wall + A attach · Delete removes"
+            )
+        } else {
+            format!(
+                "{count} Prefab instance(s) · Move gizmo · R rotate · hover wall + A attach · Delete removes"
+            )
+        });
     }
 
     if !map.selected_geometry_surface_points.is_empty()

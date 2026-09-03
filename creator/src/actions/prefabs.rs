@@ -276,3 +276,200 @@ prefab_action_type!(
     "action_unpack_prefab",
     "action_unpack_prefab_desc"
 );
+
+#[derive(Clone, Copy)]
+enum MountedPrefabActionKind {
+    Rotate,
+    Flip,
+    Detach,
+    Reattach,
+}
+
+pub struct MountedPrefabAction {
+    id: TheId,
+    kind: MountedPrefabActionKind,
+    description: &'static str,
+}
+
+impl MountedPrefabAction {
+    fn new_with(
+        kind: MountedPrefabActionKind,
+        label: &'static str,
+        description: &'static str,
+    ) -> Self {
+        Self {
+            id: TheId::named(label),
+            kind,
+            description,
+        }
+    }
+
+    fn has_hosted_selection(map: &Map) -> bool {
+        map.selected_block_prop_instances.iter().any(|selected_id| {
+            map.block_prop_instances
+                .iter()
+                .find(|instance| instance.id == *selected_id)
+                .is_some_and(|instance| instance.host_attachment.is_some())
+        })
+    }
+}
+
+macro_rules! mounted_prefab_action_type {
+    ($name:ident, $kind:ident, $label:literal, $description:literal) => {
+        pub struct $name(MountedPrefabAction);
+
+        impl Action for $name {
+            fn new() -> Self {
+                Self(MountedPrefabAction::new_with(
+                    MountedPrefabActionKind::$kind,
+                    $label,
+                    $description,
+                ))
+            }
+
+            fn id(&self) -> TheId {
+                self.0.id.clone()
+            }
+
+            fn info(&self) -> String {
+                self.0.description.to_string()
+            }
+
+            fn role(&self) -> ActionRole {
+                ActionRole::Editor
+            }
+
+            fn is_applicable(
+                &self,
+                map: &Map,
+                _ctx: &mut TheContext,
+                server_ctx: &ServerContext,
+            ) -> bool {
+                if server_ctx.editor_view_mode == EditorViewMode::D2
+                    || server_ctx.curr_map_tool_type != MapToolType::Selection
+                    || map.selected_block_prop_instances.is_empty()
+                {
+                    return false;
+                }
+                match self.0.kind {
+                    MountedPrefabActionKind::Rotate => true,
+                    MountedPrefabActionKind::Flip | MountedPrefabActionKind::Detach => {
+                        MountedPrefabAction::has_hosted_selection(map)
+                    }
+                    MountedPrefabActionKind::Reattach => {
+                        matches!(server_ctx.geo_hit, Some(scenevm::GeoId::GeometryObject(id)) if map.wall_source_for_geometry_object(id).is_some())
+                    }
+                }
+            }
+
+            fn apply_project(
+                &self,
+                project: &mut Project,
+                _ui: &mut TheUI,
+                ctx: &mut TheContext,
+                server_ctx: &mut ServerContext,
+            ) {
+                let before = project.clone();
+                let Some(map) = project.get_map_mut(server_ctx) else {
+                    return;
+                };
+                let selected = map.selected_block_prop_instances.clone();
+                let mut changed = false;
+                match self.0.kind {
+                    MountedPrefabActionKind::Rotate => {
+                        for instance_id in selected {
+                            changed |= map.rotate_block_prop_placement(instance_id, 1);
+                        }
+                    }
+                    MountedPrefabActionKind::Flip => {
+                        for instance_id in selected {
+                            changed |= map.flip_wall_hosted_block_prop(instance_id);
+                        }
+                    }
+                    MountedPrefabActionKind::Detach => {
+                        for instance_id in selected {
+                            changed |= map.detach_block_prop(instance_id);
+                        }
+                    }
+                    MountedPrefabActionKind::Reattach => {
+                        if let Some(scenevm::GeoId::GeometryObject(object_id)) = server_ctx.geo_hit {
+                            let normal = server_ctx.hover_surface_normal.unwrap_or(Vec3::unit_z());
+                            for instance_id in selected {
+                                let asset_id = map
+                                    .block_prop_instances
+                                    .iter()
+                                    .find(|instance| instance.id == instance_id)
+                                    .map(|instance| instance.asset_id);
+                                let offset = asset_id
+                                    .and_then(|asset_id| {
+                                        RUSTERIX
+                                            .read()
+                                            .ok()?
+                                            .assets
+                                            .block_props
+                                            .get(&asset_id)
+                                            .map(|asset| asset.placement.surface_offset)
+                                    })
+                                    .unwrap_or(0.0);
+                                changed |= map.attach_block_prop_to_wall_surface(
+                                    instance_id,
+                                    object_id,
+                                    server_ctx.geo_hit_pos,
+                                    normal,
+                                    offset,
+                                );
+                            }
+                        }
+                    }
+                }
+                if changed {
+                    PrefabAction::finish(self.info(), before, project, ctx, server_ctx);
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        self.info(),
+                    ));
+                }
+            }
+
+            fn params(&self) -> TheNodeUI {
+                TheNodeUI::default()
+            }
+
+            fn handle_event(
+                &mut self,
+                _event: &TheEvent,
+                _project: &mut Project,
+                _ui: &mut TheUI,
+                _ctx: &mut TheContext,
+                _server_ctx: &mut ServerContext,
+            ) -> bool {
+                false
+            }
+        }
+    };
+}
+
+mounted_prefab_action_type!(
+    RotatePlacedPrefab,
+    Rotate,
+    "Rotate Placed Prefab",
+    "Rotate the selected Prefab around its placement axis"
+);
+mounted_prefab_action_type!(
+    FlipMountedPrefab,
+    Flip,
+    "Flip Mounted Prefab",
+    "Move the selected mounted Prefab to the opposite side of its wall"
+);
+mounted_prefab_action_type!(
+    DetachMountedPrefab,
+    Detach,
+    "Detach Prefab",
+    "Keep the selected Prefab in place but stop following its wall"
+);
+mounted_prefab_action_type!(
+    ReattachMountedPrefab,
+    Reattach,
+    "Attach Prefab to Hovered Wall",
+    "Attach the selected Prefab to the wall currently under the cursor"
+);

@@ -92,8 +92,20 @@ pub fn current_selection_tool_type(map: &Map) -> MapToolType {
 
 pub fn wall_hud_material_slots(map: &Map) -> Option<Vec<ActionMaterialSlot>> {
     let assembly_id = map.selected_wall_assembly?;
-    let span_id = *map.selected_wall_spans.first()?;
     let assembly = map.wall_assembly(assembly_id)?;
+    if let Some(surface_id) = map.selected_wall_surface {
+        let surface = assembly.area_surface(surface_id)?;
+        return Some(vec![ActionMaterialSlot {
+            label: "SURFACE".to_string(),
+            source: Some(
+                surface
+                    .source
+                    .clone()
+                    .unwrap_or_else(|| assembly.floor_pixel_source()),
+            ),
+        }]);
+    }
+    let span_id = *map.selected_wall_spans.first()?;
     let span = assembly.span(span_id)?;
     let style = span.style_override.as_ref().unwrap_or(&assembly.style);
     let surround_source = map
@@ -391,30 +403,32 @@ pub fn apply_builder_hud_material_to_selection(
     }
     match server_ctx.curr_map_tool_type {
         MapToolType::Wall => {
-            if slot_index > 5 {
-                return false;
-            }
             let Some(assembly_id) = map.selected_wall_assembly else {
                 return false;
             };
-            let Some(span_id) = map.selected_wall_spans.first().copied() else {
-                return false;
-            };
+            let span_ids = map.selected_wall_spans.clone();
             let selected_opening = map.selected_wall_opening;
-            let inherited = {
-                let Some(assembly) = map.wall_assembly(assembly_id) else {
-                    return false;
-                };
-                let Some(span) = assembly.span(span_id) else {
-                    return false;
-                };
-                span.style_override
-                    .clone()
-                    .unwrap_or_else(|| assembly.style.clone())
-            };
+            let selected_surface = map.selected_wall_surface;
             let Some(assembly) = map.wall_assembly_mut(assembly_id) else {
                 return false;
             };
+            if let Some(surface_id) = selected_surface {
+                if slot_index != 0 {
+                    return false;
+                }
+                let Some(surface) = assembly.area_surface_mut(surface_id) else {
+                    return false;
+                };
+                if surface.source == source {
+                    return false;
+                }
+                surface.source = source;
+                map.rebuild_wall_geometry();
+                return true;
+            }
+            if slot_index > 5 {
+                return false;
+            }
             if slot_index == 5 {
                 if assembly.floor_source == source {
                     return false;
@@ -426,6 +440,9 @@ pub fn apply_builder_hud_material_to_selection(
             if slot_index == 4
                 && let Some(opening_id) = selected_opening
             {
+                let Some(span_id) = span_ids.first().copied() else {
+                    return false;
+                };
                 let Some(opening) = assembly.opening_mut(span_id, opening_id) else {
                     return false;
                 };
@@ -436,51 +453,60 @@ pub fn apply_builder_hud_material_to_selection(
                 map.rebuild_wall_geometry();
                 return true;
             }
-            let Some(span) = assembly.span_mut(span_id) else {
-                return false;
-            };
-            let style = span.style_override.get_or_insert(inherited);
-            let changed = match slot_index {
-                0 => {
-                    let changed = style.stone_source != source || !style.stone_variants.is_empty();
-                    style.stone_source = source;
-                    style.stone_variants.clear();
-                    changed
-                }
-                1 | 2 => {
-                    let variant_index = slot_index as usize - 1;
-                    let fallback = style.primary_stone_source();
-                    let previous = style.stone_variants.get(variant_index).cloned();
-                    if let Some(source) = source {
-                        style
-                            .stone_variants
-                            .resize(variant_index.saturating_add(1), fallback);
-                        style.stone_variants[variant_index] = source;
-                    } else if variant_index < style.stone_variants.len() {
-                        style.stone_variants[variant_index] = fallback.clone();
-                        while style.stone_variants.last() == Some(&fallback) {
-                            style.stone_variants.pop();
+            let assembly_style = assembly.style.clone();
+            let mut changed = false;
+            for span_id in span_ids {
+                let Some(span) = assembly.span_mut(span_id) else {
+                    continue;
+                };
+                let inherited = span
+                    .style_override
+                    .clone()
+                    .unwrap_or_else(|| assembly_style.clone());
+                let style = span.style_override.get_or_insert(inherited);
+                changed |= match slot_index {
+                    0 => {
+                        let changed =
+                            style.stone_source != source || !style.stone_variants.is_empty();
+                        style.stone_source = source.clone();
+                        style.stone_variants.clear();
+                        changed
+                    }
+                    1 | 2 => {
+                        let variant_index = slot_index as usize - 1;
+                        let fallback = style.primary_stone_source();
+                        let previous = style.stone_variants.get(variant_index).cloned();
+                        if let Some(source) = source.clone() {
+                            style
+                                .stone_variants
+                                .resize(variant_index.saturating_add(1), fallback);
+                            style.stone_variants[variant_index] = source;
+                        } else if variant_index < style.stone_variants.len() {
+                            style.stone_variants[variant_index] = fallback.clone();
+                            while style.stone_variants.last() == Some(&fallback) {
+                                style.stone_variants.pop();
+                            }
+                        }
+                        previous != style.stone_variants.get(variant_index).cloned()
+                    }
+                    3 => {
+                        if style.mortar_source == source {
+                            false
+                        } else {
+                            style.mortar_source = source.clone();
+                            true
                         }
                     }
-                    previous != style.stone_variants.get(variant_index).cloned()
-                }
-                3 => {
-                    if style.mortar_source == source {
-                        false
-                    } else {
-                        style.mortar_source = source;
-                        true
+                    _ => {
+                        if style.frame_source == source {
+                            false
+                        } else {
+                            style.frame_source = source.clone();
+                            true
+                        }
                     }
-                }
-                _ => {
-                    if style.frame_source == source {
-                        false
-                    } else {
-                        style.frame_source = source;
-                        true
-                    }
-                }
-            };
+                };
+            }
             if !changed {
                 return false;
             }
@@ -887,6 +913,7 @@ pub mod create_center_vertex;
 pub mod create_fitted_geometry;
 pub mod create_geometry_box;
 pub mod create_linedef;
+pub mod create_primitives;
 pub mod create_revolve;
 pub mod create_ridge;
 pub mod create_sector;
@@ -895,6 +922,9 @@ pub mod cut_stairs;
 pub mod duplicate;
 pub mod duplicate_surface_detail;
 pub mod duplicate_tile;
+pub mod edge_bevel;
+pub mod edit_face_emission;
+pub mod edit_face_particles;
 pub mod edit_face_texture;
 pub mod edit_geometry;
 pub mod edit_linedef;
@@ -911,6 +941,7 @@ pub mod face_merge;
 pub mod face_subdivide;
 pub mod filter_editing_geo;
 pub mod firstp_camera;
+pub mod geometry_edge_ops;
 pub mod geometry_face_ops;
 pub mod import_palette;
 pub mod iso_camera;
@@ -921,8 +952,8 @@ pub mod orthographic_bake;
 pub mod prefabs;
 pub mod remap_tile;
 pub mod split;
-pub mod toggle_editing_geo;
 pub mod toggle_editor_preview_render;
+pub mod toggle_grid;
 pub mod toggle_rect_geo;
 pub mod toggle_surface_curve;
 
