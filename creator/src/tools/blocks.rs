@@ -1,10 +1,13 @@
 use crate::blocks::{
     BLOCK_COLUMN_SEGMENTS, BLOCK_OPERATION_ERASE, BLOCK_OPERATION_PLACE, BLOCK_OPERATION_REPLACE,
-    BLOCK_SIZE_STEP_CELLS, adjusted_rotated_bounds, block_asset, block_component_kind,
+    BLOCK_SIZE_STEP_CELLS, BlockSizing, adjusted_rotated_bounds, apply_prefab_auto_sizing,
+    block_asset, block_asset_default_surface_source, block_component_kind,
     block_sizing_from_context, block_stroke_cells, block_surface_base_y, component_uses_cylinder,
     cylinder_vertices_and_faces, default_block_asset_id, localized_block_asset_name,
+    style_block_asset_object,
 };
 use crate::editor::{DOCKMANAGER, RUSTERIX};
+use crate::hud::{Hud, HudMode};
 use crate::prelude::*;
 use MapEvent::*;
 use ToolEvent::*;
@@ -12,6 +15,7 @@ use scenevm::GeoId;
 
 pub struct BlockTool {
     id: TheId,
+    hud: Hud,
     previous_dock: Option<String>,
     drag_start_cell: Option<Vec3<i32>>,
     drag_end_cell: Option<Vec3<i32>>,
@@ -59,6 +63,16 @@ impl BlockTool {
         })
     }
 
+    fn horizontal_grid_step(map: &Map, server_ctx: &ServerContext) -> f32 {
+        let rusterix = RUSTERIX.read().unwrap();
+        crate::blocks::block_tool_horizontal_grid_step(
+            server_ctx.curr_block_asset_id,
+            &rusterix.assets.block_props,
+            map,
+            server_ctx,
+        )
+    }
+
     fn snapped_grid_cell(point: Vec3<f32>, cell_size: f32, level: i32) -> Vec3<i32> {
         Vec3::new(
             (point.x / cell_size).floor() as i32,
@@ -67,12 +81,13 @@ impl BlockTool {
         )
     }
 
-    fn current_placement(server_ctx: &ServerContext) -> Option<BlockPlacement> {
-        let cell_size = server_ctx.block_grid_cell_size.max(0.05);
-        let grid_y = server_ctx.block_grid_level as f32 * cell_size;
+    fn current_placement(map: &Map, server_ctx: &ServerContext) -> Option<BlockPlacement> {
+        let horizontal_step = Self::horizontal_grid_step(map, server_ctx);
+        let vertical_step = server_ctx.block_grid_cell_size.max(0.05);
+        let grid_y = server_ctx.block_grid_level as f32 * vertical_step;
         let point = Self::placement_hit(server_ctx)?;
         Some(BlockPlacement {
-            cell: Self::snapped_grid_cell(point, cell_size, server_ctx.block_grid_level),
+            cell: Self::snapped_grid_cell(point, horizontal_step, server_ctx.block_grid_level),
             base_y: block_surface_base_y(server_ctx, grid_y).unwrap_or(grid_y),
             hit: server_ctx.hover_surface_hit_pos.unwrap_or(point),
             normal: server_ctx.hover_surface_normal,
@@ -88,6 +103,7 @@ impl BlockTool {
         quarter_turns: i32,
         sizing: crate::blocks::BlockSizing,
         damaged: bool,
+        palette: &ThePalette,
     ) -> Vec<rusterix::GeometryObject> {
         let base = Vec3::new(
             grid_cell.x as f32 * cell_size,
@@ -111,11 +127,21 @@ impl BlockTool {
                 };
                 let object_min = base + min * cell_size;
                 let object_max = base + max * cell_size;
-                let mut object = if component_uses_cylinder(block_component_kind(asset, index)) {
+                let component = block_component_kind(asset, index);
+                let mut object = if component_uses_cylinder(component) {
                     Self::cylinder_object(name, object_min, object_max)
                 } else {
                     rusterix::GeometryObject::box_from_bounds(name, object_min, object_max)
                 };
+                object = style_block_asset_object(asset, component, object);
+                if let Some(source) = block_asset_default_surface_source(asset, component, palette)
+                {
+                    for face in &mut object.faces {
+                        face.tile = Some(source.clone());
+                        face.tiles.clear();
+                        face.auto_uv = true;
+                    }
+                }
                 if damaged {
                     let seed = Self::damage_seed(asset.id, grid_cell, index, rotation);
                     Self::apply_damage(&mut object, seed);
@@ -128,6 +154,14 @@ impl BlockTool {
                 object.group = group.clone();
                 object.tags.push("block".to_string());
                 object.properties.set("block_asset_id", Value::Id(asset.id));
+                object
+                    .properties
+                    .set("block_component_index", Value::Int(index as i32));
+                if asset.name == "Table" {
+                    object
+                        .properties
+                        .set("block_default_surface_version", Value::Int(2));
+                }
                 object
                     .properties
                     .set("block_asset_name", Value::Str(asset.name.to_string()));
@@ -302,13 +336,20 @@ impl BlockTool {
         object.properties.get_id("block_instance_id")
     }
 
-    fn remove_block_instances_at_cells(map: &mut Map, cells: &[Vec3<i32>]) -> FxHashSet<Uuid> {
+    fn remove_block_instances_at_cells_with_step(
+        map: &mut Map,
+        cells: &[Vec3<i32>],
+        grid_step: f32,
+    ) -> FxHashSet<Uuid> {
         let mut instances = FxHashSet::default();
         for object in &map.geometry_objects {
             let Some(cell) = Self::block_object_grid_cell(object) else {
                 continue;
             };
-            if !cells.contains(&cell) {
+            if !cells.contains(&cell)
+                || (object.properties.get_float_default("block_cell_size", 1.0) - grid_step).abs()
+                    > 0.0001
+            {
                 continue;
             }
             if let Some(instance_id) = Self::block_object_instance_id(object) {
@@ -338,13 +379,23 @@ impl BlockTool {
         ))
     }
 
-    fn remove_prop_instances_at_cells(map: &mut Map, cells: &[Vec3<i32>]) -> FxHashSet<Uuid> {
+    fn remove_prop_instances_at_cells_with_step(
+        map: &mut Map,
+        cells: &[Vec3<i32>],
+        grid_step: f32,
+    ) -> FxHashSet<Uuid> {
         let removed = map
             .block_prop_instances
             .iter()
             .filter_map(|instance| {
                 Self::prop_instance_grid_cell(instance)
-                    .filter(|cell| cells.contains(cell))
+                    .filter(|cell| {
+                        cells.contains(cell)
+                            && (instance.overrides.get_float_default("block_cell_size", 1.0)
+                                - grid_step)
+                                .abs()
+                                <= 0.0001
+                    })
                     .map(|_| instance.id)
             })
             .collect::<FxHashSet<_>>();
@@ -359,13 +410,14 @@ impl BlockTool {
     }
 
     fn make_prop_instance(
-        asset_id: Uuid,
+        asset: &rusterix::BlockPropAsset,
         grid_cell: Vec3<i32>,
         base_y: f32,
         cell_size: f32,
         quarter_turns: i32,
+        sizing: BlockSizing,
     ) -> rusterix::BlockPropInstance {
-        let mut instance = rusterix::BlockPropInstance::new(asset_id);
+        let mut instance = rusterix::BlockPropInstance::new(asset.id);
         let angle = quarter_turns.rem_euclid(4) as f32 * std::f32::consts::FRAC_PI_2;
         let (sin, cos) = angle.sin_cos();
         instance.world_transform[0][0] = cos;
@@ -389,6 +441,10 @@ impl BlockTool {
             .overrides
             .set("block_rotation", Value::Int(quarter_turns.rem_euclid(4)));
         instance
+            .overrides
+            .set("block_cell_size", Value::Float(cell_size));
+        apply_prefab_auto_sizing(asset, &mut instance, sizing);
+        instance
     }
 
     fn make_surface_prop_instance(
@@ -398,11 +454,13 @@ impl BlockTool {
         normal: Option<Vec3<f32>>,
         geo_id: Option<GeoId>,
         quarter_turns: i32,
+        sizing: BlockSizing,
     ) -> Option<rusterix::BlockPropInstance> {
         let mode = asset.placement.mode;
         if mode == rusterix::BlockPropPlacementMode::Free {
             let cell = Vec3::zero();
-            let mut instance = Self::make_prop_instance(asset.id, cell, hit.y, 1.0, quarter_turns);
+            let mut instance =
+                Self::make_prop_instance(asset, cell, hit.y, 1.0, quarter_turns, sizing);
             instance.world_transform[3][0] = hit.x;
             instance.world_transform[3][2] = hit.z;
             return Some(instance);
@@ -459,6 +517,7 @@ impl BlockTool {
         instance.world_transform[3][0] = origin.x;
         instance.world_transform[3][1] = origin.y;
         instance.world_transform[3][2] = origin.z;
+        apply_prefab_auto_sizing(asset, &mut instance, sizing);
 
         if mode == rusterix::BlockPropPlacementMode::Wall
             && let Some(GeoId::GeometryObject(object_id)) = geo_id
@@ -509,8 +568,8 @@ impl BlockTool {
         server_ctx.block_drag_end_cell = None;
     }
 
-    fn begin_drag(&mut self, server_ctx: &mut ServerContext) -> bool {
-        let Some(placement) = Self::current_placement(server_ctx) else {
+    fn begin_drag(&mut self, map: &Map, server_ctx: &mut ServerContext) -> bool {
+        let Some(placement) = Self::current_placement(map, server_ctx) else {
             self.clear_drag(server_ctx);
             return false;
         };
@@ -528,8 +587,8 @@ impl BlockTool {
         true
     }
 
-    fn update_drag(&mut self, server_ctx: &mut ServerContext) -> bool {
-        let Some(placement) = Self::current_placement(server_ctx) else {
+    fn update_drag(&mut self, map: &Map, server_ctx: &mut ServerContext) -> bool {
+        let Some(placement) = Self::current_placement(map, server_ctx) else {
             return false;
         };
         let cell = placement.cell;
@@ -565,11 +624,12 @@ impl BlockTool {
         let start = self.drag_start_cell?;
         let end = self.drag_end_cell.unwrap_or(start);
         let prev = map.clone();
-        let cell_size = server_ctx.block_grid_cell_size.max(0.05);
+        let cell_size = Self::horizontal_grid_step(map, server_ctx);
+        let vertical_step = server_ctx.block_grid_cell_size.max(0.05);
         let base_y = self
             .drag_base_y
             .or(server_ctx.block_drag_base_y)
-            .unwrap_or(start.y as f32 * cell_size);
+            .unwrap_or(start.y as f32 * vertical_step);
         let operation = server_ctx
             .block_operation
             .clamp(BLOCK_OPERATION_PLACE, BLOCK_OPERATION_ERASE);
@@ -581,8 +641,8 @@ impl BlockTool {
         let (removed, removed_props) =
             if operation == BLOCK_OPERATION_REPLACE || operation == BLOCK_OPERATION_ERASE {
                 (
-                    Self::remove_block_instances_at_cells(map, &cells),
-                    Self::remove_prop_instances_at_cells(map, &cells),
+                    Self::remove_block_instances_at_cells_with_step(map, &cells, cell_size),
+                    Self::remove_prop_instances_at_cells_with_step(map, &cells, cell_size),
                 )
             } else {
                 (FxHashSet::default(), FxHashSet::default())
@@ -596,6 +656,7 @@ impl BlockTool {
             let asset_id = Self::selected_asset_id(server_ctx);
             if let Some(asset) = block_asset(asset_id) {
                 asset_name = localized_block_asset_name(asset);
+                let palette = RUSTERIX.read().unwrap().assets.palette.clone();
                 for cell in &cells {
                     created.extend(Self::make_objects(
                         asset,
@@ -605,6 +666,7 @@ impl BlockTool {
                         server_ctx.block_rotation_quarters,
                         block_sizing_from_context(server_ctx),
                         server_ctx.block_damage_enabled,
+                        &palette,
                     ));
                 }
             } else {
@@ -623,11 +685,12 @@ impl BlockTool {
                     if asset.placement.mode == rusterix::BlockPropPlacementMode::Ground {
                         for cell in &cells {
                             created_props.push(Self::make_prop_instance(
-                                asset_id,
+                                &asset,
                                 *cell,
                                 base_y,
                                 cell_size,
                                 server_ctx.block_rotation_quarters,
+                                block_sizing_from_context(server_ctx),
                             ));
                         }
                     } else if let Some(hit) = self.drag_surface_hit
@@ -638,6 +701,7 @@ impl BlockTool {
                             self.drag_surface_normal,
                             self.drag_surface_geo,
                             server_ctx.block_rotation_quarters,
+                            block_sizing_from_context(server_ctx),
                         )
                     {
                         created_props.push(instance);
@@ -715,6 +779,7 @@ impl Tool for BlockTool {
     {
         Self {
             id: TheId::named("Prefab Tool"),
+            hud: Hud::new(HudMode::Prefab),
             previous_dock: None,
             drag_start_cell: None,
             drag_end_cell: None,
@@ -818,18 +883,25 @@ impl Tool for BlockTool {
     fn map_event(
         &mut self,
         map_event: MapEvent,
-        _ui: &mut TheUI,
+        ui: &mut TheUI,
         ctx: &mut TheContext,
         map: &mut Map,
         server_ctx: &mut ServerContext,
     ) -> Option<ProjectUndoAtom> {
+        if self
+            .hud
+            .handle_map_event_before_delegate(&map_event, map, ui, ctx, server_ctx)
+        {
+            return None;
+        }
+
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
             return None;
         }
 
         match map_event {
             MapClicked(_) => {
-                self.begin_drag(server_ctx);
+                self.begin_drag(map, server_ctx);
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Geometry Overlay 3D"),
                     TheValue::Empty,
@@ -837,7 +909,7 @@ impl Tool for BlockTool {
                 None
             }
             MapDragged(_) => {
-                if self.update_drag(server_ctx) {
+                if self.update_drag(map, server_ctx) {
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Update Geometry Overlay 3D"),
                         TheValue::Empty,
@@ -847,7 +919,7 @@ impl Tool for BlockTool {
             }
             MapUp(_) => {
                 if self.drag_start_cell.is_none() {
-                    self.begin_drag(server_ctx);
+                    self.begin_drag(map, server_ctx);
                 }
                 let undo = self.commit_stroke(ctx, map, server_ctx);
                 self.clear_drag(server_ctx);
@@ -1067,17 +1139,39 @@ impl Tool for BlockTool {
             _ => None,
         }
     }
+
+    fn draw_hud(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &mut Map,
+        ctx: &mut TheContext,
+        server_ctx: &mut ServerContext,
+        assets: &rusterix::Assets,
+    ) {
+        self.hud.draw(buffer, map, ctx, server_ctx, None, assets);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn test_prop_asset() -> rusterix::BlockPropAsset {
+        rusterix::BlockPropAsset::new("Test Prop")
+    }
+
     #[test]
     fn project_prop_instance_uses_grid_transform_and_metadata() {
-        let asset_id = Uuid::new_v4();
-        let instance = BlockTool::make_prop_instance(asset_id, Vec3::new(3, 2, -4), 2.5, 0.5, 1);
-        assert_eq!(instance.asset_id, asset_id);
+        let asset = test_prop_asset();
+        let instance = BlockTool::make_prop_instance(
+            &asset,
+            Vec3::new(3, 2, -4),
+            2.5,
+            0.5,
+            1,
+            BlockSizing::default(),
+        );
+        assert_eq!(instance.asset_id, asset.id);
         assert!((instance.world_transform[0][0]).abs() < 1e-5);
         assert_eq!(instance.world_transform[0][2], -1.0);
         assert_eq!(instance.world_transform[2][0], 1.0);
@@ -1089,13 +1183,21 @@ mod tests {
             BlockTool::prop_instance_grid_cell(&instance),
             Some(Vec3::new(3, 2, -4))
         );
+        assert_eq!(instance.overrides.get_float("block_cell_size"), Some(0.5));
     }
 
     #[test]
     fn erasing_project_prop_also_removes_surface_occupants() {
         let mut map = Map::default();
-        let instance =
-            BlockTool::make_prop_instance(Uuid::new_v4(), Vec3::new(1, 0, 2), 0.0, 1.0, 0);
+        let asset = test_prop_asset();
+        let instance = BlockTool::make_prop_instance(
+            &asset,
+            Vec3::new(1, 0, 2),
+            0.0,
+            1.0,
+            0,
+            BlockSizing::default(),
+        );
         let instance_id = instance.id;
         map.block_prop_instances.push(instance);
         map.block_prop_surface_placements
@@ -1107,9 +1209,48 @@ mod tests {
                 local_transform: rusterix::identity_block_prop_transform(),
             });
 
-        let removed = BlockTool::remove_prop_instances_at_cells(&mut map, &[Vec3::new(1, 0, 2)]);
+        let removed = BlockTool::remove_prop_instances_at_cells_with_step(
+            &mut map,
+            &[Vec3::new(1, 0, 2)],
+            1.0,
+        );
         assert_eq!(removed, FxHashSet::from_iter([instance_id]));
         assert!(map.block_prop_instances.is_empty());
         assert!(map.block_prop_surface_placements.is_empty());
+    }
+
+    #[test]
+    fn prefab_erase_distinguishes_cells_from_different_grid_sizes() {
+        let asset = test_prop_asset();
+        let coarse = BlockTool::make_prop_instance(
+            &asset,
+            Vec3::new(2, 0, 2),
+            0.0,
+            1.0,
+            0,
+            BlockSizing::default(),
+        );
+        let coarse_id = coarse.id;
+        let fine = BlockTool::make_prop_instance(
+            &asset,
+            Vec3::new(2, 0, 2),
+            0.0,
+            0.25,
+            0,
+            BlockSizing::default(),
+        );
+        let fine_id = fine.id;
+        let mut map = Map::default();
+        map.block_prop_instances.extend([coarse, fine]);
+
+        let removed = BlockTool::remove_prop_instances_at_cells_with_step(
+            &mut map,
+            &[Vec3::new(2, 0, 2)],
+            0.25,
+        );
+
+        assert_eq!(removed, FxHashSet::from_iter([fine_id]));
+        assert_eq!(map.block_prop_instances.len(), 1);
+        assert_eq!(map.block_prop_instances[0].id, coarse_id);
     }
 }

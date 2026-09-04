@@ -542,8 +542,29 @@ impl PaletteDock {
         let mut undo_atom: Option<ProjectUndoAtom> = None;
         let mut needs_scene_redraw = false;
         let mut applied_to_action_slot = false;
+        let mut applied_to_prefab = false;
 
-        if server_ctx.get_map_context() == MapContext::Region
+        let before = project.get_map(server_ctx).cloned();
+        let geometry_source = crate::utils::SurfaceApplySource::Direct(source.clone());
+        if crate::block_props::apply_surface_source_to_selected_prefab_instances(
+            project,
+            server_ctx,
+            &geometry_source,
+            server_ctx.selected_hud_icon_index,
+        ) {
+            if let (Some(before), Some(after)) = (before, project.get_map(server_ctx).cloned()) {
+                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                    server_ctx.pc,
+                    Box::new(before),
+                    Box::new(after),
+                ));
+                needs_scene_redraw = true;
+                applied_to_prefab = true;
+            }
+        }
+
+        if !applied_to_prefab
+            && server_ctx.get_map_context() == MapContext::Region
             && let Some(map) = project.get_map(server_ctx)
             && let Some(action_id) = server_ctx.curr_action_id
         {
@@ -581,11 +602,18 @@ impl PaletteDock {
             ));
         }
 
-        if !applied_to_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
+        if !applied_to_action_slot
+            && !applied_to_prefab
+            && let Some(map) = project.get_map_mut(server_ctx)
+        {
             let prev = map.clone();
             if crate::actions::apply_builder_hud_material_to_selection(
                 map,
                 server_ctx,
+                server_ctx.selected_hud_icon_index,
+                Some(source.clone()),
+            ) || crate::actions::apply_named_geometry_hud_material_to_selection(
+                map,
                 server_ctx.selected_hud_icon_index,
                 Some(source.clone()),
             ) {
@@ -675,6 +703,10 @@ impl PaletteDock {
             if crate::actions::apply_builder_hud_material_to_selection(
                 map,
                 server_ctx,
+                server_ctx.selected_hud_icon_index,
+                None,
+            ) || crate::actions::apply_named_geometry_hud_material_to_selection(
+                map,
                 server_ctx.selected_hud_icon_index,
                 None,
             ) {

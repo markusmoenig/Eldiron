@@ -5054,6 +5054,8 @@ impl Editor {
             _ => "camera.editing",
         };
 
+        crate::blocks::upgrade_all_bundled_prefabs(&mut self.project);
+
         self.sidebar
             .load_from_project(ui, ctx, &mut self.server_ctx, &mut self.project);
         self.mapeditor.load_from_project(ui, ctx, &self.project);

@@ -1,4 +1,6 @@
-use crate::{GeometryObject, GeometryObjectKind, ParticleEmitterDef, Value, ValueContainer};
+use crate::{
+    GeometryObject, GeometryObjectKind, ParticleEmitterDef, PixelSource, Value, ValueContainer,
+};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -14,6 +16,47 @@ pub fn identity_block_prop_transform() -> BlockPropTransform {
         [0.0, 0.0, 1.0, 0.0],
         [0.0, 0.0, 0.0, 1.0],
     ]
+}
+
+pub fn block_prop_material_override_key(label: &str) -> String {
+    let normalized = label
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    format!("prefab_material_{normalized}")
+}
+
+pub fn block_prop_asset_material_slots(
+    asset: &BlockPropAsset,
+) -> Vec<(String, Option<PixelSource>)> {
+    let mut slots = IndexMap::<String, Option<PixelSource>>::new();
+    for part in &asset.parts {
+        for object in part.geometry_source.geometry_objects() {
+            let Some(label) = object.properties.get_str("prefab_material_slot") else {
+                continue;
+            };
+            let source = object.faces.iter().find_map(|face| {
+                face.tile
+                    .clone()
+                    .or_else(|| face.tiles.values().next().cloned())
+            });
+            slots
+                .entry(label.to_string())
+                .and_modify(|existing| {
+                    if existing.is_none() {
+                        *existing = source.clone();
+                    }
+                })
+                .or_insert(source);
+        }
+    }
+    slots.into_iter().collect()
 }
 
 pub fn multiply_block_prop_transforms(
@@ -1430,6 +1473,17 @@ pub fn resolve_block_prop_geometry(
 
             for source_object in part.geometry_source.geometry_objects() {
                 let mut object = source_object.clone();
+                if let Some(slot) = source_object.properties.get_str("prefab_material_slot")
+                    && let Some(source) = instance
+                        .overrides
+                        .get_source(&block_prop_material_override_key(slot))
+                {
+                    for face in &mut object.faces {
+                        face.tile = Some(source.clone());
+                        face.tiles.clear();
+                        face.auto_uv = true;
+                    }
+                }
                 object.id = block_prop_instance_object_id(instance.id, part.id, source_object.id);
                 object.kind = GeometryObjectKind::Prop;
                 object.transform = multiply_block_prop_transforms(
@@ -1858,6 +1912,46 @@ mod tests {
         assert_eq!(
             resolved.properties.get_id("block_prop_part_id"),
             Some(part_id)
+        );
+    }
+
+    #[test]
+    fn material_overrides_are_instance_local_and_keep_named_slots() {
+        let mut object = GeometryObject::box_("Seat", Vec3::zero(), Vec3::one());
+        object
+            .properties
+            .set("prefab_material_slot", Value::Str("WOOD".to_string()));
+        for face in &mut object.faces {
+            face.tile = Some(PixelSource::PaletteIndex(2));
+        }
+        let asset = BlockPropAsset::new_authored("Chair", vec![object]);
+        let asset_id = asset.id;
+        let unchanged = BlockPropInstance::new(asset_id);
+        let mut changed = BlockPropInstance::new(asset_id);
+        changed.overrides.set(
+            &block_prop_material_override_key("WOOD"),
+            Value::Source(PixelSource::PaletteIndex(7)),
+        );
+        let assets = IndexMap::from([(asset_id, asset)]);
+
+        assert_eq!(
+            block_prop_asset_material_slots(&assets[&asset_id]),
+            vec![("WOOD".to_string(), Some(PixelSource::PaletteIndex(2)))]
+        );
+
+        let resolution = resolve_block_prop_geometry(&[unchanged, changed], &assets);
+        assert_eq!(resolution.geometry_objects.len(), 2);
+        assert!(
+            resolution.geometry_objects[0]
+                .faces
+                .iter()
+                .all(|face| face.tile == Some(PixelSource::PaletteIndex(2)))
+        );
+        assert!(
+            resolution.geometry_objects[1]
+                .faces
+                .iter()
+                .all(|face| face.tile == Some(PixelSource::PaletteIndex(7)))
         );
     }
 

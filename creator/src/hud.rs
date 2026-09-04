@@ -6,6 +6,7 @@ use theframework::prelude::*;
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum HudMode {
     Selection,
+    Prefab,
     Vertex,
     Linedef,
     Wall,
@@ -146,6 +147,9 @@ impl Hud {
             return None;
         }
         if let Some(slots) = crate::actions::builder_hud_material_slots_for_selected_geometry(map) {
+            return Some(slots);
+        }
+        if let Some(slots) = crate::actions::named_geometry_hud_material_slots_for_selection(map) {
             return Some(slots);
         }
         match server_ctx.curr_map_tool_type {
@@ -450,6 +454,8 @@ impl Hud {
         let action_item_slots = self.active_builder_item_slots(map, ctx, server_ctx);
         let action_material_slots = if action_item_slots.is_none() {
             crate::actions::builder_hud_material_slots_for_selected_geometry(map)
+                .or_else(|| crate::actions::named_geometry_hud_material_slots_for_selection(map))
+                .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map))
                 .or_else(|| {
                     (self.mode == HudMode::Wall)
                         .then(|| crate::actions::wall_hud_material_slots(map))
@@ -487,6 +493,7 @@ impl Hud {
         if self.mode == HudMode::Effects
             || self.mode == HudMode::Rect
             || self.mode == HudMode::Terrain
+            || self.mode == HudMode::Prefab
         {
             icons = 0;
         }

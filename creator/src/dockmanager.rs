@@ -369,7 +369,7 @@ impl DockManager {
             }
             if let Some(id) = asset_id
                 && !project.block_props.contains_key(&id)
-                && let Some(bundled) = crate::blocks::bundled_effect_prefab(id)
+                && let Some(bundled) = crate::blocks::bundled_prefab(id)
             {
                 project.block_props.insert(id, bundled.clone());
             }
@@ -380,9 +380,8 @@ impl DockManager {
                 ));
                 return;
             };
-            let prefab_changed =
-                crate::blocks::upgrade_legacy_effect_prefab_geometry(project, asset_id)
-                    | crate::blocks::ensure_prefab_default_surfaces(project, asset_id);
+            let prefab_changed = crate::blocks::upgrade_bundled_prefab_geometry(project, asset_id)
+                | crate::blocks::ensure_prefab_default_surfaces(project, asset_id);
             if prefab_changed {
                 crate::undo::project_helper::refresh_palette_runtime(project);
             }

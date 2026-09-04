@@ -478,6 +478,14 @@ impl ToolList {
             crate::actions::builder_hud_material_slots_for_selected_geometry(map)
         {
             slots.len()
+        } else if let Some(slots) =
+            crate::actions::named_geometry_hud_material_slots_for_selection(map)
+        {
+            slots.len()
+        } else if let Some(slots) =
+            crate::actions::prefab_hud_material_slots_for_selected_instances(map)
+        {
+            slots.len()
         } else if let Some(action_id) = server_ctx.curr_action_id {
             let actionlist = ACTIONLIST.read().unwrap();
             actionlist
@@ -2001,7 +2009,12 @@ impl ToolList {
     ) {
         let block_grid_active = server_ctx.block_tool_active;
         let base_step = if block_grid_active {
-            server_ctx.block_grid_cell_size.max(0.05)
+            crate::blocks::block_tool_horizontal_grid_step(
+                server_ctx.curr_block_asset_id,
+                &rusterix.assets.block_props,
+                map,
+                server_ctx,
+            )
         } else {
             ServerContext::edit_grid_step(map.subdivisions).max(0.01)
         };
@@ -2023,7 +2036,7 @@ impl ToolList {
         let min_z = min_z_step as f32 * display_step;
         let max_z = max_z_step as f32 * display_step;
         let grid_base_y = if block_grid_active {
-            server_ctx.block_grid_level as f32 * base_step
+            server_ctx.block_grid_level as f32 * server_ctx.block_grid_cell_size.max(0.05)
         } else {
             0.0
         };
@@ -4749,12 +4762,17 @@ impl ToolList {
             let prefab_preview_footprint_color =
                 Self::overlay_color(self.prefab_preview_wire_rgb, 0.95);
             let grid_step = if block_grid_active {
-                server_ctx.block_grid_cell_size.max(0.05)
+                crate::blocks::block_tool_horizontal_grid_step(
+                    server_ctx.curr_block_asset_id,
+                    &rusterix.assets.block_props,
+                    map,
+                    server_ctx,
+                )
             } else {
                 ServerContext::edit_grid_step(map.subdivisions)
             };
             let grid_base_y = if block_grid_active {
-                server_ctx.block_grid_level as f32 * grid_step
+                server_ctx.block_grid_level as f32 * server_ctx.block_grid_cell_size.max(0.05)
             } else {
                 0.0
             };
@@ -5051,6 +5069,13 @@ impl ToolList {
                     instance.world_transform[3][0] = cell.x as f32 * grid_step;
                     instance.world_transform[3][1] = preview_base_y;
                     instance.world_transform[3][2] = cell.z as f32 * grid_step;
+                    if let Some(asset) = rusterix.assets.block_props.get(&asset_id) {
+                        crate::blocks::apply_prefab_auto_sizing(
+                            asset,
+                            &mut instance,
+                            crate::blocks::block_sizing_from_context(server_ctx),
+                        );
+                    }
                     let resolved = rusterix::resolve_block_prop_geometry(
                         &[instance],
                         &rusterix.assets.block_props,

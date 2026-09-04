@@ -11,6 +11,9 @@ pub const DEFAULT_BLOCK_SPAN_EXTRA_CELLS: f32 = 0.0;
 pub const DEFAULT_BLOCK_DEPTH_EXTRA_CELLS: f32 = 0.0;
 pub const BLOCK_SIZE_STEP_CELLS: f32 = 0.25;
 pub const BLOCK_COLUMN_SEGMENTS: usize = 12;
+const FURNITURE_WOOD: [u8; 4] = [112, 69, 38, 255];
+const FURNITURE_DARK_WOOD: [u8; 4] = [73, 42, 25, 255];
+const FURNITURE_IRON: [u8; 4] = [58, 61, 64, 255];
 
 pub fn localized_block_asset_name(asset: &BlockAsset) -> String {
     match asset.name_key {
@@ -660,7 +663,144 @@ fn style_effect_geometry(
     object
         .properties
         .set("prefab_material_hint", Value::Str(material.to_string()));
+    let material_slot = match material {
+        "wood" if color == FURNITURE_DARK_WOOD => "DARK".to_string(),
+        "wood" => "WOOD".to_string(),
+        "metal" => "METAL".to_string(),
+        "wax" => "WAX".to_string(),
+        "emissive" => "EMBER".to_string(),
+        "ceramic trim" => "TRIM".to_string(),
+        other => other.to_ascii_uppercase(),
+    };
     object
+        .properties
+        .set("prefab_material_slot", Value::Str(material_slot));
+    object
+}
+
+pub fn style_block_asset_object(
+    asset: &BlockAsset,
+    component: BlockComponentKind,
+    object: rusterix::GeometryObject,
+) -> rusterix::GeometryObject {
+    if asset.name != "Table" {
+        return object;
+    }
+    let color = block_asset_default_color(asset, component).unwrap_or(FURNITURE_WOOD);
+    let mut object = style_effect_geometry(object, color, "wood");
+    object.properties.set(
+        "prefab_material_slot",
+        Value::Str(
+            if component == BlockComponentKind::TableTop {
+                "TOP"
+            } else {
+                "LEGS"
+            }
+            .to_string(),
+        ),
+    );
+    object
+}
+
+pub fn block_asset_default_color(
+    asset: &BlockAsset,
+    component: BlockComponentKind,
+) -> Option<[u8; 4]> {
+    (asset.name == "Table").then_some(if component == BlockComponentKind::TableTop {
+        FURNITURE_WOOD
+    } else {
+        FURNITURE_DARK_WOOD
+    })
+}
+
+pub fn block_asset_default_surface_source(
+    asset: &BlockAsset,
+    component: BlockComponentKind,
+    palette: &ThePalette,
+) -> Option<rusterix::PixelSource> {
+    let color = block_asset_default_color(asset, component)?;
+    palette
+        .find_closest_color_index(&TheColor::from(color))
+        .map(|index| rusterix::PixelSource::PaletteIndex(index as u16))
+}
+
+pub fn ensure_block_asset_default_palette(project: &mut Project, asset: &BlockAsset) -> bool {
+    if asset.name != "Table" {
+        return false;
+    }
+    let before_palette = project.art_palette.clone();
+    let before_materials = project.art_palette_materials.clone();
+    prefab_palette_slot(project, FURNITURE_WOOD, "wood", "natural");
+    prefab_palette_slot(project, FURNITURE_DARK_WOOD, "wood", "natural");
+    let top_source = block_asset_default_surface_source(
+        asset,
+        BlockComponentKind::TableTop,
+        &project.art_palette,
+    );
+    let leg_source = block_asset_default_surface_source(
+        asset,
+        BlockComponentKind::TableLegLeftFront,
+        &project.art_palette,
+    );
+    let mut geometry_changed = false;
+    let mut metadata_changed = false;
+    for region in &mut project.regions {
+        for object in &mut region.map.geometry_objects {
+            if object.properties.get_id("block_asset_id") != Some(asset.id)
+                || object
+                    .properties
+                    .get_int_default("block_default_surface_version", 0)
+                    >= 2
+            {
+                continue;
+            }
+            let component_index = object
+                .properties
+                .get_int("block_component_index")
+                .unwrap_or_else(|| if object.name.ends_with(" 1") { 0 } else { 1 });
+            let source = if component_index == 0 {
+                top_source.as_ref()
+            } else {
+                leg_source.as_ref()
+            };
+            let component = component_for(asset, component_index.max(0) as usize);
+            let color = block_asset_default_color(asset, component).unwrap_or(FURNITURE_WOOD);
+            object
+                .properties
+                .set("prefab_default_color", Value::Color(TheColor::from(color)));
+            object
+                .properties
+                .set("prefab_material_hint", Value::Str("wood".to_string()));
+            object.properties.set(
+                "prefab_material_slot",
+                Value::Str(
+                    if component == BlockComponentKind::TableTop {
+                        "TOP"
+                    } else {
+                        "LEGS"
+                    }
+                    .to_string(),
+                ),
+            );
+            if let Some(source) = source {
+                for face in &mut object.faces {
+                    if face.tile.is_none() && face.tiles.is_empty() {
+                        face.tile = Some(source.clone());
+                        face.auto_uv = true;
+                        geometry_changed = true;
+                    }
+                }
+            }
+            object
+                .properties
+                .set("block_default_surface_version", Value::Int(2));
+            metadata_changed = true;
+        }
+    }
+    project.art_palette != before_palette
+        || project.art_palette_materials != before_materials
+        || geometry_changed
+        || metadata_changed
 }
 
 fn effect_geometry_box(
@@ -818,7 +958,7 @@ fn prefab_palette_slot(project: &mut Project, color: [u8; 4], material: &str, fi
                 .then_some((index, palette_color_distance(entry.to_u8_array(), color)))
         })
         .min_by_key(|(_, distance)| *distance)
-        .filter(|(_, distance)| *distance <= 6_000)
+        .filter(|(_, distance)| *distance <= 1_200)
         .map(|(index, _)| index);
     if let Some(index) = best_matching_material {
         return index as u16;
@@ -1010,7 +1150,297 @@ fn make_effect_prefab(
     asset
 }
 
-static BUNDLED_EFFECT_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(|| {
+const PREFAB_AUTO_SIZE_TAG: &str = "auto-size";
+const FURNITURE_VERSION_TAG: &str = "furniture-v5";
+const DECORATION_VERSION_TAG: &str = "decoration-v2";
+
+fn furniture_top_face_refs(object: &rusterix::GeometryObject) -> Vec<rusterix::BlockPropFaceRef> {
+    let top = object
+        .vertices
+        .iter()
+        .map(|vertex| vertex.y)
+        .fold(f32::NEG_INFINITY, f32::max);
+    object
+        .faces
+        .iter()
+        .filter_map(|face| {
+            (!face.indices.is_empty()
+                && face.indices.iter().all(|index| {
+                    object
+                        .vertices
+                        .get(*index)
+                        .is_some_and(|vertex| (vertex.y - top).abs() <= 0.001)
+                }))
+            .then_some(rusterix::BlockPropFaceRef {
+                object_id: object.id,
+                face_id: face.id,
+            })
+        })
+        .collect()
+}
+
+fn furniture_geometry_rounded_box(
+    name: &str,
+    min: Vec3<f32>,
+    max: Vec3<f32>,
+    radius: f32,
+    color: [u8; 4],
+    material: &str,
+) -> rusterix::GeometryObject {
+    let mut object = rusterix::GeometryObject::rounded_box_from_bounds(
+        name.to_string(),
+        min,
+        max,
+        radius,
+        2,
+        true,
+    );
+    object.kind = rusterix::GeometryObjectKind::Prop;
+    style_effect_geometry(object, color, material)
+}
+
+fn furniture_geometry_barrel_body(
+    name: &str,
+    color: [u8; 4],
+    material: &str,
+) -> rusterix::GeometryObject {
+    let segments = 16usize;
+    let rings = [
+        (0.05, 0.43),
+        (0.26, 0.48),
+        (0.68, 0.53),
+        (1.00, 0.55),
+        (1.32, 0.53),
+        (1.74, 0.48),
+        (1.92, 0.43),
+    ];
+    let mut object = rusterix::GeometryObject::new(name.to_string());
+    for (y, radius) in rings {
+        for index in 0..segments {
+            let angle = index as f32 / segments as f32 * std::f32::consts::TAU;
+            object
+                .vertices
+                .push(Vec3::new(angle.cos() * radius, y, angle.sin() * radius));
+        }
+    }
+    for ring in 0..rings.len() - 1 {
+        for index in 0..segments {
+            let next = (index + 1) % segments;
+            let lower = ring * segments;
+            let upper = (ring + 1) * segments;
+            object.faces.push(effect_geometry_face(
+                vec![lower + index, lower + next, upper + next, upper + index],
+                1,
+            ));
+        }
+    }
+    object
+        .faces
+        .push(effect_geometry_face((0..segments).rev().collect(), 0));
+    let top = (rings.len() - 1) * segments;
+    object
+        .faces
+        .push(effect_geometry_face((top..top + segments).collect(), 0));
+    object.kind = rusterix::GeometryObjectKind::Prop;
+    style_effect_geometry(object, color, material)
+}
+
+fn decoration_geometry_revolved(
+    name: &str,
+    rings: &[(f32, f32)],
+    close_bottom: bool,
+    close_top: bool,
+    color: [u8; 4],
+    material: &str,
+) -> rusterix::GeometryObject {
+    let segments = 20usize;
+    let mut object = rusterix::GeometryObject::new(name.to_string());
+    for (y, radius) in rings {
+        for index in 0..segments {
+            let angle = index as f32 / segments as f32 * std::f32::consts::TAU;
+            object
+                .vertices
+                .push(Vec3::new(angle.cos() * radius, *y, angle.sin() * radius));
+        }
+    }
+    for ring in 0..rings.len().saturating_sub(1) {
+        for index in 0..segments {
+            let next = (index + 1) % segments;
+            let lower = ring * segments;
+            let upper = (ring + 1) * segments;
+            object.faces.push(effect_geometry_face(
+                vec![lower + index, lower + next, upper + next, upper + index],
+                1,
+            ));
+        }
+    }
+    if close_bottom && !rings.is_empty() {
+        object
+            .faces
+            .push(effect_geometry_face((0..segments).rev().collect(), 0));
+    }
+    if close_top && !rings.is_empty() {
+        let top = (rings.len() - 1) * segments;
+        object
+            .faces
+            .push(effect_geometry_face((top..top + segments).collect(), 0));
+    }
+    object.kind = rusterix::GeometryObjectKind::Prop;
+    object.ensure_face_paint_data();
+    style_effect_geometry(object, color, material)
+}
+
+fn make_decoration_prefab(
+    id: Uuid,
+    name: &str,
+    mut geometry: Vec<rusterix::GeometryObject>,
+    footprint: [u32; 3],
+    placement_mode: rusterix::BlockPropPlacementMode,
+) -> rusterix::BlockPropAsset {
+    for (object_index, object) in geometry.iter_mut().enumerate() {
+        object.id = Uuid::from_u128(
+            id.as_u128()
+                .wrapping_add(0x1000 + object_index as u128 * 0x100),
+        );
+        for (face_index, face) in object.faces.iter_mut().enumerate() {
+            face.id = Uuid::from_u128(id.as_u128().wrapping_add(
+                0x10_0000 + object_index as u128 * 0x1_0000 + face_index as u128 * 0x100,
+            ));
+        }
+    }
+    let mut part = rusterix::BlockPropPart::new_authored("Decoration", geometry);
+    part.id = Uuid::from_u128(id.as_u128().wrapping_add(0x100));
+
+    let mut asset = rusterix::BlockPropAsset::new(name);
+    asset.id = id;
+    asset.alias = name.to_ascii_lowercase().replace(' ', "-");
+    asset.category = "Decoration".to_string();
+    asset.tags = vec![
+        "decoration".to_string(),
+        "placeable".to_string(),
+        PREFAB_AUTO_SIZE_TAG.to_string(),
+        DECORATION_VERSION_TAG.to_string(),
+    ];
+    asset.parts.push(part);
+    asset.placement.mode = placement_mode;
+    asset.placement.snap_to_grid = placement_mode == rusterix::BlockPropPlacementMode::Ground;
+    asset.placement.snap_to_surfaces = true;
+    asset.placement.surface_offset = match placement_mode {
+        rusterix::BlockPropPlacementMode::Wall => 0.012,
+        rusterix::BlockPropPlacementMode::AnySurface => 0.006,
+        _ => 0.0,
+    };
+    asset.placement.footprint = footprint;
+    asset
+}
+
+fn make_furniture_prefab(
+    id: Uuid,
+    name: &str,
+    mut geometry: Vec<rusterix::GeometryObject>,
+    footprint: [u32; 3],
+    support_surfaces: &[(&str, usize, Option<u32>)],
+) -> rusterix::BlockPropAsset {
+    for (object_index, object) in geometry.iter_mut().enumerate() {
+        object.id = Uuid::from_u128(
+            id.as_u128()
+                .wrapping_add(0x1000 + object_index as u128 * 0x100),
+        );
+        for (face_index, face) in object.faces.iter_mut().enumerate() {
+            face.id = Uuid::from_u128(id.as_u128().wrapping_add(
+                0x10_0000 + object_index as u128 * 0x1_0000 + face_index as u128 * 0x100,
+            ));
+        }
+    }
+    let part_id = Uuid::from_u128(id.as_u128().wrapping_add(0x100));
+    let mut part = rusterix::BlockPropPart::new_authored("Furniture", geometry);
+    part.id = part_id;
+
+    let mut asset = rusterix::BlockPropAsset::new(name);
+    asset.id = id;
+    asset.alias = name.to_ascii_lowercase().replace(' ', "-");
+    asset.category = "Furniture".to_string();
+    asset.tags = vec![
+        "furniture".to_string(),
+        PREFAB_AUTO_SIZE_TAG.to_string(),
+        FURNITURE_VERSION_TAG.to_string(),
+    ];
+    asset.placement.mode = rusterix::BlockPropPlacementMode::Ground;
+    asset.placement.snap_to_grid = true;
+    asset.placement.snap_to_surfaces = true;
+    asset.placement.footprint = footprint;
+    asset.parts.push(part);
+
+    for (index, (surface_name, object_index, capacity)) in
+        support_surfaces.iter().copied().enumerate()
+    {
+        let face_refs = asset.parts[0]
+            .geometry_source
+            .geometry_objects()
+            .get(object_index)
+            .map(furniture_top_face_refs)
+            .unwrap_or_default();
+        if face_refs.is_empty() {
+            continue;
+        }
+        asset
+            .support_surfaces
+            .push(rusterix::BlockPropSupportSurface {
+                id: Uuid::from_u128(id.as_u128().wrapping_add(0x500 + index as u128 * 0x100)),
+                name: surface_name.to_string(),
+                part_id,
+                shape: rusterix::BlockPropSemanticShape::Faces(face_refs),
+                snap_spacing: 0.25,
+                allowed_item_tags: vec!["placeable".to_string()],
+                capacity,
+                occupancy_policy: rusterix::BlockPropOccupancyPolicy::RejectOverlap,
+            });
+    }
+    asset
+}
+
+pub fn prefab_uses_auto_sizing(asset: &rusterix::BlockPropAsset) -> bool {
+    asset.tags.iter().any(|tag| tag == PREFAB_AUTO_SIZE_TAG)
+}
+
+/// Apply the shared block height/width/depth controls to an opted-in linked
+/// Prefab instance. The authored footprint is its natural size, so zero width
+/// and depth extras leave it unchanged while height remains expressed in cells.
+pub fn apply_prefab_auto_sizing(
+    asset: &rusterix::BlockPropAsset,
+    instance: &mut rusterix::BlockPropInstance,
+    sizing: BlockSizing,
+) {
+    if !prefab_uses_auto_sizing(asset) {
+        return;
+    }
+    let base_width = asset.placement.footprint[0].max(1) as f32;
+    let base_height = asset.placement.footprint[1].max(1) as f32;
+    let base_depth = asset.placement.footprint[2].max(1) as f32;
+    let scale = Vec3::new(
+        (base_width + sizing.span_extra_cells.max(0.0) * 2.0) / base_width,
+        sizing.height_cells.max(1) as f32 / base_height,
+        (base_depth + sizing.depth_extra_cells.max(0.0) * 2.0) / base_depth,
+    );
+    for row in 0..3 {
+        instance.world_transform[0][row] *= scale.x;
+        instance.world_transform[1][row] *= scale.y;
+        instance.world_transform[2][row] *= scale.z;
+    }
+    instance
+        .parameter_overrides
+        .set("height_cells", Value::Int(sizing.height_cells.max(1)));
+    instance.parameter_overrides.set(
+        "width_extra_cells",
+        Value::Float(sizing.span_extra_cells.max(0.0)),
+    );
+    instance.parameter_overrides.set(
+        "depth_extra_cells",
+        Value::Float(sizing.depth_extra_cells.max(0.0)),
+    );
+}
+
+static BUNDLED_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(|| {
     let wall_torch_id = Uuid::from_u128(0xB10C_EFFE_0000_0000_0000_0000_0000_0001);
     let campfire_id = Uuid::from_u128(0xB10C_EFFE_0000_0000_0000_0000_0000_0002);
     let vapor_grate_id = Uuid::from_u128(0xB10C_EFFE_0000_0000_0000_0000_0000_0003);
@@ -1021,6 +1451,11 @@ static BUNDLED_EFFECT_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLoc
     const CHARRED: [u8; 4] = [45, 24, 17, 255];
     const EMBER: [u8; 4] = [142, 48, 20, 255];
     const WAX: [u8; 4] = [224, 207, 164, 255];
+    const CERAMIC: [u8; 4] = [205, 194, 164, 255];
+    const CERAMIC_TRIM: [u8; 4] = [68, 105, 124, 255];
+    const GLASS: [u8; 4] = [151, 204, 215, 165];
+    const FABRIC: [u8; 4] = [122, 43, 38, 255];
+    const FABRIC_TRIM: [u8; 4] = [198, 151, 68, 255];
     vec![
         make_effect_prefab(
             wall_torch_id,
@@ -1377,23 +1812,549 @@ static BUNDLED_EFFECT_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLoc
             ],
             true,
         ),
+        make_decoration_prefab(
+            Uuid::from_u128(0xB10C_DEC0_0000_0000_0000_0000_0000_0001),
+            "Ceramic Plate",
+            vec![
+                decoration_geometry_revolved(
+                    "Plate body",
+                    &[(0.015, 0.14), (0.030, 0.34), (0.075, 0.45), (0.105, 0.43)],
+                    true,
+                    true,
+                    CERAMIC,
+                    "ceramic",
+                ),
+                decoration_geometry_revolved(
+                    "Painted rim",
+                    &[(0.096, 0.36), (0.108, 0.43)],
+                    false,
+                    false,
+                    CERAMIC_TRIM,
+                    "ceramic trim",
+                ),
+            ],
+            [1, 2, 1],
+            rusterix::BlockPropPlacementMode::AnySurface,
+        ),
+        make_decoration_prefab(
+            Uuid::from_u128(0xB10C_DEC0_0000_0000_0000_0000_0000_0002),
+            "Ceramic Bowl",
+            vec![
+                decoration_geometry_revolved(
+                    "Bowl body",
+                    &[(0.015, 0.20), (0.08, 0.31), (0.28, 0.44), (0.48, 0.51)],
+                    true,
+                    false,
+                    CERAMIC,
+                    "ceramic",
+                ),
+                decoration_geometry_revolved(
+                    "Painted bowl rim",
+                    &[(0.455, 0.49), (0.50, 0.53)],
+                    false,
+                    false,
+                    CERAMIC_TRIM,
+                    "ceramic trim",
+                ),
+            ],
+            [1, 2, 1],
+            rusterix::BlockPropPlacementMode::AnySurface,
+        ),
+        make_decoration_prefab(
+            Uuid::from_u128(0xB10C_DEC0_0000_0000_0000_0000_0000_0003),
+            "Drinking Goblet",
+            vec![
+                effect_geometry_cylinder(
+                    "Glass foot",
+                    Vec3::new(0.0, 0.01, 0.0),
+                    Vec3::new(0.0, 0.055, 0.0),
+                    0.25,
+                    16,
+                    GLASS,
+                    "glass",
+                ),
+                effect_geometry_cylinder(
+                    "Glass stem",
+                    Vec3::new(0.0, 0.04, 0.0),
+                    Vec3::new(0.0, 0.39, 0.0),
+                    0.045,
+                    12,
+                    GLASS,
+                    "glass",
+                ),
+                decoration_geometry_revolved(
+                    "Glass cup",
+                    &[(0.34, 0.10), (0.43, 0.22), (0.68, 0.33), (0.88, 0.30)],
+                    true,
+                    false,
+                    GLASS,
+                    "glass",
+                ),
+            ],
+            [1, 2, 1],
+            rusterix::BlockPropPlacementMode::AnySurface,
+        ),
+        make_decoration_prefab(
+            Uuid::from_u128(0xB10C_DEC0_0000_0000_0000_0000_0000_0004),
+            "Floor Carpet",
+            vec![
+                furniture_geometry_rounded_box(
+                    "Carpet field",
+                    Vec3::new(-1.0, 0.012, -1.5),
+                    Vec3::new(1.0, 0.075, 1.5),
+                    0.055,
+                    FABRIC,
+                    "fabric",
+                ),
+                furniture_geometry_rounded_box(
+                    "Carpet center stripe",
+                    Vec3::new(-0.10, 0.073, -1.34),
+                    Vec3::new(0.10, 0.093, 1.34),
+                    0.025,
+                    FABRIC_TRIM,
+                    "trim",
+                ),
+                furniture_geometry_rounded_box(
+                    "Carpet north border",
+                    Vec3::new(-0.88, 0.073, -1.39),
+                    Vec3::new(0.88, 0.093, -1.24),
+                    0.025,
+                    FABRIC_TRIM,
+                    "trim",
+                ),
+                furniture_geometry_rounded_box(
+                    "Carpet south border",
+                    Vec3::new(-0.88, 0.073, 1.24),
+                    Vec3::new(0.88, 0.093, 1.39),
+                    0.025,
+                    FABRIC_TRIM,
+                    "trim",
+                ),
+            ],
+            [2, 2, 3],
+            rusterix::BlockPropPlacementMode::Ground,
+        ),
+        make_decoration_prefab(
+            Uuid::from_u128(0xB10C_DEC0_0000_0000_0000_0000_0000_0005),
+            "Wall Carpet",
+            vec![
+                furniture_geometry_rounded_box(
+                    "Tapestry field",
+                    Vec3::new(-0.88, -0.92, 0.00),
+                    Vec3::new(0.88, 0.92, 0.045),
+                    0.045,
+                    FABRIC,
+                    "fabric",
+                ),
+                furniture_geometry_rounded_box(
+                    "Tapestry vertical ornament",
+                    Vec3::new(-0.10, -0.78, 0.044),
+                    Vec3::new(0.10, 0.78, 0.070),
+                    0.025,
+                    FABRIC_TRIM,
+                    "trim",
+                ),
+                effect_geometry_cylinder(
+                    "Tapestry hanging rod",
+                    Vec3::new(-1.02, 0.98, 0.055),
+                    Vec3::new(1.02, 0.98, 0.055),
+                    0.055,
+                    12,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Tapestry bottom rod",
+                    Vec3::new(-0.94, -0.96, 0.050),
+                    Vec3::new(0.94, -0.96, 0.050),
+                    0.035,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+            ],
+            [2, 2, 1],
+            rusterix::BlockPropPlacementMode::Wall,
+        ),
+        make_furniture_prefab(
+            Uuid::from_u128(0xB10C_F012_0000_0000_0000_0000_0000_0001),
+            "Chair",
+            vec![
+                furniture_geometry_rounded_box(
+                    "Seat",
+                    Vec3::new(-0.46, 0.82, -0.46),
+                    Vec3::new(0.46, 1.00, 0.46),
+                    0.08,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Front left leg",
+                    Vec3::new(-0.40, 0.0, -0.40),
+                    Vec3::new(-0.32, 0.84, -0.32),
+                    0.065,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Front right leg",
+                    Vec3::new(0.40, 0.0, -0.40),
+                    Vec3::new(0.32, 0.84, -0.32),
+                    0.065,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Back left post",
+                    Vec3::new(-0.40, 0.0, 0.40),
+                    Vec3::new(-0.32, 2.0, 0.34),
+                    0.07,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Back right post",
+                    Vec3::new(0.40, 0.0, 0.40),
+                    Vec3::new(0.32, 2.0, 0.34),
+                    0.07,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Back rest",
+                    Vec3::new(-0.31, 1.28, 0.29),
+                    Vec3::new(0.31, 1.76, 0.39),
+                    0.045,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Front stretcher",
+                    Vec3::new(-0.34, 0.38, -0.35),
+                    Vec3::new(0.34, 0.38, -0.35),
+                    0.035,
+                    8,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+            ],
+            [1, 2, 1],
+            &[("Seat", 0, Some(1))],
+        ),
+        make_furniture_prefab(
+            Uuid::from_u128(0xB10C_F012_0000_0000_0000_0000_0000_0002),
+            "Open Cupboard",
+            vec![
+                furniture_geometry_rounded_box(
+                    "Cupboard top",
+                    Vec3::new(-1.0, 1.82, -0.52),
+                    Vec3::new(1.0, 2.0, 0.52),
+                    0.07,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Left side",
+                    Vec3::new(-0.96, 0.16, -0.48),
+                    Vec3::new(-0.80, 1.84, 0.48),
+                    0.045,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Right side",
+                    Vec3::new(0.80, 0.16, -0.48),
+                    Vec3::new(0.96, 1.84, 0.48),
+                    0.045,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Back",
+                    Vec3::new(-0.80, 0.16, -0.48),
+                    Vec3::new(0.80, 1.82, -0.40),
+                    0.025,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Shelf",
+                    Vec3::new(-0.80, 0.90, -0.40),
+                    Vec3::new(0.80, 1.04, 0.45),
+                    0.04,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Cupboard base",
+                    Vec3::new(-0.88, 0.12, -0.44),
+                    Vec3::new(0.88, 0.28, 0.48),
+                    0.05,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Left foot",
+                    Vec3::new(-0.68, 0.0, 0.0),
+                    Vec3::new(-0.68, 0.16, 0.0),
+                    0.10,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Right foot",
+                    Vec3::new(0.68, 0.0, 0.0),
+                    Vec3::new(0.68, 0.16, 0.0),
+                    0.10,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+            ],
+            [2, 2, 1],
+            &[
+                ("Cupboard top", 0, Some(8)),
+                ("Shelf", 4, Some(8)),
+                ("Bottom shelf", 5, Some(8)),
+            ],
+        ),
+        make_furniture_prefab(
+            Uuid::from_u128(0xB10C_F012_0000_0000_0000_0000_0000_0003),
+            "Storage Chest",
+            vec![
+                furniture_geometry_rounded_box(
+                    "Chest lid",
+                    Vec3::new(-1.0, 1.66, -0.52),
+                    Vec3::new(1.0, 2.0, 0.52),
+                    0.13,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Chest body",
+                    Vec3::new(-0.92, 0.22, -0.46),
+                    Vec3::new(0.92, 1.70, 0.46),
+                    0.09,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Chest base",
+                    Vec3::new(-1.0, 0.0, -0.50),
+                    Vec3::new(1.0, 0.22, 0.50),
+                    0.07,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Left iron band",
+                    Vec3::new(-0.72, 0.20, -0.49),
+                    Vec3::new(-0.58, 1.89, -0.465),
+                    0.012,
+                    FURNITURE_IRON,
+                    "metal",
+                ),
+                furniture_geometry_rounded_box(
+                    "Right iron band",
+                    Vec3::new(0.58, 0.20, -0.49),
+                    Vec3::new(0.72, 1.89, -0.465),
+                    0.012,
+                    FURNITURE_IRON,
+                    "metal",
+                ),
+                furniture_geometry_rounded_box(
+                    "Latch",
+                    Vec3::new(-0.13, 1.28, -0.54),
+                    Vec3::new(0.13, 1.66, -0.465),
+                    0.035,
+                    FURNITURE_IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Left handle mount",
+                    Vec3::new(-0.82, 0.96, -0.47),
+                    Vec3::new(-0.82, 1.12, -0.51),
+                    0.045,
+                    8,
+                    FURNITURE_IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Right handle mount",
+                    Vec3::new(0.82, 0.96, -0.47),
+                    Vec3::new(0.82, 1.12, -0.51),
+                    0.045,
+                    8,
+                    FURNITURE_IRON,
+                    "metal",
+                ),
+            ],
+            [2, 2, 1],
+            &[("Chest lid", 0, Some(8))],
+        ),
+        make_furniture_prefab(
+            Uuid::from_u128(0xB10C_F012_0000_0000_0000_0000_0000_0004),
+            "Barrel",
+            vec![
+                effect_geometry_cylinder(
+                    "Barrel top",
+                    Vec3::new(0.0, 1.88, 0.0),
+                    Vec3::new(0.0, 2.0, 0.0),
+                    0.48,
+                    16,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_barrel_body("Barrel body", FURNITURE_WOOD, "wood"),
+                effect_geometry_cylinder(
+                    "Lower hoop",
+                    Vec3::new(0.0, 0.22, 0.0),
+                    Vec3::new(0.0, 0.36, 0.0),
+                    0.51,
+                    16,
+                    FURNITURE_IRON,
+                    "metal",
+                ),
+                effect_geometry_cylinder(
+                    "Upper hoop",
+                    Vec3::new(0.0, 1.64, 0.0),
+                    Vec3::new(0.0, 1.78, 0.0),
+                    0.51,
+                    16,
+                    FURNITURE_IRON,
+                    "metal",
+                ),
+            ],
+            [1, 2, 1],
+            &[("Barrel top", 0, Some(4))],
+        ),
+        make_furniture_prefab(
+            Uuid::from_u128(0xB10C_F012_0000_0000_0000_0000_0000_0005),
+            "Bench",
+            vec![
+                furniture_geometry_rounded_box(
+                    "Bench seat",
+                    Vec3::new(-1.0, 0.82, -0.46),
+                    Vec3::new(1.0, 1.0, 0.46),
+                    0.08,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Left front leg",
+                    Vec3::new(-0.76, 0.0, -0.34),
+                    Vec3::new(-0.68, 0.84, -0.30),
+                    0.075,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Right front leg",
+                    Vec3::new(0.76, 0.0, -0.34),
+                    Vec3::new(0.68, 0.84, -0.30),
+                    0.075,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                furniture_geometry_rounded_box(
+                    "Back rail",
+                    Vec3::new(-0.86, 1.28, 0.31),
+                    Vec3::new(0.86, 1.72, 0.43),
+                    0.055,
+                    FURNITURE_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Left back post",
+                    Vec3::new(-0.82, 0.0, 0.38),
+                    Vec3::new(-0.76, 2.0, 0.36),
+                    0.085,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Right back post",
+                    Vec3::new(0.82, 0.0, 0.38),
+                    Vec3::new(0.76, 2.0, 0.36),
+                    0.085,
+                    10,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+                effect_geometry_cylinder(
+                    "Front stretcher",
+                    Vec3::new(-0.72, 0.38, -0.32),
+                    Vec3::new(0.72, 0.38, -0.32),
+                    0.045,
+                    8,
+                    FURNITURE_DARK_WOOD,
+                    "wood",
+                ),
+            ],
+            [2, 2, 1],
+            &[("Bench seat", 0, Some(4))],
+        ),
     ]
 });
 
-pub fn bundled_effect_prefabs() -> &'static [rusterix::BlockPropAsset] {
-    &BUNDLED_EFFECT_PREFABS
+pub fn bundled_prefabs() -> &'static [rusterix::BlockPropAsset] {
+    &BUNDLED_PREFABS
 }
 
-pub fn bundled_effect_prefab(id: Uuid) -> Option<&'static rusterix::BlockPropAsset> {
-    bundled_effect_prefabs().iter().find(|asset| asset.id == id)
+pub fn bundled_prefab(id: Uuid) -> Option<&'static rusterix::BlockPropAsset> {
+    bundled_prefabs().iter().find(|asset| asset.id == id)
 }
 
-/// Migrate the original three-box Wall Torch placeholder without replacing
-/// the user's particle or light edits on the project-owned Prefab.
-pub fn upgrade_legacy_effect_prefab_geometry(project: &mut Project, asset_id: Uuid) -> bool {
+/// Bring project-owned copies of bundled Prefabs forward when their shipped
+/// geometry schema changes. User-authored copies with different IDs are never
+/// touched.
+pub fn upgrade_bundled_prefab_geometry(project: &mut Project, asset_id: Uuid) -> bool {
     let Some(project_asset) = project.block_props.get(&asset_id) else {
         return false;
     };
+    let Some(bundled) = bundled_prefab(asset_id) else {
+        return false;
+    };
+    let bundled_schema_tag = bundled.tags.iter().find(|tag| {
+        tag.as_str() == FURNITURE_VERSION_TAG || tag.as_str() == DECORATION_VERSION_TAG
+    });
+    if bundled_schema_tag.is_some_and(|schema_tag| !project_asset.tags.contains(schema_tag)) {
+        let Some(project_asset) = project.block_props.get_mut(&asset_id) else {
+            return false;
+        };
+        project_asset.parts = bundled.parts.clone();
+        project_asset.support_surfaces = bundled.support_surfaces.clone();
+        project_asset.placement = bundled.placement.clone();
+        project_asset.tags = bundled.tags.clone();
+        for region in &mut project.regions {
+            for instance in &mut region.map.block_prop_instances {
+                if instance.asset_id != asset_id {
+                    continue;
+                }
+                for (old_label, new_label) in [("DARK WOOD", "DARK"), ("CERAMIC TRIM", "TRIM")] {
+                    let old_key = rusterix::block_prop_material_override_key(old_label);
+                    let new_key = rusterix::block_prop_material_override_key(new_label);
+                    if let Some(value) = instance.overrides.remove(&old_key) {
+                        if !instance.overrides.contains(&new_key) {
+                            instance.overrides.set(&new_key, value);
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    // Migrate the original three-box Wall Torch placeholder without replacing
+    // the user's particle or light edits on the project-owned Prefab.
     let object_names = project_asset
         .parts
         .first()
@@ -1408,9 +2369,6 @@ pub fn upgrade_legacy_effect_prefab_geometry(project: &mut Project, asset_id: Uu
     if object_names != ["Wall plate", "Torch stem", "Fire basket"] {
         return false;
     }
-    let Some(bundled) = bundled_effect_prefab(asset_id) else {
-        return false;
-    };
     let Some(project_part) = project
         .block_props
         .get_mut(&asset_id)
@@ -1424,6 +2382,21 @@ pub fn upgrade_legacy_effect_prefab_geometry(project: &mut Project, asset_id: Uu
     project_part.geometry_source = bundled_part.geometry_source.clone();
     project_part.attachments = bundled_part.attachments.clone();
     true
+}
+
+pub fn upgrade_all_bundled_prefabs(project: &mut Project) -> bool {
+    let asset_ids = project.block_props.keys().copied().collect::<Vec<_>>();
+    let bundled_changed = asset_ids.into_iter().fold(false, |changed, asset_id| {
+        let upgraded = upgrade_bundled_prefab_geometry(project, asset_id);
+        let surfaced =
+            bundled_prefab(asset_id).is_some() && ensure_prefab_default_surfaces(project, asset_id);
+        changed || upgraded || surfaced
+    });
+    let table_palette_changed = block_assets()
+        .iter()
+        .find(|asset| asset.name == "Table")
+        .is_some_and(|asset| ensure_block_asset_default_palette(project, asset));
+    bundled_changed || table_palette_changed
 }
 
 fn prefab_surface_hit_and_normal(
@@ -1482,6 +2455,7 @@ pub fn surface_prefab_preview_instance(
         instance.world_transform[3][0] = hit.x;
         instance.world_transform[3][1] = hit.y;
         instance.world_transform[3][2] = hit.z;
+        apply_prefab_auto_sizing(asset, &mut instance, block_sizing_from_context(server_ctx));
         return Some(instance);
     }
     let normal = normal?.try_normalized()?;
@@ -1523,6 +2497,7 @@ pub fn surface_prefab_preview_instance(
     instance.world_transform[3][0] = origin.x;
     instance.world_transform[3][1] = origin.y;
     instance.world_transform[3][2] = origin.z;
+    apply_prefab_auto_sizing(asset, &mut instance, block_sizing_from_context(server_ctx));
     Some(instance)
 }
 
@@ -1541,6 +2516,7 @@ pub fn editable_prefab_from_block_asset(asset: &BlockAsset) -> rusterix::BlockPr
                     min,
                     max,
                 );
+                object = style_block_asset_object(asset, component_for(asset, index), object);
                 object.kind = rusterix::GeometryObjectKind::Prop;
                 object
             })
@@ -1798,6 +2774,29 @@ pub fn adjusted_rotated_bounds(
         .map(|block_box| rotated_bounds(block_box, asset.footprint, quarter_turns))
 }
 
+/// Horizontal snap spacing used by the Block/Prefab placement tool.
+///
+/// Construction blocks keep their authored cell size because that value also
+/// controls their physical scale. Prefabs that opt into grid snapping instead
+/// follow the map's shared editor grid.
+pub fn block_tool_horizontal_grid_step(
+    asset_id: Option<Uuid>,
+    prefab_assets: &IndexMap<Uuid, rusterix::BlockPropAsset>,
+    map: &Map,
+    server_ctx: &ServerContext,
+) -> f32 {
+    if let Some(asset_id) = asset_id
+        && block_asset(asset_id).is_none()
+        && prefab_assets
+            .get(&asset_id)
+            .is_some_and(|asset| asset.placement.snap_to_grid)
+    {
+        return ServerContext::edit_grid_step(map.subdivisions).max(0.01);
+    }
+
+    server_ctx.block_grid_cell_size.max(0.05)
+}
+
 pub fn block_grid_plane_hit(server_ctx: &ServerContext) -> Option<Vec3<f32>> {
     let cell_size = server_ctx.block_grid_cell_size.max(0.05);
     let grid_y = server_ctx.block_grid_level as f32 * cell_size;
@@ -2032,5 +3031,272 @@ mod tests {
         assert_close(right_front.min.z, -1.90);
         assert_close(left_back.max.z, 2.90);
         assert_close(right_back.max.z, 2.90);
+    }
+
+    #[test]
+    fn table_has_default_wood_materials() {
+        let asset = block_assets()
+            .iter()
+            .find(|asset| asset.name == "Table")
+            .expect("Table block asset");
+        let mut project = Project::default();
+        let mut region = Region::default();
+        let mut existing_top = rusterix::GeometryObject::box_("Table 1", Vec3::zero(), Vec3::one());
+        existing_top
+            .properties
+            .set("block_asset_id", Value::Id(asset.id));
+        region.map.geometry_objects.push(existing_top);
+        project.regions.push(region);
+        assert!(ensure_block_asset_default_palette(&mut project, asset));
+        let top = style_block_asset_object(
+            asset,
+            BlockComponentKind::TableTop,
+            rusterix::GeometryObject::box_("Top", Vec3::zero(), Vec3::one()),
+        );
+        let leg = style_block_asset_object(
+            asset,
+            BlockComponentKind::TableLegLeftFront,
+            rusterix::GeometryObject::box_("Leg", Vec3::zero(), Vec3::one()),
+        );
+        let top_source = block_asset_default_surface_source(
+            asset,
+            BlockComponentKind::TableTop,
+            &project.art_palette,
+        )
+        .expect("Table top palette source");
+        let leg_source = block_asset_default_surface_source(
+            asset,
+            BlockComponentKind::TableLegLeftFront,
+            &project.art_palette,
+        )
+        .expect("Table leg palette source");
+
+        let rusterix::PixelSource::PaletteIndex(top_index) = top_source else {
+            panic!("Table top should use a palette-backed source");
+        };
+        let rusterix::PixelSource::PaletteIndex(leg_index) = leg_source else {
+            panic!("Table leg should use a palette-backed source");
+        };
+        assert_ne!(top_index, leg_index);
+        assert_eq!(
+            project.art_palette.colors[top_index as usize]
+                .as_ref()
+                .map(TheColor::to_u8_array),
+            Some(FURNITURE_WOOD)
+        );
+        assert_eq!(
+            project.art_palette.colors[leg_index as usize]
+                .as_ref()
+                .map(TheColor::to_u8_array),
+            Some(FURNITURE_DARK_WOOD)
+        );
+        assert_eq!(top.properties.get_str("prefab_material_slot"), Some("TOP"));
+        assert_eq!(leg.properties.get_str("prefab_material_slot"), Some("LEGS"));
+        let migrated_top = &project.regions[0].map.geometry_objects[0];
+        assert!(
+            migrated_top
+                .faces
+                .iter()
+                .all(|face| face.tile == Some(rusterix::PixelSource::PaletteIndex(top_index)))
+        );
+        assert_eq!(
+            migrated_top
+                .properties
+                .get_int("block_default_surface_version"),
+            Some(2)
+        );
+        assert_eq!(
+            migrated_top.properties.get_str("prefab_material_slot"),
+            Some("TOP")
+        );
+        assert!(!ensure_block_asset_default_palette(&mut project, asset));
+    }
+
+    #[test]
+    fn prefab_placement_uses_the_shared_grid_without_rescaling_blocks() {
+        let mut map = Map::default();
+        map.subdivisions = 8.0;
+        let mut server_ctx = ServerContext::new();
+        server_ctx.block_grid_cell_size = 1.0;
+
+        let mut prefab = rusterix::BlockPropAsset::new("Candle");
+        prefab.placement.snap_to_grid = true;
+        let prefab_id = prefab.id;
+        let prefab_assets = IndexMap::from_iter([(prefab_id, prefab)]);
+
+        assert_close(
+            block_tool_horizontal_grid_step(Some(prefab_id), &prefab_assets, &map, &server_ctx),
+            0.125,
+        );
+        assert_close(
+            block_tool_horizontal_grid_step(
+                Some(default_block_asset_id()),
+                &prefab_assets,
+                &map,
+                &server_ctx,
+            ),
+            1.0,
+        );
+    }
+
+    #[test]
+    fn bundled_furniture_has_placeable_support_surfaces() {
+        for name in ["Chair", "Open Cupboard", "Storage Chest", "Barrel", "Bench"] {
+            let asset = bundled_prefabs()
+                .iter()
+                .find(|asset| asset.name == name)
+                .unwrap_or_else(|| panic!("missing bundled furniture Prefab {name}"));
+            assert!(prefab_uses_auto_sizing(asset));
+            assert!(!asset.support_surfaces.is_empty());
+            assert!(asset.support_surfaces.iter().all(|surface| {
+                surface
+                    .allowed_item_tags
+                    .iter()
+                    .any(|tag| tag == "placeable")
+                    && matches!(&surface.shape, rusterix::BlockPropSemanticShape::Faces(_))
+            }));
+        }
+    }
+
+    #[test]
+    fn bundled_decoration_uses_the_expected_surface_modes_and_material_slots() {
+        let plate = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Ceramic Plate")
+            .expect("Ceramic Plate decoration");
+        let carpet = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Floor Carpet")
+            .expect("Floor Carpet decoration");
+        let tapestry = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Wall Carpet")
+            .expect("Wall Carpet decoration");
+
+        assert_eq!(plate.category, "Decoration");
+        assert_eq!(
+            plate.placement.mode,
+            rusterix::BlockPropPlacementMode::AnySurface
+        );
+        assert_eq!(
+            carpet.placement.mode,
+            rusterix::BlockPropPlacementMode::Ground
+        );
+        assert_eq!(
+            tapestry.placement.mode,
+            rusterix::BlockPropPlacementMode::Wall
+        );
+        assert!(prefab_uses_auto_sizing(plate));
+        let plate_slots = rusterix::block_prop_asset_material_slots(plate)
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect::<Vec<_>>();
+        assert_eq!(plate_slots, vec!["CERAMIC".to_string(), "TRIM".to_string()]);
+        let tapestry_slots = rusterix::block_prop_asset_material_slots(tapestry)
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect::<Vec<_>>();
+        assert!(tapestry_slots.iter().any(|slot| slot == "FABRIC"));
+        assert!(tapestry_slots.iter().any(|slot| slot == "TRIM"));
+        assert!(tapestry_slots.iter().any(|slot| slot == "DARK"));
+    }
+
+    #[test]
+    fn furniture_uses_detailed_geometry_and_the_cupboard_has_one_shelf() {
+        let chair = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Chair")
+            .expect("Chair furniture Prefab");
+        assert!(
+            chair.parts[0]
+                .geometry_source
+                .geometry_objects()
+                .iter()
+                .any(|object| object.faces.len() > 6)
+        );
+
+        let cupboard = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Open Cupboard")
+            .expect("Open Cupboard furniture Prefab");
+        let shelf_names = cupboard.parts[0]
+            .geometry_source
+            .geometry_objects()
+            .iter()
+            .filter(|object| object.name.contains("Shelf"))
+            .map(|object| object.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(shelf_names, ["Shelf"]);
+        assert!(
+            cupboard
+                .support_surfaces
+                .iter()
+                .any(|surface| surface.name == "Shelf")
+        );
+        let back = cupboard.parts[0]
+            .geometry_source
+            .geometry_objects()
+            .iter()
+            .find(|object| object.name == "Back")
+            .expect("Cupboard back");
+        let back_max_z = back
+            .vertices
+            .iter()
+            .map(|vertex| vertex.z)
+            .fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            back_max_z < 0.0,
+            "the cupboard opening should face south (+Z)"
+        );
+    }
+
+    #[test]
+    fn furniture_exposes_each_authored_material_as_a_separate_slot() {
+        let chest = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Storage Chest")
+            .expect("Storage Chest furniture Prefab");
+        let labels = rusterix::block_prop_asset_material_slots(chest)
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect::<Vec<_>>();
+
+        assert!(labels.iter().any(|label| label == "WOOD"));
+        assert!(labels.iter().any(|label| label == "DARK"));
+        assert!(labels.iter().any(|label| label == "METAL"));
+    }
+
+    #[test]
+    fn furniture_prefab_uses_shared_height_width_and_depth_controls() {
+        let asset = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Chair")
+            .expect("Chair furniture Prefab");
+        let mut instance = rusterix::BlockPropInstance::new(asset.id);
+        apply_prefab_auto_sizing(
+            asset,
+            &mut instance,
+            BlockSizing {
+                height_cells: 3,
+                span_extra_cells: 0.5,
+                depth_extra_cells: 1.0,
+            },
+        );
+
+        assert_close(instance.world_transform[0][0], 2.0);
+        assert_close(instance.world_transform[1][1], 1.5);
+        assert_close(instance.world_transform[2][2], 3.0);
+        assert_eq!(
+            instance.parameter_overrides.get_int("height_cells"),
+            Some(3)
+        );
+        assert_eq!(
+            instance.parameter_overrides.get_float("width_extra_cells"),
+            Some(0.5)
+        );
+        assert_eq!(
+            instance.parameter_overrides.get_float("depth_extra_cells"),
+            Some(1.0)
+        );
     }
 }

@@ -687,43 +687,64 @@ impl Dock for TilesDock {
                                 crate::actions::current_selection_tool_type(map);
                         }
 
-                        let applied_to_action_slot =
-                            if server_ctx.get_map_context() == MapContext::Region {
-                                if let Some(map) = project.get_map(server_ctx)
-                                    && let Some(action_id) = server_ctx.curr_action_id
-                                    && let Some(source) = builder_selected_source.clone()
-                                {
-                                    ACTIONLIST
-                                        .write()
-                                        .unwrap()
-                                        .get_action_by_id_mut(action_id)
-                                        .is_some_and(|action| {
-                                            action.hud_material_slots(map, server_ctx).is_some_and(
-                                                |slots| {
-                                                    let selected_index =
-                                                        server_ctx.selected_hud_icon_index;
-                                                    let slot_index = if selected_index >= 0
-                                                        && (selected_index as usize) < slots.len()
-                                                    {
-                                                        selected_index
-                                                    } else if slots.len() == 1 {
-                                                        0
-                                                    } else {
-                                                        -1
-                                                    };
-                                                    slot_index >= 0
-                                                        && action.set_hud_material_source(
-                                                            map, server_ctx, slot_index, source,
-                                                        )
-                                                },
-                                            )
-                                        })
-                                } else {
-                                    false
-                                }
+                        let before = project.get_map(server_ctx).cloned();
+                        if crate::block_props::apply_surface_source_to_selected_prefab_instances(
+                            project,
+                            server_ctx,
+                            &selected_source,
+                            server_ctx.selected_hud_icon_index,
+                        ) {
+                            if let (Some(before), Some(after)) =
+                                (before, project.get_map(server_ctx).cloned())
+                            {
+                                undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(before),
+                                    Box::new(after),
+                                ));
+                                needs_scene_redraw = true;
+                                applied_to_action = true;
+                            }
+                        }
+
+                        let applied_to_action_slot = if !applied_to_action
+                            && server_ctx.get_map_context() == MapContext::Region
+                        {
+                            if let Some(map) = project.get_map(server_ctx)
+                                && let Some(action_id) = server_ctx.curr_action_id
+                                && let Some(source) = builder_selected_source.clone()
+                            {
+                                ACTIONLIST
+                                    .write()
+                                    .unwrap()
+                                    .get_action_by_id_mut(action_id)
+                                    .is_some_and(|action| {
+                                        action.hud_material_slots(map, server_ctx).is_some_and(
+                                            |slots| {
+                                                let selected_index =
+                                                    server_ctx.selected_hud_icon_index;
+                                                let slot_index = if selected_index >= 0
+                                                    && (selected_index as usize) < slots.len()
+                                                {
+                                                    selected_index
+                                                } else if slots.len() == 1 {
+                                                    0
+                                                } else {
+                                                    -1
+                                                };
+                                                slot_index >= 0
+                                                    && action.set_hud_material_source(
+                                                        map, server_ctx, slot_index, source,
+                                                    )
+                                            },
+                                        )
+                                    })
                             } else {
                                 false
-                            };
+                            }
+                        } else {
+                            false
+                        };
                         if applied_to_action_slot {
                             ctx.ui.send(TheEvent::Custom(
                                 TheId::named("Refresh Action Parameters"),
@@ -744,6 +765,12 @@ impl Dock for TilesDock {
                                     )
                                 });
                             if applied_to_material_slot
+                                || crate::actions::apply_named_geometry_hud_surface_source_to_selection(
+                                    map,
+                                    server_ctx.selected_hud_icon_index,
+                                    Some(&selected_source),
+                                    Some(self.apply_tile_mode),
+                                )
                                 || crate::actions::apply_builder_hud_surface_source_to_selection(
                                     map,
                                     server_ctx,
@@ -848,6 +875,10 @@ impl Dock for TilesDock {
                         if crate::actions::apply_builder_hud_material_to_selection(
                             map,
                             server_ctx,
+                            server_ctx.selected_hud_icon_index,
+                            None,
+                        ) || crate::actions::apply_named_geometry_hud_material_to_selection(
+                            map,
                             server_ctx.selected_hud_icon_index,
                             None,
                         ) {

@@ -297,6 +297,134 @@ fn geometry_face_source(face: &rusterix::GeometryFace) -> Option<PixelSource> {
         .or_else(|| face.tiles.values().next().cloned())
 }
 
+fn selected_named_geometry_object_ids(map: &Map) -> Vec<Uuid> {
+    let mut seed_ids = map.selected_geometry_objects.clone();
+    for (object_id, _) in &map.selected_geometry_faces {
+        if !seed_ids.contains(object_id) {
+            seed_ids.push(*object_id);
+        }
+    }
+
+    let mut instance_ids = Vec::new();
+    let mut out = Vec::new();
+    for object_id in seed_ids {
+        let Some(object) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)
+        else {
+            continue;
+        };
+        if object.properties.get_str("prefab_material_slot").is_none() {
+            continue;
+        }
+        if let Some(instance_id) = object.properties.get_id("block_instance_id") {
+            if !instance_ids.contains(&instance_id) {
+                instance_ids.push(instance_id);
+            }
+        } else {
+            out.push(object.id);
+        }
+    }
+
+    for object in &map.geometry_objects {
+        if object.properties.get_str("prefab_material_slot").is_some()
+            && object
+                .properties
+                .get_id("block_instance_id")
+                .is_some_and(|instance_id| instance_ids.contains(&instance_id))
+            && !out.contains(&object.id)
+        {
+            out.push(object.id);
+        }
+    }
+    out
+}
+
+pub fn named_geometry_hud_material_slots_for_selection(
+    map: &Map,
+) -> Option<Vec<ActionMaterialSlot>> {
+    let object_ids = selected_named_geometry_object_ids(map);
+    let mut slots: Vec<ActionMaterialSlot> = Vec::new();
+    for object_id in object_ids {
+        let Some(object) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)
+        else {
+            continue;
+        };
+        let Some(label) = object.properties.get_str("prefab_material_slot") else {
+            continue;
+        };
+        let slot_key = normalize_builder_slot_key(label);
+        if slots
+            .iter()
+            .any(|slot| normalize_builder_slot_key(&slot.label) == slot_key)
+        {
+            continue;
+        }
+        slots.push(ActionMaterialSlot {
+            label: label.to_string(),
+            source: object.faces.iter().find_map(geometry_face_source),
+        });
+    }
+    (!slots.is_empty()).then_some(slots)
+}
+
+pub fn apply_named_geometry_hud_surface_source_to_selection(
+    map: &mut Map,
+    slot_index: i32,
+    source: Option<&SurfaceApplySource>,
+    tile_mode: Option<i32>,
+) -> bool {
+    if slot_index < 0 {
+        return false;
+    }
+    let Some(slot) = named_geometry_hud_material_slots_for_selection(map)
+        .and_then(|slots| slots.get(slot_index as usize).cloned())
+    else {
+        return false;
+    };
+    let slot_key = normalize_builder_slot_key(&slot.label);
+    let object_ids = selected_named_geometry_object_ids(map);
+    let mut changed = false;
+    for object_id in object_ids {
+        let Some(object_slot) = map
+            .geometry_objects
+            .iter()
+            .find(|object| object.id == object_id)
+            .and_then(|object| object.properties.get_str("prefab_material_slot"))
+            .map(str::to_string)
+        else {
+            continue;
+        };
+        if normalize_builder_slot_key(&object_slot) != slot_key {
+            continue;
+        }
+        if let Some(source) = source {
+            changed |= crate::utils::apply_surface_source_to_geometry_object(
+                map, object_id, source, tile_mode,
+            );
+        } else {
+            changed |= crate::utils::clear_surface_source_on_geometry_object(map, object_id);
+        }
+    }
+    if changed {
+        map.update_surfaces();
+    }
+    changed
+}
+
+pub fn apply_named_geometry_hud_material_to_selection(
+    map: &mut Map,
+    slot_index: i32,
+    source: Option<PixelSource>,
+) -> bool {
+    let source = source.map(SurfaceApplySource::Direct);
+    apply_named_geometry_hud_surface_source_to_selection(map, slot_index, source.as_ref(), Some(1))
+}
+
 fn selected_builder_geometry_material_source(
     map: &Map,
     object_ids: &[Uuid],
@@ -340,6 +468,32 @@ pub fn builder_hud_material_slots_for_selected_geometry(
             })
             .collect(),
     )
+}
+
+pub fn prefab_hud_material_slots_for_selected_instances(
+    map: &Map,
+) -> Option<Vec<ActionMaterialSlot>> {
+    let instance_id = *map.selected_block_prop_instances.first()?;
+    let instance = map
+        .block_prop_instances
+        .iter()
+        .find(|instance| instance.id == instance_id)?;
+    let engine = RUSTERIX.read().unwrap();
+    let asset = engine.assets.block_props.get(&instance.asset_id)?;
+    let slots = rusterix::block_prop_asset_material_slots(asset);
+    (!slots.is_empty()).then(|| {
+        slots
+            .into_iter()
+            .map(|(label, default_source)| {
+                let source = instance
+                    .overrides
+                    .get_source(&rusterix::block_prop_material_override_key(&label))
+                    .cloned()
+                    .or(default_source);
+                ActionMaterialSlot { label, source }
+            })
+            .collect()
+    })
 }
 
 pub fn builder_hud_item_slots_for_selected_sector(map: &Map) -> Option<Vec<ActionItemSlot>> {
@@ -1975,6 +2129,65 @@ mod tests {
         assert_eq!(
             builder_material_property_key("roofMat"),
             "builder_material_roof_mat"
+        );
+    }
+
+    #[test]
+    fn named_geometry_material_slots_target_the_whole_table_instance_by_part() {
+        let mut map = Map::default();
+        let instance_id = Uuid::new_v4();
+        let mut top = rusterix::GeometryObject::box_("Table top", Vec3::zero(), Vec3::one());
+        top.properties
+            .set("block_instance_id", Value::Id(instance_id));
+        top.properties
+            .set("prefab_material_slot", Value::Str("TOP".to_string()));
+        for face in &mut top.faces {
+            face.tile = Some(PixelSource::PaletteIndex(1));
+        }
+        let top_id = top.id;
+
+        let mut leg = rusterix::GeometryObject::box_("Table leg", Vec3::zero(), Vec3::one());
+        leg.properties
+            .set("block_instance_id", Value::Id(instance_id));
+        leg.properties
+            .set("prefab_material_slot", Value::Str("LEGS".to_string()));
+        for face in &mut leg.faces {
+            face.tile = Some(PixelSource::PaletteIndex(2));
+        }
+        let leg_id = leg.id;
+        map.geometry_objects.extend([top, leg]);
+        map.selected_geometry_objects.push(top_id);
+
+        let slots = named_geometry_hud_material_slots_for_selection(&map).unwrap();
+        assert_eq!(
+            slots
+                .iter()
+                .map(|slot| slot.label.as_str())
+                .collect::<Vec<_>>(),
+            ["TOP", "LEGS"]
+        );
+        assert!(apply_named_geometry_hud_material_to_selection(
+            &mut map,
+            1,
+            Some(PixelSource::PaletteIndex(9)),
+        ));
+        assert!(
+            map.geometry_objects
+                .iter()
+                .find(|object| object.id == top_id)
+                .unwrap()
+                .faces
+                .iter()
+                .all(|face| face.tile == Some(PixelSource::PaletteIndex(1)))
+        );
+        assert!(
+            map.geometry_objects
+                .iter()
+                .find(|object| object.id == leg_id)
+                .unwrap()
+                .faces
+                .iter()
+                .all(|face| face.tile == Some(PixelSource::PaletteIndex(9)))
         );
     }
 

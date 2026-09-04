@@ -1,11 +1,11 @@
 use crate::blocks::{
     BLOCK_COLUMN_SEGMENTS, BLOCK_OPERATION_ERASE, BLOCK_OPERATION_PLACE, BLOCK_STROKE_LINE,
     BLOCK_STROKE_RECT, BlockAsset, BlockSizing, adjusted_rotated_bounds, asset_supports_depth,
-    asset_supports_height, asset_supports_width, block_asset, block_assets, block_component_kind,
-    bundled_effect_prefab, bundled_effect_prefabs, component_uses_cylinder,
-    cylinder_vertices_and_faces, default_block_asset_id, ensure_prefab_default_surfaces,
-    localized_block_asset_description, localized_block_asset_name, prefab_object_default_color,
-    upgrade_legacy_effect_prefab_geometry,
+    asset_supports_height, asset_supports_width, block_asset, block_asset_default_color,
+    block_assets, block_component_kind, bundled_prefab, bundled_prefabs, component_uses_cylinder,
+    cylinder_vertices_and_faces, default_block_asset_id, ensure_block_asset_default_palette,
+    ensure_prefab_default_surfaces, localized_block_asset_description, localized_block_asset_name,
+    prefab_object_default_color, prefab_uses_auto_sizing, upgrade_bundled_prefab_geometry,
 };
 use crate::editor::{RUSTERIX, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use vek::Vec4;
 
 const BLOCKS_DOCK_BOARD: &str = "Blocks Dock Board";
+const BLOCKS_DOCK_TABS: &str = "Blocks Dock Categories";
 const BLOCKS_DOCK_INSPECTOR: &str = "Blocks Dock Inspector";
 const BLOCKS_DOCK_OPERATION: &str = "Blocks Dock Operation";
 const BLOCKS_DOCK_STROKE: &str = "Blocks Dock Stroke";
@@ -90,7 +91,8 @@ impl BlocksDockPreviews {
             max.y = max.y.max(box_max.y);
             max.z = max.z.max(box_max.z);
 
-            let mut batch = if component_uses_cylinder(block_component_kind(asset, index)) {
+            let component = block_component_kind(asset, index);
+            let mut batch = if component_uses_cylinder(component) {
                 Self::cylinder_batch(box_min, box_max)
             } else {
                 rusterix::Batch3D::from_box(
@@ -103,7 +105,8 @@ impl BlocksDockPreviews {
                 )
             }
             .source(rusterix::PixelSource::Pixel(
-                BLOCK_PREVIEW_COLORS[index % BLOCK_PREVIEW_COLORS.len()],
+                block_asset_default_color(asset, component)
+                    .unwrap_or(BLOCK_PREVIEW_COLORS[index % BLOCK_PREVIEW_COLORS.len()]),
             ))
             .cull_mode(rusterix::CullMode::Off);
             batch.ambient_color = Vec3::new(0.42, 0.44, 0.48);
@@ -289,8 +292,49 @@ impl BlocksDockPreviews {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BlockCatalogTab {
+    Blocks,
+    Furniture,
+    Decoration,
+    Effects,
+    User,
+}
+
+impl BlockCatalogTab {
+    const ALL: [Self; 5] = [
+        Self::Blocks,
+        Self::Furniture,
+        Self::Decoration,
+        Self::Effects,
+        Self::User,
+    ];
+
+    fn from_index(index: usize) -> Self {
+        Self::ALL.get(index).copied().unwrap_or(Self::Blocks)
+    }
+
+    fn index(self) -> usize {
+        Self::ALL
+            .iter()
+            .position(|candidate| *candidate == self)
+            .unwrap_or(0)
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::Blocks => "Blocks",
+            Self::Furniture => "Furniture",
+            Self::Decoration => "Decoration",
+            Self::Effects => "Effects",
+            Self::User => "User",
+        }
+    }
+}
+
 pub struct BlocksDock {
     selected: Uuid,
+    active_tab: BlockCatalogTab,
     project_assets: Vec<rusterix::BlockPropAsset>,
     bundled_overrides: HashMap<Uuid, rusterix::BlockPropAsset>,
     preview_cache: HashMap<(Uuid, i32), TheRGBABuffer>,
@@ -299,17 +343,55 @@ pub struct BlocksDock {
 impl BlocksDock {
     const PREVIEW_SIZE: i32 = 72;
 
-    fn catalog_ids(&self) -> Vec<Uuid> {
-        block_assets()
-            .iter()
-            .map(|asset| asset.id)
-            .chain(bundled_effect_prefabs().iter().map(|asset| asset.id))
-            .chain(self.project_assets.iter().map(|asset| asset.id))
-            .collect()
+    fn board_name(tab: BlockCatalogTab) -> String {
+        format!("{BLOCKS_DOCK_BOARD} {}", tab.index())
     }
 
-    fn selected_index(&self) -> Option<usize> {
-        self.catalog_ids()
+    fn tab_from_board_name(name: &str) -> Option<BlockCatalogTab> {
+        let index = name.strip_prefix(&format!("{BLOCKS_DOCK_BOARD} "))?;
+        index
+            .parse::<usize>()
+            .ok()
+            .filter(|index| *index < BlockCatalogTab::ALL.len())
+            .map(BlockCatalogTab::from_index)
+    }
+
+    fn block_asset_tab(asset: &BlockAsset) -> BlockCatalogTab {
+        if asset.name == "Table" {
+            BlockCatalogTab::Furniture
+        } else {
+            BlockCatalogTab::Blocks
+        }
+    }
+
+    fn bundled_asset_tab(asset: &rusterix::BlockPropAsset) -> BlockCatalogTab {
+        match asset.category.as_str() {
+            "Furniture" => BlockCatalogTab::Furniture,
+            "Decoration" => BlockCatalogTab::Decoration,
+            "Effects" => BlockCatalogTab::Effects,
+            _ => BlockCatalogTab::Decoration,
+        }
+    }
+
+    fn catalog_ids(&self, tab: BlockCatalogTab) -> Vec<Uuid> {
+        let built_in_blocks = block_assets()
+            .iter()
+            .filter(|asset| Self::block_asset_tab(asset) == tab)
+            .map(|asset| asset.id);
+        let bundled = bundled_prefabs()
+            .iter()
+            .filter(|asset| Self::bundled_asset_tab(asset) == tab)
+            .map(|asset| asset.id);
+        let user = self
+            .project_assets
+            .iter()
+            .filter(move |_| tab == BlockCatalogTab::User)
+            .map(|asset| asset.id);
+        built_in_blocks.chain(bundled).chain(user).collect()
+    }
+
+    fn selected_index(&self, tab: BlockCatalogTab) -> Option<usize> {
+        self.catalog_ids(tab)
             .iter()
             .position(|asset_id| *asset_id == self.selected)
     }
@@ -318,13 +400,13 @@ impl BlocksDock {
         let bundled_overrides = project
             .block_props
             .iter()
-            .filter(|(id, _)| bundled_effect_prefab(**id).is_some())
+            .filter(|(id, _)| bundled_prefab(**id).is_some())
             .map(|(id, asset)| (*id, asset.clone()))
             .collect::<HashMap<_, _>>();
         let assets = project
             .block_props
             .values()
-            .filter(|asset| bundled_effect_prefab(asset.id).is_none())
+            .filter(|asset| bundled_prefab(asset.id).is_none())
             .cloned()
             .collect::<Vec<_>>();
         if self.project_assets != assets || self.bundled_overrides != bundled_overrides {
@@ -334,71 +416,68 @@ impl BlocksDock {
         }
     }
 
-    fn icon_items(&mut self) -> Vec<TheIconGridItem> {
-        let mut items = Vec::with_capacity(
-            block_assets().len() + bundled_effect_prefabs().len() + self.project_assets.len(),
-        );
-
-        for asset in block_assets() {
-            let icon = self
-                .preview_cache
-                .entry((asset.id, Self::PREVIEW_SIZE))
-                .or_insert_with(|| {
-                    BlocksDockPreviews::render_asset_preview(asset, Self::PREVIEW_SIZE)
-                })
-                .clone();
-            items.push(TheIconGridItem {
-                label: localized_block_asset_name(asset),
-                status: format!(
-                    "{}: {}",
-                    localized_block_asset_name(asset),
-                    localized_block_asset_description(asset)
-                ),
-                icon: Some(icon),
-            });
-        }
-
-        for asset in bundled_effect_prefabs() {
-            let displayed = self.bundled_overrides.get(&asset.id).unwrap_or(asset);
-            let state = match self.bundled_overrides.get(&asset.id) {
-                Some(project_asset) if project_asset != asset => "Modified",
-                Some(_) => "Bundled Copy",
-                None => "Bundled",
-            };
-            let icon = self
-                .preview_cache
-                .entry((asset.id, Self::PREVIEW_SIZE))
-                .or_insert_with(|| {
-                    BlocksDockPreviews::render_prop_preview(displayed, Self::PREVIEW_SIZE)
-                })
-                .clone();
-            items.push(TheIconGridItem {
-                label: format!("[{state}] {}", displayed.name),
-                status: format!(
-                    "{} · {} · editable particle/light Prefab",
-                    displayed.name, state
-                ),
-                icon: Some(icon),
-            });
-        }
-
-        for asset in &self.project_assets {
-            let icon = self
-                .preview_cache
-                .entry((asset.id, Self::PREVIEW_SIZE))
-                .or_insert_with(|| {
-                    BlocksDockPreviews::render_prop_preview(asset, Self::PREVIEW_SIZE)
-                })
-                .clone();
-            items.push(TheIconGridItem {
-                label: asset.name.clone(),
-                status: fl!(
-                    "prefab_catalog_hover",
-                    name = asset.name.as_str(),
-                    part_count = asset.parts.len()
-                ),
-                icon: Some(icon),
-            });
+    fn icon_items(&mut self, tab: BlockCatalogTab) -> Vec<TheIconGridItem> {
+        let asset_ids = self.catalog_ids(tab);
+        let mut items = Vec::with_capacity(asset_ids.len());
+        for asset_id in asset_ids {
+            if let Some(asset) = block_asset(asset_id) {
+                let icon = self
+                    .preview_cache
+                    .entry((asset.id, Self::PREVIEW_SIZE))
+                    .or_insert_with(|| {
+                        BlocksDockPreviews::render_asset_preview(asset, Self::PREVIEW_SIZE)
+                    })
+                    .clone();
+                items.push(TheIconGridItem {
+                    label: localized_block_asset_name(asset),
+                    status: format!(
+                        "{}: {}",
+                        localized_block_asset_name(asset),
+                        localized_block_asset_description(asset)
+                    ),
+                    icon: Some(icon),
+                });
+            } else if let Some(asset) = bundled_prefab(asset_id) {
+                let displayed = self.bundled_overrides.get(&asset.id).unwrap_or(asset);
+                let state = match self.bundled_overrides.get(&asset.id) {
+                    Some(project_asset) if project_asset != asset => "Modified",
+                    Some(_) => "Bundled Copy",
+                    None => "Bundled",
+                };
+                let icon = self
+                    .preview_cache
+                    .entry((asset.id, Self::PREVIEW_SIZE))
+                    .or_insert_with(|| {
+                        BlocksDockPreviews::render_prop_preview(displayed, Self::PREVIEW_SIZE)
+                    })
+                    .clone();
+                items.push(TheIconGridItem {
+                    label: format!("[{state}] {}", displayed.name),
+                    status: format!("{} · {} · editable linked Prefab", displayed.name, state),
+                    icon: Some(icon),
+                });
+            } else if let Some(asset) = self
+                .project_assets
+                .iter()
+                .find(|asset| asset.id == asset_id)
+            {
+                let icon = self
+                    .preview_cache
+                    .entry((asset.id, Self::PREVIEW_SIZE))
+                    .or_insert_with(|| {
+                        BlocksDockPreviews::render_prop_preview(asset, Self::PREVIEW_SIZE)
+                    })
+                    .clone();
+                items.push(TheIconGridItem {
+                    label: asset.name.clone(),
+                    status: fl!(
+                        "prefab_catalog_hover",
+                        name = asset.name.as_str(),
+                        part_count = asset.parts.len()
+                    ),
+                    icon: Some(icon),
+                });
+            }
         }
 
         items
@@ -407,7 +486,7 @@ impl BlocksDock {
     fn ensure_selection(&mut self, project: &Project, server_ctx: &mut ServerContext) {
         let selected = server_ctx.curr_block_asset_id.unwrap_or(self.selected);
         if block_asset(selected).is_some()
-            || bundled_effect_prefab(selected).is_some()
+            || bundled_prefab(selected).is_some()
             || project.block_props.contains_key(&selected)
         {
             self.selected = selected;
@@ -417,7 +496,7 @@ impl BlocksDock {
         server_ctx.curr_block_asset_id = Some(self.selected);
         server_ctx.curr_block_asset_name = block_asset(self.selected)
             .map(|asset| asset.name.to_string())
-            .or_else(|| bundled_effect_prefab(self.selected).map(|asset| asset.name.clone()))
+            .or_else(|| bundled_prefab(self.selected).map(|asset| asset.name.clone()))
             .or_else(|| {
                 project
                     .block_props
@@ -442,11 +521,19 @@ impl BlocksDock {
         self.ensure_selection(project, server_ctx);
         self.sync_project_assets(project);
 
-        let selected = self.selected_index();
-        let items = self.icon_items();
-        if let Some(board) = ui.get_icon_grid_view(BLOCKS_DOCK_BOARD) {
-            board.set_items(items);
-            board.set_selected(selected);
+        for tab in BlockCatalogTab::ALL {
+            let selected = self.selected_index(tab);
+            let items = self.icon_items(tab);
+            if let Some(board) = ui.get_icon_grid_view(&Self::board_name(tab)) {
+                board.set_items(items);
+                board.set_selected(selected);
+            }
+        }
+        let tab_layout_name = BLOCKS_DOCK_TABS.to_string();
+        if let Some(layout) = ui.canvas.get_layout(Some(&tab_layout_name), None)
+            && let Some(tab_layout) = layout.as_tab_layout()
+        {
+            tab_layout.set_index(self.active_tab.index());
         }
         if let Some(widget) = ui.get_widget(BLOCKS_DOCK_OPERATION)
             && let Some(group) = widget.as_group_button()
@@ -476,7 +563,7 @@ impl BlocksDock {
             });
         }
         if block_asset(self.selected).is_some()
-            || bundled_effect_prefab(self.selected).is_some()
+            || bundled_prefab(self.selected).is_some()
             || project.block_props.contains_key(&self.selected)
         {
             ui.set_enabled(BLOCKS_DOCK_DUPLICATE, ctx);
@@ -558,7 +645,7 @@ impl BlocksDock {
             } else if let Some(asset) = project
                 .block_props
                 .get(&self.selected)
-                .or_else(|| bundled_effect_prefab(self.selected))
+                .or_else(|| bundled_prefab(self.selected))
             {
                 let object_count = asset
                     .parts
@@ -569,7 +656,7 @@ impl BlocksDock {
                 layout.add_pair(
                     fl!("prefab_label_source"),
                     Self::text(
-                        bundled_effect_prefab(asset.id)
+                        bundled_prefab(asset.id)
                             .map(|bundled| {
                                 if !project.block_props.contains_key(&asset.id) {
                                     "Bundled · editable copy created on use".to_string()
@@ -602,6 +689,24 @@ impl BlocksDock {
                     fl!("prefab_label_placement"),
                     Self::text(fl!("prefab_linked_placement")),
                 );
+                if prefab_uses_auto_sizing(asset) {
+                    layout.add_pair(
+                        fl!("block_label_shape"),
+                        Self::text(format!(
+                            "{}{}, {}+{}, {}+{}",
+                            fl!("block_label_height_short"),
+                            server_ctx.block_height_cells.max(1),
+                            fl!("block_label_width_short"),
+                            server_ctx.block_span_extra_cells.max(0.0),
+                            fl!("block_label_depth_short"),
+                            server_ctx.block_depth_extra_cells.max(0.0)
+                        )),
+                    );
+                    layout.add_pair(
+                        fl!("block_label_resize"),
+                        Self::text(fl!("block_help_resize")),
+                    );
+                }
                 layout.add_pair(
                     fl!("prefab_label_shortcut"),
                     Self::text(fl!("prefab_rotate_shortcut")),
@@ -636,6 +741,7 @@ impl BlocksDock {
                 self.preview_cache
                     .retain(|(cached_id, _), _| *cached_id != asset_id);
                 self.selected = default_block_asset_id();
+                self.active_tab = BlockCatalogTab::Blocks;
                 server_ctx.curr_block_asset_id = Some(self.selected);
                 server_ctx.curr_block_asset_name =
                     block_asset(self.selected).map(|asset| asset.name.to_string());
@@ -716,7 +822,7 @@ impl BlocksDock {
             .block_props
             .get(&self.selected)
             .cloned()
-            .or_else(|| bundled_effect_prefab(self.selected).cloned())
+            .or_else(|| bundled_prefab(self.selected).cloned())
             .or_else(|| {
                 block_asset(self.selected)
                     .map(|asset| crate::blocks::editable_prefab_from_block_asset(asset))
@@ -732,7 +838,11 @@ impl BlocksDock {
             &source,
             duplicate_name.clone(),
         );
+        if ensure_prefab_default_surfaces(project, duplicate_id) {
+            crate::undo::project_helper::refresh_palette_runtime(project);
+        }
         self.selected = duplicate_id;
+        self.active_tab = BlockCatalogTab::User;
         server_ctx.curr_block_asset_id = Some(duplicate_id);
         server_ctx.curr_block_asset_name = Some(duplicate_name.clone());
 
@@ -768,6 +878,46 @@ impl BlocksDock {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prefab_catalog_separates_built_in_categories_from_user_assets() {
+        let mut dock = <BlocksDock as Dock>::new();
+        let user = rusterix::BlockPropAsset::new("My Prefab");
+        let user_id = user.id;
+        dock.project_assets.push(user);
+
+        let block_ids = dock.catalog_ids(BlockCatalogTab::Blocks);
+        let furniture_ids = dock.catalog_ids(BlockCatalogTab::Furniture);
+        let decoration_ids = dock.catalog_ids(BlockCatalogTab::Decoration);
+        let effects_ids = dock.catalog_ids(BlockCatalogTab::Effects);
+        let user_ids = dock.catalog_ids(BlockCatalogTab::User);
+        let table_id = block_assets()
+            .iter()
+            .find(|asset| asset.name == "Table")
+            .expect("Table block asset")
+            .id;
+        let plate_id = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Ceramic Plate")
+            .expect("Ceramic Plate decoration")
+            .id;
+        let torch_id = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Wall Torch")
+            .expect("Wall Torch effect")
+            .id;
+
+        assert!(!block_ids.contains(&table_id));
+        assert!(furniture_ids.contains(&table_id));
+        assert!(decoration_ids.contains(&plate_id));
+        assert!(effects_ids.contains(&torch_id));
+        assert_eq!(user_ids, vec![user_id]);
+    }
+}
+
 impl Dock for BlocksDock {
     fn new() -> Self
     where
@@ -775,6 +925,7 @@ impl Dock for BlocksDock {
     {
         Self {
             selected: default_block_asset_id(),
+            active_tab: BlockCatalogTab::Blocks,
             project_assets: Vec::new(),
             bundled_overrides: HashMap::new(),
             preview_cache: HashMap::new(),
@@ -835,15 +986,19 @@ impl Dock for BlocksDock {
 
         let mut center = TheCanvas::new();
 
-        let mut board_canvas = TheCanvas::new();
-        let mut board = TheIconGridView::new(TheId::named(BLOCKS_DOCK_BOARD));
-        board.set_cell_size(88);
-        board.set_icon_size(Self::PREVIEW_SIZE);
-        board.set_icon_padding(6);
-        board.set_spacing(8);
-        board.set_content_padding(10);
-        board_canvas.set_widget(board);
-        center.set_center(board_canvas);
+        let mut tabs = TheTabLayout::new(TheId::named(BLOCKS_DOCK_TABS));
+        for tab in BlockCatalogTab::ALL {
+            let mut board_canvas = TheCanvas::new();
+            let mut board = TheIconGridView::new(TheId::named(&Self::board_name(tab)));
+            board.set_cell_size(88);
+            board.set_icon_size(Self::PREVIEW_SIZE);
+            board.set_icon_padding(6);
+            board.set_spacing(8);
+            board.set_content_padding(10);
+            board_canvas.set_widget(board);
+            tabs.add_canvas(tab.label().to_string(), board_canvas);
+        }
+        center.set_layout(tabs);
 
         let mut inspector_canvas = TheCanvas::new();
         inspector_canvas.limiter_mut().set_min_width(360);
@@ -870,6 +1025,17 @@ impl Dock for BlocksDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
+        self.sync_project_assets(project);
+        self.ensure_selection(project, server_ctx);
+        self.active_tab = if block_asset(self.selected).is_some() {
+            block_asset(self.selected)
+                .map(Self::block_asset_tab)
+                .unwrap_or(BlockCatalogTab::Blocks)
+        } else if let Some(asset) = bundled_prefab(self.selected) {
+            Self::bundled_asset_tab(asset)
+        } else {
+            BlockCatalogTab::User
+        };
         self.sync_widgets(ui, ctx, project, server_ctx);
     }
 
@@ -882,24 +1048,35 @@ impl Dock for BlocksDock {
         server_ctx: &mut ServerContext,
     ) -> bool {
         match event {
-            TheEvent::IndexChanged(id, index) if id.name == BLOCKS_DOCK_BOARD => {
-                let Some(asset_id) = self.catalog_ids().get(*index).copied() else {
+            TheEvent::IndexChanged(id, index)
+                if id.name == format!("{BLOCKS_DOCK_TABS} Tabbar") =>
+            {
+                self.active_tab = BlockCatalogTab::from_index(*index);
+                self.sync_widgets(ui, ctx, project, server_ctx);
+                true
+            }
+            TheEvent::IndexChanged(id, index) if Self::tab_from_board_name(&id.name).is_some() => {
+                let tab = Self::tab_from_board_name(&id.name).unwrap_or(self.active_tab);
+                let Some(asset_id) = self.catalog_ids(tab).get(*index).copied() else {
                     return false;
                 };
-                // Bundled effect Prefabs become project-owned on first use.
+                self.active_tab = tab;
+                // Bundled Prefabs become project-owned on first use.
                 // The stable ID means existing placements and later edits keep
                 // referencing the same ordinary serialized Prefab asset.
                 let mut prefab_assets_changed = false;
                 if !project.block_props.contains_key(&asset_id)
-                    && let Some(asset) = bundled_effect_prefab(asset_id)
+                    && let Some(asset) = bundled_prefab(asset_id)
                 {
                     project.block_props.insert(asset_id, asset.clone());
                     prefab_assets_changed = true;
                 }
                 if project.block_props.contains_key(&asset_id) {
-                    prefab_assets_changed |=
-                        upgrade_legacy_effect_prefab_geometry(project, asset_id);
+                    prefab_assets_changed |= upgrade_bundled_prefab_geometry(project, asset_id);
                     prefab_assets_changed |= ensure_prefab_default_surfaces(project, asset_id);
+                }
+                if let Some(asset) = block_asset(asset_id) {
+                    prefab_assets_changed |= ensure_block_asset_default_palette(project, asset);
                 }
                 if prefab_assets_changed {
                     crate::undo::project_helper::refresh_palette_runtime(project);
@@ -916,7 +1093,7 @@ impl Dock for BlocksDock {
                 server_ctx.curr_block_asset_id = Some(asset_id);
                 server_ctx.curr_block_asset_name = block_asset(asset_id)
                     .map(|asset| asset.name.to_string())
-                    .or_else(|| bundled_effect_prefab(asset_id).map(|asset| asset.name.clone()))
+                    .or_else(|| bundled_prefab(asset_id).map(|asset| asset.name.clone()))
                     .or_else(|| {
                         project
                             .block_props

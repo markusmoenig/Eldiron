@@ -21,6 +21,75 @@ pub struct MadeUniqueBlockProp {
     pub unique_asset_id: Uuid,
 }
 
+/// Apply one Color/Tile source to a named material slot on the selected linked
+/// Prefab instances. The override remains instance-local; the shared asset and
+/// every other instance keep their authored materials.
+pub fn apply_surface_source_to_selected_prefab_instances(
+    project: &mut Project,
+    server_ctx: &ServerContext,
+    source: &crate::utils::SurfaceApplySource,
+    slot_index: i32,
+) -> bool {
+    let source = match source {
+        crate::utils::SurfaceApplySource::Direct(source) => source.clone(),
+        crate::utils::SurfaceApplySource::TileGroup { group, .. } => {
+            let Some(member) = group.members.first() else {
+                return false;
+            };
+            rusterix::PixelSource::TileId(member.tile_id)
+        }
+    };
+    let Some(map) = project.get_map(server_ctx) else {
+        return false;
+    };
+    let selected = map
+        .selected_block_prop_instances
+        .iter()
+        .copied()
+        .collect::<FxHashSet<_>>();
+    if selected.is_empty() {
+        return false;
+    }
+    let Some(first_instance) = map
+        .block_prop_instances
+        .iter()
+        .find(|instance| selected.contains(&instance.id))
+    else {
+        return false;
+    };
+    let Some(asset) = project.block_props.get(&first_instance.asset_id) else {
+        return false;
+    };
+    let slots = rusterix::block_prop_asset_material_slots(asset);
+    let slot_index = if slot_index >= 0 && (slot_index as usize) < slots.len() {
+        slot_index as usize
+    } else if slots.len() == 1 {
+        0
+    } else {
+        return false;
+    };
+    let Some((slot_label, _)) = slots.get(slot_index) else {
+        return false;
+    };
+    let override_key = rusterix::block_prop_material_override_key(slot_label);
+
+    let mut changed = false;
+    let Some(map) = project.get_map_mut(server_ctx) else {
+        return false;
+    };
+    for instance in &mut map.block_prop_instances {
+        if selected.contains(&instance.id)
+            && instance.overrides.get_source(&override_key) != Some(&source)
+        {
+            instance
+                .overrides
+                .set(&override_key, Value::Source(source.clone()));
+            changed = true;
+        }
+    }
+    changed
+}
+
 /// Opens an authored Prefab as an isolated ordinary geometry map. The normal
 /// 3D Object/Vertex/Edge/Face tools can therefore edit it without special
 /// editor-only geometry code.
@@ -2016,6 +2085,60 @@ mod tests {
         );
         assert!(!project.block_props.contains_key(&asset_id));
         assert!(!project.block_prop_paint.contains_key(&asset_id));
+    }
+
+    #[test]
+    fn applying_a_surface_source_reaches_selected_linked_prefab_instances() {
+        let mut project = Project::default();
+        let mut region = Region::default();
+        let region_id = region.id;
+        let mut seat = rusterix::GeometryObject::box_("Seat", Vec3::zero(), Vec3::one());
+        seat.properties
+            .set("prefab_material_slot", Value::Str("WOOD".to_string()));
+        let asset = rusterix::BlockPropAsset::new_authored("Chair", vec![seat]);
+        let asset_id = asset.id;
+        let instance = rusterix::BlockPropInstance::new(asset_id);
+        let untouched_instance = rusterix::BlockPropInstance::new(asset_id);
+        region.map.selected_block_prop_instances = vec![instance.id];
+        region
+            .map
+            .block_prop_instances
+            .extend([instance, untouched_instance]);
+        project.block_props.insert(asset_id, asset);
+        project.regions.push(region);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.curr_region = region_id;
+        server_ctx.pc = ProjectContext::Region(region_id);
+        let source =
+            crate::utils::SurfaceApplySource::Direct(rusterix::PixelSource::PaletteIndex(7));
+
+        assert!(apply_surface_source_to_selected_prefab_instances(
+            &mut project,
+            &server_ctx,
+            &source,
+            0,
+        ));
+        let key = rusterix::block_prop_material_override_key("WOOD");
+        assert_eq!(
+            project.regions[0].map.block_prop_instances[0]
+                .overrides
+                .get_source(&key),
+            Some(&rusterix::PixelSource::PaletteIndex(7))
+        );
+        assert!(
+            project.regions[0].map.block_prop_instances[1]
+                .overrides
+                .get_source(&key)
+                .is_none()
+        );
+        assert!(
+            project.block_props[&asset_id].parts[0]
+                .geometry_source
+                .geometry_objects()[0]
+                .faces
+                .iter()
+                .all(|face| face.tile.is_none())
+        );
     }
 
     #[test]
