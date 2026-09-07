@@ -17,6 +17,29 @@ pub struct TheTabbar {
     is_dirty: bool,
 }
 
+impl TheTabbar {
+    const MAX_TAB_WIDTH: i32 = 142;
+    const TAB_GAP: i32 = 2;
+
+    fn fitted_tab_width(&self) -> i32 {
+        let tab_count = self.tabs.len() as i32;
+        if tab_count <= 0 {
+            return Self::MAX_TAB_WIDTH;
+        }
+        let gaps = Self::TAB_GAP.saturating_mul(tab_count.saturating_sub(1));
+        self.dim
+            .width
+            .saturating_sub(gaps)
+            .checked_div(tab_count)
+            .unwrap_or(Self::MAX_TAB_WIDTH)
+            .clamp(1, Self::MAX_TAB_WIDTH)
+    }
+
+    fn tab_index_at(&self, x: i32) -> i32 {
+        x / self.fitted_tab_width().saturating_add(Self::TAB_GAP)
+    }
+}
+
 impl TheWidget for TheTabbar {
     fn new(id: TheId) -> Self
     where
@@ -60,7 +83,7 @@ impl TheWidget for TheTabbar {
                     self.original = self.selected;
                     redraw = true;
                 }
-                let index = coord.x / 142;
+                let index = self.tab_index_at(coord.x);
                 if index >= 0 && index < self.tabs.len() as i32 {
                     if Some(index) != self.selected_index {
                         self.selected_index = Some(index);
@@ -81,7 +104,7 @@ impl TheWidget for TheTabbar {
                     redraw = true;
                     self.is_dirty = true;
                 }
-                let index = coord.x / 142;
+                let index = self.tab_index_at(coord.x);
                 if index >= 0 && index < self.tabs.len() as i32 {
                     if Some(index) != self.hover_index {
                         self.hover_index = Some(index);
@@ -177,9 +200,10 @@ impl TheWidget for TheTabbar {
             ctx.painter.fill_rect(&mut surface, bar_rect, &bar_paint);
 
             let mut x = bar_rect.x;
+            let tab_width = self.fitted_tab_width();
             for index in 0..self.tabs.len() {
                 let tab_rect =
-                    ThePixelRect::new(x, bar_rect.y, 142, bar_rect.height.saturating_sub(1));
+                    ThePixelRect::new(x, bar_rect.y, tab_width, bar_rect.height.saturating_sub(1));
                 let role = if Some(index as i32) == self.selected_index {
                     TabSelectedChrome
                 } else if Some(index as i32) == self.hover_index {
@@ -190,19 +214,19 @@ impl TheWidget for TheTabbar {
                 let paint = style.theme().paint(role, tab_rect);
                 ctx.painter.fill_rect(&mut surface, tab_rect, &paint);
                 tab_rects.push(tab_rect);
-                x = x.saturating_add(142);
+                x = x.saturating_add(tab_width);
 
                 if index + 1 < self.tabs.len() {
                     surface.fill_rect(
                         ThePixelRect::new(
                             x,
                             bar_rect.y.saturating_add(bar_rect.height.saturating_sub(1)),
-                            2,
+                            Self::TAB_GAP,
                             1,
                         ),
                         connector,
                     );
-                    x = x.saturating_add(2);
+                    x = x.saturating_add(Self::TAB_GAP);
                 }
             }
         }

@@ -485,11 +485,19 @@ pub fn prefab_hud_material_slots_for_selected_instances(
         slots
             .into_iter()
             .map(|(label, default_source)| {
-                let source = instance
-                    .overrides
-                    .get_source(&rusterix::block_prop_material_override_key(&label))
-                    .cloned()
-                    .or(default_source);
+                let override_key = rusterix::block_prop_material_override_key(&label);
+                let source = if matches!(
+                    instance.overrides.get(&override_key),
+                    Some(Value::Bool(false))
+                ) {
+                    None
+                } else {
+                    instance
+                        .overrides
+                        .get_source(&override_key)
+                        .cloned()
+                        .or(default_source)
+                };
                 ActionMaterialSlot { label, source }
             })
             .collect()
@@ -2115,6 +2123,7 @@ pub fn nodeui_to_value_pairs(nodeui: &TheNodeUI) -> Vec<(String, TheValue)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusterix::WallOpeningShape;
 
     #[test]
     fn builder_material_keys_keep_acronym_slots_readable() {

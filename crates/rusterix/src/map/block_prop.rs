@@ -1198,7 +1198,8 @@ fn support_surface_part_frame(
     asset: &BlockPropAsset,
     surface: &BlockPropSupportSurface,
 ) -> Option<BlockPropTransform> {
-    let (origin, axis_u, axis_v) = match &surface.shape {
+    let face_surface = matches!(&surface.shape, BlockPropSemanticShape::Faces(_));
+    let (origin, axis_u, mut axis_v) = match &surface.shape {
         BlockPropSemanticShape::Faces(face_refs) => {
             let part = asset.find_part(surface.part_id)?;
             let mut frame = None;
@@ -1260,7 +1261,11 @@ fn support_surface_part_frame(
         }
         _ => return None,
     };
-    let normal = axis_u.cross(axis_v).try_normalized()?;
+    let mut normal = axis_u.cross(axis_v).try_normalized()?;
+    if face_surface && normal.y < -0.5 {
+        axis_v = -axis_v;
+        normal = -normal;
+    }
     let mut frame = identity_block_prop_transform();
     frame[0][0] = axis_u.x;
     frame[0][1] = axis_u.y;
@@ -1389,6 +1394,53 @@ pub fn sync_block_prop_surface_item_positions(
     updated
 }
 
+/// Reapply persistent support-surface relationships to linked Prefab
+/// transforms. This lets decorations follow the furniture surface on which
+/// they were placed.
+pub fn sync_block_prop_surface_prop_transforms(
+    instances: &mut [BlockPropInstance],
+    placements: &[BlockPropSurfacePlacement],
+    assets: &IndexMap<Uuid, BlockPropAsset>,
+) -> usize {
+    let updates = placements
+        .iter()
+        .filter_map(|placement| {
+            let BlockPropOccupant::PropInstance(child_id) = &placement.occupant else {
+                return None;
+            };
+            if *child_id == placement.prop_instance_id {
+                return None;
+            }
+            let parent = instances
+                .iter()
+                .find(|instance| instance.id == placement.prop_instance_id)?;
+            let parent_asset = assets.get(&parent.asset_id)?;
+            let surface_transform = block_prop_support_surface_world_transform(
+                parent_asset,
+                parent,
+                placement.surface_id,
+            )?;
+            Some((
+                *child_id,
+                multiply_block_prop_transforms(placement.local_transform, surface_transform),
+            ))
+        })
+        .collect::<Vec<_>>();
+
+    let mut updated = 0;
+    for (child_id, world_transform) in updates {
+        let Some(child) = instances
+            .iter_mut()
+            .find(|instance| instance.id == child_id)
+        else {
+            continue;
+        };
+        child.world_transform = world_transform;
+        updated += 1;
+    }
+    updated
+}
+
 /// World-space anchor for whole-Prefab authoring interactions. The selected
 /// part pivot provides a stable, server-verifiable point even when no component
 /// interaction target exists.
@@ -1472,6 +1524,19 @@ pub fn resolve_block_prop_geometry(
                 multiply_block_prop_transforms(part_transform, instance.world_transform);
 
             for source_object in part.geometry_source.geometry_objects() {
+                if let Some(slot) = source_object.properties.get_str("prefab_material_slot")
+                    && source_object
+                        .properties
+                        .get_bool_default("prefab_optional_material_slot", false)
+                    && matches!(
+                        instance
+                            .overrides
+                            .get(&block_prop_material_override_key(slot)),
+                        Some(Value::Bool(false))
+                    )
+                {
+                    continue;
+                }
                 let mut object = source_object.clone();
                 if let Some(slot) = source_object.properties.get_str("prefab_material_slot")
                     && let Some(source) = instance
@@ -1771,6 +1836,12 @@ mod tests {
         );
 
         let asset = &assets[&asset_id];
+        let surface_transform =
+            block_prop_support_surface_world_transform(asset, &instance, surface_id).unwrap();
+        assert!(
+            surface_transform[1][1] > 0.0,
+            "horizontal support surfaces must point above their furniture"
+        );
         let local = Vec3::new(0.5, 0.0, 0.25);
         let world = block_prop_support_surface_world_point(
             asset,
@@ -1953,6 +2024,39 @@ mod tests {
                 .iter()
                 .all(|face| face.tile == Some(PixelSource::PaletteIndex(7)))
         );
+    }
+
+    #[test]
+    fn an_empty_optional_material_slot_omits_only_its_geometry() {
+        let mut field = GeometryObject::box_("Carpet field", Vec3::zero(), Vec3::one());
+        field
+            .properties
+            .set("prefab_material_slot", Value::Str("FABRIC".to_string()));
+        let mut trim = GeometryObject::box_("Carpet trim", Vec3::zero(), Vec3::one());
+        trim.properties
+            .set("prefab_material_slot", Value::Str("TRIM".to_string()));
+        trim.properties
+            .set("prefab_optional_material_slot", Value::Bool(true));
+        let asset = BlockPropAsset::new_authored("Carpet", vec![field, trim]);
+        let asset_id = asset.id;
+        let visible = BlockPropInstance::new(asset_id);
+        let mut plain = BlockPropInstance::new(asset_id);
+        plain.overrides.set(
+            &block_prop_material_override_key("TRIM"),
+            Value::Bool(false),
+        );
+        let plain_id = plain.id;
+        let assets = IndexMap::from([(asset_id, asset)]);
+
+        let resolution = resolve_block_prop_geometry(&[visible, plain], &assets);
+        assert_eq!(resolution.geometry_objects.len(), 3);
+        let plain_objects = resolution
+            .geometry_objects
+            .iter()
+            .filter(|object| object.properties.get_id("block_prop_instance_id") == Some(plain_id))
+            .collect::<Vec<_>>();
+        assert_eq!(plain_objects.len(), 1);
+        assert_eq!(plain_objects[0].name, "Carpet field");
     }
 
     #[test]

@@ -2604,7 +2604,7 @@ pub fn resolve_action_icon(root: &Table, action: &ResolvedAction) -> Option<Stri
         return Some(icon.clone());
     }
 
-    let icons = ruleset_table_at_path(root, &["icons"]);
+    let icons = ruleset_icon_ids(root);
     for definition_id in [
         action.required_ability(),
         action.required_spell(),
@@ -2613,7 +2613,7 @@ pub fn resolve_action_icon(root: &Table, action: &ResolvedAction) -> Option<Stri
     .into_iter()
     .flatten()
     {
-        if icons.is_some_and(|icons| icons.contains_key(definition_id)) {
+        if icons.contains(definition_id) {
             return Some(definition_id.to_string());
         }
     }
@@ -3931,6 +3931,25 @@ fn table_key_set(root: &Table, path: &[&str]) -> BTreeSet<String> {
     sorted_table_keys(root, path).into_iter().collect()
 }
 
+fn ruleset_icon_ids(root: &Table) -> BTreeSet<String> {
+    let mut icons = table_key_set(root, &["icons"]);
+    // The catalog describes upstream artwork; authored PNGs do not need a
+    // catalog entry. Only include assets belonging to this ruleset version.
+    if let Some(metadata) = ruleset_table_at_path(root, &["ruleset"])
+        && let (Some(id), Some(version)) = (
+            table_string(metadata, "id"),
+            table_string(metadata, "version"),
+        )
+    {
+        icons.extend(
+            bundled_texture_assets_for_ruleset(&id, &version)
+                .into_iter()
+                .map(|asset| asset.id.to_string()),
+        );
+    }
+    icons
+}
+
 fn validate_string_reference(
     report: &mut RulesetValidationReport,
     path: &str,
@@ -4108,7 +4127,7 @@ fn validate_item_rules(
 ) {
     let weapon_categories = table_key_set(root, &["equipment", "weapon_categories"]);
     let armor_categories = table_key_set(root, &["equipment", "armor_categories"]);
-    let icons = table_key_set(root, &["icons"]);
+    let icons = ruleset_icon_ids(root);
     let mut item_templates = BTreeSet::new();
     for group in ruleset_item_group_names(root) {
         item_templates.extend(table_key_set(root, &["items", &group]));
@@ -4314,7 +4333,7 @@ fn validate_ability_and_spell_rules(
     let professions = table_key_set(root, &["professions"]);
     let skills = table_key_set(root, &["skills"]);
     let conditions = table_key_set(root, &["conditions"]);
-    let icons = table_key_set(root, &["icons"]);
+    let icons = ruleset_icon_ids(root);
     let fx_presets = table_key_set(root, &["fx", "presets"]);
     let declared_attributes = declared_attribute_ids(root);
     let mut item_templates = BTreeSet::new();
@@ -5058,7 +5077,7 @@ fn validate_class_reference_table(
 
 fn validate_visual_rules(report: &mut RulesetValidationReport, root: &Table) {
     let avatars = table_key_set(root, &["assets", "avatars"]);
-    let icons = table_key_set(root, &["icons"]);
+    let icons = ruleset_icon_ids(root);
     let fx_presets = table_key_set(root, &["fx", "presets"]);
     if let Some(defaults) = ruleset_table_at_path(root, &["visuals", "defaults"]) {
         validate_string_reference(
@@ -8040,6 +8059,83 @@ mod tests {
         assert!(report.issues.iter().any(|issue| {
             issue.path.starts_with("derived_stats.") && issue.message.contains("dependency cycle")
         }));
+    }
+
+    #[test]
+    fn authored_png_icons_work_without_catalog_entries() {
+        let mut root = parse_ruleset_table(
+            r#"
+            [ruleset]
+            id = "eldiron.official"
+            version = "1.0.0"
+
+            [ui.action_icon_fallbacks]
+            default = "aimed_shot"
+            [ui.item_icon_fallbacks]
+            default = "aimed_shot"
+
+            [items.tools.probe]
+            icon = "aimed_shot"
+
+            [actions.aimed_shot]
+            kind = "attack"
+            target = "any_entity"
+            result = { damage = "weapon" }
+            [actions.aimed_shot.ui]
+            icon = "aimed_shot"
+            "#,
+        )
+        .unwrap();
+        assert!(!root.contains_key("icons"));
+        let report = validate_ruleset(&root);
+        assert!(report.is_ok(), "{:?}", report.issues);
+
+        root.get_mut("actions")
+            .unwrap()
+            .as_table_mut()
+            .unwrap()
+            .get_mut("aimed_shot")
+            .unwrap()
+            .as_table_mut()
+            .unwrap()
+            .remove("ui");
+        root.remove("ui");
+        let action = resolve_action(&root, "aimed_shot").unwrap().unwrap();
+        assert_eq!(
+            resolve_action_icon(&root, &action).as_deref(),
+            Some("aimed_shot")
+        );
+    }
+
+    #[test]
+    fn icon_validation_rejects_missing_and_other_ruleset_assets() {
+        for (id, version, icon) in [
+            ("custom", "1.0.0", "aimed_shot"),
+            (OFFICIAL_RULESET_ID, "99.0.0", "aimed_shot"),
+            (
+                OFFICIAL_RULESET_ID,
+                OFFICIAL_RULESET_VERSION,
+                "missing_icon",
+            ),
+        ] {
+            let root = parse_ruleset_table(&format!(
+                r#"
+                [ruleset]
+                id = "{id}"
+                version = "{version}"
+                [ui.item_icon_fallbacks]
+                default = "{icon}"
+                "#,
+            ))
+            .unwrap();
+            assert!(
+                validate_ruleset(&root).issues.iter().any(|issue| {
+                    issue.path == "ui.item_icon_fallbacks.default"
+                        && issue.severity == RulesetValidationSeverity::Error
+                }),
+                "{id} {version} must not resolve {icon}"
+            );
+        }
     }
 
     #[test]

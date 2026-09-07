@@ -23,7 +23,7 @@ use js_sys::{Function, Reflect};
 ))]
 use pixels::PixelsBuilder;
 #[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer")))]
-use pixels::{Pixels, SurfaceTexture};
+use pixels::{Pixels, ScalingMode, SurfaceTexture};
 #[cfg(feature = "winit_app_softbuffer")]
 use softbuffer::Surface;
 #[cfg(all(
@@ -53,30 +53,22 @@ compile_error!(
 #[cfg(feature = "winit_app_softbuffer")]
 fn blit_rgba_into_softbuffer(
     ui_frame: &[u8],
-    scale_factor: f32,
     width: usize,
     height: usize,
+    dest_width: usize,
+    dest_height: usize,
     dest: &mut [u32],
 ) {
-    let dest_width = (width as f32 * scale_factor).round() as usize;
-    let dest_height = (height as f32 * scale_factor).round() as usize;
-
-    if scale_factor == 1.0 {
+    if width == dest_width && height == dest_height {
         for (dst, rgba) in dest.iter_mut().zip(ui_frame.chunks_exact(4)) {
             *dst = (rgba[2] as u32) | ((rgba[1] as u32) << 8) | ((rgba[0] as u32) << 16);
         }
     } else {
         for dest_y in 0..dest_height {
-            let src_y = (dest_y as f32 / scale_factor) as usize;
-            if src_y >= height {
-                continue;
-            }
+            let src_y = dest_y * height / dest_height;
 
             for dest_x in 0..dest_width {
-                let src_x = (dest_x as f32 / scale_factor) as usize;
-                if src_x >= width {
-                    continue;
-                }
+                let src_x = dest_x * width / dest_width;
 
                 let src_offset = (src_y * width + src_x) * 4;
                 let r = ui_frame[src_offset] as u32;
@@ -96,97 +88,54 @@ fn blit_rgba_into_softbuffer(
 #[cfg(feature = "winit_app_softbuffer")]
 pub(crate) struct SoftbufferBackend {
     surface: Surface<Arc<Window>, Arc<Window>>,
+    surface_size: PhysicalSize<u32>,
 }
 
 #[cfg(feature = "winit_app_softbuffer")]
 impl SoftbufferBackend {
-    fn new(window: Arc<Window>, scale_factor: f32) -> Self {
+    fn new(window: Arc<Window>) -> Self {
         let size = window.inner_size();
+        let surface_size = PhysicalSize::new(size.width.max(1), size.height.max(1));
 
         let context = softbuffer::Context::new(window.clone()).unwrap();
         let mut surface = softbuffer::Surface::new(&context, window.clone()).unwrap();
 
-        let (surface_width, surface_height) = {
-            #[cfg(target_os = "macos")]
-            let surface_scale = scale_factor;
-            #[cfg(not(target_os = "macos"))]
-            let surface_scale = 1.0;
-
-            (
-                size.width * surface_scale as u32,
-                size.height * surface_scale as u32,
+        surface
+            .resize(
+                NonZeroU32::new(surface_size.width).unwrap(),
+                NonZeroU32::new(surface_size.height).unwrap(),
             )
-        };
+            .unwrap();
 
-        if let (Some(width), Some(height)) = (
-            NonZeroU32::new(surface_width),
-            NonZeroU32::new(surface_height),
-        ) {
-            surface.resize(width, height).unwrap();
+        Self {
+            surface,
+            surface_size,
         }
-
-        Self { surface }
     }
 
-    fn present(
-        &mut self,
-        window: &Arc<Window>,
-        ui_frame: &[u8],
-        width: usize,
-        height: usize,
-        scale_factor: f32,
-    ) {
-        #[cfg(target_os = "macos")]
-        let _ = (window, scale_factor);
-        #[cfg(target_os = "macos")]
-        let blit_scale_factor = scale_factor;
-        #[cfg(not(target_os = "macos"))]
-        let blit_scale_factor = {
-            let buffer = self.surface.buffer_mut().unwrap();
-            let inner_size = window.inner_size();
-            let desired_scale = inner_size.width as f32 / width as f32;
-
-            let dest_width = inner_size.width as usize;
-            let dest_height = inner_size.height as usize;
-            let required_size = dest_width * dest_height;
-
-            if buffer.len() >= required_size {
-                desired_scale
-            } else {
-                println!(
-                    "Warning: Buffer too small for scale_factor {}. Required: {}, Available: {}. Falling back to scale_factor = 1.0",
-                    desired_scale,
-                    required_size,
-                    buffer.len()
-                );
-                1.0
-            }
-        };
-
+    fn present(&mut self, ui_frame: &[u8], width: usize, height: usize) {
         let mut buffer = self.surface.buffer_mut().unwrap();
-        blit_rgba_into_softbuffer(ui_frame, blit_scale_factor, width, height, &mut *buffer);
+        // Use the actual surface dimensions, since rounded logical dimensions
+        // multiplied by a fractional scale need not recover the physical size.
+        blit_rgba_into_softbuffer(
+            ui_frame,
+            width,
+            height,
+            self.surface_size.width as usize,
+            self.surface_size.height as usize,
+            &mut *buffer,
+        );
         buffer.present().unwrap();
     }
 
-    fn resize(&mut self, size: PhysicalSize<u32>, width: u32, height: u32, scale_factor: f32) {
-        #[cfg(target_os = "macos")]
-        let _ = (size, width, height, scale_factor);
-        #[cfg(not(target_os = "macos"))]
-        let _ = (width, height, scale_factor);
-        #[cfg(not(target_os = "macos"))]
+    fn resize(&mut self, size: PhysicalSize<u32>) {
         self.surface
             .resize(
                 NonZeroU32::new(size.width).unwrap(),
                 NonZeroU32::new(size.height).unwrap(),
             )
             .unwrap();
-        #[cfg(target_os = "macos")]
-        self.surface
-            .resize(
-                NonZeroU32::new(size.width).unwrap(),
-                NonZeroU32::new(size.height).unwrap(),
-            )
-            .unwrap();
+        self.surface_size = size;
     }
 }
 
@@ -292,6 +241,8 @@ impl PixelsBackend {
             let mut state_ref = state_clone.borrow_mut();
             match result {
                 Ok(mut pixels) => {
+                    // UI dimensions are logical pixels, including fractional DPI scales.
+                    pixels.set_scaling_mode(ScalingMode::Fill);
                     let (surface_size, buffer_size) = match &*state_ref {
                         PixelsBackendState::Pending {
                             surface_size,
@@ -321,7 +272,8 @@ impl PixelsBackend {
     fn new(window: Arc<Window>, width: u32, height: u32) -> Self {
         let size = window.inner_size();
         let surface_texture = SurfaceTexture::new(size.width.max(1), size.height.max(1), window);
-        let pixels = Pixels::new(width.max(1), height.max(1), surface_texture).unwrap();
+        let mut pixels = Pixels::new(width.max(1), height.max(1), surface_texture).unwrap();
+        pixels.set_scaling_mode(ScalingMode::Fill);
         Self {
             pixels,
             last_present_failed_at: None,
@@ -404,11 +356,65 @@ pub(crate) enum TheWinitBackend {
     Pixels(PixelsBackend),
 }
 
+#[cfg(all(test, feature = "winit_app_softbuffer"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fractional_blit_fills_the_actual_surface_without_row_drift() {
+        // A 3x4 physical window at 150% has a rounded 2x3 logical buffer.
+        let frame = (1..=6)
+            .flat_map(|red| [red, 0, 0, 255])
+            .collect::<Vec<u8>>();
+        let mut dest = vec![0; 12];
+        blit_rgba_into_softbuffer(&frame, 2, 3, 3, 4, &mut dest);
+        assert_eq!(
+            dest,
+            [1, 1, 2, 1, 1, 2, 3, 3, 4, 5, 5, 6].map(|red| red << 16)
+        );
+    }
+}
+
 impl TheWinitBackend {
+    pub(crate) fn window_pos_to_ui(
+        &self,
+        position: (f32, f32),
+        logical_size: (usize, usize),
+        scale_factor: f32,
+    ) -> (f32, f32) {
+        let _ = (logical_size, scale_factor);
+        match self {
+            #[cfg(feature = "winit_app_softbuffer")]
+            Self::Softbuffer(backend) => (
+                position.0 * logical_size.0 as f32 / backend.surface_size.width as f32,
+                position.1 * logical_size.1 as f32 / backend.surface_size.height as f32,
+            ),
+            #[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer")))]
+            Self::Pixels(backend) => {
+                #[cfg(not(target_arch = "wasm32"))]
+                let pixels = &backend.pixels;
+                #[cfg(target_arch = "wasm32")]
+                let state = backend.state.borrow();
+                #[cfg(target_arch = "wasm32")]
+                let pixels = match &*state {
+                    PixelsBackendState::Ready(pixels) => pixels,
+                    _ => return (position.0 / scale_factor, position.1 / scale_factor),
+                };
+
+                // Use the renderer's transform, including rounding and any margins.
+                // Preserve out-of-bounds coordinates for dragging outside the UI.
+                match pixels.window_pos_to_pixel(position) {
+                    Ok((x, y)) => (x as f32, y as f32),
+                    Err((x, y)) => (x as f32, y as f32),
+                }
+            }
+        }
+    }
+
     #[cfg(feature = "winit_app_softbuffer")]
     pub(crate) fn new(window: Arc<Window>, width: usize, height: usize, scale_factor: f32) -> Self {
-        let _ = (width, height);
-        Self::Softbuffer(SoftbufferBackend::new(window, scale_factor))
+        let _ = (width, height, scale_factor);
+        Self::Softbuffer(SoftbufferBackend::new(window))
     }
 
     #[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer")))]
@@ -425,13 +431,14 @@ impl TheWinitBackend {
         height: usize,
         scale_factor: f32,
     ) {
+        let _ = (window, scale_factor);
         #[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer")))]
-        let _ = (window, width, height, scale_factor);
+        let _ = (width, height);
 
         match self {
             #[cfg(feature = "winit_app_softbuffer")]
             Self::Softbuffer(backend) => {
-                backend.present(window, ui_frame, width, height, scale_factor);
+                backend.present(ui_frame, width, height);
             }
             #[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer")))]
             Self::Pixels(backend) => backend.present(ui_frame),
@@ -446,14 +453,13 @@ impl TheWinitBackend {
         height: u32,
         scale_factor: f32,
     ) {
-        #[cfg(feature = "winit_app_softbuffer")]
-        let _ = window;
-        #[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer")))]
         let _ = (window, scale_factor);
+        #[cfg(feature = "winit_app_softbuffer")]
+        let _ = (width, height);
 
         match self {
             #[cfg(feature = "winit_app_softbuffer")]
-            Self::Softbuffer(backend) => backend.resize(size, width, height, scale_factor),
+            Self::Softbuffer(backend) => backend.resize(size),
             #[cfg(all(feature = "winit_app_pixels", not(feature = "winit_app_softbuffer")))]
             Self::Pixels(backend) => backend.resize(size, width, height),
         }

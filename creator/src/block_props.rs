@@ -90,6 +90,79 @@ pub fn apply_surface_source_to_selected_prefab_instances(
     changed
 }
 
+/// Clear one material slot on selected linked Prefab instances. Optional slots
+/// retain an explicit empty value so their authored ornament geometry can be
+/// omitted; ordinary slots simply return to their asset default.
+pub fn clear_material_slot_on_selected_prefab_instances(
+    project: &mut Project,
+    server_ctx: &ServerContext,
+    slot_index: i32,
+) -> bool {
+    let Some(map) = project.get_map(server_ctx) else {
+        return false;
+    };
+    let selected = map
+        .selected_block_prop_instances
+        .iter()
+        .copied()
+        .collect::<FxHashSet<_>>();
+    let Some(first_instance) = map
+        .block_prop_instances
+        .iter()
+        .find(|instance| selected.contains(&instance.id))
+    else {
+        return false;
+    };
+    let Some(asset) = project.block_props.get(&first_instance.asset_id) else {
+        return false;
+    };
+    let slots = rusterix::block_prop_asset_material_slots(asset);
+    let slot_index = if slot_index >= 0 && (slot_index as usize) < slots.len() {
+        slot_index as usize
+    } else if slots.len() == 1 {
+        0
+    } else {
+        return false;
+    };
+    let Some((slot_label, _)) = slots.get(slot_index) else {
+        return false;
+    };
+    let optional = asset.parts.iter().any(|part| {
+        part.geometry_source
+            .geometry_objects()
+            .iter()
+            .any(|object| {
+                object.properties.get_str("prefab_material_slot") == Some(slot_label.as_str())
+                    && object
+                        .properties
+                        .get_bool_default("prefab_optional_material_slot", false)
+            })
+    });
+    let override_key = rusterix::block_prop_material_override_key(slot_label);
+
+    let Some(map) = project.get_map_mut(server_ctx) else {
+        return false;
+    };
+    let mut changed = false;
+    for instance in &mut map.block_prop_instances {
+        if !selected.contains(&instance.id) {
+            continue;
+        }
+        if optional {
+            if !matches!(
+                instance.overrides.get(&override_key),
+                Some(Value::Bool(false))
+            ) {
+                instance.overrides.set(&override_key, Value::Bool(false));
+                changed = true;
+            }
+        } else if instance.overrides.remove(&override_key).is_some() {
+            changed = true;
+        }
+    }
+    changed
+}
+
 /// Opens an authored Prefab as an isolated ordinary geometry map. The normal
 /// 3D Object/Vertex/Edge/Face tools can therefore edit it without special
 /// editor-only geometry code.
@@ -2138,6 +2211,71 @@ mod tests {
                 .faces
                 .iter()
                 .all(|face| face.tile.is_none())
+        );
+    }
+
+    #[test]
+    fn clearing_and_reapplying_an_optional_prefab_slot_is_instance_local() {
+        let mut project = Project::default();
+        let mut region = Region::default();
+        let region_id = region.id;
+        let mut field = rusterix::GeometryObject::box_("Field", Vec3::zero(), Vec3::one());
+        field
+            .properties
+            .set("prefab_material_slot", Value::Str("FABRIC".to_string()));
+        let mut trim = rusterix::GeometryObject::box_("Trim", Vec3::zero(), Vec3::one());
+        trim.properties
+            .set("prefab_material_slot", Value::Str("TRIM".to_string()));
+        trim.properties
+            .set("prefab_optional_material_slot", Value::Bool(true));
+        let asset = rusterix::BlockPropAsset::new_authored("Carpet", vec![field, trim]);
+        let asset_id = asset.id;
+        let selected = rusterix::BlockPropInstance::new(asset_id);
+        let selected_id = selected.id;
+        let untouched = rusterix::BlockPropInstance::new(asset_id);
+        region.map.selected_block_prop_instances = vec![selected_id];
+        region
+            .map
+            .block_prop_instances
+            .extend([selected, untouched]);
+        project.block_props.insert(asset_id, asset);
+        project.regions.push(region);
+        let mut server_ctx = ServerContext::default();
+        server_ctx.curr_region = region_id;
+        server_ctx.pc = ProjectContext::Region(region_id);
+        let trim_key = rusterix::block_prop_material_override_key("TRIM");
+
+        assert!(clear_material_slot_on_selected_prefab_instances(
+            &mut project,
+            &server_ctx,
+            1,
+        ));
+        assert!(matches!(
+            project.regions[0].map.block_prop_instances[0]
+                .overrides
+                .get(&trim_key),
+            Some(Value::Bool(false))
+        ));
+        assert!(
+            project.regions[0].map.block_prop_instances[1]
+                .overrides
+                .get(&trim_key)
+                .is_none()
+        );
+
+        let source =
+            crate::utils::SurfaceApplySource::Direct(rusterix::PixelSource::PaletteIndex(9));
+        assert!(apply_surface_source_to_selected_prefab_instances(
+            &mut project,
+            &server_ctx,
+            &source,
+            1,
+        ));
+        assert_eq!(
+            project.regions[0].map.block_prop_instances[0]
+                .overrides
+                .get_source(&trim_key),
+            Some(&rusterix::PixelSource::PaletteIndex(9))
         );
     }
 

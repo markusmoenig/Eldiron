@@ -477,8 +477,8 @@ pub struct ServerContext {
     pub block_grid_level: i32,
     /// Active block rotation in 90-degree turns around Y.
     pub block_rotation_quarters: i32,
-    /// Remembered block component height in grid cells.
-    pub block_height_cells: i32,
+    /// Remembered block component height in world/grid units.
+    pub block_height_cells: f32,
     /// Remembered horizontal block span expansion in grid cells on each side.
     pub block_span_extra_cells: f32,
     /// Remembered block depth expansion in grid cells on each side.
@@ -739,7 +739,7 @@ impl ServerContext {
             block_grid_cell_size: 1.0,
             block_grid_level: 0,
             block_rotation_quarters: 0,
-            block_height_cells: 2,
+            block_height_cells: 2.0,
             block_span_extra_cells: 0.0,
             block_depth_extra_cells: 0.0,
             block_operation: 0,

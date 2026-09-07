@@ -186,7 +186,7 @@ pub use crate::{
             resolve_block_prop_preview_geometry, resolve_block_prop_support_surface_hit,
             resolve_block_prop_support_surface_hit_at_point,
             resolve_block_prop_support_surface_hit_at_world_point, set_block_prop_door_open,
-            sync_block_prop_surface_item_positions,
+            sync_block_prop_surface_item_positions, sync_block_prop_surface_prop_transforms,
         },
         geometry_object::{
             FaceEmission, FaceParticleEmission, GeometryFace, GeometryObject, GeometryObjectKind,
@@ -305,7 +305,7 @@ pub mod prelude {
         resolve_block_prop_interaction_hit, resolve_block_prop_support_surface_hit,
         resolve_block_prop_support_surface_hit_at_point,
         resolve_block_prop_support_surface_hit_at_world_point,
-        sync_block_prop_surface_item_positions,
+        sync_block_prop_surface_item_positions, sync_block_prop_surface_prop_transforms,
     };
     #[cfg(feature = "graphics")]
     pub use crate::{Command, Daylight, MsgParser, Tok};

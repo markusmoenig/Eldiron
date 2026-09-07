@@ -163,7 +163,11 @@ impl HelpEngine {
             }
             "overview" | "summary" => RulesetHelpResponse::new(
                 self.overview(),
-                vec!["topics".into(), "progression".into(), "examples".into()],
+                ["topics", "progression", "examples"]
+                    .into_iter()
+                    .filter(|command| self.command_is_available(command))
+                    .map(str::to_string)
+                    .collect(),
             ),
             "topics" => RulesetHelpResponse::new(self.topics(), self.topic_suggestions()),
             "list" | "ls" => self.list(tail)?,
@@ -178,7 +182,13 @@ impl HelpEngine {
             "item" | "items" => self.item(tail)?,
             "combat" | "damage" => self.combat(tail)?,
             "attributes" | "attribute" | "stats" => self.attributes(tail)?,
-            "equipment" => self.section_or_entry(&["equipment"], tail)?,
+            "equipment" => {
+                let mut response = self.section_or_entry(&["equipment"], tail)?;
+                if self.command_is_available("item") {
+                    response.suggestions.insert(0, "item".into());
+                }
+                response
+            }
             "economy" => self.section_or_entry(&["economy"], tail)?,
             "invocations" | "invocation" => self.section_or_entry(&["invocation_schemes"], tail)?,
             "fx" | "effects" => self.section_or_entry(&["fx", "presets"], tail)?,
@@ -226,9 +236,10 @@ impl HelpEngine {
             "abilities",
             "combat",
             "equipment",
+            "item",
             "recipes",
             "examples damage",
-            "search <text>",
+            "help search",
             "paths",
         ]
         .into_iter()
@@ -267,10 +278,13 @@ impl HelpEngine {
             "combat" => &["combat"],
             "attributes" => &["attributes"],
             "equipment" => &["equipment"],
+            "item" => &["items"],
             "conditions" => &["conditions"],
             "recipes" => &["recipes"],
             "invocations" => &["invocation_schemes"],
             "economy" => &["economy"],
+            "resources" => &["resources"],
+            "fx" => &["fx", "presets"],
             _ => return true,
         };
         value_at_path(&self.root, path).is_some()
@@ -309,17 +323,17 @@ impl HelpEngine {
             ));
         }
         for (section, command, description) in [
-            ("classes", "class <id>", "Class rules"),
-            ("races", "race <id>", "Race rules"),
-            ("professions", "profession <id>", "Profession rules"),
-            ("actions", "action <id>", "Action definitions"),
-            ("spells", "spell <id>", "Spell definitions"),
-            ("abilities", "ability <id>", "Ability definitions"),
-            ("items", "item <id>", "Items and equipment"),
-            ("recipes", "recipe <id>", "Crafting recipes"),
-            ("resources", "resource <id>", "Gathering resources"),
-            ("conditions", "condition <id>", "Condition definitions"),
-            ("skills", "skill <id>", "Skill definitions"),
+            ("classes", "class [id]", "Class rules"),
+            ("races", "race [id]", "Race rules"),
+            ("professions", "profession [id]", "Profession rules"),
+            ("actions", "action [id]", "Action definitions"),
+            ("spells", "spell [id]", "Spell definitions"),
+            ("abilities", "ability [id]", "Ability definitions"),
+            ("items", "item [id]", "Browse items and equipment"),
+            ("recipes", "recipe [id]", "Crafting recipes"),
+            ("resources", "resource [id]", "Gathering resources"),
+            ("conditions", "condition [id]", "Condition definitions"),
+            ("skills", "skill [id]", "Skill definitions"),
         ] {
             if value_at_path(&self.root, &[section]).is_some() {
                 commands.push(RulesetHelpCommand::new(command, description));
@@ -539,17 +553,21 @@ impl HelpEngine {
         } else {
             format!("{label}\n{}", indent_lines(&keys))
         };
-        let suggestions = keys
-            .iter()
-            .take(12)
-            .map(|key| {
-                if path.is_empty() {
-                    format!("list {key}")
-                } else {
-                    format!("show {}.{key}", path.join("."))
-                }
-            })
-            .collect();
+        let suggestions = match value {
+            None | Some(Value::Table(_)) => keys
+                .iter()
+                .take(12)
+                .map(|key| {
+                    if path.is_empty() {
+                        format!("list {key}")
+                    } else {
+                        format!("show {}.{key}", path.join("."))
+                    }
+                })
+                .collect(),
+            // Array elements and scalar values are display content, not child keys.
+            Some(_) => vec![format!("show {}", path.join("."))],
+        };
         Ok(RulesetHelpResponse::new(output, suggestions))
     }
 
@@ -653,20 +671,26 @@ impl HelpEngine {
                 ),
                 keys.iter()
                     .take(12)
-                    .map(|id| format!("{command} {id}"))
+                    .map(|id| {
+                        if command == "show" || !table[id].is_table() {
+                            format!("show {}.{id}", path.join("."))
+                        } else {
+                            format!("{command} {id}")
+                        }
+                    })
                     .collect(),
             ));
         };
         let (id, value) = table_entry_ci(table, requested)
             .ok_or_else(|| unknown_id(path.last().unwrap_or(&"entry"), requested, table))?;
-        let entry = value
-            .as_table()
-            .ok_or_else(|| format!("`{}` is not a rule table.", path.join(".")))?;
         let mut full_path = path
             .iter()
             .map(|part| (*part).to_string())
             .collect::<Vec<_>>();
         full_path.push(id.clone());
+        let Some(entry) = value.as_table() else {
+            return self.show(&[full_path.join(".")]);
+        };
         Ok(RulesetHelpResponse::new(
             describe_table(&full_path.join("."), entry),
             vec![
@@ -736,19 +760,7 @@ impl HelpEngine {
         }
 
         let mut lines = vec!["Progression".into()];
-        if let Some(table) = table_at_path(&self.root, &["progression", "xp_table"]) {
-            lines.push("XP required by level:".into());
-            let mut levels = table
-                .keys()
-                .filter_map(|key| level_number(key).map(|level| (level, key)))
-                .collect::<Vec<_>>();
-            levels.sort_by_key(|(level, _)| *level);
-            for (level, _) in levels {
-                if let Some(xp) = ruleset_xp_for_level(&self.root, level) {
-                    lines.push(format!("  Level {level:<2} {xp} XP"));
-                }
-            }
-        }
+        lines.extend(self.progression_xp_lines());
         let classes = table_at_path(&self.root, &["classes"]);
         let class_ids = classes.map(sorted_keys).unwrap_or_default();
         if !class_ids.is_empty() {
@@ -766,6 +778,24 @@ impl HelpEngine {
                 .map(|class_id| format!("progression {class_id}"))
                 .collect(),
         ))
+    }
+
+    fn progression_xp_lines(&self) -> Vec<String> {
+        let mut lines = Vec::new();
+        if let Some(table) = table_at_path(&self.root, &["progression", "xp_table"]) {
+            lines.push("XP required by level:".into());
+            let mut levels = table
+                .keys()
+                .filter_map(|key| level_number(key).map(|level| (level, key)))
+                .collect::<Vec<_>>();
+            levels.sort_by_key(|(level, _)| *level);
+            for (level, _) in levels {
+                if let Some(xp) = ruleset_xp_for_level(&self.root, level) {
+                    lines.push(format!("  Level {level:<2} {xp} XP"));
+                }
+            }
+        }
+        lines
     }
 
     fn progression_for_class(&self, class_id: &str) -> Result<String, String> {
@@ -797,6 +827,13 @@ impl HelpEngine {
                     lines.push(format!("  {attribute}/{maximum}: +{value}"));
                 }
             }
+        }
+
+        let xp_lines = self.progression_xp_lines();
+        if !xp_lines.is_empty() {
+            lines.push(String::new());
+            lines.extend(xp_lines);
+            lines.push(String::new());
         }
 
         let unlocks = class_unlocks(&self.root, class_id);
@@ -920,7 +957,7 @@ impl HelpEngine {
         if lines.len() == 1 {
             lines.push("  <none>".into());
         }
-        let singular = kind.trim_end_matches('s');
+        let singular = section_command(&[kind]);
         Ok(RulesetHelpResponse::new(
             lines.join("\n"),
             sorted_keys(definitions)
@@ -969,7 +1006,25 @@ impl HelpEngine {
                     .as_table()
                     .ok_or_else(|| format!("Item `{id}` is not a table."))?;
                 let path = format!("items.{group}.{id}");
-                let mut output = describe_table(&path, table);
+                // Authored icon pixels supply the visible colors. Procedural
+                // fallback colors are implementation details, not item help.
+                let mut help_table = table.clone();
+                for key in [
+                    "color",
+                    "color_index",
+                    "icon_color",
+                    "blade_color",
+                    "blade_color_index",
+                    "grip_color",
+                    "grip_color_index",
+                    "accent_color",
+                    "accent_color_index",
+                    "highlight_color",
+                    "highlight_color_index",
+                ] {
+                    help_table.remove(key);
+                }
+                let mut output = describe_table(&path, &help_table);
                 if table.get("damage").and_then(Value::as_table).is_some() {
                     output.push_str(&format!(
                         "\n\nTry `calc weapon {id}` or `calc damage weapon {id}`."
@@ -1083,13 +1138,17 @@ impl HelpEngine {
                 lines.push(format!("  {id} = {formula}"));
             }
         }
-        Ok(RulesetHelpResponse::new(
-            lines.join("\n"),
-            vec![
-                "list derived_stats".into(),
-                "calc derived DMG STR=14".into(),
-            ],
-        ))
+        let mut suggestions = Vec::new();
+        if let Some(derived) = table_at_path(&self.root, &["derived_stats"]) {
+            suggestions.push("list derived_stats".into());
+            suggestions.extend(
+                sorted_keys(derived)
+                    .into_iter()
+                    .take(12)
+                    .map(|id| format!("attributes {id}")),
+            );
+        }
+        Ok(RulesetHelpResponse::new(lines.join("\n"), suggestions))
     }
 
     fn combat(&self, args: &[String]) -> Result<RulesetHelpResponse, String> {
@@ -1133,14 +1192,11 @@ impl HelpEngine {
                     .map(|line| format!("  {line}")),
             );
         }
-        Ok(RulesetHelpResponse::new(
-            lines.join("\n"),
-            vec![
-                "examples damage".into(),
-                "help calc".into(),
-                "list combat.kinds".into(),
-            ],
-        ))
+        let mut suggestions = vec!["examples damage".into(), "help calc".into()];
+        if combat.contains_key("kinds") {
+            suggestions.push("list combat.kinds".into());
+        }
+        Ok(RulesetHelpResponse::new(lines.join("\n"), suggestions))
     }
 
     fn calculate(&self, args: &[String]) -> Result<RulesetHelpResponse, String> {
@@ -1431,8 +1487,18 @@ impl HelpEngine {
                     "list combat.kinds".into(),
                     "paths classes".into(),
                     "show attributes.roles".into(),
+                    "list".into(),
+                    "paths".into(),
                     "search cooldown".into(),
-                ],
+                ]
+                .into_iter()
+                .filter(|command: &String| {
+                    let Some((head, path)) = command.split_once(' ') else {
+                        return true;
+                    };
+                    head == "search" || value_at_path_ci(&self.root, &path_parts(path)).is_some()
+                })
+                .collect(),
             )),
             Some("all") => {
                 let mut commands = self.damage_examples()?.commands;
@@ -2132,19 +2198,143 @@ description = "No progression system is present."
 
     #[test]
     fn specialized_suggestions_use_public_command_aliases() {
-        let abilities = run("ability");
-        assert!(
-            abilities
-                .suggestions
-                .iter()
-                .all(|command| command.starts_with("ability "))
-        );
+        for command in ["ability", "abilities", "abilities Warrior"] {
+            let abilities = run(command);
+            assert!(
+                abilities
+                    .suggestions
+                    .iter()
+                    .all(|command| command.starts_with("ability "))
+            );
+        }
         let invocations = run("invocation");
         assert!(
             invocations
                 .suggestions
                 .iter()
                 .all(|command| command.starts_with("invocation "))
+        );
+    }
+
+    #[test]
+    fn generated_navigation_resolves_across_the_official_ruleset() {
+        assert_navigation_resolves(latest_official_ruleset());
+    }
+
+    #[test]
+    fn generated_navigation_resolves_with_optional_sections_missing() {
+        assert_navigation_resolves(
+            r#"
+[ruleset]
+id = "minimal"
+version = "1.0.0"
+schema_version = "1"
+
+[weather.clear]
+description = "A custom domain."
+
+[equipment]
+enabled = true
+slots = ["hand", "head"]
+
+[economy]
+base = "token"
+
+[attributes.defaults]
+HEALTH = 10
+
+[combat]
+cooldown = 1
+"#,
+        );
+    }
+
+    #[test]
+    fn equipment_and_economy_links_keep_their_parent_path() {
+        let equipment = run("equipment");
+        assert!(
+            equipment
+                .suggestions
+                .contains(&"show equipment.armor_categories".into())
+        );
+        assert!(
+            run("show equipment.armor_categories")
+                .output
+                .contains("cloth")
+        );
+        let economy = run("economy");
+        assert!(economy.suggestions.contains(&"show economy.base".into()));
+        assert!(run("economy base").output.contains("copper"));
+    }
+
+    #[test]
+    fn item_gallery_is_reachable_from_the_command_list_and_equipment() {
+        let intro = ruleset_help_intro(latest_official_ruleset()).unwrap();
+        // The sidebar executes the bare command for optional arguments;
+        // required arguments would route the click to syntax help instead.
+        assert!(
+            intro
+                .commands
+                .iter()
+                .any(|entry| entry.command == "item [id]")
+        );
+        assert!(intro.suggestions.contains(&"item".into()));
+        assert!(run("equipment").suggestions.contains(&"item".into()));
+        let items = run("item");
+        assert!(items.item_ids.contains(&"training_sword".into()));
+        assert!(run("item training_sword").output.contains("Training Sword"));
+    }
+
+    fn assert_navigation_resolves(source: &str) {
+        use std::collections::{BTreeSet, VecDeque};
+
+        // Match the sidebar's routing for command-list clicks.
+        fn click_target(command: &str) -> String {
+            let head = command.split_whitespace().next().unwrap();
+            if command.contains('<') {
+                format!("help {head}")
+            } else if command.contains('[') {
+                head.to_string()
+            } else {
+                command.to_string()
+            }
+        }
+
+        let engine = HelpEngine::new(parse_ruleset_table(source).unwrap());
+        let mut pending = VecDeque::from(["help".to_string(), "search armor".to_string()]);
+        for entry in engine.available_commands() {
+            pending.push_back(click_target(&entry.command));
+        }
+        // Cover every path, beyond the twelve suggestions shown on each page.
+        let mut paths = Vec::new();
+        collect_paths_from_table(&engine.root, "", &mut paths);
+        for path in paths {
+            pending.push_back(format!("list {path}"));
+            pending.push_back(format!("show {path}"));
+        }
+        let mut visited = BTreeSet::new();
+        let mut errors = Vec::new();
+        while let Some(command) = pending.pop_front() {
+            if !visited.insert(command.clone()) {
+                continue;
+            }
+            match engine.execute(&command) {
+                Ok(response) => {
+                    pending.extend(response.suggestions);
+                    pending.extend(
+                        response
+                            .commands
+                            .into_iter()
+                            .map(|entry| click_target(&entry.command)),
+                    );
+                }
+                Err(error) => errors.push(format!("{command}: {error}")),
+            }
+        }
+        assert!(
+            errors.is_empty(),
+            "Broken help navigation:\n{}",
+            errors.join("\n")
         );
     }
 

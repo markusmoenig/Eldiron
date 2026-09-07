@@ -117,6 +117,33 @@ impl HelpDock {
         }
     }
 
+    fn rule_value_spans(key: &str, value: &str) -> Vec<TheFeedbackSpan> {
+        let command = match key {
+            "Spells" => "spell",
+            "Abilities" => "ability",
+            "Recipes" => "recipe",
+            "Actions" => "action",
+            _ => return Self::value_spans(value),
+        };
+        let mut spans = Vec::new();
+        for (index, id) in value.split(',').map(str::trim).enumerate() {
+            if index > 0 {
+                spans.push(TheFeedbackSpan::body(", "));
+            }
+            if matches!(id, "" | "-" | "<none>") {
+                spans.extend(Self::value_spans(id));
+            } else {
+                spans.push(
+                    TheFeedbackSpan::new(id, TheFeedbackRole::Command).interactive(
+                        HELP_FEEDBACK_ACTION,
+                        TheValue::Text(format!("{command} {id}")),
+                    ),
+                );
+            }
+        }
+        spans
+    }
+
     fn key_value(line: &str) -> Option<(&str, &str, &'static str)> {
         if let Some((key, value)) = line.split_once(": ") {
             Some((key.trim(), value.trim(), ": "))
@@ -171,7 +198,7 @@ impl HelpDock {
         if let Some((key, value, separator)) = Self::key_value(line) {
             spans.push(TheFeedbackSpan::new(key, TheFeedbackRole::Key));
             spans.push(TheFeedbackSpan::new(separator, TheFeedbackRole::Muted));
-            spans.extend(Self::value_spans(value));
+            spans.extend(Self::rule_value_spans(key, value));
         } else if let Some((identity, detail)) = line.split_once(" — ") {
             spans.extend(Self::identity_spans(identity));
             spans.push(TheFeedbackSpan::new("  —  ", TheFeedbackRole::Muted));
@@ -269,7 +296,7 @@ impl HelpDock {
                         .iter()
                         .filter_map(|line| Self::key_value(line))
                         .map(|(key, value, _)| {
-                            TheFeedbackKeyValue::new(key, Self::value_spans(value))
+                            TheFeedbackKeyValue::new(key, Self::rule_value_spans(key, value))
                         })
                         .collect(),
                 });
@@ -797,6 +824,38 @@ mod tests {
         assert!(text.contains("Rules  ›  progression Cleric"));
         assert!(text.contains("Cleric progression"));
         assert!(text.contains("Try next"));
+        let links = document
+            .blocks
+            .iter()
+            .filter_map(|block| match block {
+                TheFeedbackBlock::List { items, .. } => Some(items.iter().flatten()),
+                _ => None,
+            })
+            .flatten()
+            .filter_map(|span| {
+                span.interaction
+                    .as_ref()
+                    .map(|interaction| (span.text.as_str(), interaction))
+            })
+            .collect::<Vec<_>>();
+        assert!(links.iter().any(|(text, interaction)| {
+            *text == "minor_heal"
+                && interaction.id.name == HELP_FEEDBACK_ACTION
+                && interaction.value == TheValue::Text("spell minor_heal".into())
+        }));
+        for (_, interaction) in links {
+            let TheValue::Text(command) = &interaction.value else {
+                panic!("Rule links must carry help commands");
+            };
+            assert!(
+                shared::rulesets::execute_ruleset_help(
+                    shared::rulesets::latest_official_ruleset(),
+                    command
+                )
+                .is_ok(),
+                "Broken rule link: {command}"
+            );
+        }
     }
 
     #[test]

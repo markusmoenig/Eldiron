@@ -2364,6 +2364,11 @@ impl PrefabsEditorDock {
     fn sync_prefab_runtime(project: &mut Project) {
         let block_props = &project.block_props;
         for region in &mut project.regions {
+            rusterix::sync_block_prop_surface_prop_transforms(
+                &mut region.map.block_prop_instances,
+                &region.map.block_prop_surface_placements,
+                block_props,
+            );
             rusterix::sync_block_prop_surface_item_positions(
                 &region.map.block_prop_instances,
                 &region.map.block_prop_surface_placements,

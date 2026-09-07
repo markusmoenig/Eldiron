@@ -261,6 +261,15 @@ impl SceneManager {
         self.send(SceneManagerCmd::SetBlockProps(block_props));
     }
 
+    /// Update the Prefab catalog without invalidating rendered chunks. Use
+    /// this when an unplaced asset becomes project-owned for editing or future
+    /// placement; geometry changes to placed assets still require the normal
+    /// invalidating setter or an incremental scene update.
+    pub fn sync_block_props(&mut self, block_props: IndexMap<Uuid, BlockPropAsset>) {
+        self.assets.set_block_props(block_props);
+        self.report_block_prop_diagnostics();
+    }
+
     pub fn set_palette(
         &mut self,
         palette: ThePalette,
@@ -424,5 +433,20 @@ mod tests {
         assert_eq!(manager.focus_chunk, None);
         assert!(matches!(manager.receive(), Some(SceneManagerResult::Clear)));
         assert!(manager.receive().is_none());
+    }
+
+    #[test]
+    fn syncing_unplaced_block_props_keeps_the_current_chunk_work() {
+        let mut manager = SceneManager::new();
+        manager.dirty.insert((0, 0));
+        manager.all.insert((0, 0));
+        let asset = BlockPropAsset::new("Carpet");
+        let asset_id = asset.id;
+
+        manager.sync_block_props(IndexMap::from([(asset_id, asset)]));
+
+        assert!(manager.assets.block_props.contains_key(&asset_id));
+        assert_eq!(manager.dirty, FxHashSet::from_iter([(0, 0)]));
+        assert_eq!(manager.all, FxHashSet::from_iter([(0, 0)]));
     }
 }

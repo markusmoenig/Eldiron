@@ -8,8 +8,6 @@
 
 - Changed **.eldiron** projects to compressed, versioned ZIP containers containing `manifest.json`, `project.json`, and a shared `binaries/` hierarchy. Background bakes and customized item icon frames use the same validated binary writer/reader instead of embedding large arrays in JSON. New bake entries live under `binaries/bakes/`, item icons under `binaries/items/<item-id>/icons/`, and older raw-JSON or early `bakes/` paths remain readable. Creator saves atomically and upgrades older storage layouts on their next save.
 - Added per-screen **Settings** TOML and responsive screen layouts. Responsive screens follow the resizable client window, existing game widgets fill the available area, UI widgets can anchor to window edges or the center, and UI-only screens remain supported. Fixed screens retain their existing layout behavior.
-- The **Authoring** tool now supports selected 3D Geometry Objects and linked Prefab instances. Object metadata is stored independently, while linked instances edit their shared Prefab authoring.
-- Maximized **Prefab** editing now includes a Prefab-only **Tile Picker** tool alongside geometry and 3D Paint tools.
 - The Creator now starts with the **Object** tool selected instead of the Face tool.
 - Added **Create Unit Box**, which places a fixed 1 × 1 × 1 modeling primitive centered on the selected surface without fitting its dimensions to that surface.
 - Added **Revolve** profile editing with presets, snapping, whole-profile scaling, and editable mesh output.
@@ -17,11 +15,7 @@
 - Added a one-shot Wall **Ring** gesture for wells, towers, and other closed round masonry.
 - Added compact Wall **Surface** mode for live fitted, 0.25-step height-adjustable solids inside the selected bounded straight or curved wall region without altering wall-mounted Prefabs.
 - Added walkable automatic Wall floors for open or closed authored areas, including concave layouts and later Floor-toggle creation.
-- Added Prefab-owned particle and light authoring with live previews, presets, surface emission, palette ramps, and mount settings.
-- Made bundled Prefabs editable as project copies and added authored wall-torch, candle, and ground-light Prefabs.
-- Added rotate, flip, detach, and reattach actions for placed linked Prefabs.
 - Added parametric **Rounded Box** and **Cylinder** primitives that remain adjustable before conversion to ordinary geometry.
-- Added a localized **Duplicate Prefab** command that creates an independent copy of all Prefab authoring data.
 - Added **Edge Bevel** with adjustable width, segments, and roundness for selected editable mesh edges.
 - Added persistent **Face Emission** for real-time light from any selected 3D face, including regenerated Wall surfaces, with area-weighted placement on irregular geometry and normal Apply/Automatic behavior.
 - Added face-authored smoke particles distributed across selected geometry, including regenerated Wall surfaces, with optionally palette-linked color ramps.
@@ -30,15 +24,14 @@
 - Added surface-projected rectangular 3D Paint selections with smooth parent-wall targeting, grid-snapped creation and movement, an outline-only preview, constrained draw and erase, brush-aware fill, clear, and undo.
 - Kept version-23 3D Paint bakes compatible and stopped temporary render copies from rebuilding them while loading or navigating painted projects.
 - Added a persistent XZ construction grid with major lines and colored axes to every 3D editor camera.
-- **Create Fitted Geometry** now builds centered custom-depth solid or barred inserts with single or split leaves directly from selected rectangular or arched Wall openings without requiring connected brick edges.
+- **Create Fitted Geometry** now builds centered custom-depth solid or barred inserts with single or split leaves directly from selected rectangular or arched Wall openings without requiring connected brick edges, while keeping scaled or rotated planar materials seamless across triangulated faces.
 - Added a shared, camera-synchronized **Orbit ViewCube** to the region and Prefab editors; clicking a visible face aligns the camera to that axis.
 - Refined 3D navigation with explicit **B: Box Select** in Orbit mode and always-available **WASD** movement in a focused First Person viewport; right mouse and Space now control looking without enabling panning.
 - Added the new black-and-blue Creator theme and made it the default, replacing legacy image-based widget chrome with theme-driven rendering and extensible action-group colors. The UI pass also adds delayed localized hover help, compact sidebar and camera navigation, a taller menu-bar timeline option, contextual editor shortcut guidance, and clearer flat status surfaces.
 - Consolidated the Creator sidebar into **Project**, **Actions**, **Console**, **Debug**, and **Help** pages. Runtime diagnostics now live in the dedicated Debug page, `Tab` / `Shift+Tab` cycle all pages, and direct sidebar shortcuts are available from the **Game > Show** menu.
-- Added the first complete **Prefab authoring workflow**, with dedicated geometry and paint editing, hierarchical parts and components, direct asset renaming, normal transform shortcuts, camera-synchronized editing handles, and linked instances that share authored content while retaining independent state and can be repositioned with the Object tool. Prefabs also integrate with the existing Look and rules-action system, including contextual Door interactions, and can define face-backed support surfaces with snapping, item rules, capacity, occupancy, persistent surface-local item placement, robust geometric hit fallback for tiled surfaces, grouped support-surface settings in a reusable compact, rounded, theme-rendered popover, and expanded contextual help that explains Prefab operations and their consequences.
+- Added the complete **Prefab workflow**: dedicated geometry, 3D Paint, Tile Picker, hierarchical part/component, material-slot, particle, light, naming, and duplication authoring; categorized responsive browsing of editable bundled furniture, decorations, and lighting; grid-aware placement and resizing; and linked instances with shared authored content but independent materials and runtime state. Placed Prefabs move as complete units and support rotate, flip, detach, and reattach operations, smooth wall mounting, contextual single or split Swing/Slide Door interactions, and face-backed support surfaces with snapping, capacity and item rules, persistent surface-local item or decoration placement, robust tiled-surface hit fallback, compact grouped settings, and contextual help.
 - Added **Clear Surface Detail** to remove all surface-line guides from every face of selected Geometry Objects in Object mode, from selected faces in Face mode, or from the host faces identified by selected guides in Edge mode, while preserving paint, materials, and generated geometry.
 - Added **C: Select Contour** in the 3D Edge Tool to expand a selected rim edge into its closed coplanar boundary, including irregular and arched openings.
-- Prefab Doors now support single and split Swing or Slide motion with shared interaction state.
 - Removed the obsolete **Surface Noise** action and its dedicated face data and renderer path; persistent surface detail now belongs to **3D Paint**.
 - Removed **Create Pattern**; surface patterns are authored through **3D Paint** instead of a specialized geometry action.
 - Removed **Cut Profile** to keep mesh editing centered on universal geometry operations rather than one-off shape actions.
@@ -56,8 +49,6 @@
 ### Creator
 
 - Fixed dropdown and palette popups selecting entries below the pointer when they were shifted to stay inside the window.
-- Fixed colors applied in the Prefab editor remaining isolated from the backing Prefab and its linked world instances.
-- Fixed wall-mounted Prefabs using irregular brick-face normals or editor-overlay hits instead of the smooth parent wall plane.
 - Replaced the obsolete, locking **Toggle Editing Geometry** action with a localized **Toggle Grid** action for 2D and 3D construction-grid visibility.
 - Fixed the Screen editor losing—or rendering almost invisibly—its 2D grid when the shared editing-geometry overlay was disabled, rebuilt, or composited over black. Screen grids and widget bounds now remain clearly visible as part of the screen-authoring canvas.
 - Fixed **Edit Tile Meta Data** dropping `gameplay_tags` when its TOML attribute list was applied. Gameplay tags now round-trip as a string array, remain visible as `gameplay_tags = []` when empty, and are clearly distinguished from the visual tile alias in inline comments and documentation.
@@ -65,7 +56,6 @@
 - Fixed animated project item icons collapsing to a static billboard after editing one frame; viewport rendering now retains and cycles the complete frame sequence.
 - Fixed **Load Default** resolving the already-edited project icon instead of the underlying tile, bundled ruleset artwork, texture, or generated fallback.
 - Fixed the Pixel Editor initially fitting images to its pre-maximized size before snapping to the available canvas after the first stroke. Escape now closes any open full-screen editor in addition to the existing Command/Ctrl + ] shortcut.
-- Fixed scaled or rotated planar tiles breaking along triangulation seams on solid fitted Prefab geometry.
 - Fixed **L: Edge Loop** treating selection expansion as a topology edit and unnecessarily rebuilding the scene.
 - Fixed hover help sizing and truncation, added direct shortcuts to sidebar-tab help, made help available while hovering the selected action, clarified the Debug icon, and corrected semantic Debug output colors across wrapped lines while hiding redundant severity labels.
 

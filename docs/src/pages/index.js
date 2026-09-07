@@ -65,7 +65,7 @@ export default function Home() {
             Dragon Slayer:
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            Scott Hamill, Omer Golan-Joel, Mike Plaza
+            Scott Hamill, Mike Plaza
           </div>
 
           <div
@@ -79,7 +79,7 @@ export default function Home() {
             Adventurer:
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            Charleston Marks, Elias, Thomas Osborne, Kendric Tonn
+            Fnurrpants, Charleston Marks, Elias, Thomas Osborne
           </div>
 
           <div
@@ -93,7 +93,7 @@ export default function Home() {
             Farmer:
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            Jonathan Picket, Tom Carlson
+            Jonathan Pickett, Tom Carlson, R Isted
           </div>
 
           <div

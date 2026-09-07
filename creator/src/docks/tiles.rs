@@ -870,7 +870,26 @@ impl Dock for TilesDock {
                             crate::actions::current_selection_tool_type(map);
                     }
 
-                    if let Some(map) = project.get_map_mut(server_ctx) {
+                    let before = project.get_map(server_ctx).cloned();
+                    if crate::block_props::clear_material_slot_on_selected_prefab_instances(
+                        project,
+                        server_ctx,
+                        server_ctx.selected_hud_icon_index,
+                    ) {
+                        if let (Some(before), Some(after)) =
+                            (before, project.get_map(server_ctx).cloned())
+                        {
+                            undo_atom = Some(ProjectUndoAtom::MapEdit(
+                                server_ctx.pc,
+                                Box::new(before),
+                                Box::new(after),
+                            ));
+                            needs_scene_redraw = true;
+                            cleared_action_slot = true;
+                        }
+                    }
+
+                    if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
                         let prev = map.clone();
                         if crate::actions::apply_builder_hud_material_to_selection(
                             map,

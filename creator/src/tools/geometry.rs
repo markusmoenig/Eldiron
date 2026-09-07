@@ -911,6 +911,11 @@ fn sync_block_prop_surface_items(map: &mut Map) {
         return;
     }
     let assets = RUSTERIX.read().unwrap().assets.block_props.clone();
+    rusterix::sync_block_prop_surface_prop_transforms(
+        &mut map.block_prop_instances,
+        &map.block_prop_surface_placements,
+        &assets,
+    );
     rusterix::sync_block_prop_surface_item_positions(
         &map.block_prop_instances,
         &map.block_prop_surface_placements,
@@ -2323,6 +2328,37 @@ fn remove_geometry_object_selection(map: &mut Map, object_id: Uuid) {
         .retain(|(selected_object_id, _)| *selected_object_id != object_id);
 }
 
+/// Return all authored geometry objects that belong to the same placed block
+/// instance. Multi-mesh built-ins such as the Table use this shared identity as
+/// their parent node while Face/Edge/Vertex editing remains object-local.
+fn geometry_object_unit_ids(map: &Map, object_id: Uuid) -> Vec<Uuid> {
+    let Some(instance_id) = map
+        .geometry_objects
+        .iter()
+        .find(|object| object.id == object_id)
+        .and_then(|object| object.properties.get_id("block_instance_id"))
+    else {
+        return vec![object_id];
+    };
+    map.geometry_objects
+        .iter()
+        .filter(|object| object.properties.get_id("block_instance_id") == Some(instance_id))
+        .map(|object| object.id)
+        .collect()
+}
+
+fn ensure_geometry_object_unit_selected(map: &mut Map, object_id: Uuid) {
+    for member_id in geometry_object_unit_ids(map, object_id) {
+        ensure_geometry_object_selected(map, member_id);
+    }
+}
+
+fn remove_geometry_object_unit_selection(map: &mut Map, object_id: Uuid) {
+    for member_id in geometry_object_unit_ids(map, object_id) {
+        remove_geometry_object_selection(map, member_id);
+    }
+}
+
 fn block_prop_instance_for_resolved_object(map: &Map, object_id: Uuid) -> Option<Uuid> {
     let rusterix = RUSTERIX.read().unwrap();
     rusterix::resolve_block_prop_geometry(&map.block_prop_instances, &rusterix.assets.block_props)
@@ -2558,9 +2594,9 @@ fn apply_geometry_rectangle_selection(
         GeometrySelectionMode::Object => {
             for object_id in &selection.objects {
                 if remove {
-                    remove_geometry_object_selection(map, *object_id);
+                    remove_geometry_object_unit_selection(map, *object_id);
                 } else {
-                    ensure_geometry_object_selected(map, *object_id);
+                    ensure_geometry_object_unit_selected(map, *object_id);
                 }
             }
         }
@@ -3250,9 +3286,9 @@ impl Tool for GeometryTool {
                     match selection_mode {
                         GeometrySelectionMode::Object => {
                             if _ui.shift {
-                                ensure_geometry_object_selected(map, object_id);
+                                ensure_geometry_object_unit_selected(map, object_id);
                             } else {
-                                remove_geometry_object_selection(map, object_id);
+                                remove_geometry_object_unit_selection(map, object_id);
                             }
                         }
                         GeometrySelectionMode::Face => {
@@ -3298,8 +3334,8 @@ impl Tool for GeometryTool {
                         && map.selected_geometry_objects.contains(&object_id);
                     if !keep_multi_selection {
                         map.clear_selection();
-                        map.selected_geometry_objects.push(object_id);
                     }
+                    ensure_geometry_object_unit_selected(map, object_id);
                 } else if vertex_indices.is_none() {
                     map.clear_selection();
                     map.selected_geometry_objects.push(object_id);
@@ -4062,6 +4098,35 @@ mod tests {
         map.geometry_objects.push(object);
         map.selected_geometry_objects.push(object_id);
         (map, object_id)
+    }
+
+    #[test]
+    fn object_selection_treats_multi_mesh_block_instances_as_one_unit() {
+        let mut map = Map::new();
+        let instance_id = Uuid::new_v4();
+        let mut top = rusterix::GeometryObject::box_("Table top", Vec3::zero(), Vec3::one());
+        top.properties
+            .set("block_instance_id", Value::Id(instance_id));
+        let top_id = top.id;
+        let mut leg = rusterix::GeometryObject::box_("Table leg", Vec3::zero(), Vec3::one());
+        leg.properties
+            .set("block_instance_id", Value::Id(instance_id));
+        let leg_id = leg.id;
+        let other = rusterix::GeometryObject::box_("Other", Vec3::zero(), Vec3::one());
+        let other_id = other.id;
+        map.geometry_objects.extend([top, leg, other]);
+        map.selected_geometry_objects.push(other_id);
+
+        ensure_geometry_object_unit_selected(&mut map, top_id);
+        assert!(map.selected_geometry_objects.contains(&top_id));
+        assert!(map.selected_geometry_objects.contains(&leg_id));
+        assert!(map.selected_geometry_objects.contains(&other_id));
+        assert_eq!(selected_geometry_object_transforms(&map).len(), 3);
+
+        remove_geometry_object_unit_selection(&mut map, leg_id);
+        assert!(!map.selected_geometry_objects.contains(&top_id));
+        assert!(!map.selected_geometry_objects.contains(&leg_id));
+        assert_eq!(map.selected_geometry_objects, vec![other_id]);
     }
 
     fn ring_map() -> (Map, Uuid) {

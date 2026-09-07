@@ -103,6 +103,13 @@ fn translate_coord_to_local(x: f32, y: f32, scale_factor: f32) -> (f32, f32) {
     (x / scale_factor, y / scale_factor)
 }
 
+fn logical_window_size(size: PhysicalSize<u32>, scale_factor: f32) -> (u32, u32) {
+    (
+        ((size.width as f32 / scale_factor).round() as u32).max(1),
+        ((size.height as f32 / scale_factor).round() as u32).max(1),
+    )
+}
+
 fn schedule_pointer_frame(next_frame_time: &mut Instant, now: Instant, pointer_fps: f64) {
     let pointer_frame_time = Duration::from_secs_f64(1.0 / pointer_fps.clamp(30.0, 60.0));
     let pointer_deadline = now + pointer_frame_time;
@@ -119,37 +126,19 @@ struct TheWinitContext {
 }
 
 impl TheWinitContext {
+    fn window_pos_to_ui(&self, position: (f32, f32)) -> (f32, f32) {
+        self.backend.window_pos_to_ui(
+            position,
+            (self.ctx.width, self.ctx.height),
+            self.ctx.scale_factor,
+        )
+    }
+
     fn from_window(window: Arc<Window>) -> Self {
-        #[cfg(not(target_os = "macos"))]
-        let scale_factor = 1.0;
-        // Make sure to set the initial scale factor on macOS
-        #[cfg(target_os = "macos")]
         let scale_factor = window.scale_factor() as f32;
-
         let size = window.inner_size();
-
-        // WASM-specific fix: On WASM with Retina displays, inner_size() returns physical size
-        // We need to divide by scale factor to get logical size
-        #[cfg(target_arch = "wasm32")]
-        let (width, height) = {
-            let wasm_scale = window.scale_factor() as f32;
-            (
-                (size.width as f32 / wasm_scale) as usize,
-                (size.height as f32 / wasm_scale) as usize,
-            )
-        };
-        #[cfg(not(target_arch = "wasm32"))]
-        let (width, height) = (size.width as usize, size.height as usize);
-
-        // println!("=== from_window DEBUG ===");
-        // println!(
-        //     "Window scale_factor (from winit): {}",
-        //     window.scale_factor()
-        // );
-        // println!("Using scale_factor: {}", scale_factor);
-        // println!("Physical size (inner_size): {}x{}", size.width, size.height);
-        // println!("Context size: {}x{}", width, height);
-        // println!("ui_frame size: {} bytes", width * height * 4);
+        let (width, height) = logical_window_size(size, scale_factor);
+        let (width, height) = (width as usize, height as usize);
 
         let ctx = TheContext::new(width, height, scale_factor);
 
@@ -174,6 +163,8 @@ struct TheWinitApp {
     mods: ModifiersState,
     target_frame_time: Duration,
     next_frame_time: Instant,
+    // Keep physical coordinates so clicks use the current monitor's scale,
+    // even if the DPI changes before the next cursor-moved event.
     last_cursor_pos: Option<(f32, f32)>,
     left_mouse_down: bool,
     right_mouse_down: bool,
@@ -337,44 +328,17 @@ impl TheWinitApp {
         };
 
         if size.width != 0 && size.height != 0 {
-            // println!("=== resize DEBUG ===");
-            // println!("New physical size: {}x{}", size.width, size.height);
-
             let scale_factor = ctx.window.scale_factor() as f32;
-
-            // On non-macOS, if DPI scale is fractional, render at physical resolution with scale_factor forced to 1.0
-            #[cfg(all(not(target_os = "macos"), not(target_arch = "wasm32")))]
-            let (effective_scale, width, height) = if scale_factor.fract() != 0.0 {
-                (1.0_f32, size.width, size.height)
-            } else {
-                (
-                    scale_factor,
-                    (size.width as f32 / scale_factor).round() as u32,
-                    (size.height as f32 / scale_factor).round() as u32,
-                )
-            };
-            // macOS and WASM: keep logical sizing based on scale_factor
-            #[cfg(any(target_os = "macos", target_arch = "wasm32"))]
-            let (effective_scale, width, height) = (
-                scale_factor,
-                (size.width as f32 / scale_factor).round() as u32,
-                (size.height as f32 / scale_factor).round() as u32,
-            );
-
-            ctx.ctx.scale_factor = effective_scale;
+            let (width, height) = logical_window_size(size, scale_factor);
+            ctx.ctx.scale_factor = scale_factor;
 
             ctx.backend
                 .resize(&ctx.window, size, width, height, scale_factor);
-
-            // println!("Window scale_factor: {}", scale_factor);
-            // println!("New logical size: {}x{}", width, height);
-            // println!("New ui_frame size: {} bytes", width * height * 4);
 
             ctx.ctx.width = width as usize;
             ctx.ctx.height = height as usize;
 
             ctx.ui_frame.resize((width * height * 4) as usize, 0);
-            // println!("===================\n");
 
             #[cfg(feature = "ui")]
             self.ui
@@ -765,13 +729,9 @@ impl ApplicationHandler for TheWinitApp {
                         }
                     }
                     WindowEvent::CursorMoved { position, .. } => {
-                        let (x, y) = translate_coord_to_local(
-                            position.x as f32,
-                            position.y as f32,
-                            ctx.ctx.scale_factor,
-                        );
+                        let (x, y) = ctx.window_pos_to_ui((position.x as f32, position.y as f32));
 
-                        self.last_cursor_pos = Some((x, y));
+                        self.last_cursor_pos = Some((position.x as f32, position.y as f32));
 
                         if self.left_mouse_down || self.right_mouse_down {
                             #[cfg(feature = "ui")]
@@ -839,11 +799,7 @@ impl ApplicationHandler for TheWinitApp {
                     WindowEvent::Touch(Touch {
                         phase, location, ..
                     }) => {
-                        let (x, y) = translate_coord_to_local(
-                            location.x as f32,
-                            location.y as f32,
-                            ctx.ctx.scale_factor,
-                        );
+                        let (x, y) = ctx.window_pos_to_ui((location.x as f32, location.y as f32));
 
                         match phase {
                             TouchPhase::Started => {
@@ -897,6 +853,7 @@ impl ApplicationHandler for TheWinitApp {
                     }
                     WindowEvent::MouseInput { state, button, .. } => {
                         if let Some((x, y)) = self.last_cursor_pos {
+                            let (x, y) = ctx.window_pos_to_ui((x, y));
                             let mut redraw = false;
                             match (button, state) {
                                 (MouseButton::Left, ElementState::Pressed) => {
@@ -1043,7 +1000,11 @@ impl ApplicationHandler for TheWinitApp {
                                 const LINE_HEIGHT_PX: f32 = 20.0;
                                 (x as f32 * LINE_HEIGHT_PX, y as f32 * LINE_HEIGHT_PX)
                             }
-                            MouseScrollDelta::PixelDelta(delta) => (delta.x as f32, delta.y as f32),
+                            MouseScrollDelta::PixelDelta(delta) => translate_coord_to_local(
+                                delta.x as f32,
+                                delta.y as f32,
+                                ctx.ctx.scale_factor,
+                            ),
                         };
 
                         let mut redraw = false;
@@ -1196,6 +1157,27 @@ pub fn run_winit_app(args: Option<Vec<String>>, app: Box<dyn TheTrait>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ui_dimensions_follow_system_display_scaling() {
+        for scale in [1.0, 1.25, 1.5, 1.75, 2.0] {
+            let physical = PhysicalSize::new((1280.0 * scale) as u32, (720.0 * scale) as u32);
+            assert_eq!(logical_window_size(physical, scale), (1280, 720));
+            assert_eq!(
+                translate_coord_to_local(100.0 * scale, 60.0 * scale, scale),
+                (100.0, 60.0)
+            );
+        }
+    }
+
+    #[test]
+    fn logical_dimensions_round_and_remain_nonzero() {
+        assert_eq!(
+            logical_window_size(PhysicalSize::new(1601, 901), 1.5),
+            (1067, 601)
+        );
+        assert_eq!(logical_window_size(PhysicalSize::new(1, 1), 2.0), (1, 1));
+    }
 
     #[test]
     fn pointer_motion_shortens_an_idle_frame_deadline() {

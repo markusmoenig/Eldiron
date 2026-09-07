@@ -9897,10 +9897,7 @@ impl TheTrait for Editor {
                     };
                     if let Some(iso_paint) = iso_paint {
                         let buffer = render_view.render_buffer_mut();
-                        if self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint
-                            && (self.server_ctx.pc.is_prefab()
-                                || self.server_ctx.editor_view_mode == EditorViewMode::Iso)
-                        {
+                        if self.server_ctx.curr_map_tool_type == MapToolType::IsoPaint {
                             Self::draw_iso_paint_preview(
                                 buffer,
                                 &iso_paint,

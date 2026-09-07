@@ -6,10 +6,9 @@ pub const BLOCK_OPERATION_REPLACE: i32 = 1;
 pub const BLOCK_OPERATION_ERASE: i32 = 2;
 pub const BLOCK_STROKE_LINE: i32 = 0;
 pub const BLOCK_STROKE_RECT: i32 = 1;
-pub const DEFAULT_BLOCK_HEIGHT_CELLS: i32 = 2;
+pub const DEFAULT_BLOCK_HEIGHT_CELLS: f32 = 2.0;
 pub const DEFAULT_BLOCK_SPAN_EXTRA_CELLS: f32 = 0.0;
 pub const DEFAULT_BLOCK_DEPTH_EXTRA_CELLS: f32 = 0.0;
-pub const BLOCK_SIZE_STEP_CELLS: f32 = 0.25;
 pub const BLOCK_COLUMN_SEGMENTS: usize = 12;
 const FURNITURE_WOOD: [u8; 4] = [112, 69, 38, 255];
 const FURNITURE_DARK_WOOD: [u8; 4] = [73, 42, 25, 255];
@@ -78,7 +77,7 @@ pub enum BlockComponentKind {
 
 #[derive(Clone, Copy)]
 pub struct BlockSizing {
-    pub height_cells: i32,
+    pub height_cells: f32,
     pub span_extra_cells: f32,
     pub depth_extra_cells: f32,
 }
@@ -260,12 +259,12 @@ const TABLE_BOXES: &[BlockBox] = &[
     BlockBox {
         min: Vec3 {
             x: 0.0,
-            y: 1.84,
+            y: 0.84,
             z: 0.0,
         },
         max: Vec3 {
             x: 2.0,
-            y: 2.0,
+            y: 1.0,
             z: 1.0,
         },
     },
@@ -277,7 +276,7 @@ const TABLE_BOXES: &[BlockBox] = &[
         },
         max: Vec3 {
             x: 0.24,
-            y: 1.84,
+            y: 0.84,
             z: 0.24,
         },
     },
@@ -289,7 +288,7 @@ const TABLE_BOXES: &[BlockBox] = &[
         },
         max: Vec3 {
             x: 1.90,
-            y: 1.84,
+            y: 0.84,
             z: 0.24,
         },
     },
@@ -301,7 +300,7 @@ const TABLE_BOXES: &[BlockBox] = &[
         },
         max: Vec3 {
             x: 0.24,
-            y: 1.84,
+            y: 0.84,
             z: 0.90,
         },
     },
@@ -313,7 +312,7 @@ const TABLE_BOXES: &[BlockBox] = &[
         },
         max: Vec3 {
             x: 1.90,
-            y: 1.84,
+            y: 0.84,
             z: 0.90,
         },
     },
@@ -637,7 +636,7 @@ static BLOCK_ASSETS: LazyLock<Vec<BlockAsset>> = LazyLock::new(|| {
             name_key: "block_asset_table",
             description: "Resizable table with four legs",
             description_key: "block_asset_table_desc",
-            footprint: Vec3 { x: 2, y: 2, z: 1 },
+            footprint: Vec3 { x: 2, y: 1, z: 1 },
             boxes: TABLE_BOXES,
             components: TABLE_COMPONENTS,
         },
@@ -646,6 +645,13 @@ static BLOCK_ASSETS: LazyLock<Vec<BlockAsset>> = LazyLock::new(|| {
 
 pub fn block_assets() -> &'static [BlockAsset] {
     &BLOCK_ASSETS
+}
+
+pub fn block_asset_default_sizing(asset: &BlockAsset) -> BlockSizing {
+    BlockSizing {
+        height_cells: asset.footprint.y.max(1) as f32,
+        ..BlockSizing::default()
+    }
 }
 
 pub fn block_asset(id: Uuid) -> Option<&'static BlockAsset> {
@@ -1087,9 +1093,24 @@ pub(crate) fn smoke_emitter(rate: f32, scale: f32) -> rusterix::ParticleEmitterD
     emitter
 }
 
-fn make_effect_prefab(
+fn legacy_vapor_grate_emitter() -> rusterix::ParticleEmitterDef {
+    let mut vapor = smoke_emitter(16.0, 1.5);
+    vapor.color = [158, 178, 184, 105];
+    vapor
+}
+
+fn vapor_grate_emitter() -> rusterix::ParticleEmitterDef {
+    let mut vapor = legacy_vapor_grate_emitter();
+    vapor.rate = 28.0;
+    vapor.emission_shape = rusterix::ParticleEmissionShape::Surface;
+    vapor.spawn_area = [0.48, 0.0, 0.48];
+    vapor
+}
+
+fn make_functional_prefab(
     id: Uuid,
     name: &str,
+    category: &str,
     geometry: Vec<rusterix::GeometryObject>,
     attachment_position: [f32; 3],
     placement_mode: rusterix::BlockPropPlacementMode,
@@ -1110,16 +1131,23 @@ fn make_effect_prefab(
     let mut asset = rusterix::BlockPropAsset::new(name);
     asset.id = id;
     asset.alias = name.to_ascii_lowercase().replace(' ', "-");
-    asset.category = "Effects".to_string();
-    asset.tags = vec!["effect".to_string()];
+    asset.category = category.to_string();
+    asset.tags = vec![
+        category.to_ascii_lowercase(),
+        PREFAB_AUTO_SIZE_TAG.to_string(),
+        FUNCTIONAL_PREFAB_VERSION_TAG.to_string(),
+    ];
+    if placement_mode == rusterix::BlockPropPlacementMode::AnySurface {
+        asset.tags.push("placeable".to_string());
+    }
     asset.parts.push(part);
     asset.placement.mode = placement_mode;
     asset.placement.snap_to_surfaces = true;
-    asset.placement.snap_to_grid = placement_mode == rusterix::BlockPropPlacementMode::Ground;
-    asset.placement.surface_offset = if placement_mode == rusterix::BlockPropPlacementMode::Wall {
-        0.015
-    } else {
-        0.0
+    asset.placement.snap_to_grid = true;
+    asset.placement.surface_offset = match placement_mode {
+        rusterix::BlockPropPlacementMode::Wall => 0.015,
+        rusterix::BlockPropPlacementMode::AnySurface => 0.006,
+        _ => 0.0,
     };
     for (index, (particle_name, emitter)) in particles.into_iter().enumerate() {
         asset
@@ -1152,7 +1180,25 @@ fn make_effect_prefab(
 
 const PREFAB_AUTO_SIZE_TAG: &str = "auto-size";
 const FURNITURE_VERSION_TAG: &str = "furniture-v5";
-const DECORATION_VERSION_TAG: &str = "decoration-v2";
+const DECORATION_VERSION_TAG: &str = "decoration-v3";
+const FUNCTIONAL_PREFAB_VERSION_TAG: &str = "functional-v2";
+
+fn named_prefab_material(
+    mut object: rusterix::GeometryObject,
+    slot: &str,
+) -> rusterix::GeometryObject {
+    object
+        .properties
+        .set("prefab_material_slot", Value::Str(slot.to_string()));
+    object
+}
+
+fn optional_prefab_material(mut object: rusterix::GeometryObject) -> rusterix::GeometryObject {
+    object
+        .properties
+        .set("prefab_optional_material_slot", Value::Bool(true));
+    object
+}
 
 fn furniture_top_face_refs(object: &rusterix::GeometryObject) -> Vec<rusterix::BlockPropFaceRef> {
     let top = object
@@ -1419,7 +1465,7 @@ pub fn apply_prefab_auto_sizing(
     let base_depth = asset.placement.footprint[2].max(1) as f32;
     let scale = Vec3::new(
         (base_width + sizing.span_extra_cells.max(0.0) * 2.0) / base_width,
-        sizing.height_cells.max(1) as f32 / base_height,
+        sizing.height_cells.max(0.01) / base_height,
         (base_depth + sizing.depth_extra_cells.max(0.0) * 2.0) / base_depth,
     );
     for row in 0..3 {
@@ -1429,7 +1475,7 @@ pub fn apply_prefab_auto_sizing(
     }
     instance
         .parameter_overrides
-        .set("height_cells", Value::Int(sizing.height_cells.max(1)));
+        .set("height_cells", Value::Float(sizing.height_cells.max(0.01)));
     instance.parameter_overrides.set(
         "width_extra_cells",
         Value::Float(sizing.span_extra_cells.max(0.0)),
@@ -1457,9 +1503,10 @@ static BUNDLED_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(
     const FABRIC: [u8; 4] = [122, 43, 38, 255];
     const FABRIC_TRIM: [u8; 4] = [198, 151, 68, 255];
     vec![
-        make_effect_prefab(
+        make_functional_prefab(
             wall_torch_id,
             "Wall Torch",
+            "Lighting",
             vec![
                 effect_geometry_cylinder(
                     "Wall plate",
@@ -1524,9 +1571,10 @@ static BUNDLED_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(
             ],
             true,
         ),
-        make_effect_prefab(
+        make_functional_prefab(
             campfire_id,
             "Campfire",
+            "Lighting",
             vec![
                 effect_geometry_box(
                     "Log A",
@@ -1558,87 +1606,107 @@ static BUNDLED_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(
             ],
             true,
         ),
-        make_effect_prefab(
+        make_functional_prefab(
             vapor_grate_id,
             "Vapor Grate",
+            "Decoration",
             vec![
-                effect_geometry_box(
-                    "Grate rim north",
-                    Vec3::new(-0.65, 0.00, -0.65),
-                    Vec3::new(0.65, 0.08, -0.50),
-                    IRON,
-                    "metal",
+                named_prefab_material(
+                    effect_geometry_box(
+                        "Grate rim north",
+                        Vec3::new(-0.65, 0.00, -0.65),
+                        Vec3::new(0.65, 0.08, -0.50),
+                        IRON,
+                        "metal",
+                    ),
+                    "GRATE",
                 ),
-                effect_geometry_box(
-                    "Grate rim south",
-                    Vec3::new(-0.65, 0.00, 0.50),
-                    Vec3::new(0.65, 0.08, 0.65),
-                    IRON,
-                    "metal",
+                named_prefab_material(
+                    effect_geometry_box(
+                        "Grate rim south",
+                        Vec3::new(-0.65, 0.00, 0.50),
+                        Vec3::new(0.65, 0.08, 0.65),
+                        IRON,
+                        "metal",
+                    ),
+                    "GRATE",
                 ),
-                effect_geometry_box(
-                    "Grate rim west",
-                    Vec3::new(-0.65, 0.00, -0.50),
-                    Vec3::new(-0.50, 0.08, 0.50),
-                    IRON,
-                    "metal",
+                named_prefab_material(
+                    effect_geometry_box(
+                        "Grate rim west",
+                        Vec3::new(-0.65, 0.00, -0.50),
+                        Vec3::new(-0.50, 0.08, 0.50),
+                        IRON,
+                        "metal",
+                    ),
+                    "GRATE",
                 ),
-                effect_geometry_box(
-                    "Grate rim east",
-                    Vec3::new(0.50, 0.00, -0.50),
-                    Vec3::new(0.65, 0.08, 0.50),
-                    IRON,
-                    "metal",
+                named_prefab_material(
+                    effect_geometry_box(
+                        "Grate rim east",
+                        Vec3::new(0.50, 0.00, -0.50),
+                        Vec3::new(0.65, 0.08, 0.50),
+                        IRON,
+                        "metal",
+                    ),
+                    "GRATE",
                 ),
-                effect_geometry_box(
-                    "Grate bar A",
-                    Vec3::new(-0.34, 0.02, -0.50),
-                    Vec3::new(-0.25, 0.07, 0.50),
-                    IRON,
-                    "metal",
+                named_prefab_material(
+                    effect_geometry_box(
+                        "Grate bar A",
+                        Vec3::new(-0.34, 0.02, -0.50),
+                        Vec3::new(-0.25, 0.07, 0.50),
+                        IRON,
+                        "metal",
+                    ),
+                    "GRATE",
                 ),
-                effect_geometry_box(
-                    "Grate bar B",
-                    Vec3::new(-0.05, 0.02, -0.50),
-                    Vec3::new(0.05, 0.07, 0.50),
-                    IRON,
-                    "metal",
+                named_prefab_material(
+                    effect_geometry_box(
+                        "Grate bar B",
+                        Vec3::new(-0.05, 0.02, -0.50),
+                        Vec3::new(0.05, 0.07, 0.50),
+                        IRON,
+                        "metal",
+                    ),
+                    "GRATE",
                 ),
-                effect_geometry_box(
-                    "Grate bar C",
-                    Vec3::new(0.25, 0.02, -0.50),
-                    Vec3::new(0.34, 0.07, 0.50),
-                    IRON,
-                    "metal",
+                named_prefab_material(
+                    effect_geometry_box(
+                        "Grate bar C",
+                        Vec3::new(0.25, 0.02, -0.50),
+                        Vec3::new(0.34, 0.07, 0.50),
+                        IRON,
+                        "metal",
+                    ),
+                    "GRATE",
+                ),
+                named_prefab_material(
+                    effect_geometry_box(
+                        "Vapor well bottom",
+                        Vec3::new(-0.50, 0.004, -0.50),
+                        Vec3::new(0.50, 0.018, 0.50),
+                        [25, 29, 32, 255],
+                        "metal",
+                    ),
+                    "BOTTOM",
                 ),
             ],
             [0.0, 0.04, 0.0],
             rusterix::BlockPropPlacementMode::Ground,
-            vec![("Vapor", {
-                let mut vapor = smoke_emitter(16.0, 1.5);
-                vapor.color = [158, 178, 184, 105];
-                vapor
-            })],
+            vec![("Vapor", vapor_grate_emitter())],
             false,
         ),
         {
-            let mut candles = make_effect_prefab(
+            let mut candles = make_functional_prefab(
                 candle_cluster_id,
                 "Candle Cluster",
+                "Lighting",
                 vec![
                     effect_geometry_cylinder(
-                        "Iron candle tray",
-                        Vec3::new(0.0, 0.015, 0.0),
-                        Vec3::new(0.0, 0.065, 0.0),
-                        0.38,
-                        16,
-                        IRON,
-                        "metal",
-                    ),
-                    effect_geometry_cylinder(
                         "Tall candle",
-                        Vec3::new(-0.12, 0.06, 0.03),
-                        Vec3::new(-0.12, 0.62, 0.03),
+                        Vec3::new(-0.12, 0.0, 0.03),
+                        Vec3::new(-0.12, 0.56, 0.03),
                         0.075,
                         12,
                         WAX,
@@ -1646,8 +1714,8 @@ static BUNDLED_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(
                     ),
                     effect_geometry_cylinder(
                         "Short candle",
-                        Vec3::new(0.13, 0.06, 0.10),
-                        Vec3::new(0.13, 0.40, 0.10),
+                        Vec3::new(0.13, 0.0, 0.10),
+                        Vec3::new(0.13, 0.34, 0.10),
                         0.09,
                         12,
                         WAX,
@@ -1655,23 +1723,23 @@ static BUNDLED_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(
                     ),
                     effect_geometry_cylinder(
                         "Rear candle",
-                        Vec3::new(0.06, 0.06, -0.14),
-                        Vec3::new(0.06, 0.50, -0.14),
+                        Vec3::new(0.06, 0.0, -0.14),
+                        Vec3::new(0.06, 0.44, -0.14),
                         0.065,
                         12,
                         WAX,
                         "wax",
                     ),
                 ],
-                [-0.12, 0.65, 0.03],
-                rusterix::BlockPropPlacementMode::Ground,
+                [-0.12, 0.59, 0.03],
+                rusterix::BlockPropPlacementMode::AnySurface,
                 vec![("Tall candle flame", fire_emitter(15.0, 0.42))],
                 true,
             );
             let part_id = candles.parts[0].id;
             for (index, (name, position)) in [
-                ("Short candle flame", [0.13, 0.43, 0.10]),
-                ("Rear candle flame", [0.06, 0.53, -0.14]),
+                ("Short candle flame", [0.13, 0.37, 0.10]),
+                ("Rear candle flame", [0.06, 0.47, -0.14]),
             ]
             .into_iter()
             .enumerate()
@@ -1707,9 +1775,10 @@ static BUNDLED_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(
             }
             candles
         },
-        make_effect_prefab(
+        make_functional_prefab(
             iron_brazier_id,
             "Iron Brazier",
+            "Lighting",
             vec![
                 effect_geometry_cylinder(
                     "Iron foot",
@@ -1906,30 +1975,30 @@ static BUNDLED_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(
                     FABRIC,
                     "fabric",
                 ),
-                furniture_geometry_rounded_box(
+                optional_prefab_material(furniture_geometry_rounded_box(
                     "Carpet center stripe",
                     Vec3::new(-0.10, 0.073, -1.34),
                     Vec3::new(0.10, 0.093, 1.34),
                     0.025,
                     FABRIC_TRIM,
                     "trim",
-                ),
-                furniture_geometry_rounded_box(
+                )),
+                optional_prefab_material(furniture_geometry_rounded_box(
                     "Carpet north border",
                     Vec3::new(-0.88, 0.073, -1.39),
                     Vec3::new(0.88, 0.093, -1.24),
                     0.025,
                     FABRIC_TRIM,
                     "trim",
-                ),
-                furniture_geometry_rounded_box(
+                )),
+                optional_prefab_material(furniture_geometry_rounded_box(
                     "Carpet south border",
                     Vec3::new(-0.88, 0.073, 1.24),
                     Vec3::new(0.88, 0.093, 1.39),
                     0.025,
                     FABRIC_TRIM,
                     "trim",
-                ),
+                )),
             ],
             [2, 2, 3],
             rusterix::BlockPropPlacementMode::Ground,
@@ -1946,14 +2015,14 @@ static BUNDLED_PREFABS: LazyLock<Vec<rusterix::BlockPropAsset>> = LazyLock::new(
                     FABRIC,
                     "fabric",
                 ),
-                furniture_geometry_rounded_box(
+                optional_prefab_material(furniture_geometry_rounded_box(
                     "Tapestry vertical ornament",
                     Vec3::new(-0.10, -0.78, 0.044),
                     Vec3::new(0.10, 0.78, 0.070),
                     0.025,
                     FABRIC_TRIM,
                     "trim",
-                ),
+                )),
                 effect_geometry_cylinder(
                     "Tapestry hanging rod",
                     Vec3::new(-1.02, 0.98, 0.055),
@@ -2313,6 +2382,23 @@ pub fn bundled_prefab(id: Uuid) -> Option<&'static rusterix::BlockPropAsset> {
     bundled_prefabs().iter().find(|asset| asset.id == id)
 }
 
+/// Reserve the default material colors for the built-in catalog while the
+/// project is loading. A built-in Prefab can then become project-owned later
+/// without rebuilding the live texture atlas on its first selection.
+fn ensure_bundled_prefab_default_palette(project: &mut Project) -> bool {
+    let before_palette = project.art_palette.clone();
+    let before_materials = project.art_palette_materials.clone();
+    for asset in bundled_prefabs() {
+        for part in &asset.parts {
+            for object in part.geometry_source.geometry_objects() {
+                let (color, material, finish) = effect_surface_defaults(object);
+                prefab_palette_slot(project, color, &material, &finish);
+            }
+        }
+    }
+    project.art_palette != before_palette || project.art_palette_materials != before_materials
+}
+
 /// Bring project-owned copies of bundled Prefabs forward when their shipped
 /// geometry schema changes. User-authored copies with different IDs are never
 /// touched.
@@ -2324,16 +2410,31 @@ pub fn upgrade_bundled_prefab_geometry(project: &mut Project, asset_id: Uuid) ->
         return false;
     };
     let bundled_schema_tag = bundled.tags.iter().find(|tag| {
-        tag.as_str() == FURNITURE_VERSION_TAG || tag.as_str() == DECORATION_VERSION_TAG
+        tag.as_str() == FURNITURE_VERSION_TAG
+            || tag.as_str() == DECORATION_VERSION_TAG
+            || tag.as_str() == FUNCTIONAL_PREFAB_VERSION_TAG
     });
     if bundled_schema_tag.is_some_and(|schema_tag| !project_asset.tags.contains(schema_tag)) {
+        let migrate_default_vapor = bundled.name == "Vapor Grate"
+            && project_asset.particle_effects.iter().any(|effect| {
+                effect.name == "Vapor" && effect.emitter == legacy_vapor_grate_emitter()
+            });
         let Some(project_asset) = project.block_props.get_mut(&asset_id) else {
             return false;
         };
         project_asset.parts = bundled.parts.clone();
         project_asset.support_surfaces = bundled.support_surfaces.clone();
         project_asset.placement = bundled.placement.clone();
+        project_asset.category = bundled.category.clone();
         project_asset.tags = bundled.tags.clone();
+        if migrate_default_vapor
+            && let Some(effect) = project_asset
+                .particle_effects
+                .iter_mut()
+                .find(|effect| effect.name == "Vapor")
+        {
+            effect.emitter = vapor_grate_emitter();
+        }
         for region in &mut project.regions {
             for instance in &mut region.map.block_prop_instances {
                 if instance.asset_id != asset_id {
@@ -2346,6 +2447,15 @@ pub fn upgrade_bundled_prefab_geometry(project: &mut Project, asset_id: Uuid) ->
                         if !instance.overrides.contains(&new_key) {
                             instance.overrides.set(&new_key, value);
                         }
+                    }
+                }
+                if bundled.name == "Vapor Grate" {
+                    let old_key = rusterix::block_prop_material_override_key("METAL");
+                    let new_key = rusterix::block_prop_material_override_key("GRATE");
+                    if let Some(value) = instance.overrides.remove(&old_key)
+                        && !instance.overrides.contains(&new_key)
+                    {
+                        instance.overrides.set(&new_key, value);
                     }
                 }
             }
@@ -2385,6 +2495,7 @@ pub fn upgrade_bundled_prefab_geometry(project: &mut Project, asset_id: Uuid) ->
 }
 
 pub fn upgrade_all_bundled_prefabs(project: &mut Project) -> bool {
+    let bundled_palette_changed = ensure_bundled_prefab_default_palette(project);
     let asset_ids = project.block_props.keys().copied().collect::<Vec<_>>();
     let bundled_changed = asset_ids.into_iter().fold(false, |changed, asset_id| {
         let upgraded = upgrade_bundled_prefab_geometry(project, asset_id);
@@ -2396,7 +2507,7 @@ pub fn upgrade_all_bundled_prefabs(project: &mut Project) -> bool {
         .iter()
         .find(|asset| asset.name == "Table")
         .is_some_and(|asset| ensure_block_asset_default_palette(project, asset));
-    bundled_changed || table_palette_changed
+    bundled_palette_changed || bundled_changed || table_palette_changed
 }
 
 fn prefab_surface_hit_and_normal(
@@ -2406,7 +2517,8 @@ fn prefab_surface_hit_and_normal(
     let hit = server_ctx
         .hover_surface_hit_pos
         .or(server_ctx.hover_cursor_3d)
-        .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))?;
+        .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+        .or_else(|| block_grid_plane_hit(server_ctx))?;
     let normal = server_ctx.hover_surface_normal;
     if let Some(scenevm::GeoId::GeometryObject(object_id)) = server_ctx.geo_hit
         && let Some((wall_hit, wall_normal)) =
@@ -2424,13 +2536,12 @@ pub fn prefab_surface_placement_valid(
 ) -> bool {
     let has_hit = server_ctx.hover_surface_hit_pos.is_some()
         || server_ctx.hover_cursor_3d.is_some()
-        || server_ctx.geo_hit.is_some();
+        || server_ctx.geo_hit.is_some()
+        || block_grid_plane_hit(server_ctx).is_some();
     match asset.placement.mode {
         rusterix::BlockPropPlacementMode::Ground => has_hit,
         rusterix::BlockPropPlacementMode::Free => has_hit,
-        rusterix::BlockPropPlacementMode::AnySurface => {
-            has_hit && server_ctx.hover_surface_normal.is_some()
-        }
+        rusterix::BlockPropPlacementMode::AnySurface => has_hit,
         rusterix::BlockPropPlacementMode::Wall => {
             has_hit
                 && prefab_surface_hit_and_normal(map, server_ctx)
@@ -2449,7 +2560,7 @@ pub fn surface_prefab_preview_instance(
     if !prefab_surface_placement_valid(asset, map, server_ctx) {
         return None;
     }
-    let (hit, normal) = prefab_surface_hit_and_normal(map, server_ctx)?;
+    let (mut hit, normal) = prefab_surface_hit_and_normal(map, server_ctx)?;
     if asset.placement.mode == rusterix::BlockPropPlacementMode::Free {
         let mut instance = rusterix::BlockPropInstance::new(asset.id);
         instance.world_transform[3][0] = hit.x;
@@ -2458,7 +2569,21 @@ pub fn surface_prefab_preview_instance(
         apply_prefab_auto_sizing(asset, &mut instance, block_sizing_from_context(server_ctx));
         return Some(instance);
     }
-    let normal = normal?.try_normalized()?;
+    let mut normal = normal
+        .or_else(|| {
+            (asset.placement.mode == rusterix::BlockPropPlacementMode::AnySurface)
+                .then_some(Vec3::unit_y())
+        })?
+        .try_normalized()?;
+    if asset.placement.mode == rusterix::BlockPropPlacementMode::AnySurface && normal.y < -0.72 {
+        normal = -normal;
+    }
+    if asset.placement.mode == rusterix::BlockPropPlacementMode::AnySurface && normal.y.abs() > 0.72
+    {
+        let step = ServerContext::edit_grid_step(map.subdivisions).max(0.01);
+        hit.x = (hit.x / step).round() * step;
+        hit.z = (hit.z / step).round() * step;
+    }
     if asset.placement.mode == rusterix::BlockPropPlacementMode::Wall && normal.y.abs() > 0.72 {
         return None;
     }
@@ -2505,12 +2630,13 @@ pub fn surface_prefab_preview_instance(
 /// Prefab. Editing therefore uses the same geometry/effect pipeline as every
 /// user-authored asset instead of a reduced, hard-coded representation.
 pub fn editable_prefab_from_block_asset(asset: &BlockAsset) -> rusterix::BlockPropAsset {
+    let sizing = block_asset_default_sizing(asset);
     let geometry = asset
         .boxes
         .iter()
         .enumerate()
         .filter_map(|(index, _)| {
-            adjusted_rotated_bounds(asset, index, BlockSizing::default(), 0).map(|(min, max)| {
+            adjusted_rotated_bounds(asset, index, sizing, 0).map(|(min, max)| {
                 let mut object = rusterix::GeometryObject::box_from_bounds(
                     format!("{} Part {}", asset.name, index + 1),
                     min,
@@ -2536,7 +2662,7 @@ pub fn editable_prefab_from_block_asset(asset: &BlockAsset) -> rusterix::BlockPr
 
 pub fn block_sizing_from_context(server_ctx: &ServerContext) -> BlockSizing {
     BlockSizing {
-        height_cells: server_ctx.block_height_cells.max(1),
+        height_cells: server_ctx.block_height_cells.max(0.01),
         span_extra_cells: server_ctx.block_span_extra_cells.max(0.0),
         depth_extra_cells: server_ctx.block_depth_extra_cells.max(0.0),
     }
@@ -2671,7 +2797,7 @@ pub fn adjusted_block_box(
 ) -> Option<BlockBox> {
     let mut block_box = *asset.boxes.get(index)?;
     let component = component_for(asset, index);
-    let height = sizing.height_cells.max(1) as f32;
+    let height = sizing.height_cells.max(0.01);
     let extra = sizing.span_extra_cells.max(0.0);
     let depth_extra = sizing.depth_extra_cells.max(0.0);
 
@@ -2777,8 +2903,8 @@ pub fn adjusted_rotated_bounds(
 /// Horizontal snap spacing used by the Block/Prefab placement tool.
 ///
 /// Construction blocks keep their authored cell size because that value also
-/// controls their physical scale. Prefabs that opt into grid snapping instead
-/// follow the map's shared editor grid.
+/// controls their physical scale. Every Prefab follows the map's shared editor
+/// grid, including objects placed on support surfaces.
 pub fn block_tool_horizontal_grid_step(
     asset_id: Option<Uuid>,
     prefab_assets: &IndexMap<Uuid, rusterix::BlockPropAsset>,
@@ -2787,9 +2913,7 @@ pub fn block_tool_horizontal_grid_step(
 ) -> f32 {
     if let Some(asset_id) = asset_id
         && block_asset(asset_id).is_none()
-        && prefab_assets
-            .get(&asset_id)
-            .is_some_and(|asset| asset.placement.snap_to_grid)
+        && prefab_assets.contains_key(&asset_id)
     {
         return ServerContext::edit_grid_step(map.subdivisions).max(0.01);
     }
@@ -2921,7 +3045,7 @@ mod tests {
             .find(|asset| asset.name == "Doorway")
             .expect("Doorway block asset");
         let sizing = BlockSizing {
-            height_cells: 2,
+            height_cells: 2.0,
             span_extra_cells: 1.0,
             depth_extra_cells: 0.0,
         };
@@ -2947,7 +3071,7 @@ mod tests {
             .find(|asset| asset.name == "Column")
             .expect("Column block asset");
         let sizing = BlockSizing {
-            height_cells: 4,
+            height_cells: 4.0,
             span_extra_cells: 0.0,
             depth_extra_cells: 0.0,
         };
@@ -2974,7 +3098,7 @@ mod tests {
             .find(|asset| asset.name == "Plain Column")
             .expect("Plain Column block asset");
         let sizing = BlockSizing {
-            height_cells: 4,
+            height_cells: 4.0,
             span_extra_cells: 0.0,
             depth_extra_cells: 0.0,
         };
@@ -2997,7 +3121,7 @@ mod tests {
             .find(|asset| asset.name == "Table")
             .expect("Table block asset");
         let sizing = BlockSizing {
-            height_cells: 3,
+            height_cells: 3.0,
             span_extra_cells: 1.0,
             depth_extra_cells: 2.0,
         };
@@ -3120,7 +3244,7 @@ mod tests {
         server_ctx.block_grid_cell_size = 1.0;
 
         let mut prefab = rusterix::BlockPropAsset::new("Candle");
-        prefab.placement.snap_to_grid = true;
+        prefab.placement.snap_to_grid = false;
         let prefab_id = prefab.id;
         let prefab_assets = IndexMap::from_iter([(prefab_id, prefab)]);
 
@@ -3137,6 +3261,28 @@ mod tests {
             ),
             1.0,
         );
+    }
+
+    #[test]
+    fn any_surface_decoration_can_preview_on_the_grid_without_a_geometry_normal() {
+        let asset = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Ceramic Plate")
+            .expect("Ceramic Plate decoration");
+        let mut map = Map::default();
+        map.subdivisions = 8.0;
+        let mut server_ctx = ServerContext::new();
+        server_ctx.hover_cursor_3d = Some(Vec3::new(1.03, 0.0, 2.06));
+
+        assert!(prefab_surface_placement_valid(asset, &map, &server_ctx));
+        let preview = surface_prefab_preview_instance(asset, &map, &server_ctx)
+            .expect("plate preview on the ground grid");
+        assert_close(preview.world_transform[3][0], 1.0);
+        assert_close(
+            preview.world_transform[3][1],
+            asset.placement.surface_offset,
+        );
+        assert_close(preview.world_transform[3][2], 2.0);
     }
 
     #[test]
@@ -3196,9 +3342,156 @@ mod tests {
             .into_iter()
             .map(|(label, _)| label)
             .collect::<Vec<_>>();
+        assert!(
+            carpet.parts[0]
+                .geometry_source
+                .geometry_objects()
+                .iter()
+                .filter(|object| object.properties.get_str("prefab_material_slot") == Some("TRIM"))
+                .all(|object| object
+                    .properties
+                    .get_bool_default("prefab_optional_material_slot", false))
+        );
         assert!(tapestry_slots.iter().any(|slot| slot == "FABRIC"));
         assert!(tapestry_slots.iter().any(|slot| slot == "TRIM"));
         assert!(tapestry_slots.iter().any(|slot| slot == "DARK"));
+    }
+
+    #[test]
+    fn built_in_prefab_palette_is_ready_before_first_catalog_selection() {
+        let mut project = Project::default();
+        ensure_bundled_prefab_default_palette(&mut project);
+        let palette = project.art_palette.clone();
+        let materials = project.art_palette_materials.clone();
+        let carpet = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Floor Carpet")
+            .expect("Floor Carpet decoration")
+            .clone();
+        let carpet_id = carpet.id;
+        project.block_props.insert(carpet_id, carpet);
+
+        assert!(ensure_prefab_default_surfaces(&mut project, carpet_id));
+        assert_eq!(project.art_palette, palette);
+        assert_eq!(project.art_palette_materials, materials);
+    }
+
+    #[test]
+    fn vapor_grate_upgrade_adds_the_well_and_migrates_default_effects_and_color() {
+        let mut project = Project::default();
+        let mut vapor_grate = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Vapor Grate")
+            .expect("Vapor Grate decoration")
+            .clone();
+        vapor_grate
+            .tags
+            .retain(|tag| tag != FUNCTIONAL_PREFAB_VERSION_TAG);
+        vapor_grate.tags.push("functional-v1".to_string());
+        vapor_grate
+            .particle_effects
+            .iter_mut()
+            .find(|effect| effect.name == "Vapor")
+            .expect("Vapor effect")
+            .emitter = legacy_vapor_grate_emitter();
+        let asset_id = vapor_grate.id;
+        let mut instance = rusterix::BlockPropInstance::new(asset_id);
+        instance.overrides.set(
+            &rusterix::block_prop_material_override_key("METAL"),
+            Value::Source(rusterix::PixelSource::PaletteIndex(7)),
+        );
+        let mut region = Region::default();
+        region.map.block_prop_instances.push(instance);
+        project.regions.push(region);
+        project.block_props.insert(asset_id, vapor_grate);
+
+        assert!(upgrade_bundled_prefab_geometry(&mut project, asset_id));
+        let upgraded = &project.block_props[&asset_id];
+        assert!(
+            upgraded.parts[0]
+                .geometry_source
+                .geometry_objects()
+                .iter()
+                .any(|object| object.name == "Vapor well bottom")
+        );
+        let vapor = upgraded
+            .particle_effects
+            .iter()
+            .find(|effect| effect.name == "Vapor")
+            .expect("Vapor effect");
+        assert_eq!(
+            vapor.emitter.emission_shape,
+            rusterix::ParticleEmissionShape::Surface
+        );
+        let instance = &project.regions[0].map.block_prop_instances[0];
+        assert_eq!(
+            instance
+                .overrides
+                .get_source(&rusterix::block_prop_material_override_key("GRATE")),
+            Some(&rusterix::PixelSource::PaletteIndex(7))
+        );
+        assert!(
+            instance
+                .overrides
+                .get(&rusterix::block_prop_material_override_key("METAL"))
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn functional_prefabs_are_categorized_by_purpose_and_candles_use_shared_placement() {
+        let candle = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Candle Cluster")
+            .expect("Candle Cluster lighting Prefab");
+        let vapor_grate = bundled_prefabs()
+            .iter()
+            .find(|asset| asset.name == "Vapor Grate")
+            .expect("Vapor Grate decoration Prefab");
+
+        assert_eq!(candle.category, "Lighting");
+        assert_eq!(
+            candle.placement.mode,
+            rusterix::BlockPropPlacementMode::AnySurface
+        );
+        assert!(candle.placement.snap_to_grid);
+        assert!(candle.tags.iter().any(|tag| tag == "placeable"));
+        assert!(prefab_uses_auto_sizing(candle));
+        assert!(
+            candle.parts[0]
+                .geometry_source
+                .geometry_objects()
+                .iter()
+                .all(|object| object.name != "Iron candle tray")
+        );
+        assert_eq!(vapor_grate.category, "Decoration");
+        let vapor_slots = rusterix::block_prop_asset_material_slots(vapor_grate)
+            .into_iter()
+            .map(|(label, _)| label)
+            .collect::<Vec<_>>();
+        assert_eq!(vapor_slots, vec!["GRATE".to_string(), "BOTTOM".to_string()]);
+        assert!(
+            vapor_grate.parts[0]
+                .geometry_source
+                .geometry_objects()
+                .iter()
+                .any(|object| object.name == "Vapor well bottom")
+        );
+        let vapor = vapor_grate
+            .particle_effects
+            .iter()
+            .find(|effect| effect.name == "Vapor")
+            .expect("Vapor Grate particle effect");
+        assert_eq!(
+            vapor.emitter.emission_shape,
+            rusterix::ParticleEmissionShape::Surface
+        );
+        assert_eq!(vapor.emitter.spawn_area, [0.48, 0.0, 0.48]);
+        assert!(
+            bundled_prefabs()
+                .iter()
+                .all(|asset| asset.category != "Effects")
+        );
     }
 
     #[test]
@@ -3277,7 +3570,7 @@ mod tests {
             asset,
             &mut instance,
             BlockSizing {
-                height_cells: 3,
+                height_cells: 3.0,
                 span_extra_cells: 0.5,
                 depth_extra_cells: 1.0,
             },
@@ -3287,8 +3580,8 @@ mod tests {
         assert_close(instance.world_transform[1][1], 1.5);
         assert_close(instance.world_transform[2][2], 3.0);
         assert_eq!(
-            instance.parameter_overrides.get_int("height_cells"),
-            Some(3)
+            instance.parameter_overrides.get_float("height_cells"),
+            Some(3.0)
         );
         assert_eq!(
             instance.parameter_overrides.get_float("width_extra_cells"),

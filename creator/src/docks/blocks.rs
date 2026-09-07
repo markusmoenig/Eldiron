@@ -1,11 +1,12 @@
 use crate::blocks::{
     BLOCK_COLUMN_SEGMENTS, BLOCK_OPERATION_ERASE, BLOCK_OPERATION_PLACE, BLOCK_STROKE_LINE,
-    BLOCK_STROKE_RECT, BlockAsset, BlockSizing, adjusted_rotated_bounds, asset_supports_depth,
+    BLOCK_STROKE_RECT, BlockAsset, adjusted_rotated_bounds, asset_supports_depth,
     asset_supports_height, asset_supports_width, block_asset, block_asset_default_color,
-    block_assets, block_component_kind, bundled_prefab, bundled_prefabs, component_uses_cylinder,
-    cylinder_vertices_and_faces, default_block_asset_id, ensure_block_asset_default_palette,
-    ensure_prefab_default_surfaces, localized_block_asset_description, localized_block_asset_name,
-    prefab_object_default_color, prefab_uses_auto_sizing, upgrade_bundled_prefab_geometry,
+    block_asset_default_sizing, block_assets, block_component_kind, bundled_prefab,
+    bundled_prefabs, component_uses_cylinder, cylinder_vertices_and_faces, default_block_asset_id,
+    ensure_block_asset_default_palette, ensure_prefab_default_surfaces,
+    localized_block_asset_description, localized_block_asset_name, prefab_object_default_color,
+    prefab_uses_auto_sizing, upgrade_bundled_prefab_geometry,
 };
 use crate::editor::{RUSTERIX, SCENEMANAGER, UNDOMANAGER};
 use crate::prelude::*;
@@ -80,7 +81,7 @@ impl BlocksDockPreviews {
 
         for index in 0..asset.boxes.len() {
             let Some((box_min, box_max)) =
-                adjusted_rotated_bounds(asset, index, BlockSizing::default(), 0)
+                adjusted_rotated_bounds(asset, index, block_asset_default_sizing(asset), 0)
             else {
                 continue;
             };
@@ -297,7 +298,7 @@ enum BlockCatalogTab {
     Blocks,
     Furniture,
     Decoration,
-    Effects,
+    Lighting,
     User,
 }
 
@@ -306,7 +307,7 @@ impl BlockCatalogTab {
         Self::Blocks,
         Self::Furniture,
         Self::Decoration,
-        Self::Effects,
+        Self::Lighting,
         Self::User,
     ];
 
@@ -326,7 +327,7 @@ impl BlockCatalogTab {
             Self::Blocks => "Blocks",
             Self::Furniture => "Furniture",
             Self::Decoration => "Decoration",
-            Self::Effects => "Effects",
+            Self::Lighting => "Lighting",
             Self::User => "User",
         }
     }
@@ -368,7 +369,7 @@ impl BlocksDock {
         match asset.category.as_str() {
             "Furniture" => BlockCatalogTab::Furniture,
             "Decoration" => BlockCatalogTab::Decoration,
-            "Effects" => BlockCatalogTab::Effects,
+            "Lighting" => BlockCatalogTab::Lighting,
             _ => BlockCatalogTab::Decoration,
         }
     }
@@ -626,7 +627,7 @@ impl BlocksDock {
                     Self::text(format!(
                         "{}{}, {}+{}, {}+{}",
                         fl!("block_label_height_short"),
-                        server_ctx.block_height_cells.max(1),
+                        server_ctx.block_height_cells.max(0.01),
                         fl!("block_label_width_short"),
                         server_ctx.block_span_extra_cells.max(0.0),
                         fl!("block_label_depth_short"),
@@ -695,7 +696,7 @@ impl BlocksDock {
                         Self::text(format!(
                             "{}{}, {}+{}, {}+{}",
                             fl!("block_label_height_short"),
-                            server_ctx.block_height_cells.max(1),
+                            server_ctx.block_height_cells.max(0.01),
                             fl!("block_label_width_short"),
                             server_ctx.block_span_extra_cells.max(0.0),
                             fl!("block_label_depth_short"),
@@ -892,7 +893,7 @@ mod tests {
         let block_ids = dock.catalog_ids(BlockCatalogTab::Blocks);
         let furniture_ids = dock.catalog_ids(BlockCatalogTab::Furniture);
         let decoration_ids = dock.catalog_ids(BlockCatalogTab::Decoration);
-        let effects_ids = dock.catalog_ids(BlockCatalogTab::Effects);
+        let lighting_ids = dock.catalog_ids(BlockCatalogTab::Lighting);
         let user_ids = dock.catalog_ids(BlockCatalogTab::User);
         let table_id = block_assets()
             .iter()
@@ -907,13 +908,13 @@ mod tests {
         let torch_id = bundled_prefabs()
             .iter()
             .find(|asset| asset.name == "Wall Torch")
-            .expect("Wall Torch effect")
+            .expect("Wall Torch lighting fixture")
             .id;
 
         assert!(!block_ids.contains(&table_id));
         assert!(furniture_ids.contains(&table_id));
         assert!(decoration_ids.contains(&plate_id));
-        assert!(effects_ids.contains(&torch_id));
+        assert!(lighting_ids.contains(&torch_id));
         assert_eq!(user_ids, vec![user_id]);
     }
 }
@@ -1061,6 +1062,8 @@ impl Dock for BlocksDock {
                     return false;
                 };
                 self.active_tab = tab;
+                let palette_before = project.art_palette.clone();
+                let palette_materials_before = project.art_palette_materials.clone();
                 // Bundled Prefabs become project-owned on first use.
                 // The stable ID means existing placements and later edits keep
                 // referencing the same ordinary serialized Prefab asset.
@@ -1079,7 +1082,11 @@ impl Dock for BlocksDock {
                     prefab_assets_changed |= ensure_block_asset_default_palette(project, asset);
                 }
                 if prefab_assets_changed {
-                    crate::undo::project_helper::refresh_palette_runtime(project);
+                    let palette_changed = project.art_palette != palette_before
+                        || project.art_palette_materials != palette_materials_before;
+                    if palette_changed {
+                        crate::undo::project_helper::refresh_palette_runtime(project);
+                    }
                     RUSTERIX
                         .write()
                         .unwrap()
@@ -1087,10 +1094,17 @@ impl Dock for BlocksDock {
                     SCENEMANAGER
                         .write()
                         .unwrap()
-                        .set_block_props(project.block_props.clone());
+                        .sync_block_props(project.block_props.clone());
                 }
                 self.selected = asset_id;
                 server_ctx.curr_block_asset_id = Some(asset_id);
+                if let Some(asset) = block_asset(asset_id) {
+                    server_ctx.block_height_cells = block_asset_default_sizing(asset).height_cells;
+                } else if let Some(asset) = project.block_props.get(&asset_id)
+                    && prefab_uses_auto_sizing(asset)
+                {
+                    server_ctx.block_height_cells = asset.placement.footprint[1].max(1) as f32;
+                }
                 server_ctx.curr_block_asset_name = block_asset(asset_id)
                     .map(|asset| asset.name.to_string())
                     .or_else(|| bundled_prefab(asset_id).map(|asset| asset.name.clone()))

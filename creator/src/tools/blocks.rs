@@ -1,10 +1,9 @@
 use crate::blocks::{
     BLOCK_COLUMN_SEGMENTS, BLOCK_OPERATION_ERASE, BLOCK_OPERATION_PLACE, BLOCK_OPERATION_REPLACE,
-    BLOCK_SIZE_STEP_CELLS, BlockSizing, adjusted_rotated_bounds, apply_prefab_auto_sizing,
-    block_asset, block_asset_default_surface_source, block_component_kind,
-    block_sizing_from_context, block_stroke_cells, block_surface_base_y, component_uses_cylinder,
-    cylinder_vertices_and_faces, default_block_asset_id, localized_block_asset_name,
-    style_block_asset_object,
+    BlockSizing, adjusted_rotated_bounds, apply_prefab_auto_sizing, block_asset,
+    block_asset_default_surface_source, block_component_kind, block_sizing_from_context,
+    block_stroke_cells, block_surface_base_y, component_uses_cylinder, cylinder_vertices_and_faces,
+    default_block_asset_id, localized_block_asset_name, style_block_asset_object,
 };
 use crate::editor::{DOCKMANAGER, RUSTERIX};
 use crate::hud::{Hud, HudMode};
@@ -35,7 +34,25 @@ struct BlockPlacement {
     geo_id: Option<GeoId>,
 }
 
+enum SupportedPropPlacement {
+    Attached(
+        rusterix::BlockPropInstance,
+        rusterix::BlockPropSurfacePlacement,
+    ),
+    Rejected,
+    Unavailable,
+}
+
 impl BlockTool {
+    fn sizing_step(map: &Map) -> f32 {
+        ServerContext::edit_grid_step(map.subdivisions).max(0.01)
+    }
+
+    fn stepped_size(value: f32, step: f32, direction: f32, minimum: f32) -> f32 {
+        let grid_value = (value / step).round();
+        ((grid_value + direction).max(minimum / step) * step).clamp(minimum, 16.0)
+    }
+
     fn selected_asset(
         server_ctx: &mut ServerContext,
     ) -> Option<&'static crate::blocks::BlockAsset> {
@@ -73,6 +90,33 @@ impl BlockTool {
         )
     }
 
+    fn selected_prop_placement_mode(
+        server_ctx: &ServerContext,
+    ) -> Option<rusterix::BlockPropPlacementMode> {
+        let asset_id = server_ctx.curr_block_asset_id?;
+        if block_asset(asset_id).is_some() {
+            return None;
+        }
+        RUSTERIX
+            .read()
+            .unwrap()
+            .assets
+            .block_props
+            .get(&asset_id)
+            .map(|asset| asset.placement.mode)
+    }
+
+    fn snap_horizontal_surface_hit(hit: Vec3<f32>, normal: Vec3<f32>, step: f32) -> Vec3<f32> {
+        if normal.y.abs() <= 0.72 {
+            return hit;
+        }
+        Vec3::new(
+            (hit.x / step).round() * step,
+            hit.y,
+            (hit.z / step).round() * step,
+        )
+    }
+
     fn snapped_grid_cell(point: Vec3<f32>, cell_size: f32, level: i32) -> Vec3<i32> {
         Vec3::new(
             (point.x / cell_size).floor() as i32,
@@ -85,12 +129,38 @@ impl BlockTool {
         let horizontal_step = Self::horizontal_grid_step(map, server_ctx);
         let vertical_step = server_ctx.block_grid_cell_size.max(0.05);
         let grid_y = server_ctx.block_grid_level as f32 * vertical_step;
-        let point = Self::placement_hit(server_ctx)?;
+        let placement_mode = Self::selected_prop_placement_mode(server_ctx);
+        let point = if placement_mode
+            .is_some_and(|mode| mode != rusterix::BlockPropPlacementMode::Ground)
+        {
+            server_ctx
+                .hover_surface_hit_pos
+                .or_else(|| server_ctx.geo_hit.map(|_| server_ctx.geo_hit_pos))
+                .or_else(|| Self::placement_hit(server_ctx))?
+        } else {
+            Self::placement_hit(server_ctx)?
+        };
+        let normal = server_ctx.hover_surface_normal.or_else(|| {
+            (placement_mode == Some(rusterix::BlockPropPlacementMode::AnySurface))
+                .then_some(Vec3::unit_y())
+        });
+        let normal = normal.map(|normal| {
+            if placement_mode == Some(rusterix::BlockPropPlacementMode::AnySurface)
+                && normal.y < -0.72
+            {
+                -normal
+            } else {
+                normal
+            }
+        });
+        let hit = normal
+            .map(|normal| Self::snap_horizontal_surface_hit(point, normal, horizontal_step))
+            .unwrap_or(point);
         Some(BlockPlacement {
             cell: Self::snapped_grid_cell(point, horizontal_step, server_ctx.block_grid_level),
             base_y: block_surface_base_y(server_ctx, grid_y).unwrap_or(grid_y),
-            hit: server_ctx.hover_surface_hit_pos.unwrap_or(point),
-            normal: server_ctx.hover_surface_normal,
+            hit,
+            normal,
             geo_id: server_ctx.geo_hit,
         })
     }
@@ -186,7 +256,7 @@ impl BlockTool {
                     .set("block_cell_size", Value::Float(cell_size));
                 object
                     .properties
-                    .set("block_height_cells", Value::Int(sizing.height_cells));
+                    .set("block_height_cells", Value::Float(sizing.height_cells));
                 object.properties.set(
                     "block_span_extra_cells",
                     Value::Float(sizing.span_extra_cells),
@@ -404,8 +474,13 @@ impl BlockTool {
         }
         map.block_prop_instances
             .retain(|instance| !removed.contains(&instance.id));
-        map.block_prop_surface_placements
-            .retain(|placement| !removed.contains(&placement.prop_instance_id));
+        map.block_prop_surface_placements.retain(|placement| {
+            !removed.contains(&placement.prop_instance_id)
+                && !matches!(
+                    &placement.occupant,
+                    rusterix::BlockPropOccupant::PropInstance(id) if removed.contains(id)
+                )
+        });
         removed
     }
 
@@ -481,7 +556,7 @@ impl BlockTool {
         }
         let angle = quarter_turns.rem_euclid(4) as f32 * std::f32::consts::FRAC_PI_2;
         let (sin, cos) = angle.sin_cos();
-        let (mut right, mut up, forward) = if mode == rusterix::BlockPropPlacementMode::Wall {
+        let (mut right, mut up, mut forward) = if mode == rusterix::BlockPropPlacementMode::Wall {
             let forward = Vec3::new(normal.x, 0.0, normal.z).try_normalized()?;
             (
                 Vec3::unit_y().cross(forward).try_normalized()?,
@@ -498,10 +573,17 @@ impl BlockTool {
             let forward = (reference - up * reference.dot(up)).try_normalized()?;
             (up.cross(forward).try_normalized()?, up, forward)
         };
-        let rotated_right = right * cos + up * sin;
-        let rotated_up = up * cos - right * sin;
-        right = rotated_right;
-        up = rotated_up;
+        if mode == rusterix::BlockPropPlacementMode::Wall {
+            let rotated_right = right * cos + up * sin;
+            let rotated_up = up * cos - right * sin;
+            right = rotated_right;
+            up = rotated_up;
+        } else {
+            let rotated_right = right * cos + forward * sin;
+            let rotated_forward = forward * cos - right * sin;
+            right = rotated_right;
+            forward = rotated_forward;
+        }
 
         let mut instance = rusterix::BlockPropInstance::new(asset.id);
         instance.world_transform[0][0] = right.x;
@@ -553,6 +635,117 @@ impl BlockTool {
             });
         }
         Some(instance)
+    }
+
+    fn make_supported_prop_instance(
+        asset: &rusterix::BlockPropAsset,
+        map: &Map,
+        assets: &IndexMap<Uuid, rusterix::BlockPropAsset>,
+        hit: Vec3<f32>,
+        grid_step: f32,
+        quarter_turns: i32,
+        sizing: BlockSizing,
+    ) -> SupportedPropPlacement {
+        let Some(resolved) = rusterix::resolve_block_prop_support_surface_hit_at_world_point(
+            &map.block_prop_instances,
+            assets,
+            hit,
+        ) else {
+            return SupportedPropPlacement::Unavailable;
+        };
+        let Some(parent) = map
+            .block_prop_instances
+            .iter()
+            .find(|instance| instance.id == resolved.instance_id)
+        else {
+            return SupportedPropPlacement::Unavailable;
+        };
+        let Some(parent_asset) = assets.get(&parent.asset_id) else {
+            return SupportedPropPlacement::Unavailable;
+        };
+        let Some(surface) = parent_asset.find_support_surface(resolved.surface_id) else {
+            return SupportedPropPlacement::Unavailable;
+        };
+        if !surface.allowed_item_tags.is_empty()
+            && !surface.allowed_item_tags.iter().any(|allowed| {
+                asset
+                    .tags
+                    .iter()
+                    .any(|tag| tag.eq_ignore_ascii_case(allowed))
+            })
+        {
+            return SupportedPropPlacement::Rejected;
+        }
+
+        let occupied = map
+            .block_prop_surface_placements
+            .iter()
+            .filter(|placement| {
+                placement.prop_instance_id == resolved.instance_id
+                    && placement.surface_id == resolved.surface_id
+            });
+        let occupied_count = occupied.clone().count();
+        if surface
+            .capacity
+            .is_some_and(|capacity| occupied_count >= capacity as usize)
+            || matches!(
+                &surface.occupancy_policy,
+                rusterix::BlockPropOccupancyPolicy::SingleOccupant
+            ) && occupied_count > 0
+        {
+            return SupportedPropPlacement::Rejected;
+        }
+
+        let Some(mut local_position) =
+            rusterix::block_prop_support_surface_local_point(parent_asset, parent, surface.id, hit)
+        else {
+            return SupportedPropPlacement::Unavailable;
+        };
+        local_position.y = asset.placement.surface_offset;
+        if surface.snap_spacing > 0.0 {
+            local_position.x = (local_position.x / grid_step).round() * grid_step;
+            local_position.z = (local_position.z / grid_step).round() * grid_step;
+        }
+        if matches!(
+            &surface.occupancy_policy,
+            rusterix::BlockPropOccupancyPolicy::RejectOverlap
+        ) {
+            let threshold = (grid_step * 0.5).max(0.01);
+            if occupied.clone().any(|placement| {
+                (placement.local_transform[3][0] - local_position.x).abs() < threshold
+                    && (placement.local_transform[3][2] - local_position.z).abs() < threshold
+            }) {
+                return SupportedPropPlacement::Rejected;
+            }
+        }
+
+        let angle = quarter_turns.rem_euclid(4) as f32 * std::f32::consts::FRAC_PI_2;
+        let (sin, cos) = angle.sin_cos();
+        let mut instance = rusterix::BlockPropInstance::new(asset.id);
+        instance.world_transform[0][0] = cos;
+        instance.world_transform[0][2] = -sin;
+        instance.world_transform[2][0] = sin;
+        instance.world_transform[2][2] = cos;
+        instance.world_transform[3][0] = local_position.x;
+        instance.world_transform[3][1] = local_position.y;
+        instance.world_transform[3][2] = local_position.z;
+        apply_prefab_auto_sizing(asset, &mut instance, sizing);
+        let local_transform = instance.world_transform;
+        let Some(surface_transform) =
+            rusterix::block_prop_support_surface_world_transform(parent_asset, parent, surface.id)
+        else {
+            return SupportedPropPlacement::Unavailable;
+        };
+        instance.world_transform =
+            rusterix::multiply_block_prop_transforms(local_transform, surface_transform);
+        let placement = rusterix::BlockPropSurfacePlacement {
+            id: Uuid::new_v4(),
+            prop_instance_id: parent.id,
+            surface_id: surface.id,
+            occupant: rusterix::BlockPropOccupant::PropInstance(instance.id),
+            local_transform,
+        };
+        SupportedPropPlacement::Attached(instance, placement)
     }
 
     fn clear_drag(&mut self, server_ctx: &mut ServerContext) {
@@ -650,6 +843,7 @@ impl BlockTool {
 
         let mut created = Vec::new();
         let mut created_props = Vec::new();
+        let mut created_surface_placements = Vec::new();
         let mut invalid_surface = false;
         let mut asset_name = fl!("block_asset_instances");
         if operation != BLOCK_OPERATION_ERASE {
@@ -693,18 +887,47 @@ impl BlockTool {
                                 block_sizing_from_context(server_ctx),
                             ));
                         }
-                    } else if let Some(hit) = self.drag_surface_hit
-                        && let Some(instance) = Self::make_surface_prop_instance(
-                            &asset,
-                            map,
-                            hit,
-                            self.drag_surface_normal,
-                            self.drag_surface_geo,
-                            server_ctx.block_rotation_quarters,
-                            block_sizing_from_context(server_ctx),
-                        )
-                    {
-                        created_props.push(instance);
+                    } else if let Some(hit) = self.drag_surface_hit {
+                        let assets = RUSTERIX.read().unwrap().assets.block_props.clone();
+                        let supported = if asset.placement.mode
+                            == rusterix::BlockPropPlacementMode::AnySurface
+                        {
+                            Self::make_supported_prop_instance(
+                                &asset,
+                                map,
+                                &assets,
+                                hit,
+                                cell_size,
+                                server_ctx.block_rotation_quarters,
+                                block_sizing_from_context(server_ctx),
+                            )
+                        } else {
+                            SupportedPropPlacement::Unavailable
+                        };
+                        match supported {
+                            SupportedPropPlacement::Attached(instance, placement) => {
+                                created_props.push(instance);
+                                created_surface_placements.push(placement);
+                            }
+                            SupportedPropPlacement::Rejected => {
+                                invalid_surface = true;
+                            }
+                            SupportedPropPlacement::Unavailable => {
+                                if let Some(instance) = Self::make_surface_prop_instance(
+                                    &asset,
+                                    map,
+                                    hit,
+                                    self.drag_surface_normal,
+                                    self.drag_surface_geo,
+                                    server_ctx.block_rotation_quarters,
+                                    block_sizing_from_context(server_ctx),
+                                ) {
+                                    created_props.push(instance);
+                                } else {
+                                    invalid_surface = true;
+                                }
+                            }
+                        }
                     } else {
                         invalid_surface = true;
                     }
@@ -738,6 +961,8 @@ impl BlockTool {
         } else if !created_props.is_empty() {
             map.clear_selection();
             map.block_prop_instances.extend(created_props);
+            map.block_prop_surface_placements
+                .extend(created_surface_placements);
             map.sync_wall_hosted_block_props();
         } else {
             map.selected_geometry_objects.clear();
@@ -978,8 +1203,10 @@ impl Tool for BlockTool {
                 None
             }
             MapKey('h') => {
-                server_ctx.block_height_cells = (server_ctx.block_height_cells + 1).clamp(1, 16);
-                let height = server_ctx.block_height_cells as i64;
+                let step = Self::sizing_step(map);
+                server_ctx.block_height_cells =
+                    Self::stepped_size(server_ctx.block_height_cells, step, 1.0, step);
+                let height = server_ctx.block_height_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_height", height = height)),
@@ -995,8 +1222,10 @@ impl Tool for BlockTool {
                 None
             }
             MapKey('H') => {
-                server_ctx.block_height_cells = (server_ctx.block_height_cells - 1).clamp(1, 16);
-                let height = server_ctx.block_height_cells as i64;
+                let step = Self::sizing_step(map);
+                server_ctx.block_height_cells =
+                    Self::stepped_size(server_ctx.block_height_cells, step, -1.0, step);
+                let height = server_ctx.block_height_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
                     format!("{}", fl!("status_block_height", height = height)),
@@ -1012,8 +1241,9 @@ impl Tool for BlockTool {
                 None
             }
             MapKey('w') => {
+                let step = Self::sizing_step(map);
                 server_ctx.block_span_extra_cells =
-                    (server_ctx.block_span_extra_cells + BLOCK_SIZE_STEP_CELLS).clamp(0.0, 16.0);
+                    Self::stepped_size(server_ctx.block_span_extra_cells, step, 1.0, 0.0);
                 let width = server_ctx.block_span_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
@@ -1030,8 +1260,9 @@ impl Tool for BlockTool {
                 None
             }
             MapKey('W') => {
+                let step = Self::sizing_step(map);
                 server_ctx.block_span_extra_cells =
-                    (server_ctx.block_span_extra_cells - BLOCK_SIZE_STEP_CELLS).clamp(0.0, 16.0);
+                    Self::stepped_size(server_ctx.block_span_extra_cells, step, -1.0, 0.0);
                 let width = server_ctx.block_span_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
@@ -1048,8 +1279,9 @@ impl Tool for BlockTool {
                 None
             }
             MapKey('z') => {
+                let step = Self::sizing_step(map);
                 server_ctx.block_depth_extra_cells =
-                    (server_ctx.block_depth_extra_cells + BLOCK_SIZE_STEP_CELLS).clamp(0.0, 16.0);
+                    Self::stepped_size(server_ctx.block_depth_extra_cells, step, 1.0, 0.0);
                 let depth = server_ctx.block_depth_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
@@ -1066,8 +1298,9 @@ impl Tool for BlockTool {
                 None
             }
             MapKey('Z') => {
+                let step = Self::sizing_step(map);
                 server_ctx.block_depth_extra_cells =
-                    (server_ctx.block_depth_extra_cells - BLOCK_SIZE_STEP_CELLS).clamp(0.0, 16.0);
+                    Self::stepped_size(server_ctx.block_depth_extra_cells, step, -1.0, 0.0);
                 let depth = server_ctx.block_depth_extra_cells as f64;
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
@@ -1184,6 +1417,15 @@ mod tests {
             Some(Vec3::new(3, 2, -4))
         );
         assert_eq!(instance.overrides.get_float("block_cell_size"), Some(0.5));
+    }
+
+    #[test]
+    fn prefab_size_commands_follow_the_active_grid_step() {
+        let step = 0.125;
+        assert_eq!(BlockTool::stepped_size(2.0, step, 1.0, step), 2.125);
+        assert_eq!(BlockTool::stepped_size(2.125, step, -1.0, step), 2.0);
+        assert_eq!(BlockTool::stepped_size(0.0, step, -1.0, 0.0), 0.0);
+        assert_eq!(BlockTool::stepped_size(0.0, step, 1.0, 0.0), 0.125);
     }
 
     #[test]
