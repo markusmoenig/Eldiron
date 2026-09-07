@@ -49,7 +49,7 @@ Tile assignment is handled by buttons in the **Tile Picker** dock and operates o
 
 ---
 
-# Camera Actions
+## Camera Actions
 
 ### Direct 3D Geometry
 

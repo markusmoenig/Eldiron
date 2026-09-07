@@ -17,12 +17,12 @@ export const homepageContent = {
       },
     ],
     screenshot: {
-      label: "Stonefall Dungeon.",
+      label: "Build with Walls and Prefabs.",
       linkLabel: "See release.",
-      href: "/blog/2026/08/15/eldiron-v0.93.0",
-      version: "Eldiron v0.93.0",
-      image: "/img/Eldironv0.93_stonefall.png",
-      alt: "Eldiron v0.93.0 Stonefall Dungeon battle with the Ranger and Alden",
+      href: "/blog/2026/09/07/eldiron-v0.94.0",
+      version: "Eldiron v0.94.0",
+      image: "/img/eldiron_v0.94.0.png",
+      alt: "Eldiron Creator v0.94.0 showing an isometric masonry cellar with furniture, lighting, smoke, and the Prefab browser",
     },
   },
   sections: [
@@ -31,7 +31,7 @@ export const homepageContent = {
       eyebrow: "NOW AVAILABLE",
       title: "Official Eldiron Ruleset",
       description:
-        "Eldiron v0.93.0 turns rulesets into project-selectable packages and expands the official fantasy rules from levels 1–10. Races, classes, actions, spells, conditions, equipment, progression, resources, and crafting share one runtime while projects remain free to extend or replace the rules they need.",
+        "Eldiron supports project-selectable ruleset packages with official fantasy rules from levels 1–10. Races, classes, actions, spells, conditions, equipment, progression, resources, and crafting share one runtime while projects remain free to extend or replace the rules they need.",
       href: "/docs/official_rules",
       linkLabel: "Read the official rules",
       thumbnail: {
@@ -59,6 +59,14 @@ export const homepageContent = {
       type: "news",
       items: [
         {
+          date: "Sep 7, 2026",
+          title: "Eldiron v0.94.0",
+          description:
+            "Build connected masonry walls, furnish scenes with editable Prefabs, and shape and paint 3D geometry. A refreshed Creator and responsive game UI bring the workflows together.",
+          href: "/blog/2026/09/07/eldiron-v0.94.0",
+          linkLabel: "Read more",
+        },
+        {
           date: "Aug 15, 2026",
           title: "Eldiron v0.93.0",
           description:
@@ -74,14 +82,6 @@ export const homepageContent = {
             image: "https://i.ytimg.com/vi/6xSJTX0ES54/maxresdefault.jpg",
             alt: "Eldiron v0.92.0 3D Painting video thumbnail",
           },
-        },
-        {
-          date: "Jul 15, 2026",
-          title: "Eldiron v0.92.0",
-          description:
-            "Paint persistent detail directly onto 3D surfaces, add generated patterns and stamps, and build editable rooms and dungeons quickly with the new Block Tool.",
-          href: "/blog/2026/07/15/eldiron-v0.92.0",
-          linkLabel: "Read more",
         },
       ],
     },
