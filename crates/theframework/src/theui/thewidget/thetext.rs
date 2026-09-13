@@ -123,7 +123,7 @@ impl TheWidget for TheText {
         shrinker.shrink_by(0, 1 + self.vertical_offset, 0, -self.vertical_offset);
 
         ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &self.dim.to_buffer_shrunk_utuple(&shrinker),
             stride,
             &self.text,

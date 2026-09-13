@@ -264,7 +264,7 @@ impl TheWidget for TheRenderView {
         if Some(self.id.clone()) == ctx.ui.focus {
             let tuple = self.dim().to_buffer_utuple();
             ctx.draw.rect_outline(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &tuple,
                 stride,
                 style.theme().color(DefaultSelection),

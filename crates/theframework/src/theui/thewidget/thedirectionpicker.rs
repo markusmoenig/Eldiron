@@ -140,7 +140,7 @@ impl TheWidget for TheDirectionPicker {
         let ut = self.dim.to_buffer_utuple();
 
         ctx.draw.circle(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &ut,
             stride,
             &[128, 128, 128, 255],

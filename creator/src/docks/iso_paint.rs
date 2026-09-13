@@ -197,7 +197,7 @@ impl IsoPaintBrushBoard {
             w.saturating_sub(2).max(1),
             h.saturating_sub(2).max(1),
         );
-        ctx.draw.rect(buffer.pixels_mut(), &fill, stride, &bg);
+        ctx.draw.rect(buffer.draw_target(), &fill, stride, &bg);
 
         let radius = ((w.max(h) as f32) * 4.0).round().max(4.0) as i32;
         let shape = iso_paint_brush::default_shape_for_brush(key);
@@ -207,7 +207,6 @@ impl IsoPaintBrushBoard {
             .unwrap_or_else(|| iso_paint_brush::default_preview_color(key));
         let cx = x as i32 + w as i32 / 2;
         let cy = y as i32 + h as i32 / 2;
-        let pixels = buffer.pixels_mut();
         let sample = IsoPaintBrushSample {
             brush: key,
             shape,
@@ -225,25 +224,10 @@ impl IsoPaintBrushBoard {
                 let Some(mut sample_color) = iso_paint_brush::sample_pixel(&sample, ox, oy) else {
                     continue;
                 };
-                let index = (py * stride + px) * 4;
-                if index + 3 >= pixels.len() {
-                    continue;
-                }
                 if key == "puddle" {
                     sample_color[3] = sample_color[3].max(90);
                 }
-                let alpha = sample_color[3] as u32;
-                let inv_alpha = 255 - alpha;
-                pixels[index] = ((sample_color[0] as u32 * alpha
-                    + pixels[index] as u32 * inv_alpha)
-                    / 255) as u8;
-                pixels[index + 1] = ((sample_color[1] as u32 * alpha
-                    + pixels[index + 1] as u32 * inv_alpha)
-                    / 255) as u8;
-                pixels[index + 2] = ((sample_color[2] as u32 * alpha
-                    + pixels[index + 2] as u32 * inv_alpha)
-                    / 255) as u8;
-                pixels[index + 3] = 255;
+                buffer.blend_pixel(px as i32, py as i32, sample_color);
             }
         }
 
@@ -273,27 +257,14 @@ impl IsoPaintBrushBoard {
         color
     }
 
-    fn blend_preview_pixel(pixels: &mut [u8], stride: usize, x: i32, y: i32, color: [u8; 4]) {
-        if x < 0 || y < 0 || stride == 0 {
-            return;
-        }
-        let x = x as usize;
-        let y = y as usize;
-        if x >= stride {
-            return;
-        }
-        let index = (y * stride + x) * 4;
-        if index + 3 >= pixels.len() {
-            return;
-        }
-        let alpha = color[3] as u32;
-        let inv_alpha = 255 - alpha;
-        pixels[index] = ((color[0] as u32 * alpha + pixels[index] as u32 * inv_alpha) / 255) as u8;
-        pixels[index + 1] =
-            ((color[1] as u32 * alpha + pixels[index + 1] as u32 * inv_alpha) / 255) as u8;
-        pixels[index + 2] =
-            ((color[2] as u32 * alpha + pixels[index + 2] as u32 * inv_alpha) / 255) as u8;
-        pixels[index + 3] = 255;
+    fn blend_preview_pixel(
+        buffer: &mut TheRGBABuffer,
+        _stride: usize,
+        x: i32,
+        y: i32,
+        color: [u8; 4],
+    ) {
+        buffer.blend_pixel(x, y, color);
     }
 
     fn draw_preview_line(
@@ -305,7 +276,6 @@ impl IsoPaintBrushBoard {
         y1: i32,
         color: [u8; 4],
     ) {
-        let pixels = buffer.pixels_mut();
         let mut x = x0;
         let mut y = y0;
         let dx = (x1 - x0).abs();
@@ -314,7 +284,7 @@ impl IsoPaintBrushBoard {
         let sy = if y0 < y1 { 1 } else { -1 };
         let mut err = dx + dy;
         loop {
-            Self::blend_preview_pixel(pixels, stride, x, y, color);
+            Self::blend_preview_pixel(buffer, stride, x, y, color);
             if x == x1 && y == y1 {
                 break;
             }
@@ -343,12 +313,11 @@ impl IsoPaintBrushBoard {
         let ry = ry.max(1);
         let rx2 = (rx * rx) as f32;
         let ry2 = (ry * ry) as f32;
-        let pixels = buffer.pixels_mut();
         for y in -ry..=ry {
             for x in -rx..=rx {
                 let edge = x as f32 * x as f32 / rx2 + y as f32 * y as f32 / ry2;
                 if edge <= 1.0 {
-                    Self::blend_preview_pixel(pixels, stride, cx + x, cy + y, color);
+                    Self::blend_preview_pixel(buffer, stride, cx + x, cy + y, color);
                 }
             }
         }
@@ -389,7 +358,7 @@ impl IsoPaintBrushBoard {
                 if edge > 0.76 {
                     color[3] = ((color[3] as f32) * (0.62 + noise * 0.28)).round() as u8;
                 }
-                Self::blend_preview_pixel(buffer.pixels_mut(), stride, cx + x, cy + y, color);
+                Self::blend_preview_pixel(buffer, stride, cx + x, cy + y, color);
             }
         }
     }
@@ -424,7 +393,7 @@ impl IsoPaintBrushBoard {
             w.saturating_sub(2).max(1),
             h.saturating_sub(2).max(1),
         );
-        ctx.draw.rect(buffer.pixels_mut(), &fill, stride, &bg);
+        ctx.draw.rect(buffer.draw_target(), &fill, stride, &bg);
 
         let left = x as i32;
         let top = y as i32;
@@ -913,7 +882,7 @@ impl IsoPaintBrushBoard {
                         [112, 86, 58, 180],
                     );
                     Self::blend_preview_pixel(
-                        buffer.pixels_mut(),
+                        buffer,
                         stride,
                         cx + s(ox as f32) - s(1.0),
                         cy + s(oy as f32) - s(1.0),
@@ -965,7 +934,7 @@ impl IsoPaintBrushBoard {
             .or_else(|| palette.last())
             .copied()
             .unwrap_or([55, 48, 42, 255]);
-        ctx.draw.rect(buffer.pixels_mut(), rect, stride, &mortar);
+        ctx.draw.rect(buffer.draw_target(), rect, stride, &mortar);
 
         let brick_palette: Vec<[u8; 4]> = if palette.is_empty() {
             vec![
@@ -1008,7 +977,7 @@ impl IsoPaintBrushBoard {
                     let clipped_h = (ry + rh).min(y as i32 + h as i32) - clipped_y as i32;
                     if clipped_w > 0 && clipped_h > 0 {
                         ctx.draw.rect(
-                            buffer.pixels_mut(),
+                            buffer.draw_target(),
                             &(clipped_x, clipped_y, clipped_w as usize, clipped_h as usize),
                             stride,
                             &shaded,
@@ -1141,7 +1110,7 @@ impl TheWidget for IsoPaintBrushBoard {
         let utuple = self.dim.to_buffer_utuple();
         let stride = buffer.stride();
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBackground),
@@ -1185,7 +1154,7 @@ impl TheWidget for IsoPaintBrushBoard {
                 } else {
                     style.theme().color(ListItemNormal)
                 };
-                ctx.draw.rect(buffer.pixels_mut(), &outer, stride, bg);
+                ctx.draw.rect(buffer.draw_target(), &outer, stride, bg);
                 let palette = self
                     .preview_palettes
                     .get(index)
@@ -1208,10 +1177,10 @@ impl TheWidget for IsoPaintBrushBoard {
                     style.theme().color(ListItemIconBorder)
                 };
                 ctx.draw
-                    .rect_outline_border(buffer.pixels_mut(), &outer, stride, border, 1);
+                    .rect_outline_border(buffer.draw_target(), &outer, stride, border, 1);
 
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(
                         outer.0 + 3,
                         outer.1 + preview_h as usize,
@@ -1477,7 +1446,7 @@ impl TheWidget for IsoPaintPresetStrip {
         let utuple = self.dim.to_buffer_utuple();
         let stride = buffer.stride();
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBackground),
@@ -1517,7 +1486,7 @@ impl TheWidget for IsoPaintPresetStrip {
                 style.theme().color(ListItemNormal)
             };
             ctx.draw
-                .rect(tile_buffer.pixels_mut(), &outer, tile_stride, bg);
+                .rect(tile_buffer.draw_target(), &outer, tile_stride, bg);
             let palette = self
                 .preview_palettes
                 .get(index)
@@ -1544,7 +1513,7 @@ impl TheWidget for IsoPaintPresetStrip {
                 style.theme().color(ListItemIconBorder)
             };
             ctx.draw
-                .rect_outline_border(tile_buffer.pixels_mut(), &outer, tile_stride, border, 1);
+                .rect_outline_border(tile_buffer.draw_target(), &outer, tile_stride, border, 1);
             buffer.copy_into(utuple.0 as i32 + x, utuple.1 as i32 + y, &tile_buffer);
             self.rectangles.push((index, local_rect));
         }
@@ -1587,7 +1556,7 @@ impl IsoPaintBrushShapeStrip {
     fn draw_shape_icon(
         buffer: &mut TheRGBABuffer,
         rect: &(usize, usize, usize, usize),
-        stride: usize,
+        _stride: usize,
         shape: &str,
     ) {
         let (x, y, w, h) = *rect;
@@ -1603,7 +1572,6 @@ impl IsoPaintBrushShapeStrip {
             radius,
             seed: 0x7812_5101,
         };
-        let pixels = buffer.pixels_mut();
         for py in y..y + h {
             for px in x..x + w {
                 let ox = px as i32 - cx;
@@ -1611,27 +1579,7 @@ impl IsoPaintBrushShapeStrip {
                 let Some(color) = iso_paint_brush::sample_pixel(&sample, ox, oy) else {
                     continue;
                 };
-                let index = (py * stride + px) * 4;
-                if index + 3 >= pixels.len() {
-                    continue;
-                }
-                let src_alpha = color[3] as u32;
-                let dst_alpha = pixels[index + 3] as u32;
-                let inv_src_alpha = 255 - src_alpha;
-                let out_alpha = src_alpha + (dst_alpha * inv_src_alpha) / 255;
-                if out_alpha == 0 {
-                    continue;
-                }
-                pixels[index] = ((color[0] as u32 * src_alpha
-                    + pixels[index] as u32 * dst_alpha * inv_src_alpha / 255)
-                    / out_alpha) as u8;
-                pixels[index + 1] = ((color[1] as u32 * src_alpha
-                    + pixels[index + 1] as u32 * dst_alpha * inv_src_alpha / 255)
-                    / out_alpha) as u8;
-                pixels[index + 2] = ((color[2] as u32 * src_alpha
-                    + pixels[index + 2] as u32 * dst_alpha * inv_src_alpha / 255)
-                    / out_alpha) as u8;
-                pixels[index + 3] = out_alpha as u8;
+                buffer.blend_pixel(px as i32, py as i32, color);
             }
         }
     }
@@ -1738,7 +1686,7 @@ impl TheWidget for IsoPaintBrushShapeStrip {
         let utuple = self.dim.to_buffer_utuple();
         let stride = buffer.stride();
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBackground),
@@ -1773,7 +1721,7 @@ impl TheWidget for IsoPaintBrushShapeStrip {
             } else {
                 style.theme().color(ListItemNormal)
             };
-            ctx.draw.rect(buffer.pixels_mut(), &outer, stride, bg);
+            ctx.draw.rect(buffer.draw_target(), &outer, stride, bg);
             let icon = (
                 outer.0 + 2,
                 outer.1 + 2,
@@ -1787,7 +1735,7 @@ impl TheWidget for IsoPaintBrushShapeStrip {
                 IsoPaintDock::brush_shape_key_from_index(index),
             );
             ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &outer,
                 stride,
                 if self.selected == index {
@@ -1887,7 +1835,7 @@ impl IsoPaintBrushEditor {
         align: TheHorizontalAlign,
     ) {
         ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             rect,
             stride,
             text,
@@ -1940,7 +1888,7 @@ impl IsoPaintBrushEditor {
         }
         if let Some((_, _, _, _, _, preview)) = &self.preview_cache {
             ctx.draw
-                .blend_slice(buffer.pixels_mut(), preview.pixels(), rect, stride);
+                .blend_slice(buffer.draw_target(), preview.pixels(), rect, stride);
         }
     }
 }
@@ -2005,7 +1953,7 @@ impl TheWidget for IsoPaintBrushEditor {
         let utuple = self.dim.to_buffer_utuple();
         let stride = buffer.stride();
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBackground),
@@ -2028,13 +1976,13 @@ impl TheWidget for IsoPaintBrushEditor {
             preview_h as usize,
         );
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &preview_panel,
             stride,
             style.theme().color(ListItemNormal),
         );
         ctx.draw.rect_outline_border(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &preview_panel,
             stride,
             style.theme().color(ListItemIconBorder),
@@ -2277,7 +2225,7 @@ impl TheWidget for IsoPaintMaterialStrip {
         let utuple = self.dim.to_buffer_utuple();
         let stride = buffer.stride();
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBackground),
@@ -2314,7 +2262,7 @@ impl TheWidget for IsoPaintMaterialStrip {
             } else {
                 style.theme().color(GroupButtonNormalBackground)
             };
-            ctx.draw.rect(buffer.pixels_mut(), &global, stride, color);
+            ctx.draw.rect(buffer.draw_target(), &global, stride, color);
             let border = if selected {
                 style.theme().color(GroupButtonSelectedBorder)
             } else if hovered {
@@ -2323,9 +2271,9 @@ impl TheWidget for IsoPaintMaterialStrip {
                 style.theme().color(GroupButtonNormalBorder)
             };
             ctx.draw
-                .rect_outline_border(buffer.pixels_mut(), &global, stride, border, 1);
+                .rect_outline_border(buffer.draw_target(), &global, stride, border, 1);
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(global.0 + 1, global.1, global.2.saturating_sub(2), global.3),
                 stride,
                 &material_labels[index],
@@ -2364,7 +2312,7 @@ impl TheWidget for IsoPaintMaterialStrip {
             } else {
                 style.theme().color(GroupButtonNormalBackground)
             };
-            ctx.draw.rect(buffer.pixels_mut(), &global, stride, color);
+            ctx.draw.rect(buffer.draw_target(), &global, stride, color);
             let border = if selected {
                 style.theme().color(GroupButtonSelectedBorder)
             } else if hovered {
@@ -2373,9 +2321,9 @@ impl TheWidget for IsoPaintMaterialStrip {
                 style.theme().color(GroupButtonNormalBorder)
             };
             ctx.draw
-                .rect_outline_border(buffer.pixels_mut(), &global, stride, border, 1);
+                .rect_outline_border(buffer.draw_target(), &global, stride, border, 1);
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(global.0 + 2, global.1, global.2.saturating_sub(4), global.3),
                 stride,
                 &finish_labels[index],

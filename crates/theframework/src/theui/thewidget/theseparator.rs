@@ -77,7 +77,7 @@ impl TheWidget for TheSeparator {
         utuple.3 = 1;
 
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(LayoutSeparator),

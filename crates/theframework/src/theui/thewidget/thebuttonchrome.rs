@@ -14,7 +14,7 @@ pub(crate) fn draw_button_chrome(
     let width = buffer.dim().width.max(0) as usize;
     let height = buffer.dim().height.max(0) as usize;
     draw_button_chrome_pixels(
-        buffer.pixels_mut(),
+        buffer.draw_target(),
         width,
         height,
         bounds,
@@ -25,8 +25,8 @@ pub(crate) fn draw_button_chrome(
     );
 }
 
-fn draw_button_chrome_pixels(
-    pixels: &mut [u8],
+fn draw_button_chrome_pixels<'a>(
+    pixels: impl Into<TheRasterTarget<'a>>,
     width: usize,
     height: usize,
     bounds: ThePixelRect,

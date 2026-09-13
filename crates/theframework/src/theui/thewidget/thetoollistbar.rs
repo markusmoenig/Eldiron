@@ -84,7 +84,7 @@ impl TheWidget for TheToolListBar {
         let border = *style.theme().color(DefaultWidgetDarkBackground);
         let width = buffer.dim().width.max(0) as usize;
         let height = buffer.dim().height.max(0) as usize;
-        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.draw_target(), width, height) {
             surface.set_clip(rect);
             ctx.painter.fill_rect(&mut surface, rect, &paint);
             surface.fill_rect(ThePixelRect::new(rect.x, rect.y, rect.width, 1), border);
@@ -102,7 +102,7 @@ impl TheWidget for TheToolListBar {
         let stride = buffer.stride();
         let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
         ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             &self.text,

@@ -318,7 +318,7 @@ impl TheLayout for TheTextLayout {
         let stride: usize = buffer.stride();
         if let Some(background) = self.background {
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_utuple(),
                 stride,
                 style.theme().color(background),
@@ -332,12 +332,13 @@ impl TheLayout for TheTextLayout {
             // );
         }
 
+        self.list_buffer.set_render_scale(ctx.ui_render_scale);
         let stride = self.list_buffer.stride();
         let utuple: (usize, usize, usize, usize) = self.list_buffer.dim().to_buffer_utuple();
 
         if let Some(background) = self.background {
             ctx.draw.rect(
-                self.list_buffer.pixels_mut(),
+                self.list_buffer.draw_target(),
                 &utuple,
                 stride,
                 style.theme().color(background),
@@ -367,7 +368,7 @@ impl TheLayout for TheTextLayout {
             }
 
             ctx.draw.text_rect_blend(
-                self.list_buffer.pixels_mut(),
+                self.list_buffer.draw_target(),
                 &self.text_rect[i],
                 stride,
                 &self.text[i],
@@ -412,7 +413,7 @@ impl TheLayout for TheTextLayout {
         if self.background.is_some() {
             let stride: usize = buffer.stride();
             ctx.draw.rect_outline(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_utuple(),
                 stride,
                 style.theme().color(TextLayoutBorder),

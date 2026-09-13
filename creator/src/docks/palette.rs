@@ -249,7 +249,7 @@ impl TheWidget for PaletteDockBoard {
             return;
         }
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBackground),
@@ -303,11 +303,11 @@ impl TheWidget for PaletteDockBoard {
                         style.theme().color(ListItemHover)
                     };
                     ctx.draw
-                        .rect_outline(buffer.pixels_mut(), &outer_rect, stride, border);
+                        .rect_outline(buffer.draw_target(), &outer_rect, stride, border);
                 }
                 if in_bounds(&inner_border_rect) {
                     ctx.draw.rect_outline(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &inner_border_rect,
                         stride,
                         style.theme().color(ListItemIconBorder),
@@ -317,14 +317,14 @@ impl TheWidget for PaletteDockBoard {
                     && in_bounds(&fill_rect)
                 {
                     ctx.draw.rect(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &fill_rect,
                         stride,
                         &color.to_u8_array(),
                     );
                 } else if in_bounds(&fill_rect) {
                     ctx.draw.rect(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &fill_rect,
                         stride,
                         style.theme().color(DefaultWidgetDarkBackground),

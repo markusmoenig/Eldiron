@@ -267,7 +267,7 @@ impl TheLayout for TheCodeLayout {
             );
 
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &utuple,
                 stride,
                 style.theme().color(ScrollbarBackground),
@@ -281,7 +281,7 @@ impl TheLayout for TheCodeLayout {
             );
 
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &utuple,
                 stride,
                 style.theme().color(ScrollbarSeparator),
@@ -295,7 +295,7 @@ impl TheLayout for TheCodeLayout {
             );
 
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &utuple,
                 stride,
                 style.theme().color(ScrollbarSeparator),

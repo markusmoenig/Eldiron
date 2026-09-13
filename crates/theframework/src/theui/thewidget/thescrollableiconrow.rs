@@ -219,7 +219,7 @@ impl TheWidget for TheScrollableIconRow {
         let utuple = self.dim.to_buffer_utuple();
         let stride = buffer.stride();
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBackground),
@@ -236,6 +236,7 @@ impl TheWidget for TheScrollableIconRow {
             }
             let rect = TheDim::new(x, y, self.tile_width, tile_h);
             let mut tile_buffer = TheRGBABuffer::new(TheDim::sized(self.tile_width, tile_h));
+            tile_buffer.set_render_scale(ctx.ui_render_scale);
             let tile_stride = tile_buffer.stride();
             let outer = (0, 0, self.tile_width as usize, tile_h as usize);
             let bg = if self.selected == index {
@@ -246,7 +247,7 @@ impl TheWidget for TheScrollableIconRow {
                 style.theme().color(ListItemNormal)
             };
             ctx.draw
-                .rect(tile_buffer.pixels_mut(), &outer, tile_stride, bg);
+                .rect(tile_buffer.draw_target(), &outer, tile_stride, bg);
             if let Some(icon) = item.icon.as_ref() {
                 let label_height = if self.show_labels { 13 } else { 0 };
                 let padding = self.icon_padding.min(self.tile_width / 2).min(tile_h / 2);
@@ -257,7 +258,7 @@ impl TheWidget for TheScrollableIconRow {
                     (tile_h - padding * 2 - label_height).max(1) as usize,
                 );
                 ctx.draw.blend_scale_chunk(
-                    tile_buffer.pixels_mut(),
+                    tile_buffer.draw_target(),
                     &preview,
                     tile_stride,
                     icon.pixels(),
@@ -271,7 +272,7 @@ impl TheWidget for TheScrollableIconRow {
                         label_height as usize,
                     );
                     ctx.draw.text_rect_blend(
-                        tile_buffer.pixels_mut(),
+                        tile_buffer.draw_target(),
                         &label_rect,
                         tile_stride,
                         &item.label,
@@ -286,7 +287,7 @@ impl TheWidget for TheScrollableIconRow {
                 }
             } else {
                 ctx.draw.text_rect_blend(
-                    tile_buffer.pixels_mut(),
+                    tile_buffer.draw_target(),
                     &outer,
                     tile_stride,
                     &item.label,
@@ -300,7 +301,7 @@ impl TheWidget for TheScrollableIconRow {
                 );
             }
             ctx.draw.rect_outline_border(
-                tile_buffer.pixels_mut(),
+                tile_buffer.draw_target(),
                 &outer,
                 tile_stride,
                 if self.selected == index {

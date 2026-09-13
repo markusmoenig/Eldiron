@@ -188,14 +188,14 @@ impl TheWidget for TheColorPicker {
 
         let mut b = TheRGBABuffer::new(TheDim::new(0, 0, size, size));
 
+        b.set_render_scale(buffer.render_scale());
+        let width = b.pixel_width();
         let pixels = b.pixels_mut();
-
-        let width = size as usize;
 
         if let Some(bc) = self.background {
             let stride = buffer.stride();
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_utuple(),
                 stride,
                 &bc,
@@ -212,8 +212,8 @@ impl TheWidget for TheColorPicker {
                     let x = (i % width) as i32;
                     let y = /*height -*/ (i / width) as i32 - 1;
 
-                    let xx = x as f32 / size as f32;
-                    let yy = y as f32 / size as f32;
+                    let xx = x as f32 / width as f32;
+                    let yy = y as f32 / width as f32;
 
                     //let c;// = [xx, yy, 0.0, 1.0];
 
@@ -282,16 +282,26 @@ impl TheWidget for TheColorPicker {
         r.1 += self.hue_dot.y as usize;
         r.2 = self.dot_size as usize * 2;
         r.3 = self.dot_size as usize * 2;
-        ctx.draw
-            .circle(buffer.pixels_mut(), &r, stride, &BLACK, self.dot_size * 0.8);
+        ctx.draw.circle(
+            buffer.draw_target(),
+            &r,
+            stride,
+            &BLACK,
+            self.dot_size * 0.8,
+        );
 
         let mut r = self.dim.to_buffer_utuple();
         r.0 += self.sl_dot.x as usize;
         r.1 += self.sl_dot.y as usize;
         r.2 = self.dot_size as usize * 2;
         r.3 = self.dot_size as usize * 2;
-        ctx.draw
-            .circle(buffer.pixels_mut(), &r, stride, &BLACK, self.dot_size * 0.8);
+        ctx.draw.circle(
+            buffer.draw_target(),
+            &r,
+            stride,
+            &BLACK,
+            self.dot_size * 0.8,
+        );
 
         self.is_dirty = false;
     }

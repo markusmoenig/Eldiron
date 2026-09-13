@@ -1492,21 +1492,21 @@ impl TheWidget for TheTextAreaEdit {
             let stride = buffer.stride();
             if !self.is_disabled {
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &dim.to_buffer_utuple(),
                     stride,
                     style.theme().color(TextEditBackground),
                 );
             } else {
                 ctx.draw.blend_rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &dim.to_buffer_utuple(),
                     stride,
                     style.theme().color_disabled_t(TextEditBackground),
                 );
             }
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(dim.x as usize, dim.y as usize, dim.width as usize, 1),
                 stride,
                 style.theme().color(TextEditBorder),
@@ -1525,7 +1525,7 @@ impl TheWidget for TheTextAreaEdit {
             let top = dim.y + (dim.height as f32 * 0.5).round() as i32
                 - (text_size.1 as f32 * 0.5).round() as i32;
             ctx.draw.text_rect_blend_clip(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &Vec2::new(right - text_size.0 as i32, top - 1),
                 &dim.to_buffer_utuple(),
                 stride,
@@ -1544,21 +1544,21 @@ impl TheWidget for TheTextAreaEdit {
             let stride = buffer.stride();
             if !self.is_disabled {
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &dim.to_buffer_utuple(),
                     stride,
                     style.theme().color(TextEditBackground),
                 );
             } else {
                 ctx.draw.blend_rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &dim.to_buffer_utuple(),
                     stride,
                     style.theme().color_disabled_t(TextEditBackground),
                 );
             }
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(
                     (dim.x + dim.width - 1) as usize,
                     dim.y as usize,
@@ -1606,7 +1606,7 @@ impl TheWidget for TheTextAreaEdit {
                         style.theme().color_disabled_t(TextEditLineNumberColor)
                     };
                     ctx.draw.text_rect_blend_clip(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &Vec2::new(
                             left + layout.glyphs()[line.glyph_start].x.ceil() as i32,
                             top - 1,

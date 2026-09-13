@@ -222,7 +222,7 @@ impl TheWidget for TheMenubarButton {
                     fixed_size.y as usize,
                 );
                 ctx.draw.blend_scale_chunk_alpha(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &r,
                     stride,
                     icon.pixels(),
@@ -249,7 +249,7 @@ impl TheWidget for TheMenubarButton {
                     icon.dim().height as usize,
                 );
                 ctx.draw
-                    .blend_slice_alpha(buffer.pixels_mut(), icon.pixels(), &r, stride, alpha);
+                    .blend_slice_alpha(buffer.draw_target(), icon.pixels(), &r, stride, alpha);
             }
         }
 

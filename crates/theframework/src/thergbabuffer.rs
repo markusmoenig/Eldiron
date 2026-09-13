@@ -1,4 +1,5 @@
 use crate::prelude::*;
+use crate::thesurface::RasterScale;
 use crate::{compress, decompress};
 use fontdue::layout::{
     CoordinateSystem, HorizontalAlign, Layout, LayoutSettings, TextStyle, VerticalAlign,
@@ -9,9 +10,21 @@ use std::ops::{Index, IndexMut, Range};
 use rayon::prelude::*;
 use rayon::slice::ParallelSliceMut;
 
+fn unit_render_scale() -> f32 {
+    1.0
+}
+fn is_unit_render_scale(scale: &f32) -> bool {
+    *scale == 1.0
+}
+
 #[derive(Serialize, Deserialize, PartialEq, PartialOrd, Clone, Debug)]
 pub struct TheRGBABuffer {
     dim: TheDim,
+    #[serde(
+        default = "unit_render_scale",
+        skip_serializing_if = "is_unit_render_scale"
+    )]
+    render_scale: f32,
 
     #[serde(serialize_with = "compress", deserialize_with = "decompress")]
     buffer: Vec<u8>,
@@ -29,6 +42,7 @@ impl TheRGBABuffer {
     pub fn empty() -> Self {
         Self {
             dim: TheDim::zero(),
+            render_scale: 1.0,
             buffer: vec![],
         }
     }
@@ -37,6 +51,7 @@ impl TheRGBABuffer {
     pub fn new(dim: TheDim) -> Self {
         Self {
             dim,
+            render_scale: 1.0,
             buffer: vec![0; dim.width as usize * dim.height as usize * 4],
         }
     }
@@ -45,8 +60,131 @@ impl TheRGBABuffer {
     pub fn from(buffer: Vec<u8>, width: u32, height: u32) -> Self {
         Self {
             dim: TheDim::new(0, 0, width as i32, height as i32),
+            render_scale: 1.0,
             buffer,
         }
+    }
+
+    /// Changes only the raster density. The dimension remains in logical units.
+    /// Cached contents are invalidated when the display scale changes.
+    pub fn set_render_scale(&mut self, scale: f32) -> bool {
+        let scale = if scale.is_finite() && scale > 0.0 {
+            scale
+        } else {
+            1.0
+        };
+        if self.render_scale == scale {
+            return false;
+        }
+        self.render_scale = scale;
+        self.allocate();
+        true
+    }
+
+    pub fn render_scale(&self) -> f32 {
+        self.render_scale
+    }
+    pub fn pixel_width(&self) -> usize {
+        RasterScale(self.render_scale).u(self.dim.width.max(0) as usize)
+    }
+    pub fn pixel_height(&self) -> usize {
+        RasterScale(self.render_scale).u(self.dim.height.max(0) as usize)
+    }
+
+    /// Use this for drawing in logical coordinates. `pixels_mut` is raw physical storage.
+    pub fn draw_target(&mut self) -> TheRasterTarget<'_> {
+        TheRasterTarget {
+            pixels: &mut self.buffer,
+            scale: self.render_scale,
+        }
+    }
+
+    fn composite(
+        &mut self,
+        destination: ThePixelRect,
+        other: &Self,
+        source: ThePixelRect,
+        blend: bool,
+    ) {
+        let dst = RasterScale(self.render_scale).pixel_rect(destination);
+        let src = RasterScale(other.render_scale).pixel_rect(source);
+        if dst.is_empty() || src.is_empty() {
+            return;
+        }
+        let dw = self.pixel_width();
+        let dh = self.pixel_height();
+        let sw = other.pixel_width();
+        let sh = other.pixel_height();
+        let clipped = dst.intersection(ThePixelRect::new(0, 0, dw as i32, dh as i32));
+        // Canvas composition is usually a native-resolution row copy, including
+        // scrolling caches. Avoid a resampling loop for this common path.
+        if !blend && src.width == dst.width && src.height == dst.height {
+            let source_x = src.x + clipped.x - dst.x;
+            let left = clipped.x + (-source_x).max(0);
+            let right = (clipped.x + clipped.width).min(clipped.x + sw as i32 - source_x);
+            if right <= left {
+                return;
+            }
+            for y in clipped.y..clipped.y + clipped.height {
+                let sy = src.y + y - dst.y;
+                if sy < 0 || sy >= sh as i32 {
+                    continue;
+                }
+                let sx = src.x + left - dst.x;
+                let si = (sy as usize * sw + sx as usize) * 4;
+                let di = (y as usize * dw + left as usize) * 4;
+                let count = (right - left) as usize * 4;
+                self.buffer[di..di + count].copy_from_slice(&other.buffer[si..si + count]);
+            }
+            return;
+        }
+        for y in clipped.y..clipped.y + clipped.height {
+            let sy = src.y as i64 + (y - dst.y) as i64 * src.height as i64 / dst.height as i64;
+            if sy < 0 || sy >= sh as i64 {
+                continue;
+            }
+            for x in clipped.x..clipped.x + clipped.width {
+                let sx = src.x as i64 + (x - dst.x) as i64 * src.width as i64 / dst.width as i64;
+                if sx < 0 || sx >= sw as i64 {
+                    continue;
+                }
+                let si = (sy as usize * sw + sx as usize) * 4;
+                let di = (y as usize * dw + x as usize) * 4;
+                let color = &other.buffer[si..si + 4];
+                if !blend || color[3] == 255 {
+                    self.buffer[di..di + 4].copy_from_slice(color);
+                } else if color[3] != 0 {
+                    let a = color[3] as f32 / 255.0;
+                    let da = self.buffer[di + 3] as f32 / 255.0;
+                    let out = a + da * (1.0 - a);
+                    for c in 0..3 {
+                        self.buffer[di + c] = if out > 0.0 {
+                            ((color[c] as f32 * a + self.buffer[di + c] as f32 * da * (1.0 - a))
+                                / out)
+                                .round() as u8
+                        } else {
+                            0
+                        };
+                    }
+                    self.buffer[di + 3] = (out * 255.0).round() as u8;
+                }
+            }
+        }
+    }
+
+    fn full_rect(&self) -> ThePixelRect {
+        ThePixelRect::new(0, 0, self.dim.width, self.dim.height)
+    }
+
+    /// Temporarily exposes native coordinates to the existing raster primitives.
+    fn with_physical(&mut self, draw: impl FnOnce(&mut Self)) {
+        let mut native = Self {
+            dim: TheDim::sized(self.pixel_width() as i32, self.pixel_height() as i32),
+            render_scale: 1.0,
+            buffer: std::mem::take(&mut self.buffer),
+        };
+        draw(&mut native);
+        self.buffer = native.buffer;
     }
 
     /// Resizes the buffer.
@@ -78,12 +216,12 @@ impl TheRGBABuffer {
         self.dim.width as usize
     }
 
-    /// Gets a slice of the buffer.
+    /// Gets physical RGBA pixels. Use `pixel_width()` for their row stride.
     pub fn pixels(&self) -> &[u8] {
         &self.buffer[..]
     }
 
-    /// Gets a mutable slice of the buffer.
+    /// Gets raw physical RGBA pixels. UI drawing should use `draw_target()`.
     pub fn pixels_mut(&mut self) -> &mut [u8] {
         &mut self.buffer[..]
     }
@@ -103,13 +241,13 @@ impl TheRGBABuffer {
 
     /// Returns the len of the underlying Vec<u8>
     pub fn len(&self) -> usize {
-        self.dim.width as usize * self.dim.height as usize * 4
+        self.buffer.len()
     }
 
     /// Allocates the buffer.
     pub fn allocate(&mut self) {
         if self.dim.is_valid() {
-            self.buffer = vec![0; self.dim.width as usize * self.dim.height as usize * 4];
+            self.buffer = vec![0; self.pixel_width() * self.pixel_height() * 4];
         } else {
             self.buffer = vec![];
         }
@@ -117,6 +255,18 @@ impl TheRGBABuffer {
 
     /// Extracts a sub-buffer of given dimensions from the current buffer.
     pub fn extract(&self, dim: &TheDim) -> Self {
+        if self.render_scale != 1.0 {
+            let mut result = Self::new(*dim);
+            result.set_render_scale(self.render_scale);
+            result.composite(
+                result.full_rect(),
+                self,
+                ThePixelRect::new(dim.x, dim.y, dim.width, dim.height),
+                false,
+            );
+            return result;
+        }
+
         let mut new_buffer = Self::new(*dim);
 
         for y in 0..dim.height {
@@ -142,6 +292,16 @@ impl TheRGBABuffer {
 
     /// Copy the other buffer into this buffer at the given coordinates.
     pub fn copy_into(&mut self, mut x: i32, mut y: i32, other: &TheRGBABuffer) {
+        if self.render_scale != 1.0 || other.render_scale != 1.0 {
+            self.composite(
+                ThePixelRect::new(x, y, other.dim.width, other.dim.height),
+                other,
+                other.full_rect(),
+                false,
+            );
+            return;
+        }
+
         // Early return if the whole other buffer is outside this buffer
         if x + other.dim.width <= 0
             || y + other.dim.height <= 0
@@ -198,6 +358,16 @@ impl TheRGBABuffer {
     /// Parallel version of `copy_into` using Rayon. Has identical clipping/safety behavior.
     /// Enabled when the `rayon` feature is on. When the feature is off, it falls back to the serial version.
     pub fn copy_into_par(&mut self, mut x: i32, mut y: i32, other: &TheRGBABuffer) {
+        if self.render_scale != 1.0 || other.render_scale != 1.0 {
+            self.composite(
+                ThePixelRect::new(x, y, other.dim.width, other.dim.height),
+                other,
+                other.full_rect(),
+                false,
+            );
+            return;
+        }
+
         // Early return if the whole other buffer is outside this buffer
         if x + other.dim.width <= 0
             || y + other.dim.height <= 0
@@ -297,6 +467,16 @@ impl TheRGBABuffer {
 
     /// Blend the other buffer into this buffer at the given coordinates (single-threaded reference path).
     pub fn blend_into(&mut self, mut x: i32, mut y: i32, other: &TheRGBABuffer) {
+        if self.render_scale != 1.0 || other.render_scale != 1.0 {
+            self.composite(
+                ThePixelRect::new(x, y, other.dim.width, other.dim.height),
+                other,
+                other.full_rect(),
+                true,
+            );
+            return;
+        }
+
         // Early return if the whole other buffer is outside this buffer
         if x + other.dim.width <= 0
             || y + other.dim.height <= 0
@@ -366,6 +546,16 @@ impl TheRGBABuffer {
     /// Blend the other buffer into this buffer at the given coordinates (adaptive parallel version).
     /// Falls back to the single-threaded path for small regions to avoid overhead.
     pub fn blend_into_par(&mut self, mut x: i32, mut y: i32, other: &TheRGBABuffer) {
+        if self.render_scale != 1.0 || other.render_scale != 1.0 {
+            self.composite(
+                ThePixelRect::new(x, y, other.dim.width, other.dim.height),
+                other,
+                other.full_rect(),
+                true,
+            );
+            return;
+        }
+
         // Early out if completely outside
         if x + other.dim.width <= 0
             || y + other.dim.height <= 0
@@ -476,6 +666,18 @@ impl TheRGBABuffer {
         other: &TheRGBABuffer,
         range: Range<i32>,
     ) {
+        if self.render_scale != 1.0 || other.render_scale != 1.0 {
+            let source =
+                ThePixelRect::new(range.start, 0, range.end - range.start, other.dim.height);
+            self.composite(
+                ThePixelRect::new(x, y, source.width, source.height),
+                other,
+                source,
+                false,
+            );
+            return;
+        }
+
         let dest = &mut self.buffer[..];
         let height = other.dim.height as usize;
         let stride = self.dim.width * 4;
@@ -503,6 +705,18 @@ impl TheRGBABuffer {
         other: &TheRGBABuffer,
         range: Range<i32>,
     ) {
+        if self.render_scale != 1.0 || other.render_scale != 1.0 {
+            let source =
+                ThePixelRect::new(0, range.start, other.dim.width, range.end - range.start);
+            self.composite(
+                ThePixelRect::new(x, y, source.width, source.height),
+                other,
+                source,
+                false,
+            );
+            return;
+        }
+
         let dest = &mut self.buffer[..];
         let width = (other.dim.width * 4) as usize;
 
@@ -518,6 +732,13 @@ impl TheRGBABuffer {
 
     /// Creates a scaled version of the buffer.
     pub fn scaled(&self, new_width: i32, new_height: i32) -> Self {
+        if self.render_scale != 1.0 {
+            let mut result = Self::new(TheDim::sized(new_width, new_height));
+            result.set_render_scale(self.render_scale);
+            self.scaled_into(&mut result);
+            return result;
+        }
+
         let scale_x = new_width as f32 / self.dim.width as f32;
         let scale_y = new_height as f32 / self.dim.height as f32;
 
@@ -543,6 +764,11 @@ impl TheRGBABuffer {
 
     /// Creates a scaled version of the buffer by writing into the other buffer.
     pub fn scaled_into(&self, into: &mut TheRGBABuffer) {
+        if self.render_scale != 1.0 || into.render_scale != 1.0 {
+            into.composite(into.full_rect(), self, self.full_rect(), false);
+            return;
+        }
+
         let new_width = into.dim().width;
         let new_height = into.dim().height;
 
@@ -567,6 +793,11 @@ impl TheRGBABuffer {
 
     /// Creates a scaled version of the buffer by writing into the other buffer.
     pub fn scaled_into_linear(&self, into: &mut TheRGBABuffer) {
+        if self.render_scale != 1.0 || into.render_scale != 1.0 {
+            into.composite(into.full_rect(), self, self.full_rect(), false);
+            return;
+        }
+
         let new_width = into.dim().width;
         let new_height = into.dim().height;
 
@@ -611,6 +842,16 @@ impl TheRGBABuffer {
 
     /// Creates a scaled version of the buffer by writing into the other buffer while respecting the dimensions.
     pub fn scaled_into_using_dim(&self, into: &mut TheRGBABuffer, dim: &TheDim) {
+        if self.render_scale != 1.0 || into.render_scale != 1.0 {
+            into.composite(
+                ThePixelRect::new(dim.buffer_x, dim.buffer_y, dim.width, dim.height),
+                self,
+                self.full_rect(),
+                false,
+            );
+            return;
+        }
+
         let new_width = dim.width;
         let new_height = dim.height;
 
@@ -636,6 +877,14 @@ impl TheRGBABuffer {
 
     /// Extracts a region from the buffer.
     pub fn extract_region(&self, region: &TheRGBARegion) -> TheRGBABuffer {
+        if self.render_scale != 1.0 {
+            return self.extract(&TheDim::new(
+                self.dim.x + region.x as i32,
+                self.dim.y + region.y as i32,
+                region.width as i32,
+                region.height as i32,
+            ));
+        }
         let mut tile_buffer =
             TheRGBABuffer::new(TheDim::new(0, 0, region.width as i32, region.height as i32));
 
@@ -684,24 +933,18 @@ impl TheRGBABuffer {
 
     /// Returns the pixel at the given UV coordinate.
     pub fn at_f(&self, uv: Vec2<f32>) -> Option<[u8; 4]> {
-        let x = (uv.x * self.dim.width as f32) as i32;
-        let y = (uv.y * self.dim.height as f32) as i32;
-
-        if x >= 0 && x < self.dim.width && y >= 0 && y < self.dim.height {
-            let pixel_index = (y * self.dim.width + x) as usize * 4;
-            Some([
-                self.buffer[pixel_index],
-                self.buffer[pixel_index + 1],
-                self.buffer[pixel_index + 2],
-                self.buffer[pixel_index + 3],
-            ])
-        } else {
-            None
-        }
+        self.get_pixel(
+            (uv.x * self.dim.width as f32) as i32,
+            (uv.y * self.dim.height as f32) as i32,
+        )
     }
 
     /// Returns the pixel at the given position.
     pub fn at(&self, position: Vec2<i32>) -> Option<[u8; 4]> {
+        if self.render_scale != 1.0 {
+            return self.get_pixel(position.x, position.y);
+        }
+
         let x = position.x;
         let y = position.y;
 
@@ -719,24 +962,25 @@ impl TheRGBABuffer {
     }
 
     pub fn at_vec4(&self, position: Vec2<i32>) -> Option<Vec4<f32>> {
-        let x = position.x;
-        let y = position.y;
-
-        if x >= 0 && x < self.dim.width && y >= 0 && y < self.dim.height {
-            let pixel_index = (y * self.dim.width + x) as usize * 4;
-            Some(Vec4::new(
-                (self.buffer[pixel_index] as f32) / 255.0,
-                (self.buffer[pixel_index + 1] as f32) / 255.0,
-                (self.buffer[pixel_index + 2] as f32) / 255.0,
-                (self.buffer[pixel_index + 3] as f32) / 255.0,
-            ))
-        } else {
-            None
-        }
+        self.get_pixel(position.x, position.y).map(|p| {
+            Vec4::new(
+                p[0] as f32 / 255.0,
+                p[1] as f32 / 255.0,
+                p[2] as f32 / 255.0,
+                p[3] as f32 / 255.0,
+            )
+        })
     }
 
     /// Fills the entire buffer with the given RGBA color.
     pub fn fill(&mut self, color: [u8; 4]) {
+        if self.render_scale != 1.0 {
+            for pixel in self.buffer.chunks_exact_mut(4) {
+                pixel.copy_from_slice(&color);
+            }
+            return;
+        }
+
         for y in 0..self.dim.height {
             for x in 0..self.dim.width {
                 let index = (y * self.dim.width + x) as usize * 4;
@@ -765,6 +1009,12 @@ impl TheRGBABuffer {
 
     /// Draws a line from (x0, y0) to (x1, y1) with the given color.
     pub fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: [u8; 4]) {
+        if self.render_scale != 1.0 {
+            let s = RasterScale(self.render_scale);
+            self.with_physical(|b| b.draw_line(s.i(x0), s.i(y0), s.i(x1), s.i(y1), color));
+            return;
+        }
+
         let mut x = x0;
         let mut y = y0;
         let dx = (x1 - x0).abs();
@@ -796,6 +1046,12 @@ impl TheRGBABuffer {
 
     /// Draws a horizontal line from (x0, y) to (x1, y) with the given color.
     pub fn draw_horizontal_line(&mut self, x0: i32, x1: i32, y: i32, color: [u8; 4]) {
+        if self.render_scale != 1.0 {
+            let s = RasterScale(self.render_scale);
+            self.with_physical(|b| b.draw_horizontal_line(s.i(x0), s.i(x1), s.i(y), color));
+            return;
+        }
+
         let mut start_x = x0.min(x1);
         let end_x = x0.max(x1);
 
@@ -820,6 +1076,12 @@ impl TheRGBABuffer {
 
     /// Draws a vertical line from (x, y0) to (x, y1) with the given color.
     pub fn draw_vertical_line(&mut self, x: i32, y0: i32, y1: i32, color: [u8; 4]) {
+        if self.render_scale != 1.0 {
+            let s = RasterScale(self.render_scale);
+            self.with_physical(|b| b.draw_vertical_line(s.i(x), s.i(y0), s.i(y1), color));
+            return;
+        }
+
         let mut start_y = y0.min(y1);
         let end_y = y0.max(y1);
 
@@ -844,6 +1106,14 @@ impl TheRGBABuffer {
 
     /// Draws the outline of a given rectangle
     pub fn draw_rect_outline(&mut self, rect: &TheDim, color: &[u8; 4]) {
+        if self.render_scale != 1.0 {
+            let s = RasterScale(self.render_scale);
+            let r = s.pixel_rect(ThePixelRect::new(rect.x, rect.y, rect.width, rect.height));
+            let d = TheDim::new(r.x, r.y, r.width, r.height);
+            self.with_physical(|b| b.draw_rect_outline(&d, color));
+            return;
+        }
+
         let y = rect.y;
         for x in rect.x..rect.x + rect.width {
             self.set_pixel(x, y, color);
@@ -866,6 +1136,27 @@ impl TheRGBABuffer {
         border_size: f32,
         border_color: &[u8; 4],
     ) {
+        if self.render_scale != 1.0 {
+            let s = RasterScale(self.render_scale);
+            let r = s.pixel_rect(ThePixelRect::new(dim.x, dim.y, dim.width, dim.height));
+            let d = TheDim::new(r.x, r.y, r.width, r.height);
+            self.with_physical(|b| {
+                b.draw_rounded_rect(
+                    &d,
+                    color,
+                    &(
+                        rounding.0 * s.0,
+                        rounding.1 * s.0,
+                        rounding.2 * s.0,
+                        rounding.3 * s.0,
+                    ),
+                    border_size * s.0,
+                    border_color,
+                )
+            });
+            return;
+        }
+
         let hb = border_size / 2.0;
         let center = (
             (dim.x as f32 + dim.width as f32 / 2.0 - hb).round(),
@@ -919,6 +1210,14 @@ impl TheRGBABuffer {
         border_size: f32,
         border_color: &[u8; 4],
     ) {
+        if self.render_scale != 1.0 {
+            let s = RasterScale(self.render_scale);
+            let r = s.pixel_rect(ThePixelRect::new(dim.x, dim.y, dim.width, dim.height));
+            let d = TheDim::new(r.x, r.y, r.width, r.height);
+            self.with_physical(|b| b.draw_disc(&d, color, border_size * s.0, border_color));
+            return;
+        }
+
         let hb = border_size / 2.0;
         let center = (
             (dim.x as f32 + dim.width as f32 / 2.0 - hb).round(),
@@ -985,6 +1284,22 @@ impl TheRGBABuffer {
         halign: TheHorizontalAlign,
         valign: TheVerticalAlign,
     ) {
+        if self.render_scale != 1.0 {
+            let s = RasterScale(self.render_scale);
+            self.with_physical(|b| {
+                b.draw_text(
+                    Vec2::new(s.i(position.x), s.i(position.y)),
+                    font,
+                    text,
+                    size * s.0,
+                    color,
+                    halign,
+                    valign,
+                )
+            });
+            return;
+        }
+
         pub fn mix_color(a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
             [
                 (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
@@ -1065,7 +1380,11 @@ impl TheRGBABuffer {
     /// Helper method to calculate the buffer index for a pixel at (x, y).
     pub fn pixel_index(&self, x: i32, y: i32) -> Option<usize> {
         if x >= 0 && x < self.dim.width && y >= 0 && y < self.dim.height {
-            Some((y as usize * self.dim.width as usize + x as usize) * 4)
+            Some(
+                (RasterScale(self.render_scale).u(y as usize) * self.pixel_width()
+                    + RasterScale(self.render_scale).u(x as usize))
+                    * 4,
+            )
         } else {
             None
         }
@@ -1085,8 +1404,36 @@ impl TheRGBABuffer {
 
     /// Sets the color of a pixel at (x, y).
     pub fn set_pixel(&mut self, x: i32, y: i32, color: &[u8; 4]) {
+        if self.render_scale != 1.0 {
+            let r = RasterScale(self.render_scale).pixel_rect(ThePixelRect::new(x, y, 1, 1));
+            let w = self.pixel_width();
+            let h = self.pixel_height();
+            let r = r.intersection(ThePixelRect::new(0, 0, w as i32, h as i32));
+            for y in r.y..r.y + r.height {
+                for x in r.x..r.x + r.width {
+                    let i = (y as usize * w + x as usize) * 4;
+                    self.buffer[i..i + 4].copy_from_slice(color);
+                }
+            }
+            return;
+        }
+
         if let Some(index) = self.pixel_index(x, y) {
             self.buffer[index..index + 4].copy_from_slice(color);
+        }
+    }
+
+    /// Blends a logical pixel, including every covered physical pixel on a DPI target.
+    pub fn blend_pixel(&mut self, x: i32, y: i32, color: [u8; 4]) {
+        let rect = RasterScale(self.render_scale).pixel_rect(ThePixelRect::new(x, y, 1, 1));
+        let width = self.pixel_width();
+        let height = self.pixel_height();
+        if let Ok(mut surface) = TheSurfaceMut::new(self.pixels_mut(), width, height) {
+            for py in rect.y..rect.y + rect.height {
+                for px in rect.x..rect.x + rect.width {
+                    surface.blend_pixel_coverage(px, py, color, 255);
+                }
+            }
         }
     }
 
@@ -1094,8 +1441,8 @@ impl TheRGBABuffer {
     pub fn to_png(&self) -> Result<Vec<u8>, png::EncodingError> {
         let mut png_data = Vec::new();
         {
-            let width = self.dim.width as u32;
-            let height = self.dim.height as u32;
+            let width = self.pixel_width() as u32;
+            let height = self.pixel_height() as u32;
             let mut encoder = Encoder::new(&mut png_data, width, height);
             encoder.set_color(ColorType::Rgba);
             encoder.set_depth(BitDepth::Eight);

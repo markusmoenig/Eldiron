@@ -82,7 +82,7 @@ impl TheWidget for TheStatusbar {
         let paint = style.theme().paint(StatusbarBackground, rect);
         let width = buffer.dim().width.max(0) as usize;
         let height = buffer.dim().height.max(0) as usize;
-        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.draw_target(), width, height) {
             surface.set_clip(rect);
             ctx.painter.fill_rect(&mut surface, rect, &paint);
         }
@@ -92,7 +92,7 @@ impl TheWidget for TheStatusbar {
         shrinker.shrink_by(20, 1, 0, 0);
 
         ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &self.dim.to_buffer_shrunk_utuple(&shrinker),
             stride,
             &self.text,

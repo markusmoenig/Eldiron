@@ -1,3 +1,4 @@
+use crate::thesurface::{RasterScale, TheRasterTarget};
 use std::ops::Deref;
 
 use fontdue::layout::{
@@ -51,6 +52,48 @@ impl Default for TheDraw2D {
 }
 
 impl TheDraw2D {
+    #[allow(clippy::too_many_arguments)]
+    fn raster_blit(
+        dest: &mut [u8],
+        stride: usize,
+        source: &[u8],
+        source_size: (usize, usize),
+        rect: (isize, isize, usize, usize),
+        clip: (usize, usize, usize, usize),
+        offset: usize,
+        alpha: f32,
+        blend: bool,
+    ) {
+        if stride == 0 || source_size.0 == 0 || rect.2 == 0 || rect.3 == 0 {
+            return;
+        }
+        let height = dest.len() / (stride * 4);
+        let top = rect.1.max(clip.1 as isize).max(0) as usize;
+        let left = rect.0.max(clip.0 as isize).max(0) as usize;
+        let right = (rect.0 + rect.2 as isize).max(0) as usize;
+        let bottom = (rect.1 + rect.3 as isize).max(0) as usize;
+        for y in top..bottom.min(height).min(clip.1.saturating_add(clip.3)) {
+            let sy = (y as isize - rect.1) as usize * source_size.1 / rect.3 + offset;
+            for x in left..right.min(stride).min(clip.0.saturating_add(clip.2)) {
+                let sx = (x as isize - rect.0) as usize * source_size.0 / rect.2;
+                let si = (sy * source_size.0 + sx) * 4;
+                if si + 4 > source.len() {
+                    continue;
+                }
+                let di = (y * stride + x) * 4;
+                if !blend {
+                    dest[di..di + 4].copy_from_slice(&source[si..si + 4]);
+                } else {
+                    let a = source[si + 3] as f32 / 255.0 * alpha;
+                    for c in 0..4 {
+                        dest[di + c] =
+                            (dest[di + c] as f32 * (1.0 - a) + source[si + c] as f32 * a) as u8;
+                    }
+                }
+            }
+        }
+    }
+
     pub fn new() -> Self {
         let mut fonts = vec![];
         if let Some(font_bytes) = Embedded::get("fonts/Roboto-Bold.ttf") {
@@ -75,15 +118,41 @@ impl TheDraw2D {
     }
 
     /// Draws the mask
-    pub fn blend_mask(
+    pub fn blend_mask<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         mask_frame: &[u8],
         mask_size: &(usize, usize),
         color: &[u8; 4],
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        if scale != 1.0 {
+            let r = s.rect(rect);
+            let clip = (0, 0, s.u(stride), frame.len() / (s.u(stride).max(1) * 4));
+            let mut rgba = Vec::with_capacity(mask_frame.len() * 4);
+            for alpha in mask_frame {
+                rgba.extend_from_slice(&[color[0], color[1], color[2], *alpha]);
+            }
+            Self::raster_blit(
+                frame,
+                s.u(stride),
+                &rgba,
+                (mask_size.0, mask_size.1),
+                (r.0 as isize, r.1 as isize, r.2, r.3),
+                clip,
+                0,
+                1.0,
+                true,
+            );
+            return;
+        }
+
         for y in 0..mask_size.1 {
             for x in 0..mask_size.0 {
                 let i = (x + rect.0) * 4 + (y + rect.1) * stride * 4;
@@ -97,13 +166,21 @@ impl TheDraw2D {
     }
 
     /// Draws the given rectangle
-    pub fn rect(
+    pub fn rect<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let stride = s.u(stride);
+
         for y in rect.1..rect.1 + rect.3 {
             for x in rect.0..rect.0 + rect.2 {
                 let i = x * 4 + y * stride * 4;
@@ -113,14 +190,23 @@ impl TheDraw2D {
     }
 
     /// Draws the given rectangle and checks the frame boundaries.
-    pub fn rect_safe(
+    pub fn rect_safe<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(isize, isize, usize, usize),
         stride: usize,
         color: &[u8; 4],
         safe_rect: &(usize, usize, usize, usize),
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.signed_rect(rect);
+        let safe_rect = &s.rect(safe_rect);
+        let stride = s.u(stride);
+
         let dest_stride_isize: isize = stride as isize;
         for y in rect.1..rect.1 + rect.3 as isize {
             if y >= safe_rect.1 as isize && y < (safe_rect.1 + safe_rect.3) as isize {
@@ -135,13 +221,21 @@ impl TheDraw2D {
     }
 
     /// Blend the given rectangle
-    pub fn blend_rect(
+    pub fn blend_rect<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let stride = s.u(stride);
+
         if stride == 0 || frame.len() < 4 {
             return;
         }
@@ -171,13 +265,21 @@ impl TheDraw2D {
     }
 
     /// Draws the outline of a given rectangle
-    pub fn rect_outline(
+    pub fn rect_outline<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let stride = s.u(stride);
+
         let y = rect.1;
         for x in rect.0..rect.0 + rect.2 {
             let mut i = x * 4 + y * stride * 4;
@@ -198,14 +300,23 @@ impl TheDraw2D {
     }
 
     /// Draws the outline of a given rectangle
-    pub fn rect_outline_border(
+    pub fn rect_outline_border<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
         border: usize,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let border = s.u(border);
+        let stride = s.u(stride);
+
         let y = rect.1;
         for x in rect.0 + border..rect.0 + rect.2 - border {
             let mut i = x * 4 + y * stride * 4;
@@ -226,14 +337,23 @@ impl TheDraw2D {
     }
 
     /// Draws the outline of a given rectangle with the right open
-    pub fn rect_outline_border_open(
+    pub fn rect_outline_border_open<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
         border: usize,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let border = s.u(border);
+        let stride = s.u(stride);
+
         let y = rect.1;
         for x in rect.0 + border..rect.0 + rect.2 - border {
             let mut i = x * 4 + y * stride * 4;
@@ -251,15 +371,25 @@ impl TheDraw2D {
     }
 
     /// Draws the outline of a given rectangle
-    pub fn rect_outline_border_safe(
+    pub fn rect_outline_border_safe<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(isize, isize, usize, usize),
         stride: usize,
         color: &[u8; 4],
         border: isize,
         safe_rect: &(usize, usize, usize, usize),
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.signed_rect(rect);
+        let border = (border as f32 * scale).round() as isize;
+        let safe_rect = &s.rect(safe_rect);
+        let stride = s.u(stride);
+
         let dest_stride_isize: isize = stride as isize;
         let y = rect.1;
         if y >= safe_rect.1 as isize && y < (safe_rect.1 + safe_rect.3) as isize {
@@ -297,14 +427,23 @@ impl TheDraw2D {
     }
 
     /// Draws a circle
-    pub fn circle(
+    pub fn circle<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
         radius: f32,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let radius = radius * scale;
+        let stride = s.u(stride);
+
         let center = (
             rect.0 as f32 + rect.2 as f32 / 2.0,
             rect.1 as f32 + rect.3 as f32 / 2.0,
@@ -331,9 +470,9 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Draws a circle with a border of a given size
-    pub fn circle_with_border(
+    pub fn circle_with_border<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
@@ -341,6 +480,16 @@ impl TheDraw2D {
         border_color: &[u8; 4],
         border_size: f32,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let radius = radius * scale;
+        let border_size = border_size * scale;
+        let stride = s.u(stride);
+
         let center = (
             rect.0 as f32 + rect.2 as f32 / 2.0,
             rect.1 as f32 + rect.3 as f32 / 2.0,
@@ -368,14 +517,28 @@ impl TheDraw2D {
     }
 
     /// Draws a rounded rect
-    pub fn rounded_rect(
+    pub fn rounded_rect<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
         rounding: &(f32, f32, f32, f32),
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let rounding = &(
+            rounding.0 * scale,
+            rounding.1 * scale,
+            rounding.2 * scale,
+            rounding.3 * scale,
+        );
+        let stride = s.u(stride);
+
         let center = (
             (rect.0 as f32 + rect.2 as f32 / 2.0).round(),
             (rect.1 as f32 + rect.3 as f32 / 2.0).round(),
@@ -420,9 +583,9 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Draws a rounded rect with a border
-    pub fn rounded_rect_with_border(
+    pub fn rounded_rect_with_border<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
@@ -430,6 +593,21 @@ impl TheDraw2D {
         border_color: &[u8; 4],
         border_size: f32,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let rounding = &(
+            rounding.0 * scale,
+            rounding.1 * scale,
+            rounding.2 * scale,
+            rounding.3 * scale,
+        );
+        let border_size = border_size * scale;
+        let stride = s.u(stride);
+
         let hb = border_size / 2.0;
         let center = (
             (rect.0 as f32 + rect.2 as f32 / 2.0 - hb).round(),
@@ -478,15 +656,24 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Draws a hexagon with a border
-    pub fn hexagon_with_border(
+    pub fn hexagon_with_border<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
         border_color: &[u8; 4],
         border_size: f32,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let border_size = border_size * scale;
+        let stride = s.u(stride);
+
         let hb = border_size / 2.0;
         let center = (
             (rect.0 as f32 + rect.2 as f32 / 2.0 - hb).round(),
@@ -524,15 +711,24 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Draws a rhombus rect with a border
-    pub fn rhombus_with_border(
+    pub fn rhombus_with_border<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
         border_color: &[u8; 4],
         border_size: f32,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let border_size = border_size * scale;
+        let stride = s.u(stride);
+
         let hb = border_size / 2.0;
         let center = (
             (rect.0 as f32 + rect.2 as f32 / 2.0 - hb).round(),
@@ -582,15 +778,24 @@ impl TheDraw2D {
     }
 
     /// Draws a square pattern
-    pub fn square_pattern(
+    pub fn square_pattern<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         color: &[u8; 4],
         line_color: &[u8; 4],
         pattern_size: usize,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let pattern_size = s.u(pattern_size);
+        let stride = s.u(stride);
+
         for y in rect.1..rect.1 + rect.3 {
             for x in rect.0..rect.0 + rect.2 {
                 let i = x * 4 + y * stride * 4;
@@ -605,9 +810,9 @@ impl TheDraw2D {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn wavy_line(
+    pub fn wavy_line<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         left: i32,
         base: i32,
         length: usize,
@@ -616,6 +821,18 @@ impl TheDraw2D {
         stride: usize,
         color: &[u8; 4],
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let left = s.i(left);
+        let base = s.i(base);
+        let length = s.u(length);
+        let amplitude = amplitude * scale;
+        let _period = _period * scale;
+        let stride = s.u(stride);
+
         for x in left..left + length as i32 {
             let y = ((x as f32).sin() * amplitude) as i32 + base;
 
@@ -631,9 +848,9 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Draws a text aligned inside a rect
-    pub fn text_rect(
+    pub fn text_rect<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         text: &str,
@@ -643,6 +860,18 @@ impl TheDraw2D {
         halign: TheHorizontalAlign,
         valign: TheVerticalAlign,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let settings = TheFontSettings {
+            size: settings.size * scale,
+            ..settings
+        };
+        let stride = s.u(stride);
+
         let mut text_to_use = text.trim_end().to_string().clone();
         text_to_use = text_to_use.replace('\n', "");
         if text_to_use.trim_end().is_empty() {
@@ -653,7 +882,7 @@ impl TheDraw2D {
 
         let mut add_trail = false;
         // Text is too long ??
-        while text_size.0 >= rect.2 {
+        while text_size.0 >= rect.2 && !text_to_use.is_empty() {
             text_to_use.pop();
             text_size = self.get_text_size((text_to_use.clone() + "...").as_str(), &settings);
             add_trail = true;
@@ -711,9 +940,9 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Draws a text aligned inside a rect
-    pub fn text_rect_clip(
+    pub fn text_rect_clip<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         top_left: &Vec2<i32>,
         clip_rect: &(usize, usize, usize, usize),
         stride: usize,
@@ -724,6 +953,19 @@ impl TheDraw2D {
         halign: TheHorizontalAlign,
         valign: TheVerticalAlign,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let top_left = &Vec2::new(s.i(top_left.x), s.i(top_left.y));
+        let clip_rect = &s.rect(clip_rect);
+        let settings = TheFontSettings {
+            size: settings.size * scale,
+            ..settings
+        };
+        let stride = s.u(stride);
+
         let mut text_to_use = text.trim_end().to_string().clone();
         text_to_use = text_to_use.replace('\n', "");
         if text_to_use.trim_end().is_empty() {
@@ -795,9 +1037,9 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Blends a text aligned inside a rect and blends it with the existing background
-    pub fn text_rect_blend(
+    pub fn text_rect_blend<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         text: &str,
@@ -806,6 +1048,18 @@ impl TheDraw2D {
         halign: TheHorizontalAlign,
         valign: TheVerticalAlign,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let settings = TheFontSettings {
+            size: settings.size * scale,
+            ..settings
+        };
+        let stride = s.u(stride);
+
         let mut text_to_use = text.trim_end().to_string().clone();
         if text_to_use.trim_end().is_empty() {
             return;
@@ -815,7 +1069,7 @@ impl TheDraw2D {
 
         let mut add_trail = false;
         // Text is too long ??
-        while text_size.0 >= rect.2 {
+        while text_size.0 >= rect.2 && !text_to_use.is_empty() {
             text_to_use.pop();
             text_size = self.get_text_size((text_to_use.clone() + "...").as_str(), &settings);
             add_trail = true;
@@ -887,9 +1141,9 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Blends a text aligned inside a rect and blends it with the existing background
-    pub fn text_rect_blend_clip(
+    pub fn text_rect_blend_clip<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         top_left: &Vec2<i32>,
         clip_rect: &(usize, usize, usize, usize),
         stride: usize,
@@ -899,6 +1153,19 @@ impl TheDraw2D {
         halign: TheHorizontalAlign,
         valign: TheVerticalAlign,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let top_left = &Vec2::new(s.i(top_left.x), s.i(top_left.y));
+        let clip_rect = &s.rect(clip_rect);
+        let settings = TheFontSettings {
+            size: settings.size * scale,
+            ..settings
+        };
+        let stride = s.u(stride);
+
         let text_to_use = text.trim_end().to_string().clone();
         if text_to_use.trim_end().is_empty() {
             return;
@@ -969,9 +1236,9 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Draws the given text
-    pub fn text(
+    pub fn text<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         pos: &(usize, usize),
         stride: usize,
         text: &str,
@@ -979,6 +1246,18 @@ impl TheDraw2D {
         color: &[u8; 4],
         background: &[u8; 4],
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let pos = &(s.u(pos.0), s.u(pos.1));
+        let settings = TheFontSettings {
+            size: settings.size * scale,
+            ..settings
+        };
+        let stride = s.u(stride);
+
         if text.is_empty() {
             return;
         }
@@ -1016,15 +1295,27 @@ impl TheDraw2D {
 
     #[allow(clippy::too_many_arguments)]
     /// Draws the given text
-    pub fn text_blend(
+    pub fn text_blend<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         pos: &(usize, usize),
         stride: usize,
         text: &str,
         settings: TheFontSettings,
         color: &[u8; 4],
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let pos = &(s.u(pos.0), s.u(pos.1));
+        let settings = TheFontSettings {
+            size: settings.size * scale,
+            ..settings
+        };
+        let stride = s.u(stride);
+
         if text.is_empty() {
             return;
         }
@@ -1117,13 +1408,40 @@ impl TheDraw2D {
     }
 
     /// Copies rect from the source frame into the dest frame
-    pub fn copy_slice(
+    pub fn copy_slice<'a>(
         &self,
-        dest: &mut [u8],
+        dest: impl Into<TheRasterTarget<'a>>,
         source: &[u8],
         rect: &(usize, usize, usize, usize),
         dest_stride: usize,
     ) {
+        let TheRasterTarget {
+            pixels: dest,
+            scale,
+        } = dest.into();
+        let s = RasterScale(scale);
+        if scale != 1.0 {
+            let r = s.rect(rect);
+            let clip = (
+                0,
+                0,
+                s.u(dest_stride),
+                dest.len() / (s.u(dest_stride).max(1) * 4),
+            );
+            Self::raster_blit(
+                dest,
+                s.u(dest_stride),
+                source,
+                (rect.2, rect.3),
+                (r.0 as isize, r.1 as isize, r.2, r.3),
+                clip,
+                0,
+                1.0,
+                false,
+            );
+            return;
+        }
+
         for y in 0..rect.3 {
             let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
             let s = y * rect.2 * 4;
@@ -1132,13 +1450,40 @@ impl TheDraw2D {
     }
 
     /// Blends rect from the source frame into the dest frame
-    pub fn blend_slice(
+    pub fn blend_slice<'a>(
         &self,
-        dest: &mut [u8],
+        dest: impl Into<TheRasterTarget<'a>>,
         source: &[u8],
         rect: &(usize, usize, usize, usize),
         dest_stride: usize,
     ) {
+        let TheRasterTarget {
+            pixels: dest,
+            scale,
+        } = dest.into();
+        let s = RasterScale(scale);
+        if scale != 1.0 {
+            let r = s.rect(rect);
+            let clip = (
+                0,
+                0,
+                s.u(dest_stride),
+                dest.len() / (s.u(dest_stride).max(1) * 4),
+            );
+            Self::raster_blit(
+                dest,
+                s.u(dest_stride),
+                source,
+                (rect.2, rect.3),
+                (r.0 as isize, r.1 as isize, r.2, r.3),
+                clip,
+                0,
+                1.0,
+                true,
+            );
+            return;
+        }
+
         let Some(dest_row_bytes) = dest_stride.checked_mul(4) else {
             return;
         };
@@ -1177,14 +1522,41 @@ impl TheDraw2D {
     }
 
     /// Blends rect from the source frame into the dest frame
-    pub fn blend_slice_alpha(
+    pub fn blend_slice_alpha<'a>(
         &self,
-        dest: &mut [u8],
+        dest: impl Into<TheRasterTarget<'a>>,
         source: &[u8],
         rect: &(usize, usize, usize, usize),
         dest_stride: usize,
         alpha: f32,
     ) {
+        let TheRasterTarget {
+            pixels: dest,
+            scale,
+        } = dest.into();
+        let s = RasterScale(scale);
+        if scale != 1.0 {
+            let r = s.rect(rect);
+            let clip = (
+                0,
+                0,
+                s.u(dest_stride),
+                dest.len() / (s.u(dest_stride).max(1) * 4),
+            );
+            Self::raster_blit(
+                dest,
+                s.u(dest_stride),
+                source,
+                (rect.2, rect.3),
+                (r.0 as isize, r.1 as isize, r.2, r.3),
+                clip,
+                0,
+                alpha,
+                true,
+            );
+            return;
+        }
+
         for y in 0..rect.3 {
             let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
             let s = y * rect.2 * 4;
@@ -1205,13 +1577,44 @@ impl TheDraw2D {
     }
 
     /// Blends rect from the source frame into the dest frame
-    pub fn blend_slice_f32(
+    pub fn blend_slice_f32<'a>(
         &self,
-        dest: &mut [u8],
+        dest: impl Into<TheRasterTarget<'a>>,
         source: &[f32],
         rect: &(usize, usize, usize, usize),
         dest_stride: usize,
     ) {
+        let TheRasterTarget {
+            pixels: dest,
+            scale,
+        } = dest.into();
+        let s = RasterScale(scale);
+        if scale != 1.0 {
+            let r = s.rect(rect);
+            let clip = (
+                0,
+                0,
+                s.u(dest_stride),
+                dest.len() / (s.u(dest_stride).max(1) * 4),
+            );
+            let rgba: Vec<u8> = source
+                .iter()
+                .map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8)
+                .collect();
+            Self::raster_blit(
+                dest,
+                s.u(dest_stride),
+                &rgba,
+                (rect.2, rect.3),
+                (r.0 as isize, r.1 as isize, r.2, r.3),
+                clip,
+                0,
+                1.0,
+                true,
+            );
+            return;
+        }
+
         for y in 0..rect.3 {
             let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
             let s = y * rect.2 * 4;
@@ -1237,14 +1640,41 @@ impl TheDraw2D {
     }
 
     /// Blends rect from the source frame into the dest frame with a vertical source offset (used by scrolling containers)
-    pub fn blend_slice_offset(
+    pub fn blend_slice_offset<'a>(
         &self,
-        dest: &mut [u8],
+        dest: impl Into<TheRasterTarget<'a>>,
         source: &[u8],
         rect: &(usize, usize, usize, usize),
         offset: usize,
         dest_stride: usize,
     ) {
+        let TheRasterTarget {
+            pixels: dest,
+            scale,
+        } = dest.into();
+        let s = RasterScale(scale);
+        if scale != 1.0 {
+            let r = s.rect(rect);
+            let clip = (
+                0,
+                0,
+                s.u(dest_stride),
+                dest.len() / (s.u(dest_stride).max(1) * 4),
+            );
+            Self::raster_blit(
+                dest,
+                s.u(dest_stride),
+                source,
+                (rect.2, rect.3),
+                (r.0 as isize, r.1 as isize, r.2, r.3),
+                clip,
+                offset,
+                1.0,
+                true,
+            );
+            return;
+        }
+
         for y in 0..rect.3 {
             let d = rect.0 * 4 + (y + rect.1) * dest_stride * 4;
             let s = (y + offset) * rect.2 * 4;
@@ -1265,14 +1695,36 @@ impl TheDraw2D {
     }
 
     /// Blends rect from the source frame into the dest frame and honors the safe rect
-    pub fn blend_slice_safe(
+    pub fn blend_slice_safe<'a>(
         &self,
-        dest: &mut [u8],
+        dest: impl Into<TheRasterTarget<'a>>,
         source: &[u8],
         rect: &(isize, isize, usize, usize),
         dest_stride: usize,
         safe_rect: &(usize, usize, usize, usize),
     ) {
+        let TheRasterTarget {
+            pixels: dest,
+            scale,
+        } = dest.into();
+        let s = RasterScale(scale);
+        if scale != 1.0 {
+            let r = s.signed_rect(rect);
+            let clip = s.rect(safe_rect);
+            Self::raster_blit(
+                dest,
+                s.u(dest_stride),
+                source,
+                (rect.2, rect.3),
+                (r.0 as isize, r.1 as isize, r.2, r.3),
+                clip,
+                0,
+                1.0,
+                true,
+            );
+            return;
+        }
+
         let dest_stride_isize = dest_stride as isize;
         for y in 0..rect.3 as isize {
             let d = rect.0 * 4 + (y + rect.1) * dest_stride_isize * 4;
@@ -1304,15 +1756,23 @@ impl TheDraw2D {
     }
 
     /// Scale a chunk to the destination size
-    pub fn scale_chunk(
+    pub fn scale_chunk<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         source_frame: &[u8],
         source_size: &(usize, usize),
         blend_factor: f32,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let stride = s.u(stride);
+
         let x_ratio = source_size.0 as f32 / rect.2 as f32;
         let y_ratio = source_size.1 as f32 / rect.3 as f32;
 
@@ -1336,14 +1796,22 @@ impl TheDraw2D {
     }
 
     /// Scale a chunk to the destination size
-    pub fn blend_scale_chunk(
+    pub fn blend_scale_chunk<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         source_frame: &[u8],
         source_size: &(usize, usize),
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let stride = s.u(stride);
+
         let x_ratio = source_size.0 as f32 / rect.2 as f32;
         let y_ratio = source_size.1 as f32 / rect.3 as f32;
 
@@ -1373,15 +1841,23 @@ impl TheDraw2D {
     }
 
     /// Scale a chunk to the destination size with a global alpha
-    pub fn blend_scale_chunk_alpha(
+    pub fn blend_scale_chunk_alpha<'a>(
         &self,
-        frame: &mut [u8],
+        frame: impl Into<TheRasterTarget<'a>>,
         rect: &(usize, usize, usize, usize),
         stride: usize,
         source_frame: &[u8],
         source_size: &(usize, usize),
         alpha: f32,
     ) {
+        let TheRasterTarget {
+            pixels: frame,
+            scale,
+        } = frame.into();
+        let s = RasterScale(scale);
+        let rect = &s.rect(rect);
+        let stride = s.u(stride);
+
         let x_ratio = source_size.0 as f32 / rect.2 as f32;
         let y_ratio = source_size.1 as f32 / rect.3 as f32;
 
@@ -1411,14 +1887,22 @@ impl TheDraw2D {
     }
 
     /// Scale a chunk to the destination size with linear interpolation and blend onto destination
-    pub fn blend_scale_chunk_linear(
+    pub fn blend_scale_chunk_linear<'a>(
         &self,
-        dest: &mut [u8],
+        dest: impl Into<TheRasterTarget<'a>>,
         dest_rect: &(usize, usize, usize, usize),
         dest_stride: usize,
         source: &[u8],
         source_size: &(usize, usize),
     ) {
+        let TheRasterTarget {
+            pixels: dest,
+            scale,
+        } = dest.into();
+        let s = RasterScale(scale);
+        let dest_rect = &s.rect(dest_rect);
+        let dest_stride = s.u(dest_stride);
+
         let x_ratio = (source_size.0 - 1) as f32 / dest_rect.2 as f32;
         let y_ratio = (source_size.1 - 1) as f32 / dest_rect.3 as f32;
 

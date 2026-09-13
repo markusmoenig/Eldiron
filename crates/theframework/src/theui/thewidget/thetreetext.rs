@@ -251,7 +251,7 @@ impl TheWidget for TheTreeText {
             && adjusted_utuple.1 + adjusted_utuple.3 <= buffer_height
         {
             ctx.draw.rect_outline_border_open(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &adjusted_utuple,
                 stride,
                 &hover_color,
@@ -275,7 +275,7 @@ impl TheWidget for TheTreeText {
             && adjusted_utuple.1 + adjusted_utuple.3 <= buffer_height
         {
             ctx.draw
-                .rect(buffer.pixels_mut(), &adjusted_utuple, stride, &hover_color);
+                .rect(buffer.draw_target(), &adjusted_utuple, stride, &hover_color);
         }
 
         // Draw text lines
@@ -311,7 +311,7 @@ impl TheWidget for TheTreeText {
                 && text_rect.1 + text_rect.3 <= buffer_height
             {
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &text_rect,
                     stride,
                     line,

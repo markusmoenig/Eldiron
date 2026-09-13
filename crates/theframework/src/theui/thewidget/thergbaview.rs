@@ -659,7 +659,7 @@ impl TheWidget for TheRGBAView {
 
         if !self.buffer.is_valid() {
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_utuple(),
                 stride,
                 &self.background,
@@ -692,18 +692,23 @@ impl TheWidget for TheRGBAView {
             -self.scroll_offset.y as f32
         };
 
-        // Loop over every pixel in the target buffer
-        for target_y in 0..self.dim.height {
-            for target_x in 0..self.dim.width {
+        let density = target.render_scale();
+        let native_stride = target.pixel_width();
+        let native_height = target.pixel_height();
+        let native_x = (self.dim.buffer_x as f32 * density).round() as i32;
+        let native_y = (self.dim.buffer_y as f32 * density).round() as i32;
+        let native_right = ((self.dim.buffer_x + self.dim.width) as f32 * density).round() as i32;
+        let native_bottom = ((self.dim.buffer_y + self.dim.height) as f32 * density).round() as i32;
+        for py in native_y.max(0)..native_bottom.min(native_height as i32) {
+            for px in native_x.max(0)..native_right.min(native_stride as i32) {
+                let target_x = (px - native_x) as f32 / density;
+                let target_y = (py - native_y) as f32 / density;
                 // Calculate the corresponding source coordinates with the offset
                 let src_x = (target_x as f32 - offset_x) / self.zoom;
                 let src_y = (target_y as f32 - offset_y) / self.zoom;
 
                 // Calculate the index for the destination pixel
-                let target_index = ((self.dim.buffer_y + target_y) * target.dim().width
-                    + target_x
-                    + self.dim.buffer_x) as usize
-                    * 4;
+                let target_index = (py as usize * native_stride + px as usize) * 4;
 
                 if target_index + 4 > target_len {
                     continue;
@@ -987,7 +992,7 @@ impl TheWidget for TheRGBAView {
         if Some(self.id.clone()) == ctx.ui.focus {
             let tuple = self.dim().to_buffer_utuple();
             ctx.draw.rect_outline(
-                target.pixels_mut(),
+                target.draw_target(),
                 &tuple,
                 stride,
                 style.theme().color(DefaultSelection),

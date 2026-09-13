@@ -330,7 +330,7 @@ impl TheWidget for TheSlider {
         .intersection(ThePixelRect::new(0, 0, width, height));
         if !text_bounds.is_empty() {
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(
                     text_bounds.x as usize,
                     text_bounds.y as usize,

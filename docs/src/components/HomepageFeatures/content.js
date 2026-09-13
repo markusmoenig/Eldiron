@@ -41,16 +41,6 @@ export const homepageContent = {
       type: "announcement",
     },
     {
-      key: "artists-call",
-      eyebrow: "Artists wanted",
-      title: "Help shape the look of Eldiron",
-      description:
-        "Showing Eldiron at its best is becoming increasingly difficult without more high-quality artwork. I'm especially looking for artists who can contribute 2D artwork for sample projects and rulesets, as well as 3D artists interested in offering design guidance or creating models directly within Eldiron. If you would like to help, please get in touch on Discord. Contributors will receive visible credit here on the website.",
-      href: "https://discord.gg/ZrNj6baSZU",
-      linkLabel: "Get in touch on Discord",
-      type: "announcement",
-    },
-    {
       key: "news",
       eyebrow: "News",
       title: "What changed recently",
@@ -58,6 +48,15 @@ export const homepageContent = {
         "Follow the latest Eldiron releases, workflow improvements, and documentation updates as the project moves toward v1.",
       type: "news",
       items: [
+        {
+          date: "Sep 13, 2026",
+          title: "Eldiron v0.94 Feature Overview",
+          href: "https://youtu.be/jrbZ6ErD93c",
+          thumbnail: {
+            image: "https://i.ytimg.com/vi/jrbZ6ErD93c/maxresdefault.jpg",
+            alt: "Eldiron v0.94 feature overview video thumbnail",
+          },
+        },
         {
           date: "Sep 7, 2026",
           title: "Eldiron v0.94.0",
@@ -73,15 +72,6 @@ export const homepageContent = {
             "Build with selectable ruleset packages and procedural recipes, use Actions and Words of Power, and explore Stonefall as a Dungeon Master-style Source project.",
           href: "/blog/2026/08/15/eldiron-v0.93.0",
           linkLabel: "Read more",
-        },
-        {
-          date: "Jul 16, 2026",
-          title: "3D Painting Video",
-          href: "https://www.youtube.com/watch?v=6xSJTX0ES54",
-          thumbnail: {
-            image: "https://i.ytimg.com/vi/6xSJTX0ES54/maxresdefault.jpg",
-            alt: "Eldiron v0.92.0 3D Painting video thumbnail",
-          },
         },
       ],
     },

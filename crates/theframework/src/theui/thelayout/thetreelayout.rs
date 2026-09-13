@@ -715,12 +715,13 @@ impl TheLayout for TheTreeLayout {
         //     // );
         // }
 
+        self.content_buffer.set_render_scale(ctx.ui_render_scale);
         let stride = self.content_buffer.stride();
         let utuple: (usize, usize, usize, usize) = self.content_buffer.dim().to_buffer_utuple();
 
         // Clear entire content buffer with transparency first
         ctx.draw.rect(
-            self.content_buffer.pixels_mut(),
+            self.content_buffer.draw_target(),
             &utuple,
             stride,
             &[0, 0, 0, 0], // Transparent
@@ -728,7 +729,7 @@ impl TheLayout for TheTreeLayout {
 
         if let Some(background) = self.background {
             ctx.draw.rect(
-                self.content_buffer.pixels_mut(),
+                self.content_buffer.draw_target(),
                 &utuple,
                 stride,
                 style.theme().color(background),
@@ -772,7 +773,7 @@ impl TheLayout for TheTreeLayout {
         if self.background.is_some() {
             let stride: usize = buffer.stride();
             ctx.draw.rect_outline(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_utuple(),
                 stride,
                 style.theme().color(TextLayoutBorder),

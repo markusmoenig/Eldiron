@@ -212,7 +212,7 @@ impl TheWidget for ThePalettePicker {
         }
 
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBackground),
@@ -284,7 +284,7 @@ impl TheWidget for ThePalettePicker {
                             style.theme().color(ListItemHover)
                         };
                         ctx.draw
-                            .rect_outline(buffer.pixels_mut(), &outer_rect, stride, border);
+                            .rect_outline(buffer.draw_target(), &outer_rect, stride, border);
                     }
                 }
 
@@ -296,7 +296,7 @@ impl TheWidget for ThePalettePicker {
                     && inner_border_rect.1 + inner_border_rect.3 <= utuple.1 + utuple.3
                 {
                     ctx.draw.rect_outline(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &inner_border_rect,
                         stride,
                         style.theme().color(ListItemIconBorder),
@@ -312,7 +312,7 @@ impl TheWidget for ThePalettePicker {
                         && fill_rect.1 + fill_rect.3 <= utuple.1 + utuple.3
                     {
                         ctx.draw.rect(
-                            buffer.pixels_mut(),
+                            buffer.draw_target(),
                             &fill_rect,
                             stride,
                             &color.to_u8_array(),
@@ -326,7 +326,7 @@ impl TheWidget for ThePalettePicker {
                     && fill_rect.1 + fill_rect.3 <= utuple.1 + utuple.3
                 {
                     ctx.draw.rect(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &fill_rect,
                         stride,
                         style.theme().color(DefaultWidgetDarkBackground),

@@ -460,7 +460,7 @@ impl TheWidget for TheTreeItem {
             && adjusted_utuple.1 + adjusted_utuple.3 <= buffer_height
         {
             ctx.draw.rect_outline_border_open(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &adjusted_utuple,
                 stride,
                 &color,
@@ -484,7 +484,7 @@ impl TheWidget for TheTreeItem {
             && adjusted_utuple.1 + adjusted_utuple.3 <= buffer_height
         {
             ctx.draw
-                .rect(buffer.pixels_mut(), &adjusted_utuple, stride, &color);
+                .rect(buffer.draw_target(), &adjusted_utuple, stride, &color);
         }
 
         if let Some(icon) = &self.icon {
@@ -505,7 +505,7 @@ impl TheWidget for TheTreeItem {
                 && icon_rect.1 + icon_rect.3 <= buffer_height
             {
                 ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &icon_rect,
                     stride,
                     style.theme().color(ListItemIconBorder),
@@ -530,7 +530,7 @@ impl TheWidget for TheTreeItem {
                     icon.clone()
                 };
                 ctx.draw.copy_slice(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     scaled_icon.pixels(),
                     &icon_copy_rect,
                     stride,
@@ -552,7 +552,7 @@ impl TheWidget for TheTreeItem {
                 && text_rect.1 + text_rect.3 <= buffer_height
             {
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &text_rect,
                     stride,
                     &self.text,
@@ -578,7 +578,7 @@ impl TheWidget for TheTreeItem {
                     && sub_text_rect.1 + sub_text_rect.3 <= buffer_height
                 {
                     ctx.draw.text_rect_blend(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &sub_text_rect,
                         stride,
                         &self.sub_text,
@@ -621,7 +621,7 @@ impl TheWidget for TheTreeItem {
                 && text_rect.1 + text_rect.3 <= buffer_height
             {
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &text_rect,
                     stride,
                     &self.text,
@@ -639,7 +639,7 @@ impl TheWidget for TheTreeItem {
 
             if let Some((_width, widget)) = &mut self.widget_column {
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(rect.0, rect.1 - 1, 1, rect.3 + 2),
                     stride,
                     style.theme().color(ListLayoutBackground),
@@ -655,7 +655,7 @@ impl TheWidget for TheTreeItem {
 
             for (width, value) in self.values.iter() {
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(rect.0, rect.1 - 1, 1, rect.3 + 2),
                     stride,
                     style.theme().color(ListLayoutBackground),
@@ -680,7 +680,7 @@ impl TheWidget for TheTreeItem {
                             && value_rect.1 + value_rect.3 <= buffer_height
                         {
                             ctx.draw.text_rect_blend(
-                                buffer.pixels_mut(),
+                                buffer.draw_target(),
                                 &value_rect,
                                 stride,
                                 text,
@@ -711,7 +711,7 @@ impl TheWidget for TheTreeItem {
                             && value_rect.1 + value_rect.3 <= buffer_height
                         {
                             ctx.draw.text_rect_blend(
-                                buffer.pixels_mut(),
+                                buffer.draw_target(),
                                 &value_rect,
                                 stride,
                                 &value.describe(),

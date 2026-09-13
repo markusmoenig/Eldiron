@@ -995,7 +995,7 @@ impl TheWidget for TheTextLineEdit {
                 let pos = value.clamp(0, rect.2);
                 let stride = buffer.stride();
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(rect.0, rect.1, pos, rect.3),
                     stride,
                     style.theme().color(TextEditRange),
@@ -1029,7 +1029,7 @@ impl TheWidget for TheTextLineEdit {
 
                 if let Some(Some(color)) = palette.colors.get(value as usize) {
                     ctx.draw
-                        .rect(buffer.pixels_mut(), &utuple, stride, &color.to_u8_array());
+                        .rect(buffer.draw_target(), &utuple, stride, &color.to_u8_array());
                 }
             }
         }
@@ -1040,7 +1040,7 @@ impl TheWidget for TheTextLineEdit {
             let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_shrunk_utuple(&shrinker);
 
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &utuple,
                 stride,
                 info_text,

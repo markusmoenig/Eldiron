@@ -79,7 +79,7 @@ export default function Home() {
             Adventurer:
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            Fnurrpants, Charleston Marks, Elias, Thomas Osborne
+            Fnurrpants, Charleston Marks, Elias, Thomas Osborne, Tucker Schepler
           </div>
 
           <div

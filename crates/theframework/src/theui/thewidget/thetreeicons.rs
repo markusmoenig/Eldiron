@@ -291,7 +291,7 @@ impl TheWidget for TheTreeIcons {
             && adjusted_utuple.1 + adjusted_utuple.3 <= buffer_height
         {
             ctx.draw.rect_outline_border_open(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &adjusted_utuple,
                 stride,
                 &color,
@@ -315,7 +315,7 @@ impl TheWidget for TheTreeIcons {
             && adjusted_utuple.1 + adjusted_utuple.3 <= buffer_height
         {
             ctx.draw
-                .rect(buffer.pixels_mut(), &adjusted_utuple, stride, &color);
+                .rect(buffer.draw_target(), &adjusted_utuple, stride, &color);
         }
 
         // Draw icons in a grid
@@ -352,17 +352,17 @@ impl TheWidget for TheTreeIcons {
                 // Draw selection/hover highlight
                 if Some(index) == self.selected_index {
                     ctx.draw
-                        .rect_outline(buffer.pixels_mut(), &icon_rect, stride, &WHITE);
+                        .rect_outline(buffer.draw_target(), &icon_rect, stride, &WHITE);
                 } else if Some(index) == self.hovered_index {
                     let mut hover_color = *style.theme().color(ListItemHover);
                     hover_color[3] = 128; // Semi-transparent
                     ctx.draw
-                        .rect_outline(buffer.pixels_mut(), &icon_rect, stride, &hover_color);
+                        .rect_outline(buffer.draw_target(), &icon_rect, stride, &hover_color);
                 }
 
                 // Draw icon border
                 ctx.draw.rect_outline(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(
                         icon_rect.0 + 1,
                         icon_rect.1 + 1,
@@ -386,7 +386,7 @@ impl TheWidget for TheTreeIcons {
                             (self.icon_size - 4) as usize,
                         );
                         ctx.draw.blend_slice(
-                            buffer.pixels_mut(),
+                            buffer.draw_target(),
                             icon.pixels(),
                             &content_rect,
                             stride,
@@ -409,7 +409,7 @@ impl TheWidget for TheTreeIcons {
                         );
 
                         ctx.draw.text_rect_blend(
-                            buffer.pixels_mut(),
+                            buffer.draw_target(),
                             &text_rect,
                             stride,
                             text,

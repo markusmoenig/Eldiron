@@ -189,18 +189,19 @@ impl TheLayout for TheRowListLayout {
             return;
         }
 
+        self.list_buffer.set_render_scale(ctx.ui_render_scale);
         let stride = self.list_buffer.stride();
         let utuple: (usize, usize, usize, usize) = self.list_buffer.dim().to_buffer_utuple();
 
         ctx.draw.rect(
-            self.list_buffer.pixels_mut(),
+            self.list_buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBackground),
         );
 
         ctx.draw.rect_outline(
-            self.list_buffer.pixels_mut(),
+            self.list_buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(ListLayoutBorder),

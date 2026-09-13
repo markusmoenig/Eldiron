@@ -151,7 +151,7 @@ impl TheWidget for TheToolListButton {
         );
         let width = buffer.dim().width.max(0) as usize;
         let height = buffer.dim().height.max(0) as usize;
-        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.draw_target(), width, height) {
             surface.set_clip(rect);
             ctx.painter
                 .fill_round_rect(&mut surface, rect, radius, &ThePaint::solid(border));
@@ -172,7 +172,7 @@ impl TheWidget for TheToolListButton {
                     && icon_y + icon_height <= height as i32
                 {
                     ctx.draw.blend_slice(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         icon.pixels(),
                         &(
                             icon_x as usize,

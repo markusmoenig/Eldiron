@@ -44,7 +44,7 @@ impl TheStyle for TheClassicStyle {
         };
 
         ctx.draw.rect_outline(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &widget.dim().to_buffer_shrunk_utuple(shrinker),
             stride,
             border_color,
@@ -175,7 +175,7 @@ fn paint_round_rect(
 ) {
     let width = buffer.dim().width.max(0) as usize;
     let height = buffer.dim().height.max(0) as usize;
-    if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+    if let Ok(mut surface) = TheSurfaceMut::new(buffer.draw_target(), width, height) {
         surface.set_clip(rect);
         ctx.painter
             .fill_round_rect(&mut surface, rect, radius, paint);

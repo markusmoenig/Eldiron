@@ -75,21 +75,21 @@ impl TheWidget for TheTraybar {
         let utuple = &self.dim.to_buffer_utuple();
 
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             utuple,
             stride,
             style.theme().color(TraybarBorder),
         );
 
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(utuple.0 + 1, utuple.1 + 1, utuple.2 - 1, utuple.3 - 1),
             stride,
             style.theme().color(TraybarBackground),
         );
 
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(utuple.0 + 1, utuple.1 + utuple.3 - 1, utuple.2 - 1, 1),
             stride,
             style.theme().color(TraybarBottomBorder),

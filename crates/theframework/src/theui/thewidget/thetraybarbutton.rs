@@ -282,10 +282,10 @@ impl TheWidget for TheTraybarButton {
             let r = (x as usize, y as usize, target_size.0, target_size.1);
             if target_size == source_size {
                 ctx.draw
-                    .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
+                    .blend_slice(buffer.draw_target(), icon.pixels(), &r, stride);
             } else {
                 ctx.draw.blend_scale_chunk(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &r,
                     stride,
                     icon.pixels(),
@@ -301,7 +301,7 @@ impl TheWidget for TheTraybarButton {
                 &WHITE
             };
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_shrunk_utuple(&shrinker),
                 stride,
                 &self.text,

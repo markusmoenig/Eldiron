@@ -1490,7 +1490,7 @@ impl TheTextRenderer {
             };
             let width = buffer.dim().width.max(0) as usize;
             let height = buffer.dim().height.max(0) as usize;
-            if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            if let Ok(mut surface) = TheSurfaceMut::new(buffer.draw_target(), width, height) {
                 surface.set_clip(rect);
                 ctx.painter
                     .fill_round_rect(&mut surface, rect, radius, &paint);
@@ -1856,7 +1856,7 @@ impl TheTextRenderer {
             .map(|color| color.to_u8_array())
             .unwrap_or(*style.theme().color(TextEditCursorColor));
         draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(left, top, self.cursor_width, bottom - top),
             stride,
             color,
@@ -1909,7 +1909,7 @@ impl TheTextRenderer {
 
             let stride = buffer.stride();
             draw.wavy_line(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 left,
                 base,
                 length,
@@ -2023,13 +2023,13 @@ impl TheTextRenderer {
             if bottom > top {
                 let stride = buffer.stride();
                 draw.blend_rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(self.left, top, self.width, bottom - top),
                     stride,
                     &color,
                 );
                 draw.blend_rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(self.left, top, 3.min(self.width), bottom - top),
                     stride,
                     &rail_color,
@@ -2186,7 +2186,7 @@ impl TheTextRenderer {
                                 };
 
                                 draw.text_rect_blend_clip(
-                                    buffer.pixels_mut(),
+                                    buffer.draw_target(),
                                     &Vec2::new(left, top - 1),
                                     &(self.left, self.top, self.width, self.height),
                                     stride,
@@ -2234,7 +2234,7 @@ impl TheTextRenderer {
                         };
 
                         draw.text_rect_blend_clip(
-                            buffer.pixels_mut(),
+                            buffer.draw_target(),
                             &Vec2::new(left, top - 1),
                             &(self.left, self.top, self.width, self.height),
                             stride,
@@ -2252,7 +2252,7 @@ impl TheTextRenderer {
                     let left = left + self.get_text_left(token_bg_start).to_i32().unwrap();
 
                     draw.text_rect_blend_clip(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &Vec2::new(left, top - 1),
                         &(self.left, self.top, self.width, self.height),
                         stride,
@@ -2314,7 +2314,7 @@ impl TheTextRenderer {
                 if let Some(color) = &text_style.foreground {
                     let left = left + self.get_text_left(token_start).to_i32().unwrap() + 0;
                     draw.text_rect_blend_clip(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &Vec2::new(left, top - 1),
                         &(self.left, self.top, self.width, self.height),
                         stride,
@@ -2344,7 +2344,7 @@ impl TheTextRenderer {
                     let right = (left + width).min(self.left + self.width);
                     if top < self.top + self.height && right > left {
                         draw.blend_rect(
-                            buffer.pixels_mut(),
+                            buffer.draw_target(),
                             &(left, top, right - left, 1),
                             stride,
                             &color.to_u8_array(),
@@ -2368,7 +2368,7 @@ impl TheTextRenderer {
             for (start, end) in text_ranges_to_render {
                 let left = left + self.get_text_left(start).to_i32().unwrap();
                 draw.text_rect_blend_clip(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &Vec2::new(left, top - 1),
                     &(self.left, self.top, self.width, self.height),
                     stride,
@@ -2426,14 +2426,14 @@ impl TheTextRenderer {
                 let badge_bottom = (badge_y + badge_height).min(self.top + self.height);
                 if badge_bottom > badge_y {
                     draw.rounded_rect(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &(badge_x, badge_y, badge_width, badge_bottom - badge_y),
                         stride,
                         &[34, 38, 43, 224],
                         &(5.0, 5.0, 5.0, 5.0),
                     );
                     draw.text_rect_blend_clip(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &Vec2::new(badge_x as i32 + 7, badge_y as i32),
                         &(self.left, self.top, self.width, self.height),
                         stride,
@@ -2530,7 +2530,7 @@ impl TheTextRenderer {
         if right > left && bottom > top {
             let stride = buffer.stride();
             draw.blend_rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(left, top, right - left, bottom - top),
                 stride,
                 color,

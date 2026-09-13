@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
-fn draw_snapper_chrome(
-    pixels: &mut [u8],
+fn draw_snapper_chrome<'a>(
+    pixels: impl Into<TheRasterTarget<'a>>,
     width: usize,
     height: usize,
     bounds: ThePixelRect,
@@ -247,7 +247,7 @@ impl TheWidget for TheSnapperbar {
         let width = buffer.dim().width.max(0) as usize;
         let height = buffer.dim().height.max(0) as usize;
         draw_snapper_chrome(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             width,
             height,
             bounds,
@@ -275,7 +275,7 @@ impl TheWidget for TheSnapperbar {
         .intersection(ThePixelRect::new(0, 0, width as i32, height as i32));
         if !text_rect.is_empty() {
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(
                     text_rect.x as usize,
                     text_rect.y as usize,

@@ -195,7 +195,7 @@ impl TheWidget for TheTabbar {
         let buffer_bounds = ThePixelRect::new(0, 0, width as i32, height as i32);
         let mut tab_rects = Vec::with_capacity(self.tabs.len());
 
-        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.draw_target(), width, height) {
             surface.set_clip(bar_rect);
             ctx.painter.fill_rect(&mut surface, bar_rect, &bar_paint);
 
@@ -244,7 +244,7 @@ impl TheWidget for TheTabbar {
                 clipped.height as usize,
             );
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &text_rect,
                 stride,
                 text,

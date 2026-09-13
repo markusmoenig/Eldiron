@@ -259,7 +259,7 @@ impl TheWidget for TheDropdownMenu {
 
         if !self.options.is_empty() {
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_shrunk_utuple(&shrinker),
                 stride,
                 self.options[self.selected as usize].as_str(),
@@ -311,15 +311,16 @@ impl TheWidget for TheDropdownMenu {
         self.overlay_offset = Vec2::new(dim.x, dim.y);
 
         let mut buffer = TheRGBABuffer::new(dim);
+        buffer.set_render_scale(ctx.ui_render_scale);
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(0, 0, width, height),
             width,
             style.theme().color(MenubarPopupBackground),
         );
 
         ctx.draw.rect_outline(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(0, 0, width, height),
             width,
             style.theme().color(MenubarPopupBorder),
@@ -331,7 +332,7 @@ impl TheWidget for TheDropdownMenu {
         for i in 0..len {
             if i == self.selected as usize {
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(x, y, width, 21),
                     width,
                     style.theme().color(DefaultSelection),
@@ -339,7 +340,7 @@ impl TheWidget for TheDropdownMenu {
             }
 
             ctx.draw.rect_outline(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(x, y, width, 21),
                 width,
                 style.theme().color(MenubarPopupBorder),
@@ -347,7 +348,7 @@ impl TheWidget for TheDropdownMenu {
 
             if !self.options.is_empty() {
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(x + 8, y, width - 8, 21),
                     width,
                     self.options[i].as_str(),

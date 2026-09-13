@@ -110,13 +110,13 @@ impl TheWidget for TheIconView {
         let utuple = self.dim.to_buffer_utuple();
 
         if let Some(color) = self.background_color {
-            ctx.draw.rect(buffer.pixels_mut(), &utuple, stride, &color);
+            ctx.draw.rect(buffer.draw_target(), &utuple, stride, &color);
         }
 
         if !self.tile.buffer.is_empty() {
             if self.alpha_mode {
                 ctx.draw.blend_scale_chunk(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(
                         utuple.0,
                         utuple.1,
@@ -132,7 +132,7 @@ impl TheWidget for TheIconView {
                 );
             } else {
                 ctx.draw.scale_chunk(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(
                         utuple.0,
                         utuple.1,
@@ -152,7 +152,7 @@ impl TheWidget for TheIconView {
 
         if let Some(text) = &self.text {
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &utuple,
                 stride,
                 text,
@@ -168,7 +168,7 @@ impl TheWidget for TheIconView {
 
         if let Some(color) = self.border_color {
             ctx.draw
-                .rect_outline_border(buffer.pixels_mut(), &utuple, stride, &color, 1);
+                .rect_outline_border(buffer.draw_target(), &utuple, stride, &color, 1);
         }
 
         self.is_dirty = false;

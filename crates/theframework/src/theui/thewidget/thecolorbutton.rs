@@ -149,7 +149,7 @@ impl TheWidget for TheColorButton {
 
         if self.state == TheWidgetState::None {
             ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_shrunk_utuple(&shrinker),
                 stride,
                 &[80, 80, 80, 255],
@@ -157,7 +157,7 @@ impl TheWidget for TheColorButton {
             );
         } else {
             ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_shrunk_utuple(&shrinker),
                 stride,
                 &BLACK,
@@ -167,7 +167,7 @@ impl TheWidget for TheColorButton {
 
         shrinker.shrink(1);
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &self.dim.to_buffer_shrunk_utuple(&shrinker),
             stride,
             &self.color,

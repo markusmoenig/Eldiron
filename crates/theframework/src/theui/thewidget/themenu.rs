@@ -182,7 +182,7 @@ impl TheWidget for TheMenu {
 
         if self.opaque {
             let fill = style.theme().paint(MenuBackground, bounds);
-            if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+            if let Ok(mut surface) = TheSurfaceMut::new(buffer.draw_target(), width, height) {
                 surface.set_clip(bounds);
                 ctx.painter.fill_rect(&mut surface, bounds, &fill);
             }
@@ -210,7 +210,7 @@ impl TheWidget for TheMenu {
                     MenuItemHover
                 };
                 let fill = style.theme().paint(role, item_bounds);
-                if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+                if let Ok(mut surface) = TheSurfaceMut::new(buffer.draw_target(), width, height) {
                     surface.set_clip(bounds);
                     ctx.painter
                         .fill_round_rect(&mut surface, item_bounds, 2.0, &fill);
@@ -221,7 +221,7 @@ impl TheWidget for TheMenu {
                 text_bounds.intersection(ThePixelRect::new(0, 0, width as i32, height as i32));
             if !text_bounds.is_empty() {
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(
                         text_bounds.x as usize,
                         text_bounds.y as usize,

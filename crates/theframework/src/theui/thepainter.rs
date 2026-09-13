@@ -228,6 +228,10 @@ impl ThePainter {
         let Self { scratch, mask } = self;
         let mut rasterizer = Mask::with_scratch(path, scratch);
         rasterizer.style(style);
+        let scale = surface.scale();
+        if scale != 1.0 {
+            rasterizer.transform(Some(zeno::Transform::scale(scale, scale)));
+        }
         rasterizer.inspect(|format, width, height| {
             mask.resize(format.buffer_size(width, height), 0);
             mask.fill(0);
@@ -243,7 +247,7 @@ impl ThePainter {
                 }
                 let x = placement.left + mask_x as i32;
                 let y = placement.top + mask_y as i32;
-                let color = paint.sample(x as f32 + 0.5, y as f32 + 0.5);
+                let color = paint.sample((x as f32 + 0.5) / scale, (y as f32 + 0.5) / scale);
                 surface.blend_pixel_coverage(x, y, color, coverage);
             }
         }

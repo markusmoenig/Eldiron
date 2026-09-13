@@ -45,6 +45,12 @@ pub trait TheTrait {
     #[cfg(feature = "ui")]
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {}
 
+    /// Opt in to a physical-resolution UI framebuffer. Custom `draw` implementations
+    /// must use `ctx.framebuffer_width/height` when indexing this framebuffer.
+    fn native_ui_rendering(&self) -> bool {
+        false
+    }
+
     fn draw(&mut self, pixels: &mut [u8], ctx: &mut TheContext) {}
 
     fn update(&mut self, ctx: &mut TheContext) -> bool {

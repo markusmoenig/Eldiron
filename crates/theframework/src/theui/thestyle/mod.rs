@@ -81,7 +81,7 @@ pub trait TheStyle: Send {
         let stride = buffer.stride();
 
         ctx.draw.rounded_rect_with_border(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             &self.theme().color(DropItemBackground).clone(),
@@ -91,7 +91,7 @@ pub trait TheStyle: Send {
         );
 
         ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             &drop.title,

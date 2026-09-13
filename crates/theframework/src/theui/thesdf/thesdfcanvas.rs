@@ -46,7 +46,8 @@ impl TheSDFCanvas {
 
     /// Renders the sdfs into the given buffer.
     pub fn render(&self, buffer: &mut TheRGBABuffer) {
-        let width = buffer.dim().width as usize;
+        let density = buffer.render_scale();
+        let width = buffer.pixel_width();
         let height = buffer.dim().height;
 
         let pixels = buffer.pixels_mut();
@@ -58,8 +59,8 @@ impl TheSDFCanvas {
                 for (i, pixel) in line.chunks_exact_mut(4).enumerate() {
                     let i = j * width + i;
 
-                    let x = (i % width) as i32;
-                    let y = height - (i / width) as i32 - 1;
+                    let x = (i % width) as f32 / density;
+                    let y = height as f32 - (i / width) as f32 / density - 1.0;
 
                     let mut color = self.background.clone();
                     let mut distance = f32::MAX;

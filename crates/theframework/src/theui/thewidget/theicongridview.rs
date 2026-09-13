@@ -356,7 +356,7 @@ impl TheWidget for TheIconGridView {
         let bounds = self.dim.to_buffer_utuple();
         let stride = buffer.stride();
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &bounds,
             stride,
             style.theme().color(ListLayoutBackground),
@@ -402,6 +402,7 @@ impl TheWidget for TheIconGridView {
                 let local_rect = TheDim::new(x, y, metrics.cell_size, metrics.cell_size);
                 let mut cell =
                     TheRGBABuffer::new(TheDim::sized(metrics.cell_size, metrics.cell_size));
+                cell.set_render_scale(ctx.ui_render_scale);
                 let selected = self.selected == Some(index);
                 let hovered = self.hovered == Some(index);
                 let background = if selected {
@@ -446,7 +447,7 @@ impl TheWidget for TheIconGridView {
                     );
                     let cell_stride = cell.stride();
                     ctx.draw.blend_scale_chunk(
-                        cell.pixels_mut(),
+                        cell.draw_target(),
                         &target,
                         cell_stride,
                         icon.pixels(),
@@ -463,7 +464,7 @@ impl TheWidget for TheIconGridView {
                     );
                     let cell_stride = cell.stride();
                     ctx.draw.text_rect_blend(
-                        cell.pixels_mut(),
+                        cell.draw_target(),
                         &label_rect,
                         cell_stride,
                         &item.label,

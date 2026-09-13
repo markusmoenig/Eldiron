@@ -542,7 +542,7 @@ impl TheWidget for TheTextView {
         if let Some(color) = &self.background_override {
             let stride = buffer.stride();
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_utuple(),
                 stride,
                 &color.to_u8_array(),

@@ -13,13 +13,13 @@ impl TheTrait for Circle {
     /// Draw a circle in the middle of the window
     fn draw(&mut self, pixels: &mut [u8], ctx: &mut TheContext) {
         ctx.draw.rect(
-            pixels,
+            &mut *pixels,
             &(0, 0, ctx.width, ctx.height),
             ctx.width,
             &[0, 0, 0, 255],
         );
         ctx.draw.circle(
-            pixels,
+            &mut *pixels,
             &(ctx.width / 2 - 100, ctx.height / 2 - 100, 200, 200),
             ctx.width,
             &[255, 255, 255, 255],

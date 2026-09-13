@@ -499,6 +499,9 @@ impl TheCanvas {
 
     /// Draw the canvas
     pub fn draw(&mut self, style: &mut Box<dyn TheStyle>, ctx: &mut TheContext) {
+        if self.buffer.set_render_scale(ctx.ui_render_scale) {
+            ctx.ui.redraw_all = true;
+        }
         if let Some(left) = &mut self.left {
             left.draw(style, ctx);
             self.buffer

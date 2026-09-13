@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
-fn draw_submenu_marker(
-    pixels: &mut [u8],
+fn draw_submenu_marker<'a>(
+    pixels: impl Into<TheRasterTarget<'a>>,
     width: usize,
     height: usize,
     bounds: ThePixelRect,
@@ -278,11 +278,20 @@ impl TheContextMenu {
 
     /// Draw the menu
     pub fn draw(&mut self, pixels: &mut [u8], style: &mut Box<dyn TheStyle>, ctx: &mut TheContext) {
+        self.draw_target(pixels.into(), style, ctx);
+    }
+
+    pub fn draw_target(
+        &mut self,
+        mut pixels: TheRasterTarget<'_>,
+        style: &mut Box<dyn TheStyle>,
+        ctx: &mut TheContext,
+    ) {
         let mut tuple = self.dim.to_buffer_utuple();
         let mut shrinker = TheDimShrinker::zero();
 
         ctx.draw.rect_outline(
-            pixels,
+            pixels.reborrow(),
             &tuple,
             ctx.width,
             style.theme().color(ContextMenuBorder),
@@ -292,7 +301,7 @@ impl TheContextMenu {
         tuple = self.dim.to_buffer_shrunk_utuple(&shrinker);
 
         ctx.draw.rect(
-            pixels,
+            pixels.reborrow(),
             &tuple,
             ctx.width,
             style.theme().color(ContextMenuBackground),
@@ -322,7 +331,7 @@ impl TheContextMenu {
 
             if Some(item.id.clone()) == self.hovered && !item.name.is_empty() && !is_disabled {
                 ctx.draw.rect(
-                    pixels,
+                    pixels.reborrow(),
                     &rect,
                     ctx.width,
                     style.theme().color(ContextMenuHighlight),
@@ -332,14 +341,14 @@ impl TheContextMenu {
 
             if item.name.is_empty() {
                 ctx.draw.rect(
-                    pixels,
+                    pixels.reborrow(),
                     &(rect.0, rect.1 + rect.3 / 2, rect.2, 1),
                     ctx.width,
                     style.theme().color(ContextMenuSeparator),
                 );
             } else {
                 ctx.draw.text_rect_blend(
-                    pixels,
+                    pixels.reborrow(),
                     &(rect.0 + 16, rect.1, &rect.2 - 16, rect.3),
                     ctx.width,
                     &item.name,
@@ -355,7 +364,7 @@ impl TheContextMenu {
 
             if let Some(accel) = &item.accel {
                 ctx.draw.text_rect_blend(
-                    pixels,
+                    pixels.reborrow(),
                     &(rect.0, rect.1, &rect.2 - 6, rect.3),
                     ctx.width,
                     &accel.description(),
@@ -372,7 +381,7 @@ impl TheContextMenu {
                     if Some(item.id.clone()) == self.hovered {
                         sub_menu
                             .set_position(Vec2::new((rect.0 + rect.2) as i32, rect.1 as i32), ctx);
-                        sub_menu.draw(pixels, style, ctx);
+                        sub_menu.draw_target(pixels.reborrow(), style, ctx);
                         sub_menu.is_open = true;
                         sub_menu.cascading_y_offset = y as i32 - tuple.1 as i32;
                     } else {
@@ -399,7 +408,7 @@ impl TheContextMenu {
                 };
                 marker_color[3] = (marker_color[3] as f32 * alpha).round() as u8;
                 draw_submenu_marker(
-                    pixels,
+                    pixels.reborrow(),
                     ctx.width,
                     ctx.height,
                     ThePixelRect::new(rect.0 as i32, rect.1 as i32, rect.2 as i32, rect.3 as i32),

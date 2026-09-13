@@ -311,7 +311,7 @@ impl TheWidget for TheTimeSlider {
             .intersection(buffer_bounds);
             if !text_bounds.is_empty() {
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(
                         text_bounds.x as usize,
                         text_bounds.y as usize,
@@ -342,7 +342,7 @@ impl TheWidget for TheTimeSlider {
             .intersection(buffer_bounds);
             if !text_bounds.is_empty() {
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(
                         text_bounds.x as usize,
                         text_bounds.y as usize,

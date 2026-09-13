@@ -90,7 +90,7 @@ pub mod prelude {
     pub use crate::thergbabuffer::{
         TheRGBABuffer, TheRGBARegion, TheRGBARegionSequence, TheRGBATile,
     };
-    pub use crate::thesurface::{ThePixelRect, TheSurfaceError, TheSurfaceMut};
+    pub use crate::thesurface::{ThePixelRect, TheRasterTarget, TheSurfaceError, TheSurfaceMut};
 
     pub use rustc_hash::*;
     pub use uuid::Uuid;

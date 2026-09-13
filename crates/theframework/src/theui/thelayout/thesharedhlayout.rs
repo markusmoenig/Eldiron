@@ -208,7 +208,7 @@ impl TheLayout for TheSharedHLayout {
             let stride = buffer.stride();
 
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_utuple(),
                 stride,
                 style.theme().color(background),

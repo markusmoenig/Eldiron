@@ -43,6 +43,10 @@ pub struct TheContext {
     pub width: usize,
     pub height: usize,
     pub scale_factor: f32,
+    /// UI raster density; independent of display scale for legacy framebuffer clients.
+    pub ui_render_scale: f32,
+    pub framebuffer_width: usize,
+    pub framebuffer_height: usize,
 
     pub draw: TheDraw2D,
     #[cfg(feature = "ui")]
@@ -62,6 +66,9 @@ impl TheContext {
             width,
             height,
             scale_factor,
+            ui_render_scale: 1.0,
+            framebuffer_width: width,
+            framebuffer_height: height,
             draw: TheDraw2D::new(),
             #[cfg(feature = "ui")]
             painter: ThePainter::new(),

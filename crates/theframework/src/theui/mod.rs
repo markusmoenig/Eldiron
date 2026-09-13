@@ -661,11 +661,39 @@ impl TheUI {
             }
         }
         if let Some(menu) = &mut self.context_menu {
-            menu.draw(self.canvas.buffer.pixels_mut(), &mut self.style, ctx);
+            menu.draw_target(self.canvas.buffer.draw_target(), &mut self.style, ctx);
         }
         ctx.ui.redraw_all = false;
 
-        pixels.copy_from_slice(self.canvas.buffer().pixels());
+        // Fractional DPI can round the logical window to one physical pixel more
+        // or less than the OS surface. Crop/pad the edge, never stretch the text.
+        let source = self.canvas.buffer();
+        let sw = source.pixel_width();
+        let sh = source.pixel_height();
+        let dw = if ctx.ui_render_scale == 1.0 {
+            ctx.width
+        } else {
+            ctx.framebuffer_width
+        };
+        let dh = if ctx.ui_render_scale == 1.0 {
+            ctx.height
+        } else {
+            ctx.framebuffer_height
+        };
+        if pixels.len() == source.len() && sw == dw {
+            pixels.copy_from_slice(source.pixels());
+        } else if sw > 0 && sh > 0 && pixels.len() == dw * dh * 4 {
+            for y in 0..dh {
+                let sy = y.min(sh - 1);
+                let count = sw.min(dw);
+                let src = &source.pixels()[sy * sw * 4..(sy * sw + count) * 4];
+                pixels[y * dw * 4..(y * dw + count) * 4].copy_from_slice(src);
+                for x in count..dw {
+                    pixels[(y * dw + x) * 4..(y * dw + x + 1) * 4]
+                        .copy_from_slice(&src[src.len() - 4..]);
+                }
+            }
+        }
         self.is_dirty = false;
     }
 
@@ -770,15 +798,16 @@ impl TheUI {
         }
 
         let mut tooltip = TheRGBABuffer::new(TheDim::new(0, 0, dim.width, dim.height));
+        tooltip.set_render_scale(ctx.ui_render_scale);
         let stride = dim.width as usize;
         ctx.draw.rect(
-            tooltip.pixels_mut(),
+            tooltip.draw_target(),
             &(0, 0, dim.width as usize, dim.height as usize),
             stride,
             self.style.theme().color(ContextMenuBackground),
         );
         ctx.draw.rect_outline(
-            tooltip.pixels_mut(),
+            tooltip.draw_target(),
             &(0, 0, dim.width as usize, dim.height as usize),
             stride,
             self.style.theme().color(ContextMenuBorder),
@@ -786,7 +815,7 @@ impl TheUI {
         let text_color = *self.style.theme().color(ContextMenuTextNormal);
         for (line_index, line) in lines.iter().enumerate() {
             ctx.draw.text_rect_blend(
-                tooltip.pixels_mut(),
+                tooltip.draw_target(),
                 &(
                     9,
                     5 + line_index * 17,
@@ -2131,7 +2160,7 @@ impl TheUI {
             let width = self.canvas.buffer.dim().width.max(0) as usize;
             let height = self.canvas.buffer.dim().height.max(0) as usize;
             if let Ok(mut surface) =
-                TheSurfaceMut::new(self.canvas.buffer.pixels_mut(), width, height)
+                TheSurfaceMut::new(self.canvas.buffer.draw_target(), width, height)
             {
                 ctx.painter
                     .fill_round_rect(&mut surface, shadow, radius + 2.0, &shadow_paint);
@@ -2205,7 +2234,7 @@ impl TheUI {
             let width = self.canvas.buffer.dim().width.max(0) as usize;
             let height = self.canvas.buffer.dim().height.max(0) as usize;
             if let Ok(mut surface) =
-                TheSurfaceMut::new(self.canvas.buffer.pixels_mut(), width, height)
+                TheSurfaceMut::new(self.canvas.buffer.draw_target(), width, height)
             {
                 ctx.painter
                     .fill_round_rect(&mut surface, outer, radius, &frame_paint);
@@ -2221,7 +2250,7 @@ impl TheUI {
             }
 
             ctx.draw.text_rect_blend(
-                self.canvas.buffer.pixels_mut(),
+                self.canvas.buffer.draw_target(),
                 &(
                     header.x.max(0) as usize + 10,
                     header.y.max(0) as usize,

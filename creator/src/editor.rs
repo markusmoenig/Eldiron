@@ -7747,6 +7747,10 @@ impl Editor {
 }
 
 impl TheTrait for Editor {
+    fn native_ui_rendering(&self) -> bool {
+        true
+    }
+
     fn new() -> Self
     where
         Self: Sized,

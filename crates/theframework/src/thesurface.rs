@@ -1,6 +1,79 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 
+/// A drawing destination with a logical-to-physical transform. Raw slices retain
+/// their historical 1:1 behavior; UI buffers provide their own render scale.
+pub struct TheRasterTarget<'a> {
+    pub(crate) pixels: &'a mut [u8],
+    pub(crate) scale: f32,
+}
+
+impl TheRasterTarget<'_> {
+    pub fn reborrow(&mut self) -> TheRasterTarget<'_> {
+        TheRasterTarget {
+            pixels: &mut *self.pixels,
+            scale: self.scale,
+        }
+    }
+}
+
+impl<'a> From<&'a mut [u8]> for TheRasterTarget<'a> {
+    fn from(pixels: &'a mut [u8]) -> Self {
+        Self { pixels, scale: 1.0 }
+    }
+}
+impl<'a> From<&'a mut Vec<u8>> for TheRasterTarget<'a> {
+    fn from(pixels: &'a mut Vec<u8>) -> Self {
+        Self::from(pixels.as_mut_slice())
+    }
+}
+impl<'a, const N: usize> From<&'a mut [u8; N]> for TheRasterTarget<'a> {
+    fn from(pixels: &'a mut [u8; N]) -> Self {
+        Self::from(pixels.as_mut_slice())
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(crate) struct RasterScale(pub f32);
+impl RasterScale {
+    pub fn u(self, x: usize) -> usize {
+        (x as f64 * self.0 as f64).round() as usize
+    }
+    pub fn i(self, x: i32) -> i32 {
+        (x as f64 * self.0 as f64).round() as i32
+    }
+    pub fn rect(self, r: &(usize, usize, usize, usize)) -> (usize, usize, usize, usize) {
+        let x = self.u(r.0);
+        let y = self.u(r.1);
+        (
+            x,
+            y,
+            self.u(r.0.saturating_add(r.2)).saturating_sub(x),
+            self.u(r.1.saturating_add(r.3)).saturating_sub(y),
+        )
+    }
+    pub fn signed_rect(self, r: &(isize, isize, usize, usize)) -> (isize, isize, usize, usize) {
+        let x = (r.0 as f64 * self.0 as f64).round() as isize;
+        let y = (r.1 as f64 * self.0 as f64).round() as isize;
+        (
+            x,
+            y,
+            (((r.0 as f64 + r.2 as f64) * self.0 as f64).round() - x as f64).max(0.0) as usize,
+            (((r.1 as f64 + r.3 as f64) * self.0 as f64).round() - y as f64).max(0.0) as usize,
+        )
+    }
+    pub fn pixel_rect(self, r: ThePixelRect) -> ThePixelRect {
+        let x = self.i(r.x);
+        let y = self.i(r.y);
+        ThePixelRect::new(
+            x,
+            y,
+            self.i(r.x.saturating_add(r.width)) - x,
+            self.i(r.y.saturating_add(r.height)) - y,
+        )
+    }
+}
+
 /// A signed pixel rectangle. Negative origins are valid; non-positive sizes are empty.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ThePixelRect {
@@ -97,10 +170,18 @@ pub struct TheSurfaceMut<'a> {
     width: usize,
     height: usize,
     clip: ThePixelRect,
+    scale: f32,
 }
 
 impl<'a> TheSurfaceMut<'a> {
-    pub fn new(pixels: &'a mut [u8], width: usize, height: usize) -> Result<Self, TheSurfaceError> {
+    pub fn new(
+        target: impl Into<TheRasterTarget<'a>>,
+        width: usize,
+        height: usize,
+    ) -> Result<Self, TheSurfaceError> {
+        let TheRasterTarget { pixels, scale } = target.into();
+        let width = RasterScale(scale).u(width);
+        let height = RasterScale(scale).u(height);
         if width > i32::MAX as usize || height > i32::MAX as usize {
             return Err(TheSurfaceError::DimensionTooLarge { width, height });
         }
@@ -118,12 +199,18 @@ impl<'a> TheSurfaceMut<'a> {
 
         Ok(Self {
             pixels,
+            scale,
             width,
             height,
             clip: ThePixelRect::new(0, 0, width as i32, height as i32),
         })
     }
 
+    pub fn scale(&self) -> f32 {
+        self.scale
+    }
+
+    /// Physical raster width. Shape coordinates and `set_clip` remain logical.
     pub fn width(&self) -> usize {
         self.width
     }
@@ -140,9 +227,11 @@ impl<'a> TheSurfaceMut<'a> {
         self.clip
     }
 
-    /// Sets the clip and returns its clamped value.
+    /// Sets a logical clip and returns its clamped physical bounds.
     pub fn set_clip(&mut self, clip: ThePixelRect) -> ThePixelRect {
-        self.clip = clip.intersection(self.bounds());
+        self.clip = RasterScale(self.scale)
+            .pixel_rect(clip)
+            .intersection(self.bounds());
         self.clip
     }
 
@@ -172,6 +261,7 @@ impl<'a> TheSurfaceMut<'a> {
     }
 
     /// Blends a straight-alpha RGBA color through an 8-bit coverage mask.
+    // Rasterizer output is already in physical coordinates.
     pub fn blend_pixel_coverage(&mut self, x: i32, y: i32, color: [u8; 4], coverage: u8) {
         if coverage == 0 || !self.clip.contains(x, y) {
             return;
@@ -199,7 +289,9 @@ impl<'a> TheSurfaceMut<'a> {
     }
 
     pub fn fill_rect(&mut self, rect: ThePixelRect, color: [u8; 4]) {
-        let clipped = rect.intersection(self.clip);
+        let clipped = RasterScale(self.scale)
+            .pixel_rect(rect)
+            .intersection(self.clip);
         if clipped.is_empty() {
             return;
         }

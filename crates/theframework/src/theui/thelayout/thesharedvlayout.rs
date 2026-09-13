@@ -124,7 +124,7 @@ impl TheWidget for TheSharedVSplitter {
                 1,
             );
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &rect,
                 stride,
                 style.theme().color(DividerStart),
@@ -387,7 +387,7 @@ impl TheLayout for TheSharedVLayout {
             let stride = buffer.stride();
 
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_utuple(),
                 stride,
                 style.theme().color(background),

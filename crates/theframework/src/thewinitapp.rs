@@ -127,6 +127,12 @@ struct TheWinitContext {
 
 impl TheWinitContext {
     fn window_pos_to_ui(&self, position: (f32, f32)) -> (f32, f32) {
+        if self.ctx.ui_render_scale != 1.0 {
+            return (
+                position.0 / self.ctx.ui_render_scale,
+                position.1 / self.ctx.ui_render_scale,
+            );
+        }
         self.backend.window_pos_to_ui(
             position,
             (self.ctx.width, self.ctx.height),
@@ -134,17 +140,25 @@ impl TheWinitContext {
         )
     }
 
-    fn from_window(window: Arc<Window>) -> Self {
+    fn from_window(window: Arc<Window>, native_ui: bool) -> Self {
         let scale_factor = window.scale_factor() as f32;
         let size = window.inner_size();
         let (width, height) = logical_window_size(size, scale_factor);
         let (width, height) = (width as usize, height as usize);
 
-        let ctx = TheContext::new(width, height, scale_factor);
-
-        let ui_frame = vec![0; (width * height * 4) as usize];
-
-        let backend = TheWinitBackend::new(window.clone(), width, height, scale_factor);
+        let mut ctx = TheContext::new(width, height, scale_factor);
+        if native_ui {
+            ctx.ui_render_scale = scale_factor;
+            ctx.framebuffer_width = size.width.max(1) as usize;
+            ctx.framebuffer_height = size.height.max(1) as usize;
+        }
+        let ui_frame = vec![0; ctx.framebuffer_width * ctx.framebuffer_height * 4];
+        let backend = TheWinitBackend::new(
+            window.clone(),
+            ctx.framebuffer_width,
+            ctx.framebuffer_height,
+            scale_factor,
+        );
 
         TheWinitContext {
             window,
@@ -231,7 +245,7 @@ impl TheWinitApp {
     }
 
     fn init_context(&mut self, window: Arc<Window>) -> TheWinitContext {
-        let mut ctx = TheWinitContext::from_window(window);
+        let mut ctx = TheWinitContext::from_window(window, self.app.native_ui_rendering());
 
         #[cfg(feature = "ui")]
         {
@@ -283,8 +297,8 @@ impl TheWinitApp {
         ctx.backend.present(
             &ctx.window,
             &ctx.ui_frame,
-            ctx.ctx.width,
-            ctx.ctx.height,
+            ctx.ctx.framebuffer_width,
+            ctx.ctx.framebuffer_height,
             ctx.ctx.scale_factor,
         );
 
@@ -332,13 +346,28 @@ impl TheWinitApp {
             let (width, height) = logical_window_size(size, scale_factor);
             ctx.ctx.scale_factor = scale_factor;
 
+            let native_ui = self.app.native_ui_rendering();
+            ctx.ctx.ui_render_scale = if native_ui { scale_factor } else { 1.0 };
+            let (frame_width, frame_height) = if native_ui {
+                (size.width, size.height)
+            } else {
+                (width, height)
+            };
+            ctx.ctx.framebuffer_width = frame_width as usize;
+            ctx.ctx.framebuffer_height = frame_height as usize;
             ctx.backend
-                .resize(&ctx.window, size, width, height, scale_factor);
+                .resize(&ctx.window, size, frame_width, frame_height, scale_factor);
+            #[cfg(feature = "ui")]
+            {
+                ctx.ctx.ui.redraw_all = true;
+                ctx.ctx.ui.relayout = true;
+            }
 
             ctx.ctx.width = width as usize;
             ctx.ctx.height = height as usize;
 
-            ctx.ui_frame.resize((width * height * 4) as usize, 0);
+            ctx.ui_frame
+                .resize(frame_width as usize * frame_height as usize * 4, 0);
 
             #[cfg(feature = "ui")]
             self.ui

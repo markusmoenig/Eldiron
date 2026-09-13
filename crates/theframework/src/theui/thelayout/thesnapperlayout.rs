@@ -188,7 +188,7 @@ impl TheLayout for TheSnapperLayout {
         let utuple: (usize, usize, usize, usize) = self.dim.to_buffer_utuple();
 
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &utuple,
             stride,
             style.theme().color(DefaultWidgetBackground),

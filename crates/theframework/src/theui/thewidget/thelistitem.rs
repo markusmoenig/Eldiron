@@ -247,7 +247,7 @@ impl TheWidget for TheListItem {
         let mut shrinker = TheDimShrinker::zero();
 
         ctx.draw.rect_outline_border(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &self.dim.to_buffer_shrunk_utuple(&shrinker),
             stride,
             &color,
@@ -256,7 +256,7 @@ impl TheWidget for TheListItem {
 
         shrinker.shrink(1);
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &self.dim.to_buffer_shrunk_utuple(&shrinker),
             stride,
             &color,
@@ -277,14 +277,14 @@ impl TheWidget for TheListItem {
                 icon.clone()
             };
             ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(ut.0 + 1, ut.1 + 1, icon_frame, icon_frame),
                 stride,
                 style.theme().color(ListItemIconBorder),
                 1,
             );
             ctx.draw.copy_slice(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 scaled_icon.pixels(),
                 &(ut.0 + 2, ut.1 + 2, icon_size, icon_size),
                 stride,
@@ -302,7 +302,7 @@ impl TheWidget for TheListItem {
             let sub_text_height = text_block_height.saturating_sub(title_height);
 
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(text_x, text_block_top, text_width, title_height.max(1)),
                 stride,
                 &self.text,
@@ -319,7 +319,7 @@ impl TheWidget for TheListItem {
 
             if !self.sub_text.is_empty() {
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(text_x, sub_text_top, text_width, sub_text_height.max(1)),
                     stride,
                     &self.sub_text,
@@ -353,7 +353,7 @@ impl TheWidget for TheListItem {
             };
 
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(rect.0, text_block_top, text_width, title_height.max(1)),
                 stride,
                 &self.text,
@@ -372,7 +372,7 @@ impl TheWidget for TheListItem {
                 let sub_text_top = text_block_top + title_height;
                 let sub_text_height = text_block_height.saturating_sub(title_height);
                 ctx.draw.text_rect_blend(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(rect.0, sub_text_top, text_width, sub_text_height.max(1)),
                     stride,
                     &self.sub_text,
@@ -392,7 +392,7 @@ impl TheWidget for TheListItem {
 
             for (width, value) in self.values.iter() {
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(rect.0, rect.1 - 1, 1, rect.3 + 2),
                     stride,
                     style.theme().color(ListLayoutBackground),
@@ -402,7 +402,7 @@ impl TheWidget for TheListItem {
                 match value {
                     TheValue::Text(text) => {
                         ctx.draw.text_rect_blend(
-                            buffer.pixels_mut(),
+                            buffer.draw_target(),
                             &(rect.0 + 9, rect.1, *width as usize - 10, rect.3),
                             stride,
                             text,
@@ -417,7 +417,7 @@ impl TheWidget for TheListItem {
                     }
                     _ => {
                         ctx.draw.text_rect_blend(
-                            buffer.pixels_mut(),
+                            buffer.draw_target(),
                             &(rect.0 + 9, rect.1, *width as usize - 10, rect.3),
                             stride,
                             &value.describe(),

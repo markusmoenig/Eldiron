@@ -214,7 +214,7 @@ impl TheWidget for TheGroupButton {
                 // First
 
                 ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(ut.0 + x, ut.1, self.item_width, 20),
                     stride,
                     &border,
@@ -222,14 +222,14 @@ impl TheWidget for TheGroupButton {
                 );
 
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(ut.0 + x + self.item_width - 1, ut.1, 1, 20),
                     stride,
                     &border,
                 );
 
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(ut.0 + x + 1, ut.1 + 1, self.item_width - 1, 18),
                     stride,
                     &bg,
@@ -238,7 +238,7 @@ impl TheWidget for TheGroupButton {
                 // Last
 
                 ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(ut.0 + x, ut.1, self.item_width, 20),
                     stride,
                     &border,
@@ -246,28 +246,28 @@ impl TheWidget for TheGroupButton {
                 );
 
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(ut.0 + x, ut.1, self.item_width - 2, 20),
                     stride,
                     &border,
                 );
 
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(ut.0 + x, ut.1 + 1, self.item_width - 1, 18),
                     stride,
                     &bg,
                 );
             } else {
                 ctx.draw.rect_outline(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(ut.0 + x, ut.1, self.item_width, 20),
                     stride,
                     &border,
                 );
 
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(ut.0 + x, ut.1 + 1, self.item_width, 18),
                     stride,
                     &bg,
@@ -286,7 +286,7 @@ impl TheWidget for TheGroupButton {
                         self.icon_size.y as usize,
                     );
                     ctx.draw.blend_scale_chunk(
-                        buffer.pixels_mut(),
+                        buffer.draw_target(),
                         &r,
                         stride,
                         icon.pixels(),
@@ -300,7 +300,7 @@ impl TheWidget for TheGroupButton {
             }
 
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(ut.0 + x + offset + 1, ut.1 + 1, self.item_width - 2, 18),
                 stride,
                 text,

@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
-fn draw_switchbar_marker(
-    pixels: &mut [u8],
+fn draw_switchbar_marker<'a>(
+    pixels: impl Into<TheRasterTarget<'a>>,
     width: usize,
     height: usize,
     bounds: ThePixelRect,
@@ -127,7 +127,7 @@ impl TheWidget for TheSwitchbar {
         );
         let width = buffer.dim().width.max(0) as usize;
         let height = buffer.dim().height.max(0) as usize;
-        if let Ok(mut surface) = TheSurfaceMut::new(buffer.pixels_mut(), width, height) {
+        if let Ok(mut surface) = TheSurfaceMut::new(buffer.draw_target(), width, height) {
             surface.set_clip(rect);
             surface.fill_rect(rect, border);
             ctx.painter.fill_rect(&mut surface, inner, &paint);
@@ -135,7 +135,7 @@ impl TheWidget for TheSwitchbar {
 
         let stride = buffer.stride();
         draw_switchbar_marker(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             width,
             height,
             rect,
@@ -149,7 +149,7 @@ impl TheWidget for TheSwitchbar {
         let mut r = self.dim.to_buffer_shrunk_utuple(&shrinker);
         r.3 = 21;
         ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &r,
             stride,
             &self.text,

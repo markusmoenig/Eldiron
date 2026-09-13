@@ -208,6 +208,7 @@ impl TheWidget for TheSDFView {
 
         let mut b = TheRGBABuffer::new(TheDim::new(0, 0, self.dim.width, self.dim.height));
 
+        b.set_render_scale(buffer.render_scale());
         self.canvas.render(&mut b);
         buffer.copy_into(self.dim.buffer_x, self.dim.buffer_y, &b);
 

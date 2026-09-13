@@ -270,16 +270,16 @@ impl TheWidget for ThePaletteIndexPicker {
             .and_then(|c| c.clone())
             .unwrap_or(TheColor::from([0_u8, 0, 0, 255]));
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &swatch_rect,
             stride,
             &color.to_u8_array(),
         );
         ctx.draw
-            .rect_outline(buffer.pixels_mut(), &swatch_rect, stride, &BLACK);
+            .rect_outline(buffer.draw_target(), &swatch_rect, stride, &BLACK);
 
         ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(utuple.0 + 30, utuple.1, 96, utuple.3),
             stride,
             &format!("#{}", self.selected),
@@ -333,14 +333,15 @@ impl TheWidget for ThePaletteIndexPicker {
         self.overlay_offset = Vec2::new(dim.x, dim.y);
 
         let mut buffer = TheRGBABuffer::new(dim);
+        buffer.set_render_scale(ctx.ui_render_scale);
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(0, 0, width, height),
             width,
             style.theme().color(MenubarPopupBackground),
         );
         ctx.draw.rect_outline(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(0, 0, width, height),
             width,
             style.theme().color(MenubarPopupBorder),
@@ -354,7 +355,7 @@ impl TheWidget for ThePaletteIndexPicker {
             let rect = (x, y, cell, cell);
             if index as i32 == self.selected {
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &rect,
                     width,
                     style.theme().color(DefaultSelection),
@@ -368,9 +369,9 @@ impl TheWidget for ThePaletteIndexPicker {
                 .and_then(|c| c.clone())
                 .unwrap_or(TheColor::from([0_u8, 0, 0, 255]));
             ctx.draw
-                .rect(buffer.pixels_mut(), &inner, width, &color.to_u8_array());
+                .rect(buffer.draw_target(), &inner, width, &color.to_u8_array());
             ctx.draw
-                .rect_outline(buffer.pixels_mut(), &inner, width, &BLACK);
+                .rect_outline(buffer.draw_target(), &inner, width, &BLACK);
         }
 
         buffer
@@ -683,9 +684,9 @@ impl TheWidget for ThePaletteIndexRowPicker {
         } else {
             [65, 65, 65, 255]
         };
-        ctx.draw.rect(buffer.pixels_mut(), &utuple, stride, &bg);
+        ctx.draw.rect(buffer.draw_target(), &utuple, stride, &bg);
         ctx.draw
-            .rect_outline(buffer.pixels_mut(), &utuple, stride, &[28, 28, 28, 255]);
+            .rect_outline(buffer.draw_target(), &utuple, stride, &[28, 28, 28, 255]);
 
         let count = self.selected.len().max(1);
         let gap = 4usize;
@@ -711,12 +712,12 @@ impl TheWidget for ThePaletteIndexRowPicker {
                 .unwrap_or(TheColor::from([0_u8, 0, 0, 255]));
             let rect = (x, y, swatch_w, swatch_h);
             ctx.draw
-                .rect(buffer.pixels_mut(), &rect, stride, &color.to_u8_array());
+                .rect(buffer.draw_target(), &rect, stride, &color.to_u8_array());
             ctx.draw
-                .rect_outline(buffer.pixels_mut(), &rect, stride, &[12, 12, 12, 255]);
+                .rect_outline(buffer.draw_target(), &rect, stride, &[12, 12, 12, 255]);
             if slot == self.active_slot {
                 ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &(
                         x.saturating_sub(1),
                         y.saturating_sub(1),
@@ -771,14 +772,15 @@ impl TheWidget for ThePaletteIndexRowPicker {
         self.overlay_offset = Vec2::new(dim.x, dim.y);
 
         let mut buffer = TheRGBABuffer::new(dim);
+        buffer.set_render_scale(ctx.ui_render_scale);
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(0, 0, width, height),
             width,
             style.theme().color(MenubarPopupBackground),
         );
         ctx.draw.rect_outline(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(0, 0, width, height),
             width,
             style.theme().color(MenubarPopupBorder),
@@ -793,7 +795,7 @@ impl TheWidget for ThePaletteIndexRowPicker {
             let rect = (x, y, cell, cell);
             if index as i32 == selected {
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &rect,
                     width,
                     style.theme().color(DefaultSelection),
@@ -807,9 +809,9 @@ impl TheWidget for ThePaletteIndexRowPicker {
                 .and_then(|c| c.clone())
                 .unwrap_or(TheColor::from([0_u8, 0, 0, 255]));
             ctx.draw
-                .rect(buffer.pixels_mut(), &inner, width, &color.to_u8_array());
+                .rect(buffer.draw_target(), &inner, width, &color.to_u8_array());
             ctx.draw
-                .rect_outline(buffer.pixels_mut(), &inner, width, &BLACK);
+                .rect_outline(buffer.draw_target(), &inner, width, &BLACK);
         }
 
         buffer

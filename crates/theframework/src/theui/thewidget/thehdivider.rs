@@ -66,7 +66,7 @@ impl TheWidget for TheHDivider {
         let r: (usize, usize, usize, usize) = (utuple.0 + utuple.2 / 2 - 1, utuple.1, 1, utuple.3);
 
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &r,
             stride,
             style.theme().color(DividerStart),
@@ -75,7 +75,7 @@ impl TheWidget for TheHDivider {
         let r: (usize, usize, usize, usize) = (utuple.0 + utuple.2 / 2, utuple.1, 1, utuple.3);
 
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &r,
             stride,
             style.theme().color(DividerEnd),

@@ -231,7 +231,7 @@ impl TheWidget for TheRowListItem {
         let mut shrinker = TheDimShrinker::zero();
 
         ctx.draw.rect_outline_border(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &self.dim.to_buffer_shrunk_utuple(&shrinker),
             stride,
             &color,
@@ -240,7 +240,7 @@ impl TheWidget for TheRowListItem {
 
         shrinker.shrink(1);
         ctx.draw.rect(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &self.dim.to_buffer_shrunk_utuple(&shrinker),
             stride,
             &color,
@@ -256,7 +256,7 @@ impl TheWidget for TheRowListItem {
             let off_x = 8;
             let off_y = 8;
             ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(
                     ut.0 + off_x - 1,
                     ut.1 + off_y - 1,
@@ -268,7 +268,7 @@ impl TheWidget for TheRowListItem {
                 1,
             );
             ctx.draw.scale_chunk(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &(ut.0 + off_x, ut.1 + off_y, icon_width, icon_height),
                 stride,
                 icon.pixels(),
@@ -307,7 +307,7 @@ impl TheWidget for TheRowListItem {
         // }
 
         ctx.draw.text_rect_blend(
-            buffer.pixels_mut(),
+            buffer.draw_target(),
             &(ut.0, ut.1 + self.dim.height as usize - 25, ut.2, 20),
             stride,
             &self.text,

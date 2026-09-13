@@ -150,7 +150,7 @@ impl TheWidget for TheToolbarButton {
 
         if self.state == TheWidgetState::None && !self.id().equals(&ctx.ui.hover) {
             ctx.draw.rect_outline_border(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_shrunk_utuple(&shrinker),
                 stride,
                 style.theme().color(ToolbarButtonNormalBorder),
@@ -160,7 +160,7 @@ impl TheWidget for TheToolbarButton {
             shrinker.shrink(1);
 
             ctx.draw.rect(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_shrunk_utuple(&shrinker),
                 stride,
                 style.theme().color(ToolbarButtonNormal),
@@ -170,7 +170,7 @@ impl TheWidget for TheToolbarButton {
         if self.state != TheWidgetState::None || self.id().equals(&ctx.ui.hover) {
             if self.state == TheWidgetState::Clicked {
                 ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &self.dim.to_buffer_shrunk_utuple(&shrinker),
                     stride,
                     style.theme().color(ToolbarButtonClickedBorder),
@@ -180,14 +180,14 @@ impl TheWidget for TheToolbarButton {
                 shrinker.shrink(1);
 
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &self.dim.to_buffer_shrunk_utuple(&shrinker),
                     stride,
                     style.theme().color(ToolbarButtonClicked),
                 );
             } else if self.id().equals(&ctx.ui.hover) {
                 ctx.draw.rect_outline_border(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &self.dim.to_buffer_shrunk_utuple(&shrinker),
                     stride,
                     style.theme().color(ToolbarButtonHover),
@@ -197,7 +197,7 @@ impl TheWidget for TheToolbarButton {
                 shrinker.shrink(1);
 
                 ctx.draw.rect(
-                    buffer.pixels_mut(),
+                    buffer.draw_target(),
                     &self.dim.to_buffer_shrunk_utuple(&shrinker),
                     stride,
                     style.theme().color(ToolbarButtonHoverBorder),
@@ -216,12 +216,12 @@ impl TheWidget for TheToolbarButton {
                 icon.dim().height as usize,
             );
             ctx.draw
-                .blend_slice(buffer.pixels_mut(), icon.pixels(), &r, stride);
+                .blend_slice(buffer.draw_target(), icon.pixels(), &r, stride);
         }
 
         if !self.text.is_empty() {
             ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &self.dim.to_buffer_shrunk_utuple(&shrinker),
                 stride,
                 &self.text,

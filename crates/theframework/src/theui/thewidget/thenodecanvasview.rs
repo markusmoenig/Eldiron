@@ -474,7 +474,9 @@ impl TheWidget for TheNodeCanvasView {
             return;
         }
 
-        let width = self.render_buffer.dim().width as usize;
+        self.render_buffer.set_render_scale(ctx.ui_render_scale);
+        let density = self.render_buffer.render_scale();
+        let width = self.render_buffer.pixel_width();
         let height = self.render_buffer.dim().height;
         let canvas_background = *style.theme().color(NodeCanvasBackground);
         let canvas_grid = *style.theme().color(NodeCanvasGrid);
@@ -503,8 +505,8 @@ impl TheWidget for TheNodeCanvasView {
 
                     let mut color = canvas_background;
 
-                    let xx = (i % width) as i32;
-                    let yy = height - (i / width) as i32;
+                    let xx = ((i % width) as f32 / density) as i32;
+                    let yy = height - ((i / width) as f32 / density) as i32;
 
                     let m_x = (xx + self.canvas.offset.x) % 40;
                     let m_y = (yy + self.canvas.offset.y) % 40;
@@ -538,9 +540,6 @@ impl TheWidget for TheNodeCanvasView {
                 self.render_buffer.copy_into(x, y, overlay);
             }
         }
-
-        let rbw = self.render_buffer.dim().width as usize;
-        let rbh = self.render_buffer.dim().height as usize;
 
         let node_width = self.canvas.node_width;
         let terminal_text_color = *style.theme().color(ListItemText);
@@ -585,6 +584,7 @@ impl TheWidget for TheNodeCanvasView {
             );
 
             let mut nb = TheRGBABuffer::new(TheDim::sized(node_width, node_height));
+            nb.set_render_scale(ctx.ui_render_scale);
 
             draw_node_chrome(&mut nb, preview_height, &node_chrome_paints[index]);
 
@@ -621,6 +621,7 @@ impl TheWidget for TheNodeCanvasView {
                 if let Some(font) = &ctx.ui.font {
                     let text_width = 80;
                     let mut tb = TheRGBABuffer::new(TheDim::sized(text_width, 10));
+                    tb.set_render_scale(ctx.ui_render_scale);
                     tb.draw_text(
                         Vec2::new(0, 0),
                         font,
@@ -650,6 +651,7 @@ impl TheWidget for TheNodeCanvasView {
                 if let Some(font) = &ctx.ui.font {
                     let text_width = 80;
                     let mut tb = TheRGBABuffer::new(TheDim::sized(text_width, 10));
+                    tb.set_render_scale(ctx.ui_render_scale);
                     tb.draw_text(
                         Vec2::new(0, 0),
                         font,
@@ -721,8 +723,9 @@ impl TheWidget for TheNodeCanvasView {
 
         // Draw Connections
 
-        let mut line_mask: Vec<u8> =
-            vec![0; (self.render_buffer.dim().width * self.render_buffer.dim().height) as usize];
+        let native_width = self.render_buffer.pixel_width();
+        let native_height = self.render_buffer.pixel_height();
+        let mut line_mask = vec![0; native_width * native_height];
         let mut line_path: String = str!("");
 
         for (source_node_index, source_output_index, dest_node_index, dest_input_index) in
@@ -786,19 +789,17 @@ impl TheWidget for TheNodeCanvasView {
 
         if !line_path.is_empty() {
             Mask::new(line_path.as_str())
-                .size(
-                    self.render_buffer.dim().width as u32,
-                    self.render_buffer.dim().height as u32,
-                )
+                .size(native_width as u32, native_height as u32)
+                .transform(Some(zeno::Transform::scale(density, density)))
                 .style(Stroke::new(2.6))
                 .render_into(&mut line_mask, None);
 
             ctx.draw.blend_mask(
                 self.render_buffer.pixels_mut(),
-                &(0, 0, rbw, rbh),
-                rbw,
+                &(0, 0, native_width, native_height),
+                native_width,
                 &line_mask[..],
-                &(rbw, rbh),
+                &(native_width, native_height),
                 &connection_color,
             );
         }
@@ -822,7 +823,7 @@ impl TheWidget for TheNodeCanvasView {
         if Some(self.id.clone()) == ctx.ui.focus {
             let tuple = self.dim().to_buffer_utuple();
             ctx.draw.rect_outline(
-                buffer.pixels_mut(),
+                buffer.draw_target(),
                 &tuple,
                 stride,
                 style.theme().color(DefaultSelection),
