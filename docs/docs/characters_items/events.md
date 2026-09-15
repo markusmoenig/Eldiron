@@ -64,13 +64,6 @@ Events are categorized as:
 
 ---
 
-### `dead`
-
-- **Value**: `entity_id` *(int)*
-- **Description**: Send when another entity kills this character. The *entity_id* of the killer is passed in the value. This is useful for sending messages and taking the next steps. A player character could for example [teleport](server_commands#teleport) to a graveyard or healer.
-
----
-
 ### `death`
 
 - **Value**: *(None)*
@@ -129,11 +122,13 @@ This event is useful for clearing target state and returning an NPC to idle beha
 
 ### `intent`
 
-- **Value**: `dict`  
-  `{ intent (string), entity_id (int), item_id (int), distance (float)}`
-- **Description**: Triggered when the player triggers an intent towards another entity or item. Either via a movement based keyboard shortcut or by clicking on the target entity or item.
-  - When the target is an item, the event is send to the target item **and** to the originating player entity as the action may be handled by either of them depending on the context, for example a torch would lit itself when used, or a character may take an item.
-  - When the target is another character, the event is send to both, the originating character and the target entity. For example on an `attack` intent the originating player may call [attack](server_commands#attack), or the target may want to respond when talked to.
+- **Value**: packet containing the intent name in `value.string`, the other participant's ID in `value.subject_id` (`.x`), and the distance in `value.distance` (`.y`). For these entity/item interactions, `.z` is `0`.
+- **Description**: Sent for script-driven interactions with another character or item, such as a keyboard-directed intent or a clicked target. Built-in shortcuts may handle an interaction before these script events are sent.
+  - The originating character receives the target character or item ID.
+  - The target character or item receives the originating character ID.
+
+Compare `value` directly with the intent name, for example `value == "talk"`.
+Use `is_entity(value.subject_id)` or `is_item(value.subject_id)` when the originating character needs to distinguish target types. The payload is a packet, not a dictionary with `intent`, `entity_id`, or `item_id` fields.
 
 ---
 
@@ -176,8 +171,8 @@ if event == "left_tile" && value == "chair" {
 
 ### `proximity_warning`
 
-- **Value**: `entity_ids` *(array)*
-- **Description**: Called when proximity tracking was enabled via [set_proximity_tracking](server_commands#set_proximity_tracking) and other entities are in radius. Useful for NPCs to interact with other characters (attack, talk, heal, etc.).
+- **Value**: one nearby entity ID in `value.subject_id` (`.x`), also usable directly as `value`.
+- **Description**: Called when proximity tracking was enabled via [set_proximity_tracking](server_commands#set_proximity_tracking) and other entities are in radius. Each check sends only the first entity ID returned by the radius query, not a list of all nearby entities. Useful for NPCs to interact with other characters (attack, talk, heal, etc.).
 
 ---
 
@@ -214,8 +209,8 @@ See [NPC Sequences](npc_sequences) for the bigger event + sequence model.
 - **Value**: damage payload
 - **Description**: Triggered after the server has applied the ruleset combat pipeline.  
   `value.amount` is the final incoming damage, `value.attacker_id` contains the attacker id, `value.kind` contains the damage kind such as `physical`, `spell`, or `fire`, and `value.source_item_id` contains the weapon or spell item when available.
-  The server applies this final damage automatically after the event returns.
-  If the target has [autodamage](attributes#autodamage) enabled, this event is not triggered.
+  Normally, the server applies this final damage automatically after the event returns, unless the handler has already committed it.
+  With [autodamage](attributes#autodamage) enabled, damage is applied first and a surviving target still receives `damaged` for reactions. Lethal autodamage uses `death` instead of queuing a `damaged` reaction.
 
 Use `damaged` when an NPC should react to being hit. For example, a neutral
 character can decide to retaliate:

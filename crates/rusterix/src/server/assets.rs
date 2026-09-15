@@ -16,6 +16,7 @@ struct ParsedRulesCache {
 
 #[derive(Clone)]
 pub struct Assets {
+    pub node_behaviors: Option<super::nodes::region::BehaviorAssets>,
     pub maps: FxHashMap<String, Map>,
 
     pub entities: FxHashMap<String, (String, String)>,
@@ -157,6 +158,7 @@ impl Assets {
 
     pub fn new() -> Self {
         Self {
+            node_behaviors: None,
             maps: FxHashMap::default(),
             entities: FxHashMap::default(),
             items: FxHashMap::default(),

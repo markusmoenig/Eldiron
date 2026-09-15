@@ -7,12 +7,14 @@ pub struct TheRenderView {
 
     render_buffer: TheRGBABuffer,
     wheel_scale: f32,
+    aspect_scaled_scroll: bool,
     accumulated_wheel_delta: Vec2<f32>,
     context_menu: Option<TheContextMenu>,
 
     dim: TheDim,
 
     auto_focus: bool,
+    text_input: bool,
 
     mouse_is_down: bool,
     is_dirty: bool,
@@ -32,12 +34,14 @@ impl TheWidget for TheRenderView {
 
             render_buffer: TheRGBABuffer::new(TheDim::new(0, 0, 20, 20)),
             wheel_scale: -0.4,
+            aspect_scaled_scroll: true,
             accumulated_wheel_delta: Vec2::zero(),
             context_menu: None,
 
             dim: TheDim::zero(),
 
             auto_focus: false,
+            text_input: false,
             mouse_is_down: false,
             is_dirty: false,
         }
@@ -126,7 +130,11 @@ impl TheWidget for TheRenderView {
             TheEvent::MouseWheel(delta) => {
                 let scale_factor = self.wheel_scale; // * 1.0 / (self.zoom.powf(0.5));
 
-                let aspect_ratio = self.dim().width as f32 / self.dim().height as f32;
+                let aspect_ratio = if self.aspect_scaled_scroll {
+                    self.dim().width as f32 / self.dim().height.max(1) as f32
+                } else {
+                    1.0
+                };
 
                 let scale_x = if aspect_ratio > 1.0 {
                     1.0 / aspect_ratio
@@ -162,7 +170,11 @@ impl TheWidget for TheRenderView {
             }
             TheEvent::PreciseScroll(delta) => {
                 let scale_factor = self.wheel_scale;
-                let aspect_ratio = self.dim().width as f32 / self.dim().height as f32;
+                let aspect_ratio = if self.aspect_scaled_scroll {
+                    self.dim().width as f32 / self.dim().height.max(1) as f32
+                } else {
+                    1.0
+                };
                 let scale_x = if aspect_ratio > 1.0 {
                     1.0 / aspect_ratio
                 } else {
@@ -273,6 +285,10 @@ impl TheWidget for TheRenderView {
         self.is_dirty = false;
     }
 
+    fn supports_text_input(&self) -> bool {
+        self.text_input
+    }
+
     fn supports_hover(&mut self) -> bool {
         true
     }
@@ -287,11 +303,21 @@ impl TheWidget for TheRenderView {
 }
 
 pub trait TheRenderViewTrait: TheWidget {
+    fn set_scroll_behavior(&mut self, scale: f32, aspect_scaled: bool);
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer;
     fn set_auto_focus(&mut self, auto_focus: bool);
+    /// Protect host-rendered inline text controls from global shortcuts.
+    fn set_text_input(&mut self, active: bool);
 }
 
 impl TheRenderViewTrait for TheRenderView {
+    fn set_scroll_behavior(&mut self, scale: f32, aspect_scaled: bool) {
+        self.wheel_scale = scale;
+        self.aspect_scaled_scroll = aspect_scaled;
+    }
+    fn set_text_input(&mut self, active: bool) {
+        self.text_input = active;
+    }
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer {
         self.is_dirty = true;
         &mut self.render_buffer

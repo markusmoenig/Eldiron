@@ -200,7 +200,7 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
     item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-    item.set_text(fl!("eldrin_scripting"));
+    item.set_text(fl!("behavior_nodes"));
     node.add_widget(Box::new(item));
 
     for (id, character) in &region.characters {
@@ -246,7 +246,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         character.id,
     ));
     item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-    item.set_text(fl!("eldrin_scripting"));
+    item.set_text(fl!("behavior_nodes"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference(
@@ -409,7 +409,7 @@ pub fn gen_item_tree_node(item_: &Item, project: &Project) -> TheTreeNode {
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
     item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-    item.set_text(fl!("eldrin_scripting"));
+    item.set_text(fl!("behavior_nodes"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Data Edit", item_.id));
@@ -1045,6 +1045,7 @@ pub fn set_project_context(
     }
 
     server_ctx.pc = pc;
+    crate::docks::nodes::sync_node_list(ui, ctx, pc);
     update_project_export_context_menu(ui, pc, project);
 
     let duplicate_allowed = matches!(
@@ -1109,13 +1110,13 @@ pub fn set_project_context(
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
-                    TheValue::Text(format!("Region Eldrin Scripting: {}", region.name)),
+                    TheValue::Text(format!("Region Behavior: {}", region.name)),
                 );
             }
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Code".into(), ui, ctx, project, server_ctx);
+                .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::RegionCharacterInstance(id, _) => {
             if let Some(region) = project.get_region(&id) {
@@ -1129,7 +1130,7 @@ pub fn set_project_context(
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Code".into(), ui, ctx, project, server_ctx);
+                .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::RegionItemInstance(id, _) => {
             if let Some(region) = project.get_region(&id) {
@@ -1175,7 +1176,7 @@ pub fn set_project_context(
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Code".into(), ui, ctx, project, server_ctx);
+                .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::CharacterData(id) => {
             if let Some(region) = project.characters.get(&id) {
@@ -1230,7 +1231,7 @@ pub fn set_project_context(
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Code".into(), ui, ctx, project, server_ctx);
+                .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::ItemData(id) => {
             if let Some(item) = project.items.get(&id) {
@@ -1391,12 +1392,12 @@ pub fn set_project_context(
             ui.set_widget_value(
                 "Project Context",
                 ctx,
-                TheValue::Text("World Eldrin Scripting".into()),
+                TheValue::Text(fl!("world_behavior_nodes")),
             );
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Code".into(), ui, ctx, project, server_ctx);
+                .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::GameRules => {
             ui.set_widget_value("Project Context", ctx, TheValue::Text("Game Rules".into()));

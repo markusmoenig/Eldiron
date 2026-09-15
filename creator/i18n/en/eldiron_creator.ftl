@@ -857,3 +857,95 @@ action_face_particles_palette_linked = Link to palette
 status_action_face_particles_palette_linked = Keep the particle ramp linked to project palette entries
 action_face_particles_palette_colors = Palette colors
 status_action_face_particles_palette_colors = Choose four project palette entries from birth to fade-out
+
+# Node graph authoring
+node_list = Node List
+node_list_help = Drag a node into the graph. Available nodes depend on the selected content.
+node_list_empty = Select a behavior to see available nodes.
+behavior_nodes = Behavior Nodes
+world_behavior_nodes = World / Behavior Nodes
+node_event = Event
+node_filter = Filter
+node_say = Say
+node_event_help = Starts a chain when the selected event occurs. Lists the named values offered to downstream nodes.
+node_filter_help = Compares a field with a value and continues through Match or No Match. The event context continues along either branch.
+node_say_help = Displays text. Named references such as { "{" }event.destination{ "}" } refer to the current event.
+node_startup = Startup
+node_damaged = Damaged
+node_intent = Intent
+node_on_event = On { $event }
+node_field = Field
+node_compare = Compare
+node_against = Against
+node_text = Text
+node_equals = Equals
+node_not_equal = Not equal
+node_contains = Contains
+node_greater = Greater than
+node_less = Less than
+node_match = Match
+node_no_match = No Match
+node_done = Done
+node_category_behavior = Behavior
+node_type_text = Text
+node_type_number = Number
+node_type_boolean = Boolean
+node_type_entity = Entity
+node_awaiting = { $value_type } · awaiting event
+node_authoring = Authoring · not running
+node_empty = Drag a node from the Node List into this graph.
+node_select_behavior = Select a behavior in the project tree.
+node_unsupported = Cannot edit this graph version. Stored data is preserved.
+node_select_event = Select event
+node_sample_garden = garden
+node_sample_welcome = Welcome to { "{" }event.destination{ "}" }
+
+node_search = Search
+node_no_results = No matches
+node_group_events = Events
+node_group_logic = Logic
+node_group_actions = Actions
+node_live_waiting = Listening · awaiting event
+node_received = Received · tick { $tick }
+node_value_unavailable = Not provided
+node_time = Time
+node_entered = Entered
+
+node_received_instance = Received · { $instance } · tick { $tick }
+
+node_executed = Executed · tick { $tick }
+node_not_executed = Not executed in this run
+
+node_player_camera = Player Camera
+node_player_camera_help = Sets the character's camera after the character has been created. Does not spawn a character or change screens.
+node_camera = Camera
+node_camera_2d = 2D
+node_camera_2d_grid = 2D Grid
+node_camera_iso = Isometric
+node_camera_firstp = First Person
+node_camera_firstp_grid = First Person Grid
+
+node_routine = Routine
+node_routine_help = Starts the character's normal behavior after Startup and whenever Resume Routine is executed.
+node_random_walk = Random Walk
+node_random_walk_help = Starts wandering inside the current area. An optional area name restricts where it may start. Outside Area runs if the character is elsewhere. Started means walking has begun, not finished.
+node_resume_routine = Resume Routine
+node_resume_routine_help = Restarts the normal routine after a temporary interaction. Connect this after the interaction has finished.
+node_walk_area = Area (empty = current)
+node_walk_distance = Step distance
+node_walk_speed = Speed multiplier
+node_walk_pause = Maximum pause (game minutes)
+node_started = Started
+node_outside_area = Outside Area
+
+node_time_range = Time Range
+node_time_start = Start (HH:MM)
+node_time_end = End (HH:MM)
+node_inside = Inside
+node_outside = Outside
+node_time_range_help = Branch by game time. Start is included; end is excluded. Supports midnight crossings. Equal times mean all day. Routine reevaluates at boundaries. Return commits text.
+node_go_to = Go To
+node_destination = Destination
+node_error = Error
+node_running = Running
+node_go_to_help = Move to a named sector or area. Done runs after arrival; Error runs if the destination is invalid, blocked, or movement is interrupted. Return commits the destination.

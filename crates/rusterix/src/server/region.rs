@@ -7530,7 +7530,11 @@ impl RegionInstance {
         ctx.blocking_tiles = assets.blocking_tiles();
         ctx.assets = assets.clone();
 
-        if !assets.world_source.trim().is_empty() {
+        if assets.node_behaviors.is_some() {
+            ctx.world_program = Some(Arc::new(crate::vm::Program::new()));
+            ctx.region_program = Some(Arc::new(crate::vm::Program::new()));
+        }
+        if assets.node_behaviors.is_none() && !assets.world_source.trim().is_empty() {
             match self.vm.prepare_str(&assets.world_source) {
                 Ok(program) => ctx.world_program = Some(Arc::new(program)),
                 Err(error) => ctx.startup_errors.push(format!(
@@ -7540,7 +7544,8 @@ impl RegionInstance {
             }
         }
 
-        if let Some(region_source) = assets.region_sources.get(&ctx.map.id)
+        if assets.node_behaviors.is_none()
+            && let Some(region_source) = assets.region_sources.get(&ctx.map.id)
             && !region_source.trim().is_empty()
         {
             match self.vm.prepare_str(region_source) {
@@ -7556,7 +7561,11 @@ impl RegionInstance {
 
         // Compile Entity Template Scripts
         for (name, (entity_source, entity_data)) in &assets.entities {
-            match self.vm.prepare_str(entity_source) {
+            match if assets.node_behaviors.is_some() {
+                Ok(crate::vm::Program::new())
+            } else {
+                self.vm.prepare_str(entity_source)
+            } {
                 Ok(program) => {
                     ctx.entity_programs
                         .insert(name.clone(), std::sync::Arc::new(program));
@@ -7643,7 +7652,11 @@ impl RegionInstance {
 
         // Installing Item Class Templates
         for (name, (item_source, item_data)) in &assets.items {
-            match self.vm.prepare_str(item_source) {
+            match if assets.node_behaviors.is_some() {
+                Ok(crate::vm::Program::new())
+            } else {
+                self.vm.prepare_str(item_source)
+            } {
                 Ok(program) => {
                     ctx.item_programs
                         .insert(name.clone(), std::sync::Arc::new(program));
@@ -8479,6 +8492,11 @@ impl RegionInstance {
         // Catch up with the server messages
         while let Ok(msg) = self.to_receiver.try_recv() {
             match msg {
+                UpdateNodeGraph(owner, graph) => {
+                    with_regionctx(self.id, |ctx| {
+                        crate::server::nodes::region::refresh_graph(ctx, owner, graph);
+                    });
+                }
                 Pause => {
                     with_regionctx(self.id, |ctx: &mut RegionCtx| {
                         ctx.paused = true;
@@ -10610,6 +10628,11 @@ impl RegionInstance {
                             .set("__goto_stall_ticks", Value::Int(stall_ticks));
 
                         if arrived {
+                            if entity.attributes.get_bool_default("__node_goto", false) {
+                                entity
+                                    .attributes
+                                    .set("__node_goto_arrived", Value::Bool(true));
+                            }
                             entity.attributes.set("__goto_stall_ticks", Value::Int(0));
                             entity
                                 .attributes
@@ -10710,6 +10733,11 @@ impl RegionInstance {
                                 .unwrap_or(true);
 
                         if final_arrived {
+                            if entity.attributes.get_bool_default("__node_goto", false) {
+                                entity
+                                    .attributes
+                                    .set("__node_goto_arrived", Value::Bool(true));
+                            }
                             entity.attributes.set("__goto_stall_ticks", Value::Int(0));
                             entity
                                 .attributes
@@ -11135,18 +11163,18 @@ impl RegionInstance {
                             }
 
                             if !found {
-                                let min_sleep = (*max_sleep / 2).max(1);
-                                let max_sleep_guard = (*max_sleep).max(1);
+                                let min_sleep = (*max_sleep / 2).max(0);
+                                let max_sleep_guard = (*max_sleep).max(0);
                                 let sleep_minutes =
                                     rng.random_range(min_sleep..=max_sleep_guard) as u32;
                                 let wake_tick = ctx.ticks
                                     + Self::game_minutes_to_ticks(ctx, sleep_minutes as f32);
-                                entity.action = SleepAndSwitch(
-                                    wake_tick,
-                                    Box::new(RandomWalk(
-                                        *distance, *speed, *max_sleep, 0, curr_pos,
-                                    )),
-                                );
+                                let next = RandomWalk(*distance, *speed, *max_sleep, 0, curr_pos);
+                                entity.action = if sleep_minutes == 0 {
+                                    next
+                                } else {
+                                    SleepAndSwitch(wake_tick, Box::new(next))
+                                };
                             }
                         });
 
@@ -11169,8 +11197,9 @@ impl RegionInstance {
                                 let position = entity.get_pos_xz();
                                 let radius =
                                     entity.attributes.get_float_default("radius", 0.5) - 0.01;
-                                // Keep RandomWalk speed behavior aligned with legacy move_entity().
+                                // The configured speed is a multiplier of the base movement rate.
                                 let step_speed = self.movement_units_per_sec
+                                    * *speed
                                     * Self::autonomous_action_dt(ctx, entity);
                                 let terrain_cfg =
                                     crate::chunkbuilder::terrain_generator::TerrainConfig::default(
@@ -11357,18 +11386,18 @@ impl RegionInstance {
                                 {
                                     entity.attributes.set("__rw_stall_ticks", Value::Int(0));
                                     let mut rng = rand::rng();
-                                    let min_sleep = (max_sleep / 2).max(1);
-                                    let max_sleep_guard = max_sleep.max(1);
+                                    let min_sleep = (max_sleep / 2).max(0);
+                                    let max_sleep_guard = max_sleep.max(0);
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
                                     let wake_tick = ctx.ticks
                                         + Self::game_minutes_to_ticks(ctx, sleep_minutes as f32);
-                                    entity.action = SleepAndSwitch(
-                                        wake_tick,
-                                        Box::new(RandomWalk(
-                                            *distance, *speed, max_sleep, 0, *target,
-                                        )),
-                                    );
+                                    let next = RandomWalk(*distance, *speed, max_sleep, 0, *target);
+                                    entity.action = if sleep_minutes == 0 {
+                                        next
+                                    } else {
+                                        SleepAndSwitch(wake_tick, Box::new(next))
+                                    };
                                 }
 
                                 ctx.check_player_for_section_change(entity);
@@ -11453,8 +11482,9 @@ impl RegionInstance {
                                 let position = entity.get_pos_xz();
                                 let radius =
                                     entity.attributes.get_float_default("radius", 0.5) - 0.01;
-                                // Keep RandomWalkInSector speed behavior aligned with legacy move_entity().
+                                // The configured speed is a multiplier of the base movement rate.
                                 let step_speed = self.movement_units_per_sec
+                                    * *speed
                                     * Self::autonomous_action_dt(ctx, entity);
                                 let terrain_cfg =
                                     crate::chunkbuilder::terrain_generator::TerrainConfig::default(
@@ -11652,35 +11682,39 @@ impl RegionInstance {
                                 if arrived {
                                     entity.attributes.set("__rwis_stall_ticks", Value::Int(0));
                                     let mut rng = rand::rng();
-                                    let min_sleep = (max_sleep / 2).max(1);
-                                    let max_sleep_guard = max_sleep.max(1);
+                                    let min_sleep = (max_sleep / 2).max(0);
+                                    let max_sleep_guard = max_sleep.max(0);
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
                                     let wake_tick = ctx.ticks
                                         + Self::game_minutes_to_ticks(ctx, sleep_minutes as f32);
-                                    entity.action = SleepAndSwitch(
-                                        wake_tick,
-                                        Box::new(RandomWalkInSector(
-                                            *distance, *speed, max_sleep, 0, *target,
-                                        )),
+                                    let next = RandomWalkInSector(
+                                        *distance, *speed, max_sleep, 0, *target,
                                     );
+                                    entity.action = if sleep_minutes == 0 {
+                                        next
+                                    } else {
+                                        SleepAndSwitch(wake_tick, Box::new(next))
+                                    };
                                 } else if move_delta.magnitude_squared() <= 1e-8 || stall_ticks >= 8
                                 {
                                     // Stuck against geometry/obstacle: pause, then pick a fresh target.
                                     entity.attributes.set("__rwis_stall_ticks", Value::Int(0));
                                     let mut rng = rand::rng();
-                                    let min_sleep = (max_sleep / 2).max(1);
-                                    let max_sleep_guard = max_sleep.max(1);
+                                    let min_sleep = (max_sleep / 2).max(0);
+                                    let max_sleep_guard = max_sleep.max(0);
                                     let sleep_minutes =
                                         rng.random_range(min_sleep..=max_sleep_guard) as u32;
                                     let wake_tick = ctx.ticks
                                         + Self::game_minutes_to_ticks(ctx, sleep_minutes as f32);
-                                    entity.action = SleepAndSwitch(
-                                        wake_tick,
-                                        Box::new(RandomWalkInSector(
-                                            *distance, *speed, max_sleep, 0, *target,
-                                        )),
+                                    let next = RandomWalkInSector(
+                                        *distance, *speed, max_sleep, 0, *target,
                                     );
+                                    entity.action = if sleep_minutes == 0 {
+                                        next
+                                    } else {
+                                        SleepAndSwitch(wake_tick, Box::new(next))
+                                    };
                                 }
 
                                 ctx.check_player_for_section_change(entity);
@@ -11832,7 +11866,9 @@ impl RegionInstance {
             }
 
             with_regionctx(self.id, |ctx| {
-                self.advance_entity_sequence(ctx, entity);
+                if ctx.assets.node_behaviors.is_none() {
+                    self.advance_entity_sequence(ctx, entity);
+                }
             });
 
             // Keep avatar animation state in sync with actual movement this update.
@@ -11846,6 +11882,7 @@ impl RegionInstance {
             update_entity_respawns(ctx);
             update_ruleset_item_durability(ctx);
             update_spell_items(ctx);
+            crate::server::nodes::region::tick(ctx);
         });
 
         // Execute delayed scripts for entities
@@ -12118,6 +12155,12 @@ impl RegionInstance {
         }
 
         with_regionctx(self.id, |ctx| {
+            if !ctx.event_observations.is_empty() {
+                let events = ctx.event_observations.drain(..).collect();
+                let _ = self
+                    .from_sender
+                    .send(RegionMessage::EventObservations(events));
+            }
             if ctx.debug_mode {
                 self.from_sender
                     .send(RegionMessage::EldrinDebugData(ctx.eldrin_debug.clone()))
@@ -12165,6 +12208,9 @@ impl RegionInstance {
 
     /// Create a sleep action which switches back to the previous action.
     fn create_sleep_switch_action(&self, minutes: u32, switchback: EntityAction) -> EntityAction {
+        if minutes == 0 {
+            return switchback;
+        }
         with_regionctx(self.id, |ctx| {
             let tick = ctx.ticks + Self::game_minutes_to_ticks(ctx, minutes as f32);
             SleepAndSwitch(tick, Box::new(switchback))

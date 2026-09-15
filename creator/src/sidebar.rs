@@ -41,7 +41,7 @@ pub struct Sidebar {
 
 #[allow(clippy::new_without_default)]
 impl Sidebar {
-    const NAVIGATION_PAGE_COUNT: usize = 5;
+    const NAVIGATION_PAGE_COUNT: usize = 6;
     const ACTION_PARAMS_EDITOR: &'static str = "Action Params TOML";
     const PROJECT_ACTION_PARAMS_EDITOR: &'static str = "Project Action Params TOML";
 
@@ -67,9 +67,13 @@ impl Sidebar {
     }
 
     fn navigation_page_status(status: String, index: usize) -> String {
+        if index == 2 {
+            return status;
+        }
+        let shortcut_index = if index > 2 { index - 1 } else { index };
         let accelerator = TheAccelerator::new(
             TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT,
-            SIDEBAR_NAVIGATION_SHORTCUTS[index],
+            SIDEBAR_NAVIGATION_SHORTCUTS[shortcut_index],
         );
         format!("{status} ({})", accelerator.description())
     }
@@ -115,10 +119,18 @@ impl Sidebar {
     ) -> bool {
         let changed = Self::set_navigation_page(index, ui, ctx);
         if index == 2 {
-            self.console.activate(ui, ctx, project, server_ctx);
+            crate::docks::nodes::sync_node_list(ui, ctx, server_ctx.pc);
+            if crate::docks::nodes::has_catalog(server_ctx.pc) {
+                DOCKMANAGER
+                    .write()
+                    .unwrap()
+                    .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
+            }
         } else if index == 3 {
-            self.debug.activate(ui, ctx, project, server_ctx);
+            self.console.activate(ui, ctx, project, server_ctx);
         } else if index == 4 {
+            self.debug.activate(ui, ctx, project, server_ctx);
+        } else if index == 5 {
             self.help.activate(ui, ctx, project, server_ctx);
         } else if ctx.ui.focus.as_ref().is_some_and(|id| {
             id.name == "Console Input" || id.name == "LogEdit" || id.name == "Help Input"
@@ -280,7 +292,7 @@ impl Sidebar {
         config_node.add_widget(Box::new(config_item));
 
         let mut world_code_item = TheTreeItem::new(TheId::named("World Code"));
-        world_code_item.set_text("World / Eldrin Scripting".to_string());
+        world_code_item.set_text(fl!("world_behavior_nodes"));
         world_code_item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         config_node.add_widget(Box::new(world_code_item));
 
@@ -530,6 +542,7 @@ impl Sidebar {
         let mut sidebar_pages = TheStackLayout::new(TheId::named("Sidebar Page Stack"));
         sidebar_pages.add_canvas(project_page);
         sidebar_pages.add_canvas(actions_canvas);
+        sidebar_pages.add_canvas(crate::docks::nodes::node_list_canvas());
         sidebar_pages.add_canvas(self.console.setup(ctx));
         sidebar_pages.add_canvas(self.debug.setup(ctx));
         sidebar_pages.add_canvas(self.help.setup(ctx));
@@ -565,19 +578,20 @@ impl Sidebar {
             Self::navigation_page_status(fl!("tooltip_sidebar_actions"), 1),
             "graph".to_string(),
         );
+        sidebar_tabs.add_text_status_icon(String::new(), fl!("node_list"), "mapobjects".into());
         sidebar_tabs.add_text_status_icon(
             String::new(),
-            Self::navigation_page_status(fl!("tooltip_sidebar_console"), 2),
+            Self::navigation_page_status(fl!("tooltip_sidebar_console"), 3),
             "terminal-nav".to_string(),
         );
         sidebar_tabs.add_text_status_icon(
             String::new(),
-            Self::navigation_page_status(fl!("tooltip_sidebar_debug"), 3),
+            Self::navigation_page_status(fl!("tooltip_sidebar_debug"), 4),
             "diagnostics-nav".to_string(),
         );
         sidebar_tabs.add_text_status_icon(
             String::new(),
-            Self::navigation_page_status(fl!("tooltip_sidebar_help"), 4),
+            Self::navigation_page_status(fl!("tooltip_sidebar_help"), 5),
             "question-mark".to_string(),
         );
         sidebar_tabs.set_item_width(30);
@@ -1585,7 +1599,18 @@ impl Sidebar {
                 }
             }
             TheEvent::DragStarted(id, text, offset) => {
-                if id.name == "Shader Item" {
+                if let Some(key) = id.name.strip_prefix("Node Catalog/") {
+                    if crate::docks::nodes::node_available(server_ctx.pc, key) {
+                        let mut drop = TheDrop::new(id.clone());
+                        drop.set_title(text.clone());
+                        drop.set_text(text.clone());
+                        drop.set_data(key.into());
+                        drop.set_offset(*offset);
+                        drop.operation = TheDropOperation::Copy;
+                        ui.style.create_drop_image(&mut drop, ctx);
+                        ctx.ui.set_drop(drop);
+                    }
+                } else if id.name == "Shader Item" {
                     let mut drop = TheDrop::new(id.clone());
                     drop.set_title(format!("Shader: {text}"));
                     drop.set_text(text.clone());
@@ -5373,7 +5398,7 @@ impl Sidebar {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        self.activate_navigation_page(2, ui, ctx, project, server_ctx)
+        self.activate_navigation_page(3, ui, ctx, project, server_ctx)
     }
 
     pub fn show_project_page(
@@ -5403,7 +5428,7 @@ impl Sidebar {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        self.activate_navigation_page(3, ui, ctx, project, server_ctx)
+        self.activate_navigation_page(4, ui, ctx, project, server_ctx)
     }
 
     pub fn show_help_page(
@@ -5413,7 +5438,7 @@ impl Sidebar {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        self.activate_navigation_page(4, ui, ctx, project, server_ctx)
+        self.activate_navigation_page(5, ui, ctx, project, server_ctx)
     }
 }
 
@@ -5427,8 +5452,10 @@ mod tests {
         assert_eq!(Sidebar::next_navigation_page(1, false), 2);
         assert_eq!(Sidebar::next_navigation_page(2, false), 3);
         assert_eq!(Sidebar::next_navigation_page(3, false), 4);
-        assert_eq!(Sidebar::next_navigation_page(4, false), 0);
-        assert_eq!(Sidebar::next_navigation_page(0, true), 4);
+        assert_eq!(Sidebar::next_navigation_page(4, false), 5);
+        assert_eq!(Sidebar::next_navigation_page(0, true), 5);
+        assert_eq!(Sidebar::next_navigation_page(5, false), 0);
+        assert_eq!(Sidebar::next_navigation_page(5, true), 4);
         assert_eq!(Sidebar::next_navigation_page(4, true), 3);
         assert_eq!(Sidebar::next_navigation_page(3, true), 2);
         assert_eq!(Sidebar::next_navigation_page(2, true), 1);

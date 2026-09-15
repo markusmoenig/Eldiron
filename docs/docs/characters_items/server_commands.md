@@ -360,7 +360,7 @@ Normal kill XP can also be awarded automatically through `progression.xp.kill`, 
 
 *This command can be used with both characters and items.*
 
-Gets an attribute of the current character or item.
+Gets an attribute of the current character or item. Returns numeric `0` if the attribute is missing.
 
 ```eldrin
 get_attr("key")
@@ -372,7 +372,7 @@ get_attr("key")
 
 *This command can be used with both characters and items.*
 
-Gets an attribute from a specific entity or item.
+Gets an attribute from a specific entity or item. Returns numeric `0` if the ID or attribute is not found.
 
 ```eldrin
 get_attr_of(id, "key")
@@ -411,18 +411,6 @@ if is_hostile(entity_id) {
 Use this in `proximity_warning` handlers instead of checking custom `ALIGNMENT` attributes. The hostility decision comes from the active ruleset.
 
 See also: [disposition_of](#disposition_of), [set_proximity_tracking](#set_proximity_tracking), [follow_attack](#follow_attack).
-
----
-
-## `get_sector_name`
-
-*This command can be used with both characters and items.*
-
-Returns the name of the sector the character or item is currently in.
-
-```eldrin
-get_sector_name()
-```
 
 ---
 
@@ -835,7 +823,7 @@ set_player_camera("firstp");
 
 *This command can be used with both characters and items.*
 
-Enables or disables proximity tracking for characters. If enabled, [proximity_warning](events#proximity_warning) events will be send for all nearby entities within the given radius.
+Enables or disables proximity tracking for characters. If enabled and another entity is within the given radius, each check sends a [proximity_warning](events#proximity_warning) event with the first entity ID returned by the radius query.
 
 Useful for NPCs (or even items) to interact with other characters (attack, talk, heal, etc.).
 

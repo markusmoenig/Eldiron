@@ -2,8 +2,10 @@ pub mod assets;
 pub mod currency;
 pub mod data;
 pub mod entity;
+pub mod event_observation;
 pub mod item;
 pub mod message;
+pub mod nodes;
 pub mod py_fn;
 pub mod region;
 pub mod region_host;
@@ -26,6 +28,16 @@ type RegionRegistry = Arc<RwLock<FxHashMap<u32, Sender<RegionMessage>>>>;
 static REGIONPIPE: LazyLock<RegionRegistry> =
     LazyLock::new(|| Arc::new(RwLock::new(FxHashMap::default())));
 
+/// Queue graph edits through the normal region channels; no editor/runtime locks
+/// are nested and all execution changes happen at a region update boundary.
+pub fn publish_node_graph(owner: String, graph: serde_json::Value) {
+    if let Ok(pipes) = REGIONPIPE.read() {
+        for sender in pipes.values() {
+            let _ = sender.send(RegionMessage::UpdateNodeGraph(owner.clone(), graph.clone()));
+        }
+    }
+}
+
 // List of currently active local players
 type Player = Arc<RwLock<Vec<(u32, u32)>>>;
 static LOCAL_PLAYERS: LazyLock<Player> = LazyLock::new(|| Arc::new(RwLock::new(Vec::new())));
@@ -45,11 +57,15 @@ pub enum ServerState {
 }
 
 pub struct Server {
+    pub node_highlights: Vec<nodes::Highlights>,
+    pub node_traces: std::collections::VecDeque<nodes::Trace>,
     pub id_gen: u32,
 
     /// In debug mode the server sends Eldrin source-line status updates.
     pub debug_mode: bool,
     pub eldrin_debug: EldrinDebugModule,
+    pub event_session: Uuid,
+    pub event_observations: std::collections::VecDeque<event_observation::EventObservation>,
 
     /// Maps region uuids to the region id
     pub region_id_map: FxHashMap<Uuid, u32>,
@@ -92,11 +108,15 @@ impl Default for Server {
 impl Server {
     pub fn new() -> Self {
         Self {
+            node_traces: Default::default(),
+            node_highlights: Default::default(),
             // 0 is reserved as NO_ID / None sentinel.
             id_gen: 1,
 
             debug_mode: false,
             eldrin_debug: EldrinDebugModule::default(),
+            event_observations: Default::default(),
+            event_session: Uuid::new_v4(),
 
             region_id_map: FxHashMap::default(),
             region_name_id_map: FxHashMap::default(),
@@ -661,6 +681,33 @@ impl Server {
                     RegionMessage::BlockPropInstancesUpdate(id, instances) => {
                         self.block_prop_instances.insert(id, instances);
                     }
+                    RegionMessage::NodeHighlights(updates) => {
+                        for update in updates {
+                            self.node_highlights.retain(|old| {
+                                old.event.map != update.event.map
+                                    || old.actor.identity != update.actor.identity
+                            });
+                            if !update.active.nodes.is_empty() || !update.recent.nodes.is_empty() {
+                                self.node_highlights.push(update);
+                            }
+                        }
+                    }
+                    RegionMessage::NodeTraces(traces) => {
+                        for trace in traces {
+                            if self.node_traces.len() >= 512 {
+                                self.node_traces.pop_front();
+                            }
+                            self.node_traces.push_back(trace);
+                        }
+                    }
+                    RegionMessage::EventObservations(events) => {
+                        for event in events {
+                            event_observation::retain_observation(
+                                &mut self.event_observations,
+                                event,
+                            );
+                        }
+                    }
                     RegionMessage::EldrinDebugData(data) => {
                         self.eldrin_debug.merge(&data);
                     }
@@ -908,12 +955,16 @@ impl Server {
 
     /// Shuts down all region instances.
     pub fn clear(&mut self) {
+        self.node_traces.clear();
+        self.node_highlights.clear();
         if let Ok(mut pipes) = REGIONPIPE.write() {
             pipes.clear();
         }
         if let Ok(mut players) = LOCAL_PLAYERS.write() {
             players.clear();
         }
+        self.event_session = Uuid::new_v4();
+        self.event_observations.clear();
         self.entities.clear();
         self.items.clear();
         self.messages.clear();

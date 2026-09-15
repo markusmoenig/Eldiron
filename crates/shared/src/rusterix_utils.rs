@@ -138,6 +138,26 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.server.clear();
     rusterix.server.debug_mode = debug;
     rusterix.server.log_changed = true;
+    // Change only behavior execution. Keep the established region/client startup,
+    // screen configuration and character-selection registration path intact.
+    rusterix.assets.node_behaviors = Some(rusterix::server::nodes::region::BehaviorAssets {
+        graphs: project
+            .node_graphs
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect(),
+        characters: project
+            .characters
+            .values()
+            .map(|c| (c.name.clone(), c.id))
+            .collect(),
+        items: project
+            .items
+            .values()
+            .map(|i| (i.name.clone(), i.id))
+            .collect(),
+        regions: project.regions.iter().map(|r| (r.map.id, r.id)).collect(),
+    });
 
     insert_content_into_maps_mode(project, debug);
     rusterix.assets.rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)

@@ -116,6 +116,7 @@ fn resolve_rules_state(
 
 #[derive(Default)]
 pub struct RegionCtx {
+    pub node_behaviors: Option<super::nodes::region::Behaviors>,
     pub map: Map,
     pub mapmini: MapMini,
     pub collision_world: CollisionWorld,
@@ -127,6 +128,7 @@ pub struct RegionCtx {
     pub debug_mode: bool,
     pub debug: LegacyDebugModule,
     pub eldrin_debug: EldrinDebugModule,
+    pub event_observations: std::collections::VecDeque<super::event_observation::EventObservation>,
     pub curr_debug_loc: Option<(String, u32, u32)>,
     pub current_debug_function: String,
 

@@ -106,6 +106,11 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::code::CodeDock::new());
         docks.insert("Code".into(), dock);
 
+        docks.insert(
+            "Nodes".into(),
+            Box::new(crate::docks::nodes::NodesDock::new()) as Box<dyn Dock>,
+        );
+
         let dock: Box<dyn Dock> = Box::new(crate::docks::data::DataDock::new());
         docks.insert("Data".into(), dock);
 
@@ -289,9 +294,15 @@ impl DockManager {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        self.editor_docks
+        let active = self
+            .docks
+            .get_mut(&self.dock)
+            .is_some_and(|dock| dock.poll_background(ui, ctx, project, server_ctx));
+        let background = self
+            .editor_docks
             .get_mut("Recipes")
-            .is_some_and(|dock| dock.poll_background(ui, ctx, project, server_ctx))
+            .is_some_and(|dock| dock.poll_background(ui, ctx, project, server_ctx));
+        active || background
     }
 
     /// Returns the state of the dock manager.

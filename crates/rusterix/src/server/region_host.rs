@@ -6650,6 +6650,32 @@ pub fn run_server_named_fn(
     program: &crate::vm::Program,
     region_ctx: &mut RegionCtx,
 ) -> bool {
+    if name == "event" && region_ctx.assets.node_behaviors.is_some() {
+        if let Some(event) = args.first().and_then(VMValue::as_string) {
+            let value = args.get(1).cloned().unwrap_or_else(VMValue::zero);
+            // Older engine producers set the current item ID without always
+            // updating ScriptScope. Normalize only character/item ownership.
+            let previous_scope = region_ctx.current_script_scope;
+            if matches!(previous_scope, ScriptScope::Entity | ScriptScope::Item) {
+                region_ctx.current_script_scope = if region_ctx.curr_item_id.is_some() {
+                    ScriptScope::Item
+                } else {
+                    ScriptScope::Entity
+                };
+            }
+            let captured = super::event_observation::capture(region_ctx, event, &value);
+            region_ctx.current_script_scope = previous_scope;
+            if let Some(event) = captured {
+                super::nodes::region::dispatch(region_ctx, event);
+            }
+        }
+        return true;
+    }
+    if name == "event" && args.len() >= 2 {
+        if let Some(event) = args[0].as_string() {
+            super::event_observation::observe(region_ctx, event, &args[1]);
+        }
+    }
     if let Some(index) = program.user_functions_name_map.get(name).copied() {
         exec.reset(program.globals);
         let previous_debug_function = region_ctx.current_debug_function.clone();
@@ -6684,6 +6710,11 @@ pub fn run_client_fn(
     program: &crate::vm::Program,
     region_ctx: &mut RegionCtx,
 ) {
+    if region_ctx.assets.node_behaviors.is_some() {
+        // User events share the same named event envelope in the node runtime.
+        let _ = run_server_named_fn(exec, "event", args, program, region_ctx);
+        return;
+    }
     if let Some(index) = program.user_functions_name_map.get("user_event").copied() {
         exec.reset(program.globals);
         let previous_debug_function = region_ctx.current_debug_function.clone();

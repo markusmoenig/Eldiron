@@ -3,6 +3,8 @@ pub mod thecolor;
 pub mod thecontext;
 pub mod thedim;
 pub mod thedraw2d;
+#[cfg(feature = "ui")]
+pub mod thegraph;
 pub mod thenodecanvas;
 pub mod thepalette;
 pub mod thergbabuffer;

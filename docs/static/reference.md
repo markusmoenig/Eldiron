@@ -147,9 +147,6 @@ inventory_items_of(entity_id, filter_string)
 # This has many use cases, like a door checking if it can close as no players overlap.
 entities_in_radius()
 
-# Return the name of the sector the character or item is in.
-get_sector_name()
-
 # Send the event string to the character or item after a given amount of in-game minutes.
 # By default, one in game minute is one second in real time.
 notify_in(minutes, event_string)
@@ -162,7 +159,7 @@ set_attr("key", value)
 join_party(leader_id)
 
 # Enables / disable entity proximity tracking. If enabled, the entity or item will receive
-# "proximity_warning" events with a list of entity ids within the radius.
+# "proximity_warning" events with one entity ID: the first result of the radius query.
 # Works similarly to entities_in_radius(), but auto generates events.
 # Use with get_entity_attr() to check for entities to take action on (attack, heal, talk etc).
 set_proximity_tracking(True / False, radius)
@@ -340,7 +337,7 @@ For the up-to-date event list and the newer NPC sequence model, see:
 | **`bumped_into_item`**   | `item` *(int)*   | Triggered when an entity bumps into an item. |
 | **`bumped_by_entity`**   | `entity_id` *(int)* | Triggered when another entity collides with this entity or item. |
 | **`clicked`**            | *dict* `{ entity_id, distance }` | Triggered when the player clicks on an entity or item. Includes the clicking entity's ID and distance. |
-| **`damaged`**            | *dict*           | Triggered after combat damage is resolved. Contains `amount`, `attacker_id`, `kind`, and `source_item_id` when available. |
+| **`damaged`**            | packet           | Final damage in `.amount`, attacker ID in `.attacker_id`, damage kind in `.kind`, and source item ID in `.source_item_id` (0 if absent). Normally damage is applied after the handler; with `autodamage`, it is applied first and only surviving targets receive the reaction. |
 
 ### User Events
 

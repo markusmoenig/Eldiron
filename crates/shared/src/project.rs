@@ -609,6 +609,11 @@ pub struct Project {
     #[serde(default)]
     pub world_source: String,
 
+    /// Versioned graph documents, keyed by domain and stable owner identity.
+    /// JSON keeps headless project storage independent of the UI graph editor.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub node_graphs: IndexMap<String, serde_json::Value>,
+
     #[serde(default)]
     pub world_source_debug: String,
 
@@ -691,6 +696,7 @@ impl Project {
             config: String::new(),
             world_module: serde_json::Value::Null,
             world_source: String::new(),
+            node_graphs: IndexMap::new(),
             world_source_debug: String::new(),
             rules: default_rules(),
             locales: default_locales(),

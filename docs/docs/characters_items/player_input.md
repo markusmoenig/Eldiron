@@ -278,12 +278,14 @@ That event is sent to:
 - the clicked target entity, if the target is a character
 - the clicked target item, if the target is an item
 
-The event payload includes:
+For script-driven entity/item interactions, the event payload is a packet:
 
-- `intent`
-- `entity_id`
-- `item_id`
-- `distance`
+- `value.string`: intent name; compare directly with `value == "talk"`, for example
+- `value.subject_id` (`.x`): target ID for the originating character, or originating character ID for the target
+- `value.distance` (`.y`): distance between the participants
+- `.z`: `0`
+
+There are no separate `intent`, `entity_id`, or `item_id` dictionary fields. Built-in shortcuts can handle an interaction before these script events are sent.
 
 This lets either side handle the interaction.
 

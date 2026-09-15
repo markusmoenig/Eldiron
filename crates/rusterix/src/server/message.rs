@@ -137,6 +137,10 @@ pub enum RegionMessage {
     SetWorldPostValue(String, Value),
     /// Send Eldrin source-line debug data.
     EldrinDebugData(EldrinDebugModule),
+    EventObservations(Vec<super::event_observation::EventObservation>),
+    NodeTraces(Vec<super::nodes::Trace>),
+    NodeHighlights(Vec<super::nodes::Highlights>),
+    UpdateNodeGraph(String, serde_json::Value),
     /// Pause the server.
     Pause,
     /// Continue after pause

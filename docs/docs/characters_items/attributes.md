@@ -49,8 +49,8 @@ on_tile_id = "torch on"
 
 *Character-only attribute.*
 
-If set to `true`, incoming damage is applied directly by the server and the [damaged](events#damaged) event is skipped.
-Use this for simple NPCs/targets that should not run custom damage scripts.
+If set to `true`, incoming damage is applied directly by the server before any [damaged](events#damaged) reaction.
+Surviving targets still receive `damaged`, so their scripts can retaliate or otherwise react. Lethal damage does not queue this reaction; the character receives [death](events#death).
 On lethal damage, the server also applies death state automatically (`mode = "dead"` and `visible = false`).
 
 ```toml
