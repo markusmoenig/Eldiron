@@ -252,6 +252,48 @@ impl RegionCtx {
         cache.error.clone().map_or(Ok(()), Err)
     }
 
+    pub fn entity_target(&self, entity_id: u32) -> Option<u32> {
+        let entity = self
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == entity_id)?;
+        entity
+            .attributes
+            .get_uint("target")
+            .or_else(|| entity.attributes.get_uint("attack_target"))
+            .or_else(|| {
+                entity
+                    .attributes
+                    .get_str("target")
+                    .and_then(|value| value.parse().ok())
+            })
+            .or_else(|| {
+                entity
+                    .attributes
+                    .get_str("attack_target")
+                    .and_then(|value| value.parse().ok())
+            })
+    }
+
+    pub fn set_entity_target(&mut self, entity_id: u32, target: Option<u32>) {
+        if let Some(entity) = self
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == entity_id)
+        {
+            for key in ["target", "attack_target"] {
+                entity.set_attribute(
+                    key,
+                    target
+                        .map(Value::UInt)
+                        .unwrap_or_else(|| Value::Str(String::new())),
+                );
+            }
+        }
+    }
+
     pub fn set_rules(&mut self, rules: Table) -> Result<(), String> {
         self.rules = rules;
         self.sync_attribute_roles();

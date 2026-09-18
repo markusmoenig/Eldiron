@@ -860,27 +860,7 @@ impl<'a> RegionHost<'a> {
             }
         }
 
-        // Otherwise current entity target
-        if let Some(entity) = self.ctx.get_current_entity_mut() {
-            if let Some(id) = entity.attributes.get_uint("target") {
-                return Some(id);
-            }
-            if let Some(id) = entity.attributes.get_uint("attack_target") {
-                return Some(id);
-            }
-            if let Some(s) = entity.attributes.get_str("target")
-                && let Ok(id) = s.parse::<u32>()
-            {
-                return Some(id);
-            }
-            if let Some(s) = entity.attributes.get_str("attack_target")
-                && let Ok(id) = s.parse::<u32>()
-            {
-                return Some(id);
-            }
-        }
-
-        None
+        self.ctx.entity_target(self.ctx.curr_entity_id)
     }
 
     fn current_attack_source_item_id(&self) -> Option<u32> {
@@ -1020,15 +1000,8 @@ impl<'a> RegionHost<'a> {
             return;
         }
 
-        if let Some(entity) = self.ctx.get_current_entity_mut() {
-            if let Some(id) = target_id {
-                entity.set_attribute("target", Value::UInt(id));
-                entity.set_attribute("attack_target", Value::UInt(id));
-            } else {
-                entity.set_attribute("target", Value::Str(String::new()));
-                entity.set_attribute("attack_target", Value::Str(String::new()));
-            }
-        }
+        self.ctx
+            .set_entity_target(self.ctx.curr_entity_id, target_id);
     }
 
     fn attack_cooldown_seconds(&self) -> f32 {

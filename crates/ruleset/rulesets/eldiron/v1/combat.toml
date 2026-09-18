@@ -91,3 +91,25 @@ equipped_armor_attribute = "FIRE_RESIST"
 [combat.kinds.fire.audio]
 incoming_fx = "hit"
 outgoing_fx = "fire_cast"
+
+# Node behavior policies. Graphs select a policy, never override its rules.
+[behavior.lookout.hostile]
+disposition = "hostile"
+radius = 6.0
+retry_seconds = 2.0
+
+[behavior.lookout.friendly]
+disposition = "friendly"
+radius = 6.0
+retry_seconds = 2.0
+
+[behavior.lookout.neutral]
+disposition = "neutral"
+radius = 6.0
+retry_seconds = 2.0
+
+[behavior.engage.default]
+actions = ["basic_attack"]
+speed = 1.0
+pursuit_distance = 8.0
+blocked_seconds = 3.0

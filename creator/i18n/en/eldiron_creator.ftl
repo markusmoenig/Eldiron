@@ -949,3 +949,19 @@ node_destination = Destination
 node_error = Error
 node_running = Running
 node_go_to_help = Move to a named sector or area. Done runs after arrival; Error runs if the destination is invalid, blocked, or movement is interrupted. Return commits the destination.
+
+node_lookout = Lookout
+node_engage = Engage Target
+node_ruleset_profile = Ruleset profile
+node_target_found = Target Found
+node_watching = Watching
+node_target_defeated = Defeated
+node_target_lost = Target Lost
+node_cannot_engage = Cannot Engage
+node_lookout_help = Watch for a target matching a ruleset relationship profile. Watching continues the routine; Target Found interrupts it. Uses the shared current target. Configure policies in Game / Rules.
+node_engage_help = Pursue and attack the current target using a ruleset combat profile. Actions, range, costs, cooldowns and pursuit limits come from the ruleset. Connect outcomes to Resume Routine.
+node_closing_in = Closing In
+node_attacking = Attacking
+node_cooldown = Waiting for Cooldown
+
+node_combat_status = { $status } · Target { $target }

@@ -5,6 +5,7 @@ use std::{
 use theframework::prelude::{TheColor, ThePalette};
 use toml::{Table, Value};
 
+pub mod behavior;
 pub mod cli;
 mod formula;
 mod help;

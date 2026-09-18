@@ -293,6 +293,22 @@ impl WorldServices for RegionServices<'_> {
             .iter_mut()
             .find(|e| e.id == actor.render_id && e.creator_id == actor.handle.identity)
         {
+            if entity.attributes.get_bool_default("__node_engage", false) {
+                let delay = match entity.attributes.get("__node_lookout_delay") {
+                    Some(WorldValue::Int64(delay)) => *delay,
+                    _ => 0,
+                };
+                entity.attributes.set(
+                    "__node_lookout_retry",
+                    WorldValue::Int64(self.ctx.ticks + delay),
+                );
+                entity.attributes.remove("__node_engage");
+                entity.set_attribute("target", WorldValue::Str(String::new()));
+                entity.set_attribute("attack_target", WorldValue::Str(String::new()));
+                if matches!(entity.action, crate::EntityAction::CloseIn(..)) {
+                    entity.action = crate::EntityAction::Off;
+                }
+            }
             if is_walk(&entity.action) || entity.attributes.get_bool_default("__node_goto", false) {
                 entity.attributes.remove("__node_goto");
                 entity.attributes.remove("__node_goto_arrived");
@@ -346,6 +362,55 @@ impl WorldServices for RegionServices<'_> {
             entity.action = previous;
         }
         Ok(())
+    }
+    fn lookout(&mut self, actor: &Actor, profile: &str) -> Result<bool, String> {
+        crate::server::region::node_lookout(self.ctx, actor.render_id, profile)
+    }
+    fn engage_start(&mut self, actor: &Actor, profile: &str) -> Result<(), String> {
+        let result = crate::server::region::node_engage_start(self.ctx, actor.render_id, profile);
+        if result.is_err() {
+            self.ctx.set_entity_target(actor.render_id, None);
+            if let Some(entity) = self
+                .ctx
+                .map
+                .entities
+                .iter_mut()
+                .find(|e| e.id == actor.render_id)
+            {
+                let delay = match entity.attributes.get("__node_lookout_delay") {
+                    Some(WorldValue::Int64(delay)) => *delay,
+                    _ => 0,
+                };
+                entity.attributes.set(
+                    "__node_lookout_retry",
+                    WorldValue::Int64(self.ctx.ticks + delay),
+                );
+            }
+        }
+        result
+    }
+    fn engage_tick(
+        &mut self,
+        actor: &Actor,
+        profile: &str,
+    ) -> Result<Option<&'static str>, String> {
+        let result = crate::server::region::node_engage_tick(self.ctx, actor.render_id, profile);
+        if result.is_err() {
+            self.cancel_activity(actor);
+        }
+        result
+    }
+    fn activity_status(&self, actor: &Actor) -> Option<String> {
+        self.ctx
+            .map
+            .entities
+            .iter()
+            .find(|e| e.id == actor.render_id && e.creator_id == actor.handle.identity)
+            .and_then(|e| e.attributes.get_str("__node_behavior_status"))
+            .map(str::to_owned)
+    }
+    fn current_target(&self, actor: &Actor) -> Option<u32> {
+        self.ctx.entity_target(actor.render_id)
     }
     fn random_walk_active(&self, actor: &Actor) -> bool {
         self.ctx

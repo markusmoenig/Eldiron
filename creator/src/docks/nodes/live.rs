@@ -5,6 +5,7 @@ use rusterix::server::event_observation::{EventObservation, EventOwner};
 pub(super) struct LiveEvents {
     pub active: bool,
     pub time: TheTime,
+    pub combat_status: HashMap<Uuid, (String, Option<u32>)>,
     pub active_nodes: std::collections::HashSet<Uuid>,
     pub active_connections: std::collections::HashSet<Uuid>,
     highlight_revisions: HashMap<Uuid, (Uuid, std::time::Instant)>,
@@ -98,6 +99,7 @@ impl NodesDock {
         let now = std::time::Instant::now();
         let mut nodes = std::collections::HashSet::new();
         let mut connections = std::collections::HashSet::new();
+        let mut combat_status = HashMap::new();
         let mut visible_actors = std::collections::HashSet::new();
         for state in server.node_highlights.iter().filter(|state| {
             matches_owner(&state.event, server_ctx.pc, project, server_ctx.curr_region)
@@ -111,6 +113,11 @@ impl NodesDock {
             if seen.0 != state.revision {
                 *seen = (state.revision, now);
             }
+            if let Some(status) = &state.status {
+                for id in &state.active.nodes {
+                    combat_status.insert(*id, (status.clone(), state.target));
+                }
+            }
             nodes.extend(state.active.nodes.iter().copied());
             connections.extend(state.active.connections.iter().copied());
             if now.duration_since(seen.1) < std::time::Duration::from_millis(900) {
@@ -121,6 +128,8 @@ impl NodesDock {
         self.live
             .highlight_revisions
             .retain(|actor, _| visible_actors.contains(actor));
+        changed |= combat_status != self.live.combat_status;
+        self.live.combat_status = combat_status;
         changed |= nodes != self.live.active_nodes || connections != self.live.active_connections;
         self.live.active_nodes = nodes;
         self.live.active_connections = connections;
@@ -190,6 +199,28 @@ impl GraphContext for LiveContext<'_> {
         self.live.active && self.live.active_connections.contains(&connection)
     }
     fn observe(&self, node: &GraphNode) -> GraphObservation {
+        if node.definition.as_deref() == Some("engage") && self.node_active(node.id) {
+            if let Some((status, target)) = self.live.combat_status.get(&node.id) {
+                let status = match status.as_str() {
+                    "closing_in" => fl!("node_closing_in"),
+                    "attacking" => fl!("node_attacking"),
+                    "cooldown" => fl!("node_cooldown"),
+                    _ => fl!("node_running"),
+                };
+                return GraphObservation {
+                    execution: GraphExecution::Running,
+                    text: fl!(
+                        "node_combat_status",
+                        status = status,
+                        target = target
+                            .map(|id| id.to_string())
+                            .unwrap_or_else(|| "—".into())
+                    ),
+                    ..Default::default()
+                };
+            }
+        }
+
         if node.definition.as_deref() == Some("time_range") {
             let value = |key: &str| {
                 node.rows

@@ -19,5 +19,6 @@ name = "eldiron-ruleset"
 path = "src/main.rs"
 
 [dependencies]
+serde = { version = "1.0", features = ["derive"] }
 theframework.workspace = true
 toml = "0.9"

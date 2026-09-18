@@ -241,6 +241,7 @@ impl Dock for NodesDock {
         server: &mut ServerContext,
     ) {
         let owner = Self::owner(server.pc);
+        self.definitions = catalog::definitions_for_project(project);
         self.editor.finish_text(&mut self.doc, false);
         self.editor.take_edits();
         self.popup = None;

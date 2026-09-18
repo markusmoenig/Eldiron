@@ -649,7 +649,7 @@ fn routine_rechecks_only_when_time_condition_changes() {
     assert_eq!(world.output, ["Working"]);
     world.time.hours = 16;
     runtime.tick(actor, 3, &mut world);
-    assert_eq!(world.cancelled, 2);
+    assert_eq!(world.cancelled, 3);
     assert_eq!(world.output, ["Working"]);
 }
 

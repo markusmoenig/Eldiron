@@ -1,3 +1,5 @@
+#[path = "node_combat.rs"]
+mod node_combat;
 use crate::server::message::DialogChoice;
 use crate::server::py_fn::*;
 use crate::server::region_host::{run_client_fn, run_server_fn, run_server_named_fn};
@@ -16,6 +18,7 @@ use eldiron_ruleset::{
     ResolvedConditionPeriodicEffect, ResolvedConditionStacking, evaluate_formula,
 };
 use instant::{Duration, Instant};
+pub(crate) use node_combat::{node_engage_start, node_engage_tick, node_lookout};
 use pathfinding::prelude::astar;
 use rand::seq::SliceRandom;
 use rand::*;
@@ -17172,6 +17175,10 @@ fn execute_resolved_attack_action(
         return false;
     }
 
+    let Some(resource_costs) = prepare_action_resource_costs(actor, action) else {
+        return false;
+    };
+
     let consumes = action
         .item_costs
         .iter()
@@ -17246,6 +17253,9 @@ fn execute_resolved_attack_action(
         return false;
     };
     if !has_attack_ammunition_or_message(ctx, actor_id, source_item_id, &action.name) {
+        return false;
+    }
+    if !apply_action_resource_costs(ctx, actor_id, resource_costs) {
         return false;
     }
     consume_action_items(ctx, actor_id, &consumes);

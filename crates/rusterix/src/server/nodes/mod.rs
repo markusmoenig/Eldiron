@@ -51,6 +51,8 @@ pub struct Highlights {
     pub revision: Uuid,
     pub active: ExecutionPath,
     pub recent: ExecutionPath,
+    pub status: Option<String>,
+    pub target: Option<u32>,
 }
 pub struct EventContext<'a> {
     pub actor: &'a Actor,
@@ -59,6 +61,26 @@ pub struct EventContext<'a> {
 }
 /// Modules access world functionality through services, never the legacy RegionCtx.
 pub trait WorldServices {
+    fn activity_status(&self, _actor: &Actor) -> Option<String> {
+        None
+    }
+    fn lookout(&mut self, _actor: &Actor, _profile: &str) -> Result<bool, String> {
+        Err("Lookout requires a character".into())
+    }
+    fn engage_start(&mut self, _actor: &Actor, _profile: &str) -> Result<(), String> {
+        Err("Engage requires a character".into())
+    }
+    fn engage_tick(
+        &mut self,
+        _actor: &Actor,
+        _profile: &str,
+    ) -> Result<Option<&'static str>, String> {
+        Err("Engage requires a character".into())
+    }
+    fn current_target(&self, _actor: &Actor) -> Option<u32> {
+        None
+    }
+
     fn random_walk_active(&self, _actor: &Actor) -> bool {
         true
     }
@@ -101,6 +123,13 @@ pub trait WorldServices {
     }
 }
 pub trait Operation: Send + Sync {
+    fn watch_event(&self) -> Option<&'static str> {
+        None
+    }
+    fn interrupts_on(&self, _output: &str) -> bool {
+        false
+    }
+
     fn condition(&self, _time: theframework::prelude::TheTime) -> Option<bool> {
         None
     }
@@ -291,6 +320,7 @@ pub struct Plan {
 pub struct Runtime {
     pub actors: HashMap<Uuid, Actor>,
     conditions: HashMap<ActorHandle, BTreeMap<Uuid, bool>>,
+    watchers: HashMap<ActorHandle, HashSet<Uuid>>,
     highlights: HashMap<ActorHandle, Highlights>,
     highlight_dirty: HashSet<ActorHandle>,
     live_activity: HashMap<ActorHandle, (Uuid, EventObservation)>,
@@ -383,10 +413,16 @@ impl Runtime {
         self.conditions.insert(handle, current_conditions);
         let reevaluate =
             (changed_structure || changed_conditions) && plan.events.contains_key("routine");
+        if let Some(watchers) = self.watchers.get_mut(&handle) {
+            watchers.retain(|id| {
+                plan.nodes
+                    .get(id)
+                    .is_some_and(|op| op.watch_event().is_some())
+            });
+        }
         self.actors.get_mut(&handle.identity).unwrap().graph = Some(plan);
         let actor = &self.actors[&handle.identity];
         if reevaluate {
-            world.cancel_activity(actor);
             self.live_activity.remove(&handle);
             if let Some(state) = self.highlights.get_mut(&handle) {
                 state.active = ExecutionPath::default();
@@ -461,6 +497,7 @@ impl Runtime {
         }
         self.failed.remove(&handle);
         self.conditions.remove(&handle);
+        self.watchers.remove(&handle);
         self.pending.retain(|(actor, _, _)| *actor != handle);
         true
     }
@@ -530,6 +567,48 @@ impl Runtime {
         let Some(graph) = &actor.graph else {
             return;
         };
+        let triggered = self
+            .watchers
+            .get(&handle)
+            .into_iter()
+            .flatten()
+            .find_map(|id| {
+                let op = graph.nodes.get(id)?;
+                let name = op.watch_event()?;
+                let event = EventObservation {
+                    map: actor.map,
+                    owner: EventOwner::Entity(handle.identity),
+                    name: name.into(),
+                    tick,
+                    fields: BTreeMap::new(),
+                };
+                match op.poll(
+                    &EventContext {
+                        actor,
+                        event: &event,
+                        time: world.time(actor),
+                    },
+                    world,
+                ) {
+                    Some(_) => Some((*id, event)),
+                    _ => None,
+                }
+            });
+        if let Some((id, mut event)) = triggered {
+            if let Some(target) = world.current_target(actor) {
+                event
+                    .fields
+                    .insert("target".into(), EventField::Entity(target));
+            }
+            world.cancel_activity(actor);
+            if let Some(watchers) = self.watchers.get_mut(&handle) {
+                watchers.remove(&id);
+            }
+            self.suspend_activity(handle);
+            self.pending.push_back((handle, event, Some(id)));
+            self.update(world);
+            return;
+        }
         let conditions: BTreeMap<_, _> = graph
             .nodes
             .iter()
@@ -544,7 +623,6 @@ impl Runtime {
             .get(&handle)
             .is_none_or(|(_, event)| event.name == "routine");
         if changed && routine_owns_activity && graph.events.contains_key("routine") {
-            world.cancel_activity(actor);
             self.live_activity.remove(&handle);
             if let Some(state) = self.highlights.get_mut(&handle) {
                 state.active = ExecutionPath::default();
@@ -570,14 +648,24 @@ impl Runtime {
         let Some(op) = graph.nodes.get(&id) else {
             return;
         };
-        let Some(result) = op.poll(
+        let result = op.poll(
             &EventContext {
                 actor,
                 event: &event,
                 time: world.time(actor),
             },
             world,
-        ) else {
+        );
+        if let Some(state) = self.highlights.get_mut(&handle) {
+            let status = world.activity_status(actor);
+            let target = world.current_target(actor);
+            if state.status != status || state.target != target {
+                state.status = status;
+                state.target = target;
+                self.highlight_dirty.insert(handle);
+            }
+        }
+        let Some(result) = result else {
             return;
         };
         event.tick = tick;
@@ -642,7 +730,7 @@ impl Runtime {
         // A fixed budget bounds cycles and fan-out without recursively calling nodes.
         let mut budget = 4096;
         while budget > 0 {
-            let Some((handle, event, start)) = self.pending.pop_front() else {
+            let Some((handle, mut event, start)) = self.pending.pop_front() else {
                 break;
             };
             if !self.is_current(handle) {
@@ -680,12 +768,23 @@ impl Runtime {
             if work.is_empty() {
                 continue;
             }
+            if start.is_none() && event.name == "routine" {
+                world.cancel_activity(actor);
+                self.live_activity.remove(&handle);
+                self.watchers.remove(&handle);
+                self.failed.remove(&handle);
+                if let Some(state) = self.highlights.get_mut(&handle) {
+                    state.active = ExecutionPath::default();
+                }
+            }
             let state = self.highlights.entry(handle).or_insert_with(|| Highlights {
                 actor: handle,
                 event: event.clone(),
                 revision: Uuid::new_v4(),
                 active: ExecutionPath::default(),
                 recent: ExecutionPath::default(),
+                status: None,
+                target: None,
             });
             if start.is_none() || state.event != event {
                 state.recent = ExecutionPath::default();
@@ -709,6 +808,22 @@ impl Runtime {
                         world,
                     )
                 };
+                if let Some(name) = graph.nodes[&id].watch_event() {
+                    if result.is_ok() {
+                        self.watchers.entry(handle).or_default().insert(id);
+                    }
+                    if result
+                        .as_ref()
+                        .is_ok_and(|port| graph.nodes[&id].interrupts_on(port))
+                    {
+                        event.name = name.into();
+                        if let Some(target) = world.current_target(actor) {
+                            event
+                                .fields
+                                .insert("target".into(), EventField::Entity(target));
+                        }
+                    }
+                }
                 let state = self.highlights.get_mut(&handle).unwrap();
                 if !state.recent.nodes.contains(&id) {
                     state.recent.nodes.push(id);
@@ -764,6 +879,8 @@ impl Runtime {
             if started_activity {
                 let state = self.highlights.get_mut(&handle).unwrap();
                 state.active = state.recent.clone();
+                state.status = world.activity_status(actor);
+                state.target = world.current_target(actor);
             }
         }
     }

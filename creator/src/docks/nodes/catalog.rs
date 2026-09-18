@@ -2,6 +2,14 @@
 use theframework::thegraph::*;
 
 pub fn definitions() -> GraphDefinitions {
+    definitions_with_rules(shared::rulesets::latest_official_ruleset())
+}
+pub fn definitions_for_project(project: &shared::project::Project) -> GraphDefinitions {
+    let rules = shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+        .unwrap_or_default();
+    definitions_with_rules(&rules)
+}
+fn definitions_with_rules(rules: &str) -> GraphDefinitions {
     let mut defs = GraphDefinitions::default();
     for (id, label, fields) in [
         ("startup", fl!("node_startup"), vec![]),
@@ -244,6 +252,58 @@ pub fn definitions() -> GraphDefinitions {
         &goto,
     ))
     .unwrap();
+    for (id, title, default_profile, outputs) in [
+        (
+            "lookout",
+            fl!("node_lookout"),
+            "hostile",
+            vec![
+                ("found", fl!("node_target_found")),
+                ("watching", fl!("node_watching")),
+            ],
+        ),
+        (
+            "engage",
+            fl!("node_engage"),
+            "default",
+            vec![
+                ("defeated", fl!("node_target_defeated")),
+                ("lost", fl!("node_target_lost")),
+                ("cannot_engage", fl!("node_cannot_engage")),
+            ],
+        ),
+    ] {
+        let mut node = GraphNode::new(&title, [0., 0.], [35, 87, 134, 255]);
+        let options =
+            shared::rulesets::behavior::policy_ids_from_source(rules, id).unwrap_or_default();
+        let selected = options
+            .iter()
+            .position(|id| id == default_profile)
+            .unwrap_or(0);
+        row(
+            &mut node,
+            "profile",
+            &fl!("node_ruleset_profile"),
+            GraphControlValue::Choice { options, selected },
+        );
+        port(&mut node, "in", "", PortDirection::Input, 0.5);
+        let count = outputs.len();
+        for (i, (key, label)) in outputs.into_iter().enumerate() {
+            port(
+                &mut node,
+                key,
+                &label,
+                PortDirection::Output,
+                (i + 1) as f32 / (count + 1) as f32,
+            );
+        }
+        defs.register_node(GraphNodeDefinition::from_template(
+            id,
+            &fl!("node_group_actions"),
+            &node,
+        ))
+        .unwrap();
+    }
     let mut walk = GraphNode::new(&fl!("node_random_walk"), [0., 0.], [35, 87, 134, 255]);
     walk.width = 260.;
     row(
@@ -374,14 +434,26 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                         *value = value.clamp(*lo, *hi);
                     }
                     if let (
-                        GraphControlValue::Choice { options, .. },
+                        GraphControlValue::Choice { options, selected },
                         GraphControlValue::Choice {
                             options: translated,
                             ..
                         },
                     ) = (&mut row.value, &param.default)
                     {
+                        let profile = (row.key.as_deref() == Some("profile"))
+                            .then(|| options.get(*selected).cloned())
+                            .flatten();
                         *options = translated.clone();
+                        if let Some(profile) = profile {
+                            *selected = options
+                                .iter()
+                                .position(|id| id == &profile)
+                                .unwrap_or_else(|| {
+                                    options.push(profile);
+                                    options.len() - 1
+                                });
+                        }
                     }
                 }
             }

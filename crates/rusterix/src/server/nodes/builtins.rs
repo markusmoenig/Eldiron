@@ -1,5 +1,7 @@
 use super::*;
 pub(super) fn register(registry: &mut Registry) {
+    registry.register(Box::new(LookoutModule)).unwrap();
+    registry.register(Box::new(EngageModule)).unwrap();
     registry.register(Box::new(TimeRangeModule)).unwrap();
     registry.register(Box::new(GoToModule)).unwrap();
     registry.register(Box::new(EventModule)).unwrap();
@@ -438,5 +440,115 @@ impl Operation for GoTo {
     ) -> Result<&'static str, String> {
         world.go_to(ctx.actor, &self.destination, self.speed)?;
         Ok("running")
+    }
+}
+
+fn profile(p: &BTreeMap<String, Value>) -> Result<String, String> {
+    let value = p
+        .get("profile")
+        .and_then(|v| v.get("Choice"))
+        .ok_or("Missing ruleset profile")?;
+    let index = value
+        .get("selected")
+        .and_then(Value::as_u64)
+        .ok_or("Missing profile selection")? as usize;
+    value
+        .get("options")
+        .and_then(Value::as_array)
+        .and_then(|options| options.get(index))
+        .and_then(Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| "Select a ruleset profile".into())
+}
+struct LookoutModule;
+impl NodeModule for LookoutModule {
+    fn id(&self) -> &'static str {
+        "lookout"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["found", "watching"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        Ok(Box::new(Lookout(profile(p)?)))
+    }
+}
+struct Lookout(String);
+impl Operation for Lookout {
+    fn watch_event(&self) -> Option<&'static str> {
+        Some("lookout")
+    }
+    fn interrupts_on(&self, output: &str) -> bool {
+        output == "found"
+    }
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        Ok(if world.lookout(ctx.actor, &self.0)? {
+            "found"
+        } else {
+            "watching"
+        })
+    }
+    fn poll(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Option<Result<&'static str, String>> {
+        match world.lookout(ctx.actor, &self.0) {
+            Ok(true) => Some(Ok("found")),
+            Ok(false) => None,
+            Err(error) => Some(Err(error)),
+        }
+    }
+}
+struct EngageModule;
+impl NodeModule for EngageModule {
+    fn id(&self) -> &'static str {
+        "engage"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["defeated", "lost", "cannot_engage"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        Ok(Box::new(Engage(profile(p)?)))
+    }
+}
+struct Engage(String);
+impl Operation for Engage {
+    fn retains_activity(&self, output: &str) -> bool {
+        output == "running"
+    }
+    fn error_output(&self) -> Option<&'static str> {
+        Some("cannot_engage")
+    }
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        world.engage_start(ctx.actor, &self.0)?;
+        Ok("running")
+    }
+    fn refresh(&self, ctx: &EventContext<'_>, world: &mut dyn WorldServices) -> Result<(), String> {
+        world.engage_start(ctx.actor, &self.0)
+    }
+    fn poll(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Option<Result<&'static str, String>> {
+        match world.engage_tick(ctx.actor, &self.0) {
+            Ok(Some(output)) => Some(Ok(output)),
+            Ok(None) => None,
+            Err(error) => Some(Err(error)),
+        }
     }
 }
