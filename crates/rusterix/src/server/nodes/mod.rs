@@ -61,10 +61,25 @@ pub struct EventContext<'a> {
 }
 /// Modules access world functionality through services, never the legacy RegionCtx.
 pub trait WorldServices {
+    fn use_action(
+        &mut self,
+        _actor: &Actor,
+        _action: &str,
+        _subject: Option<u32>,
+    ) -> Result<(), String> {
+        Err("Use Action requires a character".into())
+    }
+
     fn activity_status(&self, _actor: &Actor) -> Option<String> {
         None
     }
-    fn lookout(&mut self, _actor: &Actor, _profile: &str) -> Result<bool, String> {
+    fn lookout(
+        &mut self,
+        _actor: &Actor,
+        _profile: &str,
+        _reaction: Option<f32>,
+        _escape: Option<f32>,
+    ) -> Result<bool, String> {
         Err("Lookout requires a character".into())
     }
     fn engage_start(&mut self, _actor: &Actor, _profile: &str) -> Result<(), String> {

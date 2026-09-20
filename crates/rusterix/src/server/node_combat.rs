@@ -5,8 +5,27 @@ pub(crate) fn node_lookout(
     ctx: &mut RegionCtx,
     actor_id: u32,
     profile: &str,
+    reaction: Option<f32>,
+    escape: Option<f32>,
 ) -> Result<bool, String> {
     let policy = eldiron_ruleset::behavior::lookout(&ctx.rules, profile)?;
+    let reaction = reaction.unwrap_or(policy.radius);
+    if !reaction.is_finite()
+        || reaction <= 0.0
+        || escape.is_some_and(|value| !value.is_finite() || value <= 0.0)
+    {
+        return Err("Lookout distances must be positive finite numbers".into());
+    }
+    if let Some(actor) = ctx.map.entities.iter_mut().find(|e| e.id == actor_id) {
+        if let Some(escape) = escape {
+            actor
+                .attributes
+                .set("__node_lookout_escape", Value::Float(escape));
+        } else {
+            actor.attributes.remove("__node_lookout_escape");
+        }
+    }
+
     let actor = ctx
         .map
         .entities
@@ -29,7 +48,7 @@ pub(crate) fn node_lookout(
             target.id != actor_id
                 && target.get_mode() != "dead"
                 && target.attributes.get_bool_default("visible", true)
-                && position.distance(target.get_pos_xz()) <= policy.radius
+                && position.distance(target.get_pos_xz()) <= reaction
                 && entity_disposition(ctx, actor, target) == policy.disposition
         })
         .min_by(|a, b| {
@@ -57,6 +76,13 @@ pub(crate) fn node_engage_start(
     profile: &str,
 ) -> Result<(), String> {
     eldiron_ruleset::behavior::engage(&ctx.rules, profile)?;
+    // Refreshing graph parameters must not move the pursuit origin or restart combat.
+    if ctx.map.entities.iter().any(|entity| {
+        entity.id == actor_id && entity.attributes.get_bool_default("__node_engage", false)
+    }) {
+        return Ok(());
+    }
+
     let target = ctx.entity_target(actor_id).ok_or("No current target")?;
     let identity = ctx
         .map
@@ -156,7 +182,10 @@ pub(crate) fn node_engage_tick(
             .get_float_default("__node_engage_origin_z", position.y),
     );
     if !target.attributes.get_bool_default("visible", true)
-        || origin.distance(target.get_pos_xz()) > policy.pursuit_distance
+        || origin.distance(target.get_pos_xz())
+            > actor
+                .attributes
+                .get_float_default("__node_lookout_escape", policy.pursuit_distance)
     {
         return finish(ctx, actor_id, "lost");
     }
@@ -263,7 +292,11 @@ pub(crate) fn node_engage_tick(
                 .set("__node_engage_last_z", Value::Float(position.y));
         }
         actor.set_attribute("__node_behavior_status", Value::Str("closing_in".into()));
-        actor.action = EntityAction::CloseIn(target_id, range * 0.9, policy.speed);
+        actor.action = EntityAction::CloseIn(
+            target_id,
+            range * 0.9,
+            actor.attributes.get_float_default("speed", 1.0).max(0.01),
+        );
     }
     Ok(None)
 }
@@ -290,21 +323,21 @@ mod tests {
     #[test]
     fn lookout_uses_relationships_and_shared_target_attributes() {
         let mut ctx = arena();
-        assert!(!node_lookout(&mut ctx, 1, "friendly").unwrap());
-        assert!(node_lookout(&mut ctx, 1, "hostile").unwrap());
+        assert!(!node_lookout(&mut ctx, 1, "friendly", None, None).unwrap());
+        assert!(node_lookout(&mut ctx, 1, "hostile", None, None).unwrap());
         assert_eq!(ctx.entity_target(1), Some(2));
         assert_eq!(
             ctx.map.entities[0].attributes.get_uint("attack_target"),
             Some(2)
         );
         ctx.map.entities[1].set_attribute("visible", Value::Bool(false));
-        assert!(!node_lookout(&mut ctx, 1, "hostile").unwrap());
-        assert!(node_lookout(&mut ctx, 1, "unknown").is_err());
+        assert!(!node_lookout(&mut ctx, 1, "hostile", None, None).unwrap());
+        assert!(node_lookout(&mut ctx, 1, "unknown", None, None).is_err());
     }
     #[test]
     fn engage_closes_in_and_returns_defeated_without_changing_visibility() {
         let mut ctx = arena();
-        node_lookout(&mut ctx, 1, "hostile").unwrap();
+        node_lookout(&mut ctx, 1, "hostile", None, None).unwrap();
         node_engage_start(&mut ctx, 1, "default").unwrap();
         assert_eq!(node_engage_tick(&mut ctx, 1, "default").unwrap(), None);
         assert!(matches!(
@@ -327,7 +360,7 @@ mod tests {
     #[test]
     fn engage_rejects_reused_target_ids_and_enforces_pursuit_limit() {
         let mut ctx = arena();
-        node_lookout(&mut ctx, 1, "hostile").unwrap();
+        node_lookout(&mut ctx, 1, "hostile", None, None).unwrap();
         node_engage_start(&mut ctx, 1, "default").unwrap();
         ctx.map.entities[1].creator_id = Uuid::new_v4();
         assert_eq!(
@@ -360,7 +393,7 @@ mod tests {
         ctx.set_rules(rules).unwrap();
         ctx.map.entities[0].set_attribute("MP", Value::Int(5));
         ctx.map.entities[1].set_pos_xz(Vec2::new(0.5, 0.0));
-        node_lookout(&mut ctx, 1, "hostile").unwrap();
+        node_lookout(&mut ctx, 1, "hostile", None, None).unwrap();
         node_engage_start(&mut ctx, 1, "default").unwrap();
         assert_eq!(node_engage_tick(&mut ctx, 1, "default").unwrap(), None);
         assert_eq!(ctx.map.entities[0].attributes.get_int_default("MP", 0), 2);
@@ -371,5 +404,22 @@ mod tests {
             Some("cannot_engage")
         );
         assert_eq!(ctx.map.entities[0].attributes.get_int_default("MP", 0), 2);
+    }
+    #[test]
+    fn lookout_distances_override_defaults_and_engage_uses_character_speed() {
+        let mut ctx = arena();
+        assert!(!node_lookout(&mut ctx, 1, "hostile", Some(2.0), Some(5.0)).unwrap());
+        assert!(node_lookout(&mut ctx, 1, "hostile", Some(6.0), Some(5.0)).unwrap());
+        ctx.map.entities[0].set_attribute("speed", Value::Float(2.5));
+        node_engage_start(&mut ctx, 1, "default").unwrap();
+        assert_eq!(node_engage_tick(&mut ctx, 1, "default").unwrap(), None);
+        assert!(
+            matches!(ctx.map.entities[0].action, EntityAction::CloseIn(2, _, speed) if speed == 2.5)
+        );
+        ctx.map.entities[1].set_pos_xz(Vec2::new(6.0, 0.0));
+        assert_eq!(
+            node_engage_tick(&mut ctx, 1, "default").unwrap(),
+            Some("lost")
+        );
     }
 }

@@ -705,6 +705,29 @@ impl MapEditor {
                     if let Some(layout) = ui.get_text_layout("Node Settings") {
                         layout.clear();
                     }
+                } else if id.name == "Select Map Entity" {
+                    let region_id = server_ctx.curr_region;
+                    let selected = project.get_region(&region_id).and_then(|region| {
+                        if region.characters.contains_key(&id.uuid) {
+                            Some((
+                                ProjectContext::RegionCharacterInstance(region_id, id.uuid),
+                                ContentContext::CharacterInstance(id.uuid),
+                            ))
+                        } else if region.items.contains_key(&id.uuid) {
+                            Some((
+                                ProjectContext::RegionItemInstance(region_id, id.uuid),
+                                ContentContext::ItemInstance(id.uuid),
+                            ))
+                        } else {
+                            None
+                        }
+                    });
+                    if let Some((pc, content)) = selected {
+                        server_ctx.curr_region_content = content;
+                        server_ctx.cc = content;
+                        set_project_context(ctx, ui, project, server_ctx, pc);
+                        ctx.ui.redraw_all = true;
+                    }
                 } else if id.name == "Map Selection Changed" {
                     set_code(ui, ctx, project, server_ctx);
                     self.apply_map_settings(ui, ctx, project, server_ctx);

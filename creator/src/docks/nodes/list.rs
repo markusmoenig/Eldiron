@@ -11,7 +11,7 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
     match key {
         "event" | "filter" | "time_range" => true,
         "player_camera" | "routine" | "random_walk" | "resume_routine" | "go_to" | "lookout"
-        | "engage" => matches!(
+        | "engage" | "use_action" => matches!(
             pc,
             ProjectContext::Character(_)
                 | ProjectContext::CharacterCode(_)
@@ -30,6 +30,7 @@ pub fn node_help(key: &str) -> String {
         "go_to" => fl!("node_go_to_help"),
         "lookout" => fl!("node_lookout_help"),
         "engage" => fl!("node_engage_help"),
+        "use_action" => fl!("node_use_action_help"),
         "event" => fl!("node_event_help"),
         "filter" => fl!("node_filter_help"),
         "say" => fl!("node_say_help"),

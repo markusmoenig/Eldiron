@@ -1,5 +1,6 @@
 use super::*;
 pub(super) fn register(registry: &mut Registry) {
+    registry.register(Box::new(UseActionModule)).unwrap();
     registry.register(Box::new(LookoutModule)).unwrap();
     registry.register(Box::new(EngageModule)).unwrap();
     registry.register(Box::new(TimeRangeModule)).unwrap();
@@ -443,22 +444,25 @@ impl Operation for GoTo {
     }
 }
 
-fn profile(p: &BTreeMap<String, Value>) -> Result<String, String> {
+fn selection(p: &BTreeMap<String, Value>, key: &str) -> Result<String, String> {
     let value = p
-        .get("profile")
+        .get(key)
         .and_then(|v| v.get("Choice"))
-        .ok_or("Missing ruleset profile")?;
+        .ok_or_else(|| format!("Missing ruleset {key}"))?;
     let index = value
         .get("selected")
         .and_then(Value::as_u64)
-        .ok_or("Missing profile selection")? as usize;
+        .ok_or_else(|| format!("Missing {key} selection"))? as usize;
     value
         .get("options")
         .and_then(Value::as_array)
         .and_then(|options| options.get(index))
         .and_then(Value::as_str)
         .map(str::to_owned)
-        .ok_or_else(|| "Select a ruleset profile".into())
+        .ok_or_else(|| format!("Select a ruleset {key}"))
+}
+fn profile(p: &BTreeMap<String, Value>) -> Result<String, String> {
+    selection(p, "profile")
 }
 struct LookoutModule;
 impl NodeModule for LookoutModule {
@@ -472,10 +476,30 @@ impl NodeModule for LookoutModule {
         &["found", "watching"]
     }
     fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
-        Ok(Box::new(Lookout(profile(p)?)))
+        Ok(Box::new(Lookout {
+            profile: profile(p)?,
+            reaction: p
+                .contains_key("reaction_distance")
+                .then(|| {
+                    number(p, "reaction_distance", 0.1, f32::MAX)
+                        .map(|value| value.round().clamp(1., 20.))
+                })
+                .transpose()?,
+            escape: p
+                .contains_key("escape_distance")
+                .then(|| {
+                    number(p, "escape_distance", 0.1, f32::MAX)
+                        .map(|value| value.round().clamp(1., 20.))
+                })
+                .transpose()?,
+        }))
     }
 }
-struct Lookout(String);
+struct Lookout {
+    profile: String,
+    reaction: Option<f32>,
+    escape: Option<f32>,
+}
 impl Operation for Lookout {
     fn watch_event(&self) -> Option<&'static str> {
         Some("lookout")
@@ -488,18 +512,20 @@ impl Operation for Lookout {
         ctx: &EventContext<'_>,
         world: &mut dyn WorldServices,
     ) -> Result<&'static str, String> {
-        Ok(if world.lookout(ctx.actor, &self.0)? {
-            "found"
-        } else {
-            "watching"
-        })
+        Ok(
+            if world.lookout(ctx.actor, &self.profile, self.reaction, self.escape)? {
+                "found"
+            } else {
+                "watching"
+            },
+        )
     }
     fn poll(
         &self,
         ctx: &EventContext<'_>,
         world: &mut dyn WorldServices,
     ) -> Option<Result<&'static str, String>> {
-        match world.lookout(ctx.actor, &self.0) {
+        match world.lookout(ctx.actor, &self.profile, self.reaction, self.escape) {
             Ok(true) => Some(Ok("found")),
             Ok(false) => None,
             Err(error) => Some(Err(error)),
@@ -550,5 +576,40 @@ impl Operation for Engage {
             Ok(None) => None,
             Err(error) => Some(Err(error)),
         }
+    }
+}
+
+struct UseActionModule;
+impl NodeModule for UseActionModule {
+    fn id(&self) -> &'static str {
+        "use_action"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["done", "failed"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        Ok(Box::new(UseAction(selection(p, "action")?)))
+    }
+}
+struct UseAction(String);
+impl Operation for UseAction {
+    fn error_output(&self) -> Option<&'static str> {
+        Some("failed")
+    }
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        let subject = match ctx.event.fields.get("subject") {
+            Some(EventField::Entity(id)) => Some(*id),
+            Some(_) => return Err("Action subject must be an entity".into()),
+            None => None,
+        };
+        world.use_action(ctx.actor, &self.0, subject)?;
+        Ok("done")
     }
 }

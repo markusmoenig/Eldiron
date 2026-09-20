@@ -272,6 +272,7 @@ impl Dock for NodesDock {
         } else {
             GraphDocument::default()
         };
+        catalog::hydrate_lookout_distances(&mut self.doc, project);
         catalog::sync_fields(&mut self.doc, &self.definitions);
         self.committed = self.doc.clone();
         self.render(ui, ctx);

@@ -252,6 +252,66 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         &goto,
     ))
     .unwrap();
+    let mut action = GraphNode::new(&fl!("node_use_action"), [0., 0.], [35, 87, 134, 255]);
+    let options: Vec<String> = rules
+        .parse::<toml::Table>()
+        .ok()
+        .and_then(|rules| {
+            rules
+                .get("actions")
+                .and_then(toml::Value::as_table)
+                .map(|actions| {
+                    actions
+                        .iter()
+                        .filter(|(_, action)| {
+                            action.get("kind").and_then(toml::Value::as_str) == Some("attack")
+                                && matches!(
+                                    action.get("target").and_then(toml::Value::as_str),
+                                    Some(
+                                        "hostile_entity"
+                                            | "hostile_or_neutral_entity"
+                                            | "friendly_entity"
+                                            | "friendly_or_self"
+                                            | "any_entity"
+                                    )
+                                )
+                        })
+                        .map(|(id, _)| id.clone())
+                        .collect()
+                })
+        })
+        .unwrap_or_default();
+    let selected = options
+        .iter()
+        .position(|id| id == "basic_attack")
+        .unwrap_or(0);
+    row(
+        &mut action,
+        "action",
+        &fl!("node_ruleset_action"),
+        GraphControlValue::Choice { options, selected },
+    );
+    port(&mut action, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut action,
+        "done",
+        &fl!("node_done"),
+        PortDirection::Output,
+        0.35,
+    );
+    port(
+        &mut action,
+        "failed",
+        &fl!("node_action_failed"),
+        PortDirection::Output,
+        0.8,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "use_action",
+        &fl!("node_group_actions"),
+        &action,
+    ))
+    .unwrap();
     for (id, title, default_profile, outputs) in [
         (
             "lookout",
@@ -286,6 +346,9 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
             &fl!("node_ruleset_profile"),
             GraphControlValue::Choice { options, selected },
         );
+        if id == "lookout" {
+            add_lookout_distances(&mut node, rules, default_profile);
+        }
         port(&mut node, "in", "", PortDirection::Input, 0.5);
         let count = outputs.len();
         for (i, (key, label)) in outputs.into_iter().enumerate() {
@@ -383,6 +446,54 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
     .unwrap();
     defs
 }
+fn add_lookout_distances(node: &mut GraphNode, source: &str, profile: &str) {
+    let Ok((reaction, escape)) =
+        shared::rulesets::behavior::lookout_distances_from_source(source, profile)
+    else {
+        return;
+    };
+    for (key, label, value) in [
+        ("reaction_distance", fl!("node_reaction_distance"), reaction),
+        ("escape_distance", fl!("node_escape_distance"), escape),
+    ] {
+        if !node.rows.iter().any(|row| row.key.as_deref() == Some(key)) {
+            row(
+                node,
+                key,
+                &label,
+                GraphControlValue::Number {
+                    value: value.round().clamp(1., 20.),
+                    min: 1.,
+                    max: 20.,
+                    step: 1.,
+                },
+            );
+        }
+    }
+}
+/// Upgrade old Lookout nodes once, preserving all authored distances thereafter.
+pub fn hydrate_lookout_distances(doc: &mut GraphDocument, project: &shared::project::Project) {
+    let Ok(source) = shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+    else {
+        return;
+    };
+    for node in &mut doc.nodes {
+        if node.definition.as_deref() != Some("lookout") {
+            continue;
+        }
+        let profile = node
+            .rows
+            .iter()
+            .find(|row| row.key.as_deref() == Some("profile"))
+            .and_then(|row| match &row.value {
+                GraphControlValue::Choice { options, selected } => options.get(*selected).cloned(),
+                _ => None,
+            });
+        if let Some(profile) = profile {
+            add_lookout_distances(node, &source, &profile);
+        }
+    }
+}
 fn row(node: &mut GraphNode, key: &str, label: &str, value: GraphControlValue) {
     let mut r = GraphRow::new(label, value);
     r.key = Some(key.into());
@@ -431,7 +542,10 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                         *min = *lo;
                         *max = *hi;
                         *step = *increment;
-                        *value = value.clamp(*lo, *hi);
+                        *value = value.clamp(*lo, *max);
+                        if node.definition.as_deref() == Some("lookout") {
+                            *value = value.round();
+                        }
                     }
                     if let (
                         GraphControlValue::Choice { options, selected },
@@ -441,7 +555,7 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                         },
                     ) = (&mut row.value, &param.default)
                     {
-                        let profile = (row.key.as_deref() == Some("profile"))
+                        let profile = (matches!(row.key.as_deref(), Some("profile" | "action")))
                             .then(|| options.get(*selected).cloned())
                             .flatten();
                         *options = translated.clone();

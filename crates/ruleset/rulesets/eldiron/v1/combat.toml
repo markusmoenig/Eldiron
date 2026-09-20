@@ -110,6 +110,5 @@ retry_seconds = 2.0
 
 [behavior.engage.default]
 actions = ["basic_attack"]
-speed = 1.0
 pursuit_distance = 8.0
 blocked_seconds = 3.0

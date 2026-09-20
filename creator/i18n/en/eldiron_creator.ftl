@@ -958,10 +958,18 @@ node_watching = Watching
 node_target_defeated = Defeated
 node_target_lost = Target Lost
 node_cannot_engage = Cannot Engage
-node_lookout_help = Watch for a target matching a ruleset relationship profile. Watching continues the routine; Target Found interrupts it. Uses the shared current target. Configure policies in Game / Rules.
-node_engage_help = Pursue and attack the current target using a ruleset combat profile. Actions, range, costs, cooldowns and pursuit limits come from the ruleset. Connect outcomes to Resume Routine.
+node_lookout_help = Watch for a target matching a ruleset relationship profile. Watching continues the routine; Target Found interrupts it. Uses the shared current target. Distances start from ruleset defaults and can be adjusted on this node. Configure relationship profiles in Game / Rules.
+node_engage_help = Pursue and attack the current target using a ruleset combat profile. Actions, attack range, costs and cooldowns come from the ruleset. Movement uses character speed; Lookout sets the escape distance. Connect outcomes to Resume Routine.
 node_closing_in = Closing In
 node_attacking = Attacking
 node_cooldown = Waiting for Cooldown
 
 node_combat_status = { $status } · Target { $target }
+
+node_reaction_distance = Reaction distance
+node_escape_distance = Escape distance
+
+node_use_action = Use Action
+node_ruleset_action = Ruleset action
+node_action_failed = Failed
+node_use_action_help = Perform a ruleset attack once, using event.subject or the current target. The ruleset checks eligibility, range, costs and cooldowns. Done means the action was accepted; Failed reports refusal. This node currently targets characters.

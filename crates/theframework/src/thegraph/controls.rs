@@ -30,6 +30,9 @@ pub struct BasicGraphControls;
 impl GraphControls for BasicGraphControls {
     fn label(&self, value: &GraphControlValue) -> String {
         match value {
+            GraphControlValue::Number {
+                value, min, step, ..
+            } if step.fract() == 0. && min.fract() == 0. => format!("{value:.0}"),
             GraphControlValue::Number { value, .. } => format!("{value:.2}"),
             GraphControlValue::Choice { options, selected } => options
                 .get(*selected)

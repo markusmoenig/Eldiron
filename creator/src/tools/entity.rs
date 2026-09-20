@@ -147,7 +147,9 @@ impl Tool for EntityTool {
                     return None;
                 }
 
-                if self.handle_game_click(coord, map) {
+                if (server_ctx.game_mode || server_ctx.game_input_mode)
+                    && self.handle_game_click(coord, map)
+                {
                     return None;
                 }
 
@@ -209,6 +211,10 @@ impl Tool for EntityTool {
 
                     self.select_in_tree(ui, server_ctx, hit.id());
                     ctx.ui.send(TheEvent::Custom(
+                        TheId::named_with_id("Select Map Entity", hit.id()),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
                         TheValue::Empty,
                     ));
@@ -216,7 +222,9 @@ impl Tool for EntityTool {
                 }
             }
             MapUp(coord) => {
-                if self.handle_game_up(coord, map) {
+                if (server_ctx.game_mode || server_ctx.game_input_mode)
+                    && self.handle_game_up(coord, map)
+                {
                     return None;
                 }
 
@@ -1018,6 +1026,45 @@ impl EntityTool {
         }
     }
 
+    fn pick_hit_2d(&self, map: &Map, pos: Vec2<f32>) -> Option<Hit> {
+        let entities = map.entities.iter().filter_map(|entity| {
+            let center = entity.get_pos_xz();
+            let half = entity
+                .attributes
+                .get_float_default("size_2d", 1.0)
+                .max(0.01)
+                * 0.5;
+            let delta = center - pos;
+            (delta.x.abs() <= half && delta.y.abs() <= half).then(|| Hit {
+                target: DragTarget::Entity(entity.creator_id),
+                name: entity
+                    .attributes
+                    .get_str("name")
+                    .unwrap_or("Entity")
+                    .to_string(),
+                pos: center,
+            })
+        });
+        let items = map.items.iter().filter_map(|item| {
+            let center = item.get_pos_xz();
+            let delta = center - pos;
+            (delta.x.abs() <= 0.5 && delta.y.abs() <= 0.5).then(|| Hit {
+                target: DragTarget::Item(item.creator_id),
+                name: item
+                    .attributes
+                    .get_str("name")
+                    .unwrap_or("Item")
+                    .to_string(),
+                pos: center,
+            })
+        });
+        entities.chain(items).min_by(|a, b| {
+            (a.pos - pos)
+                .magnitude_squared()
+                .total_cmp(&(b.pos - pos).magnitude_squared())
+        })
+    }
+
     fn pick_hit(&self, map: &Map, pos: Vec2<f32>, radius2: f32) -> Option<Hit> {
         if let Some(entity) = map.entities.iter().find(|e| {
             let d = e.get_pos_xz() - pos;
@@ -1130,12 +1177,10 @@ impl EntityTool {
             return Some(hit);
         }
         let pos = self.map_pos_unsnapped(ui, server_ctx, map, coord)?;
-        let radius2 = if server_ctx.editor_view_mode == EditorViewMode::D2 {
-            0.16
-        } else {
-            1.44
-        };
-        self.pick_hit(map, pos, radius2)
+        if server_ctx.editor_view_mode == EditorViewMode::D2 {
+            return self.pick_hit_2d(map, pos);
+        }
+        self.pick_hit(map, pos, 1.44)
     }
 
     fn delete_selected(
@@ -1197,8 +1242,9 @@ impl EntityTool {
     fn select_in_tree(&self, ui: &mut TheUI, server_ctx: &ServerContext, id: Uuid) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.curr_region) {
-                node.new_item_selected(&TheId::named_with_id("Region Content List Item", id));
+                node.node_state_changed(node.id.clone(), true);
             }
+            tree_layout.new_item_selected(TheId::named_with_id("Region Content List Item", id));
         }
     }
 

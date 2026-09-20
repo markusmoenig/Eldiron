@@ -11,7 +11,6 @@ pub struct LookoutPolicy {
 #[derive(Clone, Debug, Deserialize)]
 pub struct EngagePolicy {
     pub actions: Vec<String>,
-    pub speed: f32,
     pub pursuit_distance: f32,
     pub blocked_seconds: f32,
 }
@@ -33,6 +32,15 @@ fn policy<T: serde::de::DeserializeOwned>(
 pub fn policy_ids_from_source(source: &str, kind: &str) -> Result<Vec<String>, String> {
     let rules = source.parse::<Table>().map_err(|error| error.to_string())?;
     Ok(policy_ids(&rules, kind))
+}
+
+/// Defaults copied into newly authored Lookout controls.
+pub fn lookout_distances_from_source(source: &str, profile: &str) -> Result<(f32, f32), String> {
+    let rules = source.parse::<Table>().map_err(|error| error.to_string())?;
+    Ok((
+        lookout(&rules, profile)?.radius,
+        engage(&rules, "default")?.pursuit_distance,
+    ))
 }
 
 pub fn policy_ids(rules: &Table, kind: &str) -> Vec<String> {
@@ -61,7 +69,7 @@ pub fn lookout(rules: &Table, id: &str) -> Result<LookoutPolicy, String> {
 pub fn engage(rules: &Table, id: &str) -> Result<EngagePolicy, String> {
     let p: EngagePolicy = policy(rules, "engage", id)?;
     if p.actions.is_empty()
-        || [p.speed, p.pursuit_distance, p.blocked_seconds]
+        || [p.pursuit_distance, p.blocked_seconds]
             .iter()
             .any(|n| !n.is_finite() || *n <= 0.0)
     {

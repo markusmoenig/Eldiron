@@ -363,8 +363,47 @@ impl WorldServices for RegionServices<'_> {
         }
         Ok(())
     }
-    fn lookout(&mut self, actor: &Actor, profile: &str) -> Result<bool, String> {
-        crate::server::region::node_lookout(self.ctx, actor.render_id, profile)
+    fn use_action(
+        &mut self,
+        actor: &Actor,
+        action: &str,
+        subject: Option<u32>,
+    ) -> Result<(), String> {
+        if !matches!(self.owner, EventOwner::Entity(_)) {
+            return Err("Use Action requires a character".into());
+        }
+        let target = subject.or_else(|| self.ctx.entity_target(actor.render_id));
+        if let Some(target) = target {
+            if !self
+                .ctx
+                .map
+                .entities
+                .iter()
+                .any(|entity| entity.id == target && entity.get_mode() != "dead")
+            {
+                return Err("Action target no longer exists or is dead".into());
+            }
+            self.ctx.set_entity_target(actor.render_id, Some(target));
+        }
+        if crate::server::region::execute_ruleset_action_with_target(
+            self.ctx,
+            actor.render_id,
+            action,
+            target.map(crate::server::region::RulesetActionTarget::Entity),
+        ) {
+            Ok(())
+        } else {
+            Err(format!("Ruleset action '{action}' could not be performed"))
+        }
+    }
+    fn lookout(
+        &mut self,
+        actor: &Actor,
+        profile: &str,
+        reaction: Option<f32>,
+        escape: Option<f32>,
+    ) -> Result<bool, String> {
+        crate::server::region::node_lookout(self.ctx, actor.render_id, profile, reaction, escape)
     }
     fn engage_start(&mut self, actor: &Actor, profile: &str) -> Result<(), String> {
         let result = crate::server::region::node_engage_start(self.ctx, actor.render_id, profile);

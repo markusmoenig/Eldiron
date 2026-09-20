@@ -719,3 +719,54 @@ fn go_to_waits_for_completion_and_routes_failures() {
             .any(|trace| trace.error.as_deref() == Some("Blocked"))
     );
 }
+
+#[test]
+fn use_action_routes_event_subject_and_refusal_to_failed() {
+    #[derive(Default)]
+    struct Actions(Vec<(String, Option<u32>)>);
+    impl WorldServices for Actions {
+        fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+            Default::default()
+        }
+        fn say(&mut self, _: &Actor, _: String) {}
+        fn use_action(
+            &mut self,
+            _: &Actor,
+            action: &str,
+            subject: Option<u32>,
+        ) -> Result<(), String> {
+            self.0.push((action.into(), subject));
+            Err("Out of range".into())
+        }
+    }
+    let mut doc = graph("intent", "");
+    doc["nodes"][1]["definition"] = json!("use_action");
+    doc["nodes"][1]["rows"] =
+        json!([{"key":"action","value":{"Choice":{"options":["basic_attack"],"selected":0}}}]);
+    let mut runtime = Runtime::default();
+    let actor = runtime
+        .spawn(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            1,
+            Some(Registry::builtin().compile(&doc).unwrap()),
+        )
+        .unwrap();
+    let mut actions = Actions::default();
+    for tick in 1..=2 {
+        runtime.send(
+            actor,
+            "intent",
+            BTreeMap::from([("subject".into(), EventField::Entity(42))]),
+            tick,
+        );
+        runtime.update(&mut actions);
+    }
+    assert_eq!(actions.0, vec![("basic_attack".into(), Some(42)); 2]);
+    assert!(
+        runtime
+            .traces
+            .iter()
+            .any(|trace| trace.error.as_deref() == Some("Out of range"))
+    );
+}
