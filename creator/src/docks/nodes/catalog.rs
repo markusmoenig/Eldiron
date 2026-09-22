@@ -13,6 +13,28 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
     let mut defs = GraphDefinitions::default();
     for (id, label, fields) in [
         ("startup", fl!("node_startup"), vec![]),
+        // Instance graphs answer Instance instead of Startup, so per-instance
+        // behavior adds to the template instead of replacing it.
+        ("instance", fl!("node_instance"), vec![]),
+        ("respawn", fl!("node_respawn"), vec![]),
+        // Collision events. An item answers `bumped_by_entity`, the mover
+        // answers the two mirror events.
+        (
+            "bumped_by_entity",
+            fl!("node_bumped_by_entity"),
+            vec![("entity", GraphValueType::Entity)],
+        ),
+        (
+            "bumped_into_entity",
+            fl!("node_bumped_into_entity"),
+            vec![("entity", GraphValueType::Entity)],
+        ),
+        (
+            "bumped_into_item",
+            fl!("node_bumped_into_item"),
+            vec![("item", GraphValueType::Text)],
+        ),
+        ("active", fl!("node_active"), vec![]),
         (
             "time",
             fl!("node_time"),
@@ -21,7 +43,7 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         (
             "entered",
             fl!("node_entered"),
-            vec![("sector", GraphValueType::Text)],
+            vec![("area", GraphValueType::Text)],
         ),
         (
             "damaged",
@@ -40,6 +62,15 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
                 ("subject", GraphValueType::Entity),
                 ("distance", GraphValueType::Number),
                 ("count", GraphValueType::Number),
+            ],
+        ),
+        ("death", fl!("node_death"), vec![]),
+        (
+            "kill",
+            fl!("node_kill"),
+            vec![
+                ("killed", GraphValueType::Entity),
+                ("name", GraphValueType::Text),
             ],
         ),
     ] {
@@ -71,6 +102,337 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
     let mut def = GraphNodeDefinition::from_template("event", &fl!("node_group_events"), &event);
     def.event_parameter = Some("event".into());
     defs.register_node(def).unwrap();
+    let mut enter_area = GraphNode::new(&fl!("node_on_enter_area"), [0., 0.], [16, 112, 98, 255]);
+    enter_area.width = 260.;
+    row(
+        &mut enter_area,
+        "area",
+        &fl!("node_area"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(
+        &mut enter_area,
+        "match",
+        &fl!("node_match"),
+        PortDirection::Output,
+        0.35,
+    );
+    port(
+        &mut enter_area,
+        "no_match",
+        &fl!("node_no_match"),
+        PortDirection::Output,
+        0.8,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "on_enter_area",
+        &fl!("node_group_events"),
+        &enter_area,
+    ))
+    .unwrap();
+    let mut add_item = GraphNode::new(&fl!("node_add_item"), [0., 0.], [35, 87, 134, 255]);
+    add_item.width = 260.;
+    row(
+        &mut add_item,
+        "item",
+        &fl!("node_item"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut add_item, "in", "", PortDirection::Input, 0.5);
+    port(&mut add_item, "out", "Done", PortDirection::Output, 0.5);
+    defs.register_node(GraphNodeDefinition::from_template(
+        "add_item",
+        &fl!("node_group_actions"),
+        &add_item,
+    ))
+    .unwrap();
+
+    let mut drop_items = GraphNode::new(&fl!("node_drop_items"), [0., 0.], [35, 87, 134, 255]);
+    drop_items.width = 260.;
+    row(
+        &mut drop_items,
+        "filter",
+        &fl!("node_filter"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut drop_items, "in", "", PortDirection::Input, 0.5);
+    port(&mut drop_items, "out", "Done", PortDirection::Output, 0.5);
+    defs.register_node(GraphNodeDefinition::from_template(
+        "drop_items",
+        &fl!("node_group_actions"),
+        &drop_items,
+    ))
+    .unwrap();
+
+    let mut on_area = GraphNode::new(&fl!("node_on_area"), [0., 0.], [16, 112, 98, 255]);
+    on_area.width = 240.;
+    for (key, label, position) in [
+        ("player_entered", fl!("node_port_player_entered"), 0.2),
+        ("npc_entered", fl!("node_port_npc_entered"), 0.4),
+        ("player_left", fl!("node_port_player_left"), 0.6),
+        ("npc_left", fl!("node_port_npc_left"), 0.8),
+    ] {
+        port(&mut on_area, key, &label, PortDirection::Output, position);
+    }
+    let mut emit_light = GraphNode::new(&fl!("node_set_emit_light"), [0., 0.], [35, 87, 134, 255]);
+    emit_light.width = 260.;
+    row(
+        &mut emit_light,
+        "emit",
+        &fl!("node_emit"),
+        GraphControlValue::Choice {
+            options: vec![
+                "Follow Active".to_string(),
+                "On".to_string(),
+                "Off".to_string(),
+            ],
+            selected: 0,
+        },
+    );
+    port(&mut emit_light, "in", "", PortDirection::Input, 0.5);
+    port(&mut emit_light, "out", "Done", PortDirection::Output, 0.5);
+    defs.register_node(GraphNodeDefinition::from_template(
+        "set_emit_light",
+        &fl!("node_group_actions"),
+        &emit_light,
+    ))
+    .unwrap();
+
+    let mut on_event = GraphNode::new(&fl!("node_on_event_node"), [0., 0.], [16, 112, 98, 255]);
+    on_event.width = 240.;
+    row(
+        &mut on_event,
+        "event",
+        &fl!("node_event_name"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut on_event, "out", "", PortDirection::Output, 0.5);
+    defs.register_node(GraphNodeDefinition::from_template(
+        "on_event",
+        &fl!("node_group_events"),
+        &on_event,
+    ))
+    .unwrap();
+
+    let mut notify_in = GraphNode::new(&fl!("node_notify_in"), [0., 0.], [35, 87, 134, 255]);
+    notify_in.width = 260.;
+    row(
+        &mut notify_in,
+        "minutes",
+        &fl!("node_minutes"),
+        GraphControlValue::Number {
+            value: 1.,
+            min: 0.,
+            max: 600.,
+            step: 0.5,
+        },
+    );
+    row(
+        &mut notify_in,
+        "event",
+        &fl!("node_event_name"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut notify_in, "in", "", PortDirection::Input, 0.5);
+    port(&mut notify_in, "out", "Done", PortDirection::Output, 0.5);
+    defs.register_node(GraphNodeDefinition::from_template(
+        "notify_in",
+        &fl!("node_group_actions"),
+        &notify_in,
+    ))
+    .unwrap();
+
+    let mut radius = GraphNode::new(
+        &fl!("node_entities_in_radius"),
+        [0., 0.],
+        [164, 98, 35, 255],
+    );
+    radius.width = 260.;
+    port(&mut radius, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut radius,
+        "empty",
+        &fl!("node_port_empty"),
+        PortDirection::Output,
+        0.35,
+    );
+    port(
+        &mut radius,
+        "occupied",
+        &fl!("node_port_occupied"),
+        PortDirection::Output,
+        0.8,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "entities_in_radius",
+        &fl!("node_group_logic"),
+        &radius,
+    ))
+    .unwrap();
+
+    let mut dialog = GraphNode::new(&fl!("node_dialog"), [0., 0.], [35, 87, 134, 255]);
+    dialog.width = 260.;
+    row(
+        &mut dialog,
+        "node",
+        &fl!("node_dialogue_node"),
+        GraphControlValue::Text("greeting".into()),
+    );
+    port(&mut dialog, "in", "", PortDirection::Input, 0.5);
+    port(&mut dialog, "out", "Done", PortDirection::Output, 0.5);
+    defs.register_node(GraphNodeDefinition::from_template(
+        "dialog",
+        &fl!("node_group_actions"),
+        &dialog,
+    ))
+    .unwrap();
+
+    let mut dialogue = GraphNode::new(&fl!("node_dialogue"), [0., 0.], [35, 110, 134, 255]);
+    dialogue.width = 300.;
+    row(
+        &mut dialogue,
+        "text",
+        &fl!("node_dialogue_text"),
+        GraphControlValue::Text(String::new()),
+    );
+    row(
+        &mut dialogue,
+        "choices",
+        &fl!("node_dialogue_choices"),
+        GraphControlValue::List {
+            columns: vec![
+                GraphListColumn {
+                    id: "label".into(),
+                    label: fl!("node_dialogue_choice"),
+                    control: GraphControlValue::Text(String::new()),
+                },
+                GraphListColumn {
+                    id: "condition".into(),
+                    label: fl!("node_dialogue_condition"),
+                    control: GraphControlValue::Text(String::new()),
+                },
+            ],
+            rows: vec![],
+        },
+    );
+    port(&mut dialogue, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut dialogue,
+        "done",
+        &fl!("node_port_done"),
+        PortDirection::Output,
+        0.94,
+    );
+    for (index, position) in [0.12, 0.27, 0.42, 0.57, 0.72, 0.87].into_iter().enumerate() {
+        port(
+            &mut dialogue,
+            &format!("choice:{index}"),
+            &format!("{} {}", fl!("node_dialogue_choice"), index + 1),
+            PortDirection::Output,
+            position,
+        );
+    }
+    defs.register_node(GraphNodeDefinition::from_template(
+        "dialogue",
+        &fl!("node_group_actions"),
+        &dialogue,
+    ))
+    .unwrap();
+
+    // A whole conversation in one node. The steps are the lines and the choices
+    // are the answers; a choice either moves inside the tree, ends it, or leaves
+    // through one of the consequence ports, where ordinary nodes do the work.
+    let mut talk = GraphNode::new(&fl!("node_talk"), [0., 0.], [35, 110, 134, 255]);
+    talk.width = 520.;
+    row(
+        &mut talk,
+        "conversation",
+        &fl!("node_talk_conversation"),
+        GraphControlValue::Custom {
+            kind: "conversation".into(),
+            data: serde_json::to_value(rusterix::server::nodes::Conversation::starter())
+                .unwrap_or(serde_json::Value::Null),
+        },
+    );
+    port(&mut talk, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut talk,
+        "done",
+        &fl!("node_port_done"),
+        PortDirection::Output,
+        0.93,
+    );
+    // Consequence ports are spread over the whole side, so six of them stay
+    // readable on a node that only has one row.
+    for index in 0..rusterix::server::nodes::CONSEQUENCE_SLOTS {
+        port(
+            &mut talk,
+            &format!("out:{index}"),
+            &format!("{} {}", fl!("node_talk_out"), index + 1),
+            PortDirection::Output,
+            0.10 + index as f32 * 0.14,
+        );
+    }
+    defs.register_node(GraphNodeDefinition::from_template(
+        "talk",
+        &fl!("node_group_actions"),
+        &talk,
+    ))
+    .unwrap();
+
+    let mut has_item = GraphNode::new(&fl!("node_inventory_has"), [0., 0.], [164, 98, 35, 255]);
+    has_item.width = 260.;
+    row(
+        &mut has_item,
+        "item",
+        &fl!("node_item_name"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut has_item, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut has_item,
+        "has",
+        &fl!("node_port_has"),
+        PortDirection::Output,
+        0.35,
+    );
+    port(
+        &mut has_item,
+        "missing",
+        &fl!("node_port_missing"),
+        PortDirection::Output,
+        0.8,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "inventory_has",
+        &fl!("node_group_logic"),
+        &has_item,
+    ))
+    .unwrap();
+
+    let mut offer = GraphNode::new(&fl!("node_offer_inventory"), [0., 0.], [35, 87, 134, 255]);
+    offer.width = 260.;
+    row(
+        &mut offer,
+        "filter",
+        &fl!("node_filter_name"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut offer, "in", "", PortDirection::Input, 0.5);
+    port(&mut offer, "out", "Done", PortDirection::Output, 0.5);
+    defs.register_node(GraphNodeDefinition::from_template(
+        "offer_inventory",
+        &fl!("node_group_actions"),
+        &offer,
+    ))
+    .unwrap();
+
+    defs.register_node(GraphNodeDefinition::from_template(
+        "on_area",
+        &fl!("node_group_events"),
+        &on_area,
+    ))
+    .unwrap();
     let mut filter = GraphNode::new(&fl!("node_filter"), [0., 0.], [164, 98, 35, 255]);
     row(
         &mut filter,
@@ -140,6 +502,134 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         "say",
         &fl!("node_group_actions"),
         &say,
+    ))
+    .unwrap();
+    let mut set_attribute =
+        GraphNode::new(&fl!("node_set_attribute"), [0., 0.], [35, 87, 134, 255]);
+    set_attribute.width = 300.;
+    row(
+        &mut set_attribute,
+        "attribute",
+        &fl!("node_attribute"),
+        GraphControlValue::Text(String::new()),
+    );
+    row(
+        &mut set_attribute,
+        "value_kind",
+        &fl!("node_value_kind"),
+        GraphControlValue::Choice {
+            options: vec![
+                fl!("node_value_text"),
+                fl!("node_value_number"),
+                fl!("node_value_bool"),
+                "Toggle".to_string(),
+            ],
+            selected: 0,
+        },
+    );
+    row(
+        &mut set_attribute,
+        "value",
+        &fl!("node_value"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut set_attribute, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut set_attribute,
+        "out",
+        &fl!("node_done"),
+        PortDirection::Output,
+        0.5,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "set_attribute",
+        &fl!("node_group_actions"),
+        &set_attribute,
+    ))
+    .unwrap();
+    let mut teleport = GraphNode::new(&fl!("node_teleport"), [0., 0.], [35, 87, 134, 255]);
+    teleport.width = 300.;
+    row(
+        &mut teleport,
+        "area",
+        &fl!("node_area"),
+        GraphControlValue::Text(String::new()),
+    );
+    row(
+        &mut teleport,
+        "sector",
+        &fl!("node_region"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut teleport, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut teleport,
+        "out",
+        &fl!("node_done"),
+        PortDirection::Output,
+        0.5,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "teleport",
+        &fl!("node_group_actions"),
+        &teleport,
+    ))
+    .unwrap();
+    let mut message = GraphNode::new(&fl!("node_message"), [0., 0.], [35, 87, 134, 255]);
+    message.width = 300.;
+    row(
+        &mut message,
+        "text",
+        &fl!("node_text"),
+        GraphControlValue::Text(String::new()),
+    );
+    row(
+        &mut message,
+        "role",
+        &fl!("node_role"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut message, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut message,
+        "out",
+        &fl!("node_done"),
+        PortDirection::Output,
+        0.5,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "message",
+        &fl!("node_group_actions"),
+        &message,
+    ))
+    .unwrap();
+    let mut state = GraphNode::new(&fl!("node_state"), [0., 0.], [35, 87, 134, 255]);
+    row(
+        &mut state,
+        "state",
+        &fl!("node_life_state"),
+        GraphControlValue::Choice {
+            options: vec![
+                fl!("node_state_alive"),
+                fl!("node_state_dead"),
+                fl!("node_state_sleeping"),
+                fl!("node_state_unconscious"),
+            ],
+            selected: 0,
+        },
+    );
+    port(&mut state, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut state,
+        "out",
+        &fl!("node_done"),
+        PortDirection::Output,
+        0.5,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "state",
+        &fl!("node_group_actions"),
+        &state,
     ))
     .unwrap();
     let mut camera = GraphNode::new(&fl!("node_player_camera"), [0., 0.], [35, 87, 134, 255]);

@@ -3463,6 +3463,40 @@ impl Sidebar {
                     let _ = crate::utils::update_region_settings(project, server_ctx);
                     self.apply_region(ui, ctx, Some(id.references), project);
                     redraw = true;
+                } else if id.name == "Region Area Item" {
+                    if let Some(region_id) =
+                        crate::undo::project_helper::region_of_area(project, id.references)
+                    {
+                        server_ctx.editing_pos_buffer = None;
+                        let switched = server_ctx.curr_region != region_id;
+                        server_ctx.curr_region = region_id;
+                        if switched {
+                            // Follow the place into its region before centring on it.
+                            crate::undo::project_helper::update_region(ctx);
+                        }
+                        // Centre the map on the place, like a character or item instance.
+                        if let Some(render_view) = ui.get_render_view("PolyView")
+                            && let Some(region) = project.get_region_mut(&region_id)
+                            && let Some((x, y)) =
+                                crate::undo::project_helper::area_center(region, id.references)
+                        {
+                            let dim = *render_view.dim();
+                            server_ctx.center_map_at_grid_pos(
+                                vek::Vec2::new(dim.width as f32, dim.height as f32),
+                                vek::Vec2::new(x, y),
+                                &mut region.map,
+                            );
+                        }
+                        set_project_context(
+                            ctx,
+                            ui,
+                            project,
+                            server_ctx,
+                            ProjectContext::RegionArea(region_id, id.references),
+                        );
+                        self.apply_region(ui, ctx, Some(region_id), project);
+                        redraw = true;
+                    }
                 } else if id.name == "Region Settings Item" {
                     server_ctx.editing_pos_buffer = None;
                     server_ctx.curr_region = id.references;

@@ -2,6 +2,7 @@
 //!
 //! Hosts own the document and context. The editor emits reversible changes; the painter
 //! consumes read-only observations. All geometry and input use the same viewport transform.
+mod branch;
 mod controls;
 mod editor;
 mod model;
@@ -12,6 +13,7 @@ pub use model::*;
 pub use paint::*;
 mod raster;
 pub use raster::*;
+pub use branch::*;
 #[cfg(test)]
 mod tests;
 

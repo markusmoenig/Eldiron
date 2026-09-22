@@ -103,6 +103,13 @@ pub enum RegionMessage {
     ItemsUpdate(u32, Vec<Vec<u8>>),
     /// Remove the given item from the Region
     RemoveItem(u32, u32),
+    /// Remove the given entity body from the Region without destroying it.
+    ///
+    /// Entity updates are upserts, so a body that leaves the world (death
+    /// stashes it) has no other way to stop rendering and being pickable
+    /// client side. Its return needs no counterpart: the next entity update
+    /// re-creates it.
+    RemoveEntity(u32, u32),
     /// Open a container panel for the local client: RegionId, ContainerItemId, OwnerEntityId
     OpenContainer(u32, u32, Option<u32>),
     /// Log Message
@@ -353,6 +360,8 @@ pub enum Choice {
     ScriptChoice(String, String, u32, u32, u32, i64, f32),
     /// A TOML-authored dialog choice.
     DialogChoice(DialogChoice),
+    /// A choice from a behavior-graph Dialogue node.
+    NodeChoice(NodeChoice),
 }
 
 impl Choice {
@@ -373,8 +382,24 @@ impl Choice {
                 choice.expires_at_tick,
                 choice.max_distance,
             ),
+            Choice::NodeChoice(choice) => (
+                choice.from,
+                choice.to,
+                choice.expires_at_tick,
+                choice.max_distance,
+            ),
         }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct NodeChoice {
+    pub label: String,
+    pub index: u32,
+    pub from: u32,
+    pub to: u32,
+    pub expires_at_tick: i64,
+    pub max_distance: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

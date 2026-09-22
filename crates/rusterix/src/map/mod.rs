@@ -394,13 +394,36 @@ mod tests {
     #[test]
     fn named_area_center_falls_back_to_geometry_object() {
         let mut map = Map::new();
-        map.geometry_objects.push(GeometryObject::box_from_bounds(
+        let mut object = GeometryObject::box_from_bounds(
             "Tavern",
+            Vec3::new(10.0, 0.0, 20.0),
+            Vec3::new(14.0, 2.0, 26.0),
+        );
+        object.properties.set("area", Value::Bool(true));
+        map.geometry_objects.push(object);
+
+        assert_eq!(map.named_area_center("Tavern"), Some(Vec2::new(12.0, 23.0)));
+    }
+
+    /// The Area flag is opt-in: a named object that never ticked it is a label,
+    /// not a place, so a map full of "Box"/"Column" parts stays out of the area
+    /// list while remaining walkable geometry.
+    #[test]
+    fn geometry_object_needs_the_area_flag_to_be_a_place() {
+        let mut map = Map::new();
+        map.geometry_objects.push(GeometryObject::box_from_bounds(
+            "Box",
             Vec3::new(10.0, 0.0, 20.0),
             Vec3::new(14.0, 2.0, 26.0),
         ));
 
-        assert_eq!(map.named_area_center("Tavern"), Some(Vec2::new(12.0, 23.0)));
+        assert_eq!(map.named_area_center("Box"), None);
+        assert_eq!(map.named_area_name_at(Vec2::new(12.0, 23.0)), None);
+        assert_eq!(map.named_area_owner("Box"), None);
+        assert!(
+            map.geometry_area_bbox_at(Vec2::new(12.0, 23.0)).is_some(),
+            "walkability must not depend on the Area flag"
+        );
     }
 
     #[test]
@@ -411,11 +434,13 @@ mod tests {
             Vec3::new(10.0, -0.1, 20.0),
             Vec3::new(14.0, 0.0, 26.0),
         ));
-        map.geometry_objects.push(GeometryObject::box_from_bounds(
+        let mut tavern = GeometryObject::box_from_bounds(
             "Tavern",
             Vec3::new(10.0, 0.0, 20.0),
             Vec3::new(14.0, 2.0, 26.0),
-        ));
+        );
+        tavern.properties.set("area", Value::Bool(true));
+        map.geometry_objects.push(tavern);
 
         let center = map.named_area_center_3d("Tavern").unwrap();
         assert_close(center.x, 12.0);
@@ -426,11 +451,13 @@ mod tests {
     #[test]
     fn named_area_name_at_falls_back_to_geometry_object() {
         let mut map = Map::new();
-        map.geometry_objects.push(GeometryObject::box_from_bounds(
+        let mut object = GeometryObject::box_from_bounds(
             "Tavern",
             Vec3::new(10.0, 0.0, 20.0),
             Vec3::new(14.0, 2.0, 26.0),
-        ));
+        );
+        object.properties.set("area", Value::Bool(true));
+        map.geometry_objects.push(object);
 
         assert_eq!(
             map.named_area_name_at(Vec2::new(12.0, 23.0)),
@@ -1247,17 +1274,26 @@ impl Map {
         Some(Vec4::new(min_x, min_y, width, height))
     }
 
+    /// A geometry object is a named place only when it carries a name and the
+    /// author ticked Area; the auto labels objects get ("Box", "Column 1") are
+    /// not places.
+    fn is_named_geometry_area(object: &GeometryObject, name: &str) -> bool {
+        !object.name.trim().is_empty()
+            && object.name == name
+            && object.properties.get_bool_default("area", false)
+    }
+
     pub fn geometry_area_center(&self, name: &str) -> Option<Vec2<f32>> {
         self.geometry_objects
             .iter()
-            .find(|object| object.name == name && object.properties.get_bool_default("area", true))
+            .find(|object| Self::is_named_geometry_area(object, name))
             .and_then(|object| object.bbox().map(|bbox| bbox.center()))
     }
 
     pub fn geometry_area_center_3d(&self, name: &str) -> Option<Vec3<f32>> {
         self.geometry_objects
             .iter()
-            .find(|object| object.name == name && object.properties.get_bool_default("area", true))
+            .find(|object| Self::is_named_geometry_area(object, name))
             .and_then(|object| {
                 let bbox = object.bbox()?;
                 let center = bbox.center();
@@ -1276,6 +1312,10 @@ impl Map {
     }
 
     pub fn named_area_center(&self, name: &str) -> Option<Vec2<f32>> {
+        let name = name.trim();
+        if name.is_empty() {
+            return None;
+        }
         self.sectors
             .iter()
             .find(|sector| sector.name == name)
@@ -1284,6 +1324,10 @@ impl Map {
     }
 
     pub fn named_area_center_3d(&self, name: &str) -> Option<Vec3<f32>> {
+        let name = name.trim();
+        if name.is_empty() {
+            return None;
+        }
         self.sectors
             .iter()
             .find(|sector| sector.name == name)
@@ -1303,8 +1347,8 @@ impl Map {
         self.geometry_objects
             .iter()
             .find(|object| {
-                !object.name.is_empty()
-                    && object.properties.get_bool_default("area", true)
+                !object.name.trim().is_empty()
+                    && object.properties.get_bool_default("area", false)
                     && object
                         .bbox()
                         .map(|bbox| bbox.contains(pos))
@@ -1313,12 +1357,32 @@ impl Map {
             .map(|object| object.name.clone())
     }
 
+    /// Walkability, not a named place: any geometry the position sits in counts,
+    /// so the Area flag never decides whether a character can stand somewhere.
     pub fn geometry_area_bbox_at(&self, pos: Vec2<f32>) -> Option<BBox> {
         self.geometry_objects
             .iter()
-            .filter(|object| object.properties.get_bool_default("area", true))
             .filter_map(|object| object.bbox())
             .find(|bbox| bbox.contains(pos))
+    }
+
+    /// Stable identity of a named place: a 2D sector or a named 3D geometry
+    /// area. Returns the sector's creator id first, then the object id.
+    pub fn named_area_owner(&self, name: &str) -> Option<Uuid> {
+        let name = name.trim();
+        if name.is_empty() {
+            return None;
+        }
+        self.sectors
+            .iter()
+            .find(|sector| sector.name == name)
+            .map(|sector| sector.creator_id)
+            .or_else(|| {
+                self.geometry_objects
+                    .iter()
+                    .find(|object| Self::is_named_geometry_area(object, name))
+                    .map(|object| object.id)
+            })
     }
 
     pub fn named_area_name_at(&self, pos: Vec2<f32>) -> Option<String> {

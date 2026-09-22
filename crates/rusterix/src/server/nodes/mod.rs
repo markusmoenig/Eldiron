@@ -3,11 +3,14 @@
 use super::event_observation::{EventField, EventObservation, EventOwner};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::sync::{Arc, OnceLock};
 use theframework::prelude::Uuid;
 
 mod builtins;
 pub use builtins::time_range_contains;
+pub mod conversation;
+pub use conversation::{CONSEQUENCE_PORTS, CONSEQUENCE_SLOTS, Choice, Conversation, Step, Then};
 pub mod region;
 #[cfg(test)]
 mod tests;
@@ -28,7 +31,7 @@ pub struct Actor {
     pub render_id: u32,
     pub visible: bool,
     pub activity: Activity,
-    graph: Option<Plan>,
+    graph: Option<Arc<Plan>>,
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Trace {
@@ -58,6 +61,20 @@ pub struct EventContext<'a> {
     pub actor: &'a Actor,
     pub event: &'a EventObservation,
     pub time: theframework::prelude::TheTime,
+}
+/// Value written by the Set Attribute node.
+#[derive(Clone, Debug, PartialEq)]
+pub enum EventAttribute {
+    Text(String),
+    Number(f64),
+    Bool(bool),
+}
+/// What happened to an open Dialogue node: the player picked a choice, or the
+/// dialogue was dismissed (walked away, timed out, or explicitly closed).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DialogChoiceMade {
+    Index(u32),
+    Dismissed,
 }
 /// Modules access world functionality through services, never the legacy RegionCtx.
 pub trait WorldServices {
@@ -136,6 +153,102 @@ pub trait WorldServices {
     fn player_camera(&mut self, _actor: &Actor, _camera: &str) -> Result<(), String> {
         Err("Player camera service is unavailable in this context".into())
     }
+    fn set_attribute(
+        &mut self,
+        _actor: &Actor,
+        _attribute: &str,
+        _value: EventAttribute,
+    ) -> Result<(), String> {
+        Err("Set Attribute requires a character".into())
+    }
+    /// Flips a boolean attribute of the actor.
+    fn toggle_attribute(&mut self, _actor: &Actor, _attribute: &str) -> Result<(), String> {
+        Err("Toggle Attribute requires a character or item".into())
+    }
+    /// Makes the actor's light follow its active state, or forces it on or off.
+    fn set_emit_light(&mut self, _actor: &Actor, _mode: &str) -> Result<(), String> {
+        Err("Set Emit Light requires a character or item".into())
+    }
+    /// Opens a dialogue node for a target entity, usually the player who acted.
+    fn open_dialog(&mut self, _actor: &Actor, _target: u32, _node: &str) -> Result<(), String> {
+        Err("Dialog requires a character".into())
+    }
+    /// Offers what the actor carries to a target entity as a pickable list.
+    fn offer_inventory(
+        &mut self,
+        _actor: &Actor,
+        _target: u32,
+        _filter: &str,
+    ) -> Result<(), String> {
+        Err("Offer Inventory requires a character".into())
+    }
+    /// True when the target entity carries an item whose name or class matches.
+    fn inventory_has(&mut self, _target: u32, _item: &str) -> Result<bool, String> {
+        Err("Inventory Has requires a character".into())
+    }
+    /// Raises an event on the actor after a number of game minutes.
+    fn notify_in(&mut self, _actor: &Actor, _minutes: f32, _event: &str) -> Result<(), String> {
+        Err("Notify In requires a character or item".into())
+    }
+    /// True when another living entity stands within the actor's own radius,
+    /// which is the radius collisions use.
+    fn entities_in_radius(&mut self, _actor: &Actor) -> Result<bool, String> {
+        Err("Entities In Radius requires a character or item".into())
+    }
+    /// Puts an item template into the actor's inventory.
+    fn add_item(&mut self, _actor: &Actor, _item: &str) -> Result<(), String> {
+        Err("Add Item requires a character".into())
+    }
+    /// Drops the actor's inventory items whose name or class matches the
+    /// filter. An empty filter drops everything the character carries.
+    fn drop_items(&mut self, _actor: &Actor, _filter: &str) -> Result<(), String> {
+        Err("Drop Items requires a character".into())
+    }
+    /// Display form of one actor attribute, used by condition nodes.
+    fn attribute_display(&self, _actor: &Actor, _name: &str) -> Option<String> {
+        None
+    }
+    fn message(&mut self, _actor: &Actor, _text: String, _role: &str) -> Result<(), String> {
+        Err("Message requires a character".into())
+    }
+    fn teleport(&mut self, _actor: &Actor, _area: &str, _sector: &str) -> Result<(), String> {
+        Err("Teleport requires a character".into())
+    }
+    /// Sets the entity's life state: Alive, Dead, Sleeping or Unconscious.
+    fn set_state(&mut self, _actor: &Actor, _state: &str) -> Result<(), String> {
+        Err("State requires a character".into())
+    }
+    /// Shows dialogue text and choices to a listener and keeps the caller's flow
+    /// suspended until the player answers. `choices` are `(label, condition)`
+    /// pairs; a `None` condition is always visible, and a condition may be
+    /// prefixed with `unless ` to negate it.
+    fn present_dialog(
+        &mut self,
+        _actor: &Actor,
+        _target: u32,
+        _text: &str,
+        _choices: &[(String, Option<String>)],
+    ) -> Result<(), String> {
+        Err("Dialogue requires a character".into())
+    }
+    /// The answer to an open dialogue for this actor, consumed once. `None`
+    /// means the player has not answered yet.
+    fn take_dialog_choice(&mut self, _actor: &Actor) -> Option<DialogChoiceMade> {
+        None
+    }
+    /// The conversation step a Talk node is parked on for this actor, if any.
+    fn talk_step(&mut self, _actor: &Actor) -> Option<String> {
+        None
+    }
+    /// Parks a Talk flow on a step, or clears it when the conversation is over.
+    fn set_talk_step(&mut self, _actor: &Actor, _step: Option<&str>) {}
+    /// A step a Talk node should continue at when flow next enters it, consumed
+    /// once. A choice that leaves through a consequence port sets it, so the
+    /// wired nodes can hand the conversation back where the answer pointed.
+    fn take_talk_resume(&mut self, _actor: &Actor) -> Option<String> {
+        None
+    }
+    fn set_talk_resume(&mut self, _actor: &Actor, _step: Option<&str>) {}
 }
 pub trait Operation: Send + Sync {
     fn watch_event(&self) -> Option<&'static str> {
@@ -173,6 +286,11 @@ pub trait Operation: Send + Sync {
     fn event(&self) -> Option<&str> {
         None
     }
+    /// Additional events this operation subscribes to, for entries that route
+    /// several transitions through one node.
+    fn events(&self) -> &'static [&'static str] {
+        &[]
+    }
     fn execute(
         &self,
         context: &EventContext<'_>,
@@ -183,6 +301,11 @@ pub trait NodeModule: Send + Sync {
     fn id(&self) -> &'static str;
     fn inputs(&self) -> &'static [&'static str];
     fn outputs(&self) -> &'static [&'static str];
+    /// Output ports that depend on the node's parameters, such as one port per
+    /// dialogue choice. Defaults to the static `outputs` list.
+    fn is_valid_output(&self, _parameters: &BTreeMap<String, Value>, key: &str) -> bool {
+        self.outputs().contains(&key)
+    }
     fn compile(&self, parameters: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String>;
 }
 #[derive(Default)]
@@ -205,6 +328,17 @@ impl Registry {
         let mut r = Self::default();
         builtins::register(&mut r);
         r
+    }
+    /// Process-wide registry. Node modules are stateless, so the region adapter
+    /// shares one registry instead of rebuilding it on every event or tick.
+    pub fn shared() -> &'static Registry {
+        static REGISTRY: OnceLock<Registry> = OnceLock::new();
+        REGISTRY.get_or_init(Self::builtin)
+    }
+    /// Ids of every registered module, so the editor can check that each one is
+    /// reachable from the palette.
+    pub fn ids(&self) -> Vec<&str> {
+        self.modules.values().map(|module| module.id()).collect()
     }
     pub fn register(&mut self, module: Box<dyn NodeModule>) -> Result<(), String> {
         if self.modules.contains_key(module.id()) {
@@ -248,19 +382,22 @@ impl Registry {
             if let Some(event) = operation.event() {
                 events.entry(event.into()).or_default().push(node.id);
             }
+            for event in operation.events() {
+                let entry = events.entry((*event).into()).or_default();
+                if !entry.contains(&node.id) {
+                    entry.push(node.id);
+                }
+            }
             let mut keys = HashSet::new();
             for port in node.ports {
                 let expected = if port.direction == "Input" {
-                    module.inputs()
+                    module.inputs().contains(&port.key.as_str())
                 } else if port.direction == "Output" {
-                    module.outputs()
+                    module.is_valid_output(&params, port.key.as_str())
                 } else {
                     return Err("Invalid port direction".into());
                 };
-                if port.kind != "flow"
-                    || !expected.contains(&port.key.as_str())
-                    || !keys.insert(port.key.clone())
-                {
+                if port.kind != "flow" || !expected || !keys.insert(port.key.clone()) {
                     return Err("Invalid module port".into());
                 }
                 if ports
@@ -335,7 +472,7 @@ pub struct Plan {
 pub struct Runtime {
     pub actors: HashMap<Uuid, Actor>,
     conditions: HashMap<ActorHandle, BTreeMap<Uuid, bool>>,
-    watchers: HashMap<ActorHandle, HashSet<Uuid>>,
+    watchers: HashMap<ActorHandle, BTreeSet<Uuid>>,
     highlights: HashMap<ActorHandle, Highlights>,
     highlight_dirty: HashSet<ActorHandle>,
     live_activity: HashMap<ActorHandle, (Uuid, EventObservation)>,
@@ -357,7 +494,7 @@ impl Runtime {
         if self.pending.len() >= 4096 {
             return Err("Startup queue is full".into());
         }
-        let handle = self.attach(identity, map, render_id, graph)?;
+        let handle = self.attach_shared(identity, map, render_id, graph.map(Arc::new))?;
         self.send(handle, "startup", BTreeMap::new(), 0);
         Ok(handle)
     }
@@ -369,6 +506,17 @@ impl Runtime {
         map: Uuid,
         render_id: u32,
         graph: Option<Plan>,
+    ) -> Result<ActorHandle, String> {
+        self.attach_shared(identity, map, render_id, graph.map(Arc::new))
+    }
+    /// Attach with an already compiled, shareable plan. Instances of the same
+    /// graph template share one immutable plan instead of recompiling per actor.
+    pub fn attach_shared(
+        &mut self,
+        identity: Uuid,
+        map: Uuid,
+        render_id: u32,
+        graph: Option<Arc<Plan>>,
     ) -> Result<ActorHandle, String> {
         if self.actors.contains_key(&identity) {
             return Err("Actor already spawned".into());
@@ -403,7 +551,7 @@ impl Runtime {
     pub fn replace_graph(
         &mut self,
         handle: ActorHandle,
-        plan: Plan,
+        plan: Arc<Plan>,
         world: &mut dyn WorldServices,
     ) -> Result<(), String> {
         if !self.is_current(handle) {

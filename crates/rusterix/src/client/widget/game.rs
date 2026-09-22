@@ -1539,9 +1539,9 @@ impl GameWidget {
         }
 
         for object in &map.geometry_objects {
-            if !object.properties.get_bool_default("hide_iso", false)
-                || !object.properties.get_bool_default("area", true)
-            {
+            // Roof hiding follows hide_iso alone; the Area flag only decides
+            // whether an object is a named place.
+            if !object.properties.get_bool_default("hide_iso", false) {
                 continue;
             }
             if object

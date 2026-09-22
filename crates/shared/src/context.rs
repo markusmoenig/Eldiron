@@ -190,6 +190,8 @@ pub enum ProjectContext {
     RegionCode(Uuid),
     RegionCharacterInstance(Uuid, Uuid),
     RegionItemInstance(Uuid, Uuid),
+    /// A named place: a 2D sector or a named 3D geometry area.
+    RegionArea(Uuid, Uuid),
     WorldCode,
     Character(Uuid),
     CharacterCode(Uuid),
@@ -233,6 +235,7 @@ impl ProjectContext {
             | ProjectContext::RegionCode(id)
             | ProjectContext::RegionCharacterInstance(id, _)
             | ProjectContext::RegionItemInstance(id, _)
+            | ProjectContext::RegionArea(id, _)
             | ProjectContext::Character(id)
             | ProjectContext::CharacterCode(id)
             | ProjectContext::CharacterData(id)

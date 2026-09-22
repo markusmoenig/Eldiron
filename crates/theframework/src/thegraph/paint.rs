@@ -83,7 +83,18 @@ impl GraphEditor {
             );
             y += spacing;
         }
+        let owners: std::collections::HashMap<GraphId, GraphId> = doc
+            .nodes
+            .iter()
+            .flat_map(|n| n.ports.iter().map(move |p| (p.id, n.id)))
+            .collect();
         for c in &doc.connections {
+            // A connection touching a hidden node belongs to another branch.
+            if let (Some(from), Some(to)) = (owners.get(&c.from), owners.get(&c.to))
+                && (!self.node_visible(*from) || !self.node_visible(*to))
+            {
+                continue;
+            }
             if let Some(points) = connection_curve(doc, c, &self.viewport) {
                 let active =
                     context.connection_active(c.id) || self.selected_connection == Some(c.id);
@@ -98,8 +109,12 @@ impl GraphEditor {
             origin: self.viewport.to_screen(rect.origin),
             size: [rect.size[0] * z, rect.size[1] * z],
         };
+        let metrics = doc.metrics();
         for n in &doc.nodes {
-            let r = screen(n.rect());
+            if !self.node_visible(n.id) {
+                continue;
+            }
+            let r = screen(n.rect(&metrics));
             if r.origin[0] + r.size[0] < 0.
                 || r.origin[1] + r.size[1] < 0.
                 || r.origin[0] > size[0]
@@ -144,41 +159,68 @@ impl GraphEditor {
                 18. * z,
                 n.color,
             );
-            painter.round_rect(
-                GraphRect {
-                    origin: [r.origin[0] + 2. * z, r.origin[1] + 35. * z],
-                    size: [r.size[0] - 4. * z, r.size[1] - 37. * z],
-                },
-                17. * z,
-                theme.body,
-            );
+            let band = metrics.title_band;
+            // A folded node only needs a body strip when it has terminals to
+            // spread across it; otherwise it would show a stray empty sliver.
+            if !n.folded || n.terminals() > 0 {
+                painter.round_rect(
+                    GraphRect {
+                        origin: [r.origin[0] + 2. * z, r.origin[1] + band * z],
+                        size: [r.size[0] - 4. * z, (r.size[1] - (band + 2.) * z).max(0.)],
+                    },
+                    17. * z,
+                    theme.body,
+                );
+            }
+            let title = context.node_title(n).unwrap_or_else(|| n.title.clone());
+            let title_size = metrics.title_size * z;
+            let title_width = (n.width - 44.) * z;
             painter.text(
                 screen(GraphRect {
                     origin: [n.position[0] + 16., n.position[1] + 7.],
-                    size: [n.width - 30., 25.],
+                    size: [n.width - 30., band],
                 }),
-                &context.node_title(n).unwrap_or_else(|| n.title.clone()),
-                18. * z,
+                &fit_text(&title, title_width, title_size, controls),
+                title_size,
                 theme.text,
             );
-            for (i, row) in n.rows.iter().enumerate() {
-                let rect = n.row_rect(i);
+            // A chevron marks the fold handle in the title bar.
+            if !n.rows.is_empty() {
                 painter.text(
                     screen(GraphRect {
-                        origin: [rect.origin[0], rect.origin[1] - 19.],
-                        size: [rect.size[0], 18.],
+                        origin: [n.position[0] + n.width - 24., n.position[1] + 6.],
+                        size: [16., band - 8.],
                     }),
-                    &row.label,
-                    12. * z,
+                    if n.folded { ">" } else { "v" },
+                    title_size,
+                    theme.muted,
+                );
+            }
+            // A folded node keeps its rows in the document, it just stops
+            // drawing them, so a branch can be read at a glance.
+            let rows: &[GraphRow] = if n.folded { &[] } else { &n.rows };
+            for (i, row) in rows.iter().enumerate() {
+                let rect = n.row_rect(i, &metrics);
+                let row_size = metrics.label_size * z;
+                painter.text(
+                    screen(GraphRect {
+                        origin: [rect.origin[0], rect.origin[1] + metrics.label_offset()],
+                        size: [rect.size[0], metrics.label - 4.],
+                    }),
+                    &fit_text(&row.label, rect.size[0] * z, row_size, controls),
+                    row_size,
                     theme.muted,
                 );
                 painter.round_rect(screen(rect), 15. * z, theme.control);
                 if row.value_type.is_some() {
                     let button = screen(GraphRect {
-                        origin: [rect.origin[0] + rect.size[0] - 25., rect.origin[1] - 19.],
-                        size: [25., 18.],
+                        origin: [
+                            rect.origin[0] + rect.size[0] - 25.,
+                            rect.origin[1] + metrics.label_offset(),
+                        ],
+                        size: [25., metrics.label - 4.],
                     });
-                    painter.text(button, "[=]", 12. * z, theme.active);
+                    painter.text(button, "[=]", row_size, theme.active);
                 }
                 if row.binding.is_some() {
                     let label = context
@@ -189,13 +231,108 @@ impl GraphEditor {
                             origin: [rect.origin[0] + 9., rect.origin[1] + 4.],
                             size: [rect.size[0] - 18., 22.],
                         }),
-                        &label,
-                        12. * z,
+                        &fit_text(&label, (rect.size[0] - 18.) * z, row_size, controls),
+                        row_size,
                         theme.active,
                     );
                     continue;
                 }
                 if controls.paint(&row.value, screen(rect), painter) {
+                    continue;
+                }
+                if let GraphControlValue::List { columns, rows } = &row.value {
+                    let count = columns.len().max(1);
+                    let cell_width = rect.size[0] * LIST_DELETE_FRACTION / count as f32;
+                    let cell_size = metrics.cell_size * z;
+                    let header_size = metrics.header_size * z;
+                    // Text is centred in its list row, so compact rows place it
+                    // closer to the row's top.
+                    let text_offset = ((metrics.list_row - 18.) * 0.5).max(0.);
+                    for (column, definition) in columns.iter().enumerate() {
+                        painter.text(
+                            screen(GraphRect {
+                                origin: [
+                                    rect.origin[0] + cell_width * column as f32 + 6.,
+                                    rect.origin[1] + 4.,
+                                ],
+                                size: [cell_width - 10., metrics.list_header - 8.],
+                            }),
+                            &fit_text(
+                                &definition.label,
+                                (cell_width - 16.) * z,
+                                header_size,
+                                controls,
+                            ),
+                            header_size,
+                            theme.muted,
+                        );
+                    }
+                    for (index, cells) in rows.iter().enumerate() {
+                        let y = rect.origin[1]
+                            + metrics.list_header
+                            + metrics.list_row * index as f32;
+                        for (column, cell) in cells.iter().enumerate() {
+                            let cell_rect = GraphRect {
+                                origin: [
+                                    rect.origin[0] + cell_width * column as f32 + 6.,
+                                    y + text_offset,
+                                ],
+                                size: [cell_width - 10., 18.],
+                            };
+                            painter.text(
+                                screen(cell_rect),
+                                &fit_text(
+                                    &BasicGraphControls.label(cell),
+                                    (cell_width - 16.) * z,
+                                    cell_size,
+                                    controls,
+                                ),
+                                cell_size,
+                                theme.text,
+                            );
+                            if self.text_focus().is_some_and(|focus| {
+                                focus.node == n.id
+                                    && focus.row == row.id
+                                    && focus.cell == Some((index, column))
+                            }) {
+                                painter.round_rect(
+                                    screen(GraphRect {
+                                        origin: [
+                                            cell_rect.origin[0],
+                                            cell_rect.origin[1] + cell_rect.size[1] - 1.,
+                                        ],
+                                        size: [cell_rect.size[0], 2.],
+                                    }),
+                                    z,
+                                    theme.active,
+                                );
+                            }
+                        }
+                        painter.text(
+                            screen(GraphRect {
+                                origin: [
+                                    rect.origin[0] + rect.size[0] - 20.,
+                                    y + text_offset,
+                                ],
+                                size: [16., 18.],
+                            }),
+                            "x",
+                            cell_size,
+                            theme.muted,
+                        );
+                    }
+                    let y = rect.origin[1]
+                        + metrics.list_header
+                        + metrics.list_row * rows.len() as f32;
+                    painter.text(
+                        screen(GraphRect {
+                            origin: [rect.origin[0] + 6., y + text_offset],
+                            size: [rect.size[0] - 12., 18.],
+                        }),
+                        "+ Add",
+                        cell_size,
+                        theme.active,
+                    );
                     continue;
                 }
                 if let GraphControlValue::Number {
@@ -219,6 +356,7 @@ impl GraphEditor {
                 if let GraphControlValue::Preview { asset, .. } = &row.value {
                     painter.preview(screen(rect), asset);
                 }
+                let text_size = metrics.text_size * z;
                 let text_rect = screen(GraphRect {
                     origin: [rect.origin[0] + 9., rect.origin[1] + 4.],
                     size: [rect.size[0] - 18., 22.],
@@ -239,7 +377,7 @@ impl GraphEditor {
                         let mut start = focus.caret();
                         let mut width = 0.;
                         for (index, ch) in text[..focus.caret()].char_indices().rev() {
-                            let w = painter.text_width(&ch.to_string(), 14. * z);
+                            let w = painter.text_width(&ch.to_string(), text_size);
                             if width + w > text_rect.size[0] - 3. * z {
                                 break;
                             }
@@ -248,10 +386,10 @@ impl GraphEditor {
                         }
                         let selection = focus.selection();
                         let sx = painter
-                            .text_width(&text[start..selection.start.max(start)], 14. * z)
+                            .text_width(&text[start..selection.start.max(start)], text_size)
                             .min(text_rect.size[0]);
                         let ex = painter
-                            .text_width(&text[start..selection.end.max(start)], 14. * z)
+                            .text_width(&text[start..selection.end.max(start)], text_size)
                             .min(text_rect.size[0]);
                         painter.round_rect(
                             GraphRect {
@@ -261,8 +399,8 @@ impl GraphEditor {
                             0.,
                             [42, 112, 134, 255],
                         );
-                        painter.text(text_rect, &text[start..], 14. * z, theme.text);
-                        let cx = painter.text_width(&text[start..focus.caret()], 14. * z);
+                        painter.text(text_rect, &text[start..], text_size, theme.text);
+                        let cx = painter.text_width(&text[start..focus.caret()], text_size);
                         painter.round_rect(
                             GraphRect {
                                 origin: [text_rect.origin[0] + cx, text_rect.origin[1]],
@@ -282,8 +420,8 @@ impl GraphEditor {
                         origin: [rect.origin[0] + 9., rect.origin[1] + 4.],
                         size: [rect.size[0] - 18., 22.],
                     }),
-                    &label,
-                    14. * z,
+                    &fit_text(&label, text_rect.size[0], text_size, controls),
+                    text_size,
                     theme.text,
                 );
             }
@@ -299,17 +437,24 @@ impl GraphEditor {
             } else {
                 format!("{:?} · {}", obs.execution, obs.text)
             };
-            painter.text(
-                screen(GraphRect {
-                    origin: [n.position[0] + 16., n.position[1] + n.height() - 22.],
-                    size: [n.width - 30., 16.],
-                }),
-                &status,
-                11. * z,
-                color,
-            );
+            // A folded node has no body, so its status line would sit on the
+            // title; execution state still shows in the border ring.
+            if !n.folded {
+                painter.text(
+                    screen(GraphRect {
+                        origin: [
+                            n.position[0] + 16.,
+                            n.position[1] + n.height(&metrics) - 22.,
+                        ],
+                        size: [n.width - 30., 16.],
+                    }),
+                    &status,
+                    metrics.header_size * z,
+                    color,
+                );
+            }
             for p in &n.ports {
-                let center = self.viewport.to_screen(n.port_position(p));
+                let center = self.viewport.to_screen(n.port_position(p, &metrics));
                 painter.round_rect(
                     GraphRect {
                         origin: [center[0] - 5. * z, center[1] - 5. * z],
@@ -331,7 +476,7 @@ impl GraphEditor {
                         size: [width, 16. * z],
                     },
                     &p.label,
-                    10. * z,
+                    metrics.port_size * z,
                     theme.muted,
                 );
             }
@@ -340,7 +485,7 @@ impl GraphEditor {
             if let Some((n, p)) = doc.port(id) {
                 painter.curve(
                     port_curve(
-                        self.viewport.to_screen(n.port_position(p)),
+                        self.viewport.to_screen(n.port_position(p, &metrics)),
                         p.side,
                         self.cursor,
                         PortSide::Left,
@@ -351,4 +496,17 @@ impl GraphEditor {
             }
         }
     }
+}
+
+/// Trim `text` to fit `width` at `size`, ending with an ellipsis. Long dialogue
+/// lines then show their start instead of widening the node.
+fn fit_text(text: &str, width: f32, size: f32, controls: &dyn GraphControls) -> String {
+    if width <= 0. || controls.text_width(text, size) <= width {
+        return text.to_string();
+    }
+    let mut cut = text.to_string();
+    while !cut.is_empty() && controls.text_width(&format!("{cut}…"), size) > width {
+        cut.pop();
+    }
+    format!("{cut}…")
 }

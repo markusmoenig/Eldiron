@@ -5,6 +5,7 @@ use theframework::prelude::*;
 
 const CHARACTER_INSTANCE_TREE_PALETTE_SLOT: usize = ActionGroup::Prefab.palette_slot();
 const ITEM_INSTANCE_TREE_PALETTE_SLOT: usize = ActionGroup::Bake.palette_slot();
+const AREA_TREE_PALETTE_SLOT: usize = ActionGroup::Geometry.palette_slot();
 const RULESET_ITEM_TREE_PALETTE_SLOT: usize = ITEM_INSTANCE_TREE_PALETTE_SLOT;
 
 pub fn gen_procedural_recipe_tree_item(
@@ -167,6 +168,64 @@ fn data_has_attr(data: &str, key: &str) -> bool {
 }
 
 /// Generate a tree node for the given region
+/// Named places that can own behavior: 2D sectors and named 3D geometry areas.
+pub fn region_areas(region: &Region) -> Vec<(Uuid, String)> {
+    let mut areas: Vec<(Uuid, String)> = region
+        .map
+        .sectors
+        .iter()
+        .filter(|sector| !sector.name.trim().is_empty())
+        .map(|sector| (sector.creator_id, sector.name.clone()))
+        .collect();
+    areas.extend(
+        region
+            .map
+            .geometry_objects
+            .iter()
+            .filter(|object| {
+                !object.name.trim().is_empty() && object.properties.get_bool_default("area", false)
+            })
+            .map(|object| (object.id, object.name.clone())),
+    );
+    areas
+}
+
+/// Map-space centre of a named place, used to centre the view on it. 2D
+/// sectors report their polygon centre; named 3D areas use their bounding box.
+pub fn area_center(region: &Region, area: Uuid) -> Option<(f32, f32)> {
+    if let Some(sector) = region
+        .map
+        .sectors
+        .iter()
+        .find(|sector| sector.creator_id == area)
+    {
+        return sector
+            .center(&region.map)
+            .map(|center| (center.x, center.y));
+    }
+    region
+        .map
+        .geometry_objects
+        .iter()
+        .find(|object| object.id == area)
+        .and_then(|object| object.bbox())
+        .map(|bbox| {
+            (
+                (bbox.min.x + bbox.max.x) * 0.5,
+                (bbox.min.y + bbox.max.y) * 0.5,
+            )
+        })
+}
+
+/// The region that contains a named place, found by its stable id.
+pub fn region_of_area(project: &Project, area: Uuid) -> Option<Uuid> {
+    project
+        .regions
+        .iter()
+        .find(|region| region_areas(region).iter().any(|(id, _)| *id == area))
+        .map(|region| region.id)
+}
+
 pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&region.name, region.id));
     node.set_root_mode(false);
@@ -175,6 +234,13 @@ pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
 
     node
 }
+
+/// Region-level Settings and Behaviour Nodes are hidden for now. The graph
+/// entry has no usable actions yet (`node_available` filters every action out
+/// for region owners) and the settings panel is superseded by the
+/// project/region workflow. The code and the sidebar handlers stay in place, so
+/// flipping this to `true` brings both entries back.
+const SHOW_REGION_SETTINGS_AND_BEHAVIOR_NODES: bool = false;
 
 /// Generate the items for the region node
 pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
@@ -190,18 +256,21 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
     item.add_widget_column(200, Box::new(edit));
     node.add_widget(Box::new(item));
 
-    // Settings
-    let mut item = TheTreeItem::new(TheId::named_with_reference(
-        "Region Settings Item",
-        region.id,
-    ));
-    item.set_text(fl!("settings"));
-    node.add_widget(Box::new(item));
+    if SHOW_REGION_SETTINGS_AND_BEHAVIOR_NODES {
+        // Settings
+        let mut item = TheTreeItem::new(TheId::named_with_reference(
+            "Region Settings Item",
+            region.id,
+        ));
+        item.set_text(fl!("settings"));
+        node.add_widget(Box::new(item));
 
-    let mut item = TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
-    item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-    item.set_text(fl!("behavior_nodes"));
-    node.add_widget(Box::new(item));
+        let mut item =
+            TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
+        item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
+        item.set_text(fl!("behavior_nodes"));
+        node.add_widget(Box::new(item));
+    }
 
     for (id, character) in &region.characters {
         let mut item = TheTreeItem::new(TheId::named_with_id("Region Content List Item", *id));
@@ -216,6 +285,16 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
         item.add_value_column(200, TheValue::Text(fl!("item_instance")));
         item.set_background_palette(ActionGroups, ITEM_INSTANCE_TREE_PALETTE_SLOT);
         item.set_text(item_.name.clone());
+        node.add_widget(Box::new(item));
+    }
+
+    // Named places are listed after the instances. Selecting one opens the
+    // behavior graph that place owns.
+    for (area_id, name) in region_areas(region) {
+        let mut item = TheTreeItem::new(TheId::named_with_reference("Region Area Item", area_id));
+        item.add_value_column(200, TheValue::Text(fl!("node_area")));
+        item.set_background_palette(ActionGroups, AREA_TREE_PALETTE_SLOT);
+        item.set_text(name);
         node.add_widget(Box::new(item));
     }
 }
@@ -1118,13 +1197,47 @@ pub fn set_project_context(
                 .unwrap()
                 .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
-        ProjectContext::RegionCharacterInstance(id, _) => {
-            if let Some(region) = project.get_region(&id) {
-                server_ctx.curr_region = id;
+        ProjectContext::RegionArea(region_id, area) => {
+            if let Some(region) = project.get_region(&region_id) {
+                server_ctx.curr_region = region_id;
+                let name = region_areas(region)
+                    .into_iter()
+                    .find(|(id, _)| *id == area)
+                    .map(|(_, name)| name)
+                    .unwrap_or_default();
                 ui.set_widget_value(
                     "Project Context",
                     ctx,
-                    TheValue::Text(format!("Region ({}) Character", region.name)),
+                    TheValue::Text(format!("Area Behavior: {}", name)),
+                );
+            }
+            DOCKMANAGER
+                .write()
+                .unwrap()
+                .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
+        }
+        ProjectContext::RegionCharacterInstance(id, instance) => {
+            if let Some(region) = project.get_region(&id) {
+                server_ctx.curr_region = id;
+                let name = region
+                    .characters
+                    .get(&instance)
+                    .map(|character| character.name.clone())
+                    .unwrap_or_default();
+                // An instance graph is layered over the template graph, so say
+                // which of the two this instance is actually running.
+                let owns_instance = project
+                    .node_graphs
+                    .contains_key(&format!("behavior/region/{id}/character/{instance}"));
+                let source = if owns_instance {
+                    "instance graph (overrides template)"
+                } else {
+                    "template graph"
+                };
+                ui.set_widget_value(
+                    "Project Context",
+                    ctx,
+                    TheValue::Text(format!("{name} · {source}")),
                 );
             }
             DOCKMANAGER

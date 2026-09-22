@@ -24,8 +24,8 @@ impl GraphControls for DemoControls {
     ) -> Option<GraphControlValue> {
         if let GraphControlValue::Custom { kind, .. } = v {
             if kind == "time" {
-                let (GraphControlInput::Press { fraction } | GraphControlInput::Drag { fraction }) =
-                    input;
+                let (GraphControlInput::Press { fraction, .. }
+                | GraphControlInput::Drag { fraction, .. }) = input;
                 let minutes = ((fraction.clamp(0., 1.) * 95.).round() as u32) * 15;
                 return Some(GraphControlValue::Custom {
                     kind: kind.clone(),
@@ -362,15 +362,16 @@ impl Demo {
     }
     fn parameter_picker(&mut self, screen: Point) -> bool {
         let p = self.editor.viewport.to_graph(screen);
+        let metrics = self.doc.metrics();
         let hit = self
             .doc
             .nodes
             .iter()
             .rev()
-            .find(|n| n.rect().contains(p))
+            .find(|n| n.rect(&metrics).contains(p))
             .and_then(|n| {
                 n.rows.iter().enumerate().find_map(|(i, r)| {
-                    let rect = n.row_rect(i);
+                    let rect = n.row_rect(i, &metrics);
                     let bind = GraphRect {
                         origin: [rect.origin[0] + rect.size[0] - 25., rect.origin[1] - 19.],
                         size: [25., 18.],
@@ -649,6 +650,7 @@ impl TheTrait for Demo {
                 version: 1,
                 nodes: vec![routine, time, walk, arrived, equals, say, dialogue],
                 connections: vec![c1, c2, c3, c4],
+                compact: false,
             },
             editor: GraphEditor::default(),
             resources: GraphRasterResources::new(font),
@@ -896,13 +898,14 @@ fn main() {
             demo.render(&mut pixels, width, height, density);
         }
         if args.iter().any(|a| a == "--focus-text") {
+            let metrics = demo.doc.metrics();
             let node = demo
                 .doc
                 .nodes
                 .iter()
                 .find(|n| n.id == demo.context.text_node)
                 .unwrap();
-            let r = node.row_rect(0);
+            let r = node.row_rect(0, &metrics);
             let p = demo
                 .editor
                 .viewport

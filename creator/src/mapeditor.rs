@@ -1040,6 +1040,30 @@ impl MapEditor {
                 } else
                 // Region Content List Selection
                 if id.name == "Region Content List Item" {
+                    // The clicked instance may live in another region, so follow it
+                    // there instead of assuming the current one.
+                    let content_region = project
+                        .regions
+                        .iter()
+                        .find(|region| {
+                            region.characters.contains_key(&id.uuid)
+                                || region.items.contains_key(&id.uuid)
+                                || region
+                                    .map
+                                    .sectors
+                                    .iter()
+                                    .any(|sector| sector.creator_id == id.uuid)
+                        })
+                        .map(|region| region.id);
+                    if let Some(content_region) = content_region
+                        && content_region != server_ctx.curr_region
+                    {
+                        server_ctx.curr_region = content_region;
+                        server_ctx.editing_pos_buffer = None;
+                        crate::undo::project_helper::update_region(ctx);
+                        redraw = true;
+                    }
+
                     // If this is a character instance, update its name from the template
 
                     let mut temp_id = None;

@@ -301,7 +301,7 @@ impl Action for EditGeometry {
         self.nodeui
             .set_text_value("item", object.properties.get_str_default("item", "".into()));
         self.nodeui
-            .set_bool_value("area", object.properties.get_bool_default("area", true));
+            .set_bool_value("area", object.properties.get_bool_default("area", false));
         self.nodeui.set_bool_value(
             "hide_iso",
             object.properties.get_bool_default("hide_iso", false),
@@ -419,7 +419,7 @@ impl Action for EditGeometry {
         let area = self
             .nodeui
             .get_bool_value("area")
-            .unwrap_or_else(|| object.properties.get_bool_default("area", true));
+            .unwrap_or_else(|| object.properties.get_bool_default("area", false));
         let hide_iso = self
             .nodeui
             .get_bool_value("hide_iso")
@@ -448,7 +448,7 @@ impl Action for EditGeometry {
             material_finish = "natural".to_string();
         }
         let existing_item = object.properties.get_str_default("item", "".into());
-        let existing_area = object.properties.get_bool_default("area", true);
+        let existing_area = object.properties.get_bool_default("area", false);
         let existing_hide_iso = object.properties.get_bool_default("hide_iso", false);
         let existing_material_preset = object
             .properties

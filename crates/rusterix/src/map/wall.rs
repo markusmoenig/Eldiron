@@ -1751,7 +1751,10 @@ impl WallAssembly {
                     );
                     let raw_joint_left = offset + index as f32 * pitch_x + brick_width + head_shift;
                     let raw_joint_right = raw_joint_left + gap;
-                    if raw_joint_right <= 0.0 || raw_joint_left >= length {
+                    // Joints must sit fully inside the span. Clamping one to the
+                    // span edge would leave a thin, full-height mortar strip that
+                    // reads as a backing shell; the end brick owns that edge.
+                    if raw_joint_left < -1e-5 || raw_joint_right > length + 1e-5 {
                         continue;
                     }
                     let joint_left = (raw_joint_left + 0.0005).max(0.0);
@@ -1889,11 +1892,15 @@ fn append_wall_path_profile_prism(
         for point in profile {
             let before = path.point_at(point.x - tangent_epsilon);
             let after = path.point_at(point.x + tangent_epsilon);
-            let Some(direction) =
-                Vec3::new(after.x - before.x, 0.0, after.z - before.z).try_normalized()
-            else {
+            // Normalize manually: the tangent sample is deliberately tiny and
+            // vek's try_normalized treats such vectors as approx-zero, which
+            // silently dropped every mortar joint.
+            let horizontal = Vec3::new(after.x - before.x, 0.0, after.z - before.z);
+            let tangent_length = horizontal.magnitude();
+            if tangent_length <= 1e-5 {
                 return;
-            };
+            }
+            let direction = horizontal / tangent_length;
             let perpendicular = Vec3::new(-direction.z, 0.0, direction.x);
             object
                 .vertices

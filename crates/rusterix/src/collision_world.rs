@@ -1353,11 +1353,11 @@ impl CollisionWorld {
                             continue;
                         }
                         if self.barrier_blocks_horizontal_motion(position, barrier) {
-                            segments.push(CollisionSegment {
-                                geo_id: barrier.geo_id,
-                                start: barrier.start,
-                                end: barrier.end,
-                            });
+                            self.add_barrier_segments_with_openings(
+                                barrier,
+                                &chunk_collision.dynamic_openings,
+                                &mut segments,
+                            );
                         }
                     }
                     for volume in &chunk_collision.static_volumes {
@@ -1468,6 +1468,105 @@ impl CollisionWorld {
             let start = polygon[i];
             let end = polygon[(i + 1) % polygon.len()];
             segments.push(CollisionSegment { geo_id, start, end });
+        }
+    }
+
+    /// Parameter interval `[t0, t1]` of a segment that lies inside a convex polygon.
+    fn clip_segment_inside_convex_polygon(
+        start: Vec2<f32>,
+        end: Vec2<f32>,
+        polygon: &[Vec2<f32>],
+    ) -> Option<(f32, f32)> {
+        if polygon.len() < 3 {
+            return None;
+        }
+        let mut double_area = 0.0f32;
+        for index in 0..polygon.len() {
+            let a = polygon[index];
+            let b = polygon[(index + 1) % polygon.len()];
+            double_area += a.x * b.y - b.x * a.y;
+        }
+        if double_area.abs() <= 1e-9 {
+            return None;
+        }
+        let orientation = if double_area >= 0.0 { 1.0 } else { -1.0 };
+        let delta = end - start;
+        let mut t0 = 0.0f32;
+        let mut t1 = 1.0f32;
+        for index in 0..polygon.len() {
+            let a = polygon[index];
+            let b = polygon[(index + 1) % polygon.len()];
+            let edge = b - a;
+            let c = orientation * (edge.x * (start.y - a.y) - edge.y * (start.x - a.x));
+            let d = orientation * (edge.x * delta.y - edge.y * delta.x);
+            if d.abs() <= 1e-9 {
+                if c < -1e-6 {
+                    return None;
+                }
+                continue;
+            }
+            let t = -c / d;
+            if d > 0.0 {
+                t0 = t0.max(t);
+            } else {
+                t1 = t1.min(t);
+            }
+            if t0 > t1 {
+                return None;
+            }
+        }
+        Some((t0.clamp(0.0, 1.0), t1.clamp(0.0, 1.0)))
+    }
+
+    /// Adds a barrier segment, subtracting the parts carved out by passable
+    /// openings so a stale cap cannot block its own doorway.
+    fn add_barrier_segments_with_openings(
+        &self,
+        barrier: &StaticBarrier,
+        openings: &[DynamicOpening],
+        segments: &mut Vec<CollisionSegment>,
+    ) {
+        let start = barrier.start;
+        let end = barrier.end;
+        let mut keep = vec![(0.0f32, 1.0f32)];
+        for opening in openings {
+            if self.opening_is_blocking(opening) {
+                continue;
+            }
+            if opening.floor_height >= barrier.max_y || opening.ceiling_height <= barrier.min_y {
+                continue;
+            }
+            let Some((cut_start, cut_end)) =
+                Self::clip_segment_inside_convex_polygon(start, end, &opening.boundary_2d)
+            else {
+                continue;
+            };
+            if cut_end - cut_start <= 1e-5 {
+                continue;
+            }
+            let mut next = Vec::with_capacity(keep.len() + 1);
+            for (piece_start, piece_end) in keep {
+                if cut_start > piece_start + 1e-5 {
+                    next.push((piece_start, piece_end.min(cut_start)));
+                }
+                if cut_end < piece_end - 1e-5 {
+                    next.push((piece_start.max(cut_end), piece_end));
+                }
+            }
+            keep = next;
+            if keep.is_empty() {
+                return;
+            }
+        }
+        for (piece_start, piece_end) in keep {
+            if piece_end - piece_start <= 1e-5 {
+                continue;
+            }
+            segments.push(CollisionSegment {
+                geo_id: barrier.geo_id,
+                start: start + (end - start) * piece_start,
+                end: start + (end - start) * piece_end,
+            });
         }
     }
 

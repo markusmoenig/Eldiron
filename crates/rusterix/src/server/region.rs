@@ -1,6 +1,6 @@
 #[path = "node_combat.rs"]
 mod node_combat;
-use crate::server::message::DialogChoice;
+use crate::server::message::{DialogChoice, NodeChoice};
 use crate::server::py_fn::*;
 use crate::server::region_host::{run_client_fn, run_server_fn, run_server_named_fn};
 use crate::vm::*;
@@ -1881,6 +1881,171 @@ mod ruleset_progression_tests {
                 .get_bool_default("resource_depleted", false)
         );
         drop(ctx);
+        clear_regionctx_store();
+    }
+
+    /// Builds a directional-intent arena: a player with the given camera mode
+    /// and an adjacent hostile Orc. Used to pin the separation between the
+    /// direct action + direction method and the click/hover target method.
+    fn directional_intent_test_ctx(camera: PlayerCamera, persistent_intents: bool) -> RegionCtx {
+        let mut ctx = RegionCtx::default();
+        let (from_sender, from_receiver) = unbounded();
+        let _ = ctx.from_sender.set(from_sender);
+        std::mem::forget(from_receiver);
+        if persistent_intents {
+            let mut game = toml::Table::new();
+            game.insert("persistent_intents".into(), toml::Value::Boolean(true));
+            ctx.config.insert("game".into(), toml::Value::Table(game));
+        }
+        let source = r#"
+            [identity.defaults]
+            race = "Human"
+
+            [races.Human]
+            [races.Orc]
+
+            [race_relations.Human]
+            Orc = "hostile"
+
+            [dispositions]
+            friendly = 1
+            neutral = 0
+            hostile = -1
+
+            [reputation]
+            default = 0
+
+            [reputation.thresholds]
+            hostile = -50
+            friendly = 50
+
+            [combat]
+            default_damage_kind = "physical"
+
+            [combat.unarmed_damage]
+            roll = "1d3"
+
+            [actions.basic_attack]
+            name = "Basic Attack"
+            kind = "attack"
+            intent = "attack"
+            target = "hostile_entity"
+            range = "weapon"
+            cooldown = 1.0
+            result = { damage = "combat.unarmed_damage" }
+            "#;
+        ctx.rules = toml::from_str::<toml::Value>(source)
+            .unwrap()
+            .as_table()
+            .unwrap()
+            .clone();
+
+        let mut player = Entity::new();
+        player.id = 1;
+        player.position = Vec3::new(1.5, 1.0, 1.5);
+        player.set_attribute("race", Value::Str("Human".into()));
+        player.set_attribute("class_name", Value::Str("Player".into()));
+        player.set_attribute("mode", Value::Str("active".into()));
+        player.set_attribute("visible", Value::Bool(true));
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("player_camera", Value::PlayerCamera(camera));
+        ctx.entity_classes.insert(1, "Player".into());
+        ctx.map.entities.push(player);
+
+        let mut orc = Entity::new();
+        orc.id = 2;
+        orc.position = Vec3::new(1.5, 0.0, 0.5);
+        orc.set_attribute("race", Value::Str("Orc".into()));
+        orc.set_attribute("mode", Value::Str("active".into()));
+        orc.set_attribute("visible", Value::Bool(true));
+        ctx.entity_classes.insert(2, "Orc".into());
+        ctx.map.entities.push(orc);
+
+        assert!(entity_is_hostile_by_id(&ctx, 1, 2));
+        ctx
+    }
+
+    #[test]
+    fn grid_player_direction_key_applies_rules_action_intent() {
+        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
+        clear_regionctx_store();
+        let ctx = Arc::new(Mutex::new(directional_intent_test_ctx(
+            PlayerCamera::D2Grid,
+            false,
+        )));
+        register_regionctx(9906, ctx.clone());
+        let mut instance = RegionInstance::new(9906);
+
+        instance
+            .to_sender
+            .send(RegionMessage::UserAction(
+                1,
+                EntityAction::Intent("action:basic_attack".into()),
+            ))
+            .unwrap();
+        instance.redraw_tick();
+        // Grid players are usually mid-step; the direction press must still
+        // consume the intent instead of being swallowed by the step chain.
+        {
+            let mut ctx = ctx.lock().unwrap();
+            ctx.map.entities[0].action = EntityAction::StepTo(
+                Vec2::new(1.5, 0.5),
+                1.0,
+                Vec2::new(0.0, -1.0),
+                Vec2::new(1.5, 1.5),
+                Vec2::new(1.5, 0.5),
+            );
+        }
+        instance
+            .to_sender
+            .send(RegionMessage::UserAction(1, EntityAction::Forward))
+            .unwrap();
+        instance.redraw_tick();
+
+        let ctx = ctx.lock().unwrap();
+        assert!(
+            is_action_on_cooldown(&ctx, 1, "basic_attack"),
+            "a grid player's direction key must apply the selected rules intent"
+        );
+        drop(ctx);
+        clear_regionctx_store();
+    }
+
+    #[test]
+    fn directional_intent_stays_separate_from_click_target_modes() {
+        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
+        // The click/hover target method (2D persistent intents and 3D cameras)
+        // must never turn a direction press into a direct action.
+        for (region_id, label, camera, persistent) in [
+            (9907u32, "persistent 2D", PlayerCamera::D2Grid, true),
+            (9908, "3D first person", PlayerCamera::D3FirstP, false),
+            (9909, "3D isometric", PlayerCamera::D3Iso, false),
+        ] {
+            clear_regionctx_store();
+            let ctx = Arc::new(Mutex::new(directional_intent_test_ctx(camera, persistent)));
+            register_regionctx(region_id, ctx.clone());
+            let mut instance = RegionInstance::new(region_id);
+
+            instance
+                .to_sender
+                .send(RegionMessage::UserAction(
+                    1,
+                    EntityAction::Intent("action:basic_attack".into()),
+                ))
+                .unwrap();
+            instance.redraw_tick();
+            instance
+                .to_sender
+                .send(RegionMessage::UserAction(1, EntityAction::Forward))
+                .unwrap();
+            instance.redraw_tick();
+
+            let ctx = ctx.lock().unwrap();
+            assert!(
+                !is_action_on_cooldown(&ctx, 1, "basic_attack"),
+                "a direction press must not fire the selected intent in {label} mode"
+            );
+        }
         clear_regionctx_store();
     }
 
@@ -3793,6 +3958,87 @@ mod ruleset_progression_tests {
                 if message == "An old table covered in knife marks."
         ));
     }
+
+    #[test]
+    fn is_entity_dead_reports_a_stashed_body_as_dead() {
+        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
+        clear_regionctx_store();
+        let mut ctx = RegionCtx::default();
+        let mut body = Entity::new();
+        body.id = 7;
+        body.set_attribute("mode", Value::Str("dead".into()));
+        ctx.map.entities.push(body);
+        assert!(ctx.stash_entity(7), "death stashes the body");
+        register_regionctx(9910, Arc::new(Mutex::new(ctx)));
+
+        assert!(
+            is_entity_dead(9910, 7),
+            "absence from the world is what being dead means"
+        );
+        assert!(!is_entity_dead(9910, 8), "an unknown id is not dead");
+
+        clear_regionctx_store();
+    }
+
+    #[test]
+    fn cross_region_transfer_carries_a_stashed_body() {
+        let (from_sender, from_receiver) = unbounded();
+        let mut ctx = RegionCtx::default();
+        ctx.region_id = 9911;
+        let _ = ctx.from_sender.set(from_sender);
+        let mut body = Entity::new();
+        body.id = 21;
+        body.set_attribute("mode", Value::Str("dead".into()));
+        ctx.map.entities.push(body);
+        assert!(ctx.stash_entity(21), "death stashes the body");
+
+        // A death chain can move a body while it is still dead. The hand-off has
+        // to resolve through the stash or the body is silently dropped.
+        ctx.pending_entity_transfers
+            .push((21, "OtherRegion".into(), "Start".into()));
+        flush_pending_entity_transfers(&mut ctx);
+
+        assert!(!ctx.is_entity_stashed(21), "the body left this region");
+        assert!(
+            ctx.take_pending_entity_removals().is_empty(),
+            "a transferred body is announced by the transfer, not as a removal"
+        );
+        assert!(matches!(
+            from_receiver.try_recv(),
+            Ok(RegionMessage::TransferEntity(9911, entity, region, _))
+                if entity.id == 21 && region == "OtherRegion"
+        ));
+    }
+
+    #[test]
+    fn receiving_a_body_never_writes_visibility() {
+        let (from_sender, _from_receiver) = unbounded();
+        let mut ctx = RegionCtx::default();
+        let _ = ctx.from_sender.set(from_sender);
+
+        // An invisible player keeps its spell state across the region change.
+        let mut player = Entity::new();
+        player.id = 31;
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("mode", Value::Str("active".into()));
+        player.set_attribute("visible", Value::Bool(false));
+        receive_entity(&mut ctx, player, String::new());
+
+        let arrived = ctx.find_entity(31).expect("player arrived");
+        assert_eq!(arrived.get_mode(), "active");
+        assert!(
+            !arrived.attributes.get_bool_default("visible", true),
+            "arriving must not un-invisible a player"
+        );
+
+        // A dead body arrives out of the world, not solid in the new region.
+        let mut body = Entity::new();
+        body.id = 32;
+        body.set_attribute("mode", Value::Str("dead".into()));
+        receive_entity(&mut ctx, body, String::new());
+        assert!(ctx.is_entity_stashed(32), "a dead arrival is stashed");
+        assert!(!ctx.is_entity_present(32));
+    }
 }
 
 fn vertical_collision_ranges_overlap(a_y: f32, a_height: f32, b_y: f32, b_height: f32) -> bool {
@@ -4537,6 +4783,21 @@ impl RegionInstance {
             entity.attributes.get("player_camera"),
             Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid)) | None
         )
+    }
+
+    /// Direction a movement input points at while a directional intent is active.
+    fn intent_facing_for_action(action: &EntityAction) -> Option<Vec2<f32>> {
+        match action {
+            EntityAction::Forward => Some(Vec2::new(0.0, -1.0)),
+            EntityAction::Backward => Some(Vec2::new(0.0, 1.0)),
+            EntityAction::Left => Some(Vec2::new(-1.0, 0.0)),
+            EntityAction::Right => Some(Vec2::new(1.0, 0.0)),
+            EntityAction::ForwardLeft => Some(Vec2::new(-1.0, -1.0).normalized()),
+            EntityAction::ForwardRight => Some(Vec2::new(1.0, -1.0).normalized()),
+            EntityAction::BackwardLeft => Some(Vec2::new(-1.0, 1.0).normalized()),
+            EntityAction::BackwardRight => Some(Vec2::new(1.0, 1.0).normalized()),
+            _ => None,
+        }
     }
 
     fn entity_click_distance(
@@ -8196,6 +8457,20 @@ impl RegionInstance {
         let mut ticks = 0;
         let mut should_advance = true;
 
+        // Bodies that death took out of the world are announced here, on the
+        // same cadence that packs entity updates and before any pause check, so
+        // a character that dies and rises again within one tick never looks
+        // missing to a client.
+        let removals: Vec<u32> = with_regionctx(self.id, |ctx: &mut RegionCtx| {
+            ctx.take_pending_entity_removals()
+        })
+        .unwrap_or_default();
+        for entity_id in removals {
+            let _ = self
+                .from_sender
+                .send(RegionMessage::RemoveEntity(self.id, entity_id));
+        }
+
         with_regionctx(self.id, |ctx| {
             if ctx.paused {
                 should_advance = false;
@@ -8269,6 +8544,10 @@ impl RegionInstance {
 
             for (from_id, to_id) in expired_sessions {
                 clear_choice_session(ctx, from_id, to_id);
+                // A Dialogue node parked on this session resumes down `done`
+                // when the listener walks away or the choice times out.
+                ctx.dialog_choices
+                    .insert(from_id, crate::server::nodes::DialogChoiceMade::Dismissed);
                 if ctx.entity_classes.contains_key(&from_id) {
                     ctx.to_execute_entity.push((
                         from_id,
@@ -8647,6 +8926,77 @@ impl RegionInstance {
                                 && action != EntityAction::Off =>
                         {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                // Grid players move by chaining StepTo actions, which
+                                // never pass through the directional intent branch in
+                                // the movement loop. When a rules/action intent is
+                                // active, apply it in the pressed direction instead of
+                                // queueing a step so the shortcut behaves like Eldrin.
+                                let click_intents_2d = get_config_bool_default(
+                                    ctx,
+                                    "game",
+                                    "persistent_intents",
+                                    false,
+                                ) || get_config_bool_default(
+                                    ctx,
+                                    "game",
+                                    "click_intents_2d",
+                                    false,
+                                ) || get_config_bool_default(
+                                    ctx,
+                                    "game",
+                                    "persistent_2d_intents",
+                                    false,
+                                );
+                                let directional_intent = ctx
+                                    .map
+                                    .entities
+                                    .iter()
+                                    .find(|entity| entity.id == entity_id)
+                                    .is_some_and(|entity| {
+                                        let is_grid_player = matches!(
+                                            entity.attributes.get("player_camera"),
+                                            Some(Value::PlayerCamera(camera))
+                                                if Self::is_grid_camera(camera)
+                                        );
+                                        is_grid_player
+                                            && Self::should_use_directional_player_intent(
+                                                entity,
+                                                click_intents_2d,
+                                            )
+                                    });
+                                if directional_intent {
+                                    let Some(mut actor) = ctx
+                                        .map
+                                        .entities
+                                        .iter()
+                                        .find(|entity| entity.id == entity_id)
+                                        .cloned()
+                                    else {
+                                        return;
+                                    };
+                                    if let Some(facing) = Self::intent_facing_for_action(&action) {
+                                        actor.set_orientation(facing);
+                                    }
+                                    let position = actor.get_forward_pos(1.0);
+                                    Self::send_entity_intent_events_in_ctx(
+                                        ctx, &mut actor, position,
+                                    );
+                                    if let Some(entity) = ctx
+                                        .map
+                                        .entities
+                                        .iter_mut()
+                                        .find(|entity| entity.id == entity_id)
+                                    {
+                                        entity.action = EntityAction::Off;
+                                        let intent = actor
+                                            .attributes
+                                            .get("intent")
+                                            .cloned()
+                                            .unwrap_or_else(|| Value::Str(String::new()));
+                                        entity.set_attribute("intent", intent);
+                                    }
+                                    return;
+                                }
                                 if let Some(entity) = ctx
                                     .map
                                     .entities
@@ -8817,6 +9167,17 @@ impl RegionInstance {
                                         send_message(ctx, entity_id, msg, "system");
                                         handled_shortcut = true;
                                     }
+                                }
+
+                                if !handled_shortcut
+                                    && execute_intent_in_node_mode(
+                                        ctx,
+                                        entity_id,
+                                        &intent_lower,
+                                        Some(RulesetActionTarget::Entity(clicked_entity_id)),
+                                    )
+                                {
+                                    handled_shortcut = true;
                                 }
 
                                 if !handled_shortcut {
@@ -9162,6 +9523,20 @@ impl RegionInstance {
                                     send_message(ctx, entity_id, msg, "system");
                                 }
 
+                                if !handled_shortcut
+                                    && execute_intent_in_node_mode(
+                                        ctx,
+                                        entity_id,
+                                        &intent_lower,
+                                        Some(RulesetActionTarget::Item {
+                                            item_id: clicked_item_id,
+                                            owner_entity_id,
+                                        }),
+                                    )
+                                {
+                                    handled_shortcut = true;
+                                }
+
                                 if !handled_shortcut {
                                     // Send default script-driven intent events.
                                     ctx.to_execute_entity.push((
@@ -9246,6 +9621,23 @@ impl RegionInstance {
                                     return;
                                 }
                                 if !intent.trim().is_empty() {
+                                    if execute_intent_in_node_mode(
+                                        ctx,
+                                        entity_id,
+                                        intent.trim(),
+                                        Some(RulesetActionTarget::Position(Vec3::new(
+                                            position.x,
+                                            snapshot.position.y,
+                                            position.y,
+                                        ))),
+                                    ) {
+                                        if let Some(entity) =
+                                            get_entity_mut(&mut ctx.map, entity_id)
+                                        {
+                                            entity
+                                                .set_attribute("intent", Value::Str(String::new()));
+                                        }
+                                    }
                                     return;
                                 }
                                 if !get_config_bool_default(ctx, "game", "auto_walk_2d", false) {
@@ -9526,6 +9918,10 @@ impl RegionInstance {
                             Choice::Cancel(from_id, to_id, _, _) => {
                                 with_regionctx(self.id, |ctx: &mut RegionCtx| {
                                     clear_choice_session(ctx, *from_id, *to_id);
+                                    ctx.dialog_choices.insert(
+                                        *from_id,
+                                        crate::server::nodes::DialogChoiceMade::Dismissed,
+                                    );
                                     if let Some(_class_name) = ctx.entity_classes.get(from_id) {
                                         // let cmd = format!("{}.event('goodbye', {})", class_name, to_id);
                                         ctx.to_execute_entity.push((
@@ -9635,6 +10031,29 @@ impl RegionInstance {
                                             next,
                                         );
                                     }
+                                });
+                            }
+                            Choice::NodeChoice(node_choice) => {
+                                with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                                    let valid = choice_session_is_valid(
+                                        ctx,
+                                        node_choice.from,
+                                        node_choice.to,
+                                        node_choice.expires_at_tick,
+                                        node_choice.max_distance,
+                                    );
+                                    clear_choice_session(ctx, node_choice.from, node_choice.to);
+                                    // Hand the answer to the parked Dialogue node.
+                                    ctx.dialog_choices.insert(
+                                        node_choice.from,
+                                        if valid {
+                                            crate::server::nodes::DialogChoiceMade::Index(
+                                                node_choice.index,
+                                            )
+                                        } else {
+                                            crate::server::nodes::DialogChoiceMade::Dismissed
+                                        },
+                                    );
                                 });
                             }
                         },
@@ -11881,6 +12300,11 @@ impl RegionInstance {
 
         with_regionctx(self.id, |ctx| {
             Self::merge_runtime_entity_side_effects(&mut entities, &ctx.map.entities);
+            // Combat can kill inside the movement loop, where `entities` is a
+            // pre-move clone. A body that death has already stashed must not be
+            // merged back into the world, or it would be present and stashed at
+            // once.
+            entities.retain(|entity| !ctx.stashed_entities.contains_key(&entity.id));
             ctx.map.entities = entities;
             update_entity_respawns(ctx);
             update_ruleset_item_durability(ctx);
@@ -12417,263 +12841,273 @@ impl RegionInstance {
     /// Send "intent" events for the entity or item at the given position.
     fn send_entity_intent_events(&self, entity: &mut Entity, position: Vec2<f32>) {
         with_regionctx(self.id, |ctx: &mut RegionCtx| {
-            // Send "intent" event for the entity
-            let keep_intent = Self::should_keep_player_intent(ctx, entity);
+            Self::send_entity_intent_events_in_ctx(ctx, entity, position);
+        });
+    }
 
-            let mut value = VMValue::zero();
-            value.y = 1.0; // Distance
+    fn send_entity_intent_events_in_ctx(
+        ctx: &mut RegionCtx,
+        entity: &mut Entity,
+        position: Vec2<f32>,
+    ) {
+        // Send "intent" event for the entity
+        let keep_intent = Self::should_keep_player_intent(ctx, entity);
 
-            let mut target_item_id = None;
-            let mut target_entity_id = None;
+        let mut value = VMValue::zero();
+        value.y = 1.0; // Distance
 
-            // TODO
+        let mut target_item_id = None;
+        let mut target_entity_id = None;
 
-            let mut found_target = false;
-            if let Some(entity_id) = get_entity_at(ctx, position, entity.id) {
-                if entity_id != entity.id && !ctx.is_entity_dead_ctx(entity_id) {
-                    value.x = entity_id as f32;
-                    if let Some(target) = ctx
-                        .map
-                        .entities
-                        .iter()
-                        .find(|target| target.id == entity_id)
-                    {
-                        value.y = entity.get_pos_xz().distance(target.get_pos_xz());
-                    }
-                    target_entity_id = Some(entity_id);
-                    found_target = true;
-                }
-            }
-            if !found_target {
-                if let Some(i_id) = get_item_at(ctx, position) {
-                    value.x = i_id as f32;
-                    if let Some(item) = ctx.map.items.iter().find(|item| item.id == i_id) {
-                        value.y = entity.get_pos_xz().distance(item.get_pos_xz());
-                    }
-                    target_item_id = Some(i_id);
-                    found_target = true;
-                }
-            }
+        // TODO
 
-            let intent_raw = entity.attributes.get_str_default("intent", "".into());
-            let Some(intent) = resolve_ruleset_invocation_intent(ctx, entity.id, &intent_raw)
-            else {
-                entity.set_attribute("intent", Value::Str(String::new()));
-                return;
-            };
-            if intent != intent_raw {
-                entity.set_attribute("intent", Value::Str(intent.clone()));
-            }
-            let intent_lower = intent.trim().to_ascii_lowercase();
-            let rules = intent_rule_config(ctx, entity.id, &intent_lower);
-
-            if !found_target
-                && target_entity_id.is_none()
-                && !intent_lower.is_empty()
-                && rules
-                    .allowed_target_kinds
+        let mut found_target = false;
+        if let Some(entity_id) = get_entity_at(ctx, position, entity.id) {
+            if entity_id != entity.id && !ctx.is_entity_dead_ctx(entity_id) {
+                value.x = entity_id as f32;
+                if let Some(target) = ctx
+                    .map
+                    .entities
                     .iter()
-                    .any(|kind| kind == "entity")
-            {
-                let max_distance = intent_distance_limit(ctx, entity.id, &intent_lower, &rules);
-                if max_distance > value.y + 0.01
-                    && let Some((entity_id, distance)) =
-                        directional_entity_target(ctx, entity, position, max_distance)
+                    .find(|target| target.id == entity_id)
                 {
-                    value.x = entity_id as f32;
-                    value.y = distance;
-                    target_entity_id = Some(entity_id);
-                    found_target = true;
+                    value.y = entity.get_pos_xz().distance(target.get_pos_xz());
                 }
+                target_entity_id = Some(entity_id);
+                found_target = true;
             }
-
-            if let Some(action_id) = intent.trim().strip_prefix("action:") {
-                if let Some(target_id) = target_entity_id.or(target_item_id) {
-                    _ = execute_ruleset_action(ctx, entity.id, action_id.trim(), Some(target_id));
-                } else {
-                    send_message(ctx, entity.id, "{system.cant_do_that}".into(), "warning");
+        }
+        if !found_target {
+            if let Some(i_id) = get_item_at(ctx, position) {
+                value.x = i_id as f32;
+                if let Some(item) = ctx.map.items.iter().find(|item| item.id == i_id) {
+                    value.y = entity.get_pos_xz().distance(item.get_pos_xz());
                 }
-                if !keep_intent {
-                    entity.set_attribute("intent", Value::Str(String::new()));
-                }
-                return;
+                target_item_id = Some(i_id);
+                found_target = true;
             }
+        }
 
-            if let Some(spell_template) = intent.trim().strip_prefix("spell:") {
-                let spell_template = spell_template.trim();
-                if spell_template.is_empty() {
-                    return;
-                }
+        let intent_raw = entity.attributes.get_str_default("intent", "".into());
+        let Some(intent) = resolve_ruleset_invocation_intent(ctx, entity.id, &intent_raw) else {
+            entity.set_attribute("intent", Value::Str(String::new()));
+            return;
+        };
+        if intent != intent_raw {
+            entity.set_attribute("intent", Value::Str(intent.clone()));
+        }
+        let intent_lower = intent.trim().to_ascii_lowercase();
+        let rules = intent_rule_config(ctx, entity.id, &intent_lower);
 
-                if let Some(target_entity_id) = target_entity_id {
-                    _ = cast_spell_for_entity(
-                        ctx,
-                        entity.id,
-                        spell_template,
-                        target_entity_id,
-                        100.0,
-                    );
-                } else {
-                    // In 2D directional intent mode, cast towards the chosen direction
-                    // even if no entity is currently at that tile.
-                    _ = cast_spell_for_entity_to_pos(
-                        ctx,
-                        entity.id,
-                        spell_template,
-                        position,
-                        100.0,
-                    );
-                }
-                return;
-            }
-
-            if !found_target {
-                if !keep_intent {
-                    entity.set_attribute("intent", Value::Str(String::new()));
-                }
-                send_message(ctx, entity.id, "{system.cant_do_that}".into(), "warning");
-                return;
-            }
-
-            let target_entity = target_entity_id
-                .and_then(|id| ctx.map.entities.iter().find(|candidate| candidate.id == id));
-            let target_item = target_item_id
-                .and_then(|id| ctx.map.items.iter().find(|candidate| candidate.id == id));
-
-            if !intent.trim().is_empty()
-                && !intent_allowed(
-                    ctx,
-                    &rules,
-                    value.y,
-                    Some(entity),
-                    target_entity,
-                    target_item,
-                    None,
-                )
+        if !found_target
+            && target_entity_id.is_none()
+            && !intent_lower.is_empty()
+            && rules
+                .allowed_target_kinds
+                .iter()
+                .any(|kind| kind == "entity")
+        {
+            let max_distance = intent_distance_limit(ctx, entity.id, &intent_lower, &rules);
+            if max_distance > value.y + 0.01
+                && let Some((entity_id, distance)) =
+                    directional_entity_target(ctx, entity, position, max_distance)
             {
-                send_message(
-                    ctx,
-                    entity.id,
-                    rules
-                        .deny_message
-                        .clone()
-                        .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
-                    "warning",
-                );
-                if !keep_intent {
-                    entity.set_attribute("intent", Value::Str(String::new()));
-                }
+                value.x = entity_id as f32;
+                value.y = distance;
+                target_entity_id = Some(entity_id);
+                found_target = true;
+            }
+        }
+
+        if let Some(action_id) = intent.trim().strip_prefix("action:") {
+            if let Some(target_id) = target_entity_id.or(target_item_id) {
+                _ = execute_ruleset_action(ctx, entity.id, action_id.trim(), Some(target_id));
+            } else {
+                send_message(ctx, entity.id, "{system.cant_do_that}".into(), "warning");
+            }
+            if !keep_intent {
+                entity.set_attribute("intent", Value::Str(String::new()));
+            }
+            return;
+        }
+
+        if let Some(spell_template) = intent.trim().strip_prefix("spell:") {
+            let spell_template = spell_template.trim();
+            if spell_template.is_empty() {
                 return;
             }
-
-            if intent_lower == "look" {
-                if let Some(target_entity) = target_entity {
-                    if let Some(msg) = target_entity.attributes.get_str("on_look") {
-                        let msg = msg.trim();
-                        if !msg.is_empty() {
-                            send_message(ctx, entity.id, msg.to_string(), "system");
-                            if !keep_intent {
-                                entity.set_attribute("intent", Value::Str(String::new()));
-                            }
-                            return;
-                        }
-                    }
-                    if let Some(msg) = entity_look_description(ctx, target_entity) {
-                        send_message(ctx, entity.id, msg, "system");
-                        if !keep_intent {
-                            entity.set_attribute("intent", Value::Str(String::new()));
-                        }
-                        return;
-                    }
-                }
-                if let Some(target_item) = target_item {
-                    if let Some(msg) = item_inline_look_message(&target_item.attributes) {
-                        send_message(ctx, entity.id, msg, "system");
-                        if !keep_intent {
-                            entity.set_attribute("intent", Value::Str(String::new()));
-                        }
-                        return;
-                    }
-                    if let Some(msg) = item_look_description(ctx, target_item) {
-                        send_message(ctx, entity.id, msg, "system");
-                        if !keep_intent {
-                            entity.set_attribute("intent", Value::Str(String::new()));
-                        }
-                        return;
-                    }
-                }
-            }
-
-            if intent_lower == "use" {
-                if let Some(target_item) = target_item {
-                    if let Some(msg) = target_item.attributes.get_str("on_use") {
-                        let msg = msg.trim();
-                        if !msg.is_empty() {
-                            send_message(ctx, entity.id, msg.to_string(), "system");
-                        }
-                    } else if let Some(msg) = item_use_message(ctx, target_item) {
-                        send_message(ctx, entity.id, msg, "system");
-                    }
-                }
-            }
-
-            if intent_lower == "pickup" || intent_lower == "take" {
-                if let Some(item_id) = target_item_id {
-                    let take_action = target_item
-                        .and_then(|item| {
-                            item.attributes
-                                .get_str("on_pickup")
-                                .or_else(|| item.attributes.get_str("on_take"))
-                        })
-                        .map(str::trim)
-                        .filter(|action| !action.is_empty())
-                        .map(str::to_string);
-
-                    if let Some(action) = take_action {
-                        if action.eq_ignore_ascii_case("pickup")
-                            || action.eq_ignore_ascii_case("take")
-                        {
-                            take_item_for_entity(ctx, entity.id, item_id);
-                        } else {
-                            send_message(ctx, entity.id, action, "system");
-                        }
-                        if !keep_intent {
-                            entity.set_attribute("intent", Value::Str(String::new()));
-                        }
-                        return;
-                    }
-                }
-            }
-
-            value.string = Some(intent.clone());
-
-            ctx.to_execute_entity
-                .push((entity.id, "intent".to_string(), value.clone()));
-
-            value.x = entity.id as f32;
 
             if let Some(target_entity_id) = target_entity_id {
-                if target_entity_id == entity.id {
-                    queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_seconds);
+                _ = cast_spell_for_entity(ctx, entity.id, spell_template, target_entity_id, 100.0);
+            } else {
+                // In 2D directional intent mode, cast towards the chosen direction
+                // even if no entity is currently at that tile.
+                _ = cast_spell_for_entity_to_pos(ctx, entity.id, spell_template, position, 100.0);
+            }
+            return;
+        }
 
+        if !found_target {
+            if !keep_intent {
+                entity.set_attribute("intent", Value::Str(String::new()));
+            }
+            send_message(ctx, entity.id, "{system.cant_do_that}".into(), "warning");
+            return;
+        }
+
+        let target_entity = target_entity_id
+            .and_then(|id| ctx.map.entities.iter().find(|candidate| candidate.id == id));
+        let target_item =
+            target_item_id.and_then(|id| ctx.map.items.iter().find(|candidate| candidate.id == id));
+
+        if !intent.trim().is_empty()
+            && !intent_allowed(
+                ctx,
+                &rules,
+                value.y,
+                Some(entity),
+                target_entity,
+                target_item,
+                None,
+            )
+        {
+            send_message(
+                ctx,
+                entity.id,
+                rules
+                    .deny_message
+                    .clone()
+                    .unwrap_or_else(|| "{system.cant_do_that}".to_string()),
+                "warning",
+            );
+            if !keep_intent {
+                entity.set_attribute("intent", Value::Str(String::new()));
+            }
+            return;
+        }
+
+        if intent_lower == "look" {
+            if let Some(target_entity) = target_entity {
+                if let Some(msg) = target_entity.attributes.get_str("on_look") {
+                    let msg = msg.trim();
+                    if !msg.is_empty() {
+                        send_message(ctx, entity.id, msg.to_string(), "system");
+                        if !keep_intent {
+                            entity.set_attribute("intent", Value::Str(String::new()));
+                        }
+                        return;
+                    }
+                }
+                if let Some(msg) = entity_look_description(ctx, target_entity) {
+                    send_message(ctx, entity.id, msg, "system");
                     if !keep_intent {
                         entity.set_attribute("intent", Value::Str(String::new()));
                     }
                     return;
                 }
-                ctx.to_execute_entity
-                    .push((target_entity_id, "intent".to_string(), value));
-            } else if let Some(item_id) = target_item_id {
-                ctx.to_execute_item
-                    .push((item_id, "intent".to_string(), value));
             }
+            if let Some(target_item) = target_item {
+                if let Some(msg) = item_inline_look_message(&target_item.attributes) {
+                    send_message(ctx, entity.id, msg, "system");
+                    if !keep_intent {
+                        entity.set_attribute("intent", Value::Str(String::new()));
+                    }
+                    return;
+                }
+                if let Some(msg) = item_look_description(ctx, target_item) {
+                    send_message(ctx, entity.id, msg, "system");
+                    if !keep_intent {
+                        entity.set_attribute("intent", Value::Str(String::new()));
+                    }
+                    return;
+                }
+            }
+        }
 
-            queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_seconds);
+        if intent_lower == "use" {
+            if let Some(target_item) = target_item {
+                if let Some(msg) = target_item.attributes.get_str("on_use") {
+                    let msg = msg.trim();
+                    if !msg.is_empty() {
+                        send_message(ctx, entity.id, msg.to_string(), "system");
+                    }
+                } else if let Some(msg) = item_use_message(ctx, target_item) {
+                    send_message(ctx, entity.id, msg, "system");
+                }
+            }
+        }
 
+        if intent_lower == "pickup" || intent_lower == "take" {
+            if let Some(item_id) = target_item_id {
+                let take_action = target_item
+                    .and_then(|item| {
+                        item.attributes
+                            .get_str("on_pickup")
+                            .or_else(|| item.attributes.get_str("on_take"))
+                    })
+                    .map(str::trim)
+                    .filter(|action| !action.is_empty())
+                    .map(str::to_string);
+
+                if let Some(action) = take_action {
+                    if action.eq_ignore_ascii_case("pickup") || action.eq_ignore_ascii_case("take")
+                    {
+                        take_item_for_entity(ctx, entity.id, item_id);
+                    } else {
+                        send_message(ctx, entity.id, action, "system");
+                    }
+                    if !keep_intent {
+                        entity.set_attribute("intent", Value::Str(String::new()));
+                    }
+                    return;
+                }
+            }
+        }
+
+        if let Some(target) = target_entity_id
+            .map(RulesetActionTarget::Entity)
+            .or_else(|| {
+                target_item_id.map(|item_id| RulesetActionTarget::Item {
+                    item_id,
+                    owner_entity_id: None,
+                })
+            })
+            && execute_intent_in_node_mode(ctx, entity.id, &intent_lower, Some(target))
+        {
             if !keep_intent {
                 entity.set_attribute("intent", Value::Str(String::new()));
             }
-        });
+            return;
+        }
+
+        value.string = Some(intent.clone());
+
+        ctx.to_execute_entity
+            .push((entity.id, "intent".to_string(), value.clone()));
+
+        value.x = entity.id as f32;
+
+        if let Some(target_entity_id) = target_entity_id {
+            if target_entity_id == entity.id {
+                queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_seconds);
+
+                if !keep_intent {
+                    entity.set_attribute("intent", Value::Str(String::new()));
+                }
+                return;
+            }
+            ctx.to_execute_entity
+                .push((target_entity_id, "intent".to_string(), value));
+        } else if let Some(item_id) = target_item_id {
+            ctx.to_execute_item
+                .push((item_id, "intent".to_string(), value));
+        }
+
+        queue_intent_cooldown(ctx, entity.id, &intent_lower, rules.cooldown_seconds);
+
+        if !keep_intent {
+            entity.set_attribute("intent", Value::Str(String::new()));
+        }
     }
 
     fn merge_runtime_entity_side_effects(entities: &mut [Entity], runtime_entities: &[Entity]) {
@@ -13103,27 +13537,21 @@ fn set_player_camera(camera: String, vm: &VirtualMachine) {
 }*/
 
 /// Is the given entity dead.
+///
+/// Death takes the body out of the world, so absence has to count as dead:
+/// this defers to `RegionCtx::is_entity_dead_ctx`, which also checks the stash.
+/// Reading `mode` off `map.entities` alone would report a stashed body as alive.
 pub fn is_entity_dead(region_id: u32, id: u32) -> bool {
     let mut v = false;
     with_regionctx(region_id, |ctx: &mut RegionCtx| {
-        for entity in &ctx.map.entities {
-            if entity.id == id {
-                v = entity.attributes.get_str_default("mode", "active".into()) == "dead";
-            }
-        }
+        v = ctx.is_entity_dead_ctx(id);
     });
     v
 }
 
 /// Is the given entity dead.
 pub fn is_entity_dead_ctx(ctx: &RegionCtx, id: u32) -> bool {
-    let mut v = false;
-    for entity in &ctx.map.entities {
-        if entity.id == id {
-            v = entity.attributes.get_str_default("mode", "active".into()) == "dead";
-        }
-    }
-    v
+    ctx.is_entity_dead_ctx(id)
 }
 
 /// Search for a mutable reference to an entity with the given ID.
@@ -13256,8 +13684,10 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
     entity.action = EntityAction::Off;
     let entity_id = entity.id;
     if entity.is_player() {
+        // An arriving player is present by definition. `visible` is never
+        // written here: it belongs to spell effects, so a player who was
+        // invisible stays invisible across the region change.
         entity.set_attribute("mode", Value::Str("active".into()));
-        entity.set_attribute("visible", Value::Bool(true));
     }
 
     let new_pos = ctx.map.named_area_center(&dest_sector_name);
@@ -13271,8 +13701,21 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
         ctx.entity_classes.insert(entity_id, class_name.clone());
     }
 
+    // An arriving body supersedes any stashed copy: a character cannot be in
+    // the world and out of it at the same time.
+    ctx.stashed_entities.remove(&entity_id);
     ctx.map.entities.retain(|existing| existing.id != entity_id);
     ctx.map.entities.push(entity);
+    // Presence always agrees with the state a body arrives in: a player arrives
+    // active, anything else arrives as what it was. A dead arrival therefore
+    // goes straight back out of the world instead of rendering in the new
+    // region, where nothing would target or collide with it anyway.
+    if ctx
+        .find_entity(entity_id)
+        .is_some_and(|entity| entity.get_mode() == "dead")
+    {
+        ctx.stash_entity(entity_id);
+    }
     ctx.check_player_for_section_change_id(entity_id);
 }
 
@@ -13286,34 +13729,29 @@ fn flush_pending_entity_transfers(ctx: &mut RegionCtx) {
         if dest_region_name.trim().is_empty()
             || dest_region_name.trim().eq_ignore_ascii_case(&ctx.map.name)
         {
+            // A dead body is stashed, so presence, not `map.entities`, answers
+            // where it is: an in-region teleport has to move a stashed body too.
             let radius = ctx
-                .map
-                .entities
-                .iter()
-                .find(|entity| entity.id == entity_id)
+                .find_entity(entity_id)
                 .map(|entity| entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01)
                 .unwrap_or(0.49);
             if let Some(center) = ctx.resolve_sector_spawn_position(&dest_sector_name, radius)
-                && let Some(preferred_y) = ctx
-                    .map
-                    .entities
-                    .iter()
-                    .find(|e| e.id == entity_id)
-                    .map(|entity| entity.position.y)
+                && let Some(preferred_y) = ctx.find_entity(entity_id).map(|entity| entity.position.y)
             {
                 let spawn_y = ctx_spawn_height(ctx, center, Some(preferred_y));
-                if let Some(entity) = ctx.map.entities.iter_mut().find(|e| e.id == entity_id) {
+                if let Some(entity) = ctx.get_entity_mut(entity_id) {
                     entity.set_pos_xz(center);
                     entity.position.y = spawn_y;
                     entity.mark_all_dirty();
-                    ctx.check_player_for_section_change_id(entity_id);
                 }
+                ctx.check_player_for_section_change_id(entity_id);
             }
             continue;
         }
 
-        if let Some(pos) = ctx.map.entities.iter().position(|e| e.id == entity_id) {
-            let removed = ctx.map.entities.remove(pos);
+        // Cross-region hand-off resolves through the stash as well, or a dead
+        // body would be silently dropped instead of arriving in the new region.
+        if let Some(removed) = ctx.take_entity(entity_id) {
             ctx.entity_classes.remove(&removed.id);
 
             if let Some(sender) = ctx.from_sender.get() {
@@ -17507,6 +17945,36 @@ pub(crate) fn execute_ruleset_action_with_target(
     execute_ruleset_action_with_source_and_target(ctx, actor_id, action_id, None, target)
 }
 
+/// Node-mode replacement for script-driven intent events.
+///
+/// Eldrin projects execute UI intents through the character script's `event`
+/// handler, which calls helpers such as `attack()`. Node projects deliberately
+/// have no such script, so a bare ruleset intent (`attack`, `take`, ...) has no
+/// consumer and the action silently never happens. Resolve the intent to the
+/// action the ruleset binds to it and execute it through the shared action
+/// pipeline instead. Returns `true` when the intent was resolved and must not be
+/// queued as a script intent event.
+pub(crate) fn execute_intent_in_node_mode(
+    ctx: &mut RegionCtx,
+    actor_id: u32,
+    intent: &str,
+    target: Option<RulesetActionTarget>,
+) -> bool {
+    if ctx.assets.node_behaviors.is_none() {
+        return false;
+    }
+    let intent = intent.trim();
+    if intent.is_empty() || intent.contains(':') {
+        // Explicit `action:`, `spell:` and `invoke:` prefixes have dedicated paths.
+        return false;
+    }
+    let Ok(Some(action)) = ctx.resolved_action_for_intent(intent) else {
+        return false;
+    };
+    execute_ruleset_action_with_target(ctx, actor_id, &action.id, target);
+    true
+}
+
 pub(crate) fn execute_ruleset_action_with_source_and_target(
     ctx: &mut RegionCtx,
     actor_id: u32,
@@ -18677,9 +19145,15 @@ pub(crate) fn apply_damage_direct(
         if health <= 0 && mode != "dead" {
             enqueue_death = true;
             entity.set_attribute("mode", Value::Str("dead".into()));
-            entity.set_attribute("visible", Value::Bool(false));
+            // Death is presence, not visibility: the body leaves the world
+            // below, and `visible` is left alone because it belongs to spell
+            // effects on a living character.
             entity.action = EntityAction::Off;
-            ctx.entity_proximity_alerts.remove(&target_id);
+            // The alert is deliberately kept. A stashed body cannot trigger a
+            // proximity warning because the scan walks the world, so dropping
+            // the alert here would only lose it for good: an NPC gets it back
+            // from its respawn state, but a character raised by its own graph
+            // would silently stop warning for the rest of its life.
             should_autodrop = entity.attributes.get_bool_default("autodrop", false);
             kill = true;
         }
@@ -18802,6 +19276,15 @@ pub(crate) fn apply_damage_direct(
 
     if applied && !kill {
         queue_party_damage_events(ctx, target_id, amount, kind);
+    }
+
+    if kill {
+        // Everything above still needed the body in the world: loot, corpses,
+        // sector and progression bookkeeping all resolve it by presence. Only
+        // now does death take it out, so the rest of the tick cannot collide
+        // with, target or render it. The body stays reachable by its own graph,
+        // which is what lets the graph raise it again.
+        ctx.stash_entity(target_id);
     }
 
     applied
@@ -19018,6 +19501,29 @@ fn clear_choice_session(ctx: &mut RegionCtx, from_id: u32, to_id: u32) {
         .retain(|session| !(session.from == from_id && session.to == to_id));
 }
 
+/// True when an entity carries something whose name or class matches. The talk
+/// and dialogue condition language reaches the inventory through this, so a
+/// conversation can ask for the sigil without an Inventory Has node.
+fn entity_carries(ctx: &RegionCtx, entity_id: u32, item: &str) -> bool {
+    let item = item.trim();
+    ctx.map
+        .entities
+        .iter()
+        .find(|entity| entity.id == entity_id)
+        .is_some_and(|entity| {
+            entity.iter_inventory().any(|(_, carried)| {
+                let name = carried.attributes.get_str("name").unwrap_or_default();
+                let class_name = carried
+                    .attributes
+                    .get_str("class_name")
+                    .unwrap_or_default();
+                item.is_empty()
+                    || name.contains(item)
+                    || class_name.contains(item)
+                    || class_name.eq_ignore_ascii_case(item)
+            })
+        })
+}
 fn dialog_condition_met(ctx: &RegionCtx, from_id: u32, to_id: u32, condition: &str) -> bool {
     let condition = condition.trim();
     if condition.is_empty() {
@@ -19041,6 +19547,21 @@ fn dialog_condition_met(ctx: &RegionCtx, from_id: u32, to_id: u32, condition: &s
         .split_once('.')
         .map(|(scope, key)| (Some(scope.trim()), key.trim()))
         .unwrap_or((None, condition));
+
+    // `has("Item")`, optionally scoped: `self.has(..)` is the speaker's own
+    // inventory, `player.has(..)` the listener's, and unscoped asks the
+    // listener like the Inventory Has node does.
+    if let Some(item) = key
+        .strip_prefix("has(")
+        .and_then(|rest| rest.strip_suffix(')'))
+    {
+        let item = item.trim().trim_matches('"').trim();
+        return match scope {
+            Some("self") => entity_carries(ctx, from_id, item),
+            Some("target") | Some("player") => entity_carries(ctx, to_id, item),
+            _ => entity_carries(ctx, to_id, item) || entity_carries(ctx, from_id, item),
+        };
+    }
 
     let resolve_entity = |id| {
         ctx.map
@@ -19211,6 +19732,114 @@ pub fn open_dialog_node(ctx: &mut RegionCtx, from_id: u32, to_id: u32, node_name
         clear_choice_session(ctx, from_id, to_id);
     }
 
+    true
+}
+
+/// Evaluate a Dialogue node choice condition.
+///
+/// Each expression `dialog_condition_met` understands for TOML dialogues can be
+/// used directly, negated with `not ` or `unless `, and several can be joined
+/// with ` and `. An empty condition is always true.
+fn dialog_choice_condition_met(
+    ctx: &RegionCtx,
+    from_id: u32,
+    to_id: u32,
+    condition: &str,
+) -> bool {
+    condition.trim().split(" and ").all(|term| {
+        let term = term.trim();
+        if let Some(rest) = term.strip_prefix("unless ") {
+            return !dialog_condition_met(ctx, from_id, to_id, rest.trim());
+        }
+        if let Some(rest) = term.strip_prefix("not ") {
+            return !dialog_condition_met(ctx, from_id, to_id, rest.trim());
+        }
+        if let Some(rest) = term.strip_prefix("if ") {
+            return dialog_condition_met(ctx, from_id, to_id, rest.trim());
+        }
+        dialog_condition_met(ctx, from_id, to_id, term)
+    })
+}
+
+/// Show a conversation authored on a behavior-graph Dialogue node.
+///
+/// The speaker is the graph's actor and the listener is whoever triggered the
+/// event. Choices whose condition fails are hidden; every visible choice keeps
+/// its original row index so the node can resume on the matching output port.
+/// Returns `true` when at least one choice was shown.
+pub(crate) fn present_node_dialogue(
+    ctx: &mut RegionCtx,
+    speaker_id: u32,
+    listener_id: u32,
+    text: &str,
+    choices: &[(String, Option<String>)],
+) -> bool {
+    let timeout_minutes = ctx
+        .find_entity(speaker_id)
+        .map(|entity| entity.attributes.get_float_default("timeout", 10.0).max(0.0))
+        .unwrap_or(10.0);
+    let expires_at_tick = ctx.ticks + (ctx.ticks_per_minute as f32 * timeout_minutes) as i64;
+    let max_distance = entity_intent_distance_limit(ctx, speaker_id, "talk").unwrap_or(2.0);
+
+    // A new step replaces whatever answer was still pending from the last one.
+    ctx.dialog_choices.remove(&speaker_id);
+
+    if !text.trim().is_empty()
+        && let Some(sender) = ctx.from_sender.get()
+    {
+        let _ = sender.send(RegionMessage::Message(
+            ctx.region_id,
+            Some(speaker_id),
+            None,
+            listener_id,
+            text.to_string(),
+            "dialog".into(),
+        ));
+    }
+
+    let visible: Vec<(usize, &(String, Option<String>))> = choices
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, condition))| match condition {
+            None => true,
+            Some(condition) => {
+                dialog_choice_condition_met(ctx, speaker_id, listener_id, condition)
+            }
+        })
+        .collect();
+    if visible.is_empty() {
+        clear_choice_session(ctx, speaker_id, listener_id);
+        return false;
+    }
+
+    let mut multiple = MultipleChoice::new(
+        ctx.region_id,
+        speaker_id,
+        listener_id,
+        expires_at_tick,
+        max_distance,
+    );
+    for (index, (label, _)) in visible {
+        multiple.add(Choice::NodeChoice(NodeChoice {
+            label: label.clone(),
+            index: index as u32,
+            from: speaker_id,
+            to: listener_id,
+            expires_at_tick,
+            max_distance,
+        }));
+    }
+
+    if let Some(sender) = ctx.from_sender.get().cloned() {
+        clear_choice_session(ctx, speaker_id, listener_id);
+        ctx.active_choice_sessions.push(ChoiceSession {
+            from: speaker_id,
+            to: listener_id,
+            expires_at_tick,
+            max_distance,
+        });
+        let _ = sender.send(RegionMessage::MultipleChoice(multiple));
+    }
     true
 }
 
@@ -21169,9 +21798,13 @@ pub(crate) fn current_attack_base_damage_for_entity(ctx: &RegionCtx, entity_id: 
 
     progression_stat_value(ctx, entity_id, "damage")
         .or_else(|| {
+            // Rulesets without an `[attributes.roles]` table keep the legacy
+            // `DMG` attribute role, matching the official mappings
+            // (weapon_damage = "DMG").
             let attribute = eldiron_ruleset::resolve_attribute_roles(&ctx.rules)
                 .ok()
-                .and_then(|roles| roles.get("weapon_damage").map(str::to_string))?;
+                .and_then(|roles| roles.get("weapon_damage").map(str::to_string))
+                .unwrap_or_else(|| "DMG".to_string());
             ctx.map
                 .entities
                 .iter()
@@ -21250,12 +21883,9 @@ fn queue_entity_damage(
     kind: &str,
     source_item_id: Option<u32>,
 ) {
-    if ctx
-        .map
-        .entities
-        .iter()
-        .any(|entity| entity.id == target_id && entity.get_mode() == "dead")
-    {
+    // Presence is what being dead means: a stashed body is out of the world, so
+    // it must not receive damage and the attacker must not spend ammunition on it.
+    if ctx.is_entity_dead_ctx(target_id) {
         return;
     }
     if !consume_attack_ammunition_for_source(ctx, attacker_id, source_item_id) {
@@ -21507,7 +22137,86 @@ fn fallback_loot_container() -> Item {
     item
 }
 
+/// Offers what the seller carries to another entity as a pickable list. The
+/// seller is named explicitly so a node graph can offer from an item or a
+/// character without the script host's current-entity plumbing.
+pub(crate) fn offer_inventory_to_entity(
+    ctx: &mut RegionCtx,
+    seller_id: u32,
+    to: u32,
+    filter: &str,
+) -> bool {
+    let region_id = ctx.region_id;
+    let now_ticks = ctx.ticks;
+    let ticks_per_minute = ctx.ticks_per_minute;
+    let Some(entity) = ctx.map.entities.iter().find(|e| e.id == seller_id) else {
+        return false;
+    };
+    let entity_id = entity.id;
+    let matching_item_ids: Vec<u32> = entity
+        .iter_inventory()
+        .filter_map(|(_, item)| {
+            let name = item.attributes.get_str("name").unwrap_or_default();
+            let class_name = item.attributes.get_str("class_name").unwrap_or_default();
+            if filter.is_empty() || name.contains(filter) || class_name.contains(filter) {
+                Some(item.id)
+            } else {
+                None
+            }
+        })
+        .collect();
+    let timeout_minutes = entity
+        .attributes
+        .get_float_default("timeout", 10.0)
+        .max(0.0);
+    let expires_at_tick = now_ticks + (ticks_per_minute as f32 * timeout_minutes) as i64;
+    let max_distance = 2.0;
+
+    ctx.active_choice_sessions
+        .retain(|session| !(session.from == entity_id && session.to == to));
+    ctx.active_choice_sessions.push(ChoiceSession {
+        from: entity_id,
+        to,
+        expires_at_tick,
+        max_distance,
+    });
+    let mut choices = MultipleChoice::new(region_id, entity_id, to, expires_at_tick, max_distance);
+    for item_id in matching_item_ids {
+        choices.add(Choice::ItemToSell(
+            item_id,
+            entity_id,
+            to,
+            expires_at_tick,
+            max_distance,
+        ));
+    }
+    if let Some(sender) = ctx.from_sender.get() {
+        let _ = sender.send(RegionMessage::MultipleChoice(choices));
+    }
+    true
+}
+
 pub(crate) fn drop_items_into_ruleset_loot_container(
+    ctx: &mut RegionCtx,
+    entity_id: u32,
+    filter: &str,
+) -> bool {
+    // A death chain that calls Drop Items runs after death took the body out of
+    // the world, which is exactly when the loot has to be created. Bring the
+    // body back for the transfer and put it away again, so the loot rules keep
+    // working on a body wherever it currently lives.
+    let stashed = ctx.is_entity_stashed(entity_id);
+    if stashed {
+        ctx.restore_stashed_entity(entity_id);
+    }
+    let dropped = drop_items_into_ruleset_loot_container_inner(ctx, entity_id, filter);
+    if stashed {
+        ctx.stash_entity(entity_id);
+    }
+    dropped
+}
+
+fn drop_items_into_ruleset_loot_container_inner(
     ctx: &mut RegionCtx,
     entity_id: u32,
     filter: &str,
@@ -21729,9 +22438,30 @@ fn entity_respawn_delay_seconds(ctx: &RegionCtx, entity: &Entity) -> f32 {
         }
     }
 
-    ruleset_npc_respawn_rules(ctx)
-        .map(|rules| rule_number(rules, "delay_seconds", 60.0).max(0.0))
-        .unwrap_or(60.0)
+    // Seconds are the native unit, minutes are accepted for longer timers.
+    for key in ["respawn_minutes", "respawn_minute"] {
+        let Some(value) = entity.attributes.get(key) else {
+            continue;
+        };
+        let minutes = match value {
+            Value::Int(value) => Some(*value as f32),
+            Value::Int64(value) => Some(*value as f32),
+            Value::Float(value) => Some(*value),
+            Value::Str(value) => value.trim().parse::<f32>().ok(),
+            _ => None,
+        };
+        if let Some(minutes) = minutes {
+            return minutes.max(0.0) * 60.0;
+        }
+    }
+
+    let Some(rules) = ruleset_npc_respawn_rules(ctx) else {
+        return 60.0;
+    };
+    if rules.contains_key("delay_minutes") {
+        return rule_number(rules, "delay_minutes", 1.0).max(0.0) * 60.0;
+    }
+    rule_number(rules, "delay_seconds", 60.0).max(0.0)
 }
 
 fn entity_respawn_clears_corpse(ctx: &RegionCtx) -> bool {
@@ -21768,6 +22498,39 @@ fn remember_entity_respawn_points(ctx: &mut RegionCtx) {
     }
 }
 
+/// Moves one entity to a named area, deferring cross-region transfers until the
+/// current event has finished so scripts can still restore health and mode.
+pub(crate) fn teleport_entity_to_area(
+    ctx: &mut RegionCtx,
+    entity_id: u32,
+    area: &str,
+    region_name: &str,
+) -> bool {
+    if region_name.trim().is_empty() || region_name.trim().eq_ignore_ascii_case(&ctx.map.name) {
+        let radius = ctx
+            .find_entity(entity_id)
+            .map(|entity| entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01)
+            .unwrap_or(0.49);
+        let preferred_y = ctx.find_entity(entity_id).map(|entity| entity.position.y);
+        let Some(center) = ctx.resolve_named_spawn_position_3d(area, radius, preferred_y) else {
+            return false;
+        };
+        if let Some(entity) = ctx.get_entity_mut(entity_id) {
+            entity.set_position(center);
+            entity.mark_all_dirty();
+        }
+        ctx.check_player_for_section_change_id(entity_id);
+        if let Some(sender) = ctx.from_sender.get() {
+            let _ = sender.send(RegionMessage::MapUpdate(ctx.region_id, ctx.map.clone()));
+        }
+        true
+    } else {
+        ctx.pending_entity_transfers
+            .push((entity_id, region_name.to_string(), area.to_string()));
+        true
+    }
+}
+
 pub(crate) fn return_entity_to_spawn(ctx: &mut RegionCtx, entity_id: u32) -> bool {
     let Some(state) = ctx.entity_state_data.get(&entity_id) else {
         return false;
@@ -21784,12 +22547,7 @@ pub(crate) fn return_entity_to_spawn(ctx: &mut RegionCtx, entity_id: u32) -> boo
         state.get_float("__respawn_orientation_z"),
     );
 
-    let Some(entity) = ctx
-        .map
-        .entities
-        .iter_mut()
-        .find(|entity| entity.id == entity_id)
-    else {
+    let Some(entity) = ctx.get_entity_mut(entity_id) else {
         return false;
     };
 
@@ -21883,16 +22641,12 @@ fn monetary_pickup_for_item(ctx: &RegionCtx, item: &Item) -> Option<(i64, String
 }
 
 fn credit_monetary_pickup(ctx: &mut RegionCtx, entity_id: u32, amount: i64) -> bool {
-    let Some(entity) = ctx
-        .map
-        .entities
-        .iter_mut()
-        .find(|entity| entity.id == entity_id)
-    else {
+    let currencies = ctx.currencies.clone();
+    let Some(entity) = ctx.get_entity_mut(entity_id) else {
         return false;
     };
 
-    let _ = entity.add_base_currency(amount, &ctx.currencies);
+    let _ = entity.add_base_currency(amount, &currencies);
     true
 }
 
@@ -22325,6 +23079,12 @@ fn update_corpse_despawns(ctx: &mut RegionCtx) {
 }
 
 fn respawn_npc_entity(ctx: &mut RegionCtx, entity_id: u32) {
+    // A dead character is stashed, so respawning means putting the body back
+    // into the world. Presence is the whole point of this path: `visible` is
+    // left untouched, or a character that was meant to come back hidden would
+    // be un-invisibled just by respawning.
+    ctx.restore_stashed_entity(entity_id);
+
     let Some(entity_index) = ctx
         .map
         .entities
@@ -22371,7 +23131,6 @@ fn respawn_npc_entity(ctx: &mut RegionCtx, entity_id: u32) {
             .unwrap_or(entity.orientation.y);
 
         entity.set_attribute("mode", Value::Str("active".into()));
-        entity.set_attribute("visible", Value::Bool(true));
         entity.set_attribute(&health_attr, Value::Int(max_health));
         entity.set_attribute("target", Value::Str(String::new()));
         entity.set_attribute("attack_target", Value::Str(String::new()));
@@ -22398,7 +23157,6 @@ fn respawn_npc_entity(ctx: &mut RegionCtx, entity_id: u32) {
             }
         }
         entity.set_attribute("mode", Value::Str("active".into()));
-        entity.set_attribute("visible", Value::Bool(true));
         entity.set_attribute(&health_attr, Value::Int(max_health));
         entity.set_attribute("target", Value::Str(String::new()));
         entity.set_attribute("attack_target", Value::Str(String::new()));
@@ -22433,16 +23191,15 @@ pub(crate) fn update_entity_respawns(ctx: &mut RegionCtx) {
     remember_entity_respawn_points(ctx);
     update_corpse_despawns(ctx);
 
-    let entity_ids: Vec<u32> = ctx.map.entities.iter().map(|entity| entity.id).collect();
+    // Dead characters are stashed, so the respawn timer has to look at both
+    // collections. Presence, not a `mode` read off `map.entities`, decides who
+    // is dead.
+    let mut candidates: Vec<u32> = ctx.map.entities.iter().map(|entity| entity.id).collect();
+    candidates.extend(ctx.stashed_entities.keys().copied());
     let mut ready_to_respawn = Vec::new();
 
-    for entity_id in entity_ids {
-        let Some(entity) = ctx
-            .map
-            .entities
-            .iter()
-            .find(|entity| entity.id == entity_id)
-        else {
+    for entity_id in candidates {
+        let Some(entity) = ctx.find_entity(entity_id) else {
             continue;
         };
 
@@ -24798,6 +25555,9 @@ pub fn receive_entity(ctx: &mut RegionCtx, mut entity: Entity, dest_sector_name:
         ctx.entity_classes.insert(entity_id, class_name.clone());
     }
 
+    // An arriving body supersedes any stashed copy: a character cannot be in
+    // the world and out of it at the same time.
+    ctx.stashed_entities.remove(&entity_id);
     ctx.map.entities.retain(|existing| existing.id != entity_id);
     ctx.map.entities.push(entity);
     ctx.check_player_for_section_change_id(entity_id);

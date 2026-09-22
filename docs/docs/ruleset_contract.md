@@ -257,9 +257,17 @@ transactions, cooldowns, and event delivery.
 | Recipe | input/output transformation, station, skill, difficulty, and its opportunity to advance that skill | a separately duplicated craft implementation |
 | Resource | world-node behavior, availability, yield | a separately duplicated gather implementation |
 | Condition | duration, stacking, modifiers, periodic effects, immunity tags | hardcoded special handling for one class |
+| Behavior policy | disposition, per-kind distances, engagement action order, retry and blocked policy | per-actor graph wiring or a duplicate engagement executor |
 
 The authoring format may provide convenient inline forms. Resolution must still
 produce one canonical definition for each fact.
+
+Node behavior policies are rules-owned data under `[behavior]`. A behavior graph
+selects a policy id and authors only explicit per-actor overrides; it never
+restates the alignment, distance, or action rules. `lookout` and `engage`
+policies are validated with the rest of the ruleset by `eldiron-ruleset check`,
+and the same resolved values feed Creator previews and the runtime, so a graph
+document can never drift from the rules it claims to follow.
 
 ## Resolution Pipeline
 

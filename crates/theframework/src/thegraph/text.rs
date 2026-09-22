@@ -18,9 +18,35 @@ pub enum GraphTextInput {
 pub struct GraphTextFocus {
     pub node: GraphId,
     pub row: GraphId,
+    /// For a list row, the `(row, column)` cell being edited.
+    pub cell: Option<(usize, usize)>,
     pub(crate) original: String,
     pub(crate) caret: usize,
     pub(crate) anchor: usize,
+}
+/// Mutable access to whichever text a focus points at: a plain Text row, or a
+/// Text cell inside a List row.
+fn focused_text<'a>(
+    doc: &'a mut GraphDocument,
+    focus: &GraphTextFocus,
+) -> Option<&'a mut String> {
+    let row = doc
+        .nodes
+        .iter_mut()
+        .find(|n| n.id == focus.node)?
+        .rows
+        .iter_mut()
+        .find(|r| r.id == focus.row)?;
+    match (&mut row.value, focus.cell) {
+        (GraphControlValue::Text(value), None) => Some(value),
+        (GraphControlValue::List { rows, .. }, Some((r, c))) => {
+            match rows.get_mut(r)?.get_mut(c)? {
+                GraphControlValue::Text(value) => Some(value),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 impl GraphTextFocus {
     pub fn selection(&self) -> std::ops::Range<usize> {
@@ -112,24 +138,39 @@ impl GraphEditor {
         let Some(focus) = self.text_focus.take() else {
             return;
         };
-        if let Some(row) = doc
+        let Some(row) = doc
             .nodes
             .iter_mut()
             .find(|n| n.id == focus.node)
             .and_then(|n| n.rows.iter_mut().find(|r| r.id == focus.row))
-        {
-            if let GraphControlValue::Text(value) = &mut row.value {
-                if commit && *value != focus.original {
-                    self.record_edit(GraphEdit::SetValue {
-                        node: focus.node,
-                        row: focus.row,
-                        before: GraphControlValue::Text(focus.original),
-                        after: GraphControlValue::Text(value.clone()),
-                    });
-                } else if !commit {
-                    *value = focus.original;
+        else {
+            return;
+        };
+        // Editing mutates the live value, so `before` rewinds the edited text to
+        // its old content; undo then restores the whole row (list included).
+        let edited = row.value.clone();
+        let mut before = edited.clone();
+        match (&mut before, focus.cell) {
+            (GraphControlValue::Text(value), None) => *value = focus.original.clone(),
+            (GraphControlValue::List { rows, .. }, Some((r, c))) => {
+                match rows.get_mut(r).and_then(|row| row.get_mut(c)) {
+                    Some(GraphControlValue::Text(value)) => *value = focus.original.clone(),
+                    _ => return,
                 }
             }
+            _ => return,
+        }
+        if commit {
+            if before != edited {
+                self.record_edit(GraphEdit::SetValue {
+                    node: focus.node,
+                    row: focus.row,
+                    before,
+                    after: edited,
+                });
+            }
+        } else {
+            row.value = before;
         }
     }
     /// Returns true when keyboard input was captured, including commit/cancel.
@@ -141,19 +182,13 @@ impl GraphEditor {
             GraphTextInput::Commit => self.finish_text(doc, true),
             GraphTextInput::Cancel => self.finish_text(doc, false),
             _ => {
-                let focus = self.text_focus.as_mut().unwrap();
-                if let Some(GraphRow {
-                    value: GraphControlValue::Text(value),
-                    ..
-                }) = doc
-                    .nodes
-                    .iter_mut()
-                    .find(|n| n.id == focus.node)
-                    .and_then(|n| n.rows.iter_mut().find(|r| r.id == focus.row))
-                {
-                    focus.edit(value, input);
-                } else {
-                    self.text_focus = None;
+                let mut focus = self.text_focus.clone().unwrap();
+                match focused_text(doc, &focus) {
+                    Some(text) => {
+                        focus.edit(text, input);
+                        self.text_focus = Some(focus);
+                    }
+                    None => self.text_focus = None,
                 }
             }
         }

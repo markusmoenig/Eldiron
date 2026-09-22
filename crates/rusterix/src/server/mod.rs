@@ -447,6 +447,15 @@ impl Server {
                             items.retain(|item| item.id != item_id);
                         }
                     }
+                    RegionMessage::RemoveEntity(region_id, entity_id) => {
+                        // Death stashes the body: drop the client-side copy so it
+                        // stops rendering and being pickable. Bringing the body
+                        // back needs no counterpart, because entity updates are
+                        // upserts and re-create it.
+                        if let Some(entities) = self.entities.get_mut(&region_id) {
+                            entities.retain(|entity| entity.id != entity_id);
+                        }
+                    }
                     RegionMessage::OpenContainer(region_id, item_id, owner_entity_id) => {
                         self.open_container_requests
                             .entry(region_id)
@@ -1014,5 +1023,38 @@ mod tests {
 
         assert!(server.runtime_maps.is_empty());
         assert!(server.runtime_map_position_guards.is_empty());
+    }
+
+    /// Death takes a body out of the world, and clients render from
+    /// `Server::entities`. Removing the body there is what stops a dead
+    /// character from rendering, exactly like `RemoveItem` does for items.
+    #[test]
+    fn remove_entity_message_drops_the_body_from_the_client_model() {
+        let mut server = Server::new();
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        server.from_region.push(receiver);
+
+        let mut body = Entity::new();
+        body.id = 5;
+        let mut bystander = Entity::new();
+        bystander.id = 6;
+        server.entities.insert(7, vec![body, bystander]);
+
+        sender
+            .send(RegionMessage::RemoveEntity(7, 5))
+            .expect("send removal");
+
+        let mut assets = Assets::default();
+        server.update(&mut assets);
+
+        let entities = &server.entities[&7];
+        assert!(
+            entities.iter().all(|entity| entity.id != 5),
+            "the dead body has to leave the client's entity list"
+        );
+        assert!(
+            entities.iter().any(|entity| entity.id == 6),
+            "an unrelated body stays"
+        );
     }
 }

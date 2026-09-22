@@ -3,12 +3,14 @@ use serde::Deserialize;
 use toml::Table;
 
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LookoutPolicy {
     pub disposition: String,
     pub radius: f32,
     pub retry_seconds: f32,
 }
 #[derive(Clone, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EngagePolicy {
     pub actions: Vec<String>,
     pub pursuit_distance: f32,
@@ -28,6 +30,13 @@ fn policy<T: serde::de::DeserializeOwned>(
         .try_into()
         .map_err(|e| format!("Invalid behavior.{kind}.{id}: {e}"))
 }
+
+/// The first declared policy id of a kind, used as a deterministic fallback when
+/// a conventional id such as `default` is not present.
+fn first_policy_id(rules: &Table, kind: &str) -> Option<String> {
+    policy_ids(rules, kind).into_iter().next()
+}
+
 /// Source-based boundary for clients using a different TOML crate version.
 pub fn policy_ids_from_source(source: &str, kind: &str) -> Result<Vec<String>, String> {
     let rules = source.parse::<Table>().map_err(|error| error.to_string())?;
@@ -35,12 +44,18 @@ pub fn policy_ids_from_source(source: &str, kind: &str) -> Result<Vec<String>, S
 }
 
 /// Defaults copied into newly authored Lookout controls.
+///
+/// The escape distance mirrors the ruleset's default engagement pursuit
+/// distance. A renamed default profile still resolves so adding a Lookout node
+/// never silently drops its authored distance rows.
 pub fn lookout_distances_from_source(source: &str, profile: &str) -> Result<(f32, f32), String> {
     let rules = source.parse::<Table>().map_err(|error| error.to_string())?;
-    Ok((
-        lookout(&rules, profile)?.radius,
-        engage(&rules, "default")?.pursuit_distance,
-    ))
+    let escape = engage(&rules, "default").or_else(|_| {
+        first_policy_id(&rules, "engage")
+            .ok_or_else(|| "Missing ruleset behavior.engage.*".to_string())
+            .and_then(|id| engage(&rules, &id))
+    })?;
+    Ok((lookout(&rules, profile)?.radius, escape.pursuit_distance))
 }
 
 pub fn policy_ids(rules: &Table, kind: &str) -> Vec<String> {

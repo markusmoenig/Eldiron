@@ -102,8 +102,44 @@ pub struct GraphEditor {
     gesture: Option<Gesture>,
     pub(crate) text_focus: Option<GraphTextFocus>,
     edits: Vec<GraphEdit>,
+    /// When set, only these nodes and their connections draw and respond, so the
+    /// canvas can show one branch of a large graph at a time.
+    pub visible: Option<std::collections::HashSet<GraphId>>,
 }
 impl GraphEditor {
+    /// True when a node is part of the branch currently shown, or when no
+    /// filter is active.
+    pub fn node_visible(&self, id: GraphId) -> bool {
+        self.visible.as_ref().is_none_or(|set| set.contains(&id))
+    }
+    /// Restrict the canvas to a node set, or show everything with `None`.
+    pub fn set_visible(&mut self, nodes: Option<std::collections::HashSet<GraphId>>) {
+        self.visible = nodes;
+        if let Some(id) = self.selected
+            && !self.node_visible(id)
+        {
+            self.selected = None;
+        }
+    }
+    /// True when both ends of a connection are part of the shown branch.
+    pub fn connection_visible(&self, doc: &GraphDocument, connection: GraphId) -> bool {
+        if self.visible.is_none() {
+            return true;
+        }
+        let Some(c) = doc.connections.iter().find(|c| c.id == connection) else {
+            return false;
+        };
+        let owner = |port: GraphId| {
+            doc.nodes
+                .iter()
+                .find(|n| n.ports.iter().any(|p| p.id == port))
+                .map(|n| n.id)
+        };
+        match (owner(c.from), owner(c.to)) {
+            (Some(a), Some(b)) => self.node_visible(a) && self.node_visible(b),
+            _ => false,
+        }
+    }
     pub(crate) fn record_edit(&mut self, edit: GraphEdit) {
         self.edits.push(edit);
     }
@@ -118,11 +154,12 @@ impl GraphEditor {
         }
     }
     pub fn port_at(&self, doc: &GraphDocument, screen: Point) -> Option<GraphId> {
-        doc.nodes.iter().rev().find_map(|n| {
+        let metrics = doc.metrics();
+        doc.nodes.iter().rev().filter(|n| self.node_visible(n.id)).find_map(|n| {
             n.ports
                 .iter()
                 .find(|p| {
-                    let a = self.viewport.to_screen(n.port_position(p));
+                    let a = self.viewport.to_screen(n.port_position(p, &metrics));
                     (a[0] - screen[0]).hypot(a[1] - screen[1])
                         <= (7. * self.viewport.zoom()).max(7.)
                 })
@@ -144,24 +181,81 @@ impl GraphEditor {
             return;
         }
         self.selected_connection = None;
-        if let Some(n) = doc.nodes.iter().rev().find(|n| n.rect().contains(p)) {
+        let metrics = doc.metrics();
+        // The fold handle in a title bar collapses or expands that node.
+        let fold = doc
+            .nodes
+            .iter()
+            .rev()
+            .filter(|n| self.node_visible(n.id))
+            .find(|n| !n.rows.is_empty() && n.fold_handle(&metrics).contains(p))
+            .map(|n| n.id);
+        if let Some(id) = fold {
+            if let Some(node) = doc.nodes.iter_mut().find(|node| node.id == id) {
+                node.folded = !node.folded;
+            }
+            self.selected = Some(id);
+            self.gesture = None;
+            return;
+        }
+        if let Some(n) = doc
+            .nodes
+            .iter()
+            .rev()
+            .filter(|n| self.node_visible(n.id))
+            .find(|n| n.rect(&metrics).contains(p))
+        {
             self.selected = Some(n.id);
             for (i, r) in n.rows.iter().enumerate() {
-                let rect = n.row_rect(i);
+                let rect = n.row_rect(i, &metrics);
                 if rect.contains(p) {
                     if r.binding.is_some() {
                         return;
                     }
                     if let GraphControlValue::Text(value) = &r.value {
                         self.gesture = None;
+                        // Place the caret where the click landed; selecting the
+                        // whole value would make the next keystroke replace it.
+                        let caret =
+                            caret_at(value, p[0] - (rect.origin[0] + 9.),
+                                metrics.text_size, controls);
                         self.text_focus = Some(GraphTextFocus {
                             node: n.id,
                             row: r.id,
+                            cell: None,
                             original: value.clone(),
-                            caret: value.len(),
-                            anchor: 0,
+                            caret,
+                            anchor: caret,
                         });
                         return;
+                    }
+                    // A Text cell inside a list is typed like a plain text row;
+                    // the surrounding add/delete affordances stay control presses.
+                    if let GraphControlValue::List { columns, rows } = &r.value {
+                        if let Some((row_index, column)) =
+                            list_cell_at(rect, columns.len(), rows.len(), p, &metrics)
+                            && let Some(GraphControlValue::Text(value)) =
+                                rows.get(row_index).and_then(|cells| cells.get(column))
+                        {
+                            let cell_width =
+                                rect.size[0] * LIST_DELETE_FRACTION / columns.len().max(1) as f32;
+                            let caret = caret_at(
+                                value,
+                                p[0] - (rect.origin[0] + cell_width * column as f32 + 6.),
+                                metrics.cell_size,
+                                controls,
+                            );
+                            self.gesture = None;
+                            self.text_focus = Some(GraphTextFocus {
+                                node: n.id,
+                                row: r.id,
+                                cell: Some((row_index, column)),
+                                original: value.clone(),
+                                caret,
+                                anchor: caret,
+                            });
+                            return;
+                        }
                     }
                     self.gesture = Some(Gesture::Control {
                         node: n.id,
@@ -184,6 +278,9 @@ impl GraphEditor {
                 .iter()
                 .rev()
                 .find(|c| {
+                    if !self.connection_visible(doc, c.id) {
+                        return false;
+                    }
                     let Some(points) = connection_curve(doc, c, &self.viewport) else {
                         return false;
                     };
@@ -215,14 +312,27 @@ impl GraphEditor {
             return;
         };
         let p = self.viewport.to_graph(screen);
+        let metrics = doc.metrics();
         if let Some(n) = doc.nodes.iter_mut().find(|n| n.id == node) {
             if let Some(i) = n.rows.iter().position(|r| r.id == row) {
-                let rect = n.row_rect(i);
+                let rect = n.row_rect(i, &metrics);
                 let fraction = (p[0] - rect.origin[0]) / rect.size[0];
+                let point = [
+                    fraction,
+                    if rect.size[1] > 0. {
+                        (p[1] - rect.origin[1]) / rect.size[1]
+                    } else {
+                        0.
+                    },
+                ];
                 let input = if press {
-                    GraphControlInput::Press { fraction }
+                    GraphControlInput::Press {
+                        fraction,
+                        point,
+                        metrics,
+                    }
                 } else {
-                    GraphControlInput::Drag { fraction }
+                    GraphControlInput::Drag { fraction, point }
                 };
                 if let Some(v) = controls.interact(&n.rows[i].value, input) {
                     n.rows[i].value = v;
@@ -367,10 +477,11 @@ pub fn connection_curve(
 ) -> Option<[Point; 4]> {
     let (a, p) = doc.port(c.from)?;
     let (b, q) = doc.port(c.to)?;
+    let metrics = doc.metrics();
     Some(port_curve(
-        view.to_screen(a.port_position(p)),
+        view.to_screen(a.port_position(p, &metrics)),
         p.side,
-        view.to_screen(b.port_position(q)),
+        view.to_screen(b.port_position(q, &metrics)),
         q.side,
     ))
 }
@@ -400,4 +511,50 @@ fn distance_segment(p: Point, a: Point, b: Point) -> f32 {
         / (d[0] * d[0] + d[1] * d[1]).max(0.0001))
     .clamp(0., 1.);
     (p[0] - a[0] - t * d[0]).hypot(p[1] - a[1] - t * d[1])
+}
+/// The list cell under a graph-space point. Header, add-row, empty space and
+/// the delete affordance all return `None` so they stay control presses.
+fn list_cell_at(
+    rect: GraphRect,
+    columns: usize,
+    rows: usize,
+    point: Point,
+    metrics: &GraphMetrics,
+) -> Option<(usize, usize)> {
+    if rows == 0 || columns == 0 {
+        return None;
+    }
+    let local_y = point[1] - rect.origin[1];
+    if local_y < metrics.list_header {
+        return None;
+    }
+    let row = ((local_y - metrics.list_header) / metrics.list_row).floor() as usize;
+    if row >= rows {
+        return None;
+    }
+    let editable_width = rect.size[0] * LIST_DELETE_FRACTION;
+    let local_x = point[0] - rect.origin[0];
+    if local_x < 0. || local_x >= editable_width {
+        return None;
+    }
+    let column = ((local_x / editable_width) * columns as f32)
+        .floor()
+        .min((columns - 1) as f32) as usize;
+    Some((row, column))
+}
+/// Byte offset nearest a horizontal position inside a text rect. Past the end
+/// it returns the text length, at or before the start it returns zero.
+fn caret_at(text: &str, x: f32, size: f32, controls: &dyn GraphControls) -> usize {
+    if x <= 0. {
+        return 0;
+    }
+    let mut width = 0.;
+    for (index, ch) in text.char_indices() {
+        let advance = controls.text_width(&ch.to_string(), size);
+        if width + advance * 0.5 > x {
+            return index;
+        }
+        width += advance;
+    }
+    text.len()
 }

@@ -167,6 +167,7 @@ impl MessagesWidget {
             Choice::ItemToSell(_, _, _, _, _) => self.handle_offer_inventory,
             Choice::ScriptChoice(_, _, _, _, _, _, _) => self.handle_multiple_choice,
             Choice::DialogChoice(_) => self.handle_dialogs,
+            Choice::NodeChoice(_) => self.handle_dialogs,
             Choice::Cancel(_, _, _, _) => true,
         }
     }
@@ -573,6 +574,22 @@ impl MessagesWidget {
                         let mut next_choice = dialog_choice.clone();
                         next_choice.label = item_name.clone();
                         rendered_choice = Choice::DialogChoice(next_choice);
+                    }
+                    Choice::NodeChoice(node_choice) => {
+                        item_name = self.resolver.resolve_with_context(
+                            self.parser.parse(&node_choice.label),
+                            map,
+                            assets,
+                            MessageContext {
+                                sender_entity: Some(node_choice.from),
+                                receiver_entity: Some(node_choice.to),
+                                world_time: Some(*time),
+                                ..Default::default()
+                            },
+                        );
+                        let mut next_choice = node_choice.clone();
+                        next_choice.label = item_name.clone();
+                        rendered_choice = Choice::NodeChoice(next_choice);
                     }
                     _ => {}
                 }

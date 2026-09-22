@@ -166,6 +166,29 @@ pub struct RegionCtx {
     pub item_state_data: FxHashMap<u32, ValueContainer>,
     pub(crate) entity_tile_contacts: FxHashMap<u32, FxHashMap<(u32, Uuid), TaggedTileContact>>,
     pub entity_respawn_snapshots: FxHashMap<u32, Entity>,
+    /// Bodies that left the world without ceasing to exist: a dead character is
+    /// removed from `map.entities` so collision, targeting and rendering cannot
+    /// reach it, but it stays addressable by its own behavior graph, which is
+    /// what lets the graph raise it again. Presence, never `visible`, says
+    /// whether a character is in the world; `visible` stays free for spell
+    /// effects on a living character.
+    pub stashed_entities: FxHashMap<u32, Entity>,
+    /// Bodies waiting to be announced as gone.
+    ///
+    /// Death notifications ride the same cadence as entity updates instead of
+    /// being sent the moment the body leaves, so a character that dies and rises
+    /// again within one tick is never seen as missing by a client.
+    pub pending_entity_removals: FxHashSet<u32>,
+    /// Answers to behavior-graph Dialogue nodes, keyed by the speaking entity.
+    /// A Dialogue node polls this while it waits for the player's choice.
+    pub dialog_choices: FxHashMap<u32, super::nodes::DialogChoiceMade>,
+    /// The conversation step a Talk node is parked on, keyed by the speaker.
+    /// The node itself is stateless, so the position lives here between polls.
+    pub talk_steps: FxHashMap<u32, String>,
+    /// The step a Talk node continues at when flow next enters it, keyed by the
+    /// speaker. A consequence chain sets it so the conversation resumes where
+    /// the answer pointed instead of restarting.
+    pub talk_resumes: FxHashMap<u32, String>,
     pub region_state: ValueContainer,
     pub procedural_spawn_guard: u8,
 
@@ -214,11 +237,14 @@ pub struct ChoiceSession {
 
 impl RegionCtx {
     pub(crate) fn sync_attribute_roles(&mut self) {
+        // Rulesets that do not declare `[attributes.roles]` keep the legacy
+        // engine attribute names. The official ruleset maps the roles to the
+        // same names, so this only matters for minimal/custom rulesets.
         let roles = eldiron_ruleset::resolve_attribute_roles(&self.rules).unwrap_or_default();
-        self.health_attr = roles.get("health").unwrap_or_default().to_string();
-        self.max_health_attr = roles.get("max_health").unwrap_or_default().to_string();
-        self.level_attr = roles.get("level").unwrap_or_default().to_string();
-        self.experience_attr = roles.get("experience").unwrap_or_default().to_string();
+        self.health_attr = roles.get("health").unwrap_or("HP").to_string();
+        self.max_health_attr = roles.get("max_health").unwrap_or("MAX_HP").to_string();
+        self.level_attr = roles.get("level").unwrap_or("LEVEL").to_string();
+        self.experience_attr = roles.get("experience").unwrap_or("EXP").to_string();
     }
 
     fn initialize_resolved_rules(&self) -> Result<(), String> {
@@ -986,19 +1012,160 @@ impl RegionCtx {
     }
 
     /// Search for a mutable reference to an entity with the given ID.
+    ///
+    /// Stashed bodies stay reachable: a dead character is out of the world, but
+    /// its own graph still has to be able to act on it in order to revive it.
     pub fn get_entity_mut(&mut self, entity_id: u32) -> Option<&mut Entity> {
-        self.map
+        if self
+            .map
             .entities
-            .iter_mut()
-            .find(|entity| entity.id == entity_id)
+            .iter()
+            .any(|entity| entity.id == entity_id)
+        {
+            return self
+                .map
+                .entities
+                .iter_mut()
+                .find(|entity| entity.id == entity_id);
+        }
+        self.stashed_entities.get_mut(&entity_id)
     }
 
     /// Search for a mutable reference to the current entity.
     pub fn get_current_entity_mut(&mut self) -> Option<&mut Entity> {
+        self.get_entity_mut(self.curr_entity_id)
+    }
+
+    /// Search for an entity with the given ID, in the world and then in the stash.
+    pub fn find_entity(&self, entity_id: u32) -> Option<&Entity> {
         self.map
             .entities
-            .iter_mut()
-            .find(|entity| entity.id == self.curr_entity_id)
+            .iter()
+            .find(|entity| entity.id == entity_id)
+            .or_else(|| self.stashed_entities.get(&entity_id))
+    }
+
+    /// Is this entity part of the world right now? Only the world is collidable,
+    /// targetable and rendered, so this is what presence questions must ask.
+    pub fn is_entity_present(&self, entity_id: u32) -> bool {
+        self.map
+            .entities
+            .iter()
+            .any(|entity| entity.id == entity_id)
+    }
+
+    /// Is this entity stashed, i.e. out of the world but still owned?
+    pub fn is_entity_stashed(&self, entity_id: u32) -> bool {
+        self.stashed_entities.contains_key(&entity_id)
+    }
+
+    /// Take an entity out of the world, keeping its body.
+    ///
+    /// Returns `true` when the entity was present and has been stashed.
+    pub fn stash_entity(&mut self, entity_id: u32) -> bool {
+        let Some(index) = self
+            .map
+            .entities
+            .iter()
+            .position(|entity| entity.id == entity_id)
+        else {
+            return false;
+        };
+        let entity = self.map.entities.remove(index);
+        self.stashed_entities.insert(entity_id, entity);
+        // Announced at the next pack point, together with entity updates, so a
+        // body that comes straight back is never missed by a client.
+        self.pending_entity_removals.insert(entity_id);
+        true
+    }
+
+    /// Put a stashed entity back into the world.
+    ///
+    /// Returns `true` when a stashed body existed and has been restored. The
+    /// body always re-enters at most once, whatever the caller believes.
+    pub fn restore_stashed_entity(&mut self, entity_id: u32) -> bool {
+        let Some(mut entity) = self.stashed_entities.remove(&entity_id) else {
+            return false;
+        };
+        // A body that comes back before its removal was announced never left, as
+        // far as any client is concerned.
+        self.pending_entity_removals.remove(&entity_id);
+        self.map
+            .entities
+            .retain(|existing| existing.id != entity_id);
+        entity.snap_position_update = true;
+        entity.mark_all_dirty();
+        self.map.entities.push(entity);
+        true
+    }
+
+    /// Remove a body from wherever it currently lives and hand it back.
+    ///
+    /// A dead body is stashed rather than destroyed, so a transfer that takes a
+    /// body out of the region has to pull it from the stash as well as the
+    /// world. The pending removal is dropped at the same time: the body is
+    /// moving to another region, not leaving play, and the transfer itself tells
+    /// the client it is gone.
+    pub fn take_entity(&mut self, entity_id: u32) -> Option<Entity> {
+        self.pending_entity_removals.remove(&entity_id);
+        if let Some(index) = self
+            .map
+            .entities
+            .iter()
+            .position(|entity| entity.id == entity_id)
+        {
+            return Some(self.map.entities.remove(index));
+        }
+        self.stashed_entities.remove(&entity_id)
+    }
+
+    /// Take the ids of bodies that left the world and still have to be told to
+    /// clients.
+    ///
+    /// Called from the pack point that sends entity updates. Ids whose body came
+    /// back before the announcement are dropped, which is what makes a same-tick
+    /// death and revival invisible to clients.
+    pub fn take_pending_entity_removals(&mut self) -> Vec<u32> {
+        let pending = std::mem::take(&mut self.pending_entity_removals);
+        pending
+            .into_iter()
+            .filter(|entity_id| self.stashed_entities.contains_key(entity_id))
+            .collect()
+    }
+
+    /// Move an entity into or out of the world to match a character state.
+    ///
+    /// `dead` characters leave the world; every other state is present. Returns
+    /// `true` when presence actually changed. Visibility is deliberately left
+    /// alone in both directions.
+    pub fn set_entity_presence_for_mode(&mut self, entity_id: u32, dead: bool) -> bool {
+        if dead {
+            self.stash_entity(entity_id)
+        } else {
+            self.restore_stashed_entity(entity_id)
+        }
+    }
+
+    /// Apply a character state, including the presence change it implies.
+    ///
+    /// This is the one place the engine decides what a state means for the
+    /// world, so the node services and the script host cannot drift apart:
+    /// `dead` takes the body out of the world, every other state puts it back,
+    /// and `visible` is never written because a living character is allowed to
+    /// be invisible while a dead one is simply absent. A character that rises at
+    /// zero health comes back with one hit point.
+    pub fn apply_entity_mode(&mut self, entity_id: u32, mode: &str) -> bool {
+        let health_attr = self.health_attr.clone();
+        let Some(entity) = self.get_entity_mut(entity_id) else {
+            return false;
+        };
+        entity.set_attribute("mode", Value::Str(mode.to_string()));
+        let dead = mode.eq_ignore_ascii_case("dead");
+        if !dead {
+            super::region_host::restore_entity_health_if_revived(entity, &health_attr);
+        }
+        self.set_entity_presence_for_mode(entity_id, dead);
+        true
     }
 
     /// Search for a mutable reference to an item with the given ID. Checks the map and the inventory of each entity.
@@ -1067,7 +1234,14 @@ impl RegionCtx {
     }
 
     /// Is the given entity dead.
+    ///
+    /// A stashed body is out of the world, which is exactly what being dead
+    /// means, so absence counts as dead here. That keeps every caller that used
+    /// to read `mode == "dead"` working once death removes the body.
     pub fn is_entity_dead_ctx(&self, id: u32) -> bool {
+        if self.stashed_entities.contains_key(&id) {
+            return true;
+        }
         let mut v = false;
         for entity in &self.map.entities {
             if entity.id == id {
@@ -1095,6 +1269,12 @@ impl RegionCtx {
                     name = n.to_string();
                 }
             }
+        }
+        if name == "Unknown"
+            && let Some(entity) = self.stashed_entities.get(&id)
+            && let Some(n) = entity.attributes.get_str("name")
+        {
+            name = n.to_string();
         }
         name
     }

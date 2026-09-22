@@ -1199,7 +1199,7 @@ fn support_surface_part_frame(
     surface: &BlockPropSupportSurface,
 ) -> Option<BlockPropTransform> {
     let face_surface = matches!(&surface.shape, BlockPropSemanticShape::Faces(_));
-    let (origin, axis_u, mut axis_v) = match &surface.shape {
+    let (mut origin, axis_u, mut axis_v, face_points) = match &surface.shape {
         BlockPropSemanticShape::Faces(face_refs) => {
             let part = asset.find_part(surface.part_id)?;
             let mut frame = None;
@@ -1235,7 +1235,7 @@ fn support_surface_part_frame(
                             continue;
                         };
                         let axis_v = normal.cross(axis_u);
-                        frame = Some((origin, axis_u, axis_v));
+                        frame = Some((origin, axis_u, axis_v, Some(points.clone())));
                         break;
                     }
                     if frame.is_some() {
@@ -1257,7 +1257,7 @@ fn support_surface_part_frame(
             let origin = Vec3::from(*origin);
             let axis_u = Vec3::from(*axis_u).try_normalized()?;
             let normal = axis_u.cross(Vec3::from(*axis_v)).try_normalized()?;
-            (origin, axis_u, normal.cross(axis_u))
+            (origin, axis_u, normal.cross(axis_u), None)
         }
         _ => return None,
     };
@@ -1265,6 +1265,26 @@ fn support_surface_part_frame(
     if face_surface && normal.y < -0.5 {
         axis_v = -axis_v;
         normal = -normal;
+    }
+    // Corner frames can point their local +V outside the face once the normal has
+    // been flipped upwards. Re-anchor to the face's minimum corner so surface-local
+    // points stay on the face.
+    if let Some(points) = face_points.as_ref() {
+        let mut min_u = f32::MAX;
+        let mut min_v = f32::MAX;
+        for point in points {
+            let offset = *point - origin;
+            min_u = min_u.min(offset.dot(axis_u));
+            min_v = min_v.min(offset.dot(axis_v));
+        }
+        if min_u.is_finite() && min_v.is_finite() {
+            if min_u < 0.0 {
+                origin += axis_u * min_u;
+            }
+            if min_v < 0.0 {
+                origin += axis_v * min_v;
+            }
+        }
     }
     let mut frame = identity_block_prop_transform();
     frame[0][0] = axis_u.x;

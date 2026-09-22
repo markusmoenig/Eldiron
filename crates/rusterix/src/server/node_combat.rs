@@ -100,6 +100,7 @@ pub(crate) fn node_engage_start(
         .unwrap();
     let position = actor.get_pos_xz();
     actor.attributes.set("__node_engage", Value::Bool(true));
+    actor.attributes.remove("__node_engage_next_attack");
     actor
         .attributes
         .set("__node_engage_target", Value::Str(identity.to_string()));
@@ -134,6 +135,7 @@ fn finish(
             .set("__node_lookout_retry", Value::Int64(ctx.ticks + delay));
         actor.attributes.remove("__node_engage");
         actor.attributes.remove("__node_engage_target");
+        actor.attributes.remove("__node_engage_next_attack");
         actor.set_attribute("__node_behavior_status", Value::Str(output.into()));
         if matches!(actor.action, EntityAction::CloseIn(..)) {
             actor.action = EntityAction::Off;
@@ -158,6 +160,17 @@ pub(crate) fn node_engage_tick(
     if !actor.attributes.get_bool_default("__node_engage", false) {
         return finish(ctx, actor_id, "cannot_engage");
     }
+    // Eldrin's follow_attack paced hits in simulation ticks using the resolved
+    // attack cooldown (weapon attack speed first). Node engagement uses the same
+    // ruleset cadence instead of the real-time action cooldown alone.
+    let attack_cooldown_ticks = RegionInstance::realtime_seconds_to_ticks(
+        ctx,
+        current_attack_cooldown_for_entity(ctx, &actor),
+    );
+    let next_attack_tick = match actor.attributes.get("__node_engage_next_attack") {
+        Some(Value::Int64(tick)) => *tick,
+        _ => 0,
+    };
     let Some(target_id) = ctx.entity_target(actor_id) else {
         return finish(ctx, actor_id, "lost");
     };
@@ -243,6 +256,19 @@ pub(crate) fn node_engage_tick(
     };
     let range = resolved_action_range_limit(ctx, &action.range, &actor, 1.5);
     if range <= 0.0 || position.distance(target.get_pos_xz()) <= range {
+        // Match Eldrin's follow_attack pacing: the ruleset attack cooldown is
+        // measured in simulation ticks, so hybrid/turn simulations must not
+        // attack once per real-time second while the world advances slower.
+        if ctx.ticks < next_attack_tick {
+            if let Some(actor) = ctx.map.entities.iter_mut().find(|e| e.id == actor_id) {
+                actor.action = EntityAction::Off;
+                actor.set_attribute("__node_behavior_status", Value::Str("cooldown".into()));
+                actor
+                    .attributes
+                    .set("__node_engage_progress", Value::Int64(ctx.ticks));
+            }
+            return Ok(None);
+        }
         if let Some(actor) = ctx.map.entities.iter_mut().find(|e| e.id == actor_id) {
             actor.action = EntityAction::Off;
             actor.set_attribute("__node_behavior_status", Value::Str("attacking".into()));
@@ -257,6 +283,12 @@ pub(crate) fn node_engage_tick(
             Some(RulesetActionTarget::Entity(target_id)),
         ) {
             return finish(ctx, actor_id, "cannot_engage");
+        }
+        if let Some(actor) = ctx.map.entities.iter_mut().find(|e| e.id == actor_id) {
+            actor.attributes.set(
+                "__node_engage_next_attack",
+                Value::Int64(ctx.ticks + attack_cooldown_ticks),
+            );
         }
         return Ok(None);
     }
@@ -404,6 +436,48 @@ mod tests {
             Some("cannot_engage")
         );
         assert_eq!(ctx.map.entities[0].attributes.get_int_default("MP", 0), 2);
+    }
+
+    #[test]
+    fn engagement_attacks_respect_the_ruleset_action_cooldown() {
+        let mut ctx = arena();
+        // Put the target inside weapon range so Engage attacks immediately.
+        ctx.map.entities[1].set_pos_xz(Vec2::new(0.5, 0.0));
+        node_lookout(&mut ctx, 1, "hostile", None, None).unwrap();
+        node_engage_start(&mut ctx, 1, "default").unwrap();
+
+        let damage_events = |ctx: &RegionCtx| {
+            ctx.to_execute_entity
+                .iter()
+                .filter(|(id, name, _)| *id == 2 && name == "damaged")
+                .count()
+        };
+
+        assert_eq!(node_engage_tick(&mut ctx, 1, "default").unwrap(), None);
+        assert_eq!(damage_events(&ctx), 1);
+        assert!(is_action_on_cooldown(&ctx, 1, "basic_attack"));
+
+        // Without cooldown decay the follow-up tick must wait, not attack again.
+        ctx.to_execute_entity.clear();
+        assert_eq!(node_engage_tick(&mut ctx, 1, "default").unwrap(), None);
+        assert_eq!(damage_events(&ctx), 0, "Engage ignored the action cooldown");
+
+        // Decaying the real-time action cooldown is not enough: the ruleset
+        // cadence is measured in simulation ticks, matching Eldrin.
+        update_spell_cooldowns(&mut ctx, 5.0);
+        ctx.to_execute_entity.clear();
+        assert_eq!(node_engage_tick(&mut ctx, 1, "default").unwrap(), None);
+        assert_eq!(
+            damage_events(&ctx),
+            0,
+            "Engage ignored the tick-based ruleset attack cooldown"
+        );
+
+        // Once the simulation advances past the ruleset cooldown it attacks again.
+        ctx.ticks = 5;
+        ctx.to_execute_entity.clear();
+        assert_eq!(node_engage_tick(&mut ctx, 1, "default").unwrap(), None);
+        assert_eq!(damage_events(&ctx), 1);
     }
     #[test]
     fn lookout_distances_override_defaults_and_engage_uses_character_speed() {

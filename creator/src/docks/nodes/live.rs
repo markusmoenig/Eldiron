@@ -39,6 +39,12 @@ pub(super) fn matches_owner(
                     .get_region(&region)
                     .is_some_and(|r| r.map.id == event.map)
         }
+        ProjectContext::RegionArea(region, area) => {
+            event.owner == EventOwner::Area(area)
+                && project
+                    .get_region(&region)
+                    .is_some_and(|r| r.map.id == event.map)
+        }
         ProjectContext::CharacterCode(template) | ProjectContext::Character(template) => {
             project.get_region(&current_region).is_some_and(|r| {
                 r.map.id == event.map

@@ -19,7 +19,7 @@ ruleset.toml            metadata, schema, bundled assets, visuals, palette, skil
 identity.toml           default identity, dispositions, race relations, intents
 attributes.toml         attributes and derived stats
 progression.toml        XP, leveling, progression messages
-combat.toml             damage kinds, combat timing, combat audio/messages
+combat.toml             damage kinds, combat timing, combat audio/messages, behavior policies
 economy.toml            copper/silver/gold currency table and base unit
 messages.toml           locale keys for rules-driven runtime feedback
 locales.toml            English defaults for ruleset-owned locale keys
@@ -36,6 +36,19 @@ races_classes.toml      races, classes, unlocks, starting loadouts
 
 At compile time, shared code embeds these parts and exposes them as one effective
 official ruleset to Creator, clients, tools, and tests.
+
+Node behavior policies live under `[behavior]` in `combat.toml`. Graphs select a
+policy by id and never embed the alignment, distance, or action rules themselves:
+
+```text
+[behavior.lookout.hostile]   disposition, radius, retry_seconds
+[behavior.engage.default]    actions (native attack action ids), pursuit_distance, blocked_seconds
+```
+
+`disposition` must name a `[dispositions]` entry, `actions` must reference
+existing `kind = "attack"` actions, and all distances and delays must be positive
+finite numbers. `eldiron-ruleset check` validates the section, and `list lookout`
+/ `list engage` / `show behavior.lookout.hostile` inspect it.
 
 The current playable progression ends at level 10. Warrior, Cleric, and Ranger
 gain their core kit at level 1 and one new action at levels 2, 4, 6, 8, and 10.

@@ -3820,6 +3820,9 @@ fn section_path(section: &str) -> Option<&'static [&'static str]> {
         "fx" | "effect" | "effects" | "fx_preset" | "fx_presets" => Some(&["fx", "presets"]),
         "condition" | "conditions" => Some(&["conditions"]),
         "item" | "items" => Some(&["items"]),
+        "behavior" => Some(&["behavior"]),
+        "lookout" | "behavior.lookout" => Some(&["behavior", "lookout"]),
+        "engage" | "behavior.engage" => Some(&["behavior", "engage"]),
         _ => None,
     }
 }
@@ -3828,7 +3831,7 @@ pub fn ruleset_section_ids_from_source(src: &str, section: &str) -> Result<Vec<S
     let root = parse_ruleset_table(src)?;
     let Some(path) = section_path(section) else {
         return Err(format!(
-            "Unknown ruleset section '{}'. Try races, classes, professions, skills, recipes, weapons, armor, spells, abilities, actions, or invocation_schemes.",
+            "Unknown ruleset section '{}'. Try races, classes, professions, skills, recipes, weapons, armor, spells, abilities, actions, conditions, behavior, lookout, engage, or invocation_schemes.",
             section
         ));
     };
@@ -5311,6 +5314,125 @@ fn validate_relation_and_intent_rules(report: &mut RulesetValidationReport, root
     }
 }
 
+fn validate_behavior_rules(report: &mut RulesetValidationReport, root: &Table) {
+    let Some(behavior) = root.get("behavior").and_then(Value::as_table) else {
+        return;
+    };
+    let dispositions = table_key_set(root, &["dispositions"]);
+    let actions = root.get("actions").and_then(Value::as_table);
+
+    if let Some(lookout) = behavior.get("lookout") {
+        let Some(lookout) = lookout.as_table() else {
+            report.error("behavior.lookout", "behavior.lookout must be a table.");
+            return;
+        };
+        for (id, policy) in lookout {
+            let path = format!("behavior.lookout.{id}");
+            let Some(policy) = policy.as_table() else {
+                report.error(&path, "Lookout policy must be a table.");
+                continue;
+            };
+            match table_string(policy, "disposition") {
+                Some(disposition) if dispositions.contains(disposition.trim()) => {}
+                Some(disposition) => report.error(
+                    format!("{path}.disposition"),
+                    format!("Disposition '{disposition}' does not exist."),
+                ),
+                None => report.error(
+                    format!("{path}.disposition"),
+                    "Lookout policy requires a disposition.",
+                ),
+            }
+            for key in ["radius", "retry_seconds"] {
+                validate_behavior_positive_number(report, &path, policy, key);
+            }
+        }
+    }
+
+    if let Some(engage) = behavior.get("engage") {
+        let Some(engage) = engage.as_table() else {
+            report.error("behavior.engage", "behavior.engage must be a table.");
+            return;
+        };
+        for (id, policy) in engage {
+            let path = format!("behavior.engage.{id}");
+            let Some(policy) = policy.as_table() else {
+                report.error(&path, "Engage policy must be a table.");
+                continue;
+            };
+            match policy.get("actions").and_then(Value::as_array) {
+                None => report.error(
+                    format!("{path}.actions"),
+                    "Engage policy requires an actions array.",
+                ),
+                Some(list) if list.is_empty() => report.error(
+                    format!("{path}.actions"),
+                    "Engage policy requires at least one action.",
+                ),
+                Some(list) => {
+                    for entry in list {
+                        let Some(action_id) =
+                            entry.as_str().map(str::trim).filter(|id| !id.is_empty())
+                        else {
+                            report.error(
+                                format!("{path}.actions"),
+                                "Engagement action ids must be non-empty strings.",
+                            );
+                            continue;
+                        };
+                        match actions
+                            .and_then(|actions| actions.get(action_id))
+                            .and_then(Value::as_table)
+                        {
+                            Some(action) => {
+                                if table_string(action, "kind").as_deref() != Some("attack") {
+                                    report.error(
+                                        format!("{path}.actions"),
+                                        format!(
+                                            "Engagement action '{action_id}' must have kind \"attack\"."
+                                        ),
+                                    );
+                                }
+                            }
+                            None => report.error(
+                                format!("{path}.actions"),
+                                format!("Unknown engagement action '{action_id}'."),
+                            ),
+                        }
+                    }
+                }
+            }
+            for key in ["pursuit_distance", "blocked_seconds"] {
+                validate_behavior_positive_number(report, &path, policy, key);
+            }
+        }
+    }
+}
+
+fn validate_behavior_positive_number(
+    report: &mut RulesetValidationReport,
+    path: &str,
+    policy: &Table,
+    key: &str,
+) {
+    let value = policy.get(key).and_then(|value| {
+        value
+            .as_float()
+            .or_else(|| value.as_integer().map(|value| value as f64))
+    });
+    match value {
+        Some(value) if value.is_finite() && value > 0.0 => {}
+        Some(_) => report.error(
+            format!("{path}.{key}"),
+            format!("{key} must be a positive finite number."),
+        ),
+        None => report.error(
+            format!("{path}.{key}"),
+            format!("{key} is required and must be numeric."),
+        ),
+    }
+}
+
 fn validate_invocation_rules(report: &mut RulesetValidationReport, root: &Table) {
     if let Err(err) = resolve_action_catalogue(root) {
         report.error("invocations", err);
@@ -5324,6 +5446,7 @@ pub fn validate_ruleset(root: &Table) -> RulesetValidationReport {
     validate_attribute_roles(&mut report, root);
     validate_identity_rules(&mut report, root);
     validate_relation_and_intent_rules(&mut report, root);
+    validate_behavior_rules(&mut report, root);
     validate_visual_rules(&mut report, root);
     if let Err(err) = resolve_equipment_policy(root) {
         report.error("equipment", err);
@@ -6880,6 +7003,79 @@ mod tests {
         assert!(report.issues.iter().any(|issue| {
             issue.path == "identity.defaults" && issue.message.contains("must be a string")
         }));
+    }
+
+    #[test]
+    fn behavior_policies_are_validated_as_ruleset_data() {
+        let root = parse_ruleset_table(
+            r#"
+            [dispositions]
+            hostile = -1
+
+            [actions.basic_attack]
+            kind = "attack"
+
+            [behavior.lookout.hostile]
+            disposition = "hostile"
+            radius = 6.0
+            retry_seconds = 2.0
+
+            [behavior.engage.default]
+            actions = ["basic_attack"]
+            pursuit_distance = 8.0
+            blocked_seconds = 3.0
+            "#,
+        )
+        .expect("valid TOML");
+        assert!(
+            !validate_ruleset(&root)
+                .issues
+                .iter()
+                .any(|issue| issue.path.starts_with("behavior."))
+        );
+
+        let broken = parse_ruleset_table(
+            r#"
+            [dispositions]
+            hostile = -1
+
+            [actions.basic_attack]
+            kind = "attack"
+
+            [actions.minor_heal]
+            kind = "healing"
+
+            [behavior.lookout.hostile]
+            disposition = "missing"
+            radius = 0.0
+            retry_seconds = 2.0
+
+            [behavior.engage.default]
+            actions = ["minor_heal", "unknown_attack"]
+            pursuit_distance = -1.0
+            blocked_seconds = 3.0
+            "#,
+        )
+        .expect("valid TOML");
+        let report = validate_ruleset(&broken);
+        for path in [
+            "behavior.lookout.hostile.disposition",
+            "behavior.lookout.hostile.radius",
+            "behavior.engage.default.pursuit_distance",
+        ] {
+            assert!(
+                report.issues.iter().any(|issue| issue.path == path),
+                "missing issue for {path}"
+            );
+        }
+        assert_eq!(
+            report
+                .issues
+                .iter()
+                .filter(|issue| issue.path == "behavior.engage.default.actions")
+                .count(),
+            2
+        );
     }
 
     #[test]

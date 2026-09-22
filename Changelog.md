@@ -1,3 +1,28 @@
+# Eldiron v0.95.0
+
+## Improvements
+
+### Nodes
+
+- Added the **behavior node system** as the replacement for Eldrin character scripts. Characters, items, named places, regions and the world own node graphs built from small single-purpose operations, with control flow expressed in the graph instead of conditionals inside a node. A project that provides a graph no longer evaluates the matching Eldrin `event` handler.
+- Added **area-owned behavior**. Named 2D sectors and named 3D geometry areas are listed in the region tree, open their own graph when selected, and centre the map on the place. The **On Area** node routes both the transition and who caused it, so a place can react to the player entering without also firing for every NPC that walks through it.
+- Added **instance graphs layered over template graphs**. An **On Instance** entry adds per-instance behavior on top of the template's chains, while answering any other event overrides just that chain, so per-instance behavior no longer means maintaining a full copy that drifts. The Nodes dock names the graph an instance is actually running.
+- Made the **ruleset the source of behavior policies**. Lookout and engage profiles (radius, retry, pursuit distance, blocked time, attack actions) are validated on load, listed by the CLI and documented, and node behavior resolves cooldowns and distances from them instead of script constants.
+- Added **Add Item** and **Drop Items** nodes, including the ruleset loot container path. A character can now carry an item from a graph and leave it behind again, so dropped loot no longer depends on a script.
+- Added the **Talk node**, which holds a whole conversation — its steps, the choices and their conditions — inside one node instead of a dialogue tree spread over the canvas. A choice either jumps to another step, ends the conversation, or leaves through one of the node's consequence ports, where ordinary nodes such as Say, Set Attribute, Add Item and Offer Inventory do the work, and the chain can hand the conversation back at another step; a consequence therefore stays graph rather than script. The Nodes dock opens a dedicated conversation editor over the graph, and Escape closes it. The Hideout2D characters were migrated to it from their dialog trees.
+- Migrated the **Gate** test project to behavior nodes. All five scripted characters — Player, Guard, Rogue, Farmer and Merchant — now run from graphs: the player keeps first-person startup and its death revive, the Guard walks a GuardHouseRoof → Road → GateRoof patrol loop and answers damage, and the hostile characters use ruleset-driven Lookout and Engage instead of the old proximity and follow verbs. No Gate character evaluates an Eldrin script anymore.
+- Added a **live behavior view** to the Nodes dock. Executed nodes, connections and their branches are highlighted while playing for character, item, region and area graphs, and live graph edits are recomposed and applied without restarting the game.
+- Removed the dead **Eldrin source** text from the Hideout2D and Gate fixtures now that their graphs own every event, so a shipped project no longer carries scripts that can never run. A regression test keeps both fixtures Eldrin-free. Global world and region script fields remain in the format for older projects, but nothing in these two is left.
+- Reworked the **node runtime** to share a single module registry, cache compiled plans per graph and select watchers deterministically. Repeated events no longer recompile a graph, and behavior no longer depends on hash iteration order.
+
+### Game
+
+- Routed **UI-initiated ruleset actions** through the node runtime. Toolbar and shortcut attack, use, take and similar intents resolve to the action the ruleset binds to them and run through the shared action pipeline, and NPC attack cadence follows the ruleset's action cooldown.
+- Made **death a matter of presence rather than visibility**. A character that dies leaves the region instead of being flagged invisible, so a corpse can no longer be walked into, targeted or rendered while its own graph still reaches it to drop loot or raise it again, and coming back to life re-inserts the body. **Visibility is left to spell effects** and is no longer written by death or respawn, so a character that was invisible when it fell returns invisible. Clients are told to drop the body explicitly, because entity updates are upserts.
+- Made **3D areas opt-in**. The **Area** flag on a geometry object now defaults to off, so the labels creators give objects — `Box`, `Column 1`, `Box Copy` and the parts of blocks, walls and fitted geometry — stay editor labels rather than named places. Only objects explicitly ticked Area appear in the region tree, resolve for Go To and Teleport and can own an area graph, while an unticked object still counts as walkable geometry. Gate's `Road`, `GateRoof` and `GuardHouseRoof` keep the flag.
+
+---
+
 # Eldiron v0.94.0
 
 ## Improvements

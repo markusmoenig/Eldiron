@@ -6,9 +6,10 @@ use crate::server::region::{
     current_attack_weapon_for_entity, drop_items_into_ruleset_loot_container,
     entity_disposition_by_id, entity_is_hostile_by_id, entity_item_by_id,
     equip_inventory_item_for_entity, execute_ruleset_action_with_source, grant_experience,
-    has_attack_ammunition_or_message, is_spell_on_cooldown, open_dialog_node,
-    queue_applied_damage_event, return_entity_to_spawn, set_entity_cooldown_attrs,
-    set_spell_cooldown, trigger_avatar_attack_animation,
+    has_attack_ammunition_or_message, is_spell_on_cooldown, offer_inventory_to_entity,
+    open_dialog_node, queue_applied_damage_event, return_entity_to_spawn,
+    set_entity_cooldown_attrs, set_spell_cooldown, teleport_entity_to_area,
+    trigger_avatar_attack_animation,
 };
 use crate::server::regionctx::{ChoiceSession, ScriptScope};
 use crate::vm::*;
@@ -80,7 +81,7 @@ enum SpellTargetArg {
     Position(Vec3<f32>),
 }
 
-fn opening_geo_for_item(item: &Item) -> Option<GeoId> {
+pub(crate) fn opening_geo_for_item(item: &Item) -> Option<GeoId> {
     if let Some(object_id) = item.attributes.get_id("geometry_object_id") {
         return Some(GeoId::GeometryObject(object_id));
     }
@@ -107,7 +108,7 @@ fn opening_geo_for_item(item: &Item) -> Option<GeoId> {
     Some(GeoId::Hole(host_id, profile_id))
 }
 
-fn apply_geometry_object_item_attr(
+pub(crate) fn apply_geometry_object_item_attr(
     ctx: &mut RegionCtx,
     object_id: uuid::Uuid,
     key: &str,
@@ -129,7 +130,7 @@ fn apply_geometry_object_item_attr(
     }
 }
 
-fn rebuild_runtime_navigation(ctx: &mut RegionCtx) {
+pub(crate) fn rebuild_runtime_navigation(ctx: &mut RegionCtx) {
     ctx.mapmini = ctx.map.as_mini(&ctx.blocking_tiles);
     ctx.collision_world = crate::CollisionWorld::default();
 
@@ -404,7 +405,11 @@ fn convert_attr_value(key: &str, val: &VMValue, hint: Option<&Value>, health_att
     val.to_value_with_hint(hint)
 }
 
-fn restore_entity_health_if_revived(entity: &mut Entity, health_attr: &str) {
+/// Bring a revived character back to one hit point.
+///
+/// Shared with the node services so the script host and the graphs cannot drift
+/// apart on what rising from the dead restores.
+pub(crate) fn restore_entity_health_if_revived(entity: &mut Entity, health_attr: &str) {
     if health_attr.is_empty() {
         return;
     }
@@ -910,13 +915,9 @@ impl<'a> RegionHost<'a> {
         source_item_id: Option<u32>,
     ) {
         if let Some(id) = target_id {
-            if self
-                .ctx
-                .map
-                .entities
-                .iter()
-                .any(|entity| entity.id == id && entity.get_mode() == "dead")
-            {
+            // A dead body is stashed, so presence, not a `map.entities` scan,
+            // decides that the target is already out of the world.
+            if self.ctx.is_entity_dead_ctx(id) {
                 return;
             }
 
@@ -1734,16 +1735,16 @@ impl<'a> HostHandler for RegionHost<'a> {
                             convert_attr_value(key, val, entity.attributes.get(key), &health_attr);
                         entity.set_attribute(key, converted);
                         if key == "mode" {
+                            // State carries presence now: a dead character leaves
+                            // the world instead of being flagged invisible, so
+                            // collision and state cannot disagree. `visible` is
+                            // never written here; it belongs to spell effects.
+                            let entity_id = entity.id;
                             let mode = entity
                                 .attributes
                                 .get_str_default("mode", String::new())
                                 .to_ascii_lowercase();
-                            if mode == "dead" {
-                                entity.set_attribute("visible", Value::Bool(false));
-                            } else if mode == "active" {
-                                entity.set_attribute("visible", Value::Bool(true));
-                                restore_entity_health_if_revived(entity, &health_attr);
-                            }
+                            self.ctx.apply_entity_mode(entity_id, &mode);
                         }
                     }
                 }
@@ -2602,72 +2603,8 @@ impl<'a> HostHandler for RegionHost<'a> {
                     args.get(0).map(|v| v.x as u32),
                     args.get(1).and_then(|v| v.as_string()),
                 ) {
-                    let region_id = self.ctx.region_id;
-                    let now_ticks = self.ctx.ticks;
-                    let ticks_per_minute = self.ctx.ticks_per_minute;
-                    let Some((entity_id, matching_item_ids, expires_at_tick, max_distance)) =
-                        self.ctx.get_current_entity_mut().map(|entity| {
-                            let matching_item_ids: Vec<u32> = entity
-                                .iter_inventory()
-                                .filter_map(|(_, item)| {
-                                    let name = item.attributes.get_str("name").unwrap_or_default();
-                                    let class_name =
-                                        item.attributes.get_str("class_name").unwrap_or_default();
-
-                                    if filter.is_empty()
-                                        || name.contains(filter)
-                                        || class_name.contains(filter)
-                                    {
-                                        Some(item.id)
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect();
-
-                            let timeout_minutes = entity
-                                .attributes
-                                .get_float_default("timeout", 10.0)
-                                .max(0.0);
-                            let expires_at_tick =
-                                now_ticks + (ticks_per_minute as f32 * timeout_minutes) as i64;
-                            let max_distance = 2.0;
-                            (entity.id, matching_item_ids, expires_at_tick, max_distance)
-                        })
-                    else {
-                        return None;
-                    };
-
-                    self.ctx
-                        .active_choice_sessions
-                        .retain(|session| !(session.from == entity_id && session.to == to));
-                    self.ctx.active_choice_sessions.push(ChoiceSession {
-                        from: entity_id,
-                        to,
-                        expires_at_tick,
-                        max_distance,
-                    });
-                    let mut choices = MultipleChoice::new(
-                        region_id,
-                        entity_id,
-                        to,
-                        expires_at_tick,
-                        max_distance,
-                    );
-                    for item_id in matching_item_ids {
-                        let choice = Choice::ItemToSell(
-                            item_id,
-                            entity_id,
-                            to,
-                            expires_at_tick,
-                            max_distance,
-                        );
-                        choices.add(choice);
-                    }
-
-                    if let Some(sender) = self.ctx.from_sender.get() {
-                        let _ = sender.send(RegionMessage::MultipleChoice(choices));
-                    }
+                    let seller = self.ctx.curr_entity_id;
+                    offer_inventory_to_entity(self.ctx, seller, to, filter);
                 }
             }
             "multiple_choice" => {
@@ -2837,62 +2774,15 @@ impl<'a> HostHandler for RegionHost<'a> {
             "teleport" => {
                 if let Some(dest) = args.get(0).and_then(|v| v.as_string()) {
                     let region_name = args.get(1).and_then(|v| v.as_string()).unwrap_or("");
-
-                    if region_name.trim().is_empty()
-                        || region_name.trim().eq_ignore_ascii_case(&self.ctx.map.name)
+                    let entity_id = self.ctx.curr_entity_id;
+                    if !teleport_entity_to_area(self.ctx, entity_id, &dest, region_name)
+                        && self.ctx.debug_mode
                     {
-                        let radius = self
-                            .ctx
-                            .map
-                            .entities
-                            .iter()
-                            .find(|entity| entity.id == self.ctx.curr_entity_id)
-                            .map(|entity| {
-                                entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01
-                            })
-                            .unwrap_or(0.49);
-                        let preferred_y = self
-                            .ctx
-                            .map
-                            .entities
-                            .iter()
-                            .find(|entity| entity.id == self.ctx.curr_entity_id)
-                            .map(|entity| entity.position.y);
-                        let center =
-                            self.ctx
-                                .resolve_named_spawn_position_3d(&dest, radius, preferred_y);
-                        if let Some(center) = center {
-                            // First move the entity
-                            if let Some(entity) = self.ctx.get_current_entity_mut() {
-                                let id = entity.id;
-                                entity.set_position(center);
-                                entity.mark_all_dirty();
-                                // Then run section change checks using a fresh borrow
-                                self.ctx.check_player_for_section_change_id(id);
-                                if let Some(sender) = self.ctx.from_sender.get() {
-                                    let _ = sender.send(RegionMessage::MapUpdate(
-                                        self.ctx.region_id,
-                                        self.ctx.map.clone(),
-                                    ));
-                                }
-                            }
-                        } else if self.ctx.debug_mode {
-                            add_debug_value(
-                                &mut self.ctx,
-                                TheValue::Text("Unknown Sector".into()),
-                                true,
-                            );
-                        }
-                    } else {
-                        // Defer cross-region transfers until the current script event has
-                        // finished. Scripts often restore HP/mode or send messages after
-                        // teleport(); removing the entity immediately makes those writes
-                        // order-dependent and can strand players in dead state.
-                        self.ctx.pending_entity_transfers.push((
-                            self.ctx.curr_entity_id,
-                            region_name.to_string(),
-                            dest.to_string(),
-                        ));
+                        add_debug_value(
+                            &mut self.ctx,
+                            TheValue::Text("Unknown Sector".into()),
+                            true,
+                        );
                     }
                 }
             }
@@ -3168,10 +3058,11 @@ mod tests {
     use crate::GeometryObject;
     use crate::server::region::{
         RulesetActionTarget, apply_ruleset_character_defaults,
-        drop_items_into_ruleset_loot_container, execute_ruleset_action,
-        execute_ruleset_action_with_target, remove_transient_ruleset_fx_items,
-        restore_ruleset_conditions, ruleset_starting_wealth_for_entity, update_entity_respawns,
-        update_ruleset_conditions, update_spell_items,
+        drop_items_into_ruleset_loot_container, execute_intent_in_node_mode,
+        execute_ruleset_action, execute_ruleset_action_with_target,
+        remove_transient_ruleset_fx_items, restore_ruleset_conditions,
+        ruleset_starting_wealth_for_entity, update_entity_respawns, update_ruleset_conditions,
+        update_spell_items,
     };
     use crate::vm::{Execution, Program, VM, VMValue};
     use std::sync::Arc;
@@ -3613,37 +3504,23 @@ mod tests {
             }
         }
 
+        /// Body accessors resolve wherever the body lives, exactly like the
+        /// engine: a dead character is stashed, and a test that asserts on the
+        /// corpse still means the same body.
         fn set_entity_attr(&mut self, entity_id: u32, key: &str, value: Value) {
-            let entity = self
-                .ctx
-                .map
-                .entities
-                .iter_mut()
-                .find(|entity| entity.id == entity_id)
-                .expect("arena entity");
+            let entity = self.ctx.get_entity_mut(entity_id).expect("arena entity");
             entity.set_attribute(key, value);
         }
 
         fn clear_inventory(&mut self, entity_id: u32) {
-            let entity = self
-                .ctx
-                .map
-                .entities
-                .iter_mut()
-                .find(|entity| entity.id == entity_id)
-                .expect("arena entity");
+            let entity = self.ctx.get_entity_mut(entity_id).expect("arena entity");
             for slot in &mut entity.inventory {
                 *slot = None;
             }
         }
 
         fn entity(&self, id: u32) -> &Entity {
-            self.ctx
-                .map
-                .entities
-                .iter()
-                .find(|entity| entity.id == id)
-                .expect("arena entity")
+            self.ctx.find_entity(id).expect("arena entity")
         }
 
         fn hp(&self, id: u32) -> i32 {
@@ -3712,6 +3589,10 @@ mod tests {
                     _ => None,
                 })
                 .collect()
+        }
+
+        fn take_messages(&self) -> Vec<RegionMessage> {
+            self._messages.try_iter().collect()
         }
 
         fn run_entity_event(&mut self, entity_id: u32, event: &str, payload: VMValue) {
@@ -3816,6 +3697,118 @@ mod tests {
         assert!(!companion.attributes.get_bool_default("visible", true));
         assert_eq!(companion.action, EntityAction::Off);
         assert!(!arena.ctx.entity_proximity_alerts.contains_key(&3));
+    }
+
+    #[test]
+    fn lethal_damage_takes_the_body_out_of_the_world_and_announces_it() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_script_class(
+            "Warrior",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+            }
+            "#,
+        );
+        arena.add_entity(1, "Warrior", 20, 20, Some(2));
+        arena.add_entity(2, "Orc", 5, 0, None);
+        // Invisible for its own reasons, the way a spell would leave it.
+        arena.set_entity_attr(2, "visible", Value::Bool(false));
+        let _ = arena.take_messages();
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert_eq!(arena.mode(2), "dead");
+        assert!(arena.ctx.is_entity_stashed(2), "death stashes the body");
+        assert!(
+            !arena.ctx.is_entity_present(2),
+            "a dead body is not in the world, so nothing can collide with it"
+        );
+        assert!(arena.ctx.is_entity_dead_ctx(2));
+        assert!(
+            arena.ctx.map.entities.iter().all(|entity| entity.id != 2),
+            "the world, which collision and targeting read, must not hold it"
+        );
+        assert!(
+            !arena.entity(2).attributes.get_bool_default("visible", true),
+            "death must not write visibility, which belongs to spell effects"
+        );
+        assert_eq!(
+            arena.ctx.take_pending_entity_removals(),
+            vec![2],
+            "the client needs the removal, or the body keeps rendering"
+        );
+        assert!(
+            arena.ctx.take_pending_entity_removals().is_empty(),
+            "a body is announced as gone once"
+        );
+    }
+
+    #[test]
+    fn a_body_that_rises_within_the_tick_is_never_announced_as_gone() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_entity(1, "Player", 5, 0, None);
+        arena.set_entity_attr(1, "visible", Value::Bool(false));
+
+        assert!(crate::server::region::apply_damage_direct(
+            &mut arena.ctx,
+            1,
+            0,
+            99,
+            "physical",
+            None
+        ));
+        assert!(arena.ctx.is_entity_stashed(1));
+
+        // The graph raises it again in the same tick, as the Hideout2D player
+        // does with State(Alive).
+        assert!(arena.ctx.apply_entity_mode(1, "active"));
+
+        assert!(
+            arena.ctx.take_pending_entity_removals().is_empty(),
+            "a body that comes straight back must never look missing to a client"
+        );
+        assert!(arena.ctx.is_entity_present(1));
+        assert!(
+            !arena.entity(1).attributes.get_bool_default("visible", true),
+            "rising must not touch visibility"
+        );
+    }
+
+    #[test]
+    fn npc_respawn_restores_presence_and_leaves_visibility_alone() {
+        let mut arena = HeadlessRulesArena::new();
+        arena.add_entity(1, "Orc", 5, 0, None);
+        arena.set_entity_attr(1, "respawn_seconds", Value::Int(0));
+        // An Orc that happened to be invisible when it died.
+        arena.set_entity_attr(1, "visible", Value::Bool(false));
+
+        assert!(crate::server::region::apply_damage_direct(
+            &mut arena.ctx,
+            1,
+            0,
+            99,
+            "physical",
+            None
+        ));
+        assert!(arena.ctx.is_entity_stashed(1));
+
+        crate::server::region::update_entity_respawns(&mut arena.ctx);
+
+        assert!(
+            arena.ctx.is_entity_present(1),
+            "respawning means putting the body back into the world"
+        );
+        assert!(!arena.ctx.is_entity_stashed(1));
+        assert_eq!(arena.mode(1), "active");
+        assert_eq!(arena.hp(1), 5);
+        assert!(
+            !arena.entity(1).attributes.get_bool_default("visible", true),
+            "respawning must not un-invisible a character"
+        );
     }
 
     #[test]
@@ -4106,6 +4099,10 @@ mod tests {
 
         assert_eq!(arena.hp(2), 0);
         assert_eq!(arena.mode(2), "dead");
+        // The Orc's death handler above still ran, loot and all, even though
+        // death had already taken its body out of the world.
+        assert!(arena.ctx.is_entity_stashed(2));
+        assert!(!arena.ctx.is_entity_present(2));
         assert_eq!(arena.attr_f32(2, "death_count") as i32, 1);
         assert_eq!(arena.attr_f32(1, "kill_count") as i32, 1);
         assert_eq!(arena.attr_f32(1, "last_kill") as u32, 2);
@@ -4306,6 +4303,33 @@ mod tests {
             ""
         ));
         assert_eq!(arena.ctx.map.items.len(), 1);
+    }
+
+    #[test]
+    fn a_respawn_timer_in_minutes_waits_the_full_time() {
+        let mut arena = HeadlessRulesArena::with_rules(
+            r#"
+            [respawn.npc]
+            enabled = true
+            delay_minutes = 1
+            health = "full"
+            "#,
+        );
+        arena.add_entity(2, "Orc", 10, 2, None);
+        update_entity_respawns(&mut arena.ctx);
+        arena.set_entity_attr(2, "HP", Value::Int(0));
+        arena.set_entity_attr(2, "mode", Value::Str("dead".into()));
+        update_entity_respawns(&mut arena.ctx);
+
+        // A minute is 240 ticks at four ticks per second.
+        arena.ctx.ticks = 200;
+        update_entity_respawns(&mut arena.ctx);
+        assert_eq!(arena.mode(2), "dead", "the minute is not over yet");
+
+        arena.ctx.ticks = 240;
+        update_entity_respawns(&mut arena.ctx);
+        assert_eq!(arena.mode(2), "active");
+        assert_eq!(arena.hp(2), 10);
     }
 
     #[test]
@@ -5010,6 +5034,9 @@ mod tests {
         arena.add_entity(2, "Living", 10, 1, None);
         arena.add_entity(3, "Skeleton", 10, 1, None);
         arena.set_entity_attr(2, "STAMINA", Value::Int(10));
+        // Ruleset FX anchor the visual at 55% of the entity height, so pin the
+        // height to make the expected follow position deterministic.
+        arena.set_entity_attr(2, "entity_height", Value::Float(1.0));
         arena.set_entity_attr(3, "traits", Value::StrArray(vec!["undead".into()]));
 
         for expected in 1..=3 {
@@ -5341,6 +5368,50 @@ mod tests {
                 .get_float("cooldown_left_rules_basic_attack"),
             Some(1.0)
         );
+    }
+
+    #[test]
+    fn node_mode_resolves_bare_ruleset_intents_without_a_script() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        // Node mode: behavior is graph-only and no character script is compiled,
+        // so a bare `attack` intent has to execute through the ruleset directly.
+        arena.ctx.assets.node_behaviors = Some(Default::default());
+        arena.add_official_entity(1, "Warrior", "Human", 1, Some(2));
+        arena.add_official_entity(2, "Warrior", "Orc", 1, None);
+        arena.equip_official_item(1, 101, "weapons", "training_sword");
+
+        let orc_hp = arena.hp(2);
+        assert!(execute_intent_in_node_mode(
+            &mut arena.ctx,
+            1,
+            "attack",
+            Some(RulesetActionTarget::Entity(2)),
+        ));
+        arena.drain_entity_events();
+        assert!(arena.hp(2) < orc_hp);
+
+        // Script mode keeps script-driven intent events, and explicit `action:`
+        // prefixes are handled by their dedicated paths.
+        arena.ctx.assets.node_behaviors = None;
+        assert!(!execute_intent_in_node_mode(
+            &mut arena.ctx,
+            1,
+            "attack",
+            Some(RulesetActionTarget::Entity(2)),
+        ));
+        arena.ctx.assets.node_behaviors = Some(Default::default());
+        assert!(!execute_intent_in_node_mode(
+            &mut arena.ctx,
+            1,
+            "action:basic_attack",
+            Some(RulesetActionTarget::Entity(2)),
+        ));
+        assert!(!execute_intent_in_node_mode(
+            &mut arena.ctx,
+            1,
+            "look",
+            Some(RulesetActionTarget::Entity(2)),
+        ));
     }
 
     #[test]
@@ -6614,6 +6685,37 @@ mod tests {
 
         assert_eq!(arena.inventory_item_quantity(1, "wooden_arrows"), 18);
     }
+
+    #[test]
+    fn attacking_a_stashed_body_spends_no_ammunition() {
+        let mut arena = HeadlessRulesArena::with_official_rules();
+        arena.add_script_class(
+            "Ranger",
+            r#"
+            fn event(event, value) {
+                if event == "intent" && value == "attack" {
+                    attack();
+                }
+            }
+            "#,
+        );
+        arena.add_official_entity(1, "Ranger", "Human", 1, Some(2));
+        arena.add_official_entity(2, "Warrior", "Orc", 1, None);
+        arena.equip_official_item(1, 101, "weapons", "hunting_bow");
+        arena.add_official_inventory_item(1, 201, "ammunition", "wooden_arrows");
+        // The body is dead and out of the world, but the attacker still holds
+        // its id as a stale target.
+        assert!(arena.ctx.stash_entity(2));
+
+        arena.run_entity_event(1, "intent", VMValue::from_string("attack"));
+        arena.drain_entity_events();
+
+        assert_eq!(
+            arena.inventory_item_quantity(1, "wooden_arrows"),
+            20,
+            "a stashed body must not cost the attacker an arrow"
+        );
+    }
 }
 
 pub fn run_server_named_fn(
@@ -6639,7 +6741,13 @@ pub fn run_server_named_fn(
             let captured = super::event_observation::capture(region_ctx, event, &value);
             region_ctx.current_script_scope = previous_scope;
             if let Some(event) = captured {
+                // A place owns its own reactions: the same observation is also
+                // delivered to the named area the entity entered or left.
+                let area_events = super::event_observation::area_observations(region_ctx, &event);
                 super::nodes::region::dispatch(region_ctx, event);
+                for area_event in area_events {
+                    super::nodes::region::dispatch(region_ctx, area_event);
+                }
             }
         }
         return true;

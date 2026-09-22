@@ -69,6 +69,14 @@ impl GraphPort {
     }
 }
 
+/// One column of a list control. The control doubles as the cell prototype: it
+/// decides how a cell is drawn and edited, and seeds a newly added row.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct GraphListColumn {
+    pub id: String,
+    pub label: String,
+    pub control: GraphControlValue,
+}
 /// Serializable control data; custom controls use `Custom` and a host control registry.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum GraphControlValue {
@@ -95,6 +103,114 @@ pub enum GraphControlValue {
         kind: String,
         data: serde_json::Value,
     },
+    /// Repeating rows for multi-value parameters, such as several attribute
+    /// writes or a table of event reactions. The trailing row adds a new entry.
+    List {
+        columns: Vec<GraphListColumn>,
+        rows: Vec<Vec<GraphControlValue>>,
+    },
+}
+/// Vertical pitch of one list entry.
+pub const LIST_ROW_PITCH: f32 = 40.;
+/// Column header strip above a list's rows.
+pub const LIST_HEADER_PITCH: f32 = 30.;
+/// Height of the title bar. Terminals and rows start below it.
+pub const HEADER_PITCH: f32 = 58.;
+/// Vertical pitch reserved per terminal, so a node without parameters still has
+/// room to lay out its outputs.
+pub const PORT_PITCH: f32 = 30.;
+/// Space reserved above a control rect for its row label.
+pub const ROW_LABEL_PITCH: f32 = 32.;
+/// Pointer fraction at which a list's delete affordance starts.
+pub const LIST_DELETE_FRACTION: f32 = 0.88;
+/// Minimum vertical pitch of one row, including its label and spacing.
+/// Existing documents store the old 62-unit pitch, so the floor is applied when
+/// geometry is computed rather than by migrating every saved graph.
+pub const MIN_ROW_PITCH: f32 = 76.;
+/// The air inside a node. `Comfortable` is the original look; `Compact` halves
+/// it so a branch of dialogue-sized nodes stays readable when zoomed out.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GraphMetrics {
+    /// Title bar height; body rows start below it.
+    pub header: f32,
+    /// Space above the first body row.
+    pub body: f32,
+    /// Minimum pitch of one row.
+    pub row: f32,
+    /// Space reserved above a row's control for its label.
+    pub label: f32,
+    pub list_header: f32,
+    pub list_row: f32,
+    /// Pitch reserved per terminal on a node with parameters.
+    pub port: f32,
+    /// Tighter pitch for the terminals of a folded node.
+    pub folded_port: f32,
+    /// Horizontal inset of a row's control.
+    pub pad: f32,
+    /// Height of the drawn title band inside the header.
+    pub title_band: f32,
+    pub title_size: f32,
+    /// Body text, such as a text row's value.
+    pub text_size: f32,
+    pub label_size: f32,
+    pub cell_size: f32,
+    pub header_size: f32,
+    /// Port labels sit outside the node in tighter space than body text.
+    pub port_size: f32,
+}
+impl GraphMetrics {
+    pub const COMFORTABLE: Self = Self {
+        header: HEADER_PITCH,
+        body: 60.,
+        row: MIN_ROW_PITCH,
+        label: ROW_LABEL_PITCH,
+        list_header: LIST_HEADER_PITCH,
+        list_row: LIST_ROW_PITCH,
+        port: PORT_PITCH,
+        folded_port: 16.,
+        pad: 18.,
+        title_band: 35.,
+        title_size: 18.,
+        text_size: 14.,
+        label_size: 12.,
+        cell_size: 12.,
+        header_size: 11.,
+        port_size: 10.,
+    };
+    pub const COMPACT: Self = Self {
+        header: 34.,
+        body: 34.,
+        row: 44.,
+        label: 18.,
+        list_header: 20.,
+        list_row: 24.,
+        port: 18.,
+        folded_port: 14.,
+        pad: 10.,
+        title_band: 24.,
+        title_size: 14.,
+        text_size: 11.,
+        label_size: 10.,
+        cell_size: 10.,
+        header_size: 9.,
+        port_size: 9.,
+    };
+    pub fn is_compact(&self) -> bool {
+        *self == Self::COMPACT
+    }
+    /// Where a row's label sits above its control rect.
+    pub fn label_offset(&self) -> f32 {
+        -(self.label * 0.6)
+    }
+}
+impl Default for GraphMetrics {
+    fn default() -> Self {
+        Self::COMFORTABLE
+    }
+}
+/// Serialization helper: leave a `false` flag out of the saved document.
+pub fn is_false(value: &bool) -> bool {
+    !*value
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct GraphRow {
@@ -119,11 +235,21 @@ impl GraphRow {
             height: if matches!(value, GraphControlValue::Preview { .. }) {
                 94.
             } else {
-                62.
+                MIN_ROW_PITCH
             },
             id: Uuid::new_v4(),
             label: label.into(),
             value,
+        }
+    }
+    /// Row extent including the label space and, for lists, one add-row. Lists
+    /// grow with their contents, so their stored height is only a fallback.
+    pub fn effective_height(&self, metrics: &GraphMetrics) -> f32 {
+        match &self.value {
+            GraphControlValue::List { rows, .. } => {
+                metrics.label + metrics.list_header + metrics.list_row * (rows.len() as f32 + 1.)
+            }
+            _ => self.height.max(metrics.row),
         }
     }
 }
@@ -138,6 +264,11 @@ pub struct GraphNode {
     pub color: GraphColor,
     pub rows: Vec<GraphRow>,
     pub ports: Vec<GraphPort>,
+    /// Folded to its title bar only. The rows stay in the document, so the
+    /// author expands the node again instead of losing parameters. Left out of
+    /// saved files while it is off, so untouched graphs keep their shape.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub folded: bool,
 }
 impl GraphNode {
     pub fn new(title: &str, position: Point, color: GraphColor) -> Self {
@@ -150,56 +281,99 @@ impl GraphNode {
             color,
             rows: vec![],
             ports: vec![],
+            folded: false,
         }
     }
-    pub fn height(&self) -> f32 {
-        60. + self.rows.iter().map(|r| r.height.max(40.)).sum::<f32>()
+    /// Terminals on the left and right edges.
+    pub fn terminals(&self) -> usize {
+        self.ports
+            .iter()
+            .filter(|port| matches!(port.side, PortSide::Left | PortSide::Right))
+            .count()
     }
-    pub fn rect(&self) -> GraphRect {
+    pub fn height(&self, metrics: &GraphMetrics) -> f32 {
+        let terminals = self.terminals() as f32;
+        if self.folded {
+            // Folded keeps its terminals spread out enough to stay clickable.
+            return metrics.header.max(metrics.header * 0.5 + terminals * metrics.folded_port);
+        }
+        let body = metrics.body
+            + self
+                .rows
+                .iter()
+                .map(|row| row.effective_height(metrics))
+                .sum::<f32>();
+        // A parameter-less node is only a title bar; give its terminals room
+        // instead of crowding them into the header.
+        body.max(metrics.body + terminals * metrics.port)
+    }
+    pub fn rect(&self, metrics: &GraphMetrics) -> GraphRect {
         GraphRect {
             origin: self.position,
-            size: [self.width, self.height()],
+            size: [self.width, self.height(metrics)],
         }
     }
-    pub fn row_rect(&self, index: usize) -> GraphRect {
+    pub fn row_rect(&self, index: usize, metrics: &GraphMetrics) -> GraphRect {
+        let pad = metrics.pad;
         GraphRect {
             origin: [
-                self.position[0] + 18.,
+                self.position[0] + pad,
                 self.position[1]
-                    + 58.
+                    + metrics.header
                     + self
                         .rows
                         .iter()
                         .take(index)
-                        .map(|r| r.height.max(40.))
+                        .map(|row| row.effective_height(metrics))
                         .sum::<f32>(),
             ],
             size: [
-                self.width - 36.,
+                self.width - pad * 2.,
                 self.rows
                     .get(index)
-                    .map(|r| r.height.max(40.) - 32.)
+                    .map(|row| row.effective_height(metrics) - metrics.label)
                     .unwrap_or(30.),
             ],
         }
     }
-    pub fn port_position(&self, port: &GraphPort) -> Point {
+    /// Region in the title bar that folds or expands the node.
+    pub fn fold_handle(&self, metrics: &GraphMetrics) -> GraphRect {
+        GraphRect {
+            origin: [self.position[0] + self.width - 30., self.position[1]],
+            size: [30., metrics.title_band],
+        }
+    }
+    /// Where a terminal that is not anchored to a row sits. A node without a
+    /// laid out body has no rows to align to, so its terminals are placed between
+    /// the title bar and the footer instead of across the whole node.
+    fn terminal_offset(&self, t: f32, metrics: &GraphMetrics) -> f32 {
+        let height = self.height(metrics);
+        if (self.folded || self.rows.is_empty()) && height > metrics.header {
+            metrics.header + t * (height - metrics.header)
+        } else {
+            t * height
+        }
+    }
+    pub fn port_position(&self, port: &GraphPort, metrics: &GraphMetrics) -> Point {
         let t = port.position.clamp(0., 1.);
-        let y = port
-            .row
-            .and_then(|id| self.rows.iter().position(|r| r.id == id))
-            .map(|i| {
-                let r = self.row_rect(i);
-                r.origin[1] - self.position[1] + r.size[1] * 0.5
-            })
-            .unwrap_or(t * self.height());
+        let anchored = if self.folded {
+            None
+        } else {
+            port.row
+                .and_then(|id| self.rows.iter().position(|row| row.id == id))
+                .map(|i| {
+                    let rect = self.row_rect(i, metrics);
+                    rect.origin[1] - self.position[1] + rect.size[1] * 0.5
+                })
+        };
+        let y = anchored.unwrap_or_else(|| self.terminal_offset(t, metrics));
         match port.side {
             PortSide::Left => [self.position[0], self.position[1] + y],
             PortSide::Right => [self.position[0] + self.width, self.position[1] + y],
             PortSide::Top => [self.position[0] + t * self.width, self.position[1]],
             PortSide::Bottom => [
                 self.position[0] + t * self.width,
-                self.position[1] + self.height(),
+                self.position[1] + self.height(metrics),
             ],
         }
     }
@@ -215,6 +389,11 @@ pub struct GraphDocument {
     pub version: u32,
     pub nodes: Vec<GraphNode>,
     pub connections: Vec<GraphConnection>,
+    /// Compact node style. Sizes depend on it, so it belongs to the document
+    /// rather than to a view; older documents default to the comfortable look
+    /// and untouched graphs keep their shape in saved files.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub compact: bool,
 }
 impl Default for GraphDocument {
     fn default() -> Self {
@@ -222,10 +401,18 @@ impl Default for GraphDocument {
             version: 1,
             nodes: vec![],
             connections: vec![],
+            compact: false,
         }
     }
 }
 impl GraphDocument {
+    pub fn metrics(&self) -> GraphMetrics {
+        if self.compact {
+            GraphMetrics::COMPACT
+        } else {
+            GraphMetrics::COMFORTABLE
+        }
+    }
     pub fn port(&self, id: GraphId) -> Option<(&GraphNode, &GraphPort)> {
         self.nodes
             .iter()
@@ -359,6 +546,39 @@ impl GraphViewport {
         self.pan = [
             cursor[0] - anchor[0] * self.zoom,
             cursor[1] - anchor[1] * self.zoom,
+        ];
+    }
+    /// Frame a set of nodes inside a view of `size`, leaving a margin. Used to
+    /// centre the branch an author just picked.
+    pub fn fit_to_nodes(
+        &mut self,
+        doc: &GraphDocument,
+        size: [f32; 2],
+        nodes: &std::collections::HashSet<GraphId>,
+    ) {
+        let mut min = [f32::MAX; 2];
+        let mut max = [f32::MIN; 2];
+        let mut found = false;
+        let metrics = doc.metrics();
+        for node in doc.nodes.iter().filter(|node| nodes.contains(&node.id)) {
+            let rect = node.rect(&metrics);
+            min[0] = min[0].min(rect.origin[0]);
+            min[1] = min[1].min(rect.origin[1]);
+            max[0] = max[0].max(rect.origin[0] + rect.size[0]);
+            max[1] = max[1].max(rect.origin[1] + rect.size[1]);
+            found = true;
+        }
+        if !found || size[0] <= 1. || size[1] <= 1. {
+            return;
+        }
+        const MARGIN: f32 = 60.;
+        let width = (max[0] - min[0] + MARGIN * 2.).max(1.);
+        let height = (max[1] - min[1] + MARGIN * 2.).max(1.);
+        self.zoom = (size[0] / width).min(size[1] / height).clamp(0.25, 1.5);
+        let center = [(min[0] + max[0]) * 0.5, (min[1] + max[1]) * 0.5];
+        self.pan = [
+            size[0] * 0.5 - center[0] * self.zoom,
+            size[1] * 0.5 - center[1] * self.zoom,
         ];
     }
 }
