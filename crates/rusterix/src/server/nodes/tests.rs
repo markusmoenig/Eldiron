@@ -2571,3 +2571,119 @@ fn dialogue_blank_rows_keep_their_output_numbers() {
     assert_eq!(choices[0].0, "");
     assert_eq!(choices[1].0, "Accept");
 }
+
+#[test]
+fn party_nodes_route_subject_and_health_without_scripts() {
+    struct PartyProbe {
+        joined: Vec<u32>,
+        messages: Vec<u32>,
+    }
+    impl WorldServices for PartyProbe {
+        fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+            Default::default()
+        }
+        fn join_party(&mut self, _: &Actor, leader: u32) -> Result<bool, String> {
+            self.joined.push(leader);
+            Ok(true)
+        }
+        fn health_below(&self, entity: u32, percent: f64) -> Result<bool, String> {
+            Ok(entity == 42 && percent == 50.)
+        }
+        fn message_to(
+            &mut self,
+            _: &Actor,
+            target: Option<u32>,
+            _: String,
+            _: &str,
+        ) -> Result<(), String> {
+            self.messages.push(target.unwrap());
+            Ok(())
+        }
+    }
+    let mut doc = action_graph("join", "join_party", vec![]);
+    let join = doc["nodes"][1]["id"].clone();
+    let done = Uuid::new_v4();
+    doc["nodes"][1]["ports"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id":done,"key":"done","direction":"Output","kind":"flow"}));
+    let message = Uuid::new_v4();
+    let input = Uuid::new_v4();
+    doc["nodes"].as_array_mut().unwrap().push(json!({"id":message,"definition":"message","rows":node_rows(vec![("text",json!({"Text":"Joined"})),("role",json!({"Text":"success"})),("recipient",json!({"Text":"event.subject"}))]),"ports":[{"id":input,"key":"in","direction":"Input","kind":"flow"}]}));
+    doc["connections"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id":Uuid::new_v4(),"from":done,"to":input}));
+    let mut runtime = Runtime::default();
+    let handle = runtime
+        .spawn(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            1,
+            Some(Registry::builtin().compile(&doc).unwrap()),
+        )
+        .unwrap();
+    let mut probe = PartyProbe {
+        joined: vec![],
+        messages: vec![],
+    };
+    runtime.send(
+        handle,
+        "join",
+        BTreeMap::from([("subject".into(), EventField::Entity(42))]),
+        0,
+    );
+    runtime.update(&mut probe);
+    assert_eq!(probe.joined, vec![42]);
+    assert_eq!(probe.messages, vec![42]);
+    assert!(runtime.traces.iter().all(|t| t.error.is_none()), "{join}");
+    // Missing subjects cannot silently recruit to the wrong party.
+    runtime.send(handle, "join", BTreeMap::new(), 0);
+    runtime.update(&mut probe);
+    assert_eq!(probe.joined, vec![42]);
+    let mut health = action_graph(
+        "hurt",
+        "health_check",
+        vec![(
+            "percent",
+            json!({"Number":{"value":50,"min":0,"max":100,"step":1}}),
+        )],
+    );
+    let matched = Uuid::new_v4();
+    health["nodes"][1]["ports"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id":matched,"key":"match","direction":"Output","kind":"flow"}));
+    health["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .push(doc["nodes"][2].clone());
+    health["connections"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id":Uuid::new_v4(),"from":matched,"to":input}));
+    let health_handle = runtime
+        .spawn(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            2,
+            Some(Registry::builtin().compile(&health).unwrap()),
+        )
+        .unwrap();
+    runtime.send(
+        health_handle,
+        "hurt",
+        BTreeMap::from([("subject".into(), EventField::Entity(42))]),
+        0,
+    );
+    runtime.update(&mut probe);
+    assert_eq!(probe.messages, vec![42, 42]);
+    runtime.send(
+        health_handle,
+        "hurt",
+        BTreeMap::from([("subject".into(), EventField::Entity(41))]),
+        0,
+    );
+    runtime.update(&mut probe);
+    assert_eq!(probe.messages, vec![42, 42]);
+}

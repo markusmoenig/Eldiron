@@ -22,6 +22,9 @@ const WALL_SPLIT_SPAN_ID_MASK: u128 = 0x5350_4C49_545F_5350_414E_0000_0000_0000;
 pub struct WallStyle {
     pub height: f32,
     pub thickness: f32,
+    /// World units covered by one texture repeat on generated wall faces.
+    #[serde(default = "default_wall_texture_scale")]
+    pub texture_scale: f32,
     pub brick_width: f32,
     pub brick_height: f32,
     pub mortar_gap: f32,
@@ -59,11 +62,16 @@ pub struct WallStyle {
     pub frame_source: Option<PixelSource>,
 }
 
+fn default_wall_texture_scale() -> f32 {
+    1.0
+}
+
 impl Default for WallStyle {
     fn default() -> Self {
         Self {
             height: 3.0,
             thickness: 0.35,
+            texture_scale: default_wall_texture_scale(),
             brick_width: 0.5,
             brick_height: 0.25,
             mortar_gap: 0.0125,
@@ -1481,6 +1489,9 @@ impl WallAssembly {
         object
             .properties
             .set("wall_area_surface", Value::Bool(true));
+        for face in &mut object.faces {
+            face.texture_scale = vek::Vec2::broadcast(self.style.texture_scale.max(0.001));
+        }
         object.ensure_face_paint_data();
         Some(object)
     }
@@ -1544,7 +1555,26 @@ impl WallAssembly {
         if self.junction_kind(node.id)? == WallJunctionKind::End {
             return None;
         }
-        let incident = self.connected_spans(node.id).collect::<Vec<_>>();
+        // A full-height opening reaching an endpoint leaves no masonry there.
+        // Do not generate a solid junction post across an otherwise open boundary.
+        let incident = self
+            .connected_spans(node.id)
+            .filter(|span| {
+                let style = span.style_override.as_ref().unwrap_or(&self.style);
+                let endpoint = if span.start_node == node.id {
+                    0.0
+                } else {
+                    self.span_length(span.id).unwrap_or(0.0)
+                };
+                !span.openings.iter().any(|opening| {
+                    opening.shape == WallOpeningShape::Rectangular
+                        && opening.bottom <= 1e-5
+                        && opening.bottom + opening.height >= style.height - 1e-5
+                        && opening.center - opening.width * 0.5 <= endpoint + 1e-5
+                        && opening.center + opening.width * 0.5 >= endpoint - 1e-5
+                })
+            })
+            .collect::<Vec<_>>();
         let primary_span = *incident.first()?;
         let style = primary_span.style_override.as_ref().unwrap_or(&self.style);
         if style.height <= 0.0 || style.thickness <= 0.0 {
@@ -1651,6 +1681,9 @@ impl WallAssembly {
         object
             .properties
             .set("paint_group_object_id", Value::Id(self.id));
+        for face in &mut object.faces {
+            face.texture_scale = vek::Vec2::broadcast(style.texture_scale.max(0.001));
+        }
         object.ensure_face_paint_data();
         Some(object)
     }
@@ -1870,6 +1903,9 @@ impl WallAssembly {
         object
             .properties
             .set("paint_group_object_id", Value::Id(self.id));
+        for face in &mut object.faces {
+            face.texture_scale = vek::Vec2::broadcast(style.texture_scale.max(0.001));
+        }
         object.ensure_face_paint_data();
         Some(object)
     }
@@ -3871,6 +3907,61 @@ impl Map {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn open_surface_boundaries_do_not_create_masonry_posts() {
+        let mut wall = WallAssembly::new("Open room surfaces");
+        wall.style.texture_scale = 4.0;
+        let nodes = [
+            Vec3::zero(),
+            Vec3::new(3.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 2.0),
+            Vec3::new(0.0, 0.0, 2.0),
+        ]
+        .map(|position| wall.add_node(position));
+        let mut boundary = Vec::new();
+        for i in 0..4 {
+            let id = wall.add_span(nodes[i], nodes[(i + 1) % 4]).unwrap();
+            let length = wall.span_length(id).unwrap();
+            let height = wall.style.height;
+            wall.span_mut(id).unwrap().openings.push(WallOpening {
+                id: Uuid::new_v4(),
+                center: length * 0.5,
+                bottom: 0.0,
+                width: length,
+                height,
+                shape: WallOpeningShape::Rectangular,
+                arch_radius: None,
+                frame: WallOpeningFrame {
+                    enabled: false,
+                    ..Default::default()
+                },
+            });
+            boundary.push(WallSurfaceEdge {
+                span_id: id,
+                forward: true,
+            });
+        }
+        let mut floor = WallAreaSurface::new(boundary.clone());
+        floor.elevation = 0.0;
+        floor.clearance = 0.0;
+        let mut ceiling = WallAreaSurface::new(boundary);
+        ceiling.elevation = 3.1;
+        ceiling.clearance = 0.0;
+        wall.area_surfaces.extend([floor, ceiling]);
+        let geometry = wall.structural_geometry();
+        assert_eq!(
+            geometry.len(),
+            2,
+            "Only the floor and ceiling should remain"
+        );
+        assert!(
+            geometry
+                .iter()
+                .flat_map(|object| &object.faces)
+                .all(|face| face.texture_scale == vek::Vec2::broadcast(4.0))
+        );
+    }
 
     #[test]
     fn shared_node_forms_a_corner_and_then_a_tee() {

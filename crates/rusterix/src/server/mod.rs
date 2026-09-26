@@ -6,6 +6,7 @@ pub mod event_observation;
 pub mod item;
 pub mod message;
 pub mod nodes;
+pub(crate) mod party;
 pub mod py_fn;
 pub mod region;
 pub mod region_host;
@@ -393,7 +394,7 @@ impl Server {
                             .into_iter()
                             .map(|data| EntityUpdate::unpack(&data))
                             .collect();
-                        let runtime_map = self.runtime_maps.get(&id).cloned();
+                        let runtime_map = self.runtime_maps.get(&id);
                         let guard_runtime_positions = self
                             .runtime_map_position_guards
                             .get(&id)
@@ -406,7 +407,7 @@ impl Server {
                                 entities,
                                 updates,
                                 assets,
-                                runtime_map.as_ref(),
+                                runtime_map,
                                 guard_runtime_positions,
                             );
                         } else {
@@ -415,7 +416,7 @@ impl Server {
                                 &mut entities,
                                 updates,
                                 assets,
-                                runtime_map.as_ref(),
+                                runtime_map,
                                 guard_runtime_positions,
                             );
                             self.entities.insert(id, entities);

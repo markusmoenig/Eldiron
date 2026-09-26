@@ -8,7 +8,7 @@ Recipes are named project or ruleset assets. Consumers resolve them through a sh
 ## Choose an authoring surface
 
 - **Eldiron Creator:** Recipes will appear as editable project assets with visual controls, live consumer previews, and an advanced text view. Until that integration is complete, use the canonical text workflow below.
-- **Canonical text:** Save `.recipe` documents in a project's recipe catalog. Eldiron Source projects currently discover them recursively inside `recipes/`.
+- **Canonical text:** Save `.recipe` documents in a project's recipe catalog. Import recipe documents into Creator’s recipe catalog.
 - **Command line:** Use `procedural-recipes` to validate and render previews from the same documents without building or running a game.
 
 The examples in this chapter use canonical text because it is copyable, versionable, and independent of the authoring surface.
@@ -101,24 +101,18 @@ Use `--watch` while editing to rerender after each saved change. A palette can b
 
 CLI rendering is useful even when a recipe is normally edited in Creator: it provides reproducible previews for documentation, automated checks, and comparing palette or seed variants.
 
-## Use recipes in a text project
+## Use recipes in a project
 
-Eldiron Source currently loads the text catalog and embeds its results during a normal build:
-
-```sh
-target/release/eldiron-source build path/to/project
-```
-
-Tile recipes are rendered during the build. Material and SDF documents remain in the compiled project so runtime consumers such as Avatar equipment can resolve their aliases. Parse and render failures stop the build and identify the document path, line, column, and stable diagnostic code.
+Import recipe documents into Creator and edit them in the recipe dock. Tile recipes provide baked textures; Material and SDF documents remain in the project for runtime consumers such as avatar equipment.
 
 ## Alias rules
 
-- Aliases are relative to the recipe catalog root. In an Eldiron Source project this is `recipes/`.
+- Aliases identify entries in the project recipe catalog.
 - The `.recipe` extension is omitted.
 - Alias matching is case-insensitive at runtime; lowercase aliases are recommended.
 - A file with one `Material` or `Sdf` declaration receives the file alias.
 - Grouped declarations use `<file-alias>/<declaration-id>`.
-- Duplicate aliases are build errors.
+- Duplicate aliases are errors.
 
 For example, a catalog entry `dungeon.recipe` containing `Material stone` and `Material mortar` exports `dungeon/stone` and `dungeon/mortar`.
 

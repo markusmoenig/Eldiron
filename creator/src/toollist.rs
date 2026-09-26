@@ -2620,9 +2620,17 @@ impl ToolList {
                 {
                     false
                 }
-                TheEvent::KeyCodeUp(TheValue::KeyCode(code)) if *code == TheKeyCode::Space => false,
+                TheEvent::KeyCodeUp(TheValue::KeyCode(code))
+                    if *code == TheKeyCode::Space
+                        && !server_ctx.game_mode
+                        && !server_ctx.game_input_mode =>
+                {
+                    false
+                }
                 TheEvent::KeyUp(TheValue::Char(c))
                     if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                        && !server_ctx.game_mode
+                        && !server_ctx.game_input_mode
                         && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd') =>
                 {
                     false
@@ -3445,6 +3453,8 @@ impl ToolList {
             }
             TheEvent::KeyUp(TheValue::Char(c)) => {
                 if server_ctx.editor_view_mode == EditorViewMode::FirstP
+                    && !server_ctx.game_mode
+                    && !server_ctx.game_input_mode
                     && matches!(c.to_ascii_lowercase(), 'w' | 'a' | 's' | 'd')
                 {
                     crate::editor::EDITCAMERA.write().unwrap().move_action = None;

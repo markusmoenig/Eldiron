@@ -826,11 +826,11 @@ mod tests {
         let mut project = Project::new();
         let material = ProceduralRecipeAsset::new(
             "dungeon",
-            include_str!("../../source_projects/stonefall-dungeon/recipes/dungeon.recipe"),
+            include_str!("../tests/fixtures/stonefall/dungeon.recipe"),
         );
         let tile = ProceduralRecipeAsset::new(
             "ceiling-stone",
-            include_str!("../../source_projects/stonefall-dungeon/recipes/ceiling-stone.recipe"),
+            include_str!("../tests/fixtures/stonefall/ceiling-stone.recipe"),
         );
         let tile_id = tile.id;
         project.procedural_recipes.insert(material.id, material);

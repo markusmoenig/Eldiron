@@ -117,6 +117,61 @@ struct IrradianceOccluder {
     max: Vec3<f32>,
 }
 
+// Bounds hierarchy avoids testing every dungeon triangle for every lighting probe.
+struct IrradianceOcclusionTree {
+    min: Vec3<f32>,
+    max: Vec3<f32>,
+    children: Option<(Box<Self>, Box<Self>)>,
+    triangles: Vec<IrradianceOccluder>,
+}
+impl IrradianceOcclusionTree {
+    fn new(mut triangles: Vec<IrradianceOccluder>) -> Self {
+        let mut min = Vec3::broadcast(f32::INFINITY);
+        let mut max = Vec3::broadcast(f32::NEG_INFINITY);
+        for triangle in &triangles {
+            for axis in 0..3 {
+                min[axis] = min[axis].min(triangle.min[axis]);
+                max[axis] = max[axis].max(triangle.max[axis]);
+            }
+        }
+        let children = if triangles.len() > 8 {
+            let extent = max - min;
+            let axis = (0..3)
+                .max_by(|a, b| extent[*a].total_cmp(&extent[*b]))
+                .unwrap();
+            triangles.sort_unstable_by(|a, b| {
+                (a.min[axis] + a.max[axis]).total_cmp(&(b.min[axis] + b.max[axis]))
+            });
+            let right = triangles.split_off(triangles.len() / 2);
+            Some((
+                Box::new(Self::new(std::mem::take(&mut triangles))),
+                Box::new(Self::new(right)),
+            ))
+        } else {
+            None
+        };
+        Self {
+            min,
+            max,
+            children,
+            triangles,
+        }
+    }
+    fn blocked(&self, origin: Vec3<f32>, dir: Vec3<f32>, max_t: f32) -> bool {
+        if !VM::segment_intersects_aabb(origin, dir, max_t, self.min, self.max) {
+            return false;
+        }
+        if let Some((left, right)) = &self.children {
+            return left.blocked(origin, dir, max_t) || right.blocked(origin, dir, max_t);
+        }
+        self.triangles.iter().any(|occ| {
+            VM::segment_intersects_aabb(origin, dir, max_t, occ.min, occ.max)
+                && ray_triangle_intersect(origin, dir, occ.a, occ.b, occ.c)
+                    .is_some_and(|(t, _, _)| t > 0.04 && t < max_t - 0.04)
+        })
+    }
+}
+
 fn palette_index_tile_uuid(index: u16) -> Uuid {
     Uuid::from_u128(0x50414C455454455F0000000000000000u128 | index as u128)
 }
@@ -5171,14 +5226,18 @@ impl VM {
                 let mut dirty_3d = false;
                 for ch in self.chunks_map.values_mut() {
                     if let Some(p) = ch.polys_map.get_mut(&id) {
-                        p.visible = visible;
-                        dirty_2d = true;
+                        if p.visible != visible {
+                            p.visible = visible;
+                            dirty_2d = true;
+                        }
                     }
                     if let Some(p3_vec) = ch.polys3d_map.get_mut(&id) {
                         for p3 in p3_vec.iter_mut() {
-                            p3.visible = visible;
+                            if p3.visible != visible {
+                                p3.visible = visible;
+                                dirty_3d = true;
+                            }
                         }
-                        dirty_3d = true;
                     }
                 }
                 if dirty_2d {
@@ -8709,9 +8768,9 @@ impl VM {
     fn irradiance_segment_visibility(
         probe: Vec3<f32>,
         source: Vec3<f32>,
-        occluders: &[IrradianceOccluder],
+        occluders: &IrradianceOcclusionTree,
     ) -> f32 {
-        if occluders.is_empty() {
+        if occluders.children.is_none() && occluders.triangles.is_empty() {
             return 1.0;
         }
         let to_source = source - probe;
@@ -8727,16 +8786,8 @@ impl VM {
             return 1.0;
         }
 
-        for occ in occluders {
-            if !Self::segment_intersects_aabb(origin, dir, max_t, occ.min, occ.max) {
-                continue;
-            }
-            let Some((t, _, _)) = ray_triangle_intersect(origin, dir, occ.a, occ.b, occ.c) else {
-                continue;
-            };
-            if t > 0.04 && t < max_t - 0.04 {
-                return IRRADIANCE_OCCLUSION_BLOCKED_VISIBILITY;
-            }
+        if occluders.blocked(origin, dir, max_t) {
+            return IRRADIANCE_OCCLUSION_BLOCKED_VISIBILITY;
         }
         1.0
     }
@@ -8767,7 +8818,7 @@ impl VM {
         if sources.is_empty() {
             return Self::disabled_irradiance_grid_data();
         }
-        let occluders = self.collect_irradiance_occluders();
+        let occluders = IrradianceOcclusionTree::new(self.collect_irradiance_occluders());
 
         let mut bmin = Vec3::broadcast(f32::INFINITY);
         let mut bmax = Vec3::broadcast(f32::NEG_INFINITY);
@@ -13745,6 +13796,43 @@ mod shader_tests {
     use crate::{Chunk, GeoId, Light, Poly3D};
     use uuid::Uuid;
     use vek::{Mat4, Vec3};
+
+    #[test]
+    fn irradiance_hierarchy_matches_flat_triangle_tests() {
+        use super::{IrradianceOccluder, IrradianceOcclusionTree, ray_triangle_intersect};
+        let triangles: Vec<_> = (0..64)
+            .map(|i| {
+                let x = i as f32 * 2.0;
+                IrradianceOccluder {
+                    a: [x, 0.0, 0.0],
+                    b: [x, 2.0, 0.0],
+                    c: [x, 0.0, 2.0],
+                    min: Vec3::new(x, 0.0, 0.0),
+                    max: Vec3::new(x, 2.0, 2.0),
+                }
+            })
+            .collect();
+        let tree = IrradianceOcclusionTree::new(triangles.clone());
+        for y in [-1.0, 0.25, 1.5, 3.0] {
+            for z in [-1.0, 0.25, 1.5, 3.0] {
+                for max_t in [0.5, 2.0, 40.0, 140.0] {
+                    let origin = Vec3::new(-1.0, y, z);
+                    let dir = Vec3::new(1.0, 0.0, 0.0);
+                    let flat = triangles.iter().any(|occ| {
+                        VM::segment_intersects_aabb(origin, dir, max_t, occ.min, occ.max)
+                            && ray_triangle_intersect(origin, dir, occ.a, occ.b, occ.c)
+                                .is_some_and(|(t, _, _)| t > 0.04 && t < max_t - 0.04)
+                    });
+                    assert_eq!(tree.blocked(origin, dir, max_t), flat);
+                }
+            }
+        }
+        assert!(!IrradianceOcclusionTree::new(vec![]).blocked(
+            Vec3::zero(),
+            Vec3::new(1.0, 0.0, 0.0),
+            10.0
+        ));
+    }
 
     #[test]
     fn explicit_normals_change_shading_without_changing_geometry_normals() {

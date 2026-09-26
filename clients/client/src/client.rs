@@ -169,6 +169,11 @@ impl Client {
                             TheKeyCode::Delete => Some("backspace".to_string()),
                             TheKeyCode::Escape => Some("escape".to_string()),
                             TheKeyCode::Space => Some("space".to_string()),
+                            TheKeyCode::Up => Some("up".to_string()),
+                            TheKeyCode::Down => Some("down".to_string()),
+                            TheKeyCode::Left => Some("left".to_string()),
+                            TheKeyCode::Right => Some("right".to_string()),
+                            TheKeyCode::Tab => Some("tab".to_string()),
                             _ => None,
                         })
                     };
@@ -187,6 +192,11 @@ impl Client {
                         TheKeyCode::Delete => Some("backspace".to_string()),
                         TheKeyCode::Escape => Some("escape".to_string()),
                         TheKeyCode::Space => Some("space".to_string()),
+                        TheKeyCode::Up => Some("up".to_string()),
+                        TheKeyCode::Down => Some("down".to_string()),
+                        TheKeyCode::Left => Some("left".to_string()),
+                        TheKeyCode::Right => Some("right".to_string()),
+                        TheKeyCode::Tab => Some("tab".to_string()),
                         _ => None,
                     });
                     if let Some(key) = key {
@@ -198,12 +208,26 @@ impl Client {
                         self.rusterix.server.local_player_action(action);
                     }
                 }
-                TheEvent::KeyUp(v) => {
-                    if let Some(char) = v.to_char() {
+                TheEvent::KeyUp(v) | TheEvent::KeyCodeUp(v) => {
+                    let key = v.to_char().map(|c| c.to_string()).or_else(|| {
+                        v.to_key_code().and_then(|code| match code {
+                            TheKeyCode::Return => Some("enter".to_string()),
+                            TheKeyCode::Delete => Some("backspace".to_string()),
+                            TheKeyCode::Escape => Some("escape".to_string()),
+                            TheKeyCode::Space => Some("space".to_string()),
+                            TheKeyCode::Up => Some("up".to_string()),
+                            TheKeyCode::Down => Some("down".to_string()),
+                            TheKeyCode::Left => Some("left".to_string()),
+                            TheKeyCode::Right => Some("right".to_string()),
+                            TheKeyCode::Tab => Some("tab".to_string()),
+                            _ => None,
+                        })
+                    });
+                    if let Some(key) = key {
                         let action = self
                             .rusterix
                             .client
-                            .user_event("key_up".into(), Value::Str(char.to_string()));
+                            .user_event("key_up".into(), Value::Str(key));
 
                         self.rusterix.server.local_player_action(action);
                     }

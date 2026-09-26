@@ -72,3 +72,17 @@ Blank choice rows keep their output numbers. If conditions hide every answer, th
 **Quest State** branches on the participating player's Not Started, Active or Completed state for a Quest ID. **Set Quest** starts, completes or resets that quest on the player, with Done, Unchanged and Failed outputs. **Quest Guard**, **Item Guard**, and **Player Attribute Guard** control Prompt answer visibility through Show if inputs. A Quest Guard can also check Not Completed. On an NPC's Intent branch, the participating player is `event.subject`; on a player graph, the player is the graph owner. Quest IDs use letters, numbers, `_` and `-`; an unset quest is Not Started.
 
 See [examples](behavior_examples) for complete branch layouts.
+
+## Party and support
+
+**Join Party** recruits this character to the player in `event.subject`. **Done** means it joined or already belonged to that party. **Failed** covers a full party or an unavailable leader. The ruleset sets capacity through `[party] max_companions` (default 3). Recruitment clears its current target and movement. `hide_when_joined` optionally hides a companion; this does not change life state or stop its node events.
+
+**Leave Party** removes this character's membership. **Done** means it left; **Failed** means it was not a companion. A companion hidden by `hide_when_joined` becomes visible again.
+
+**Party Damaged** exposes `event.subject` (injured member), `event.amount` and `event.kind`. **Health Check** follows **Match** when that subject is alive and health is at or below the selected percentage; otherwise it follows **Not Match**. Health attributes come from the ruleset's attribute roles.
+
+A support branch can be **Party Damaged → Health Check (50%) → Use Action (minor_heal)**. Use Action offers supported entity-targeted attacks and spells from the ruleset; costs, reagents and cooldowns remain ruleset responsibilities.
+
+**Set Target** sets the normal, highlighted current target from a field such as `event.attacker` or `event.subject`. An empty field clears it. **Respawn Character** restores life state, returns to the recorded spawn and restores ruleset maximum health, without changing optional visibility.
+
+**Message** can address an event entity through its Recipient field, for example `event.subject`. Empty addresses the graph owner.

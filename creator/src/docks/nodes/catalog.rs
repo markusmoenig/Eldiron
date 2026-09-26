@@ -61,6 +61,15 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
                 ("count", GraphValueType::Number),
             ],
         ),
+        (
+            "party_damaged",
+            fl!("node_party_damaged"),
+            vec![
+                ("subject", GraphValueType::Entity),
+                ("amount", GraphValueType::Number),
+                ("kind", GraphValueType::Text),
+            ],
+        ),
         ("death", fl!("node_death"), vec![]),
         (
             "kill",
@@ -755,6 +764,12 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         &fl!("node_role"),
         GraphControlValue::Text(String::new()),
     );
+    row(
+        &mut message,
+        "recipient",
+        &fl!("node_message_recipient"),
+        GraphControlValue::Text(String::new()),
+    );
     port(&mut message, "in", "", PortDirection::Input, 0.5);
     port(
         &mut message,
@@ -908,6 +923,101 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         &goto,
     ))
     .unwrap();
+    for (id, title, fields) in [
+        ("respawn_character", fl!("node_respawn_character"), false),
+        ("set_target", fl!("node_set_target"), true),
+    ] {
+        let mut node = GraphNode::new(&title, [0., 0.], [35, 87, 134, 255]);
+        if fields {
+            row(
+                &mut node,
+                "field",
+                &fl!("node_target_field"),
+                GraphControlValue::Text(String::new()),
+            );
+        }
+        port(&mut node, "in", "", PortDirection::Input, 0.5);
+        port(
+            &mut node,
+            "done",
+            &fl!("node_done"),
+            PortDirection::Output,
+            0.35,
+        );
+        port(
+            &mut node,
+            "failed",
+            &fl!("node_action_failed"),
+            PortDirection::Output,
+            0.8,
+        );
+        defs.register_node(GraphNodeDefinition::from_template(
+            id,
+            &fl!("node_group_actions"),
+            &node,
+        ))
+        .unwrap();
+    }
+    for (id, title) in [
+        ("join_party", fl!("node_join_party")),
+        ("leave_party", fl!("node_leave_party")),
+    ] {
+        let mut node = GraphNode::new(&title, [0., 0.], [35, 87, 134, 255]);
+        port(&mut node, "in", "", PortDirection::Input, 0.5);
+        port(
+            &mut node,
+            "done",
+            &fl!("node_done"),
+            PortDirection::Output,
+            0.35,
+        );
+        port(
+            &mut node,
+            "failed",
+            &fl!("node_action_failed"),
+            PortDirection::Output,
+            0.8,
+        );
+        defs.register_node(GraphNodeDefinition::from_template(
+            id,
+            &fl!("node_group_actions"),
+            &node,
+        ))
+        .unwrap();
+    }
+    let mut health = GraphNode::new(&fl!("node_health_check"), [0., 0.], [164, 98, 35, 255]);
+    row(
+        &mut health,
+        "percent",
+        &fl!("node_health_percent"),
+        GraphControlValue::Number {
+            value: 50.,
+            min: 0.,
+            max: 100.,
+            step: 1.,
+        },
+    );
+    port(&mut health, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut health,
+        "match",
+        &fl!("node_match"),
+        PortDirection::Output,
+        0.35,
+    );
+    port(
+        &mut health,
+        "not_match",
+        &fl!("node_no_match"),
+        PortDirection::Output,
+        0.8,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "health_check",
+        &fl!("node_group_logic"),
+        &health,
+    ))
+    .unwrap();
     let mut action = GraphNode::new(&fl!("node_use_action"), [0., 0.], [35, 87, 134, 255]);
     let options: Vec<String> = rules
         .parse::<toml::Table>()
@@ -920,17 +1030,19 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
                     actions
                         .iter()
                         .filter(|(_, action)| {
-                            action.get("kind").and_then(toml::Value::as_str) == Some("attack")
-                                && matches!(
-                                    action.get("target").and_then(toml::Value::as_str),
-                                    Some(
-                                        "hostile_entity"
-                                            | "hostile_or_neutral_entity"
-                                            | "friendly_entity"
-                                            | "friendly_or_self"
-                                            | "any_entity"
-                                    )
+                            matches!(
+                                action.get("kind").and_then(toml::Value::as_str),
+                                Some("attack" | "spell")
+                            ) && matches!(
+                                action.get("target").and_then(toml::Value::as_str),
+                                Some(
+                                    "hostile_entity"
+                                        | "hostile_or_neutral_entity"
+                                        | "friendly_entity"
+                                        | "friendly_or_self"
+                                        | "any_entity"
                                 )
+                            )
                         })
                         .map(|(id, _)| id.clone())
                         .collect()

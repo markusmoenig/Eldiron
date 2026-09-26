@@ -1062,7 +1062,7 @@ impl GameWidget {
             {
                 return;
             }
-            render_debug_log(&format!(
+            let report = format!(
                 "[RenderDebug][GameWidget] prepare_frame total={:.2}ms build={:.2} stream={:.2} tick_batch={:.2} receive_upload={:.2} visibility={:.2} prepare_mode={:.2} budget={} processed={} received_chunks={} clears={} dirty {}->{} loaded {}->{} geometry_changed={}",
                 total_ms,
                 debug_build_ms,
@@ -1080,7 +1080,10 @@ impl GameWidget {
                 debug_loaded_before,
                 self.loaded_chunks.len(),
                 geometry_changed
-            ));
+            );
+            if debug_enabled {
+                render_debug_log(&report);
+            }
         }
     }
 

@@ -207,7 +207,8 @@ impl Tool for GameTool {
                     }
                 }
             }
-            TheEvent::KeyCodeDown(TheValue::KeyCode(code)) => {
+            TheEvent::KeyCodeDown(TheValue::KeyCode(code))
+            | TheEvent::KeyCodeUp(TheValue::KeyCode(code)) => {
                 if server_ctx.text_game_mode {
                     return false;
                 }
@@ -216,14 +217,25 @@ impl Tool for GameTool {
                     TheKeyCode::Delete => Some("backspace"),
                     TheKeyCode::Escape => Some("escape"),
                     TheKeyCode::Space => Some("space"),
+                    TheKeyCode::Up => Some("up"),
+                    TheKeyCode::Down => Some("down"),
+                    TheKeyCode::Left => Some("left"),
+                    TheKeyCode::Right => Some("right"),
+                    TheKeyCode::Tab => Some("tab"),
                     _ => None,
                 };
                 if let Some(key) = key {
                     let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
                     if rusterix.server.state == rusterix::ServerState::Running {
-                        let action = rusterix
-                            .client
-                            .user_event("key_down".into(), Value::Str(key.to_string()));
+                        let action = rusterix.client.user_event(
+                            if matches!(event, TheEvent::KeyCodeUp(_)) {
+                                "key_up"
+                            } else {
+                                "key_down"
+                            }
+                            .into(),
+                            Value::Str(key.to_string()),
+                        );
                         rusterix.server.local_player_action(action);
                     }
                 }

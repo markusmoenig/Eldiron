@@ -1113,6 +1113,37 @@ mod tests {
             .unwrap()
     }
     #[test]
+    fn stonefall_project_compiles_all_graphs_and_rebuilds_editable_walls() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../test_projects/StonefallDungeon.eldiron");
+        let bytes = std::fs::read(path).expect("Stonefall fixture");
+        let project = crate::project_io::decode_project(&bytes).unwrap();
+        for (key, graph) in &project.node_graphs {
+            if key.starts_with("behavior/") {
+                rusterix::server::nodes::Registry::shared()
+                    .compile(graph)
+                    .unwrap_or_else(|e| panic!("{key}: {e}"));
+            }
+        }
+        let map = &project.regions[0].map;
+        assert!(!map.wall_assemblies.is_empty());
+        assert_eq!(
+            map.wall_assemblies
+                .iter()
+                .map(|wall| wall.area_surfaces.len())
+                .sum::<usize>(),
+            40
+        );
+        assert_eq!(map.block_prop_instances.len(), 1);
+        assert!(
+            map.geometry_objects
+                .iter()
+                .all(|o| o.tags.iter().any(|t| t == "eldiron_generated_wall"))
+        );
+        assert!(project.characters.values().all(|c| c.source.is_empty()));
+        assert!(project.items.values().all(|i| i.source.is_empty()));
+    }
+    #[test]
     fn configuration_definitions_have_unique_port_keys() {
         let definitions = builtin_registry().definitions(&rules());
         for definition in definitions.nodes() {

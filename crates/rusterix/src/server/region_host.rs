@@ -1,4 +1,5 @@
 use crate::server::message::{AudioCommand, RegionMessage};
+use crate::server::party::join_entity_party;
 use crate::server::region::{
     RegionInstance, add_debug_value, apply_damage_direct, apply_damage_rules,
     apply_spell_default_attrs, consume_attack_ammunition_for_source, craft_ruleset_recipe,
@@ -24,56 +25,6 @@ use vek::{Vec2, Vec3};
 
 struct RegionHost<'a> {
     ctx: &'a mut RegionCtx,
-}
-
-fn join_entity_party(ctx: &mut RegionCtx, companion_id: u32, leader_id: u32) -> Option<i32> {
-    if companion_id == leader_id || !ctx.map.entities.iter().any(|entity| entity.id == leader_id) {
-        return None;
-    }
-
-    if let Some(existing) = ctx
-        .map
-        .entities
-        .iter()
-        .find(|entity| entity.id == companion_id)
-        .and_then(|entity| entity.attributes.get_int("party_index"))
-        .filter(|index| *index > 0)
-    {
-        return Some(existing);
-    }
-
-    let occupied = ctx
-        .map
-        .entities
-        .iter()
-        .filter_map(|entity| entity.attributes.get_int("party_index"))
-        .collect::<std::collections::HashSet<_>>();
-    let slot = (1..=3).find(|slot| !occupied.contains(slot))?;
-
-    let companion = ctx
-        .map
-        .entities
-        .iter_mut()
-        .find(|entity| entity.id == companion_id)?;
-    companion.set_attribute("party_member", Value::Bool(true));
-    companion.set_attribute("party_index", Value::Int(slot));
-    companion.set_attribute("party_role", Value::Str(format!("party.{slot}")));
-    companion.set_attribute("party_leader_id", Value::UInt(leader_id));
-    companion.set_attribute("target", Value::Str(String::new()));
-    companion.set_attribute("attack_target", Value::Str(String::new()));
-    if companion
-        .attributes
-        .get_bool_default("hide_when_joined", false)
-    {
-        companion.set_attribute("visible", Value::Bool(false));
-    }
-    companion.action = EntityAction::Off;
-    companion.active_sequence = None;
-    companion.paused_sequence = None;
-    companion.mark_all_dirty();
-
-    ctx.entity_proximity_alerts.remove(&companion_id);
-    Some(slot)
 }
 
 enum SpellTargetArg {
@@ -3682,6 +3633,8 @@ mod tests {
         arena.add_entity(2, "Existing Companion", 10, 0, None);
         arena.add_entity(3, "Companion", 10, 0, None);
         arena.set_entity_attr(2, "party_member", Value::Bool(true));
+        arena.set_entity_attr(1, "player", Value::Bool(true));
+        arena.set_entity_attr(2, "party_leader_id", Value::UInt(1));
         arena.set_entity_attr(2, "party_index", Value::Int(1));
         arena.set_entity_attr(3, "hide_when_joined", Value::Bool(true));
         arena.ctx.map.entities[2].action = EntityAction::RandomWalk(1.0, 1.0, 1, 0, Vec2::zero());

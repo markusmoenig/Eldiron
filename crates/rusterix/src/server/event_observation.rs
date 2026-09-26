@@ -90,7 +90,7 @@ pub fn capture(ctx: &RegionCtx, name: &str, value: &VMValue) -> Option<EventObse
         ScriptScope::Item => {
             let Some(i) = ctx
                 .curr_item_id
-                .and_then(|id| ctx.map.items.iter().find(|i| i.id == id))
+                .and_then(|id| ctx.items().find(|i| i.id == id))
             else {
                 return None;
             };
@@ -106,13 +106,17 @@ pub fn capture(ctx: &RegionCtx, name: &str, value: &VMValue) -> Option<EventObse
     match name {
         "arrived" => text("destination"),
         "entered" | "left" => text("area"),
-        "damaged" => text("kind"),
+        "damaged" | "party_damaged" => text("kind"),
         "intent" => text("intent"),
         _ => {}
     }
     match name {
         "damaged" => {
             fields.insert("attacker".into(), EventField::Entity(value.x as u32));
+            fields.insert("amount".into(), EventField::Number(value.y as f64));
+        }
+        "party_damaged" => {
+            fields.insert("subject".into(), EventField::Entity(value.x as u32));
             fields.insert("amount".into(), EventField::Number(value.y as f64));
         }
         "intent" => {

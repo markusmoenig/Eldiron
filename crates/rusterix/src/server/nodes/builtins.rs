@@ -1,5 +1,7 @@
 use super::*;
 pub(super) fn register(registry: &mut Registry) {
+    super::party::register(registry);
+    super::lifecycle::register(registry);
     registry.register(Box::new(QuestStateModule)).unwrap();
     registry.register(Box::new(SetQuestModule)).unwrap();
     registry.register(Box::new(QuestGuardModule)).unwrap();
@@ -470,12 +472,14 @@ impl NodeModule for MessageModule {
         Ok(Box::new(Message {
             text: text(p, "text")?,
             role: text(p, "role").unwrap_or_default(),
+            recipient: text(p, "recipient").unwrap_or_default(),
         }))
     }
 }
 struct Message {
     text: String,
     role: String,
+    recipient: String,
 }
 impl Operation for Message {
     fn execute(
@@ -484,7 +488,20 @@ impl Operation for Message {
         world: &mut dyn WorldServices,
     ) -> Result<&'static str, String> {
         let text = render_event_template(ctx, &self.text)?;
-        world.message(ctx.actor, text, self.role.trim())?;
+        let target = if self.recipient.trim().is_empty() {
+            None
+        } else {
+            match ctx.event.fields.get(
+                self.recipient
+                    .trim()
+                    .strip_prefix("event.")
+                    .unwrap_or(self.recipient.trim()),
+            ) {
+                Some(EventField::Entity(id)) => Some(*id),
+                _ => return Err("Message recipient must reference an event entity".into()),
+            }
+        };
+        world.message_to(ctx.actor, target, text, self.role.trim())?;
         Ok("out")
     }
 }

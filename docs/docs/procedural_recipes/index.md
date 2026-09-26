@@ -47,13 +47,12 @@ This chapter documents implemented behavior separately from planned architecture
 
 ## Authoring surfaces
 
-Recipes are not tied to Eldiron Source. They belong to the project or ruleset recipe catalog and may be consumed by any compatible Eldiron system.
+Recipes belong to the project or ruleset recipe catalog and may be consumed by any compatible Eldiron system.
 
 - **Eldiron Creator** is the intended primary visual authoring surface. Recipe assets will be editable from the project tree with live previews and a canonical text view as integration is completed.
-- **Text projects** can store `.recipe` documents directly in their recipe catalog. Eldiron Source currently provides this workflow.
 - **The command-line tool** validates and renders the same canonical documents, making it useful for previews, automation, and external-editor workflows.
 
-The visual editor and text representation should describe the same recipe program. Moving between them must not create a separate Creator-only or Source-only format.
+The visual editor and text representation should describe the same recipe program. Moving between them must not create a separate separate format.
 
 ## In this chapter
 

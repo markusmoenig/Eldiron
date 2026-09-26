@@ -1923,6 +1923,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn dungeon_black_sky_stays_black_when_time_changes() {
+        let mut settings = RenderSettings::default();
+        settings.read("[render]\nsky_color = \"#000000\"\nsun_enabled = false\n[simulation]\nenabled = false\n").unwrap();
+        for hour in [0.0, 6.0, 12.0, 18.0] {
+            settings.apply_hour(hour);
+            assert_eq!(settings.sky_color, [0.0; 3]);
+            assert!(!settings.sun_enabled);
+        }
+    }
+
+    #[test]
     fn load_example_toml() {
         let example = include_str!("../render_settings_example.toml");
         let mut settings = RenderSettings::default();

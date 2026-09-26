@@ -824,6 +824,33 @@ impl CollisionWorld {
         Some((new_position, arrived))
     }
 
+    /// Local autonomous movement: stop at obstacles instead of expanding a navgrid.
+    /// Random roaming can discard an obstructed destination and pick another one.
+    /// Keeps the autonomous collision radius and floor/step-height rules.
+    pub fn move_towards_on_floors_local(
+        &self,
+        from: Vec2<f32>,
+        to: Vec2<f32>,
+        speed: f32,
+        radius: f32,
+        max_step_height: f32,
+        reference_y: f32,
+    ) -> Option<(Vec3<f32>, bool)> {
+        let base_height = self
+            .sample_reachable_floor_height(from, radius * 0.5, reference_y, max_step_height)
+            .or_else(|| self.get_floor_height_reachable(from, reference_y, max_step_height))?;
+        Some(self.step_towards_point(
+            from,
+            to,
+            speed,
+            radius,
+            base_height,
+            max_step_height,
+            0.05,
+            false,
+        ))
+    }
+
     /// Direct local movement on floors without navgrid/path waypoint expansion.
     /// Intended for short player input steps where pathfinding causes overshoot on stairs.
     pub fn move_towards_on_floors_direct(
@@ -2533,6 +2560,56 @@ mod tests {
         // Open door
         world.set_opening_state(door_id, true);
         assert!(world.get_opening_state(&door_id).unwrap().is_passable);
+    }
+
+    #[test]
+    fn local_roaming_moves_on_floors_and_stops_at_walls() {
+        let mut world = CollisionWorld::new(10);
+        let mut chunk = ChunkCollision::new();
+        let geo_id = GeoId::Sector(1);
+        chunk
+            .walkable_floors
+            .push(WalkableFloor::flat(geo_id, 0.0, rect(0.0, 0.0, 8.0, 8.0)));
+        chunk.static_volumes.push(BlockingVolume {
+            geo_id,
+            min: Vec3::new(3.0, 0.0, 0.0),
+            max: Vec3::new(3.5, 3.0, 8.0),
+        });
+        world.update_chunk(Vec2::new(0, 0), chunk);
+        let (clear, arrived) = world
+            .move_towards_on_floors_local(
+                Vec2::new(1.5, 2.5),
+                Vec2::new(2.0, 2.5),
+                0.5,
+                0.49,
+                1.0,
+                0.0,
+            )
+            .unwrap();
+        assert!(arrived);
+        assert!((clear.x - 2.0).abs() < 0.05);
+        let mut pos = Vec2::new(clear.x, clear.z);
+        for _ in 0..16 {
+            let (next, arrived) = world
+                .move_towards_on_floors_local(pos, Vec2::new(5.5, 2.5), 0.5, 0.49, 1.0, 0.0)
+                .unwrap();
+            assert!(!arrived);
+            assert!(next.x < 3.0);
+            assert!(next.y.abs() < 0.05);
+            pos = Vec2::new(next.x, next.z);
+        }
+        assert!(
+            world
+                .move_towards_on_floors_local(
+                    Vec2::new(20.0, 20.0),
+                    Vec2::new(21.0, 20.0),
+                    0.5,
+                    0.49,
+                    1.0,
+                    0.0,
+                )
+                .is_none()
+        );
     }
 
     #[test]

@@ -1346,19 +1346,12 @@ impl Dock for ConsoleDock {
             }
         }
 
-        if let TheEvent::Custom(id, TheValue::Text(command)) = event
-            && id.name == CONSOLE_FEEDBACK_ACTION
-        {
-            self.set_input(ui, ctx, command);
-            if let Some(input_id) = Self::console_input_id(ui) {
-                ctx.ui.set_focus(&input_id);
-            }
-            return true;
-        }
-
-        if let TheEvent::ValueChanged(id, value) = event
-            && id.name == CONSOLE_INPUT
-        {
+        let submitted_command = match event {
+            TheEvent::Custom(id, value) if id.name == CONSOLE_FEEDBACK_ACTION => Some(value),
+            TheEvent::ValueChanged(id, value) if id.name == CONSOLE_INPUT => Some(value),
+            _ => None,
+        };
+        if let Some(value) = submitted_command {
             let command = value.to_string().unwrap_or_default();
             let command = command.trim().to_string();
             if command.is_empty() {
@@ -1405,6 +1398,29 @@ impl Dock for ConsoleDock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clicking_console_command_submits_without_enter() {
+        let mut dock = ConsoleDock::new();
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(640, 480, 1.0);
+        let mut project = Project::default();
+        let mut server = ServerContext::default();
+        assert!(dock.handle_event(
+            &TheEvent::Custom(
+                TheId::named(CONSOLE_FEEDBACK_ACTION),
+                TheValue::Text("list".into())
+            ),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server,
+        ));
+        assert_eq!(
+            dock.take_pending_requests(),
+            ConsoleDock::parse_command("list").unwrap()
+        );
+    }
 
     #[test]
     fn concise_editor_commands_use_stable_ids() {

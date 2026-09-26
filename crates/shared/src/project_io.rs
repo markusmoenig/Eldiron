@@ -144,6 +144,12 @@ pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
             .map_err(|err| format!("invalid legacy Eldiron project JSON: {err}")),
         ProjectFileFormat::ArchiveV1 => decode_project_archive(bytes),
     }?;
+    // Wall assemblies are the source of truth, including maps authored without cached meshes.
+    for region in &mut project.regions {
+        if !region.map.wall_assemblies.is_empty() {
+            region.map.rebuild_wall_geometry();
+        }
+    }
     if let Err(error) = crate::entity_graph::synchronize(&mut project) {
         eprintln!("Entity configuration: {error}");
     }

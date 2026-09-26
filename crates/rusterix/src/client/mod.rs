@@ -3235,10 +3235,12 @@ impl Client {
         scene_handler.set_timings(self.target_fps as f32, self.game_tick_ms);
         self.update_active_player_camera(map);
 
-        // Reset the intent to the server value
+        // Preserve selected slot targeting until the user chooses a target.
         self.current_sector.clear();
         if let Some(leader) = Self::resolve_party_entity(map, Some("leader")) {
-            self.intent = leader.get_attr_string("intent").unwrap_or_default();
+            self.intent = self
+                .selected_slot_intent(map, assets)
+                .unwrap_or_else(|| leader.get_attr_string("intent").unwrap_or_default());
             self.current_sector = leader
                 .get_attr_string("sector")
                 .filter(|s| !s.is_empty())
@@ -4048,7 +4050,9 @@ impl Client {
         let say_fallback_color = self.messages_font_color;
 
         if let Some(leader) = Self::resolve_party_entity(map, Some("leader")) {
-            self.intent = leader.get_attr_string("intent").unwrap_or_default();
+            self.intent = self
+                .selected_slot_intent(map, assets)
+                .unwrap_or_else(|| leader.get_attr_string("intent").unwrap_or_default());
             self.current_sector = leader
                 .get_attr_string("sector")
                 .filter(|s| !s.is_empty())
@@ -10335,6 +10339,18 @@ impl Client {
     }
 
     /// Returns the intent of the currently activated button
+    /// Slot buttons resolve from the selected entity's current rules/configuration.
+    /// Keep their selection while waiting for a target; the server has not received it yet.
+    fn selected_slot_intent(&self, map: &Map, assets: &Assets) -> Option<String> {
+        self.activated_widgets.iter().rev().find_map(|id| {
+            let widget = self.button_widgets.get(id)?;
+            widget.command_slot.as_ref()?;
+            let entity = Self::resolve_party_entity(map, widget.party.as_deref());
+            Self::resolved_widget_intent_payload(widget, assets, entity, &self.ui_state)
+                .filter(|intent| !intent.is_empty())
+        })
+    }
+
     fn get_current_intent(&self) -> Option<String> {
         // Newer activations should win, and non-intent buttons (e.g. camera toggles)
         // must not mask an existing intent.
@@ -14280,6 +14296,67 @@ mod tests {
         .into();
         let changed = client.actions_panel_layout(&map, &assets).unwrap();
         assert_eq!(changed.entries[0].command, "rules.holy_light");
+    }
+
+    #[test]
+    fn slot_attack_selection_stays_selected_during_first_person_movement() {
+        let mut assets = Assets::default();
+        assets.rules = "[classes.Warrior.action_bar]\nmain = [\"rules.basic_attack\"]".into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class", Value::Str("Warrior".into()));
+        player.set_attribute("intent", Value::Str(String::new()));
+        let mut map = Map::default();
+        map.entities.push(player);
+        let mut client = Client::new();
+        client.button_widgets.insert(
+            42,
+            Widget {
+                id: 42,
+                command_slot: Some("main.0".into()),
+                ..Default::default()
+            },
+        );
+        client.activate_targeting_button(42);
+        client.intent.clear();
+        let payload = client.selected_slot_intent(&map, &assets).unwrap();
+        assert_eq!(payload, "action:basic_attack");
+        client.intent = payload;
+        assert_eq!(
+            client.get_current_intent_for_action().as_deref(),
+            Some("action:basic_attack")
+        );
+        map.entities[0].set_attribute("command_slot_main_0", Value::Str("rules.minor_heal".into()));
+        assert_eq!(
+            client.selected_slot_intent(&map, &assets).as_deref(),
+            Some("action:minor_heal")
+        );
+        client.active_player_camera = Some(PlayerCamera::D3FirstPGrid);
+        client
+            .client_action
+            .lock()
+            .unwrap()
+            .set_input_data("[input]\nw = \"control.forward\"\na = \"control.left\"");
+        for (key, expected) in [("w", EntityAction::Forward), ("a", EntityAction::Left)] {
+            assert_eq!(
+                client.user_event("key_down".into(), Value::Str(key.into())),
+                expected
+            );
+            assert_eq!(
+                client.user_event("key_up".into(), Value::Str(key.into())),
+                EntityAction::Off
+            );
+            assert!(client.activated_widgets.contains(&42));
+            assert!(client.permanently_activated_widgets.contains(&42));
+            assert_eq!(
+                client.get_current_intent_for_action().as_deref(),
+                Some("action:basic_attack")
+            );
+            assert_eq!(
+                client.selected_slot_intent(&map, &assets).as_deref(),
+                Some("action:minor_heal")
+            );
+        }
     }
 
     #[test]

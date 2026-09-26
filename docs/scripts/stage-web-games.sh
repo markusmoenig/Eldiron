@@ -32,7 +32,7 @@ done
 
 cp "$repo_root/starters/projects/Hideout2D.eldiron" "$web_root/hideout/game.eldiron"
 cp "$repo_root/starters/projects/Gate.eldiron" "$web_root/gate/game.eldiron"
-cp "$repo_root/source_projects/stonefall-dungeon/build/stonefall-dungeon.eldiron" \
+cp "$repo_root/test_projects/StonefallDungeon.eldiron" \
   "$web_root/stonefall/game.eldiron"
 
 echo "Staged the Eldiron web client and 3 games in $web_root"

@@ -36,7 +36,8 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
         "on_area" => matches!(pc, ProjectContext::RegionArea(_, _)),
         "on_enter_area" => !matches!(pc, ProjectContext::RegionArea(_, _)),
         "player_camera" | "routine" | "random_walk" | "resume_routine" | "go_to" | "lookout"
-        | "engage" | "use_action" => matches!(
+        | "engage" | "use_action" | "join_party" | "leave_party" | "health_check"
+        | "set_target" | "respawn_character" => matches!(
             pc,
             ProjectContext::Character(_)
                 | ProjectContext::CharacterCode(_)
@@ -61,6 +62,11 @@ pub fn node_help(key: &str) -> String {
         "lookout" => fl!("node_lookout_help"),
         "engage" => fl!("node_engage_help"),
         "use_action" => fl!("node_use_action_help"),
+        "respawn_character" => fl!("node_respawn_character_help"),
+        "set_target" => fl!("node_set_target_help"),
+        "join_party" => fl!("node_join_party_help"),
+        "leave_party" => fl!("node_leave_party_help"),
+        "health_check" => fl!("node_health_check_help"),
         "event" => fl!("node_event_help"),
         "on_enter_area" => fl!("node_on_enter_area_help"),
         "on_area" => fl!("node_on_area_help"),

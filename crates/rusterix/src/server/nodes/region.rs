@@ -84,9 +84,7 @@ pub fn dispatch(ctx: &mut RegionCtx, event: EventObservation) {
             .and_then(|e| e.get_attr_string("class_name"))
             .unwrap_or_default(),
         EventOwner::Item(id) => ctx
-            .map
-            .items
-            .iter()
+            .items()
             .find(|i| i.creator_id == *id)
             .and_then(|i| i.get_attr_string("class_name"))
             .unwrap_or_default(),
@@ -157,7 +155,7 @@ fn dispatch_graph(
             )
         }
         EventOwner::Item(identity) => {
-            let Some(item) = ctx.map.items.iter().find(|i| i.creator_id == identity) else {
+            let Some(item) = ctx.items().find(|i| i.creator_id == identity) else {
                 return;
             };
             (
@@ -190,9 +188,7 @@ fn dispatch_graph(
                 .chain(ctx.stashed_entities.values())
                 .any(|e| e.creator_id == *id && e.id == actor.render_id),
             Some(EventOwner::Item(id)) => !ctx
-                .map
-                .items
-                .iter()
+                .items()
                 .any(|i| i.creator_id == *id && i.id == actor.render_id),
             _ => false,
         })
@@ -251,9 +247,7 @@ fn dispatch_graph(
             .map(|entity| entity.attributes.get_bool_default("visible", true))
             .unwrap_or(true),
         EventOwner::Item(_) => ctx
-            .map
-            .items
-            .iter()
+            .items()
             .find(|item| item.id == render_id)
             .map(|item| item.attributes.get_bool_default("visible", true))
             .unwrap_or(true),
@@ -413,10 +407,7 @@ impl RegionServices<'_> {
             };
             let item = self
                 .ctx
-                .map
-                .items
-                .iter_mut()
-                .find(|item| item.id == item_id)
+                .get_item_mut(item_id)
                 .ok_or("Item no longer exists")?;
             item.set_attribute(attribute, WorldValue::Bool(enabled));
             let object = item.attributes.get_id("geometry_object_id");
@@ -439,10 +430,7 @@ impl RegionServices<'_> {
         }
         let item = self
             .ctx
-            .map
-            .items
-            .iter_mut()
-            .find(|item| item.id == item_id)
+            .get_item_mut(item_id)
             .ok_or("Item no longer exists")?;
         item.set_attribute(attribute, value);
         let active = item.attributes.get_bool_default("active", false);
@@ -469,10 +457,7 @@ impl RegionServices<'_> {
             let item_id = actor.render_id;
             let item = self
                 .ctx
-                .map
-                .items
-                .iter_mut()
-                .find(|item| item.id == item_id)
+                .get_item_mut(item_id)
                 .ok_or("Item no longer exists")?;
             let active =
                 forced.unwrap_or_else(|| item.attributes.get_bool_default("active", false));
@@ -480,6 +465,14 @@ impl RegionServices<'_> {
                 light.active = active;
                 item.mark_dirty_attribute("light");
             }
+            let tile = item
+                .attributes
+                .get_str(if active { "on_tile_id" } else { "off_tile_id" })
+                .and_then(crate::server::data::parse_tile_source_from_str);
+            if let Some(source) = tile {
+                item.set_attribute("source", WorldValue::Source(source));
+            }
+
             return Ok(());
         }
         let entity = find_actor_entity_mut(self.ctx, &self.owner, actor)
@@ -716,6 +709,117 @@ impl WorldServices for RegionServices<'_> {
         }
         Ok(())
     }
+    fn respawn(&mut self, actor: &Actor) -> Result<(), String> {
+        if !self.acts_on_entity() {
+            return Err("Respawn requires a character".into());
+        }
+        let id = actor.render_id;
+        if !apply_entity_mode(self.ctx, id, "active") {
+            return Err("Character no longer exists".into());
+        }
+        if !crate::server::region::return_entity_to_spawn(self.ctx, id) {
+            return Err("Character has no spawn position".into());
+        }
+        let health = self.ctx.health_attr.clone();
+        let max_health = self.ctx.max_health_attr.clone();
+        if let Some(entity) = self.ctx.map.entities.iter_mut().find(|e| e.id == id) {
+            if let Some(max) = entity.attributes.get(&max_health).cloned() {
+                entity.set_attribute(&health, max);
+            }
+        }
+        self.ctx.set_entity_target(id, None);
+        Ok(())
+    }
+    fn set_target(&mut self, actor: &Actor, target: Option<u32>) -> Result<(), String> {
+        if !self.acts_on_entity() {
+            return Err("Set Target requires a character".into());
+        }
+        if target.is_some_and(|id| {
+            !self
+                .ctx
+                .map
+                .entities
+                .iter()
+                .any(|e| e.id == id && e.get_mode() != "dead")
+        }) {
+            return Err("Target no longer exists or is dead".into());
+        }
+        self.ctx.set_entity_target(actor.render_id, target);
+        Ok(())
+    }
+    fn message_to(
+        &mut self,
+        actor: &Actor,
+        target: Option<u32>,
+        text: String,
+        role: &str,
+    ) -> Result<(), String> {
+        let Some(target) = target else {
+            return self.message(actor, text, role);
+        };
+        if let Some(sender) = self.ctx.from_sender.get() {
+            let _ = sender.send(RegionMessage::Message(
+                self.ctx.region_id,
+                if matches!(self.owner, EventOwner::Item(_)) {
+                    None
+                } else {
+                    Some(actor.render_id)
+                },
+                if matches!(self.owner, EventOwner::Item(_)) {
+                    Some(actor.render_id)
+                } else {
+                    None
+                },
+                target,
+                text,
+                role.to_string(),
+            ));
+        }
+        Ok(())
+    }
+    fn join_party(&mut self, actor: &Actor, leader: u32) -> Result<bool, String> {
+        if !self.acts_on_entity() {
+            return Err("Join Party requires a character".into());
+        }
+        let joined =
+            crate::server::party::join_entity_party(self.ctx, actor.render_id, leader).is_some();
+        if joined {
+            self.ctx.set_entity_target(actor.render_id, None);
+        }
+        Ok(joined)
+    }
+    fn leave_party(&mut self, actor: &Actor) -> Result<bool, String> {
+        if !self.acts_on_entity() {
+            return Err("Leave Party requires a character".into());
+        }
+        Ok(crate::server::party::leave_entity_party(
+            self.ctx,
+            actor.render_id,
+        ))
+    }
+    fn health_below(&self, id: u32, percent: f64) -> Result<bool, String> {
+        let entity = self
+            .ctx
+            .map
+            .entities
+            .iter()
+            .find(|e| e.id == id)
+            .ok_or("Health Check subject no longer exists")?;
+        let hp = entity
+            .attributes
+            .get(&self.ctx.health_attr)
+            .and_then(|v| v.to_f32())
+            .unwrap_or(0.0);
+        let max = entity
+            .attributes
+            .get(&self.ctx.max_health_attr)
+            .and_then(|v| v.to_f32())
+            .unwrap_or(0.0);
+        Ok(entity.get_mode() != "dead"
+            && hp > 0.0
+            && max > 0.0
+            && hp as f64 * 100.0 <= max as f64 * percent)
+    }
     fn use_action(
         &mut self,
         actor: &Actor,
@@ -839,8 +943,13 @@ impl WorldServices for RegionServices<'_> {
             .iter_mut()
             .find(|e| e.id == actor.render_id)
             .ok_or("Character no longer exists")?;
-        entity.action =
-            crate::EntityAction::RandomWalkInSector(distance, speed, pause, 0, vek::Vec2::zero());
+        entity.action = if area.is_empty() {
+            // No destination means free roaming across walkable geometry, rather than
+            // confinement to whichever individual floor mesh contains the character.
+            crate::EntityAction::RandomWalk(distance, speed, pause, 0, vek::Vec2::zero())
+        } else {
+            crate::EntityAction::RandomWalkInSector(distance, speed, pause, 0, vek::Vec2::zero())
+        };
         Ok(true)
     }
     fn resume_routine(&mut self, actor: &Actor) -> Result<(), String> {
@@ -888,9 +997,7 @@ impl WorldServices for RegionServices<'_> {
             let item_id = actor.render_id;
             let hint = self
                 .ctx
-                .map
-                .items
-                .iter()
+                .items()
                 .find(|item| item.id == item_id)
                 .and_then(|item| item.attributes.get(attribute))
                 .cloned();
@@ -926,6 +1033,15 @@ impl WorldServices for RegionServices<'_> {
         Ok(())
     }
     fn attribute_display(&self, actor: &Actor, name: &str) -> Option<String> {
+        if matches!(self.owner, EventOwner::Item(_)) {
+            return self
+                .ctx
+                .items()
+                .find(|i| i.id == actor.render_id)?
+                .attributes
+                .get(name)
+                .map(|v| v.to_string());
+        }
         let entity = find_actor_entity(self.ctx, &self.owner, actor)?;
         entity.attributes.get(name).map(|value| value.to_string())
     }
@@ -942,10 +1058,7 @@ impl WorldServices for RegionServices<'_> {
             let next = {
                 let item = self
                     .ctx
-                    .map
-                    .items
-                    .iter_mut()
-                    .find(|item| item.id == item_id)
+                    .get_item_mut(item_id)
                     .ok_or("Item no longer exists")?;
                 let next = !item.attributes.get_bool_default(attribute, false);
                 item.set_attribute(attribute, WorldValue::Bool(next));
@@ -1116,9 +1229,7 @@ impl WorldServices for RegionServices<'_> {
         let item_owner = matches!(self.owner, EventOwner::Item(_));
         let source = if item_owner {
             self.ctx
-                .map
-                .items
-                .iter()
+                .items()
                 .find(|item| item.id == actor.render_id)
                 .map(|item| {
                     (
@@ -1334,7 +1445,7 @@ fn tick_graph(ctx: &mut RegionCtx, key: &str, behaviors: &mut GraphBehavior) {
                     .chain(ctx.stashed_entities.values())
                     .any(|e| e.creator_id == *id && e.id == render_id)
             }
-            EventOwner::Item(id) => ctx.map.items.iter().any(|e| e.creator_id == *id),
+            EventOwner::Item(id) => ctx.items().any(|e| e.creator_id == *id),
             _ => true,
         };
         if !exists {
@@ -1440,9 +1551,7 @@ fn refresh_runtime(ctx: &mut RegionCtx, key: &str, plan: Arc<Plan>, behaviors: &
                     .get_attr_string("class_name")
                     .unwrap_or_default(),
                 EventOwner::Item(id) => ctx
-                    .map
-                    .items
-                    .iter()
+                    .items()
                     .find(|i| i.creator_id == *id && i.id == actor.render_id)?
                     .get_attr_string("class_name")
                     .unwrap_or_default(),

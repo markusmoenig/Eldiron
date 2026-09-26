@@ -8,6 +8,8 @@ use std::sync::{Arc, OnceLock};
 use theframework::prelude::Uuid;
 
 mod builtins;
+mod lifecycle;
+mod party;
 pub use builtins::time_range_contains;
 pub mod conversation;
 pub use conversation::{CONSEQUENCE_PORTS, CONSEQUENCE_SLOTS, Choice, Conversation, Step, Then};
@@ -115,6 +117,34 @@ pub trait WorldServices {
         Err("Use Action requires a character".into())
     }
 
+    fn join_party(&mut self, _actor: &Actor, _leader: u32) -> Result<bool, String> {
+        Err("Join Party requires a character".into())
+    }
+    fn leave_party(&mut self, _actor: &Actor) -> Result<bool, String> {
+        Err("Leave Party requires a character".into())
+    }
+    fn health_below(&self, _entity: u32, _percent: f64) -> Result<bool, String> {
+        Err("Health Check requires a character".into())
+    }
+
+    fn respawn(&mut self, _actor: &Actor) -> Result<(), String> {
+        Err("Respawn requires a character".into())
+    }
+    fn set_target(&mut self, _actor: &Actor, _target: Option<u32>) -> Result<(), String> {
+        Err("Set Target requires a character".into())
+    }
+    fn message_to(
+        &mut self,
+        actor: &Actor,
+        target: Option<u32>,
+        text: String,
+        role: &str,
+    ) -> Result<(), String> {
+        if target.is_some_and(|id| id != actor.render_id) {
+            return Err("Targeted messages are not supported by this world".into());
+        }
+        self.message(actor, text, role)
+    }
     fn activity_status(&self, _actor: &Actor) -> Option<String> {
         None
     }

@@ -1111,7 +1111,7 @@ node_escape_distance = Escape distance
 node_use_action = Use Action
 node_ruleset_action = Ruleset action
 node_action_failed = Failed
-node_use_action_help = Perform a ruleset attack once, using event.subject or the current target. The ruleset checks eligibility, range, costs and cooldowns. Done means the action was accepted; Failed reports refusal. This node currently targets characters.
+node_use_action_help = Perform a ruleset attack or spell once, using event.subject or the current target. The ruleset checks eligibility, range, costs and cooldowns. Done means the action was accepted; Failed reports refusal. This node currently targets characters.
 node_quest_state = Quest State
 node_set_quest = Set Quest
 node_quest_id = Quest ID
@@ -1188,3 +1188,19 @@ entity_inherit = Inherit
 entity_empty = Add an Entity node, then connect configuration nodes to its input.
 
 entity_inputs = Input Mapping
+
+node_party_damaged = Party Damaged
+node_join_party = Join Party
+node_leave_party = Leave Party
+node_health_check = Health Check
+node_health_percent = Health at or below (%)
+node_join_party_help = Join the player in event.subject. Done means joined or already in that party; Failed means unavailable or full. Capacity comes from the ruleset.
+node_leave_party_help = Leave this character's party. Done means membership was removed; Failed means the character was not a companion.
+node_health_check_help = Match when event.subject is alive and health is at or below this percentage. Uses the ruleset health and maximum-health attributes.
+
+node_respawn_character = Respawn Character
+node_respawn_character_help = Return to the recorded spawn and restore ruleset maximum health. Restores life state without changing visibility.
+node_set_target = Set Target
+node_target_field = Event entity field (empty clears)
+node_set_target_help = Set the current target from an event entity, such as event.attacker or event.subject. Empty clears the target. Uses normal target highlighting.
+node_message_recipient = Recipient event field (empty: self)

@@ -21,7 +21,7 @@ appearance_tiling = [2.0, 3.0]
 appearance_seed = 419
 ```
 
-Creator will expose these bindings through item and equipment controls. The table above is also the data form used by current ruleset and Eldiron Source items.
+Creator will expose these bindings through item and equipment controls. The table above is also the data form used by current ruleset items.
 
 | Attribute | Purpose |
 | --- | --- |

@@ -1168,6 +1168,17 @@ impl RegionCtx {
         true
     }
 
+    /// All owned items, including carried items and inventory on a stashed body.
+    pub fn items(&self) -> impl Iterator<Item = &Item> {
+        self.map.items.iter().chain(
+            self.map
+                .entities
+                .iter()
+                .chain(self.stashed_entities.values())
+                .flat_map(|e| e.inventory.iter().filter_map(|i| i.as_ref())),
+        )
+    }
+
     /// Search for a mutable reference to an item with the given ID. Checks the map and the inventory of each entity.
     pub fn get_item_mut(&mut self, item_id: u32) -> Option<&mut Item> {
         if let Some(item) = self.map.items.iter_mut().find(|item| item.id == item_id) {
@@ -1181,6 +1192,13 @@ impl RegionCtx {
                     if item.id == item_id {
                         return Some(item);
                     }
+                }
+            }
+        }
+        for entity in self.stashed_entities.values_mut() {
+            for item in entity.inventory.iter_mut().flatten() {
+                if item.id == item_id {
+                    return Some(item);
                 }
             }
         }

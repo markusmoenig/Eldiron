@@ -1966,6 +1966,78 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn first_person_grid_movement_release_stops_repeating() {
+        let instance = RegionInstance::new(9918);
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_orientation(Vec2::new(0.0, -1.0));
+        for action in [
+            EntityAction::Left,
+            EntityAction::Right,
+            EntityAction::Forward,
+            EntityAction::Backward,
+            EntityAction::StrafeLeft,
+            EntityAction::StrafeRight,
+        ] {
+            RegionInstance::update_grid_input_state(&mut player, &action);
+            assert!(
+                instance.queue_grid_action_from_desired(&mut player, &PlayerCamera::D3FirstPGrid)
+            );
+            assert!(matches!(
+                player.action,
+                EntityAction::RotateTo(_) | EntityAction::StepTo(_, _, _, _, _)
+            ));
+            RegionInstance::update_grid_input_state(&mut player, &EntityAction::Off);
+            assert!(
+                !instance.queue_grid_action_from_desired(&mut player, &PlayerCamera::D3FirstPGrid)
+            );
+            assert_eq!(player.action, EntityAction::Off);
+        }
+    }
+
+    #[test]
+    fn spawned_grid_player_startup_ignores_previous_item_context() {
+        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
+        clear_regionctx_store();
+        let mut ctx = RegionCtx::default();
+        ctx.current_script_scope = ScriptScope::Item;
+        ctx.curr_item_id = Some(999);
+        ctx.entity_player_classes.insert("Player".into());
+        ctx.entity_class_data.insert(
+            "Player".into(),
+            "[attributes]\nplayer = true\nplayer_camera = \"firstp_grid\"".into(),
+        );
+        ctx.entity_programs
+            .insert("Player".into(), Arc::new(crate::vm::Program::new()));
+        ctx.assets.node_behaviors = Some(Default::default());
+        let ctx = Arc::new(Mutex::new(ctx));
+        register_regionctx(9919, ctx.clone());
+        let mut instance = RegionInstance::new(9919);
+        let mut player = Entity::new();
+        player.set_attribute("class_name", Value::Str("Player".into()));
+        let identity = player.creator_id;
+        instance.create_entity_instance(player);
+        {
+            let ctx = ctx.lock().unwrap();
+            let player = ctx
+                .map
+                .entities
+                .iter()
+                .find(|e| e.creator_id == identity)
+                .unwrap();
+            assert!(matches!(
+                player.attributes.get("player_camera"),
+                Some(Value::PlayerCamera(PlayerCamera::D3FirstPGrid))
+            ));
+            assert!(ctx.event_observations.iter().any(|e| e.name == "startup"
+                && e.owner == crate::server::event_observation::EventOwner::Entity(identity)));
+            assert_eq!(ctx.curr_item_id, Some(999));
+            assert!(matches!(ctx.current_script_scope, ScriptScope::Item));
+        }
+        clear_regionctx_store();
+    }
+
+    #[test]
     fn grid_player_direction_key_applies_rules_action_intent() {
         let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
         clear_regionctx_store();
@@ -10122,6 +10194,7 @@ impl RegionInstance {
                                     }
                                     if is_grid_player
                                         && Self::is_movement_input_action(&action)
+                                        && action != EntityAction::Off
                                         && action == Self::blocked_grid_action(entity)
                                     {
                                         return;
@@ -11664,7 +11737,7 @@ impl RegionInstance {
                                 let (new_position, new_y, mut arrived) = if use_3d_nav {
                                     let (desired_position, arrived_hint) = ctx
                                         .collision_world
-                                        .move_towards_on_floors(
+                                        .move_towards_on_floors_local(
                                             position,
                                             *target,
                                             step_speed,
@@ -11951,7 +12024,7 @@ impl RegionInstance {
                                 let (new_position, new_y, mut arrived) = if use_3d_nav {
                                     let (desired_position, arrived_hint) = ctx
                                         .collision_world
-                                        .move_towards_on_floors(
+                                        .move_towards_on_floors_local(
                                             position,
                                             *target,
                                             step_speed,
@@ -12768,8 +12841,15 @@ impl RegionInstance {
                 // Register player
                 if ctx.entity_player_classes.contains(&class_name) {
                     if let Some(entity) = get_entity_mut(&mut ctx.map, ctx.curr_entity_id) {
-                        entity
-                            .set_attribute("player_camera", Value::PlayerCamera(PlayerCamera::D2));
+                        if !matches!(
+                            entity.attributes.get("player_camera"),
+                            Some(Value::PlayerCamera(_))
+                        ) {
+                            entity.set_attribute(
+                                "player_camera",
+                                Value::PlayerCamera(PlayerCamera::D2),
+                            );
+                        }
                     }
 
                     self.from_sender
@@ -12798,6 +12878,11 @@ impl RegionInstance {
             //
 
             with_regionctx(self.id, |ctx: &mut RegionCtx| {
+                let previous_scope = ctx.current_script_scope;
+                let previous_item_id = ctx.curr_item_id;
+                ctx.current_script_scope = ScriptScope::Entity;
+                ctx.curr_item_id = None;
+                ctx.curr_entity_id = entity.id;
                 // Send startup event
                 if let Some(program) = ctx.entity_programs.get(&class_name).cloned() {
                     let args = [VMValue::from_string("startup"), VMValue::zero()];
@@ -12831,6 +12916,8 @@ impl RegionInstance {
                         flush_pending_entity_transfers(ctx);
                     }
                 }
+                ctx.curr_item_id = previous_item_id;
+                ctx.current_script_scope = previous_scope;
             });
             // if !sector_name.is_empty() {
             //     let cmd = format!("{}.event(\"entered\", \"{}\")", class_name, sector_name);

@@ -236,7 +236,13 @@ pub fn render_roguelike_map(map: &Map) -> Option<Vec<String>> {
 pub fn source_terrain(map: &Map) -> Option<Vec<Vec<char>>> {
     map.sectors
         .iter()
-        .find_map(|sector| sector.properties.get_str("eldiron_source_terrain"))
+        .find_map(|sector| {
+            sector
+                .properties
+                .get_str("terminal_terrain")
+                .or_else(|| sector.properties.get_str("eldiron_source_terrain"))
+        })
+        .or_else(|| map.properties.get_str("terminal_terrain"))
         .map(|terrain| {
             terrain
                 .lines()
