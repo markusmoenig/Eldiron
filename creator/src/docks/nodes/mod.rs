@@ -1,4 +1,5 @@
 mod catalog;
+mod entity;
 mod list;
 mod live;
 mod overlay;
@@ -9,8 +10,8 @@ pub use list::{
 };
 mod conversation;
 use conversation::{Click as ConversationClick, ConversationEditor, Field as ConversationField};
-use rusterix::server::nodes::Conversation;
 use overlay::{TextOverlay, TextTarget};
+use rusterix::server::nodes::Conversation;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use theframework::thegraph::*;
@@ -23,7 +24,6 @@ const COPY_BRANCH: &str = "Node Graph Copy Branch";
 const PASTE_BRANCH: &str = "Node Graph Paste Branch";
 const BRANCH_REMOVE: &str = "Node Graph Branch Remove";
 const BRANCH_TIDY: &str = "Node Graph Branch Tidy";
-const TOGGLE_COMPACT: &str = "Node Graph Compact";
 #[derive(Default)]
 struct History {
     undo: Vec<GraphDocument>,
@@ -43,6 +43,7 @@ pub struct NodesDock {
     live: live::LiveEvents,
     load_error: Option<String>,
     popup: Option<(GraphPicker, Option<Uuid>)>,
+    choice_target: Option<TextTarget>,
     /// Graph copied with the toolbar, ready to paste into another graph.
     clipboard: Option<GraphDocument>,
     /// Multi-line editor open over the graph for one long value.
@@ -108,6 +109,16 @@ impl GraphContext for AuthoringContext<'_> {
             .map(|e| fl!("node_on_event", event = e.label.clone()))
     }
     fn row_label(&self, n: &GraphNode, r: &GraphRow) -> Option<String> {
+        if n.definition
+            .as_deref()
+            .is_some_and(|id| id.starts_with("entity"))
+        {
+            if let GraphControlValue::Choice { options, selected } = &r.value {
+                if options.get(*selected).is_some_and(|s| s.is_empty()) {
+                    return Some(fl!("entity_inherit"));
+                }
+            }
+        }
         if r.key.as_deref() == Some("event") {
             return self
                 .0
@@ -130,10 +141,37 @@ fn node_editor() -> GraphEditor {
     editor.viewport.zoom_at(editor.viewport.pan, 0.9);
     editor
 }
+struct NodeConnectionPolicy;
+impl GraphConnectionPolicy for NodeConnectionPolicy {
+    fn validate(&self, doc: &GraphDocument, from: GraphId, to: GraphId) -> Result<(), String> {
+        let (source, _) = doc.port(from).ok_or_else(|| fl!("node_guard_connection"))?;
+        let (_, target) = doc.port(to).ok_or_else(|| fl!("node_guard_connection"))?;
+        let is_guard = matches!(
+            source.definition.as_deref(),
+            Some("quest_guard" | "item_guard" | "player_attribute_guard")
+        );
+        let is_guard_input = target
+            .key
+            .as_deref()
+            .is_some_and(|key| key.starts_with("when:"));
+        if doc
+            .port(from)
+            .is_some_and(|(_, p)| p.kind == "entity-config")
+        {
+            return Ok(());
+        }
+        if is_guard != is_guard_input {
+            return Err(fl!("node_guard_connection"));
+        }
+        Ok(())
+    }
+}
 
 impl NodesDock {
     fn owner(pc: ProjectContext) -> Option<String> {
         Some(match pc {
+            ProjectContext::CharacterData(id) => shared::entity_graph::character_key(id),
+            ProjectContext::ItemData(id) => shared::entity_graph::item_key(id),
             ProjectContext::CharacterCode(id) | ProjectContext::Character(id) => {
                 format!("behavior/character/{id}")
             }
@@ -177,6 +215,7 @@ impl NodesDock {
             buffer.pixel_height(),
             buffer.render_scale(),
         );
+        let configuration = self.is_configuration();
         let mut painter = RasterGraphPainter::new(
             buffer.pixels_mut(),
             width,
@@ -197,7 +236,9 @@ impl NodesDock {
             &GraphTheme::default(),
         );
         if self.doc.nodes.is_empty() || self.load_error.is_some() {
-            let empty = if self.owner.is_some() {
+            let empty = if configuration {
+                fl!("entity_empty")
+            } else if self.owner.is_some() {
                 fl!("node_empty")
             } else {
                 fl!("node_select_behavior")
@@ -232,7 +273,10 @@ impl NodesDock {
             overlay.paint(&mut painter, &GraphTheme::default());
             painter.text(
                 GraphRect {
-                    origin: [overlay.rect.origin[0] + 14., overlay.rect.origin[1] + overlay.rect.size[1] - 22.],
+                    origin: [
+                        overlay.rect.origin[0] + 14.,
+                        overlay.rect.origin[1] + overlay.rect.size[1] - 22.,
+                    ],
                     size: [overlay.rect.size[0] - 28., 18.],
                 },
                 &fl!("node_text_overlay_hint"),
@@ -240,24 +284,27 @@ impl NodesDock {
                 [163, 169, 166, 255],
             );
         }
-        self.sync_compact_button(ui);
         if self.branches_dirty {
             self.sync_branches(ui, ctx);
         }
         ctx.ui.redraw_all = true;
     }
     fn store(&mut self, project: &mut Project, checkpoint: bool) {
-        let Some(owner) = &self.owner else {
+        let Some(owner) = self.owner.clone() else {
             return;
         };
         if self.load_error.is_some() || self.editor.text_focus().is_some() {
             return;
         }
-        if !project.node_graphs.contains_key(owner)
+        if !project.node_graphs.contains_key(&owner)
             && self.doc == self.committed
             && self.doc.nodes.is_empty()
         {
             return;
+        }
+        self.refresh_configuration(project);
+        if checkpoint {
+            catalog::sync_fields(&mut self.doc, &self.definitions);
         }
         if checkpoint && self.doc != self.committed {
             let h = self.histories.entry(owner.clone()).or_default();
@@ -266,9 +313,14 @@ impl NodesDock {
             self.committed = self.doc.clone();
         }
         let value = serde_json::to_value(&self.doc).unwrap();
-        if project.node_graphs.get(owner) != Some(&value) {
+        if project.node_graphs.get(&owner) != Some(&value) {
             project.node_graphs.insert(owner.clone(), value.clone());
-            rusterix::server::publish_node_graph(owner.clone(), value);
+            if owner.starts_with(shared::entity_graph::PREFIX) {
+                // Invalid drafts remain editable; keep the last valid projection.
+                let _ = shared::entity_graph::update_owner(project, &owner, &self.doc);
+            } else {
+                rusterix::server::publish_node_graph(owner.clone(), value);
+            }
             self.dirty = true;
             self.branches_dirty = true;
         }
@@ -360,12 +412,14 @@ impl NodesDock {
         let Some(field) = self.conversation_field.take() else {
             if commit && overlay.changed() {
                 Self::write_value(&mut self.doc, &overlay.target, overlay.text().to_string());
+                catalog::sync_fields(&mut self.doc, &self.definitions);
                 return true;
             }
             return false;
         };
         // A conversation field belongs to the panel, not to a node row.
-        if commit && overlay.changed()
+        if commit
+            && overlay.changed()
             && let Some(editor) = self.conversation.as_mut()
         {
             editor.set_text(field, overlay.text().to_string());
@@ -470,16 +524,6 @@ impl NodesDock {
             .viewport
             .fit_to_nodes(&self.doc, [d.width as f32, d.height as f32], &nodes);
     }
-    /// The compact button reflects the document's node style.
-    fn sync_compact_button(&self, ui: &mut TheUI) {
-        if let Some(button) = ui.get_widget(TOGGLE_COMPACT) {
-            button.set_state(if self.doc.compact {
-                TheWidgetState::Selected
-            } else {
-                TheWidgetState::Clicked
-            });
-        }
-    }
     /// Lay the shown branch out left to right. Returns true when it moved.
     fn tidy_branch(&mut self) -> bool {
         let Some(nodes) = self.shown_branch().1 else {
@@ -504,16 +548,9 @@ impl NodesDock {
     fn open_conversation(&mut self, point: [f32; 2], view: [f32; 2]) -> bool {
         let graph_point = self.editor.viewport.to_graph(point);
         let metrics = self.doc.metrics();
-        let Some(node) = self
-            .doc
-            .nodes
-            .iter()
-            .rev()
-            .find(|node| {
-                node.definition.as_deref() == Some("talk")
-                    && node.rect(&metrics).contains(graph_point)
-            })
-        else {
+        let Some(node) = self.doc.nodes.iter().rev().find(|node| {
+            node.definition.as_deref() == Some("talk") && node.rect(&metrics).contains(graph_point)
+        }) else {
             return false;
         };
         let Some(conversation) = Self::conversation_of(node) else {
@@ -532,7 +569,12 @@ impl NodesDock {
         let Ok(data) = serde_json::to_value(editor.conversation()) else {
             return false;
         };
-        let Some(node) = self.doc.nodes.iter_mut().find(|node| node.id == editor.node) else {
+        let Some(node) = self
+            .doc
+            .nodes
+            .iter_mut()
+            .find(|node| node.id == editor.node)
+        else {
             return false;
         };
         let mut row = GraphRow::new(
@@ -614,7 +656,6 @@ impl NodesDock {
                 .cloned()
                 .collect(),
             connections: vec![],
-            compact: self.doc.compact,
         };
         let ports: std::collections::HashSet<GraphId> = document
             .nodes
@@ -625,9 +666,7 @@ impl NodesDock {
             .doc
             .connections
             .iter()
-            .filter(|connection| {
-                ports.contains(&connection.from) && ports.contains(&connection.to)
-            })
+            .filter(|connection| ports.contains(&connection.from) && ports.contains(&connection.to))
             .cloned()
             .collect();
         Some(document)
@@ -652,7 +691,16 @@ impl NodesDock {
         let Some(clipboard) = self.clipboard.clone() else {
             return false;
         };
+        if clipboard.nodes.iter().any(|n| {
+            n.definition
+                .as_deref()
+                .is_some_and(|id| id.starts_with("entity") != self.is_configuration())
+        }) {
+            return false;
+        }
         self.finish(project);
+        let clipboard = clipboard;
+
         let moved = paste_graph(&mut self.doc, &clipboard);
         // The copied trigger heads the pasted branch, so focus what just landed.
         let root = clipboard
@@ -723,7 +771,32 @@ impl NodesDock {
             .and_then(|id| self.doc.nodes.iter().find(|n| n.id == id))
             .map(|n| [n.position[0] + n.width + 100., n.position[1]])
             .unwrap_or_else(|| self.editor.viewport.to_graph([60., 60.]));
-        if let Some(id) = target {
+        if let Some(choice) = self.choice_target.take() {
+            if let Some(row) = self
+                .doc
+                .nodes
+                .iter_mut()
+                .find(|n| n.id == choice.node)
+                .and_then(|n| n.rows.iter_mut().find(|r| r.id == choice.row))
+            {
+                let value = if let Some((r, c)) = choice.cell {
+                    if let GraphControlValue::List { rows, .. } = &mut row.value {
+                        rows.get_mut(r).and_then(|r| r.get_mut(c))
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(&mut row.value)
+                };
+                if let Some(GraphControlValue::Choice { options, selected }) = value {
+                    if let Ok(index) = item.id.parse::<usize>() {
+                        if index < options.len() {
+                            *selected = index;
+                        }
+                    }
+                }
+            }
+        } else if let Some(id) = target {
             if let Some(n) = self.doc.nodes.iter_mut().find(|n| n.id == id) {
                 if let Some(r) = n
                     .rows
@@ -786,11 +859,6 @@ impl NodesDock {
                 fl!("node_branch_tidy"),
                 fl!("status_node_branch_tidy"),
             ),
-            (
-                TOGGLE_COMPACT,
-                fl!("node_compact"),
-                fl!("status_node_compact"),
-            ),
         ] {
             let mut button = TheTraybarButton::new(TheId::named(id));
             button.set_text(text);
@@ -836,6 +904,7 @@ impl Dock for NodesDock {
             live: Default::default(),
             load_error: None,
             popup: None,
+            choice_target: None,
             clipboard: None,
             text_overlay: None,
             conversation: None,
@@ -867,10 +936,15 @@ impl Dock for NodesDock {
         server: &mut ServerContext,
     ) {
         let owner = Self::owner(server.pc);
-        self.definitions = catalog::definitions_for_project(project);
+        self.definitions = if entity::is_configuration(server.pc) {
+            entity::definitions(project)
+        } else {
+            catalog::definitions_for_project(project)
+        };
         self.editor.finish_text(&mut self.doc, false);
         self.editor.take_edits();
         self.popup = None;
+        self.choice_target = None;
         self.text_overlay = None;
         self.last_click = None;
         // Edits are persisted on input; keep the pending undo group on reactivation.
@@ -886,6 +960,7 @@ impl Dock for NodesDock {
             self.live = Default::default();
             self.editor = node_editor();
             self.popup = None;
+            self.choice_target = None;
         }
         self.load_error = None;
         self.doc = if let Some(value) = self.owner.as_ref().and_then(|k| project.node_graphs.get(k))
@@ -897,9 +972,26 @@ impl Dock for NodesDock {
                     GraphDocument::default()
                 }
             }
+        } else if self.is_configuration() {
+            let rules = shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+                .unwrap_or_default()
+                .parse::<shared::entity_graph::RulesTable>()
+                .unwrap_or_default();
+            shared::entity_graph::import(
+                self.owner
+                    .as_ref()
+                    .and_then(|key| shared::entity_graph::owner_data(project, key))
+                    .unwrap_or(""),
+                &rules,
+            )
+            .unwrap_or_default()
         } else {
             GraphDocument::default()
         };
+        if self.is_configuration() {
+            shared::entity_graph::normalize(&mut self.doc);
+        }
+        self.refresh_configuration(project);
         catalog::hydrate_lookout_distances(&mut self.doc, project);
         catalog::sync_fields(&mut self.doc, &self.definitions);
         // A branch is shown in its laid out shape, so an imported graph that
@@ -920,6 +1012,9 @@ impl Dock for NodesDock {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        if self.is_configuration() {
+            return false;
+        }
         if self.refresh_live(project, server) {
             self.render(ui, ctx);
             true
@@ -943,10 +1038,14 @@ impl Dock for NodesDock {
         self.histories.clear();
         self.live = Default::default();
         self.owner = None;
+        if self.is_configuration() {
+            shared::entity_graph::normalize(&mut self.doc);
+        }
         self.doc = GraphDocument::default();
         self.committed = self.doc.clone();
         self.editor = node_editor();
         self.popup = None;
+        self.choice_target = None;
         self.text_overlay = None;
         self.conversation = None;
         self.conversation_field = None;
@@ -1041,16 +1140,6 @@ impl Dock for NodesDock {
                     if self.remove_branch() {
                         self.finish(project);
                     }
-                    self.sync_branches(ui, ctx);
-                    self.fit_branch(ui);
-                    self.render(ui, ctx);
-                    return true;
-                }
-                TOGGLE_COMPACT if *state == TheWidgetState::Clicked => {
-                    self.doc.compact = !self.doc.compact;
-                    self.tidy_branch();
-                    self.finish(project);
-                    self.set_undo_state_to_ui(ctx);
                     self.sync_branches(ui, ctx);
                     self.fit_branch(ui);
                     self.render(ui, ctx);
@@ -1235,6 +1324,8 @@ impl Dock for NodesDock {
                         self.fit_branch(ui);
                     } else if picker.contains(point) {
                         self.popup = Some((picker, target));
+                    } else {
+                        self.choice_target = None;
                     }
                 } else {
                     let graph_point = self.editor.viewport.to_graph(point);
@@ -1248,7 +1339,10 @@ impl Dock for NodesDock {
                                 && n.row_rect(0, &self.doc.metrics()).contains(graph_point)
                         })
                         .map(|n| n.id);
-                    if let Some(id) = event_node {
+                    if self.is_configuration() && self.open_configuration_choice(point, ui) {
+                        self.editor.finish_text(&mut self.doc, false);
+                    } else if let Some(id) = event_node {
+                        self.choice_target = None;
                         self.finish(project);
                         let row = self
                             .doc
@@ -1313,7 +1407,7 @@ impl Dock for NodesDock {
                 self.editor.pointer_up(
                     &mut self.doc,
                     [p.x as f32, p.y as f32],
-                    &AllowGraphConnections,
+                    &NodeConnectionPolicy,
                 );
                 checkpoint = self.editor.text_focus().is_none();
             }
@@ -1424,7 +1518,9 @@ impl Dock for NodesDock {
                     self.close_conversation(project, true);
                 } else if let Some((mut p, target)) = self.popup.take() {
                     match key {
-                        TheKeyCode::Escape => {}
+                        TheKeyCode::Escape => {
+                            self.choice_target = None;
+                        }
                         TheKeyCode::Return => {
                             let items = p.filtered();
                             let selected = items

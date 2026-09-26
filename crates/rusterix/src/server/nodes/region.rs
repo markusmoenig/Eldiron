@@ -17,6 +17,10 @@ pub struct BehaviorAssets {
 }
 #[derive(Default)]
 pub struct Behaviors {
+    graphs: BTreeMap<String, GraphBehavior>,
+}
+#[derive(Default)]
+struct GraphBehavior {
     runtime: Runtime,
     owners: HashMap<Uuid, EventOwner>,
     /// Compiled plans shared by every instance and template using one graph key.
@@ -61,79 +65,8 @@ impl BehaviorAssets {
         };
         keys
     }
-
-    /// The graph an owner runs, with the cache key describing it. A specific
-    /// graph is layered over the general one: it answers the events it defines
-    /// itself and the template answers the rest, so an instance graph only has
-    /// to describe what it changes instead of copying the whole behavior.
-    fn owner_graph(
-        &self,
-        ctx: &RegionCtx,
-        owner: &EventOwner,
-        class: &str,
-    ) -> Option<(String, Value)> {
-        let keys: Vec<String> = self
-            .graph_keys(ctx, owner, class)
-            .into_iter()
-            .filter(|key| self.graphs.contains_key(key))
-            .collect();
-        let key = keys.first()?.clone();
-        let Some(template_key) = keys.get(1).cloned() else {
-            let document = self.graphs.get(&key)?.clone();
-            return Some((key, document));
-        };
-        // A specific graph that will not compile must not take the general graph
-        // down with it: fall back to the template alone.
-        let Some(instance) = Registry::shared().compile(self.graphs.get(&key)?).ok() else {
-            let document = self.graphs.get(&template_key)?.clone();
-            return Some((template_key, document));
-        };
-        let template = Registry::shared()
-            .compile(self.graphs.get(&template_key)?)
-            .ok()?;
-        let owned: HashSet<String> = instance.events.keys().cloned().collect();
-        let replaced: HashSet<String> = template
-            .events
-            .iter()
-            .filter(|(event, _)| owned.contains(*event))
-            .flat_map(|(_, nodes)| nodes.iter().map(|node| node.to_string()))
-            .collect();
-        let document = compose_graphs(
-            self.graphs.get(&template_key)?,
-            self.graphs.get(&key)?,
-            &replaced,
-        );
-        Some((format!("{key}+{template_key}"), document))
-    }
 }
 
-/// Layers a specific graph over its template. The template keeps every chain the
-/// specific graph does not answer for itself, so overriding `startup` leaves the
-/// routine, engagement and death chains of the template in place.
-pub(super) fn compose_graphs(
-    template: &Value,
-    specific: &Value,
-    replaced_nodes: &HashSet<String>,
-) -> Value {
-    let mut document = template.clone();
-    if let Some(nodes) = document.get_mut("nodes").and_then(Value::as_array_mut) {
-        nodes.retain(|node| match node.get("id").and_then(Value::as_str) {
-            Some(id) => !replaced_nodes.contains(id),
-            None => true,
-        });
-        if let Some(extra) = specific.get("nodes").and_then(Value::as_array) {
-            nodes.extend(extra.iter().cloned());
-        }
-    }
-    if let Some(connections) = document
-        .get_mut("connections")
-        .and_then(Value::as_array_mut)
-        && let Some(extra) = specific.get("connections").and_then(Value::as_array)
-    {
-        connections.extend(extra.iter().cloned());
-    }
-    document
-}
 fn log(ctx: &RegionCtx, text: String) {
     if let Some(sender) = ctx.from_sender.get() {
         let _ = sender.send(RegionMessage::LogMessage(text));
@@ -141,6 +74,64 @@ fn log(ctx: &RegionCtx, text: String) {
 }
 /// Receives a captured engine event. No legacy program is evaluated as fallback.
 pub fn dispatch(ctx: &mut RegionCtx, event: EventObservation) {
+    let class = match &event.owner {
+        EventOwner::Entity(id) => ctx
+            .map
+            .entities
+            .iter()
+            .chain(ctx.stashed_entities.values())
+            .find(|e| e.creator_id == *id)
+            .and_then(|e| e.get_attr_string("class_name"))
+            .unwrap_or_default(),
+        EventOwner::Item(id) => ctx
+            .map
+            .items
+            .iter()
+            .find(|i| i.creator_id == *id)
+            .and_then(|i| i.get_attr_string("class_name"))
+            .unwrap_or_default(),
+        _ => String::new(),
+    };
+    let Some(assets) = ctx.assets.node_behaviors.as_ref() else {
+        return;
+    };
+    // Keys are instance first; dispatch template first, with independent schedulers.
+    let keys: Vec<_> = assets
+        .graph_keys(ctx, &event.owner, &class)
+        .into_iter()
+        .rev()
+        .collect();
+    let mut behaviors = ctx.node_behaviors.take().unwrap_or_default();
+    for key in &keys {
+        dispatch_graph(
+            ctx,
+            event.clone(),
+            key,
+            behaviors.graphs.entry(key.clone()).or_default(),
+        );
+    }
+    if event.name == "startup" && matches!(event.owner, EventOwner::Entity(_)) {
+        let mut routine = event.clone();
+        routine.name = "routine".into();
+        routine.fields.clear();
+        for key in &keys {
+            dispatch_graph(
+                ctx,
+                routine.clone(),
+                key,
+                behaviors.graphs.entry(key.clone()).or_default(),
+            );
+        }
+    }
+    ctx.node_behaviors = Some(behaviors);
+}
+
+fn dispatch_graph(
+    ctx: &mut RegionCtx,
+    event: EventObservation,
+    key: &str,
+    behaviors: &mut GraphBehavior,
+) {
     let Some(assets) = ctx.assets.node_behaviors.as_ref() else {
         return;
     };
@@ -184,7 +175,6 @@ pub fn dispatch(ctx: &mut RegionCtx, event: EventObservation) {
             (identity, render_id, "Area".into())
         }
     };
-    let mut behaviors = ctx.node_behaviors.take().unwrap_or_default();
     // Follow authoritative ownership, not just world presence: a stashed body
     // is out of the world but still belongs to its graph, so it is not stale.
     // Visibility is deliberately not consulted.
@@ -213,7 +203,11 @@ pub fn dispatch(ctx: &mut RegionCtx, event: EventObservation) {
         behaviors.owners.remove(&handle.identity);
     }
     if !behaviors.runtime.actors.contains_key(&identity) {
-        let plan = match assets.owner_graph(ctx, &event.owner, &class) {
+        let plan = match assets
+            .graphs
+            .get(key)
+            .map(|document| (key.to_string(), document.clone()))
+        {
             Some((key, document)) => match behaviors.plans.get(&key).cloned() {
                 Some(plan) => Some(plan),
                 None => match Registry::shared().compile(&document) {
@@ -240,7 +234,6 @@ pub fn dispatch(ctx: &mut RegionCtx, event: EventObservation) {
             .attach_shared(identity, ctx.map.id, render_id, plan)
         {
             log(ctx, format!("[error] Node attachment: {error}"));
-            ctx.node_behaviors = Some(behaviors);
             return;
         }
         behaviors.owners.insert(identity, event.owner.clone());
@@ -271,26 +264,6 @@ pub fn dispatch(ctx: &mut RegionCtx, event: EventObservation) {
     if !behaviors.runtime.send_observation(handle, event.clone()) {
         log(ctx, "[error] Node event queue is full".into());
     }
-    // Startup is emitted only by the engine after actual actor creation. The
-    // normal routine then runs in the same context, after the startup chain.
-    // An entity with its own graph also gets the instance entry, so an instance
-    // graph adds to the template startup instead of replacing it.
-    if event.name == "startup" && matches!(event.owner, EventOwner::Entity(_) | EventOwner::Item(_))
-    {
-        let keys = assets.graph_keys(ctx, &event.owner, &class);
-        if keys.len() > 1 && assets.graphs.contains_key(&keys[0]) {
-            let mut instance = event.clone();
-            instance.name = "instance".into();
-            instance.fields.clear();
-            behaviors.runtime.send_observation(handle, instance);
-        }
-    }
-    if event.name == "startup" && matches!(event.owner, EventOwner::Entity(_)) {
-        let mut routine = event.clone();
-        routine.name = "routine".into();
-        routine.fields.clear();
-        behaviors.runtime.send_observation(handle, routine);
-    }
     behaviors.runtime.update(&mut RegionServices {
         ctx,
         owner: event.owner,
@@ -309,13 +282,15 @@ pub fn dispatch(ctx: &mut RegionCtx, event: EventObservation) {
             let _ = sender.send(RegionMessage::NodeTraces(traces));
         }
     }
-    let highlights = behaviors.runtime.take_highlights();
+    let mut highlights = behaviors.runtime.take_highlights();
+    for state in &mut highlights {
+        state.graph = key.to_string();
+    }
     if !highlights.is_empty() {
         if let Some(sender) = ctx.from_sender.get() {
             let _ = sender.send(RegionMessage::NodeHighlights(highlights));
         }
     }
-    ctx.node_behaviors = Some(behaviors);
 }
 /// Does this entity belong to the graph's actor? Entity and item graphs match
 /// the owner identity as well; an area graph acts on its entrant, which is only
@@ -518,6 +493,98 @@ impl RegionServices<'_> {
     }
 }
 impl WorldServices for RegionServices<'_> {
+    fn player_attribute_bool(
+        &self,
+        actor: &Actor,
+        subject: Option<u32>,
+        name: &str,
+    ) -> Result<bool, String> {
+        let id = if self.ctx.map.entities.iter().any(|entity| {
+            entity.id == actor.render_id && entity.attributes.get_bool_default("player", false)
+        }) {
+            actor.render_id
+        } else {
+            subject
+                .filter(|id| *id != 0)
+                .ok_or("Guard needs a participating player")?
+        };
+        let player = self
+            .ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == id && entity.attributes.get_bool_default("player", false))
+            .ok_or("Guard target must be a player in this region")?;
+        Ok(player.attributes.get_bool_default(name, false))
+    }
+    fn quest_state(
+        &self,
+        actor: &Actor,
+        subject: Option<u32>,
+        quest: &str,
+    ) -> Result<&'static str, String> {
+        let id = if self.ctx.map.entities.iter().any(|entity| {
+            entity.id == actor.render_id && entity.attributes.get_bool_default("player", false)
+        }) {
+            actor.render_id
+        } else {
+            subject
+                .filter(|id| *id != 0)
+                .ok_or("Quest needs a participating player")?
+        };
+        let player = self
+            .ctx
+            .map
+            .entities
+            .iter()
+            .find(|entity| entity.id == id && entity.attributes.get_bool_default("player", false))
+            .ok_or("Quest target must be a player in this region")?;
+        let key = format!("quest.{}", quest.trim());
+        Ok(
+            match player.attributes.get_str(&key).unwrap_or("not_started") {
+                "active" => "active",
+                "completed" => "completed",
+                _ => "not_started",
+            },
+        )
+    }
+    fn set_quest_state(
+        &mut self,
+        actor: &Actor,
+        subject: Option<u32>,
+        quest: &str,
+        state: &str,
+    ) -> Result<bool, String> {
+        let id = if self.ctx.map.entities.iter().any(|entity| {
+            entity.id == actor.render_id && entity.attributes.get_bool_default("player", false)
+        }) {
+            actor.render_id
+        } else {
+            subject
+                .filter(|id| *id != 0)
+                .ok_or("Quest needs a participating player")?
+        };
+        let player = self
+            .ctx
+            .map
+            .entities
+            .iter_mut()
+            .find(|entity| entity.id == id && entity.attributes.get_bool_default("player", false))
+            .ok_or("Quest target must be a player in this region")?;
+        let key = format!("quest.{}", quest.trim());
+        let previous = player.attributes.get_str(&key).unwrap_or("not_started");
+        let allowed = matches!(
+            (previous, state),
+            ("not_started", "active")
+                | ("active", "completed")
+                | ("active" | "completed", "not_started")
+        );
+        if !allowed {
+            return Ok(false);
+        }
+        player.set_attribute(&key, WorldValue::Str(state.into()));
+        Ok(true)
+    }
     fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
         self.ctx.time
     }
@@ -827,12 +894,8 @@ impl WorldServices for RegionServices<'_> {
                 .find(|item| item.id == item_id)
                 .and_then(|item| item.attributes.get(attribute))
                 .cloned();
-            let value = typed_attribute_value(
-                attribute,
-                value,
-                hint.as_ref(),
-                &self.ctx.health_attr,
-            );
+            let value =
+                typed_attribute_value(attribute, value, hint.as_ref(), &self.ctx.health_attr);
             return self.set_item_attribute(item_id, attribute, value);
         }
         let entity_id = find_actor_entity(self.ctx, &self.owner, actor)
@@ -843,8 +906,7 @@ impl WorldServices for RegionServices<'_> {
             .find_entity(entity_id)
             .and_then(|entity| entity.attributes.get(attribute))
             .cloned();
-        let value =
-            typed_attribute_value(attribute, value, hint.as_ref(), &self.ctx.health_attr);
+        let value = typed_attribute_value(attribute, value, hint.as_ref(), &self.ctx.health_attr);
         // `mode` is not just another attribute: it carries presence. Writing it
         // directly has to move the character in or out of the world, or a graph
         // that sets `mode` instead of using the State node would leave a dead
@@ -914,16 +976,20 @@ impl WorldServices for RegionServices<'_> {
         if !self.acts_on_entity() {
             return Err("Dialog requires a character".into());
         }
+        if self
+            .ctx
+            .active_choice_sessions
+            .iter()
+            .any(|session| session.from == actor.render_id)
+        {
+            return Err("This character is already in a conversation".into());
+        }
         // The graph owner is the speaker whose class data holds the dialogue
         // tree; the acting target is the listener who triggered the event. The
         // two have to reach `open_dialog_node` in that order, or it looks the
         // tree up on the listener and finds nothing.
-        if !crate::server::region::open_dialog_node(
-            self.ctx,
-            actor.render_id,
-            target,
-            node.trim(),
-        ) {
+        if !crate::server::region::open_dialog_node(self.ctx, actor.render_id, target, node.trim())
+        {
             return Err(format!("Unknown dialogue node '{}'", node.trim()));
         }
         Ok(())
@@ -934,21 +1000,32 @@ impl WorldServices for RegionServices<'_> {
         target: u32,
         text: &str,
         choices: &[(String, Option<String>)],
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         if !self.acts_on_entity() {
             return Err("Dialogue requires a character".into());
         }
-        crate::server::region::present_node_dialogue(
+        if self
+            .ctx
+            .active_choice_sessions
+            .iter()
+            .any(|session| session.from == actor.render_id)
+        {
+            return Err("This character is already in a conversation".into());
+        }
+        Ok(crate::server::region::present_node_dialogue(
             self.ctx,
             actor.render_id,
             target,
             text,
             choices,
-        );
-        Ok(())
+        ))
     }
     fn take_dialog_choice(&mut self, actor: &Actor) -> Option<DialogChoiceMade> {
-        self.ctx.dialog_choices.remove(&actor.render_id)
+        let answer = self.ctx.dialog_choices.remove(&actor.render_id)?;
+        self.ctx
+            .active_choice_sessions
+            .retain(|session| session.from != actor.render_id);
+        Some(answer)
     }
     fn talk_step(&mut self, actor: &Actor) -> Option<String> {
         self.ctx.talk_steps.get(&actor.render_id).cloned()
@@ -1221,12 +1298,18 @@ fn refresh_walk(
 /// replayed; an active operation can opt into refreshing through its own module.
 /// Called after movement is merged back into the authoritative map.
 pub fn tick(ctx: &mut RegionCtx) {
-    if ctx.paused {
-        return;
-    }
     let Some(mut behaviors) = ctx.node_behaviors.take() else {
         return;
     };
+    for (key, graph) in &mut behaviors.graphs {
+        tick_graph(ctx, key, graph);
+    }
+    ctx.node_behaviors = Some(behaviors);
+}
+fn tick_graph(ctx: &mut RegionCtx, key: &str, behaviors: &mut GraphBehavior) {
+    if ctx.paused {
+        return;
+    }
     let actors: Vec<_> = behaviors
         .runtime
         .actors
@@ -1286,13 +1369,15 @@ pub fn tick(ctx: &mut RegionCtx) {
             let _ = sender.send(RegionMessage::NodeTraces(traces));
         }
     }
-    let highlights = behaviors.runtime.take_highlights();
+    let mut highlights = behaviors.runtime.take_highlights();
+    for state in &mut highlights {
+        state.graph = key.to_string();
+    }
     if !highlights.is_empty() {
         if let Some(sender) = ctx.from_sender.get() {
             let _ = sender.send(RegionMessage::NodeHighlights(highlights));
         }
     }
-    ctx.node_behaviors = Some(behaviors);
 }
 
 pub fn refresh_graph(ctx: &mut RegionCtx, key: String, graph: Value) {
@@ -1333,9 +1418,12 @@ pub fn refresh_graph(ctx: &mut RegionCtx, key: String, graph: Value) {
     let Some(mut behaviors) = ctx.node_behaviors.take() else {
         return;
     };
-    // The refreshed graph may only cover some of its events, so drop the cached
-    // plans and recompose per owner below.
-    behaviors.plans.clear();
+    let graph_behavior = behaviors.graphs.entry(key.clone()).or_default();
+    refresh_runtime(ctx, &key, plan, graph_behavior);
+    ctx.node_behaviors = Some(behaviors);
+}
+fn refresh_runtime(ctx: &mut RegionCtx, key: &str, plan: Arc<Plan>, behaviors: &mut GraphBehavior) {
+    behaviors.plans.insert(key.to_string(), plan.clone());
     let targets: Vec<_> = behaviors
         .runtime
         .actors
@@ -1347,6 +1435,7 @@ pub fn refresh_graph(ctx: &mut RegionCtx, key: String, graph: Value) {
                     .map
                     .entities
                     .iter()
+                    .chain(ctx.stashed_entities.values())
                     .find(|e| e.creator_id == *id && e.id == actor.render_id)?
                     .get_attr_string("class_name")
                     .unwrap_or_default(),
@@ -1363,25 +1452,15 @@ pub fn refresh_graph(ctx: &mut RegionCtx, key: String, graph: Value) {
                 .node_behaviors
                 .as_ref()?
                 .graph_keys(ctx, owner, &class)
-                .contains(&key))
+                .iter()
+                .any(|candidate| candidate == key))
             .then(|| (actor.handle, owner.clone(), class.clone()))
         })
         .collect();
-    for (handle, owner, class) in targets {
-        let recomposed = ctx
-            .assets
-            .node_behaviors
-            .as_ref()
-            .and_then(|assets| assets.owner_graph(ctx, &owner, &class))
-            .and_then(|(plan_key, document)| {
-                let plan = Arc::new(Registry::shared().compile(&document).ok()?);
-                behaviors.plans.insert(plan_key, plan.clone());
-                Some(plan)
-            })
-            .unwrap_or_else(|| plan.clone());
+    for (handle, owner, _class) in targets {
         if let Err(error) = behaviors.runtime.replace_graph(
             handle,
-            recomposed,
+            plan.clone(),
             &mut RegionServices {
                 ctx,
                 owner: owner.clone(),
@@ -1411,13 +1490,15 @@ pub fn refresh_graph(ctx: &mut RegionCtx, key: String, graph: Value) {
             let _ = sender.send(RegionMessage::NodeTraces(traces));
         }
     }
-    let highlights = behaviors.runtime.take_highlights();
+    let mut highlights = behaviors.runtime.take_highlights();
+    for state in &mut highlights {
+        state.graph = key.to_string();
+    }
     if !highlights.is_empty() {
         if let Some(sender) = ctx.from_sender.get() {
             let _ = sender.send(RegionMessage::NodeHighlights(highlights));
         }
     }
-    ctx.node_behaviors = Some(behaviors);
 }
 
 #[cfg(test)]
@@ -1438,5 +1519,101 @@ mod live_tests {
         let mut action = RandomWalkInSector(3., 1., 4, 1, target);
         refresh_walk(&mut action, 5., 2., 1, 10, 60);
         assert!(matches!(action, RandomWalkInSector(5., 2., 1, 1, point) if point == target));
+    }
+}
+
+#[cfg(test)]
+mod ownership_tests {
+    use super::*;
+    use serde_json::json;
+
+    fn startup() -> (Value, Uuid) {
+        let event = Uuid::new_v4();
+        let say = Uuid::new_v4();
+        let output = Uuid::new_v4();
+        let input = Uuid::new_v4();
+        (
+            json!({"version":1,"nodes":[
+            {"id":event,"definition":"event","rows":[{"key":"event","value":{"Custom":{"kind":"event","data":"startup"}}}],"ports":[{"id":output,"key":"out","direction":"Output","kind":"flow"}]},
+            {"id":say,"definition":"say","rows":[{"key":"text","value":{"Text":"Hello"}}],"ports":[{"id":input,"key":"in","direction":"Input","kind":"flow"}]}
+        ],"connections":[{"id":Uuid::new_v4(),"from":output,"to":input}]}),
+            event,
+        )
+    }
+
+    #[test]
+    fn startup_runs_both_connected_graphs_template_first_and_refresh_is_isolated() {
+        let mut ctx = RegionCtx::default();
+        let template = Uuid::new_v4();
+        let region = Uuid::new_v4();
+        let mut entity = crate::Entity::new();
+        entity.id = 1;
+        entity.set_attribute("class_name", WorldValue::Str("Orc".into()));
+        let identity = entity.creator_id;
+        ctx.map.entities.push(entity);
+        let template_key = format!("behavior/character/{template}");
+        let instance_key = format!("behavior/region/{region}/character/{identity}");
+        let (template_graph, template_entry) = startup();
+        let (instance_graph, instance_entry) = startup();
+        ctx.assets.node_behaviors = Some(BehaviorAssets {
+            graphs: HashMap::from([
+                (template_key.clone(), template_graph),
+                (instance_key.clone(), instance_graph),
+            ]),
+            characters: HashMap::from([("Orc".into(), template)]),
+            regions: HashMap::from([(ctx.map.id, region)]),
+            ..Default::default()
+        });
+        let (sender, receiver) = crossbeam_channel::unbounded();
+        ctx.from_sender.set(sender).unwrap();
+        let event = EventObservation {
+            map: ctx.map.id,
+            owner: EventOwner::Entity(identity),
+            name: "startup".into(),
+            tick: 0,
+            fields: BTreeMap::new(),
+        };
+        dispatch(&mut ctx, event);
+        let entries: Vec<_> = receiver
+            .try_iter()
+            .filter_map(|message| match message {
+                RegionMessage::NodeTraces(traces) => Some(
+                    traces
+                        .into_iter()
+                        .filter(|t| t.connection.is_none())
+                        .map(|t| t.node)
+                        .collect::<Vec<_>>(),
+                ),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        assert_eq!(entries, [template_entry, instance_entry]);
+        let template_plan = ctx.node_behaviors.as_ref().unwrap().graphs[&template_key]
+            .runtime
+            .actors[&identity]
+            .graph
+            .clone()
+            .unwrap();
+        let (edited, new_entry) = startup();
+        // Dead/stashed owners must receive live edits as well.
+        assert!(ctx.stash_entity(1));
+        refresh_graph(&mut ctx, instance_key.clone(), edited);
+        let behaviors = ctx.node_behaviors.as_ref().unwrap();
+        assert!(Arc::ptr_eq(
+            &template_plan,
+            behaviors.graphs[&template_key].runtime.actors[&identity]
+                .graph
+                .as_ref()
+                .unwrap()
+        ));
+        assert!(
+            behaviors.graphs[&instance_key].runtime.actors[&identity]
+                .graph
+                .as_ref()
+                .unwrap()
+                .nodes
+                .contains_key(&new_entry)
+        );
     }
 }

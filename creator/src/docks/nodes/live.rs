@@ -108,7 +108,8 @@ impl NodesDock {
         let mut combat_status = HashMap::new();
         let mut visible_actors = std::collections::HashSet::new();
         for state in server.node_highlights.iter().filter(|state| {
-            matches_owner(&state.event, server_ctx.pc, project, server_ctx.curr_region)
+            Self::owner(server_ctx.pc).as_deref() == Some(state.graph.as_str())
+                && matches_owner(&state.event, server_ctx.pc, project, server_ctx.curr_region)
         }) {
             visible_actors.insert(state.actor.incarnation);
             let seen = self
@@ -205,6 +206,49 @@ impl GraphContext for LiveContext<'_> {
         self.live.active && self.live.active_connections.contains(&connection)
     }
     fn observe(&self, node: &GraphNode) -> GraphObservation {
+        if node
+            .definition
+            .as_deref()
+            .is_some_and(|id| id.starts_with("entity"))
+        {
+            let condition = if node.definition.as_deref() == Some("entity") {
+                node.rows
+                    .iter()
+                    .find(|r| r.key.as_deref() == Some("summary"))
+                    .and_then(|r| {
+                        if let GraphControlValue::Label(text) = &r.value {
+                            Some(text == &fl!("entity_configuration_ready"))
+                        } else {
+                            None
+                        }
+                    })
+            } else {
+                None
+            };
+            return GraphObservation {
+                text: if condition == Some(false) {
+                    node.rows
+                        .iter()
+                        .find(|r| r.key.as_deref() == Some("summary"))
+                        .and_then(|r| {
+                            if let GraphControlValue::Label(text) = &r.value {
+                                Some(text.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_default()
+                } else {
+                    fl!("entity_configuration")
+                },
+                condition: match condition {
+                    Some(true) => GraphCondition::True,
+                    Some(false) => GraphCondition::False,
+                    None => GraphCondition::Unknown,
+                },
+                ..Default::default()
+            };
+        }
         if node.definition.as_deref() == Some("engage") && self.node_active(node.id) {
             if let Some((status, target)) = self.live.combat_status.get(&node.id) {
                 let status = match status.as_str() {
@@ -264,6 +308,27 @@ impl GraphContext for LiveContext<'_> {
             .rev()
             .find(|trace| trace.node == node.id)
         {
+            if matches!(
+                node.definition.as_deref(),
+                Some("quest_guard" | "item_guard" | "player_attribute_guard")
+            ) {
+                return GraphObservation {
+                    condition: match trace.condition {
+                        Some(true) => GraphCondition::True,
+                        Some(false) => GraphCondition::False,
+                        None => GraphCondition::Unknown,
+                    },
+                    text: trace
+                        .error
+                        .clone()
+                        .unwrap_or_else(|| match trace.condition {
+                            Some(true) => fl!("node_guard_pass"),
+                            Some(false) => fl!("node_guard_fail"),
+                            None => String::new(),
+                        }),
+                    ..Default::default()
+                };
+            }
             return GraphObservation {
                 execution: if trace.error.is_some() {
                     GraphExecution::Failed

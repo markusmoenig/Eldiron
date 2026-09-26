@@ -159,7 +159,7 @@ pub struct GraphMetrics {
     pub port_size: f32,
 }
 impl GraphMetrics {
-    pub const COMFORTABLE: Self = Self {
+    pub const STANDARD: Self = Self {
         header: HEADER_PITCH,
         body: 60.,
         row: MIN_ROW_PITCH,
@@ -177,27 +177,6 @@ impl GraphMetrics {
         header_size: 11.,
         port_size: 10.,
     };
-    pub const COMPACT: Self = Self {
-        header: 34.,
-        body: 34.,
-        row: 44.,
-        label: 18.,
-        list_header: 20.,
-        list_row: 24.,
-        port: 18.,
-        folded_port: 14.,
-        pad: 10.,
-        title_band: 24.,
-        title_size: 14.,
-        text_size: 11.,
-        label_size: 10.,
-        cell_size: 10.,
-        header_size: 9.,
-        port_size: 9.,
-    };
-    pub fn is_compact(&self) -> bool {
-        *self == Self::COMPACT
-    }
     /// Where a row's label sits above its control rect.
     pub fn label_offset(&self) -> f32 {
         -(self.label * 0.6)
@@ -205,7 +184,7 @@ impl GraphMetrics {
 }
 impl Default for GraphMetrics {
     fn default() -> Self {
-        Self::COMFORTABLE
+        Self::STANDARD
     }
 }
 /// Serialization helper: leave a `false` flag out of the saved document.
@@ -295,7 +274,9 @@ impl GraphNode {
         let terminals = self.terminals() as f32;
         if self.folded {
             // Folded keeps its terminals spread out enough to stay clickable.
-            return metrics.header.max(metrics.header * 0.5 + terminals * metrics.folded_port);
+            return metrics
+                .header
+                .max(metrics.header * 0.5 + terminals * metrics.folded_port);
         }
         let body = metrics.body
             + self
@@ -389,11 +370,6 @@ pub struct GraphDocument {
     pub version: u32,
     pub nodes: Vec<GraphNode>,
     pub connections: Vec<GraphConnection>,
-    /// Compact node style. Sizes depend on it, so it belongs to the document
-    /// rather than to a view; older documents default to the comfortable look
-    /// and untouched graphs keep their shape in saved files.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub compact: bool,
 }
 impl Default for GraphDocument {
     fn default() -> Self {
@@ -401,17 +377,12 @@ impl Default for GraphDocument {
             version: 1,
             nodes: vec![],
             connections: vec![],
-            compact: false,
         }
     }
 }
 impl GraphDocument {
     pub fn metrics(&self) -> GraphMetrics {
-        if self.compact {
-            GraphMetrics::COMPACT
-        } else {
-            GraphMetrics::COMFORTABLE
-        }
+        GraphMetrics::STANDARD
     }
     pub fn port(&self, id: GraphId) -> Option<(&GraphNode, &GraphPort)> {
         self.nodes

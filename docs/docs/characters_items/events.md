@@ -1,248 +1,37 @@
 ---
-title: "Events"
-sidebar_position: 9
+title: "Events and Values"
+sidebar_position: 3
 ---
 
-This chapter lists all available **events** that can be received by characters and items in Eldiron.
+Choose an event on an Event node to start a branch. These are the named fields exposed by the event picker; read them in Filter using `event.field`, or insert them into Say/Message with `{event.field}`.
 
-Events are categorized as:
+| Event | Fields | Purpose |
+| --- | --- | --- |
+| Startup | None | Initial setup after the owner is created. Template runs before instance. |
+| Respawn | None | React to the engine's respawn event. |
+| Bumped By Entity | `entity` (entity) | React to an entity colliding with this object. |
+| Bumped Into Entity | `entity` (entity) | React to this character colliding with another entity. |
+| Bumped Into Item | `item` (text) | React to this character colliding with an item. |
+| Active | None | React to activation; Set Emit Light can follow the object's active state. |
+| Time | `hour` (number) | React to a time event. For schedules, use Routine and Time Range. |
+| Entered | `area` (text) | React to entering a named area. |
+| Damaged | `attacker` (entity), `amount` (number), `kind` (text) | React to received damage. |
+| Intent | `intent` (text), `subject` (entity), `distance`, `count` (numbers) | Handle an interaction intent. |
+| Death | None | Handle death, for example dropping inventory or restoring life state. |
+| Kill | `killed` (entity), `name` (text) | React to a defeated character. |
 
-- **System Events** – sent by the engine to the `event()` handler
+A field marked as awaiting an event has no observed value yet. Do not assume another event's fields are available.
 
----
+## Named events
 
-## System Events
+Use **On Event** to listen for a named event. **Notify In** schedules a named event after a delay in game minutes. This is useful for deferred checks without keeping a movement action open. Named engine events can also be listened to this way, including `entered_tile` and `left_tile` for gameplay-tagged tiles. These events currently have no named payload fields in the node adapter.
 
-### `active`
+## Area transitions and navigation
 
-*Item-only event.*
+**On Enter Area** compares the character's entered area with a name and routes Match or No Match. **On Area**, on the place's own graph, exposes Player Entered, NPC Entered, Player Left and NPC Left.
 
-- **Value**: active state *(bool)*
-- **Description**: Called when the state of the item changes and directly after
-  item creation. `on_tile_id` and `off_tile_id` world visuals are selected
-  automatically before the event runs. Use this event for additional behavior;
-  for example, a torch can call
-  [set_emit_light](server_commands/#set_emit_light) to adjust its light
-  emission.
+Entering an area and completing navigation are different conditions. Connect to **Go To → Done** when subsequent actions should wait for arrival.
 
----
+## Interaction versus ruleset action
 
-### `arrived`
-
-*Character-only event.*
-
-- **Value**: destination sector name *(string)*
-- **Description**: Send by [goto](server_commands#goto) when the character arrives at the destination.
-
----
-
-### `bumped_into_entity`
-
-- **Value**: `entity_id` *(int)*
-- **Description**: Triggered when this entity bumps into another entity.
-
----
-
-### `bumped_into_item`
-
-- **Value**: `item_id` *(int)*
-- **Description**: Triggered when this entity bumps into an item.
-
----
-
-### `bumped_by_entity`
-
-- **Value**: `entity_id` *(int)*
-- **Description**: Triggered when another entity collides with this entity or item.
-
----
-
-### `closed_in`
-
-- **Value**: `entity_id` *(int)*
-- **Description**: Send when an NPC closed in within the radius of the target entity. Send by the [close_in](server_commands#close_in) command.
-
----
-
-### `death`
-
-- **Value**: *(None)*
-- **Description**: Sent to a character when ruleset damage reduces its health to zero. The server has already set `mode = "dead"` and `visible = false` before this event runs. NPC scripts commonly call `drop_items("")` here to let the official rules create a corpse container.
-
----
-
-### `entered`
-
-- **Value**: `sector_name` *(string)*
-- **Description**: Triggered when the character has entered a named sector. Useful for traps or teleports.
-
----
-
-### `entered_tile`
-
-*Character-only event.*
-
-- **Value**: gameplay tag *(string)*; tile cell in `.x`/`.y`, tile layer in `.z`
-- **Description**: Triggered once for each gameplay tag on a painted 2D tile when the character enters that tile placement. Untagged tiles do not send events. Gameplay tags are configured with **Edit Tile Meta Data**.
-
-```eldrin
-if event == "entered_tile" && value == "chair" {
-    set_tile("player_sitting")
-}
-```
-
----
-
-### `engagement_over`
-
-- **Value**: reason *(string)*
-- **Description**: Triggered when an engine-owned [follow_attack](server_commands#follow_attack) engagement ends.
-
-Current reasons:
-
-- `lost`
-- `too_far`
-
-This currently happens when the target:
-
-- no longer exists
-- is no longer a valid living/visible target
-- moves beyond the current chase leash
-
-The chase leash is currently:
-
-- `max(proximity_tracking_distance, 1.5) + 1.0`
-- fallback if no proximity tracking was set: `max(5.0, 1.5) + 1.0 = 6.0`
-
-So in practice, if you call `set_proximity_tracking(true, 4)`, `follow_attack` will currently break when the target gets beyond `5.0`.
-
-This event is useful for clearing target state and returning an NPC to idle behavior such as `random_walk_in_sector(...)` or `goto(...)`.
-
----
-
-### `intent`
-
-- **Value**: packet containing the intent name in `value.string`, the other participant's ID in `value.subject_id` (`.x`), and the distance in `value.distance` (`.y`). For these entity/item interactions, `.z` is `0`.
-- **Description**: Sent for script-driven interactions with another character or item, such as a keyboard-directed intent or a clicked target. Built-in shortcuts may handle an interaction before these script events are sent.
-  - The originating character receives the target character or item ID.
-  - The target character or item receives the originating character ID.
-
-Compare `value` directly with the intent name, for example `value == "talk"`.
-Use `is_entity(value.subject_id)` or `is_item(value.subject_id)` when the originating character needs to distinguish target types. The payload is a packet, not a dictionary with `intent`, `entity_id`, or `item_id` fields.
-
----
-
-### `level_up`
-
-Sent to a character after `gain_xp(...)` causes it to reach a new level.
-
-`value` is the new level number.
-
----
-
-### `kill`
-
-- **Value**: `entity_id` *(int)*
-- **Description**: Send when this entity kills another character. The *entity_id* of the target is passed in the value. This is useful for sending messages and for NPCs to reset what they are doing.
-
----
-
-### `left`
-
-- **Value**: `sector_name` *(string)*
-- **Description**: Triggered when the character has left a named sector.
-
----
-
-### `left_tile`
-
-*Character-only event.*
-
-- **Value**: gameplay tag *(string)*; previous tile cell in `.x`/`.y`, tile layer in `.z`
-- **Description**: Triggered once for each gameplay tag when the character leaves a tagged painted 2D tile placement.
-
-```eldrin
-if event == "left_tile" && value == "chair" {
-    set_tile("player_standing")
-}
-```
-
----
-
-### `proximity_warning`
-
-- **Value**: one nearby entity ID in `value.subject_id` (`.x`), also usable directly as `value`.
-- **Description**: Called when proximity tracking was enabled via [set_proximity_tracking](server_commands#set_proximity_tracking) and other entities are in radius. Each check sends only the first entity ID returned by the radius query, not a list of all nearby entities. Useful for NPCs to interact with other characters (attack, talk, heal, etc.).
-
----
-
-### `respawn`
-
-- **Value**: *(None)*
-- **Description**: Sent to NPCs after the official ruleset respawns them. At this point the NPC is visible, active, back at its spawn point, restored to full health, and has its startup loadout and behavior state restored. Player respawn is script-controlled and does not use this automatic event.
-
----
-
-### `startup`
-
-- **Value**: *(None)*
-- **Description**: Called when the entity or item is created. This is a common place to start a background NPC sequence via [run_sequence](server_commands#run_sequence).
-
----
-
-### `time`
-
-- **Value**: `hour` *(int, 0..23)*
-- **Description**: Triggered for all characters and items whenever in-game time reaches a full hour (`MM == 00`). The value contains the current 24-hour hour value.
-
-This event is the current scheduling hook for NPC routines. A common pattern is:
-
-- `08:00` -> `run_sequence("go_to_work")`
-- `18:00` -> `run_sequence("go_home")`
-
-See [NPC Sequences](npc_sequences) for the bigger event + sequence model.
-
----
-
-### `damaged`
-
-- **Value**: damage payload
-- **Description**: Triggered after the server has applied the ruleset combat pipeline.  
-  `value.amount` is the final incoming damage, `value.attacker_id` contains the attacker id, `value.kind` contains the damage kind such as `physical`, `spell`, or `fire`, and `value.source_item_id` contains the weapon or spell item when available.
-  Normally, the server applies this final damage automatically after the event returns, unless the handler has already committed it.
-  With [autodamage](attributes#autodamage) enabled, damage is applied first and a surviving target still receives `damaged` for reactions. Lethal autodamage uses `death` instead of queuing a `damaged` reaction.
-
-Use `damaged` when an NPC should react to being hit. For example, a neutral
-character can decide to retaliate:
-
-```eldrin
-if event == "damaged" {
-    set_target(value.attacker_id);
-    follow_attack(value.attacker_id, 0.6);
-}
-```
-
----
-
-### `party_damaged`
-
-- **Value**: party damage payload
-- **Description**: Sent to every joined companion after a living member of their party takes damage. `value.subject_id` is the injured party member, `value.amount` is the applied damage, and `value.kind` is the damage kind.
-
-This is intended for companion reactions such as automatic healing or protection. The companion remains responsible for checking health and invoking a normal ruleset action, so costs, cooldowns, reagents, and effects still apply.
-
-```eldrin
-if event == "party_damaged" {
-    let hp = get_attr_of(value.subject_id, "HP");
-    let max_hp = get_attr_of(value.subject_id, "MAX_HP");
-    if hp > 0 && hp * 2 <= max_hp {
-        set_target(value.subject_id);
-        use_action("minor_heal");
-        clear_target();
-    }
-}
-```
-
----
-
-Player key input is configured via [Input Mapping](input_mapping), not via script events.
+An Intent branch can filter `event.intent` against `use` to start a conversation. A UI command such as `rules.basic_attack` requests the ruleset action directly; do not add an attack intent chain to make that command work.

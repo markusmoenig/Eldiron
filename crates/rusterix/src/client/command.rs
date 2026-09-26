@@ -1,4 +1,5 @@
 use crate::{Entity, EntityAction};
+use std::str::FromStr;
 use theframework::prelude::*;
 
 /// Messages to the Region
@@ -177,5 +178,56 @@ mod tests {
                 .as_deref(),
             Some("rules.basic_attack")
         );
+    }
+}
+
+pub fn parse_input_command(command: &str) -> Option<ClientCommandBinding> {
+    let s = command.trim();
+    if let Some(command) = parse_client_command(s) {
+        return Some(command);
+    }
+    let Some(open) = s.find('(') else {
+        return EntityAction::from_str(s)
+            .ok()
+            .map(ClientCommandBinding::Control);
+    };
+    let Some(close) = s.rfind(')') else {
+        return None;
+    };
+    if close <= open {
+        return None;
+    }
+
+    let func = s[..open].trim().to_ascii_lowercase();
+    let arg = s[open + 1..close]
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .to_string();
+
+    match func.as_str() {
+        "command" => parse_client_command(&arg),
+        "action" => EntityAction::from_str(&arg)
+            .ok()
+            .map(ClientCommandBinding::Control),
+        "control" => EntityAction::from_str(&arg)
+            .ok()
+            .map(ClientCommandBinding::Control),
+        "intent" => Some(ClientCommandBinding::Intent(arg)),
+        "rules" | "rules_action" => {
+            if arg.is_empty() {
+                None
+            } else {
+                Some(ClientCommandBinding::RulesAction(arg))
+            }
+        }
+        "spell" => {
+            if arg.is_empty() {
+                None
+            } else {
+                Some(ClientCommandBinding::Intent(format!("spell:{}", arg)))
+            }
+        }
+        _ => None,
     }
 }

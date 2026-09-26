@@ -135,6 +135,9 @@ pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
 
 /// Start the server
 pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool) {
+    if let Err(error) = crate::entity_graph::synchronize(project) {
+        eprintln!("Entity configuration: {error}");
+    }
     rusterix.server.clear();
     rusterix.server.debug_mode = debug;
     rusterix.server.log_changed = true;
@@ -417,6 +420,9 @@ fn is_legacy_python_instance_setup(source: &str) -> bool {
 }
 
 pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
+    if let Err(error) = crate::entity_graph::synchronize(project) {
+        eprintln!("Entity configuration: {error}");
+    }
     let block_props = &project.block_props;
     for region in &mut project.regions {
         region.map.entities.clear();
@@ -446,6 +452,17 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
             if let Some(character) = project.characters.get(&instance.character_id) {
                 entity.set_attribute("class_name", Value::Str(character.name.clone()));
                 rusterix::server::data::apply_entity_data(&mut entity, &character.data);
+            }
+            // Resolve instance configuration before race/class derivation and startup.
+            rusterix::server::data::apply_entity_data(&mut entity, &instance.data);
+            entity.set_attribute("_entity_configuration", Value::Str(instance.data.clone()));
+            let template_data = project
+                .characters
+                .get(&instance.character_id)
+                .map(|c| c.data.as_str())
+                .unwrap_or("");
+            if let Ok(bindings) = crate::entity_graph::merged_input(template_data, &instance.data) {
+                entity.set_attribute("_input_bindings", Value::Str(bindings));
             }
             region.map.entities.push(entity);
         }
@@ -481,6 +498,8 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
                 );
                 rusterix::server::data::apply_item_data(&mut item, &item_template.data);
             }
+            rusterix::server::data::apply_item_data(&mut item, &instance.data);
+            item.set_attribute("_entity_configuration", Value::Str(instance.data.clone()));
             region.map.items.push(item);
         }
         rusterix::sync_block_prop_surface_prop_transforms(

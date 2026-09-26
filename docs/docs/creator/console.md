@@ -11,7 +11,7 @@ Console results are structured feedback documents, not syntax-highlighted plain-
 
 This keeps presentation responsive in the narrow sidebar: commands and their descriptions stack instead of relying on space-aligned columns. Underlined commands and object names are interactive. Selecting one fills the Console input so it can be reviewed or completed before execution.
 
-Plain text remains available as a copy/paste and logging fallback. Eldrin and TOML source is shown as code only when it is actually source; ordinary feedback does not depend on a regex syntax definition.
+Plain text remains available as a copy/paste and logging fallback. Script and TOML source is shown as code only when it is actually source; ordinary feedback does not depend on a regex syntax definition.
 
 ## Game Information
 
@@ -54,15 +54,15 @@ tool tool.iso_paint
 
 Actions run through their normal applicability, TOML parameter, undo, dirty-state, and project notification paths. Tools use their normal deactivate/activate lifecycle. The Console does not bypass either system.
 
-## Eldrin Automation
+## Editor Automation
 
-Prefix a one-line Eldrin automation sequence with `eldrin` when a task needs several ordered operations:
+Prefix a one-line editor automation sequence with `eldrin` when a task needs several ordered operations:
 
 ```text
 eldrin console_list("characters"); editor_tool("tool.geometry"); editor_action("camera.isometric", "");
 ```
 
-The Console's Eldrin host provides:
+The Console's automation host provides:
 
 ```eldrin
 console_list("all");

@@ -73,6 +73,8 @@ pub struct GraphNodeDefinition {
     pub width: f32,
     pub parameters: Vec<GraphParameterDefinition>,
     pub ports: Vec<GraphPortDefinition>,
+    /// Whether this node starts a branch when it has no flow inputs.
+    pub starts_branch: bool,
     /// Parameter ID storing the selected event's stable ID, when this is an event entry.
     pub event_parameter: Option<String>,
 }
@@ -120,6 +122,10 @@ impl GraphNodeDefinition {
                         }),
                 })
                 .collect(),
+            starts_branch: !node
+                .ports
+                .iter()
+                .any(|port| port.direction == PortDirection::Input),
             event_parameter: None,
         }
     }

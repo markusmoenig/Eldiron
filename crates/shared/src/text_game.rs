@@ -1012,6 +1012,13 @@ pub fn current_player_supported_intents(project: &Project, map: &Map) -> BTreeSe
     for value in input.values().filter_map(toml::Value::as_str) {
         let trimmed = value.trim();
         let lower = trimmed.to_ascii_lowercase();
+        if let Some(intent) = lower
+            .strip_prefix("intent.")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            intents.insert(intent.to_string());
+        }
         if let Some(inner) = lower
             .strip_prefix("intent(")
             .and_then(|v| v.strip_suffix(')'))

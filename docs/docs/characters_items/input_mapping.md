@@ -5,23 +5,22 @@ sidebar_position: 7
 
 For the overall input model, see [Player Input](player_input).
 
-Player input is mapped in character data via a top-level `[input]` table.
+Player input is configured in individual **Input Binding** nodes connected after **Input Mapping** in the character’s [Entity Nodes](entity_nodes) graph. Add one node per key and select a command; **Custom Command** accepts other supported commands.
 
-```toml
-player = true
+For example, enable **Available as Player** in a Player node and create these bindings:
 
-[input]
-w = "control.forward"
-a = "control.left"
-s = "control.backward"
-d = "control.right"
-u = "intent.use"
-l = "intent.look"
-t = "rules.basic_attack"
-k = "rules.take"
-f = "intent.spell:Fireball"
-tab = "ui.actions"
-```
+| Key | Command |
+| --- | --- |
+| W | `control.forward` |
+| A | `control.left` |
+| S | `control.backward` |
+| D | `control.right` |
+| U | `intent.use` |
+| L | `intent.look` |
+| T | `rules.basic_attack` |
+| K | `rules.take` |
+| F | `intent.spell:Fireball` (custom command) |
+| Tab | `ui.actions` |
 
 Key names are matched case-insensitively.
 
@@ -88,7 +87,7 @@ The older wrapper forms remain accepted for existing projects:
 - **First-Person**: Sidestep right without changing facing.
 - **First-Person Grid**: Sidestep one tile right with smooth interpolation without changing facing.
 
-How these control commands are interpreted depends on the current runtime player input mode set by [`set_player_camera`](server_commands#set_player_camera):
+How these control commands are interpreted depends on the current runtime player input mode set by the [Player Camera node](node_reference#state-text-and-inventory):
 
 - `2d`
 - `2d_grid`
@@ -135,7 +134,7 @@ Behavior:
 - `cooldown` blocks the specific intent for the ruleset-defined duration
 
 For UI-driven intents, you can also use [button widgets](/docs/screens/widgets#button-widgets).
-If a button command matches a key in the active player's `[input]` table, its hover tooltip shows the shortcut.
+If a button command matches a key in the active player's resolved key bindings, its hover tooltip shows the shortcut.
 
 `ui.actions` is a local interface command that toggles the ruleset-driven
 Actions panel. It does not send an action to the server by itself; selecting a

@@ -13,9 +13,6 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
     let mut defs = GraphDefinitions::default();
     for (id, label, fields) in [
         ("startup", fl!("node_startup"), vec![]),
-        // Instance graphs answer Instance instead of Startup, so per-instance
-        // behavior adds to the template instead of replacing it.
-        ("instance", fl!("node_instance"), vec![]),
         ("respawn", fl!("node_respawn"), vec![]),
         // Collision events. An item answers `bumped_by_entity`, the mover
         // answers the two mirror events.
@@ -279,7 +276,13 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         GraphControlValue::Text("greeting".into()),
     );
     port(&mut dialog, "in", "", PortDirection::Input, 0.5);
-    port(&mut dialog, "out", "Done", PortDirection::Output, 0.5);
+    port(
+        &mut dialog,
+        "out",
+        &fl!("node_dialog_opened"),
+        PortDirection::Output,
+        0.5,
+    );
     defs.register_node(GraphNodeDefinition::from_template(
         "dialog",
         &fl!("node_group_actions"),
@@ -339,6 +342,106 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
     ))
     .unwrap();
 
+    let mut prompt = dialogue.clone();
+    prompt.title = fl!("node_prompt");
+    prompt.width = 360.;
+    if let Some(row) = prompt
+        .rows
+        .iter_mut()
+        .find(|row| row.key.as_deref() == Some("choices"))
+    {
+        if let GraphControlValue::List { columns, .. } = &mut row.value {
+            columns.retain(|column| column.id == "label");
+        }
+    }
+    prompt.ports.retain(|port| {
+        !port
+            .key
+            .as_deref()
+            .is_some_and(|key| key.starts_with("choice:"))
+    });
+    defs.register_node(GraphNodeDefinition::from_template(
+        "prompt",
+        &fl!("node_group_actions"),
+        &prompt,
+    ))
+    .unwrap();
+
+    for (id, title, field, field_label, default) in [
+        (
+            "quest_guard",
+            fl!("node_quest_guard"),
+            "quest",
+            fl!("node_quest_id"),
+            String::new(),
+        ),
+        (
+            "item_guard",
+            fl!("node_item_guard"),
+            "item",
+            fl!("node_item"),
+            String::new(),
+        ),
+        (
+            "player_attribute_guard",
+            fl!("node_player_attribute_guard"),
+            "attribute",
+            fl!("node_attribute"),
+            String::new(),
+        ),
+    ] {
+        let mut guard = GraphNode::new(&title, [0., 0.], [164, 98, 35, 255]);
+        guard.width = 260.;
+        row(
+            &mut guard,
+            field,
+            &field_label,
+            GraphControlValue::Text(default),
+        );
+        let (key, label, options) = match id {
+            "quest_guard" => (
+                "state",
+                fl!("node_quest_state_label"),
+                vec![
+                    fl!("node_quest_not_started"),
+                    fl!("node_quest_active"),
+                    fl!("node_quest_completed"),
+                    fl!("node_quest_not_completed"),
+                ],
+            ),
+            "item_guard" => (
+                "presence",
+                fl!("node_guard_presence"),
+                vec![fl!("node_guard_has"), fl!("node_guard_missing")],
+            ),
+            _ => (
+                "expected",
+                fl!("node_guard_expected"),
+                vec![fl!("node_guard_true"), fl!("node_guard_false")],
+            ),
+        };
+        row(
+            &mut guard,
+            key,
+            &label,
+            GraphControlValue::Choice {
+                options,
+                selected: 0,
+            },
+        );
+        port(
+            &mut guard,
+            "condition",
+            &fl!("node_guard_condition"),
+            PortDirection::Output,
+            0.5,
+        );
+        let mut definition =
+            GraphNodeDefinition::from_template(id, &fl!("node_group_logic"), &guard);
+        definition.starts_branch = false;
+        defs.register_node(definition).unwrap();
+    }
+
     // A whole conversation in one node. The steps are the lines and the choices
     // are the answers; a choice either moves inside the tree, ends it, or leaves
     // through one of the consequence ports, where ordinary nodes do the work.
@@ -377,6 +480,69 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         "talk",
         &fl!("node_group_actions"),
         &talk,
+    ))
+    .unwrap();
+
+    let mut quest_state = GraphNode::new(&fl!("node_quest_state"), [0., 0.], [164, 98, 35, 255]);
+    row(
+        &mut quest_state,
+        "quest",
+        &fl!("node_quest_id"),
+        GraphControlValue::Text(String::new()),
+    );
+    port(&mut quest_state, "in", "", PortDirection::Input, 0.5);
+    for (key, label, position) in [
+        ("not_started", fl!("node_quest_not_started"), 0.2),
+        ("active", fl!("node_quest_active"), 0.5),
+        ("completed", fl!("node_quest_completed"), 0.8),
+    ] {
+        port(
+            &mut quest_state,
+            key,
+            &label,
+            PortDirection::Output,
+            position,
+        );
+    }
+    defs.register_node(GraphNodeDefinition::from_template(
+        "quest_state",
+        &fl!("node_group_logic"),
+        &quest_state,
+    ))
+    .unwrap();
+
+    let mut set_quest = GraphNode::new(&fl!("node_set_quest"), [0., 0.], [35, 87, 134, 255]);
+    row(
+        &mut set_quest,
+        "quest",
+        &fl!("node_quest_id"),
+        GraphControlValue::Text(String::new()),
+    );
+    row(
+        &mut set_quest,
+        "state",
+        &fl!("node_quest_state_label"),
+        GraphControlValue::Choice {
+            options: vec![
+                fl!("node_quest_active"),
+                fl!("node_quest_completed"),
+                fl!("node_quest_not_started"),
+            ],
+            selected: 0,
+        },
+    );
+    port(&mut set_quest, "in", "", PortDirection::Input, 0.5);
+    for (key, label, position) in [
+        ("done", fl!("node_done"), 0.25),
+        ("unchanged", fl!("node_quest_unchanged"), 0.5),
+        ("failed", fl!("node_action_failed"), 0.75),
+    ] {
+        port(&mut set_quest, key, &label, PortDirection::Output, position);
+    }
+    defs.register_node(GraphNodeDefinition::from_template(
+        "set_quest",
+        &fl!("node_group_actions"),
+        &set_quest,
     ))
     .unwrap();
 
@@ -1002,6 +1168,7 @@ fn port(node: &mut GraphNode, key: &str, label: &str, direction: PortDirection, 
 /// Read-only schema rows are derived from the event definition. They are not inputs.
 /// Preserve their IDs when the schema stays the same so redraws never alter documents.
 pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
+    let mut removed_prompt_ports = std::collections::HashSet::new();
     for node in &mut doc.nodes {
         // Labels are presentation metadata; authored parameter values keep their meaning.
         if let Some(def) = node.definition.as_deref().and_then(|id| defs.node(id)) {
@@ -1029,10 +1196,16 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                         },
                     ) = (&mut row.value, &param.default)
                     {
-                        *min = *lo;
-                        *max = *hi;
+                        let configuration = node
+                            .definition
+                            .as_deref()
+                            .is_some_and(|id| id.starts_with("entity"));
+                        *min = if configuration { lo.min(*value) } else { *lo };
+                        *max = if configuration { hi.max(*value) } else { *hi };
                         *step = *increment;
-                        *value = value.clamp(*lo, *max);
+                        if !configuration {
+                            *value = value.clamp(*lo, *max);
+                        }
                         if node.definition.as_deref() == Some("lookout") {
                             *value = value.round();
                         }
@@ -1045,9 +1218,12 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                         },
                     ) = (&mut row.value, &param.default)
                     {
-                        let profile = (matches!(row.key.as_deref(), Some("profile" | "action")))
-                            .then(|| options.get(*selected).cloned())
-                            .flatten();
+                        let profile = (matches!(
+                            row.key.as_deref(),
+                            Some("profile" | "action" | "race" | "class" | "command")
+                        ))
+                        .then(|| options.get(*selected).cloned())
+                        .flatten();
                         *options = translated.clone();
                         if let Some(profile) = profile {
                             *selected = options
@@ -1065,6 +1241,106 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                 if let Some(def_port) = def.ports.iter().find(|p| Some(&p.id) == port.key.as_ref())
                 {
                     port.label = def_port.label.clone();
+                }
+            }
+            if node.definition.as_deref() == Some("prompt") {
+                let answer_labels: Vec<String> = node
+                    .rows
+                    .iter()
+                    .find(|row| row.key.as_deref() == Some("choices"))
+                    .and_then(|row| match &row.value {
+                        GraphControlValue::List { rows, .. } => Some(rows),
+                        _ => None,
+                    })
+                    .map(|rows| {
+                        rows.iter()
+                            .map(|row| match row.first() {
+                                Some(GraphControlValue::Text(label)) => label.trim().to_string(),
+                                _ => String::new(),
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                node.ports.retain(|port| {
+                    let Some(index) = port
+                        .key
+                        .as_deref()
+                        .and_then(|key| {
+                            key.strip_prefix("choice:")
+                                .or_else(|| key.strip_prefix("when:"))
+                        })
+                        .and_then(|index| index.parse::<usize>().ok())
+                    else {
+                        return true;
+                    };
+                    if index < 6
+                        && answer_labels
+                            .get(index)
+                            .is_some_and(|label| !label.is_empty())
+                    {
+                        return true;
+                    }
+                    removed_prompt_ports.insert(port.id);
+                    false
+                });
+                let count = answer_labels.len().min(6);
+                for (index, label) in answer_labels.iter().take(6).enumerate() {
+                    if label.is_empty() {
+                        continue;
+                    }
+                    let key = format!("choice:{index}");
+                    if !node
+                        .ports
+                        .iter()
+                        .any(|port| port.key.as_deref() == Some(key.as_str()))
+                    {
+                        port(
+                            node,
+                            &key,
+                            label,
+                            PortDirection::Output,
+                            (index + 1) as f32 / (count + 1) as f32,
+                        );
+                    }
+                    let when = format!("when:{index}");
+                    if !node
+                        .ports
+                        .iter()
+                        .any(|port| port.key.as_deref() == Some(when.as_str()))
+                    {
+                        port(
+                            node,
+                            &when,
+                            &format!("{} {}", fl!("node_prompt_when"), index + 1),
+                            PortDirection::Input,
+                            (index + 1) as f32 / (count + 1) as f32,
+                        );
+                    }
+                }
+                for port in &mut node.ports {
+                    let Some(index) = port
+                        .key
+                        .as_deref()
+                        .and_then(|key| {
+                            key.strip_prefix("choice:")
+                                .or_else(|| key.strip_prefix("when:"))
+                        })
+                        .and_then(|index| index.parse::<usize>().ok())
+                    else {
+                        continue;
+                    };
+                    if let Some(label) = answer_labels.get(index) {
+                        port.label = if port
+                            .key
+                            .as_deref()
+                            .is_some_and(|key| key.starts_with("when:"))
+                        {
+                            format!("{} {}", fl!("node_prompt_when"), index + 1)
+                        } else {
+                            label.clone()
+                        };
+                        port.position = (index + 1) as f32 / (count + 1) as f32;
+                    }
                 }
             }
         }
@@ -1098,6 +1374,12 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                 row(node, &key, &label, GraphControlValue::Label(value));
             }
         }
+    }
+    if !removed_prompt_ports.is_empty() {
+        doc.connections.retain(|connection| {
+            !removed_prompt_ports.contains(&connection.from)
+                && !removed_prompt_ports.contains(&connection.to)
+        });
     }
 }
 

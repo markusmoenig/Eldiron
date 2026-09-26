@@ -5,7 +5,7 @@ sidebar_position: 2
 
 The project tree is available on the **Project** page of the right sidebar in *Eldiron Creator* and contains all editable content of your game. Use the **+** and **-** buttons at the bottom of the tree to add or remove content. To the right of these buttons, the current content context is displayed together with the **import** and **export** buttons.
 
-The compact sidebar tabs switch between the **Project** tree, the contextual **Actions** page, the **Console**, **Debug**, and **Help**. Console presents structured runtime output above its command entry. [Debug](debug) contains live server diagnostics, automatically opens when new warnings or errors arrive, and works with the script editor's runtime workflow visualization. Help uses the same sidebar area for the ruleset-aware interactive help system. Use `Tab` and `Shift+Tab` to cycle. The direct shortcuts are `Ctrl/Cmd+Shift+F` (Project), `Ctrl/Cmd+Shift+G` (Actions), `Ctrl/Cmd+Shift+H` (Console), `Ctrl/Cmd+Shift+J` (Debug), and `Ctrl/Cmd+Shift+K` (Help). The minimap remains visible below every page.
+The compact sidebar tabs switch between the **Project** tree, the contextual **Actions** page, the **Node List**, **Console**, **Debug**, and **Help**. Console presents structured runtime output above its command entry. [Debug](debug) contains live server diagnostics, automatically opens when new warnings or errors arrive, and works with the Nodes dock’s execution feedback. Help uses the same sidebar area for the ruleset-aware interactive help system. Use `Tab` and `Shift+Tab` to cycle. The direct shortcuts are `Ctrl/Cmd+Shift+F` (Project), `Ctrl/Cmd+Shift+G` (Actions), `Ctrl/Cmd+Shift+H` (Console), `Ctrl/Cmd+Shift+J` (Debug), and `Ctrl/Cmd+Shift+K` (Help). The minimap remains visible below every page.
 
 Selecting specific content in the project tree displays its corresponding editor dock widget. Camera shortcuts remain available as right-aligned icons beside the project tabs. After the separator, use the frame-corners control (`Cmd/Ctrl + [`) to open or maximize the current dock editor and the down-caret control (`Cmd/Ctrl + ]`) to restore the normal split.
 
@@ -17,21 +17,22 @@ Regions are the maps in your game which define the world, dungeons and towns.
 
 You use the [geometry tools](tools/overview#map-tools-specifics) to create geometry for the regions. Regions can be viewed using a **2D** or various **3D** cameras.
 
-Each region also has its own script entries in the tree:
+Each region also has its own behavior entry in the tree:
 
-- **Eldrin Scripting** for text-based region logic.
+- **Behavior Nodes** for region events.
 
-These region scripts are the right place for map-local behavior and runtime overrides, for example:
+Region settings configure map-local rendering, including:
 
 - region-specific palette remapping
 - local fog or background overrides
-- region-only quest or event coordination
+
+Use the region graph for region events.
 
 ## Characters
 
 A **character template** is a reusable blueprint that defines the **behavior, attributes, and appearance** of a character in the game.
 
-You can edit character behavior with **Eldrin Scripting** and edit the initial **Attributes** of the character.
+Use **Behavior Nodes** for character reactions and **Entity Nodes** for initial configuration, race/class selection, and player input.
 
 You can instantiate a character template into the map of the region by simply dragging and dropping the character template into the map (Click left of the *Name* item and drag).
 
@@ -43,7 +44,7 @@ You can use the [Entity Tool](tools/entity) to move or delete character instance
 
 Item templates have similar functionality as *characters templates* but define a static or dynamic item in the game world.
 
-Like with *characters* you can edit item behavior with **Eldrin Scripting** and edit the **Attributes** of the item.
+Use **Behavior Nodes** for item reactions and **Entity Nodes** for initial configuration.
 
 Each item also has **Icon: On** and **Icon: Off** rows in the tree. **On** is the
 normal/default state and contains the artwork for ordinary single-state items.
@@ -132,12 +133,12 @@ Use the [Palette Tool](tools/palette) to edit the Art Palette, load external pal
 In the game section you can select:
 
 - **Settings**. Edit your game settings and see all supported options in [Game Configuration](../configuration/game).
-- **World / Eldrin Scripting**. Edit text-based world/global logic.
+- **World / Behavior Nodes**. Edit global event-driven behavior.
 - **Authoring**. Edit global text-adventure and authoring behavior like startup text and sector description policies, see [Authoring Configuration](../configuration/authoring).
 - **Rules**. Edit project-wide gameplay rules and formulas in a TOML-based data editor, see [Rules](../rules).
 - **Locales**. Edit shared localization tables like `[en]` and `[de]` in a TOML-based data editor, see [Localization](../localization).
 - **Audio FX**. Edit generated micro sound effects in a TOML-based data editor with built-in preview, see [Audio](../audio).
 
-Use the **world** scripts for global state that should survive across regions, and use the **region** scripts for state and behavior local to one map.
+Use world and region graphs for their respective events. Available nodes depend on the selected graph owner.
 
 For editing per-sector, per-linedef, per-entity, and per-item narrative metadata inside regions, see [Authoring](./authoring).

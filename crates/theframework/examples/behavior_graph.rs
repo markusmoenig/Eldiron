@@ -650,7 +650,6 @@ impl TheTrait for Demo {
                 version: 1,
                 nodes: vec![routine, time, walk, arrived, equals, say, dialogue],
                 connections: vec![c1, c2, c3, c4],
-                compact: false,
             },
             editor: GraphEditor::default(),
             resources: GraphRasterResources::new(font),

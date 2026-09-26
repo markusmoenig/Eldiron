@@ -6040,6 +6040,13 @@ impl RegionInstance {
 
         for value in input.values().filter_map(toml::Value::as_str) {
             let lower = value.trim().to_ascii_lowercase();
+            if let Some(intent) = lower
+                .strip_prefix("intent.")
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
+                intents.insert(intent.to_string());
+            }
             if let Some(inner) = lower
                 .strip_prefix("intent(")
                 .and_then(|value| value.strip_suffix(')'))
@@ -8216,6 +8223,13 @@ impl RegionInstance {
                             let start_class =
                                 e.attributes.get_str("_start_class").map(str::to_string);
                             apply_entity_data(e, data);
+                            if let Some(configuration) = e
+                                .attributes
+                                .get_str("_entity_configuration")
+                                .map(str::to_string)
+                            {
+                                apply_entity_data(e, &configuration);
+                            }
                             if let Some(class) = start_class {
                                 e.set_attribute("class", Value::Str(class));
                                 e.attributes.remove("_start_class");
@@ -8385,6 +8399,13 @@ impl RegionInstance {
                         for i in ctx.map.items.iter_mut() {
                             if i.id == item.id {
                                 apply_item_data(i, data);
+                                if let Some(configuration) = i
+                                    .attributes
+                                    .get_str("_entity_configuration")
+                                    .map(str::to_string)
+                                {
+                                    apply_item_data(i, &configuration);
+                                }
                                 *item = i.clone();
                             }
                         }
@@ -12703,6 +12724,13 @@ impl RegionInstance {
                             let start_name =
                                 e.attributes.get_str("_start_name").map(str::to_string);
                             apply_entity_data(e, data);
+                            if let Some(configuration) = e
+                                .attributes
+                                .get_str("_entity_configuration")
+                                .map(str::to_string)
+                            {
+                                apply_entity_data(e, &configuration);
+                            }
                             if let Some(class) = start_class {
                                 e.set_attribute("class", Value::Str(class));
                                 e.attributes.remove("_start_class");
@@ -13736,7 +13764,8 @@ fn flush_pending_entity_transfers(ctx: &mut RegionCtx) {
                 .map(|entity| entity.attributes.get_float_default("radius", 0.5).max(0.0) - 0.01)
                 .unwrap_or(0.49);
             if let Some(center) = ctx.resolve_sector_spawn_position(&dest_sector_name, radius)
-                && let Some(preferred_y) = ctx.find_entity(entity_id).map(|entity| entity.position.y)
+                && let Some(preferred_y) =
+                    ctx.find_entity(entity_id).map(|entity| entity.position.y)
             {
                 let spawn_y = ctx_spawn_height(ctx, center, Some(preferred_y));
                 if let Some(entity) = ctx.get_entity_mut(entity_id) {
@@ -19486,6 +19515,15 @@ fn choice_session_is_valid(
         return false;
     }
 
+    if !ctx.active_choice_sessions.iter().any(|session| {
+        session.from == from_id
+            && session.to == to_id
+            && session.expires_at_tick == expires_at_tick
+            && session.max_distance == max_distance
+    }) {
+        return false;
+    }
+
     let Some(from_entity) = ctx.map.entities.iter().find(|entity| entity.id == from_id) else {
         return false;
     };
@@ -19513,10 +19551,7 @@ fn entity_carries(ctx: &RegionCtx, entity_id: u32, item: &str) -> bool {
         .is_some_and(|entity| {
             entity.iter_inventory().any(|(_, carried)| {
                 let name = carried.attributes.get_str("name").unwrap_or_default();
-                let class_name = carried
-                    .attributes
-                    .get_str("class_name")
-                    .unwrap_or_default();
+                let class_name = carried.attributes.get_str("class_name").unwrap_or_default();
                 item.is_empty()
                     || name.contains(item)
                     || class_name.contains(item)
@@ -19528,6 +19563,38 @@ fn dialog_condition_met(ctx: &RegionCtx, from_id: u32, to_id: u32, condition: &s
     let condition = condition.trim();
     if condition.is_empty() {
         return true;
+    }
+    if let Some(arguments) = condition
+        .strip_prefix("quest(")
+        .and_then(|value| value.strip_suffix(')'))
+    {
+        let mut parts = arguments
+            .split(',')
+            .map(|value| value.trim().trim_matches('"'));
+        if let (Some(id), Some(state), None) = (parts.next(), parts.next(), parts.next()) {
+            if !id.is_empty()
+                && id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+                && matches!(state, "not_started" | "active" | "completed")
+            {
+                return ctx
+                    .map
+                    .entities
+                    .iter()
+                    .find(|entity| {
+                        entity.id == to_id && entity.attributes.get_bool_default("player", false)
+                    })
+                    .is_some_and(|entity| {
+                        entity
+                            .attributes
+                            .get_str(&format!("quest.{id}"))
+                            .unwrap_or("not_started")
+                            == state
+                    });
+            }
+        }
+        return false;
     }
 
     fn value_truthy(value: &Value) -> bool {
@@ -19740,12 +19807,7 @@ pub fn open_dialog_node(ctx: &mut RegionCtx, from_id: u32, to_id: u32, node_name
 /// Each expression `dialog_condition_met` understands for TOML dialogues can be
 /// used directly, negated with `not ` or `unless `, and several can be joined
 /// with ` and `. An empty condition is always true.
-fn dialog_choice_condition_met(
-    ctx: &RegionCtx,
-    from_id: u32,
-    to_id: u32,
-    condition: &str,
-) -> bool {
+fn dialog_choice_condition_met(ctx: &RegionCtx, from_id: u32, to_id: u32, condition: &str) -> bool {
     condition.trim().split(" and ").all(|term| {
         let term = term.trim();
         if let Some(rest) = term.strip_prefix("unless ") {
@@ -19774,9 +19836,23 @@ pub(crate) fn present_node_dialogue(
     text: &str,
     choices: &[(String, Option<String>)],
 ) -> bool {
+    // A speaker has one active conversation. A second graph or a repeated
+    // interaction must not replace the session whose answer is still pending.
+    if ctx
+        .active_choice_sessions
+        .iter()
+        .any(|session| session.from == speaker_id)
+    {
+        return false;
+    }
     let timeout_minutes = ctx
         .find_entity(speaker_id)
-        .map(|entity| entity.attributes.get_float_default("timeout", 10.0).max(0.0))
+        .map(|entity| {
+            entity
+                .attributes
+                .get_float_default("timeout", 10.0)
+                .max(0.0)
+        })
         .unwrap_or(10.0);
     let expires_at_tick = ctx.ticks + (ctx.ticks_per_minute as f32 * timeout_minutes) as i64;
     let max_distance = entity_intent_distance_limit(ctx, speaker_id, "talk").unwrap_or(2.0);
@@ -19800,15 +19876,18 @@ pub(crate) fn present_node_dialogue(
     let visible: Vec<(usize, &(String, Option<String>))> = choices
         .iter()
         .enumerate()
-        .filter(|(_, (_, condition))| match condition {
-            None => true,
-            Some(condition) => {
-                dialog_choice_condition_met(ctx, speaker_id, listener_id, condition)
-            }
+        .filter(|(_, (label, condition))| {
+            !label.trim().is_empty()
+                && match condition {
+                    None => true,
+                    Some(condition) => {
+                        dialog_choice_condition_met(ctx, speaker_id, listener_id, condition)
+                    }
+                }
         })
         .collect();
     if visible.is_empty() {
-        clear_choice_session(ctx, speaker_id, listener_id);
+        // The caller takes Done immediately; there is no session to park.
         return false;
     }
 

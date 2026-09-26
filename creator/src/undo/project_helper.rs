@@ -265,8 +265,7 @@ pub fn gen_region_tree_items(node: &mut TheTreeNode, region: &Region) {
         item.set_text(fl!("settings"));
         node.add_widget(Box::new(item));
 
-        let mut item =
-            TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
+        let mut item = TheTreeItem::new(TheId::named_with_reference("Region Code Item", region.id));
         item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
         item.set_text(fl!("behavior_nodes"));
         node.add_widget(Box::new(item));
@@ -333,7 +332,7 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
         character.id,
     ));
     item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-    item.set_text(fl!("attributes"));
+    item.set_text(fl!("entity_nodes"));
     node.add_widget(Box::new(item));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference(
@@ -493,7 +492,7 @@ pub fn gen_item_tree_node(item_: &Item, project: &Project) -> TheTreeNode {
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Data Edit", item_.id));
     item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-    item.set_text(fl!("attributes"));
+    item.set_text(fl!("entity_nodes"));
     node.add_widget(Box::new(item));
 
     node
@@ -1302,7 +1301,7 @@ pub fn set_project_context(
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Data".into(), ui, ctx, project, server_ctx);
+                .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::CharacterPreviewRigging(id) => {
             if let Some(region) = project.characters.get(&id) {
@@ -1357,7 +1356,7 @@ pub fn set_project_context(
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Data".into(), ui, ctx, project, server_ctx);
+                .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::Tilemap(id) => {
             if let Some(tilemap) = project.get_tilemap(id) {

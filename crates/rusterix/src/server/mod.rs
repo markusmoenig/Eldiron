@@ -694,6 +694,7 @@ impl Server {
                         for update in updates {
                             self.node_highlights.retain(|old| {
                                 old.event.map != update.event.map
+                                    || old.graph != update.graph
                                     || old.actor.identity != update.actor.identity
                             });
                             if !update.active.nodes.is_empty() || !update.recent.nodes.is_empty() {

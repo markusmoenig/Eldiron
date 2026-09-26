@@ -5,11 +5,7 @@ sidebar_position: 5
 
 Region Settings are stored as TOML and control region-level editor/runtime behavior.
 
-Runtime logic for a region is edited separately from this TOML file:
-
-- **Region / Eldrin Scripting**
-
-Use the region scripts for dynamic runtime overrides such as local fog, palette remap, or post changes. Use **Region Settings** for authored/static map settings.
+Region **Behavior Nodes** are edited separately from this TOML file. Use Region Settings for authored map settings such as fog, palette and procedural generation.
 
 ## Procedural
 
@@ -53,7 +49,6 @@ percentage = 35
 - `door_placement`: `entrances`, `exits`, or `both`.
 - `door_randomness`: probability from `0.0` to `1.0` after `door_placement` filtering. If no door is placed, the connection remains passable floor.
 
-These settings can also be changed from scripts through `region.procedural.*` context paths before calling `build_procedural()`. `build_procedural(0)` maintains `region.procedural.run` internally to advance to the next deterministic layout. `region.procedural.rooms` is accepted as an alias for `region.procedural.room_count`, and character `percent` is accepted as an alias for `percentage`.
 
 Tiles are selected from tile metadata:
 

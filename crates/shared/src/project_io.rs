@@ -139,15 +139,21 @@ pub fn project_file_format(bytes: &[u8]) -> ProjectFileFormat {
 }
 
 pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
-    match project_file_format(bytes) {
+    let mut project = match project_file_format(bytes) {
         ProjectFileFormat::LegacyJson => serde_json::from_slice(bytes)
             .map_err(|err| format!("invalid legacy Eldiron project JSON: {err}")),
         ProjectFileFormat::ArchiveV1 => decode_project_archive(bytes),
+    }?;
+    if let Err(error) = crate::entity_graph::synchronize(&mut project) {
+        eprintln!("Entity configuration: {error}");
     }
+    Ok(project)
 }
 
 pub fn encode_project(project: &Project) -> Result<Vec<u8>, String> {
     let mut archived_project = project.clone();
+    // Refresh valid projections; incomplete authoring graphs retain their last valid data.
+    let _ = crate::entity_graph::synchronize(&mut archived_project);
     let mut binaries = ProjectBinaryWriter::new();
     externalize_bake_entries(&mut archived_project, &mut binaries)?;
     externalize_item_icon_entries(&mut archived_project, &mut binaries)?;

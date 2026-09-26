@@ -891,10 +891,8 @@ fn dialogue_node_waits_and_resumes_on_the_chosen_branch() {
     );
 }
 
-/// The migrated Hideout2D conversation, against the graph that actually ships:
-/// Mara greets, hides the choices her conditions rule out, then continues into
-/// the briefing the player picked. Her node carries the conversation document
-/// the editor writes, rather than the legacy steps/choices tables.
+/// Mara's shipped Prompt branch offers only available answers and follows the
+/// selected connection to the next line or quest consequence.
 #[test]
 fn hideout2d_mara_dialogue_runs_from_the_shipped_graph() {
     use crate::server::{
@@ -908,20 +906,36 @@ fn hideout2d_mara_dialogue_runs_from_the_shipped_graph() {
         return;
     };
 
-    // The migration target itself, so an accidental revert to the tables shows.
-    let talk = graph["nodes"]
+    let prompts: Vec<_> = graph["nodes"]
         .as_array()
-        .and_then(|nodes| nodes.iter().find(|node| node["definition"] == "talk"))
-        .expect("Mara ships a Talk node");
-    let row = talk["rows"]
-        .as_array()
-        .and_then(|rows| rows.iter().find(|row| row["key"] == "conversation"))
-        .expect("Mara's Talk node carries the conversation document");
-    let document = Conversation::from_control(&row["value"]).expect("the document parses");
-    assert_eq!(document.entry, "greeting");
+        .expect("Mara's graph has nodes")
+        .iter()
+        .filter(|node| node["definition"] == "prompt")
+        .collect();
     assert_eq!(
-        document.step_names(),
-        vec!["greeting", "bell", "prepare", "contract", "settled"]
+        prompts.len(),
+        5,
+        "Mara's lines should be visible as five nodes"
+    );
+    assert_eq!(
+        graph["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|node| matches!(
+                node["definition"].as_str(),
+                Some("quest_guard" | "item_guard" | "player_attribute_guard")
+            ))
+            .count(),
+        7,
+        "Mara's answer conditions should be visible as guards"
+    );
+    assert!(
+        graph["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|node| node["definition"] != "talk")
     );
 
     let mut ctx = RegionCtx::default();
@@ -938,6 +952,7 @@ fn hideout2d_mara_dialogue_runs_from_the_shipped_graph() {
     player.id = 1;
     player.creator_id = Uuid::new_v4();
     player.set_attribute("class_name", crate::Value::Str("Player".into()));
+    player.set_attribute("player", crate::Value::Bool(true));
     ctx.map.entities.push(player);
 
     let mut mara = crate::Entity::new();
@@ -1015,10 +1030,17 @@ fn hideout2d_mara_dialogue_runs_from_the_shipped_graph() {
     // Attribute and Message nodes.
     ctx.dialog_choices.insert(2, DialogChoiceMade::Index(0));
     region::tick(&mut ctx);
-    let mara = ctx.find_entity(2).expect("Warden Mara");
+    let player = ctx.find_entity(1).expect("Player");
     assert!(
-        mara.attributes.get_bool_default("barrow_active", false),
-        "accepting the contract has to write the quest flag"
+        player.attributes.get_str("quest.bell_below") == Some("active"),
+        "accepting the contract has to start the player's quest"
+    );
+    assert!(
+        !ctx.find_entity(2)
+            .expect("Mara")
+            .attributes
+            .get_bool_default("barrow_active", false),
+        "a quest must not be stored on the speaker"
     );
     let finished: Vec<RegionMessage> = receiver.try_iter().collect();
     assert!(
@@ -1060,6 +1082,58 @@ fn hideout2d_mara_dialogue_runs_from_the_shipped_graph() {
         offered_indices,
         vec![1, 5],
         "a running quest offers the contract instead of the introduction"
+    );
+
+    // End the first player's open conversation before the next player talks.
+    ctx.active_choice_sessions.clear();
+    ctx.dialog_choices.insert(2, DialogChoiceMade::Dismissed);
+    region::tick(&mut ctx);
+    let _: Vec<RegionMessage> = receiver.try_iter().collect();
+
+    let mut second_player = crate::Entity::new();
+    second_player.id = 3;
+    second_player.set_attribute("player", crate::Value::Bool(true));
+    ctx.map.entities.push(second_player);
+    let second_args = [
+        VMValue::from_string("intent"),
+        VMValue::new_with_string(3.0, 1.0, 0.0, "use"),
+    ];
+    run_server_named_fn(
+        &mut Execution::default(),
+        "event",
+        &second_args,
+        &program,
+        &mut ctx,
+    );
+    let offered: Vec<RegionMessage> = receiver.try_iter().collect();
+    let second_indices: Vec<u32> = offered
+        .iter()
+        .filter_map(|message| match message {
+            RegionMessage::MultipleChoice(choice) => Some(
+                choice
+                    .choices
+                    .iter()
+                    .filter_map(|choice| match choice {
+                        Choice::NodeChoice(choice) => Some(choice.index),
+                        _ => None,
+                    })
+                    .collect::<Vec<u32>>(),
+            ),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    assert_eq!(
+        second_indices,
+        vec![0, 5],
+        "the second player has an independent quest"
+    );
+    assert!(
+        ctx.find_entity(3)
+            .unwrap()
+            .attributes
+            .get_str("quest.bell_below")
+            .is_none()
     );
 }
 
@@ -1831,81 +1905,6 @@ fn on_area_routes_who_and_when() {
     assert_eq!(probe.said, ["Player here", "NPC left"]);
 }
 
-#[test]
-fn an_instance_graph_layers_over_its_template() {
-    let event_row =
-        |data: &str| json!([{"key":"event","value":{"Custom":{"kind":"event","data":data}}}]);
-    let template = json!({"version":1,"nodes":[
-        {"id":"routine-1","definition":"routine","rows":[],"ports":[]},
-        {"id":"start-1","definition":"event","rows":event_row("startup"),"ports":[]},
-        {"id":"death-1","definition":"event","rows":event_row("death"),"ports":[]}
-    ],"connections":[{"id":"c1","from":"x","to":"y"}]});
-    let instance = json!({"version":1,"nodes":[
-        {"id":"start-2","definition":"event","rows":event_row("startup"),"ports":[]},
-        {"id":"name-2","definition":"set_attribute","rows":[],"ports":[]}
-    ],"connections":[{"id":"c2","from":"p","to":"q"}]});
-    // The runtime drops the template entries for the events the instance answers.
-    let replaced: std::collections::HashSet<String> = ["start-1".to_string()].into_iter().collect();
-    let merged = super::region::compose_graphs(&template, &instance, &replaced);
-
-    let ids: Vec<&str> = merged["nodes"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|node| node["id"].as_str().unwrap())
-        .collect();
-    assert!(ids.contains(&"routine-1"), "the template routine survives");
-    assert!(
-        ids.contains(&"death-1"),
-        "the template death chain survives"
-    );
-    assert!(!ids.contains(&"start-1"), "the overridden entry is dropped");
-    assert!(ids.contains(&"start-2") && ids.contains(&"name-2"));
-    assert_eq!(merged["connections"].as_array().unwrap().len(), 2);
-}
-
-#[test]
-fn composition_keeps_template_chains_and_overrides_the_instance_ones() {
-    let routine_id = Uuid::new_v4();
-    let template_start = Uuid::new_v4();
-    let instance_start = Uuid::new_v4();
-    let template = json!({"version":1,"nodes":[
-        {"id":routine_id,"definition":"routine","rows":[],"ports":[
-            {"id":Uuid::new_v4(),"key":"out","direction":"Output","kind":"flow"}]},
-        {"id":template_start,"definition":"event","rows":[
-            {"key":"event","value":{"Custom":{"kind":"event","data":"startup"}}}],"ports":[
-            {"id":Uuid::new_v4(),"key":"out","direction":"Output","kind":"flow"}]}
-    ],"connections":[]});
-    let instance = json!({"version":1,"nodes":[
-        {"id":instance_start,"definition":"event","rows":[
-            {"key":"event","value":{"Custom":{"kind":"event","data":"startup"}}}],"ports":[
-            {"id":Uuid::new_v4(),"key":"out","direction":"Output","kind":"flow"}]}
-    ],"connections":[]});
-
-    // The same resolution `owner_graph` performs at runtime.
-    let instance_plan = Registry::builtin().compile(&instance).unwrap();
-    let template_plan = Registry::builtin().compile(&template).unwrap();
-    let owned: std::collections::HashSet<String> = instance_plan.events.keys().cloned().collect();
-    let replaced: std::collections::HashSet<String> = template_plan
-        .events
-        .iter()
-        .filter(|(event, _)| owned.contains(*event))
-        .flat_map(|(_, nodes)| nodes.iter().map(|node| node.to_string()))
-        .collect();
-    let merged = super::region::compose_graphs(&template, &instance, &replaced);
-    let plan = Registry::builtin().compile(&merged).unwrap();
-
-    // The template chain the instance never mentions still runs.
-    assert!(plan.events.contains_key("routine"), "template routine kept");
-    // And the instance owns the event it does define.
-    let startup = plan.events.get("startup").expect("startup entry");
-    assert!(startup.contains(&instance_start));
-    assert!(!startup.contains(&template_start));
-}
-
-/// A Talk graph: an intent trigger into a Talk node whose `out:0` port runs a Set
-/// Attribute node and then a Message node. That chain is a choice's consequence
-/// now, so the graph — not a script — does the work.
 fn talk_graph(conversation: serde_json::Value) -> (serde_json::Value, Uuid) {
     let event = Uuid::new_v4();
     let talk = Uuid::new_v4();
@@ -1996,6 +1995,7 @@ fn talk_speaker_and_listener(class_name: &str) -> (crate::Entity, crate::Entity)
     listener.id = 1;
     listener.creator_id = Uuid::new_v4();
     listener.set_attribute("class_name", crate::Value::Str("Player".into()));
+    listener.set_attribute("player", crate::Value::Bool(true));
     let mut speaker = crate::Entity::new();
     speaker.id = 2;
     speaker.creator_id = Uuid::new_v4();
@@ -2418,8 +2418,7 @@ fn dialog_lines(messages: &[crate::server::message::RegionMessage]) -> Vec<Strin
         .collect()
 }
 
-/// Brother Corvin's shipped graph is one Talk node: a plain conversation tree
-/// with no conditions and no state, walked by its choices.
+/// Brother Corvin's shipped Prompts form a conversation with Back links.
 #[test]
 fn hideout2d_corvin_conversation_runs_from_the_shipped_graph() {
     let Some((mut ctx, receiver)) = run_shipped_character("Brother Corvin") else {
@@ -2434,7 +2433,9 @@ fn hideout2d_corvin_conversation_runs_from_the_shipped_graph() {
     );
     let greeting = dialog_lines(&offered);
     assert!(
-        greeting.iter().any(|line| line.starts_with("Brother Corvin has covered")),
+        greeting
+            .iter()
+            .any(|line| line.starts_with("Brother Corvin has covered")),
         "got {greeting:?}"
     );
 
@@ -2462,14 +2463,14 @@ fn hideout2d_corvin_conversation_runs_from_the_shipped_graph() {
     region::tick(&mut ctx);
     let back = dialog_lines(&drain_messages(&receiver));
     assert!(
-        back.iter().any(|line| line.starts_with("Brother Corvin has covered")),
+        back.iter()
+            .any(|line| line.starts_with("Brother Corvin has covered")),
         "back has to return to the greeting, got {back:?}"
     );
 }
 
-/// Quartermaster Nessa's shipped graph opens her stock from a choice that leaves
-/// through its consequence port, where a Message node and an Offer Inventory
-/// node do the work.
+/// Quartermaster Nessa's shipped Prompt opens her stock from an answer output,
+/// where a Message node and an Offer Inventory node do the work.
 #[test]
 fn hideout2d_nessa_opens_her_stock_from_the_shipped_graph() {
     use crate::server::message::RegionMessage;
@@ -2482,7 +2483,9 @@ fn hideout2d_nessa_opens_her_stock_from_the_shipped_graph() {
     assert_eq!(node_choice_indices(&offered), vec![0, 1, 2]);
     let greeting = dialog_lines(&offered);
     assert!(
-        greeting.iter().any(|line| line.starts_with("Quartermaster Nessa checks")),
+        greeting
+            .iter()
+            .any(|line| line.starts_with("Quartermaster Nessa checks")),
         "got {greeting:?}"
     );
 
@@ -2505,7 +2508,7 @@ fn hideout2d_nessa_opens_her_stock_from_the_shipped_graph() {
         "the stock has to open as a choice list, got {messages:?}"
     );
 
-    // The second branch is the advice, still inside the same node.
+    // The second branch is advice in a separate Prompt.
     run_intent(&mut ctx);
     let _ = drain_messages(&receiver);
     ctx.dialog_choices.insert(2, DialogChoiceMade::Index(1));
@@ -2513,8 +2516,58 @@ fn hideout2d_nessa_opens_her_stock_from_the_shipped_graph() {
     let offered = drain_messages(&receiver);
     let advice = dialog_lines(&offered);
     assert!(
-        advice.iter().any(|line| line.starts_with("A torch, arrows")),
+        advice
+            .iter()
+            .any(|line| line.starts_with("A torch, arrows")),
         "the advice step has to follow, got {advice:?}"
     );
     assert_eq!(node_choice_indices(&offered), vec![0, 1]);
+}
+
+#[test]
+fn dialogue_with_no_visible_answers_finishes_and_an_open_session_is_not_replaced() {
+    use crate::server::{region::present_node_dialogue, regionctx::RegionCtx};
+    let mut ctx = RegionCtx::default();
+    let (sender, _receiver) = crossbeam_channel::unbounded();
+    ctx.from_sender.set(sender).unwrap();
+    let mut speaker = crate::Entity::new();
+    speaker.id = 2;
+    let mut player = crate::Entity::new();
+    player.id = 1;
+    ctx.map.entities.extend([player, speaker]);
+    assert!(!present_node_dialogue(
+        &mut ctx,
+        2,
+        1,
+        "Nothing to offer.",
+        &[]
+    ));
+    assert!(ctx.dialog_choices.get(&2).is_none());
+    assert!(present_node_dialogue(
+        &mut ctx,
+        2,
+        1,
+        "Choose.",
+        &[("Leave".into(), None)]
+    ));
+    assert!(!present_node_dialogue(
+        &mut ctx,
+        2,
+        1,
+        "Second conversation.",
+        &[("Yes".into(), None)]
+    ));
+    assert_eq!(ctx.active_choice_sessions.len(), 1);
+}
+
+#[test]
+fn dialogue_blank_rows_keep_their_output_numbers() {
+    let value = json!({"List":{"rows":[
+        [{"Text":""},{"Text":""}],
+        [{"Text":"Accept"},{"Text":""}]
+    ]}});
+    let choices = super::builtins::dialog_choices(Some(&value));
+    assert_eq!(choices.len(), 2);
+    assert_eq!(choices[0].0, "");
+    assert_eq!(choices[1].0, "Accept");
 }

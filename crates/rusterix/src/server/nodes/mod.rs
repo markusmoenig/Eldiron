@@ -40,6 +40,7 @@ pub struct Trace {
     pub connection: Option<Uuid>,
     pub error: Option<String>,
     pub running: bool,
+    pub condition: Option<bool>,
 }
 /// Execution snapshots are separate from the bounded diagnostic trace history.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -49,6 +50,7 @@ pub struct ExecutionPath {
 }
 #[derive(Clone, Debug, PartialEq)]
 pub struct Highlights {
+    pub graph: String,
     pub actor: ActorHandle,
     pub event: EventObservation,
     pub revision: Uuid,
@@ -78,6 +80,32 @@ pub enum DialogChoiceMade {
 }
 /// Modules access world functionality through services, never the legacy RegionCtx.
 pub trait WorldServices {
+    /// Quest state belongs to the participating player, not the speaker.
+    fn quest_state(
+        &self,
+        _actor: &Actor,
+        _subject: Option<u32>,
+        _quest: &str,
+    ) -> Result<&'static str, String> {
+        Err("Quest State requires a player".into())
+    }
+    fn set_quest_state(
+        &mut self,
+        _actor: &Actor,
+        _subject: Option<u32>,
+        _quest: &str,
+        _state: &str,
+    ) -> Result<bool, String> {
+        Err("Set Quest requires a player".into())
+    }
+    fn player_attribute_bool(
+        &self,
+        _actor: &Actor,
+        _subject: Option<u32>,
+        _name: &str,
+    ) -> Result<bool, String> {
+        Err("Player Attribute Guard requires a player".into())
+    }
     fn use_action(
         &mut self,
         _actor: &Actor,
@@ -228,7 +256,7 @@ pub trait WorldServices {
         _target: u32,
         _text: &str,
         _choices: &[(String, Option<String>)],
-    ) -> Result<(), String> {
+    ) -> Result<bool, String> {
         Err("Dialogue requires a character".into())
     }
     /// The answer to an open dialogue for this actor, consumed once. `None`
@@ -251,6 +279,24 @@ pub trait WorldServices {
     fn set_talk_resume(&mut self, _actor: &Actor, _step: Option<&str>) {}
 }
 pub trait Operation: Send + Sync {
+    fn is_guard(&self) -> bool {
+        false
+    }
+    fn evaluate_guard(
+        &self,
+        _ctx: &EventContext<'_>,
+        _world: &mut dyn WorldServices,
+    ) -> Result<bool, String> {
+        Err("This node is not a choice guard".into())
+    }
+    fn execute_with_guards(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+        _visible: &[bool; 6],
+    ) -> Result<&'static str, String> {
+        self.execute(ctx, world)
+    }
     fn watch_event(&self) -> Option<&'static str> {
         None
     }
@@ -410,6 +456,7 @@ impl Registry {
             nodes.insert(node.id, operation);
         }
         let mut edges: HashMap<(Uuid, String), Vec<(Uuid, Uuid)>> = HashMap::new();
+        let mut guards: HashMap<(Uuid, usize), Vec<(Uuid, Uuid)>> = HashMap::new();
         let mut edge_ids = HashSet::new();
         for c in doc.connections {
             if !edge_ids.insert(c.id) {
@@ -420,6 +467,19 @@ impl Registry {
             if a.2 != "Output" || b.2 != "Input" {
                 return Err("Connection must run from output to input".into());
             }
+            if let Some(index) =
+                b.1.strip_prefix("when:")
+                    .and_then(|value| value.parse::<usize>().ok())
+            {
+                if index >= 6 || !nodes[&a.0].is_guard() || a.1 != "condition" {
+                    return Err("Prompt guard input needs a guard node".into());
+                }
+                guards.entry((b.0, index)).or_default().push((c.id, a.0));
+                continue;
+            }
+            if nodes[&a.0].is_guard() {
+                return Err("Guard outputs connect only to Prompt Show if inputs".into());
+            }
             edges
                 .entry((a.0, a.1.clone()))
                 .or_default()
@@ -429,6 +489,7 @@ impl Registry {
             nodes,
             events,
             edges,
+            guards,
         })
     }
 }
@@ -467,6 +528,7 @@ pub struct Plan {
     nodes: HashMap<Uuid, Box<dyn Operation>>,
     events: HashMap<String, Vec<Uuid>>,
     edges: HashMap<(Uuid, String), Vec<(Uuid, Uuid)>>,
+    guards: HashMap<(Uuid, usize), Vec<(Uuid, Uuid)>>,
 }
 #[derive(Default)]
 pub struct Runtime {
@@ -630,6 +692,7 @@ impl Runtime {
                         connection: None,
                         error: Some(error.clone()),
                         running: false,
+                        condition: None,
                     });
                     return Err(error);
                 }
@@ -860,6 +923,7 @@ impl Runtime {
             connection: None,
             error: result.as_ref().err().cloned(),
             running: false,
+            condition: None,
         });
         let completion_error = result.as_ref().err().cloned();
         let port = result.ok().or_else(|| op.error_output());
@@ -877,6 +941,7 @@ impl Runtime {
                     connection: Some(*connection),
                     error: completion_error.clone(),
                     running: false,
+                    condition: None,
                 });
                 if let Some(state) = self.highlights.get_mut(&handle) {
                     if !state.recent.connections.contains(connection) {
@@ -941,6 +1006,7 @@ impl Runtime {
                 }
             }
             let state = self.highlights.entry(handle).or_insert_with(|| Highlights {
+                graph: String::new(),
                 actor: handle,
                 event: event.clone(),
                 revision: Uuid::new_v4(),
@@ -957,18 +1023,59 @@ impl Runtime {
             self.highlight_dirty.insert(handle);
             let mut started_activity = false;
             while let Some((id, incoming)) = work.pop_front() {
-                let result = if budget <= 1 {
+                let mut visible = [true; 6];
+                let mut evaluated_guards = Vec::new();
+                let mut guard_error = None;
+                for index in 0..6 {
+                    for (connection, guard) in graph.guards.get(&(id, index)).into_iter().flatten()
+                    {
+                        if budget <= 1 {
+                            guard_error =
+                                Some("Graph execution budget exceeded (possible cycle)".into());
+                            break;
+                        }
+                        budget -= 1;
+                        let answer = graph.nodes[guard].evaluate_guard(
+                            &EventContext {
+                                actor,
+                                event: &event,
+                                time: world.time(actor),
+                            },
+                            world,
+                        );
+                        evaluated_guards.push((
+                            *guard,
+                            *connection,
+                            answer.as_ref().err().cloned(),
+                            answer.as_ref().ok().copied(),
+                        ));
+                        match answer {
+                            Ok(value) => visible[index] &= value,
+                            Err(error) => {
+                                guard_error = Some(error);
+                                break;
+                            }
+                        }
+                    }
+                    if guard_error.is_some() {
+                        break;
+                    }
+                }
+                let result = if let Some(error) = guard_error {
+                    Err(error)
+                } else if budget <= 1 {
                     budget = 0;
                     Err("Graph execution budget exceeded (possible cycle)".into())
                 } else {
                     budget -= 1;
-                    graph.nodes[&id].execute(
+                    graph.nodes[&id].execute_with_guards(
                         &EventContext {
                             actor,
                             event: &event,
                             time: world.time(actor),
                         },
                         world,
+                        &visible,
                     )
                 };
                 if let Some(name) = graph.nodes[&id].watch_event() {
@@ -988,6 +1095,14 @@ impl Runtime {
                     }
                 }
                 let state = self.highlights.get_mut(&handle).unwrap();
+                for (guard, connection, _, _) in &evaluated_guards {
+                    if !state.recent.nodes.contains(guard) {
+                        state.recent.nodes.push(*guard);
+                    }
+                    if !state.recent.connections.contains(connection) {
+                        state.recent.connections.push(*connection);
+                    }
+                }
                 if !state.recent.nodes.contains(&id) {
                     state.recent.nodes.push(id);
                 }
@@ -999,12 +1114,29 @@ impl Runtime {
                 if self.traces.len() >= 512 {
                     self.traces.pop_front();
                 }
+                for (guard, connection, error, condition) in evaluated_guards {
+                    if self.traces.len() >= 512 {
+                        self.traces.pop_front();
+                    }
+                    self.traces.push_back(Trace {
+                        event: event.clone(),
+                        node: guard,
+                        connection: Some(connection),
+                        error,
+                        running: false,
+                        condition,
+                    });
+                }
+                if self.traces.len() >= 512 {
+                    self.traces.pop_front();
+                }
                 self.traces.push_back(Trace {
                     event: event.clone(),
                     node: id,
                     connection: incoming,
                     error: result.as_ref().err().cloned(),
                     running: result.as_ref().is_ok_and(|port| *port == "running"),
+                    condition: None,
                 });
                 if result.is_err() {
                     self.failed.insert(handle, (id, event.clone()));

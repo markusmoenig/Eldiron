@@ -68,4 +68,4 @@ For custom surface details, select the host face first, then switch to the **Lin
 
 ### 2D and 3D
 
-Create named sectors as logical units for areas NPCs can move in or as destinations for the [goto](../../characters_items/server_commands#goto) command. Your characters receive [entered](../../characters_items/events#entered) and [left](../../characters_items/events#left) events whenever they enter or leave a sector, providing a powerful way to interact with the environment.
+Create named sectors as logical units for areas NPCs can move in or as destinations for the [Go To node](../../characters_items/node_reference#go-to). Use On Enter Area on a character or On Area on the place itself to respond to transitions.

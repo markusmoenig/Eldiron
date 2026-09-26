@@ -1,5 +1,12 @@
 use super::*;
 pub(super) fn register(registry: &mut Registry) {
+    registry.register(Box::new(QuestStateModule)).unwrap();
+    registry.register(Box::new(SetQuestModule)).unwrap();
+    registry.register(Box::new(QuestGuardModule)).unwrap();
+    registry.register(Box::new(ItemGuardModule)).unwrap();
+    registry
+        .register(Box::new(PlayerAttributeGuardModule))
+        .unwrap();
     registry.register(Box::new(UseActionModule)).unwrap();
     registry.register(Box::new(LookoutModule)).unwrap();
     registry.register(Box::new(EngageModule)).unwrap();
@@ -24,6 +31,7 @@ pub(super) fn register(registry: &mut Registry) {
     registry.register(Box::new(EntitiesInRadiusModule)).unwrap();
     registry.register(Box::new(DialogModule)).unwrap();
     registry.register(Box::new(DialogueModule)).unwrap();
+    registry.register(Box::new(PromptModule)).unwrap();
     registry.register(Box::new(TalkModule)).unwrap();
     registry.register(Box::new(InventoryHasModule)).unwrap();
     registry.register(Box::new(OfferInventoryModule)).unwrap();
@@ -1065,6 +1073,254 @@ fn acting_target(ctx: &EventContext<'_>) -> Option<u32> {
         _ => None,
     }
 }
+fn valid_quest_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+}
+fn selected(p: &BTreeMap<String, Value>, key: &str) -> Result<u64, String> {
+    p.get(key)
+        .and_then(|value| value.pointer("/Choice/selected"))
+        .and_then(Value::as_u64)
+        .ok_or_else(|| format!("Missing choice parameter {key}"))
+}
+struct QuestGuardModule;
+impl NodeModule for QuestGuardModule {
+    fn id(&self) -> &'static str {
+        "quest_guard"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &[]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["condition"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        let quest = text(p, "quest")?.trim().to_string();
+        if !valid_quest_id(&quest) {
+            return Err("Quest Guard needs a valid quest ID".into());
+        }
+        let state = match selected(p, "state")? {
+            0 => "not_started",
+            1 => "active",
+            2 => "completed",
+            3 => "not_completed",
+            _ => return Err("Invalid quest state".into()),
+        };
+        Ok(Box::new(QuestGuard { quest, state }))
+    }
+}
+struct QuestGuard {
+    quest: String,
+    state: &'static str,
+}
+impl Operation for QuestGuard {
+    fn is_guard(&self) -> bool {
+        true
+    }
+    fn evaluate_guard(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<bool, String> {
+        let state = world.quest_state(ctx.actor, acting_target(ctx), &self.quest)?;
+        Ok(if self.state == "not_completed" {
+            state != "completed"
+        } else {
+            state == self.state
+        })
+    }
+    fn execute(
+        &self,
+        _: &EventContext<'_>,
+        _: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        Ok("condition")
+    }
+}
+struct ItemGuardModule;
+impl NodeModule for ItemGuardModule {
+    fn id(&self) -> &'static str {
+        "item_guard"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &[]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["condition"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        let item = text(p, "item")?.trim().to_string();
+        if item.is_empty() {
+            return Err("Item Guard needs an item".into());
+        }
+        let has = match selected(p, "presence")? {
+            0 => true,
+            1 => false,
+            _ => return Err("Invalid item presence".into()),
+        };
+        Ok(Box::new(ItemGuard { item, has }))
+    }
+}
+struct ItemGuard {
+    item: String,
+    has: bool,
+}
+impl Operation for ItemGuard {
+    fn is_guard(&self) -> bool {
+        true
+    }
+    fn evaluate_guard(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<bool, String> {
+        let target = acting_target(ctx).unwrap_or(ctx.actor.render_id);
+        Ok(world.inventory_has(target, &self.item)? == self.has)
+    }
+    fn execute(
+        &self,
+        _: &EventContext<'_>,
+        _: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        Ok("condition")
+    }
+}
+struct PlayerAttributeGuardModule;
+impl NodeModule for PlayerAttributeGuardModule {
+    fn id(&self) -> &'static str {
+        "player_attribute_guard"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &[]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["condition"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        let name = text(p, "attribute")?.trim().to_string();
+        if name.is_empty() {
+            return Err("Player Attribute Guard needs an attribute".into());
+        }
+        let expected = match selected(p, "expected")? {
+            0 => true,
+            1 => false,
+            _ => return Err("Invalid expected value".into()),
+        };
+        Ok(Box::new(PlayerAttributeGuard { name, expected }))
+    }
+}
+struct PlayerAttributeGuard {
+    name: String,
+    expected: bool,
+}
+impl Operation for PlayerAttributeGuard {
+    fn is_guard(&self) -> bool {
+        true
+    }
+    fn evaluate_guard(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<bool, String> {
+        Ok(
+            world.player_attribute_bool(ctx.actor, acting_target(ctx), &self.name)?
+                == self.expected,
+        )
+    }
+    fn execute(
+        &self,
+        _: &EventContext<'_>,
+        _: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        Ok("condition")
+    }
+}
+
+/// A quest is identified by an author-chosen ID; its state is stored on the
+/// player who participates in the event.
+struct QuestStateModule;
+impl NodeModule for QuestStateModule {
+    fn id(&self) -> &'static str {
+        "quest_state"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["not_started", "active", "completed"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        let quest = text(p, "quest")?.trim().to_owned();
+        if !valid_quest_id(&quest) {
+            return Err("Quest State needs an ID using letters, numbers, _ or -".into());
+        }
+        Ok(Box::new(QuestState(quest)))
+    }
+}
+struct QuestState(String);
+impl Operation for QuestState {
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        world.quest_state(ctx.actor, acting_target(ctx), &self.0)
+    }
+}
+struct SetQuestModule;
+impl NodeModule for SetQuestModule {
+    fn id(&self) -> &'static str {
+        "set_quest"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["done", "unchanged", "failed"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        let quest = text(p, "quest")?.trim().to_owned();
+        if !valid_quest_id(&quest) {
+            return Err("Set Quest needs an ID using letters, numbers, _ or -".into());
+        }
+        let state = p
+            .get("state")
+            .and_then(|v| v.pointer("/Choice/selected"))
+            .and_then(Value::as_u64)
+            .ok_or("Set Quest needs a state")?;
+        let state = match state {
+            0 => "active",
+            1 => "completed",
+            2 => "not_started",
+            _ => return Err("Invalid quest state".into()),
+        };
+        Ok(Box::new(SetQuest { quest, state }))
+    }
+}
+struct SetQuest {
+    quest: String,
+    state: &'static str,
+}
+impl Operation for SetQuest {
+    fn error_output(&self) -> Option<&'static str> {
+        Some("failed")
+    }
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        Ok(
+            if world.set_quest_state(ctx.actor, acting_target(ctx), &self.quest, self.state)? {
+                "done"
+            } else {
+                "unchanged"
+            },
+        )
+    }
+}
 /// Opens a dialogue with whoever triggered this event.
 struct DialogModule;
 impl NodeModule for DialogModule {
@@ -1102,8 +1358,9 @@ impl Operation for Dialog {
 /// Number of choice outputs a Dialogue node exposes. Longer conversations chain
 /// further Dialogue nodes; a subgraph keeps a big conversation readable.
 pub(super) const DIALOGUE_CHOICE_SLOTS: usize = 6;
-const DIALOGUE_CHOICE_PORTS: [&str; DIALOGUE_CHOICE_SLOTS] =
-    ["choice:0", "choice:1", "choice:2", "choice:3", "choice:4", "choice:5"];
+const DIALOGUE_CHOICE_PORTS: [&str; DIALOGUE_CHOICE_SLOTS] = [
+    "choice:0", "choice:1", "choice:2", "choice:3", "choice:4", "choice:5",
+];
 fn choice_cell_text(value: &Value) -> String {
     value
         .get("Text")
@@ -1114,7 +1371,7 @@ fn choice_cell_text(value: &Value) -> String {
 }
 /// Reads the repeating `choices` list into `(label, condition)` pairs. A blank
 /// label is an unused slot and is skipped.
-fn dialog_choices(value: Option<&Value>) -> Vec<(String, Option<String>)> {
+pub(super) fn dialog_choices(value: Option<&Value>) -> Vec<(String, Option<String>)> {
     let Some(rows) = value
         .and_then(|value| value.pointer("/List/rows"))
         .and_then(Value::as_array)
@@ -1122,15 +1379,14 @@ fn dialog_choices(value: Option<&Value>) -> Vec<(String, Option<String>)> {
         return Vec::new();
     };
     rows.iter()
-        .filter_map(|row| {
-            let cells = row.as_array()?;
+        .map(|row| {
+            let Some(cells) = row.as_array() else {
+                return (String::new(), None);
+            };
             let label = cells.first().map(choice_cell_text).unwrap_or_default();
-            if label.is_empty() {
-                return None;
-            }
             let condition = cells.get(1).map(choice_cell_text).unwrap_or_default();
             let condition = (!condition.is_empty()).then_some(condition);
-            Some((label, condition))
+            (label, condition)
         })
         .collect()
 }
@@ -1139,6 +1395,84 @@ fn dialog_choices(value: Option<&Value>) -> Vec<(String, Option<String>)> {
 /// port, so selecting one resumes the flow down that branch. `done` is taken
 /// when the dialogue is dismissed without a choice.
 struct DialogueModule;
+/// A single visible conversation step. Each answer follows a graph connection.
+struct PromptModule;
+impl NodeModule for PromptModule {
+    fn id(&self) -> &'static str {
+        "prompt"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &[
+            "in", "when:0", "when:1", "when:2", "when:3", "when:4", "when:5",
+        ]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        DialogueModule.outputs()
+    }
+    fn is_valid_output(&self, parameters: &BTreeMap<String, Value>, key: &str) -> bool {
+        DialogueModule.is_valid_output(parameters, key)
+    }
+    fn compile(&self, parameters: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        let dialogue = compiled_dialogue(parameters)?;
+        if dialogue
+            .choices
+            .iter()
+            .any(|(_, condition)| condition.is_some())
+        {
+            return Err("Prompt answer visibility belongs on guard inputs".into());
+        }
+        Ok(Box::new(Prompt(dialogue)))
+    }
+}
+struct Prompt(Dialogue);
+impl Operation for Prompt {
+    fn retains_activity(&self, output: &str) -> bool {
+        output == "waiting"
+    }
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        self.execute_with_guards(ctx, world, &[true; 6])
+    }
+    fn execute_with_guards(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+        visible: &[bool; 6],
+    ) -> Result<&'static str, String> {
+        let target = acting_target(ctx).ok_or("Prompt has nobody to talk to")?;
+        let choices: Vec<_> = self
+            .0
+            .choices
+            .iter()
+            .enumerate()
+            .map(|(index, (label, _))| {
+                (
+                    if visible[index] {
+                        label.clone()
+                    } else {
+                        String::new()
+                    },
+                    None,
+                )
+            })
+            .collect();
+        if world.present_dialog(ctx.actor, target, &self.0.text, &choices)? {
+            Ok("waiting")
+        } else {
+            Ok("done")
+        }
+    }
+    fn poll(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Option<Result<&'static str, String>> {
+        self.0.poll(ctx, world)
+    }
+}
 impl NodeModule for DialogueModule {
     fn id(&self) -> &'static str {
         "dialogue"
@@ -1148,37 +1482,34 @@ impl NodeModule for DialogueModule {
     }
     fn outputs(&self) -> &'static [&'static str] {
         &[
-            "done",
-            "choice:0",
-            "choice:1",
-            "choice:2",
-            "choice:3",
-            "choice:4",
-            "choice:5",
+            "done", "choice:0", "choice:1", "choice:2", "choice:3", "choice:4", "choice:5",
         ]
     }
     fn is_valid_output(&self, _parameters: &BTreeMap<String, Value>, key: &str) -> bool {
         key == "done" || DIALOGUE_CHOICE_PORTS.contains(&key)
     }
     fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
-        let text = p
-            .get("text")
-            .and_then(|value| value.get("Text"))
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .trim()
-            .to_string();
-        let choices = dialog_choices(p.get("choices"));
-        if text.is_empty() && choices.is_empty() {
-            return Err("Dialogue needs text or choices".into());
-        }
-        if choices.len() > DIALOGUE_CHOICE_SLOTS {
-            return Err(format!(
-                "Dialogue supports at most {DIALOGUE_CHOICE_SLOTS} choices"
-            ));
-        }
-        Ok(Box::new(Dialogue { text, choices }))
+        Ok(Box::new(compiled_dialogue(p)?))
     }
+}
+fn compiled_dialogue(p: &BTreeMap<String, Value>) -> Result<Dialogue, String> {
+    let text = p
+        .get("text")
+        .and_then(|value| value.get("Text"))
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    let choices = dialog_choices(p.get("choices"));
+    if text.is_empty() && choices.is_empty() {
+        return Err("Dialogue needs text or choices".into());
+    }
+    if choices.len() > DIALOGUE_CHOICE_SLOTS {
+        return Err(format!(
+            "Dialogue supports at most {DIALOGUE_CHOICE_SLOTS} choices"
+        ));
+    }
+    Ok(Dialogue { text, choices })
 }
 struct Dialogue {
     text: String,
@@ -1194,7 +1525,9 @@ impl Operation for Dialogue {
         world: &mut dyn WorldServices,
     ) -> Result<&'static str, String> {
         let target = acting_target(ctx).ok_or("Dialogue has nobody to talk to")?;
-        world.present_dialog(ctx.actor, target, &self.text, &self.choices)?;
+        if !world.present_dialog(ctx.actor, target, &self.text, &self.choices)? {
+            return Ok("done");
+        }
         // Keeping "waiting" live parks the flow on this node until the player
         // answers; the chosen port then carries the flow down its branch.
         Ok("waiting")
@@ -1403,8 +1736,11 @@ impl Operation for Talk {
             .or_else(|| self.conversation.entry_step())
             .cloned()
             .ok_or("Talk conversation has no steps")?;
+        if !present_step(world, ctx, target, &step)? {
+            world.set_talk_step(ctx.actor, None);
+            return Ok("done");
+        }
         world.set_talk_step(ctx.actor, Some(step.name.trim()));
-        present_step(world, ctx, target, &step)?;
         // Parking on "waiting" keeps the flow on this node between steps.
         Ok("waiting")
     }
@@ -1460,8 +1796,11 @@ impl Talk {
                     .step(step.trim())
                     .cloned()
                     .ok_or_else(|| format!("Talk has no step '{step}'"))?;
+                if !present_step(world, ctx, target, &step)? {
+                    world.set_talk_step(ctx.actor, None);
+                    return Ok(TalkNext::Done("done"));
+                }
                 world.set_talk_step(ctx.actor, Some(step.name.trim()));
-                present_step(world, ctx, target, &step)?;
                 Ok(TalkNext::Waiting)
             }
             // The consequence is graph work: leave through the port and let the
@@ -1492,7 +1831,7 @@ fn present_step(
     ctx: &EventContext<'_>,
     target: u32,
     step: &Step,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let choices: Vec<(String, Option<String>)> = step
         .choices
         .iter()

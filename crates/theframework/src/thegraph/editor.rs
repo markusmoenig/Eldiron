@@ -92,6 +92,16 @@ enum Gesture {
     },
     Wire(GraphId),
 }
+/// A choice control under the pointer. Hosts can attach a searchable popup
+/// without duplicating graph geometry, including choices inside list cells.
+pub struct GraphChoiceTarget {
+    pub node: GraphId,
+    pub row: GraphId,
+    pub cell: Option<(usize, usize)>,
+    pub rect: GraphRect,
+    pub options: Vec<String>,
+    pub selected: usize,
+}
 #[derive(Default)]
 pub struct GraphEditor {
     pub viewport: GraphViewport,
@@ -155,16 +165,81 @@ impl GraphEditor {
     }
     pub fn port_at(&self, doc: &GraphDocument, screen: Point) -> Option<GraphId> {
         let metrics = doc.metrics();
-        doc.nodes.iter().rev().filter(|n| self.node_visible(n.id)).find_map(|n| {
-            n.ports
-                .iter()
-                .find(|p| {
-                    let a = self.viewport.to_screen(n.port_position(p, &metrics));
-                    (a[0] - screen[0]).hypot(a[1] - screen[1])
-                        <= (7. * self.viewport.zoom()).max(7.)
-                })
-                .map(|p| p.id)
-        })
+        doc.nodes
+            .iter()
+            .rev()
+            .filter(|n| self.node_visible(n.id))
+            .find_map(|n| {
+                n.ports
+                    .iter()
+                    .find(|p| {
+                        let a = self.viewport.to_screen(n.port_position(p, &metrics));
+                        (a[0] - screen[0]).hypot(a[1] - screen[1])
+                            <= (7. * self.viewport.zoom()).max(7.)
+                    })
+                    .map(|p| p.id)
+            })
+    }
+    pub fn choice_at(&self, doc: &GraphDocument, screen: Point) -> Option<GraphChoiceTarget> {
+        let point = self.viewport.to_graph(screen);
+        let metrics = doc.metrics();
+        for node in doc
+            .nodes
+            .iter()
+            .rev()
+            .filter(|n| self.node_visible(n.id) && !n.folded)
+        {
+            if !node.rect(&metrics).contains(point) {
+                continue;
+            }
+            for (index, row) in node.rows.iter().enumerate() {
+                let rect = node.row_rect(index, &metrics);
+                if !rect.contains(point) || row.binding.is_some() {
+                    continue;
+                }
+                if let GraphControlValue::Choice { options, selected } = &row.value {
+                    return Some(GraphChoiceTarget {
+                        node: node.id,
+                        row: row.id,
+                        cell: None,
+                        rect,
+                        options: options.clone(),
+                        selected: *selected,
+                    });
+                }
+                if let GraphControlValue::List { columns, rows } = &row.value {
+                    if let Some((r, c)) =
+                        list_cell_at(rect, columns.len(), rows.len(), point, &metrics)
+                    {
+                        if let Some(GraphControlValue::Choice { options, selected }) =
+                            rows.get(r).and_then(|r| r.get(c))
+                        {
+                            let width =
+                                rect.size[0] * LIST_DELETE_FRACTION / columns.len().max(1) as f32;
+                            return Some(GraphChoiceTarget {
+                                node: node.id,
+                                row: row.id,
+                                cell: Some((r, c)),
+                                rect: GraphRect {
+                                    origin: [
+                                        rect.origin[0] + c as f32 * width,
+                                        rect.origin[1]
+                                            + metrics.list_header
+                                            + r as f32 * metrics.list_row,
+                                    ],
+                                    size: [width, metrics.list_row],
+                                },
+                                options: options.clone(),
+                                selected: *selected,
+                            });
+                        }
+                    }
+                }
+            }
+            // The foremost node owns the pointer even if the row is not a choice.
+            return None;
+        }
+        None
     }
     pub fn pointer_down(
         &mut self,
@@ -216,9 +291,12 @@ impl GraphEditor {
                         self.gesture = None;
                         // Place the caret where the click landed; selecting the
                         // whole value would make the next keystroke replace it.
-                        let caret =
-                            caret_at(value, p[0] - (rect.origin[0] + 9.),
-                                metrics.text_size, controls);
+                        let caret = caret_at(
+                            value,
+                            p[0] - (rect.origin[0] + 9.),
+                            metrics.text_size,
+                            controls,
+                        );
                         self.text_focus = Some(GraphTextFocus {
                             node: n.id,
                             row: r.id,

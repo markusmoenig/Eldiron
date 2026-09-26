@@ -30,9 +30,9 @@ By mid-2023 and early 2024, the **new UI** was taking shape, but I was still fig
 
 ## On the Way to v1 – The Current State
 
-One of the final pieces of the puzzle was choosing a **Doom-style world editor**—a decision that made creating worlds and levels **both easy and highly flexible**. Another major decision was to build **Eldrin Script**, a small runtime language tailored to game logic in Eldiron.
+One of the final pieces of the puzzle was choosing a **Doom-style world editor**—a decision that made creating worlds and levels **both easy and highly flexible**. Behavior Nodes make game logic visual, with parameters and execution feedback alongside the connections.
 
-Eldrin Script now drives world, region, character, and item behavior directly, with shared rules, attributes, and authoring data carrying more of the reusable gameplay structure.
+Behavior Nodes describe responses to events, while rules and attributes define shared gameplay and data.
 
 In keeping with the **retro aesthetic**, I also implemented a **software rasterizer**—if they could do it in 1990, we can certainly do it now!
 

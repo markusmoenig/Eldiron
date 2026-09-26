@@ -34,13 +34,13 @@ fn port_owners(doc: &GraphDocument) -> HashMap<GraphId, GraphId> {
 }
 
 /// Node-to-node adjacency along connections.
-fn adjacency(doc: &GraphDocument, owners: &HashMap<GraphId, GraphId>) -> HashMap<GraphId, Vec<GraphId>> {
+fn adjacency(
+    doc: &GraphDocument,
+    owners: &HashMap<GraphId, GraphId>,
+) -> HashMap<GraphId, Vec<GraphId>> {
     let mut edges: HashMap<GraphId, Vec<GraphId>> = HashMap::new();
     for connection in &doc.connections {
-        if let (Some(from), Some(to)) = (
-            owners.get(&connection.from),
-            owners.get(&connection.to),
-        ) {
+        if let (Some(from), Some(to)) = (owners.get(&connection.from), owners.get(&connection.to)) {
             edges.entry(*from).or_default().push(*to);
         }
     }
@@ -52,18 +52,35 @@ pub fn is_branch_trigger(node: &GraphNode, definitions: &GraphDefinitions) -> bo
     node.definition
         .as_deref()
         .and_then(|id| definitions.node(id))
-        .is_some_and(|definition| {
-            !definition
-                .ports
-                .iter()
-                .any(|port| port.direction == PortDirection::Input)
-        })
+        .is_some_and(|definition| definition.starts_branch)
 }
 
 /// Every branch in the document, in document order.
 pub fn graph_branches(doc: &GraphDocument, definitions: &GraphDefinitions) -> GraphBranches {
     let owners = port_owners(doc);
     let edges = adjacency(doc, &owners);
+    let guard_inputs: HashSet<GraphId> = doc
+        .nodes
+        .iter()
+        .flat_map(|node| &node.ports)
+        .filter(|port| {
+            port.key
+                .as_deref()
+                .is_some_and(|key| key.starts_with("when:"))
+        })
+        .map(|port| port.id)
+        .collect();
+    let guard_edges: Vec<_> = doc
+        .connections
+        .iter()
+        .filter_map(|connection| {
+            if guard_inputs.contains(&connection.to) {
+                Some((*owners.get(&connection.from)?, *owners.get(&connection.to)?))
+            } else {
+                None
+            }
+        })
+        .collect();
     let roots: Vec<GraphId> = doc
         .nodes
         .iter()
@@ -82,6 +99,11 @@ pub fn graph_branches(doc: &GraphDocument, definitions: &GraphDefinitions) -> Gr
             }
             if let Some(next) = edges.get(&id) {
                 stack.extend(next.iter().copied());
+            }
+        }
+        for (guard, prompt) in &guard_edges {
+            if seen.contains(prompt) {
+                seen.insert(*guard);
             }
         }
         reached.extend(seen.iter().copied());

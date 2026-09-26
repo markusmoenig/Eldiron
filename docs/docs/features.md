@@ -53,11 +53,11 @@ This allows the same interaction model to work across:
 
 So `attack`, `use`, `take`, movement, and other interactions do not need separate gameplay systems for each client type.
 
-## Eldrin Scripting
+## Behavior Nodes
 
-Behavior is authored with **Eldrin Script**, the text-based runtime language used by world, region, character, and item scripts.
+Author behavior with event-driven graphs for characters, items, instances and named areas. Nodes carry their settings and expose labelled outcomes. Template and instance graphs run independently, with template Startup first.
 
-The script editor includes live runtime debugging: recently executed lines are highlighted and variable values can be shown inline while the game runs in Creator.
+Live feedback highlights executed nodes and connections and displays event values. Committed edits update running behavior. See [Behavior Nodes](characters_items/behavior_nodes).
 
 ## Shared Gameplay Systems
 
@@ -70,7 +70,7 @@ These include:
 - **Audio FX** for generated sound effects
 - **Authoring** for descriptive world metadata
 
-Instead of hardcoding everything into per-character scripts, you can centralize shared logic and presentation.
+Instead of hardcoding everything into per-character graphs, you can centralize shared logic and presentation.
 
 ## 2D and 3D Editing
 

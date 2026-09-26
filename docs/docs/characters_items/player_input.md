@@ -46,7 +46,7 @@ They are sent as runtime `EntityAction` values and are interpreted based on the 
 
 If no intent is active, pressing an action key simply moves or turns the player.
 
-The input mapping mode is controlled at runtime with [`set_player_camera`](server_commands#set_player_camera).
+The input mapping mode is controlled at runtime with the [Player Camera node](node_reference#state-text-and-inventory).
 This affects how actions are interpreted, but it does not change the visual render camera by itself.
 
 ## Intents
@@ -67,8 +67,7 @@ An intent can be selected by:
 - a screen button with an `intent` attribute
 
 Ruleset-owned actions such as attacking and taking items should normally use
-`rules.basic_attack` and `rules.take`. Legacy or script-driven games may still
-use custom `attack` and `take` intents.
+`rules.basic_attack` and `rules.take`. Custom interactions can use Intent event branches.
 
 Once selected, the intent is stored on the player and used for the next interaction.
 
@@ -270,7 +269,7 @@ The current player input mode can be:
 
 ## Intent Events
 
-When an intent is triggered successfully, the engine sends an [`intent`](events#intent) event.
+When an intent is triggered successfully, the engine sends an [`intent`](events) event.
 
 That event is sent to:
 
@@ -278,26 +277,18 @@ That event is sent to:
 - the clicked target entity, if the target is a character
 - the clicked target item, if the target is an item
 
-For script-driven entity/item interactions, the event payload is a packet:
+For node-driven interactions, the Intent event offers named fields:
 
-- `value.string`: intent name; compare directly with `value == "talk"`, for example
-- `value.subject_id` (`.x`): target ID for the originating character, or originating character ID for the target
-- `value.distance` (`.y`): distance between the participants
-- `.z`: `0`
+- `event.intent`: the intent name, for example `use`.
+- `event.subject`: the other participant's entity ID.
+- `event.distance`: distance between the participants.
+- `event.count`: the event's count value.
 
-There are no separate `intent`, `entity_id`, or `item_id` dictionary fields. Built-in shortcuts can handle an interaction before these script events are sent.
-
-This lets either side handle the interaction.
-
-Examples:
-
-- the player handles `attack` and calls `attack()`
-- an item handles `use` and toggles itself
-- a character handles `talk` and opens dialogue
+Use Filter to compare `event.intent`, then connect Match to the response. Built-in actions may handle an interaction before an Intent event is delivered. A `rules.basic_attack` button executes the ruleset attack directly; it does not need an Intent → Use Action chain.
 
 ## Built-In Shortcuts
 
-Some common intents have built-in convenience behavior before or alongside script handling.
+Some common intents have built-in convenience behavior before or alongside node handling.
 
 Examples include:
 
@@ -362,6 +353,6 @@ friendly-or-self actions infer the player when no target is written.
 ## Where To Configure What
 
 - Keyboard mappings: [Input Mapping](input_mapping)
-- Intent event handling: [Events](events#intent)
+- Intent event handling: [Events](events)
 - Action/intention buttons on screens: [Screen Widgets](/docs/screens/widgets)
 - Character and item shortcut attributes: [Attributes](attributes)

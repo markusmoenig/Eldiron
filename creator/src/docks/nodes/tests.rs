@@ -599,6 +599,10 @@ fn every_registered_node_is_offered_somewhere_and_carries_help() {
         "expected the builtin registry to be populated"
     );
     for id in ids {
+        if matches!(id, "dialogue" | "talk") {
+            // Existing graphs remain executable; Prompt is the catalog entry.
+            continue;
+        }
         assert!(
             contexts.iter().any(|pc| list::node_available(*pc, id)),
             "node '{id}' cannot be placed in any behavior graph"
@@ -608,6 +612,128 @@ fn every_registered_node_is_offered_somewhere_and_carries_help() {
             "node '{id}' has no help text"
         );
     }
+}
+
+#[test]
+fn prompt_answers_create_named_ports_and_remove_deleted_connections() {
+    let defs = catalog::definitions();
+    let mut doc = GraphDocument::default();
+    doc.nodes
+        .push(defs.instantiate("prompt", [0., 0.]).unwrap());
+    assert!(
+        doc.nodes[0]
+            .ports
+            .iter()
+            .all(|port| port.key.as_deref() != Some("choice:0"))
+    );
+    let choices = doc.nodes[0]
+        .rows
+        .iter_mut()
+        .find(|row| row.key.as_deref() == Some("choices"))
+        .unwrap();
+    let GraphControlValue::List { rows, .. } = &mut choices.value else {
+        panic!("Prompt choices must be a list");
+    };
+    rows.push(vec![
+        GraphControlValue::Text("Accept the quest".into()),
+        GraphControlValue::Text(String::new()),
+    ]);
+    catalog::sync_fields(&mut doc, &defs);
+    let answer = doc.nodes[0]
+        .ports
+        .iter()
+        .find(|port| port.key.as_deref() == Some("choice:0"))
+        .unwrap();
+    assert_eq!(answer.label, "Accept the quest");
+    let answer_id = answer.id;
+    let when_id = doc.nodes[0]
+        .ports
+        .iter()
+        .find(|port| port.key.as_deref() == Some("when:0"))
+        .expect("an answer has a Show if input")
+        .id;
+    let input_id = doc.nodes[0]
+        .ports
+        .iter()
+        .find(|port| port.key.as_deref() == Some("in"))
+        .unwrap()
+        .id;
+    doc.connections.push(GraphConnection {
+        id: Uuid::new_v4(),
+        from: answer_id,
+        to: input_id,
+    });
+    if let GraphControlValue::List { rows, .. } = &mut doc.nodes[0]
+        .rows
+        .iter_mut()
+        .find(|row| row.key.as_deref() == Some("choices"))
+        .unwrap()
+        .value
+    {
+        rows.clear();
+    }
+    catalog::sync_fields(&mut doc, &defs);
+    assert!(doc.nodes[0].ports.iter().all(|port| port.id != answer_id));
+    assert!(doc.nodes[0].ports.iter().all(|port| port.id != when_id));
+    assert!(doc.connections.is_empty());
+}
+
+#[test]
+fn prompt_guards_belong_to_the_event_branch_without_starting_one() {
+    let defs = catalog::definitions();
+    let mut doc = GraphDocument::default();
+    let event = defs.instantiate("event", [0., 0.]).unwrap();
+    let mut prompt = defs.instantiate("prompt", [400., 0.]).unwrap();
+    let guard = defs.instantiate("quest_guard", [200., 200.]).unwrap();
+    let GraphControlValue::List { rows, .. } = &mut prompt
+        .rows
+        .iter_mut()
+        .find(|row| row.key.as_deref() == Some("choices"))
+        .unwrap()
+        .value
+    else {
+        panic!("choices list");
+    };
+    rows.push(vec![GraphControlValue::Text("Ask about the bell".into())]);
+    doc.nodes.extend([event, prompt, guard]);
+    catalog::sync_fields(&mut doc, &defs);
+    let port = |node: usize, key: &str| {
+        doc.nodes[node]
+            .ports
+            .iter()
+            .find(|port| port.key.as_deref() == Some(key))
+            .unwrap()
+            .id
+    };
+    let event_out = port(0, "out");
+    let prompt_in = port(1, "in");
+    let condition = port(2, "condition");
+    let when = port(1, "when:0");
+    assert!(NodeConnectionPolicy.validate(&doc, condition, when).is_ok());
+    assert!(
+        NodeConnectionPolicy
+            .validate(&doc, condition, prompt_in)
+            .is_err()
+    );
+    assert!(
+        NodeConnectionPolicy
+            .validate(&doc, event_out, when)
+            .is_err()
+    );
+    doc.connections.push(GraphConnection {
+        id: Uuid::new_v4(),
+        from: event_out,
+        to: prompt_in,
+    });
+    doc.connections.push(GraphConnection {
+        id: Uuid::new_v4(),
+        from: condition,
+        to: when,
+    });
+    let branches = graph_branches(&doc, &defs);
+    assert_eq!(branches.branches.len(), 1);
+    assert!(branches.branches[0].nodes.contains(&doc.nodes[2].id));
+    assert!(!branches.detached.contains(&doc.nodes[2].id));
 }
 
 /// Fits roughly five characters per line, enough to force wrapping in tests.
@@ -672,7 +798,11 @@ fn text_overlay_wraps_long_lines_and_scrolls() {
     let before = overlay.line_count();
     overlay.input(GraphTextInput::End { extend: false });
     overlay.paint(&mut painter, &GraphTheme::default());
-    assert_eq!(overlay.line_count(), before, "layout is stable across paint");
+    assert_eq!(
+        overlay.line_count(),
+        before,
+        "layout is stable across paint"
+    );
 }
 
 #[test]
@@ -764,7 +894,7 @@ fn picking_a_branch_centres_it_in_the_view() {
 }
 
 #[test]
-fn compact_style_and_folding_shrink_the_shown_branch() {
+fn folding_shrinks_the_shown_branch() {
     let mut dock = NodesDock::new();
     let mut ctx = TheContext::new(1200, 650, 1.);
     let mut ui = TheUI::new();
@@ -788,12 +918,6 @@ fn compact_style_and_folding_shrink_the_shown_branch() {
     };
 
     let comfortable = tallest(&dock);
-    dock.doc.compact = true;
-    let compact = tallest(&dock);
-    assert!(
-        compact < comfortable,
-        "compact {compact} should be shorter than comfortable {comfortable}"
-    );
 
     assert_eq!(
         set_folded(&mut dock, true),
@@ -801,14 +925,13 @@ fn compact_style_and_folding_shrink_the_shown_branch() {
         "both nodes have rows to fold"
     );
     let folded = tallest(&dock);
-    assert!(folded < compact, "folded {folded} vs compact {compact}");
+    assert!(folded < comfortable, "folded {folded} vs {comfortable}");
 
     // Clicking the chevron again opens the branch back up.
     assert_eq!(set_folded(&mut dock, false), 2);
-    assert_eq!(tallest(&dock), compact);
+    assert_eq!(tallest(&dock), comfortable);
 
-    // Both the style and the folds are part of the graph document, so they come
-    // back with it when the dock is re-activated.
+    // Folded nodes stay folded when the dock is re-activated.
     set_folded(&mut dock, true);
     let folded: Vec<_> = dock
         .doc
@@ -820,7 +943,6 @@ fn compact_style_and_folding_shrink_the_shown_branch() {
     assert!(!folded.is_empty());
     dock.store(&mut project, true);
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
-    assert!(dock.doc.compact, "the node style travels with the graph");
     assert_eq!(
         dock.doc
             .nodes
@@ -834,7 +956,7 @@ fn compact_style_and_folding_shrink_the_shown_branch() {
 
     // Optional visual check, matching the other snapshot hooks in this module.
     // The picture shows the folded shape, whatever the state was before.
-    if let Ok(path) = std::env::var("ELDIRON_COMPACT_SNAPSHOT") {
+    if let Ok(path) = std::env::var("ELDIRON_FOLDED_SNAPSHOT") {
         set_folded(&mut dock, true);
         dock.tidy_branch();
         dock.store(&mut project, true);
@@ -981,7 +1103,10 @@ fn a_new_trigger_node_creates_and_focuses_its_branch() {
     assert!(dock.branch_items().is_empty());
     // An action on its own is a stray, not a branch.
     add(&mut dock, "say");
-    assert!(dock.branch_items().is_empty(), "a stray node is not a branch");
+    assert!(
+        dock.branch_items().is_empty(),
+        "a stray node is not a branch"
+    );
     assert!(dock.editor.node_visible(dock.editor.selected.unwrap()));
 
     // A left sided node starts a branch, and it is shown straight away.
@@ -1001,10 +1126,9 @@ fn the_conversation_editor_edits_a_talk_node() {
 
     // A dropped Talk node ships with a starter conversation document, so the
     // panel opens on something valid.
-    let conversation = NodesDock::conversation_of(
-        dock.doc.nodes.iter().find(|node| node.id == talk).unwrap(),
-    )
-    .expect("a conversation");
+    let conversation =
+        NodesDock::conversation_of(dock.doc.nodes.iter().find(|node| node.id == talk).unwrap())
+            .expect("a conversation");
     assert_eq!(conversation.steps.len(), 1);
     assert_eq!(conversation.steps[0].choices.len(), 1);
 
@@ -1013,7 +1137,10 @@ fn the_conversation_editor_edits_a_talk_node() {
         dock.doc.nodes[0].position[0] + 20.,
         dock.doc.nodes[0].position[1] + 20.,
     ]);
-    assert!(dock.open_conversation(point, [900., 600.]), "the panel opens");
+    assert!(
+        dock.open_conversation(point, [900., 600.]),
+        "the panel opens"
+    );
     let line = ConversationField::StepLine(0);
     let field = dock.conversation.as_ref().unwrap().field_rect(line);
     let click = dock
@@ -1028,7 +1155,10 @@ fn the_conversation_editor_edits_a_talk_node() {
     );
 
     dock.open_conversation_field(line, &mut ui, &mut ctx);
-    assert!(dock.text_overlay.is_some(), "the shared overlay edits the field");
+    assert!(
+        dock.text_overlay.is_some(),
+        "the shared overlay edits the field"
+    );
     if let Some(overlay) = dock.text_overlay.as_mut() {
         overlay.input(GraphTextInput::SelectAll);
         overlay.paste("Well met, traveller.");
@@ -1199,10 +1329,7 @@ fn a_small_dock_scrolls_and_edits_every_conversation_field() {
     dock.handle_event(
         &TheEvent::RenderViewClicked(
             view_id,
-            Vec2::new(
-                (rect.origin[0] + 6.) as i32,
-                (rect.origin[1] + 6.) as i32,
-            ),
+            Vec2::new((rect.origin[0] + 6.) as i32, (rect.origin[1] + 6.) as i32),
         ),
         &mut ui,
         &mut ctx,
@@ -1300,7 +1427,10 @@ fn a_tiny_dock_still_scrolls_to_the_consequence() {
         &mut project,
         &mut server,
     );
-    assert!(dock.conversation.is_none(), "clicking away closes the panel");
+    assert!(
+        dock.conversation.is_none(),
+        "clicking away closes the panel"
+    );
     assert_eq!(dock.doc.nodes.len(), 1, "the graph is untouched");
     dock.handle_event(
         &TheEvent::RenderViewClicked(view_id, Vec2::new(4, 4)),
@@ -1335,7 +1465,10 @@ fn a_long_step_list_scrolls_on_the_left() {
         .as_mut()
         .unwrap()
         .pointer_down([120., 370.]);
-    assert_ne!(dock.conversation.as_ref().unwrap().selected_step(), count - 1);
+    assert_ne!(
+        dock.conversation.as_ref().unwrap().selected_step(),
+        count - 1
+    );
 
     // The wheel over the steps column scrolls it, and the last step is there.
     dock.conversation
@@ -1522,4 +1655,33 @@ fn a_talk_node_spreads_its_consequence_ports() {
             .unwrap();
         std::fs::write(path, png).unwrap();
     }
+}
+
+#[test]
+fn entity_configuration_uses_a_separate_catalog_and_preserves_player_selection_data() {
+    let id = Uuid::new_v4();
+    let pc = ProjectContext::CharacterData(id);
+    assert_eq!(NodesDock::owner(pc), Some(format!("entity/character/{id}")));
+    assert!(node_available(pc, "entity"));
+    assert!(node_available(pc, "entity_inputs"));
+    assert!(!node_available(pc, "entity_identity"));
+    assert!(node_available(pc, "entity_input"));
+    assert!(!node_available(pc, "event"));
+    assert!(!node_available(
+        ProjectContext::CharacterCode(id),
+        "entity_identity"
+    ));
+    assert!(!node_available(
+        ProjectContext::ItemData(id),
+        "entity_input"
+    ));
+    assert!(node_available(
+        ProjectContext::ItemData(id),
+        "entity_ruleset_item"
+    ));
+    let rules = shared::rulesets::latest_official_ruleset().parse().unwrap();
+    let doc = shared::entity_graph::import("[attributes]\nplayer = true\nrace = \"Human\"\nclass = \"Warrior\"\n[input]\nw = \"control.forward\"", &rules).unwrap();
+    let data = shared::entity_graph::project_data(&doc, "", &rules).unwrap();
+    assert!(data.contains("player = true"));
+    assert!(data.contains("control.forward"));
 }

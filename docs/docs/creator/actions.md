@@ -624,7 +624,7 @@ Set the tile *role*, *blocking* flag (2D collisions), *alias*, *gameplay tags*, 
 
 The alias identifies the tile's visual source. It can be used anywhere a `tile_id`-style tile source is accepted, alongside UUIDs and palette indices, including `set_tile(...)`. An alias does not trigger character events.
 
-Gameplay tags describe behavior attached to painted 2D tile placements. Each tag triggers [`entered_tile`](/docs/characters_items/events#entered_tile) and [`left_tile`](/docs/characters_items/events#left_tile) character events. Tags are normalized to lowercase and duplicates are removed.
+Gameplay tags describe behavior attached to painted 2D tile placements. Each tag triggers [`entered_tile`](/docs/characters_items/events) and [`left_tile`](/docs/characters_items/events) character events. Tags are normalized to lowercase and duplicates are removed.
 
 The action always exposes both fields, including when they are empty:
 

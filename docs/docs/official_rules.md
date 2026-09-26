@@ -22,7 +22,7 @@ encounter tools, localization, and balancing support.
     <h2>One Rulebook For The World</h2>
     <p>
       A Warrior, an Orc, a training sword, a healing spell, and a leather vest
-      should all mean something before a project author writes custom scripts.
+      should all mean something before a project author writes custom behavior graphs.
       The official ruleset is that shared meaning.
     </p>
   </div>
@@ -639,7 +639,7 @@ disappears shortly before the NPC returns, using
 
 NPCs respawn by default. `[respawn.npc]` defines the delay, restores health to
 full, restores the NPC's startup loadout and behavior state, and removes that
-NPC's corpse when it returns. Player death remains script-controlled so games
+NPC's corpse when it returns. Player death is controlled by behavior nodes so games
 can decide whether the player wakes at a shrine, returns to town, loses money,
 keeps a tombstone, or follows another custom death loop. Individual NPCs can
 override the timer with `respawn_seconds` or disable automatic respawn with

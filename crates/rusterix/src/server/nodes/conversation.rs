@@ -88,8 +88,7 @@ impl Conversation {
 
     /// The step a conversation starts on: the named entry, or the first one.
     pub fn entry_step(&self) -> Option<&Step> {
-        self.step(self.entry.trim())
-            .or_else(|| self.steps.first())
+        self.step(self.entry.trim()).or_else(|| self.steps.first())
     }
 
     /// A minimal conversation, so a freshly dropped Talk node still compiles
@@ -134,18 +133,31 @@ impl Conversation {
     /// Check the tree, so a broken jump or a bad port shows as a node diagnostic
     /// instead of failing for one unlucky player later.
     pub fn validate(&self) -> Result<(), String> {
-        if self.entry_step().is_none() {
+        if self.steps.is_empty() {
             return Err("Talk conversation has no steps".into());
         }
+        if !self.entry.trim().is_empty() && self.step(self.entry.trim()).is_none() {
+            return Err(format!(
+                "Talk entry step '{}' does not exist",
+                self.entry.trim()
+            ));
+        }
+        let mut names = std::collections::HashSet::new();
         for step in &self.steps {
             let name = step.name.trim();
             if name.is_empty() {
                 return Err("Talk has a step without a name".into());
             }
+            if !names.insert(name) {
+                return Err(format!("Talk has duplicate step '{name}'"));
+            }
             if step.choices.is_empty() {
                 return Err(format!("Talk step '{name}' needs a way out"));
             }
             for choice in &step.choices {
+                if choice.label.trim().is_empty() {
+                    return Err(format!("Talk step '{name}' has a choice without a label"));
+                }
                 match &choice.then {
                     Then::Go { step } if self.step(step.trim()).is_none() => {
                         return Err(format!("Talk jump to unknown step '{step}'"));
@@ -154,8 +166,7 @@ impl Conversation {
                         return Err(format!("Talk has no output 'out:{slot}'"));
                     }
                     Then::Out { resume, .. }
-                        if !resume.trim().is_empty()
-                            && self.step(resume.trim()).is_none() =>
+                        if !resume.trim().is_empty() && self.step(resume.trim()).is_none() =>
                     {
                         return Err(format!("Talk resumes at unknown step '{resume}'"));
                     }

@@ -1,9 +1,5 @@
-use crate::{
-    Assets, EntityAction, Value,
-    client::command::{ClientCommandBinding, parse_client_command},
-};
+use crate::{Assets, EntityAction, Value, client::command::ClientCommandBinding};
 use rustc_hash::FxHashMap;
-use std::str::FromStr;
 use toml::Table;
 
 pub struct ClientAction {
@@ -54,6 +50,18 @@ impl ClientAction {
         if let Some((_, entity_data)) = assets.entities.get(&self.class_name) {
             self.input_map = Self::parse_input_map(entity_data);
         }
+    }
+
+    /// Replace key bindings from resolved template/instance configuration.
+    pub fn set_input_data(&mut self, data: &str) {
+        self.input_map = Self::parse_input_map(data);
+        self.forward_down = false;
+        self.backward_down = false;
+        self.left_down = false;
+        self.right_down = false;
+        self.strafe_left_down = false;
+        self.strafe_right_down = false;
+        self.last_cardinal_action = EntityAction::Off;
     }
 
     /// Execute the user event
@@ -150,55 +158,8 @@ impl ClientAction {
         map
     }
 
-    fn parse_input_command(command: &str) -> Option<ClientCommandBinding> {
-        let s = command.trim();
-        if let Some(command) = parse_client_command(s) {
-            return Some(command);
-        }
-        let Some(open) = s.find('(') else {
-            return EntityAction::from_str(s)
-                .ok()
-                .map(ClientCommandBinding::Control);
-        };
-        let Some(close) = s.rfind(')') else {
-            return None;
-        };
-        if close <= open {
-            return None;
-        }
-
-        let func = s[..open].trim().to_ascii_lowercase();
-        let arg = s[open + 1..close]
-            .trim()
-            .trim_matches('"')
-            .trim_matches('\'')
-            .to_string();
-
-        match func.as_str() {
-            "command" => parse_client_command(&arg),
-            "action" => EntityAction::from_str(&arg)
-                .ok()
-                .map(ClientCommandBinding::Control),
-            "control" => EntityAction::from_str(&arg)
-                .ok()
-                .map(ClientCommandBinding::Control),
-            "intent" => Some(ClientCommandBinding::Intent(arg)),
-            "rules" | "rules_action" => {
-                if arg.is_empty() {
-                    None
-                } else {
-                    Some(ClientCommandBinding::RulesAction(arg))
-                }
-            }
-            "spell" => {
-                if arg.is_empty() {
-                    None
-                } else {
-                    Some(ClientCommandBinding::Intent(format!("spell:{}", arg)))
-                }
-            }
-            _ => None,
-        }
+    pub fn parse_input_command(command: &str) -> Option<ClientCommandBinding> {
+        crate::input_binding::parse_input_command(command)
     }
 
     fn handle_key_down(&mut self, cmd: ClientCommandBinding) -> EntityAction {

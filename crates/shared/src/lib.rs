@@ -1,6 +1,7 @@
 pub mod asset;
 pub mod character;
 pub mod context;
+pub mod entity_graph;
 pub mod interaction;
 pub mod iso_paint;
 pub mod iso_paint_brush;

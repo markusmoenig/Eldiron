@@ -19,7 +19,7 @@ Scepter is meant for:
 - user scripts and command-line tools
 - procedural generation workflows
 - testing and automation
-- future Eldrin, plugin, or platform automation adapters
+- future scripting, plugin, or platform automation adapters
 
 ## Local API
 
@@ -160,7 +160,7 @@ List or select interaction tools:
 in the UI. An unavailable action or tool is rejected instead of bypassing the
 current editor context.
 
-For a sequence, Scepter can run a small Eldrin editor-automation script:
+For a sequence, Scepter can run a small editor-automation script:
 
 ```json
 {
@@ -316,9 +316,11 @@ tileset.import_batch
 These commands are meant to help automate tileset import, tagging, grouping,
 blocking flags, and procedural metadata.
 
-## Scripts
+## Stored Script Source
 
-Scepter can read and replace Eldrin source for:
+These APIs edit source fields, not Behavior Node graphs. Use the Nodes dock to author runtime behavior.
+
+Scepter can read and replace stored script source for:
 
 - world scripts
 - region scripts
@@ -373,7 +375,7 @@ Patch a script:
 ```
 
 The first executable version of `script.patch` replaces the full source and
-records the change in Creator's undo stack. Parser-backed Eldrin diagnostics
+records the change in Creator's undo stack. Parser-backed source diagnostics
 are planned for a later pass.
 
 ## Attributes

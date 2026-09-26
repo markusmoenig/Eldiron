@@ -5,17 +5,14 @@ sidebar_position: 5
 
 This chapter lists supported **attributes** for characters and items in Eldiron.
 
-Attributes can be applied to characters, items, or both.
+Attributes can be applied to characters, items, or both. Author initial values through [Entity Nodes](entity_nodes); this page is a reference to the runtime keys. Code examples below show the underlying values, rather than an editor input format.
 
 This page covers individual attributes such as `tile_id`, `radius`, or `timeout`.
 Gameplay rules such as weapon damage, spell cooldowns, intent ranges, class
 permissions, armor categories, and progression belong in the effective ruleset:
 the official ruleset plus **Game / Rules** project overrides.
 
-Some character configuration in the **Attributes** editor also uses top-level TOML tables instead of single attributes, for example:
-
-- [NPC Sequences](/docs/characters_items/npc_sequences) via `behavior.sequences`
-- [Input Mapping](/docs/characters_items/input_mapping) via `[input]`
+Player key bindings are configured through the **Input Binding** node. See [Input Mapping](/docs/characters_items/input_mapping) for command meanings.
 
 ---
 
@@ -33,9 +30,8 @@ Creator also uses a mapped state tile as that state's default icon. Painting
 the icon stores an independent item override; **Load Default** reads the tile
 mapping again.
 
-An [active event](events#active) is also sent to the item for additional
-state-dependent behavior such as enabling a light. Scripts do not need to call
-`set_tile()` when these mappings are defined.
+An [active event](events) is also sent to the item for additional
+state-dependent behavior such as enabling a light. No additional node is needed to switch the tile when these mappings are defined.
 
 ```toml
 active = true
@@ -49,9 +45,9 @@ on_tile_id = "torch on"
 
 *Character-only attribute.*
 
-If set to `true`, incoming damage is applied directly by the server before any [damaged](events#damaged) reaction.
-Surviving targets still receive `damaged`, so their scripts can retaliate or otherwise react. Lethal damage does not queue this reaction; the character receives [death](events#death).
-On lethal damage, the server also applies death state automatically (`mode = "dead"` and `visible = false`).
+If set to `true`, incoming damage is applied directly by the server before any [damaged](events) reaction.
+Surviving targets still receive `damaged`, so their graphs can retaliate or otherwise react. Lethal damage does not queue this reaction; the character receives [death](events).
+On lethal damage, the server also applies death state automatically (`mode = "dead"`); visibility is independent of life state.
 
 ```toml
 autodamage = true
@@ -73,7 +69,7 @@ NPCs automatically respawn through the official ruleset unless disabled. The
 default NPC respawn restores health to full, restores startup loadout and
 behavior state, and removes that NPC's corpse. Add `respawn_seconds = 120` to
 an NPC instance to change the timer, or `respawn = false` to opt out. Player
-death stays script-controlled.
+death is controlled by behavior nodes.
 
 ```toml
 autodrop = true
@@ -230,7 +226,7 @@ party_role = "leader"
 
 *Character-only attribute.*
 
-When `true`, [join_party](server_commands#join_party) hides the character's world avatar after adding them to the party. The character remains an active ruleset entity and is still available to party widgets, scripts, actions, inventory, and combat systems. Leave it unset or `false` for games with visible or following companions.
+When `true`, joining the party hides the character's world avatar after adding them to the party. The character remains an active ruleset entity and is still available to party widgets, graphs, actions, inventory, and combat systems. Leave it unset or `false` for games with visible or following companions.
 
 ```toml
 hide_when_joined = true
@@ -291,7 +287,7 @@ List of item template names that should start with their `active` attribute set
 to `true`. Each named item must also appear in `start_items` or
 `start_equipped_items`. The item receives its normal `active` event after it is
 created, so ruleset behavior such as a torch enabling its light remains owned
-by the item script.
+by the item graph.
 
 ```toml
 start_items = ["Torch"]
@@ -309,65 +305,6 @@ The current mode of the entity. On startup of characters this is set to **"activ
 ```python
 set_attr("mode", "active")
 ```
-
----
-
-## `route`
-
-*Character-only attribute.*
-
-Patrol route definition used by [patrol](server_commands#patrol).
-Each entry is a linedef `name` that belongs to the patrol path.
-
-```toml
-route = ["GuardRouteA", "GuardRouteB"]
-```
-
-You can also use a single route name:
-
-```toml
-route = "GuardRouteA"
-```
-
----
-
-## `route_mode`
-
-*Character-only attribute.*
-
-Controls route traversal mode for [patrol](server_commands#patrol).
-Default is `"loop"`.
-
-```toml
-route_mode = "loop"
-```
-
-Supported values:
-
-- `loop`: restart from the first point after the last point.
-- `pingpong`: reverse direction at the route ends.
-
----
-
-## `timeout`
-
-*Character-only attribute.*
-
-Generic NPC interaction timeout used by scripts when temporarily interrupting background behavior such as [NPC sequences](npc_sequences).
-
-```toml
-timeout = 10
-```
-
-Typical use:
-
-- pause a sequence during `talk`
-- wait for the player to finish interacting
-- resume the sequence when the interaction ends or times out
-
-This attribute is authoring data for your scripts. It does not automatically pause or resume anything by itself.
-
-NPC background workflows themselves are defined separately in the character **Attributes** editor under `behavior.sequences`. See [NPC Sequences](npc_sequences).
 
 ---
 
@@ -406,7 +343,7 @@ amount = 1
 
 Shortcut for the `look` intent.
 
-If set and the player uses `look` on the character or item, this text is sent as a system message directly, without requiring script code.
+If set and the player uses `look` on the character or item, this text is sent as a system message directly, without a behavior branch.
 
 ```toml
 on_look = "You see a sword."
@@ -441,7 +378,7 @@ on_pickup = "pickup"
 
 Shortcut for the `use` intent on items.
 
-If set and the player uses `use` on the item, this text is sent as a system message directly, without requiring item script code.
+If set and the player uses `use` on the item, this text is sent as a system message directly, without an item behavior branch.
 
 ```toml
 on_use = "You cannot use that."
@@ -510,9 +447,9 @@ player = true
 
 ## `input`
 
-*Player character input mapping (top-level table in the character **Attributes** editor).*
+*Player character key bindings, configured through an **Input Binding** node in [Entity Nodes](entity_nodes).*
 
-Maps keys to player actions/intents. See [Input Mapping](input_mapping) for syntax and supported commands.
+Maps keys to player actions/intents. See [Input Mapping](input_mapping) for supported commands.
 
 ```toml
 player = true
@@ -697,7 +634,7 @@ worth = 2
 
 Both entities and items can emit light by configuring the `light` group in their data tool.
 
-Light emittance can be set on / off via the [set_emit_light](server_commands#set_emit_light) command.
+Use the Set Emit Light node to follow activation or force emission on/off.
 
 ```toml
 [light]

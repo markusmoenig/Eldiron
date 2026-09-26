@@ -44,7 +44,7 @@ Legacy aliases are still accepted for compatibility: `azimuth_deg`, `elevation_d
  
 <Admonition type="note" title="player input controls">
 This setting only affects **rendering**. It does **not** change how player input controls the camera.  
-To define player camera behavior, see [set_player_camera](/docs/characters_items/server_commands/#set_player_camera).
+To define player camera behavior, see [Player Camera](/docs/characters_items/node_reference#state-text-and-inventory).
 </Admonition>
 
 ### Camera Safe Area Section
@@ -1063,17 +1063,7 @@ take golden key
 look orc
 ```
 
-Scripts can also insert explicit pauses into the message stream. Use the `pause` category with an empty message to show the continue prompt, or with a number of seconds for a timed pause:
-
-```eldrin
-message(id(), "First line.", "")
-message(id(), "", "pause")
-message(id(), "Second line after player input.", "")
-
-message(id(), "Wait for it...", "")
-message(id(), "5", "pause")
-message(id(), "Five seconds later.", "")
-```
+Message nodes can insert pauses into the message stream. Set Category to `pause` and leave Text empty for a continue prompt, or enter a number of seconds for a timed pause. Connect ordinary Message nodes before and after that entry. This pauses presentation of the message stream, not graph execution.
 
 ### Multiple Choice
 

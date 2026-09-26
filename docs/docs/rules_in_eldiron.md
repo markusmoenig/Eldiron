@@ -834,7 +834,7 @@ range, MP, and effect checks pass.
 Regenerating resources use top-level `resource_regen` rules. For example,
 `[resource_regen.MP]` restores mana over real-time seconds, carries fractional
 progress between ticks, and clamps the result to `MAX_MP`. This keeps MP
-restoration in the ruleset instead of in individual scripts or screen widgets.
+restoration in the ruleset instead of in individual behavior graphs or screen widgets.
 
 Resource nodes are separate from inventory materials. For example,
 `wild_herb_node` is a placed world item with `static = true`, `resource_id =

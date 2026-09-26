@@ -9,7 +9,7 @@ Eldiron Source files use the `.els` extension. A file can contain `Character`, `
 
 ## Characters and items
 
-A character has a quoted ID, display fields, TOML-compatible data, and an optional Eldrin script:
+A character has a quoted ID, display fields, TOML-compatible data:
 
 ```text
 Character "player" {
@@ -23,17 +23,10 @@ Character "player" {
     class = "Warrior"
 
     [input]
-    w = "action(forward)"
-    a = "action(left)"
+    w = "control.forward"
+    a = "control.left"
   }
 
-  script {
-    fn event(event, value) {
-      if event == "startup" {
-        message(id(), "Welcome!", "info");
-      }
-    }
-  }
 }
 ```
 
@@ -52,7 +45,7 @@ Item "key" {
 }
 ```
 
-The contents of `data` are stored with the character or item. The contents of `script` use [Eldrin](../characters_items/eldrin_scripting_language.md), including the normal [events](../characters_items/events.md) and [server commands](../characters_items/server_commands.md).
+The contents of `data` are stored with the character or item. Author runtime behavior in Creator using [Behavior Nodes](../characters_items/behavior_nodes.md). The source format does not currently provide a behavior graph declaration.
 
 ## Regions and terrain
 
@@ -122,7 +115,7 @@ The `source_projects/stonefall-dungeon` project in the repository demonstrates:
 
 - a first-person 3D dungeon;
 - a large terrain region with multiple characters, items, and screens;
-- embedded gameplay scripts;
+- character and item data;
 - procedural wall, floor, ceiling, equipment, and fixture recipes;
 - project-local images and runtime configuration.
 

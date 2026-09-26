@@ -8,8 +8,30 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
     if !has_catalog(pc) {
         return false;
     }
+    if entity::is_configuration(pc) {
+        return matches!(
+            key,
+            "entity"
+                | "entity_appearance"
+                | "entity_body"
+                | "entity_inventory"
+                | "entity_attribute"
+                | "entity_light"
+        ) || (matches!(pc, ProjectContext::CharacterData(_))
+            && matches!(key, "entity_player" | "entity_input" | "entity_inputs"))
+            || (matches!(pc, ProjectContext::ItemData(_)) && key == "entity_ruleset_item");
+    }
     match key {
         "event" | "on_event" | "filter" | "time_range" => true,
+        "quest_state" | "set_quest" | "quest_guard" | "item_guard" | "player_attribute_guard" => {
+            matches!(
+                pc,
+                ProjectContext::Character(_)
+                    | ProjectContext::CharacterCode(_)
+                    | ProjectContext::RegionCharacterInstance(_, _)
+                    | ProjectContext::RegionArea(_, _)
+            )
+        }
         // A named place owns its reactions, so its entry is On Area.
         "on_area" => matches!(pc, ProjectContext::RegionArea(_, _)),
         "on_enter_area" => !matches!(pc, ProjectContext::RegionArea(_, _)),
@@ -21,8 +43,8 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
                 | ProjectContext::RegionCharacterInstance(_, _)
         ),
         "say" | "set_attribute" | "teleport" | "message" | "state" | "add_item" | "drop_items"
-        | "set_emit_light" | "notify_in" | "entities_in_radius" | "dialog" | "dialogue"
-        | "inventory_has" | "offer_inventory" | "talk" => !matches!(
+        | "set_emit_light" | "notify_in" | "entities_in_radius" | "dialog" | "prompt"
+        | "inventory_has" | "offer_inventory" => !matches!(
             pc,
             ProjectContext::WorldCode | ProjectContext::RegionCode(_)
         ),
@@ -30,6 +52,9 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
     }
 }
 pub fn node_help(key: &str) -> String {
+    if key.starts_with("entity") {
+        return entity::help(key);
+    }
     match key {
         "time_range" => fl!("node_time_range_help"),
         "go_to" => fl!("node_go_to_help"),
@@ -53,8 +78,14 @@ pub fn node_help(key: &str) -> String {
         "entities_in_radius" => fl!("node_entities_in_radius_help"),
         "dialog" => fl!("node_dialog_help"),
         "dialogue" => fl!("node_dialogue_help"),
+        "prompt" => fl!("node_prompt_help"),
+        "quest_guard" => fl!("node_quest_guard_help"),
+        "item_guard" => fl!("node_item_guard_help"),
+        "player_attribute_guard" => fl!("node_player_attribute_guard_help"),
         "talk" => fl!("node_talk_help"),
-    "inventory_has" => fl!("node_inventory_has_help"),
+        "quest_state" => fl!("node_quest_state_help"),
+        "set_quest" => fl!("node_set_quest_help"),
+        "inventory_has" => fl!("node_inventory_has_help"),
         "offer_inventory" => fl!("node_offer_inventory_help"),
         "player_camera" => fl!("node_player_camera_help"),
         "routine" => fl!("node_routine_help"),
@@ -85,11 +116,25 @@ pub fn sync_node_list(ui: &mut TheUI, ctx: &mut TheContext, pc: ProjectContext) 
         return;
     };
     list.clear();
-    let defs = catalog::definitions();
+    let defs = if entity::is_configuration(pc) {
+        entity::definitions(&Project::default())
+    } else {
+        catalog::definitions()
+    };
     for (_key, title, color) in [
         ("event", fl!("node_group_events"), [16, 112, 98, 255]),
         ("filter", fl!("node_group_logic"), [164, 98, 35, 255]),
         ("say", fl!("node_group_actions"), [35, 87, 134, 255]),
+        (
+            "entity",
+            fl!("entity_group_configuration"),
+            [91, 86, 151, 255],
+        ),
+        (
+            "entity_input",
+            fl!("entity_group_input"),
+            [35, 87, 134, 255],
+        ),
     ] {
         let nodes: Vec<_> = defs
             .nodes()
@@ -146,6 +191,11 @@ pub fn branch_list_canvas() -> TheCanvas {
 
 /// One branch row: `(item id, label, active)`.
 pub fn sync_branch_list(ui: &mut TheUI, ctx: &mut TheContext, items: &[(String, String, bool)]) {
+    ui.set_widget_value(
+        "Node Branches Heading",
+        ctx,
+        TheValue::Text(fl!("node_branches")),
+    );
     let Some(list) = ui.get_list_layout(BRANCH_LIST) else {
         return;
     };

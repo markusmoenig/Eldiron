@@ -20,6 +20,8 @@ pub mod collision_world;
 pub mod command;
 pub mod edge;
 pub mod hitinfo;
+#[path = "client/command.rs"]
+pub mod input_binding;
 pub mod intodata;
 pub mod map;
 pub mod material_library;

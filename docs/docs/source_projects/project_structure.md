@@ -78,7 +78,7 @@ The compiler reads:
 
 Declarations can technically share a file, but keeping them in the matching directories makes larger projects easier to navigate. The current compiler reads `.els` files directly inside these directories; nested source directories are not scanned.
 
-Character and item behavior is currently written in an embedded `script` block in its `.els` declaration. The scaffolded `scripts/` directory is reserved for source-side organization and future standalone script loading.
+Author character and item behavior with Behavior Nodes in Creator. The source format has no behavior graph declaration; the scaffolded `scripts/` directory does not load standalone behavior graphs.
 
 ## Assets and tiles
 

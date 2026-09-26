@@ -147,19 +147,19 @@ This is not a separate gameplay system. It is another frontend onto the same wor
 
 The current intended split is:
 
-- scripts decide when to attack
-- `attack()` starts combat resolution
+- behavior nodes and player commands decide when to attack
+- Engage Target, Use Action and ruleset UI commands request combat resolution
 - rules calculate outgoing and incoming damage
 - messages and audio are produced from the resolved result
 - progression handles XP and levels
 
 So:
 
-- scripts decide
+- graphs decide
 - rules calculate
 - presentation reports
 
-That keeps behavior flexible without repeating all formulas in every character script.
+That keeps behavior flexible without repeating all formulas in every character graph.
 
 ## Creator vs Runtime
 
@@ -169,7 +169,7 @@ This is where you:
 
 - build maps
 - place entities and items
-- write scripts
+- author behavior graphs
 - define rules
 - edit locales
 - edit audio FX
@@ -186,7 +186,7 @@ Different clients can then present the same project differently:
 ## Creator Actions, Tools, And Automation
 
 Creator keeps presentation separate from execution. The Actions sidebar,
-interactive Console commands, Scepter commands, Eldrin editor automation, and
+interactive Console commands, Scepter commands, editor automation, and
 a future plugin loader all meet at the same action and tool registries. From
 there, Creator uses the normal applicability checks, parameter handling,
 activation lifecycle, undo, dirty state, and project notifications.
@@ -223,7 +223,7 @@ the conceptual guide rather than a duplicated static registry.
 If you are not sure where something belongs, this is the short version:
 
 - world structure: regions, sectors, linedefs, entities, items
-- behavior: scripts
+- behavior: event-driven node graphs
 - formulas and shared systems: rules
 - player-facing descriptive world text: authoring metadata
 - shared translated runtime text: localization

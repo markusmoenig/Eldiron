@@ -1,5 +1,7 @@
 pub mod action;
-pub mod command;
+pub mod command {
+    pub use crate::input_binding::*;
+}
 pub mod daylight;
 pub mod draw2d;
 pub mod parser;
@@ -2667,6 +2669,9 @@ impl Client {
                             // Init scripting for this entity
                             self.client_action = Arc::new(Mutex::new(ClientAction::default()));
                             self.client_action.lock().unwrap().init(class_name, assets);
+                            if let Some(data) = entity.attributes.get_str("_input_bindings") {
+                                self.client_action.lock().unwrap().set_input_data(data);
+                            }
                             break;
                         }
                     }
@@ -2946,6 +2951,9 @@ impl Client {
 
         self.client_action = Arc::new(Mutex::new(ClientAction::default()));
         self.client_action.lock().unwrap().init(entity.1, assets);
+        if let Some(data) = entity.0.attributes.get_str("_input_bindings") {
+            self.client_action.lock().unwrap().set_input_data(data);
+        }
 
         Some(Command::CreateEntity(map.id, entity.0))
     }

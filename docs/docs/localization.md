@@ -83,7 +83,7 @@ If rules reference `combat.damage.outgoing`, the runtime first loads that locale
 - `{from_id}`
 - `{target_id}`
 
-For your own custom `message(...)` calls, you can pass named parameters on the locale key itself.
+For your own Message nodes, you can pass named parameters on the locale key itself.
 
 Example locale entry:
 
@@ -92,11 +92,7 @@ Example locale entry:
 dialog.hit = "You hit {target} for {amount} damage"
 ```
 
-Example script message:
-
-```eldrin
-message(id(), "{dialog.hit,target=target.class_name,amount=N:3}", "system")
-```
+Set the Message node’s Text to `{dialog.hit,target=target.class_name,amount=N:3}` and Category to `system`.
 
 Supported parameter value forms:
 

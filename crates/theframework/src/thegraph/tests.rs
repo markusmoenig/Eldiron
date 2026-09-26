@@ -1,8 +1,8 @@
 use super::*;
 
-/// Geometry in the tests uses the original comfortable style.
+/// Geometry in the tests uses the standard node metrics.
 fn m() -> GraphMetrics {
-    GraphMetrics::COMFORTABLE
+    GraphMetrics::STANDARD
 }
 
 fn graph() -> GraphDocument {
@@ -58,7 +58,9 @@ fn ports_all_sides_use_shared_hit_geometry_at_every_zoom() {
     for factor in [0.25, 3., 4.] {
         editor.viewport.zoom_at([0., 0.], factor);
         for p in &doc.nodes[0].ports {
-            let pos = editor.viewport.to_screen(doc.nodes[0].port_position(p, &m()));
+            let pos = editor
+                .viewport
+                .to_screen(doc.nodes[0].port_position(p, &m()));
             assert_eq!(editor.port_at(&doc, pos), Some(p.id));
         }
     }
@@ -168,7 +170,10 @@ fn row_ports_follow_stable_identity_after_reorder_and_serialization() {
     n.ports[0].row = Some(n.rows[0].id);
     let old = n.port_position(&n.ports[0], &m());
     n.rows.swap(0, 1);
-    assert_eq!(n.port_position(&n.ports[0], &m())[1], old[1] + MIN_ROW_PITCH);
+    assert_eq!(
+        n.port_position(&n.ports[0], &m())[1],
+        old[1] + MIN_ROW_PITCH
+    );
     let json = serde_json::to_string(&doc).unwrap();
     assert_eq!(serde_json::from_str::<GraphDocument>(&json).unwrap(), doc);
 }
@@ -516,7 +521,10 @@ fn terminals_on_a_parameter_less_node_clear_the_title_bar() {
             "terminal at {y} overlaps the {} header",
             HEADER_PITCH
         );
-        assert!(y < node.height(&m()), "terminal at {y} falls outside the node");
+        assert!(
+            y < node.height(&m()),
+            "terminal at {y} falls outside the node"
+        );
     }
     // Order is preserved: the first terminal still sits above the last.
     let first = node.port_position(&node.ports[0], &m())[1];
@@ -534,7 +542,9 @@ fn branch_definitions() -> GraphDefinitions {
         0.5,
     ));
     definitions
-        .register_node(GraphNodeDefinition::from_template("event", "Events", &trigger))
+        .register_node(GraphNodeDefinition::from_template(
+            "event", "Events", &trigger,
+        ))
         .unwrap();
     let mut action = GraphNode::new("Action", [0., 0.], [0; 4]);
     action.ports.push(GraphPort::new(
@@ -550,7 +560,9 @@ fn branch_definitions() -> GraphDefinitions {
         0.5,
     ));
     definitions
-        .register_node(GraphNodeDefinition::from_template("say", "Actions", &action))
+        .register_node(GraphNodeDefinition::from_template(
+            "say", "Actions", &action,
+        ))
         .unwrap();
     definitions
 }
@@ -587,7 +599,6 @@ fn branch_document() -> (GraphDocument, GraphDefinitions, GraphId, GraphId, Grap
             from: trigger_out_id,
             to: say_in_id,
         }],
-        compact: false,
     };
     (doc, definitions, trigger.id, say.id, loose.id)
 }
@@ -668,7 +679,10 @@ fn layout_branch_places_steps_left_to_right_without_overlap() {
 
     let trigger_node = doc.nodes.iter().find(|node| node.id == trigger).unwrap();
     let say_node = doc.nodes.iter().find(|node| node.id == say).unwrap();
-    assert_eq!(trigger_node.position[0], 0., "the trigger is the first column");
+    assert_eq!(
+        trigger_node.position[0], 0.,
+        "the trigger is the first column"
+    );
     assert!(
         say_node.position[0] > trigger_node.position[0] + trigger_node.width,
         "the next step is to the right, not on top"
@@ -736,7 +750,6 @@ fn layout_branch_stacks_parallel_steps_without_overlap() {
             link(a.ports[1].id, c.ports[0].id),
             link(b.ports[1].id, c.ports[0].id),
         ],
-        compact: false,
     };
     let mut doc = doc;
     let nodes: std::collections::HashSet<GraphId> =
@@ -745,8 +758,15 @@ fn layout_branch_stacks_parallel_steps_without_overlap() {
 
     let position = |id: GraphId| doc.nodes.iter().find(|n| n.id == id).unwrap().position;
     assert_eq!(position(trigger.id)[0], 0., "the trigger heads the branch");
-    assert_eq!(position(a.id)[0], position(b.id)[0], "A and B share a column");
-    assert!(position(c.id)[0] > position(a.id)[0], "the merge comes after");
+    assert_eq!(
+        position(a.id)[0],
+        position(b.id)[0],
+        "A and B share a column"
+    );
+    assert!(
+        position(c.id)[0] > position(a.id)[0],
+        "the merge comes after"
+    );
     assert!(
         position(a.id)[1] != position(b.id)[1],
         "stacked, not on top of each other"
@@ -773,27 +793,28 @@ fn layout_branch_does_not_stretch_a_loop_back() {
     let (ask, reply, extra) = (step_node("Ask"), step_node("Reply"), step_node("Extra"));
     let mut doc = GraphDocument {
         version: 1,
-        nodes: vec![
-            trigger.clone(),
-            ask.clone(),
-            reply.clone(),
-            extra.clone(),
-        ],
+        nodes: vec![trigger.clone(), ask.clone(), reply.clone(), extra.clone()],
         connections: vec![
             link(root_out, ask.ports[0].id),
             link(ask.ports[1].id, reply.ports[0].id),
             link(reply.ports[1].id, ask.ports[0].id),
             link(ask.ports[1].id, extra.ports[0].id),
         ],
-        compact: false,
     };
-    let nodes: std::collections::HashSet<GraphId> =
-        [trigger.id, ask.id, reply.id, extra.id].into_iter().collect();
+    let nodes: std::collections::HashSet<GraphId> = [trigger.id, ask.id, reply.id, extra.id]
+        .into_iter()
+        .collect();
     assert!(layout_branch(&mut doc, &nodes));
 
     let x = |id: GraphId| doc.nodes.iter().find(|n| n.id == id).unwrap().position[0];
-    assert!(x(ask.id) > x(trigger.id), "the question comes after the event");
-    assert!(x(reply.id) > x(ask.id), "the reply comes after the question");
+    assert!(
+        x(ask.id) > x(trigger.id),
+        "the question comes after the event"
+    );
+    assert!(
+        x(reply.id) > x(ask.id),
+        "the reply comes after the question"
+    );
     // Three execution columns, not one per loop turn.
     let rightmost = doc
         .nodes
@@ -842,24 +863,18 @@ fn dialogue_node() -> GraphNode {
 }
 
 #[test]
-fn compact_style_and_folding_shrink_a_node() {
+fn folding_shrinks_a_node() {
     let mut node = dialogue_node();
-    let comfortable = node.height(&GraphMetrics::COMFORTABLE);
-    let compact = node.height(&GraphMetrics::COMPACT);
-    assert!(
-        compact < comfortable * 0.7,
-        "compact {compact} should be well under comfortable {comfortable}"
-    );
-
+    let standard = node.height(&GraphMetrics::STANDARD);
     node.folded = true;
-    let folded = node.height(&GraphMetrics::COMPACT);
-    assert!(folded < compact, "folded {folded} vs compact {compact}");
+    let folded = node.height(&GraphMetrics::STANDARD);
+    assert!(folded < standard, "folded {folded} vs {standard}");
     assert_eq!(node.rows.len(), 2, "folding keeps the parameters");
 
     // Terminals stay on the folded body so they can still be wired.
     let bottom = node.position[1] + folded;
     for port in &node.ports {
-        let y = node.port_position(port, &GraphMetrics::COMPACT)[1];
+        let y = node.port_position(port, &GraphMetrics::STANDARD)[1];
         assert!(
             y >= node.position[1] - 0.01 && y <= bottom + 0.01,
             "terminal at {y} outside a folded node ({})",
@@ -869,19 +884,17 @@ fn compact_style_and_folding_shrink_a_node() {
 }
 
 #[test]
-fn node_style_and_folds_survive_a_round_trip() {
+fn folds_survive_a_round_trip() {
     let mut doc = GraphDocument {
         version: 1,
         nodes: vec![dialogue_node()],
         connections: vec![],
-        compact: true,
     };
     doc.nodes[0].folded = true;
     let json = serde_json::to_string(&doc).unwrap();
     assert_eq!(serde_json::from_str::<GraphDocument>(&json).unwrap(), doc);
 
-    // A graph saved before the style existed loads with the old look and open
-    // nodes, so existing projects are untouched.
+    // A graph saved before folding existed still loads with open nodes.
     let old = r#"{
         "version": 1,
         "nodes": [{
@@ -896,15 +909,22 @@ fn node_style_and_folds_survive_a_round_trip() {
         "connections": []
     }"#;
     let old: GraphDocument = serde_json::from_str(old).unwrap();
-    assert!(!old.compact);
     assert!(!old.nodes[0].folded);
-    assert_eq!(old.metrics(), GraphMetrics::COMFORTABLE);
+    assert_eq!(old.metrics(), GraphMetrics::STANDARD);
 
-    // A graph that uses neither writes neither key, so saving an untouched
-    // graph does not churn the project file.
+    // Saving an untouched graph does not add a folding key.
     let plain = serde_json::to_string(&old).unwrap();
-    assert!(!plain.contains("\"compact\""), "{plain}");
     assert!(!plain.contains("\"folded\""), "{plain}");
+
+    let mut legacy: serde_json::Value = serde_json::from_str(&plain).unwrap();
+    legacy["compact"] = serde_json::Value::Bool(true);
+    let migrated: GraphDocument = serde_json::from_value(legacy).unwrap();
+    assert_eq!(migrated.metrics(), GraphMetrics::STANDARD);
+    assert!(
+        !serde_json::to_string(&migrated)
+            .unwrap()
+            .contains("\"compact\"")
+    );
 }
 
 #[test]
@@ -913,7 +933,6 @@ fn clicking_the_title_chevron_folds_a_node() {
         version: 1,
         nodes: vec![dialogue_node()],
         connections: vec![],
-        compact: false,
     };
     let mut editor = GraphEditor::default();
     let metrics = doc.metrics();
@@ -926,4 +945,45 @@ fn clicking_the_title_chevron_folds_a_node() {
     assert!(doc.nodes[0].folded, "the title chevron folds the node");
     editor.pointer_down(&mut doc, point, &BasicGraphControls);
     assert!(!doc.nodes[0].folded, "and unfolds it again");
+}
+
+#[test]
+fn searchable_choice_targets_use_list_geometry_at_every_zoom() {
+    let mut node = GraphNode::new("Input", [30., 50.], [0, 0, 0, 255]);
+    let choices = GraphControlValue::Choice {
+        options: vec!["one".into(), "two".into()],
+        selected: 1,
+    };
+    node.rows.push(GraphRow::new(
+        "Bindings",
+        GraphControlValue::List {
+            columns: vec![GraphListColumn {
+                id: "command".into(),
+                label: "Command".into(),
+                control: choices.clone(),
+            }],
+            rows: vec![vec![choices]],
+        },
+    ));
+    let doc = GraphDocument {
+        version: 1,
+        nodes: vec![node],
+        connections: vec![],
+    };
+    let metrics = doc.metrics();
+    let rect = doc.nodes[0].row_rect(0, &metrics);
+    let point = [
+        rect.origin[0] + 10.,
+        rect.origin[1] + metrics.list_header + metrics.list_row * 0.5,
+    ];
+    for zoom in [0.25, 0.9, 2.] {
+        let mut editor = GraphEditor::default();
+        editor.viewport.zoom_at([0., 0.], zoom);
+        let target = editor
+            .choice_at(&doc, editor.viewport.to_screen(point))
+            .unwrap();
+        assert_eq!(target.cell, Some((0, 0)));
+        assert_eq!(target.selected, 1);
+        assert_eq!(target.options, vec!["one", "two"]);
+    }
 }

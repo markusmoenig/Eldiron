@@ -14,28 +14,7 @@ Use this workflow when you want a generated dungeon that can be rebuilt after ch
 3. Switch to the 2D editor view and run **Build Procedural** from the action list.
 4. Adjust tiles, spawn rules, or the seed and run **Build Procedural** again.
 
-Running **Build Procedural** rebuilds the procedural region as an authored generator output: existing geometry, items, and non-player characters in that region are cleared before the new layout is created. Keep persistent handcrafted content in another region, or spawn it again from script after the rebuild.
-
-At runtime, scripts can call `build_procedural(0)` to advance the procedural run and rebuild the current region. Scripts can also read or change live region settings before rebuilding by using context variables such as `region.procedural.room_count` or `region.procedural.characters.skeleton.percentage`.
-
-```eldrin
-let depth = region.dungeon.depth + 1;
-region.dungeon.depth = depth;
-region.procedural.room_count = 6 + depth;
-region.procedural.characters.skeleton.percentage = 25 + depth * 6;
-world_event("dungeon_exit", id());
-```
-
-The world script can then rebuild the region and place the player at the new entrance:
-
-```eldrin
-fn event(event, value) {
-    if event == "dungeon_exit" {
-        build_procedural(0);
-        teleport_entity(value, "entrance", "");
-    }
-}
-```
+Running **Build Procedural** rebuilds the procedural region as an authored generator output: existing geometry, items, and non-player characters in that region are cleared before the new layout is created. Keep persistent handcrafted content in another region, and rebuild only the generated region.
 
 ## Tile Metadata
 
@@ -178,48 +157,8 @@ Character spawn probability accepts either:
 
 Generated characters are placed in room centers and skip the entrance and exit rooms.
 
-## Endless Roguelike Loop
-
-A simple endless roguelike loop can use one procedural dungeon region and rebuild that same region whenever the player reaches the exit.
-
-Recommended setup:
-
-- Add an `entrance` tile kind and an `exit` tile kind so the generator can create named sectors for spawning and progression.
-- Give the player an `entered` event that reacts to `exit`.
-- Store progression in region context values, for example `region.dungeon.depth`.
-- Update procedural settings from the player script, then raise a world event.
-- Let the world script call `build_procedural(0)` and `teleport_entity(player_id, "entrance", "")`.
-
-Example player `entered` event:
-
-```eldrin
-if event == "entered" {
-    if value == "exit" {
-        let depth = region.dungeon.depth + 1;
-        region.dungeon.depth = depth;
-        region.procedural.room_count = 6 + depth;
-        region.procedural.characters.skeleton.percentage = 25 + depth * 6;
-        world_event("dungeon_exit", id());
-    }
-}
-```
-
-Example world event:
-
-```eldrin
-fn event(event, value) {
-    if event == "dungeon_exit" {
-        build_procedural(0);
-        teleport_entity(value, "entrance", "");
-    }
-}
-```
-
-Passing `0` to `build_procedural` advances the procedural run so the next rebuild uses a different deterministic layout derived from the region seed. Passing a positive seed rebuilds from that exact seed instead.
-
 ## Related
 
 - [Build Procedural action](/docs/creator/actions/#build-procedural)
 - [Edit Tile Meta action](/docs/creator/actions/#edit-tile-meta)
 - [Region Settings](/docs/building_maps/region_settings/#procedural)
-- [Server Commands](/docs/characters_items/server_commands/#build_procedural)
