@@ -74,6 +74,13 @@ pub trait TheTrait {
         false
     }
 
+    fn wants_mouse_motion(&self) -> bool {
+        false
+    }
+    fn mouse_leave(&mut self, _ctx: &mut TheContext) -> bool {
+        false
+    }
+
     fn touch_up(&mut self, x: f32, y: f32, ctx: &mut TheContext) -> bool {
         false
     }

@@ -855,3 +855,33 @@ action_face_particles_palette_linked = 連結至調色盤
 status_action_face_particles_palette_linked = 將粒子漸層保持連結至專案調色盤項目
 action_face_particles_palette_colors = 調色盤顏色
 status_action_face_particles_palette_colors = 選擇粒子從產生到淡出的四種專案調色盤顏色
+
+status_game_entity_defaults_button = 略過角色設定：在編輯器中使用實體節點的預設設定開始遊戲。下次點擊播放時生效；獨立遊戲的啟動流程保持不變。
+
+node_branch_disable = 停用分支
+node_branch_enable = 啟用分支
+node_branch_disabled = 已停用
+status_node_branch_toggle = 啟用或停用選取的行為分支，無需刪除。變更在遊戲執行時生效，並支援復原與重做。
+
+node_branch_empty = 空分支
+
+construction_node_noise = 雜訊
+construction_row_noise_mode = 演算法
+construction_row_noise_scale = 尺度
+construction_row_noise_seed = 種子
+construction_row_noise_low = 暗值
+construction_row_noise_high = 亮值
+construction_noise_value = 值雜訊
+construction_noise_voronoi = 沃羅諾伊
+construction_help_noise = 產生數值場。連接至漸層節點以建立材質。
+
+construction_node_gradient = 漸層
+construction_port_value = 數值
+construction_help_gradient = 將數值場映射為兩種所選顏色之間的漸層。
+
+construction_row_color_low = 低值顏色
+construction_row_color_high = 高值顏色
+
+text_play_cancel = 取消
+text_play_choose = 輸入選項編號並按 Enter（輸入 0 取消）。
+text_play_invalid_choice = 沒有對應編號的有效選項。

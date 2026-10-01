@@ -71,7 +71,19 @@ impl EditCamera {
         view_switch.set_item_width(30);
         view_switch.set_index(server_ctx.editor_view_mode.to_index());
         layout.add_widget(Box::new(view_switch));
-        layout.set_reverse_index(Some(1));
+
+        let mut fill = TheSlider::new(TheId::named("Editor Fill Light"));
+        fill.set_value(TheValue::Float(
+            crate::editor::RUSTERIX
+                .read()
+                .unwrap()
+                .editor_preview_fill_strength,
+        ));
+        fill.set_range(TheValue::RangeF32(0.0..=1.0));
+        fill.set_continuous(true);
+        fill.set_status_text(&fl!("action_editor_preview_fill_desc"));
+        fill.limiter_mut().set_max_width(130);
+        layout.add_widget(Box::new(fill));
     }
 
     /// Update client camera

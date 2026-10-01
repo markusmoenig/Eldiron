@@ -573,10 +573,13 @@ fn clearing_the_graph_records_an_undo_step() {
     dock.clear_nodes(&mut ui, &mut ctx, &mut project);
 
     // Clearing has to be undoable, which is what enables the Undo button.
-    let history = dock.histories.get(&key).expect("undo history");
+    let history = dock
+        .histories
+        .get(&dock.history_key().unwrap())
+        .expect("undo history");
     assert!(!history.undo.is_empty(), "clearing is an undoable step");
     assert!(
-        project.node_graphs[&key]["nodes"]
+        project.node_graphs[&key]["branches"]
             .as_array()
             .is_some_and(|nodes| nodes.is_empty()),
         "the stored graph is empty"
@@ -860,11 +863,17 @@ fn branches_are_separate_and_focus_one_at_a_time() {
             .any(|(id, _, active)| id == &format!("Branch/{first}") && !*active)
     );
 
-    // Removing a branch deletes its node and falls back to the other branch.
+    // Removing a branch keeps its history selected so deletion can be undone.
     assert!(dock.remove_branch());
     assert!(dock.doc.nodes.iter().all(|node| node.id != second));
-    assert!(dock.doc.nodes.iter().any(|node| node.id == first));
-    assert_eq!(dock.active_branch, Some(first));
+    assert!(
+        dock.branch_graphs[&first]
+            .nodes
+            .iter()
+            .any(|node| node.id == first)
+    );
+    assert!(!dock.doc.nodes.iter().any(|node| node.id == first));
+    assert_eq!(dock.active_branch, Some(second));
 }
 
 #[test]
@@ -1084,16 +1093,20 @@ fn copy_and_paste_work_on_one_branch() {
     );
 
     // Pasting lands it as its own branch, with new ids, and shows it.
-    let nodes_before = dock.doc.nodes.len();
-    let connections_before = dock.doc.connections.len();
     assert!(dock.paste_branch(&mut ui, &mut ctx, &mut project));
-    assert_eq!(dock.doc.nodes.len(), nodes_before + 2);
-    assert_eq!(dock.doc.connections.len(), connections_before + 1);
+    assert_eq!(dock.doc.nodes.len(), 2);
+    assert_eq!(dock.doc.connections.len(), 1);
     assert_eq!(dock.branch_items().len(), 3, "a third branch appears");
     let pasted_root = dock.active_branch.expect("the pasted branch is focused");
     assert!(pasted_root != first && pasted_root != second);
     assert!(dock.editor.node_visible(pasted_root));
-    assert!(dock.doc.nodes.iter().any(|node| node.id == first));
+    assert!(
+        dock.branch_graphs[&first]
+            .nodes
+            .iter()
+            .any(|node| node.id == first)
+    );
+    assert!(!dock.doc.nodes.iter().any(|node| node.id == first));
 }
 
 #[test]
@@ -1684,4 +1697,101 @@ fn entity_configuration_uses_a_separate_catalog_and_preserves_player_selection_d
     let data = shared::entity_graph::project_data(&doc, "", &rules).unwrap();
     assert!(data.contains("player = true"));
     assert!(data.contains("control.forward"));
+}
+
+#[test]
+fn branch_documents_keep_unconnected_nodes_and_history_isolated() {
+    let (mut dock, mut ui, mut ctx, mut project, mut server) = live_dock();
+    add(&mut dock, "event");
+    let first = dock.active_branch.unwrap();
+    add(&mut dock, "say");
+    let detached = dock.editor.selected.unwrap();
+    dock.finish(&mut project);
+    add(&mut dock, "on_event");
+    let second = dock.active_branch.unwrap();
+    dock.finish(&mut project);
+    add(&mut dock, "say");
+    dock.finish(&mut project);
+    dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(dock.doc.nodes.len(), 1);
+    assert_eq!(dock.active_branch, Some(second));
+    dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(dock.doc.nodes.len(), 2);
+    dock.set_branch(Some(first));
+    assert!(dock.doc.nodes.iter().any(|n| n.id == detached));
+    assert!(!dock.doc.nodes.iter().any(|n| n.id == second));
+    let value = dock.branch_value();
+    assert_eq!(value["branches"].as_array().unwrap().len(), 2);
+    let mut restored = NodesDock::new();
+    restored.doc = restored.load_branch_documents(&value).unwrap();
+    assert_eq!(restored.branch_order.len(), 2);
+    assert!(restored.doc.nodes.iter().any(|n| n.id == detached));
+}
+
+#[test]
+fn legacy_graph_is_split_into_branch_documents() {
+    let mut dock = NodesDock::new();
+    add(&mut dock, "event");
+    let first = dock.active_branch.unwrap();
+    add(&mut dock, "say");
+    let action = dock.editor.selected.unwrap();
+    connect(&mut dock, first, "out", action);
+    let mut legacy = dock.doc.clone();
+    add(&mut dock, "on_event");
+    let second = dock.active_branch.unwrap();
+    legacy.nodes.extend(dock.doc.nodes.clone());
+    for node in &mut legacy.nodes {
+        node.branch = None;
+    }
+    let mut restored = NodesDock::new();
+    restored.doc = restored
+        .load_branch_documents(&serde_json::to_value(legacy).unwrap())
+        .unwrap();
+    assert_eq!(restored.branch_order, [first, second]);
+    assert_eq!(restored.doc.nodes.len(), 2);
+    restored.set_branch(Some(second));
+    assert_eq!(restored.doc.nodes.len(), 1);
+    assert_eq!(restored.doc.nodes[0].id, second);
+}
+
+#[test]
+fn cutting_a_wire_supports_undo() {
+    let (mut dock, mut ui, mut ctx, mut project, mut server) = live_dock();
+    add(&mut dock, "event");
+    let root = dock.active_branch.unwrap();
+    add(&mut dock, "say");
+    let action = dock.editor.selected.unwrap();
+    connect(&mut dock, root, "out", action);
+    dock.finish(&mut project);
+    let wire = dock.doc.connections[0].clone();
+    let curve = connection_curve(&dock.doc, &wire, &dock.editor.viewport).unwrap();
+    let middle = bezier(curve, 0.5);
+    dock.editor
+        .begin_cut(&mut dock.doc, [middle[0], middle[1] - 50.]);
+    let event = TheEvent::RenderViewUp(
+        TheId::named(VIEW),
+        Vec2::new(middle[0] as i32, (middle[1] + 50.) as i32),
+    );
+    assert!(dock.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server));
+    assert!(dock.doc.connections.is_empty());
+    assert_eq!(dock.doc.nodes.len(), 2);
+    dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(dock.doc.connections[0].id, wire.id);
+    dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert!(dock.doc.connections.is_empty());
+}
+
+#[test]
+fn first_branch_layout_does_not_repeat_after_connection_edits() {
+    let mut dock = NodesDock::new();
+    dock.owner = Some("character/test".into());
+    add(&mut dock, "event");
+    add(&mut dock, "say");
+    dock.apply_branch_filter();
+    dock.tidy_branch_once();
+    dock.doc.nodes[0].position = [987., 654.];
+    dock.doc.connections.clear();
+    let manual = dock.doc.clone();
+    dock.tidy_branch_once();
+    assert_eq!(dock.doc, manual);
 }

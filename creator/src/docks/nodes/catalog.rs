@@ -43,6 +43,26 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
             vec![("area", GraphValueType::Text)],
         ),
         (
+            "entered_tile",
+            fl!("node_entered_tile"),
+            vec![
+                ("tag", GraphValueType::Text),
+                ("x", GraphValueType::Number),
+                ("y", GraphValueType::Number),
+                ("layer", GraphValueType::Number),
+            ],
+        ),
+        (
+            "left_tile",
+            fl!("node_left_tile"),
+            vec![
+                ("tag", GraphValueType::Text),
+                ("x", GraphValueType::Number),
+                ("y", GraphValueType::Number),
+                ("layer", GraphValueType::Number),
+            ],
+        ),
+        (
             "damaged",
             fl!("node_damaged"),
             vec![
@@ -679,6 +699,47 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         &say,
     ))
     .unwrap();
+    let mut set_tile = GraphNode::new(&fl!("entity_set_tile"), [0., 0.], [35, 87, 134, 255]);
+    set_tile.width = 250.;
+    row(
+        &mut set_tile,
+        "recipient",
+        &fl!("node_tile_recipient"),
+        GraphControlValue::Choice {
+            options: vec![fl!("node_tile_self"), fl!("node_tile_target")],
+            selected: 0,
+        },
+    );
+    row(
+        &mut set_tile,
+        "tile_id",
+        &fl!("entity_tile"),
+        GraphControlValue::Custom {
+            kind: "tile".into(),
+            data: String::new().into(),
+        },
+    );
+    port(&mut set_tile, "in", "", PortDirection::Input, 0.5);
+    port(
+        &mut set_tile,
+        "out",
+        &fl!("node_done"),
+        PortDirection::Output,
+        0.35,
+    );
+    port(
+        &mut set_tile,
+        "failed",
+        &fl!("node_tile_failed"),
+        PortDirection::Output,
+        0.75,
+    );
+    defs.register_node(GraphNodeDefinition::from_template(
+        "set_tile",
+        &fl!("node_group_actions"),
+        &set_tile,
+    ))
+    .unwrap();
     let mut set_attribute =
         GraphNode::new(&fl!("node_set_attribute"), [0., 0.], [35, 87, 134, 255]);
     set_attribute.width = 300.;
@@ -825,6 +886,7 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
                 fl!("node_camera_iso"),
                 fl!("node_camera_firstp"),
                 fl!("node_camera_firstp_grid"),
+                fl!("node_camera_firstp_mouse"),
             ],
             selected: 1,
         },
@@ -1345,6 +1407,12 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
                                     options.push(profile);
                                     options.len() - 1
                                 });
+                        }
+                    }
+                } else if def.id.starts_with("entity") {
+                    if let Some(key) = row.key.as_deref() {
+                        if !matches!(key, "summary" | "effective") {
+                            row.label = super::entity::label(key);
                         }
                     }
                 }

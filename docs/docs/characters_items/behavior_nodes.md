@@ -37,10 +37,18 @@ World and region graphs have a smaller node catalog. A node's presence in anothe
 
 Use the graph's pan and zoom controls to navigate. Use the global Undo and Redo commands for graph edits. Hover over catalog entries for help.
 
-Inline text fields commit on Return. Multiline text editors use Ctrl+Enter to save and Escape to cancel. The Branches list selects a flow; its branch tools can tidy or remove that branch.
+Select a branch and use **Disable Branch / Enable Branch** in the graph toolbar to toggle execution without deleting nodes or connections. Disabled branches are marked in the branch list, remain editable, and are saved with the project. The toggle supports global Undo/Redo and live updates. Re-enabling a Startup branch does not replay Startup; restart the game to test it.
+
+Inline text fields commit on Return. Multiline text editors use Ctrl+Enter to save and Escape to cancel. Each behavior branch owns a separate graph and undo history. The Branches list opens that graph, including unconnected nodes. Dropping an action adds it to the selected branch; adding an event or routine starts a new branch. Branch tools can tidy or remove the selected branch. Existing projects are split into branch documents when opened.
 
 While playing, executed nodes and connections are highlighted. Long-running activities remain highlighted; event nodes show received values, and status text explains execution or errors. Time Range uses greenish/reddish borders to show whether the current time is inside or outside its range. Condition feedback is separate from execution highlighting.
 
 Committed settings and structural edits refresh the running graph. Invalid updates report diagnostics and retain the last valid behavior. Startup effects are not replayed just because a graph was edited; use a new game run to test startup changes. Live edits apply to the selected graph, including instance graphs, independently.
 
 See the [Nodes dock](../creator/docks/behavior_nodes) and [Debug](../creator/debug) pages.
+
+### Set Tile
+
+Connect **Set Tile** to an event or another action to change a sprite during play. Choose **Self** for the character or item owning the graph, or **Target** for its current target (falling back to the event subject). Select a tile from the same visual grid used by Entity Nodes. **Done** continues after the change; **Failed** handles a missing target or tile. This changes presentation without changing visibility or life state.
+
+Hold **Shift** and drag a stroke across connections to cut them. One Undo restores all wires cut by that stroke. You can also click a connection and press Delete.

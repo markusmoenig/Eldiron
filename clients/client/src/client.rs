@@ -539,6 +539,18 @@ impl TheTrait for Client {
         true
     }
 
+    fn mouse_motion(&mut self, delta_x: f32, delta_y: f32, _ctx: &mut TheContext) -> bool {
+        self.rusterix
+            .client_mouse_motion(Vec2::new(delta_x, delta_y))
+    }
+
+    fn wants_mouse_motion(&self) -> bool {
+        self.rusterix.client.mouse_look.active
+    }
+    fn mouse_leave(&mut self, _ctx: &mut TheContext) -> bool {
+        self.rusterix.client.end_mouse_look()
+    }
+
     fn mouse_wheel(&mut self, delta: (isize, isize), _ctx: &mut TheContext) -> bool {
         self.rusterix.client.scroll_messages(delta.1)
     }

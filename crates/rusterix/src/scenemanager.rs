@@ -44,6 +44,8 @@ pub struct SceneManager {
     chunk_builder_d2: Option<Box<dyn ChunkBuilder>>,
     chunk_builder_d3: Option<Box<dyn ChunkBuilder>>,
     apply_preview_filters: bool,
+    preview_hide_wall_floors: bool,
+    preview_hide_wall_ceilings: bool,
 
     // Results queue
     results: Vec<SceneManagerResult>,
@@ -152,6 +154,8 @@ impl SceneManager {
             chunk_builder_d2: Some(Box::new(D2ChunkBuilder::new())),
             chunk_builder_d3: Some(Box::new(GeometryObjectBuilder::new())),
             apply_preview_filters: false,
+            preview_hide_wall_floors: false,
+            preview_hide_wall_ceilings: false,
 
             results: Vec::new(),
         }
@@ -170,6 +174,8 @@ impl SceneManager {
     /// different Creator project becomes active.
     pub fn reset_for_project_switch(&mut self) {
         self.map = Map::default();
+        self.preview_hide_wall_floors = false;
+        self.preview_hide_wall_ceilings = false;
         self.dirty.clear();
         self.all.clear();
         self.total_chunks = 0;
@@ -222,6 +228,7 @@ impl SceneManager {
                 if !self.apply_preview_filters {
                     new_map.properties.remove("preview_hide");
                 }
+                self.apply_wall_surface_preview_filters(&mut new_map);
                 if self.map.id != new_map.id {
                     self.results.push(SceneManagerResult::Clear);
                 }
@@ -237,6 +244,7 @@ impl SceneManager {
                 if !self.apply_preview_filters {
                     new_map.properties.remove("preview_hide");
                 }
+                self.apply_wall_surface_preview_filters(&mut new_map);
                 // Keep current dirty set; caller controls incremental invalidation via AddDirty.
                 self.map = new_map;
                 self.ensure_palette_tiles_for_map();
@@ -300,6 +308,46 @@ impl SceneManager {
         if !apply {
             self.map.properties.remove("preview_hide");
         }
+        let mut map = std::mem::take(&mut self.map);
+        self.apply_wall_surface_preview_filters(&mut map);
+        self.map = map;
+    }
+
+    fn apply_wall_surface_preview_filters(&self, map: &mut Map) {
+        for key in ["preview_hide_wall_floors", "preview_hide_wall_ceilings"] {
+            map.properties.remove(key);
+        }
+        if self.apply_preview_filters {
+            map.properties.set(
+                "preview_hide_wall_floors",
+                Value::Bool(self.preview_hide_wall_floors),
+            );
+            map.properties.set(
+                "preview_hide_wall_ceilings",
+                Value::Bool(self.preview_hide_wall_ceilings),
+            );
+        }
+    }
+
+    /// Editor preview only. Runtime map geometry remains unchanged.
+    pub fn set_preview_wall_surfaces_hidden(&mut self, floors: bool, ceilings: bool) {
+        if self.preview_hide_wall_floors == floors && self.preview_hide_wall_ceilings == ceilings {
+            return;
+        }
+        self.preview_hide_wall_floors = floors;
+        self.preview_hide_wall_ceilings = ceilings;
+        let mut map = std::mem::take(&mut self.map);
+        self.apply_wall_surface_preview_filters(&mut map);
+        self.map = map;
+        self.dirty.extend(self.all.iter().copied());
+        self.total_chunks = self.dirty.len() as i32;
+    }
+
+    pub fn preview_wall_surfaces_hidden(&self) -> (bool, bool) {
+        (
+            self.preview_hide_wall_floors,
+            self.preview_hide_wall_ceilings,
+        )
     }
 
     pub fn add_dirty(&mut self, dirty: Vec<(i32, i32)>) {
@@ -419,6 +467,29 @@ impl SceneManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wall_surface_preview_visibility_does_not_enter_runtime_maps() {
+        let mut manager = SceneManager::new();
+        manager.set_apply_preview_filters(true);
+        manager.set_map(Map::default());
+        manager.set_preview_wall_surfaces_hidden(false, true);
+        assert_eq!(
+            manager
+                .map
+                .properties
+                .get_bool("preview_hide_wall_ceilings"),
+            Some(true)
+        );
+        manager.set_apply_preview_filters(false);
+        assert_eq!(
+            manager
+                .map
+                .properties
+                .get_bool("preview_hide_wall_ceilings"),
+            None
+        );
+    }
 
     #[test]
     fn project_switch_reset_discards_old_results_and_forces_a_clear() {

@@ -291,7 +291,11 @@ impl TextOverlay {
         }
         let line = self.caret_line() as i32;
         let range = self.lines[self.caret_line()].0.clone();
-        let want_x = advance(font, &self.text[range.start..self.caret.min(range.end)], FONT);
+        let want_x = advance(
+            font,
+            &self.text[range.start..self.caret.min(range.end)],
+            FONT,
+        );
         let target = (line + delta).clamp(0, self.lines.len() as i32 - 1) as usize;
         if target == self.caret_line() {
             return;

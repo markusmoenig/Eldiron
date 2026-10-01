@@ -5,6 +5,7 @@ pub mod builder_editor;
 pub mod code;
 pub mod code_undo;
 pub mod console;
+pub mod construction;
 pub mod data;
 pub mod data_editor;
 pub mod data_undo;

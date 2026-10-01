@@ -620,7 +620,7 @@ Options: none.
 
 ### Edit Tile Meta
 
-Set the tile *role*, *blocking* flag (2D collisions), *alias*, *gameplay tags*, and optional procedural generator hints for the currently selected tile in the tile picker.
+Set the tile *role*, *blocking* flag (2D collisions), *alias*, *gameplay tags*, and material settings for the currently selected tile in the tile picker.
 
 The alias identifies the tile's visual source. It can be used anywhere a `tile_id`-style tile source is accepted, alongside UUIDs and palette indices, including `set_tile(...)`. An alias does not trigger character events.
 
@@ -636,22 +636,15 @@ alias = ""
 gameplay_tags = []
 ```
 
-Procedural tile metadata is stored as:
+Material settings are stored as:
 
 ```toml
-[procedural]
-style = "stone"
-kind = "floor"
-weight = 1
-
 [material]
 preset = "stone"
 finish = "natural"
 ```
 
-Supported `kind` values are `floor`, `wall`, `entrance`, and `exit`. Use `none` in the editor selector for non-procedural tiles. Gameplay objects such as doors, traps, and potions should be generated as item instances from the region `[procedural.items.*]` settings, not as tile kinds.
-
-Procedural tile metadata is consumed by **Build Procedural**, which is available in the 2D editor view. See [Procedural Map Generation](/docs/building_maps/procedural_generation) for the full workflow and [Region Settings: Procedural](/docs/building_maps/region_settings/#procedural) for the matching region-side settings.
+The editor labels the visual identifier **Name / Alias** and the interaction field **Tags**. Tags are stored as `gameplay_tags`; this is the single tag list used for tile transition events.
 
 Material tile metadata stores the tile's default high-level render material. Object material overrides take priority over tile defaults. Art Palette entries have their own material metadata when a surface uses a `PaletteIndex` source. If no preset applies, Eldiron uses the material library's default material.
 
@@ -663,9 +656,6 @@ Options:
 * `blocking`: 2D collision flag.
 * `alias`: optional human-readable visual tile source name, accepted by `set_tile(...)` and other `tile_id`-style fields; it does not trigger tile events.
 * `gameplay_tags`: behavior tags that trigger `entered_tile` and `left_tile` events for characters on painted 2D tile placements.
-* `[procedural].style`: generator style hint, such as `stone`.
-* `[procedural].kind`: `floor`, `wall`, `entrance`, `exit`, or `none`.
-* `[procedural].weight`: generator weighting value.
 
 ### New Tile
 

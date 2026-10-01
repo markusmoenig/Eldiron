@@ -144,6 +144,10 @@ pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
             .map_err(|err| format!("invalid legacy Eldiron project JSON: {err}")),
         ProjectFileFormat::ArchiveV1 => decode_project_archive(bytes),
     }?;
+    crate::construction_graph::ensure_wall_patterns(&mut project);
+    for error in crate::construction_graph::synchronize(&mut project) {
+        eprintln!("Construction pattern: {error}");
+    }
     // Wall assemblies are the source of truth, including maps authored without cached meshes.
     for region in &mut project.regions {
         if !region.map.wall_assemblies.is_empty() {
@@ -158,6 +162,10 @@ pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
 
 pub fn encode_project(project: &Project) -> Result<Vec<u8>, String> {
     let mut archived_project = project.clone();
+    crate::construction_graph::ensure_wall_patterns(&mut archived_project);
+    for error in crate::construction_graph::synchronize(&mut archived_project) {
+        eprintln!("Construction pattern: {error}");
+    }
     // Refresh valid projections; incomplete authoring graphs retain their last valid data.
     let _ = crate::entity_graph::synchronize(&mut archived_project);
     let mut binaries = ProjectBinaryWriter::new();

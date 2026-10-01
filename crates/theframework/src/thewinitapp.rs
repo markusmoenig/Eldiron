@@ -757,6 +757,11 @@ impl ApplicationHandler for TheWinitApp {
                             ctx.window.request_redraw();
                         }
                     }
+                    WindowEvent::CursorLeft { .. } | WindowEvent::Focused(false) => {
+                        if self.app.mouse_leave(&mut ctx.ctx) {
+                            ctx.window.request_redraw();
+                        }
+                    }
                     WindowEvent::CursorMoved { position, .. } => {
                         let (x, y) = ctx.window_pos_to_ui((position.x as f32, position.y as f32));
 
@@ -1087,7 +1092,7 @@ impl ApplicationHandler for TheWinitApp {
     fn device_event(&mut self, _: &ActiveEventLoop, _: DeviceId, event: DeviceEvent) {
         let wants_redraw = if let Some(ctx) = &mut self.ctx
             && let DeviceEvent::MouseMotion { delta } = event
-            && self.right_mouse_down
+            && (self.right_mouse_down || self.app.wants_mouse_motion())
         {
             self.app
                 .mouse_motion(delta.0 as f32, delta.1 as f32, &mut ctx.ctx)

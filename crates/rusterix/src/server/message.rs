@@ -226,6 +226,8 @@ pub enum EntityAction {
     FollowAttack(u32, f32, i64),
     /// Set how player input is mapped to movement
     SetPlayerCamera(PlayerCamera),
+    /// Mouse-look facing update; preserves the current movement action.
+    LookYaw(f32),
     /// Persist or clear a player quick-slot command override.
     SetCommandSlot {
         slot: String,
@@ -287,6 +289,7 @@ pub enum PlayerCamera {
     D3Iso,
     D3FirstP,
     D3FirstPGrid,
+    D3FirstPMouse,
 }
 
 use std::fmt;

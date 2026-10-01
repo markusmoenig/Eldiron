@@ -1,13 +1,15 @@
 use crate::prelude::*;
 use crate::{
-    editor::RUSTERIX,
+    editor::{RUSTERIX, UNDOMANAGER},
     hud::{Hud, HudMode},
 };
 use MapEvent::*;
 use ToolEvent::*;
 use rusterix::prelude::*;
 use scenevm::GeoId;
-use std::time::{Duration, Instant};
+use shared::construction_graph::{
+    self, ConstructionPatternAsset, ConstructionPatternKind, SurfacePatternProjection,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum WallInteractionMode {
@@ -24,37 +26,6 @@ enum WallBuildMode {
     Ring,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum WallStyleField {
-    Masonry,
-    AutoFloor,
-    Height,
-    Thickness,
-    Curve,
-    CurveSegments,
-    BrickWidth,
-    BrickHeight,
-    MortarGap,
-    Bevel,
-    Irregularity,
-    Damage,
-    StoneVariation,
-    FrameWidth,
-    FrameDepth,
-    ArchStones,
-    SurfaceElevation,
-    SurfaceThickness,
-    SurfaceClearance,
-}
-
-struct HeldWallAdjustment {
-    field: WallStyleField,
-    delta: f32,
-    pressed_at: Instant,
-    last_repeat: Instant,
-    previous: Option<Map>,
-}
-
 struct WallNodeDrag {
     assembly_id: Uuid,
     node_id: Uuid,
@@ -69,6 +40,14 @@ struct WallRingDrag {
     center: Vec3<f32>,
     assembly_id: Option<Uuid>,
     previous: Map,
+}
+
+struct SurfaceRectDrag {
+    start: Vec3<f32>,
+    assembly_id: Uuid,
+    surface_id: Uuid,
+    previous: Map,
+    changed: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -107,22 +86,67 @@ pub struct WallTool {
     build_mode: WallBuildMode,
     build_style: WallStyle,
     build_auto_floor: bool,
-    held_adjustment: Option<HeldWallAdjustment>,
     node_drag: Option<WallNodeDrag>,
     ring_drag: Option<WallRingDrag>,
     opening_drag: Option<WallOpeningDrag>,
+    surface_rect_drag: Option<SurfaceRectDrag>,
+    build_pattern_id: Option<Uuid>,
+    surface_pattern_id: Option<Uuid>,
+    surface_projection: Option<SurfacePatternProjection>,
+    ceiling_pattern_id: Option<Uuid>,
+    ceiling_projection: Option<SurfacePatternProjection>,
     surface_elevation: f32,
     surface_thickness: f32,
     surface_clearance: f32,
+    surface_kind: WallAreaSurfaceKind,
+    surface_fill_preview: Option<Vec<Vec<Vec3<f32>>>>,
+    previous_dock: Option<String>,
 }
 
 impl WallTool {
     const PANEL_X: i32 = 12;
     const PANEL_Y: i32 = 30;
     const PANEL_WIDTH: i32 = 276;
-    const PANEL_HEIGHT: i32 = 420;
+    const PANEL_HEIGHT: i32 = 190;
     const PANEL_ROW_Y: i32 = 112;
     const PANEL_ROW_SPACING: i32 = 24;
+    const SURFACE_GAP_LIMIT: f32 = 4.0;
+
+    fn configure_new_surface(&self, surface: &mut WallAreaSurface) {
+        surface.kind = self.surface_kind;
+        surface.elevation = self.surface_elevation;
+        surface.thickness = self.surface_thickness;
+        surface.clearance = self.surface_clearance;
+        let (pattern_id, projection) = if self.surface_kind == WallAreaSurfaceKind::Ceiling {
+            (self.ceiling_pattern_id, self.ceiling_projection.as_ref())
+        } else {
+            (self.surface_pattern_id, self.surface_projection.as_ref())
+        };
+        surface.pattern_id = pattern_id;
+        if let Some(projection) = projection {
+            construction_graph::apply_to_surface(surface, projection);
+        }
+    }
+
+    fn cancel_surface_rect_drag(&mut self, map: &mut Map) {
+        if let Some(drag) = self.surface_rect_drag.take() {
+            *map = drag.previous;
+            let mut rusterix = RUSTERIX.write().unwrap();
+            rusterix.set_dirty();
+            rusterix.set_overlay_dirty();
+        }
+    }
+
+    fn rect_outline(start: Vec3<f32>, end: Vec3<f32>) -> Vec<Vec3<f32>> {
+        let (x0, x1) = (start.x.min(end.x), start.x.max(end.x));
+        let (z0, z1) = (start.z.min(end.z), start.z.max(end.z));
+        vec![
+            Vec3::new(x0, 0.0, z0),
+            Vec3::new(x1, 0.0, z0),
+            Vec3::new(x1, 0.0, z1),
+            Vec3::new(x0, 0.0, z1),
+        ]
+    }
 
     fn snap_distance(map: &Map) -> f32 {
         (ServerContext::edit_grid_step(map.subdivisions) * 0.6).max(0.025)
@@ -271,10 +295,92 @@ impl WallTool {
         )
     }
 
+    fn panel_surface_action_rect(index: i32) -> TheDim {
+        TheDim::rect(
+            Self::PANEL_X + 14 + index * 125,
+            Self::PANEL_Y + 112,
+            121,
+            28,
+        )
+    }
+
+    fn enclosed_surface_preview(&self, map: &Map) -> Vec<Vec<Vec3<f32>>> {
+        map.wall_assemblies
+            .iter()
+            .flat_map(|assembly| {
+                assembly
+                    .inferred_surface_outlines(Self::SURFACE_GAP_LIMIT)
+                    .into_iter()
+                    .filter_map(|(outline, _)| {
+                        (!assembly.has_area_surface_outline(self.surface_kind, &outline))
+                            .then_some(outline)
+                    })
+            })
+            .collect()
+    }
+
+    fn fill_enclosed_surfaces(&mut self, map: &mut Map) -> usize {
+        // Doorways are temporary graph edges during detection; the authored walls are untouched.
+        let regions = map
+            .wall_assemblies
+            .iter()
+            .map(|assembly| {
+                (
+                    assembly.id,
+                    assembly.floor_pixel_source(),
+                    assembly.inferred_surface_outlines(Self::SURFACE_GAP_LIMIT),
+                )
+            })
+            .collect::<Vec<_>>();
+        let kind = self.surface_kind;
+        let previous_elevation = self.surface_elevation;
+        let mut created = 0;
+        for (assembly_id, source, outlines) in regions {
+            for (outline, wall_height) in outlines {
+                let already_exists = map
+                    .wall_assembly(assembly_id)
+                    .is_some_and(|assembly| assembly.has_area_surface_outline(kind, &outline));
+                if already_exists {
+                    continue;
+                }
+                let mut surface = WallAreaSurface::new(Vec::new());
+                surface.outline = outline.clone();
+                surface.source = Some(source.clone());
+                self.surface_elevation = if kind == WallAreaSurfaceKind::Floor {
+                    0.0
+                } else {
+                    wall_height
+                };
+                self.configure_new_surface(&mut surface);
+                // Retain the inferred fit until the user deliberately assigns a shared
+                // Surface branch, which can then control elevation along with materials.
+                surface.pattern_id = None;
+                // Adjacent inferred regions meet at virtual doorway edges. An inset
+                // would leave unsupported gaps across those passages.
+                surface.clearance = 0.0;
+                if kind == WallAreaSurfaceKind::Ceiling {
+                    surface.elevation = wall_height + surface.thickness;
+                } else {
+                    surface.elevation = 0.0;
+                }
+                if let Some(assembly) = map.wall_assembly_mut(assembly_id) {
+                    assembly.area_surfaces.push(surface);
+                    created += 1;
+                }
+            }
+        }
+        self.surface_elevation = previous_elevation;
+        if created > 0 {
+            map.rebuild_wall_geometry();
+        }
+        created
+    }
+
     fn update_ring_preview(
         map: &mut Map,
         drag: &mut WallRingDrag,
         style: &WallStyle,
+        pattern_id: Option<Uuid>,
         auto_floor: bool,
         radius: f32,
     ) -> bool {
@@ -289,6 +395,7 @@ impl WallTool {
         } else {
             let mut assembly = WallAssembly::new(format!("Ring {}", map.wall_assemblies.len() + 1));
             assembly.style = style.clone();
+            assembly.pattern_id = pattern_id;
             assembly.auto_floor = auto_floor;
             let nodes = positions.map(|position| assembly.add_node(position));
             for index in 0..4 {
@@ -338,20 +445,6 @@ impl WallTool {
         true
     }
 
-    fn panel_adjust_rect(&self, row: i32, plus: bool) -> TheDim {
-        let row_offset = if self.interaction_mode == WallInteractionMode::Opening {
-            2
-        } else {
-            0
-        };
-        TheDim::rect(
-            Self::PANEL_X + if plus { 238 } else { 184 },
-            Self::PANEL_Y + Self::PANEL_ROW_Y + (row + row_offset) * Self::PANEL_ROW_SPACING,
-            28,
-            20,
-        )
-    }
-
     fn panel_shape_rect(index: i32) -> TheDim {
         TheDim::rect(
             Self::PANEL_X + 116 + index * 76,
@@ -368,50 +461,6 @@ impl WallTool {
             57,
             20,
         )
-    }
-
-    fn visible_style_fields(&self) -> &'static [(WallStyleField, &'static str)] {
-        match self.interaction_mode {
-            WallInteractionMode::Build => &[
-                (WallStyleField::Masonry, "Masonry"),
-                (WallStyleField::AutoFloor, "Create floor"),
-                (WallStyleField::Height, "Height"),
-                (WallStyleField::Thickness, "Thickness"),
-                (WallStyleField::BrickWidth, "Stone width"),
-                (WallStyleField::BrickHeight, "Course height"),
-                (WallStyleField::MortarGap, "Mortar gap"),
-                (WallStyleField::StoneVariation, "Stone variation"),
-            ],
-            WallInteractionMode::Select => &[
-                (WallStyleField::Masonry, "Masonry"),
-                (WallStyleField::AutoFloor, "Floor"),
-                (WallStyleField::Height, "Height"),
-                (WallStyleField::Thickness, "Thickness"),
-                (WallStyleField::Curve, "Curve"),
-                (WallStyleField::CurveSegments, "Curve detail"),
-                (WallStyleField::MortarGap, "Mortar gap"),
-                (WallStyleField::Bevel, "Bevel"),
-                (WallStyleField::Irregularity, "Irregularity"),
-                (WallStyleField::Damage, "Damage"),
-                (WallStyleField::StoneVariation, "Stone variation"),
-            ],
-            WallInteractionMode::Brick => &[
-                (WallStyleField::Bevel, "Bevel"),
-                (WallStyleField::Irregularity, "Irregularity"),
-                (WallStyleField::Damage, "Damage"),
-                (WallStyleField::StoneVariation, "Stone variation"),
-            ],
-            WallInteractionMode::Opening => &[
-                (WallStyleField::FrameWidth, "Surround width"),
-                (WallStyleField::FrameDepth, "Relief depth"),
-                (WallStyleField::ArchStones, "Arch stones"),
-            ],
-            WallInteractionMode::Surface => &[
-                (WallStyleField::SurfaceElevation, "Elevation"),
-                (WallStyleField::SurfaceThickness, "Thickness"),
-                (WallStyleField::SurfaceClearance, "Clearance"),
-            ],
-        }
     }
 
     fn selected_wall_plane_coordinates(
@@ -637,7 +686,9 @@ impl WallTool {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) {
+        self.cancel_surface_rect_drag(map);
         self.cancel_ring_drag(map);
+        self.surface_fill_preview = None;
         if mode == WallInteractionMode::Opening {
             if server_ctx.editor_view_mode == EditorViewMode::D2 {
                 ctx.ui.send(TheEvent::SetStatusText(
@@ -677,8 +728,7 @@ impl WallTool {
             self.interaction_mode = WallInteractionMode::Surface;
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),
-                "Surface mode: click a bounded wall area to create or edit its fitted surface."
-                    .to_string(),
+                fl!("construction_surface_mode_help"),
             ));
             ctx.ui.redraw_all = true;
             return;
@@ -736,307 +786,6 @@ impl WallTool {
         ctx.ui
             .send(TheEvent::SetStatusText(TheId::empty(), message.to_string()));
         ctx.ui.redraw_all = true;
-    }
-
-    fn adjust_selected_span_style(
-        &mut self,
-        map: &mut Map,
-        server_ctx: &ServerContext,
-        field: WallStyleField,
-        delta: f32,
-    ) -> Option<ProjectUndoAtom> {
-        if self.interaction_mode == WallInteractionMode::Build {
-            if field == WallStyleField::AutoFloor {
-                self.build_auto_floor = !self.build_auto_floor;
-            } else {
-                Self::adjust_style_value(&mut self.build_style, field, delta);
-            }
-            return None;
-        }
-        let assembly_id = map.selected_wall_assembly?;
-        let previous = map.clone();
-        if field == WallStyleField::AutoFloor {
-            let assembly = map.wall_assembly_mut(assembly_id)?;
-            assembly.auto_floor = !assembly.auto_floor;
-            map.rebuild_wall_geometry();
-            let mut rusterix = RUSTERIX.write().unwrap();
-            rusterix.set_dirty();
-            rusterix.set_overlay_dirty();
-            return Some(ProjectUndoAtom::MapEdit(
-                server_ctx.pc,
-                Box::new(previous),
-                Box::new(map.clone()),
-            ));
-        }
-        let span_ids = map.selected_wall_spans.clone();
-        if span_ids.is_empty() {
-            return None;
-        }
-        let assembly = map.wall_assembly_mut(assembly_id)?;
-        let assembly_style = assembly.style.clone();
-        let mut changed = false;
-        for span_id in span_ids {
-            let Some(span) = assembly.span_mut(span_id) else {
-                continue;
-            };
-            let inherited = span
-                .style_override
-                .clone()
-                .unwrap_or_else(|| assembly_style.clone());
-            match field {
-                WallStyleField::Curve => {
-                    span.curve_offset = (span.curve_offset + delta).clamp(-100.0, 100.0)
-                }
-                WallStyleField::CurveSegments => {
-                    span.curve_segments =
-                        ((span.curve_segments as f32 + delta).round() as i32).clamp(2, 64) as u16
-                }
-                _ => Self::adjust_style_value(
-                    span.style_override.get_or_insert(inherited),
-                    field,
-                    delta,
-                ),
-            }
-            changed = true;
-        }
-        if !changed {
-            return None;
-        }
-        map.rebuild_wall_geometry();
-        let mut rusterix = RUSTERIX.write().unwrap();
-        rusterix.set_dirty();
-        rusterix.set_overlay_dirty();
-        Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
-            Box::new(previous),
-            Box::new(map.clone()),
-        ))
-    }
-
-    fn adjust_wall_field(
-        &mut self,
-        map: &mut Map,
-        server_ctx: &ServerContext,
-        field: WallStyleField,
-        delta: f32,
-    ) -> Option<ProjectUndoAtom> {
-        if self.interaction_mode == WallInteractionMode::Surface
-            && matches!(
-                field,
-                WallStyleField::SurfaceElevation
-                    | WallStyleField::SurfaceThickness
-                    | WallStyleField::SurfaceClearance
-            )
-        {
-            return self.adjust_area_surface(map, server_ctx, field, delta);
-        }
-        if self.interaction_mode != WallInteractionMode::Opening
-            || map.selected_wall_opening.is_none()
-            || !matches!(
-                field,
-                WallStyleField::FrameWidth
-                    | WallStyleField::FrameDepth
-                    | WallStyleField::ArchStones
-            )
-        {
-            return self.adjust_selected_span_style(map, server_ctx, field, delta);
-        }
-        let assembly_id = map.selected_wall_assembly?;
-        let span_id = *map.selected_wall_spans.first()?;
-        let opening_id = map.selected_wall_opening?;
-        let previous = map.clone();
-        let (width, depth, stones) = {
-            let assembly = map.wall_assembly(assembly_id)?;
-            let span = assembly.span(span_id)?;
-            let style = span.style_override.as_ref().unwrap_or(&assembly.style);
-            let opening = assembly.opening(span_id, opening_id)?;
-            (
-                opening.frame.width(style),
-                opening.frame.depth(style),
-                opening.frame.arch_stones(style),
-            )
-        };
-        let opening = map
-            .wall_assembly_mut(assembly_id)?
-            .opening_mut(span_id, opening_id)?;
-        match field {
-            WallStyleField::FrameWidth => {
-                opening.frame.width = Some((width + delta).clamp(0.0, 2.0))
-            }
-            WallStyleField::FrameDepth => {
-                opening.frame.depth = Some((depth + delta).clamp(0.0, 1.0))
-            }
-            WallStyleField::ArchStones => {
-                opening.frame.arch_stones =
-                    Some(((stones as f32 + delta).round() as i32).clamp(3, 32) as u16)
-            }
-            _ => return None,
-        }
-        map.rebuild_wall_geometry();
-        let mut rusterix = RUSTERIX.write().unwrap();
-        rusterix.set_dirty();
-        rusterix.set_overlay_dirty();
-        Some(ProjectUndoAtom::MapEdit(
-            server_ctx.pc,
-            Box::new(previous),
-            Box::new(map.clone()),
-        ))
-    }
-
-    fn adjust_area_surface(
-        &mut self,
-        map: &mut Map,
-        server_ctx: &ServerContext,
-        field: WallStyleField,
-        delta: f32,
-    ) -> Option<ProjectUndoAtom> {
-        let previous = map.clone();
-        let selected = map.selected_wall_assembly.zip(map.selected_wall_surface);
-        let mut changed_persistent = false;
-        if let Some((assembly_id, surface_id)) = selected
-            && let Some(surface) = map
-                .wall_assembly_mut(assembly_id)
-                .and_then(|assembly| assembly.area_surface_mut(surface_id))
-        {
-            match field {
-                WallStyleField::SurfaceElevation => {
-                    surface.elevation = (surface.elevation + delta).clamp(-100.0, 100.0)
-                }
-                WallStyleField::SurfaceThickness => {
-                    surface.thickness = (surface.thickness + delta).clamp(0.005, 10.0)
-                }
-                WallStyleField::SurfaceClearance => {
-                    surface.clearance = (surface.clearance + delta).clamp(0.0, 10.0)
-                }
-                _ => return None,
-            }
-            self.surface_elevation = surface.elevation;
-            self.surface_thickness = surface.thickness;
-            self.surface_clearance = surface.clearance;
-            changed_persistent = true;
-        } else {
-            match field {
-                WallStyleField::SurfaceElevation => {
-                    self.surface_elevation = (self.surface_elevation + delta).clamp(-100.0, 100.0)
-                }
-                WallStyleField::SurfaceThickness => {
-                    self.surface_thickness = (self.surface_thickness + delta).clamp(0.005, 10.0)
-                }
-                WallStyleField::SurfaceClearance => {
-                    self.surface_clearance = (self.surface_clearance + delta).clamp(0.0, 10.0)
-                }
-                _ => return None,
-            }
-            if let Some(preview) = map.wall_surface_preview.as_mut() {
-                preview.surface.elevation = self.surface_elevation;
-                preview.surface.thickness = self.surface_thickness;
-                preview.surface.clearance = self.surface_clearance;
-            }
-        }
-        if changed_persistent {
-            map.rebuild_wall_geometry();
-        } else if map.wall_surface_preview.is_some() {
-            map.rebuild_wall_geometry_with_surface_preview();
-        }
-        let mut rusterix = RUSTERIX.write().unwrap();
-        rusterix.set_dirty();
-        rusterix.set_overlay_dirty();
-        changed_persistent.then(|| {
-            ProjectUndoAtom::MapEdit(server_ctx.pc, Box::new(previous), Box::new(map.clone()))
-        })
-    }
-
-    fn adjust_style_value(style: &mut WallStyle, field: WallStyleField, delta: f32) {
-        match field {
-            WallStyleField::Masonry => {
-                style.masonry = style.masonry.offset(if delta >= 0.0 { 1 } else { -1 })
-            }
-            WallStyleField::AutoFloor => {}
-            WallStyleField::Height => style.height = (style.height + delta).clamp(0.1, 100.0),
-            WallStyleField::Thickness => {
-                style.thickness = (style.thickness + delta).clamp(0.02, 10.0)
-            }
-            WallStyleField::BrickWidth => {
-                style.brick_width = (style.brick_width + delta).clamp(0.05, 10.0)
-            }
-            WallStyleField::BrickHeight => {
-                style.brick_height = (style.brick_height + delta).clamp(0.05, 10.0)
-            }
-            WallStyleField::MortarGap => {
-                style.mortar_gap = (style.mortar_gap + delta).clamp(0.0, 1.0)
-            }
-            WallStyleField::Bevel => style.bevel = (style.bevel + delta).clamp(0.0, 1.0),
-            WallStyleField::Irregularity => {
-                style.irregularity = (style.irregularity + delta).clamp(0.0, 1.0)
-            }
-            WallStyleField::Damage => style.damage = (style.damage + delta).clamp(0.0, 1.0),
-            WallStyleField::StoneVariation => {
-                style.stone_variation = (style.stone_variation + delta).clamp(0.0, 1.0)
-            }
-            WallStyleField::FrameWidth => {
-                style.frame_width = (style.frame_width + delta).clamp(0.0, 2.0)
-            }
-            WallStyleField::FrameDepth => {
-                style.frame_depth = (style.frame_depth + delta).clamp(0.0, 1.0)
-            }
-            WallStyleField::ArchStones => {
-                style.arch_stones =
-                    ((style.arch_stones as f32 + delta).round() as i32).clamp(3, 32) as u16
-            }
-            WallStyleField::Curve | WallStyleField::CurveSegments => {}
-            WallStyleField::SurfaceElevation
-            | WallStyleField::SurfaceThickness
-            | WallStyleField::SurfaceClearance => {}
-        }
-    }
-
-    fn adjustment_amount(map: &Map, field: WallStyleField) -> f32 {
-        let step = ServerContext::edit_grid_step(map.subdivisions).max(0.025);
-        match field {
-            WallStyleField::Masonry | WallStyleField::AutoFloor => 1.0,
-            WallStyleField::Height
-            | WallStyleField::BrickWidth
-            | WallStyleField::BrickHeight
-            | WallStyleField::Curve => step,
-            WallStyleField::Thickness => step.min(0.25),
-            WallStyleField::CurveSegments | WallStyleField::ArchStones => 1.0,
-            WallStyleField::MortarGap
-            | WallStyleField::Bevel
-            | WallStyleField::FrameWidth
-            | WallStyleField::FrameDepth => (step * 0.25).min(0.05),
-            WallStyleField::Irregularity
-            | WallStyleField::Damage
-            | WallStyleField::StoneVariation => 0.05,
-            WallStyleField::SurfaceElevation => 0.25,
-            WallStyleField::SurfaceThickness | WallStyleField::SurfaceClearance => {
-                (step * 0.25).min(0.05)
-            }
-        }
-    }
-
-    fn repeat_held_adjustment(
-        &mut self,
-        map: &mut Map,
-        ctx: &mut TheContext,
-        server_ctx: &ServerContext,
-    ) -> bool {
-        let now = Instant::now();
-        let Some(held) = self.held_adjustment.as_ref() else {
-            return false;
-        };
-        if now.duration_since(held.pressed_at) < Duration::from_millis(350)
-            || now.duration_since(held.last_repeat) < Duration::from_millis(70)
-        {
-            return false;
-        }
-        let field = held.field;
-        let delta = held.delta;
-        if let Some(held) = self.held_adjustment.as_mut() {
-            held.last_repeat = now;
-        }
-        let _ = self.adjust_wall_field(map, server_ctx, field, delta);
-        ctx.ui.redraw_all = true;
-        true
     }
 
     fn wall_span_at_pointer(
@@ -1225,10 +974,9 @@ impl WallTool {
         if resolved_map
             .wall_assembly(assembly_id)
             .is_some_and(|assembly| {
-                assembly
-                    .area_surfaces
-                    .iter()
-                    .any(|surface| surface.boundary == boundary)
+                assembly.area_surfaces.iter().any(|surface| {
+                    surface.boundary == boundary && surface.kind == self.surface_kind
+                })
             })
         {
             self.cancel_surface_preview(map);
@@ -1237,6 +985,7 @@ impl WallTool {
         let unchanged = map.wall_surface_preview.as_ref().is_some_and(|preview| {
             preview.assembly_id == assembly_id
                 && preview.surface.boundary == boundary
+                && preview.surface.kind == self.surface_kind
                 && (preview.surface.elevation - self.surface_elevation).abs() <= 1e-6
                 && (preview.surface.thickness - self.surface_thickness).abs() <= 1e-6
                 && (preview.surface.clearance - self.surface_clearance).abs() <= 1e-6
@@ -1248,16 +997,14 @@ impl WallTool {
             .wall_assembly(assembly_id)
             .map(WallAssembly::floor_pixel_source);
         let mut surface = WallAreaSurface::new(boundary);
+        surface.source = source;
+        self.configure_new_surface(&mut surface);
         if let Some(preview) = map.wall_surface_preview.as_ref()
             && preview.assembly_id == assembly_id
             && preview.surface.boundary == surface.boundary
         {
             surface.id = preview.surface.id;
         }
-        surface.elevation = self.surface_elevation;
-        surface.thickness = self.surface_thickness;
-        surface.clearance = self.surface_clearance;
-        surface.source = source;
         map.wall_surface_preview = Some(WallAreaSurfacePreview {
             assembly_id,
             surface,
@@ -1278,28 +1025,18 @@ impl WallTool {
         ctx: &mut TheContext,
         server_ctx: &ServerContext,
     ) -> Option<ProjectUndoAtom> {
-        let mut placed_style = self.build_style.clone();
-        if let Some(assembly_id) = map.selected_wall_assembly
-            && let Some(span_id) = map.selected_wall_spans.first().copied()
-            && let Some(assembly) = map.wall_assembly(assembly_id)
-            && let Some(span) = assembly.span(span_id)
-        {
-            let selected_style = span.style_override.as_ref().unwrap_or(&assembly.style);
-            placed_style.stone_source = selected_style.stone_source.clone();
-            placed_style.stone_variants = selected_style.stone_variants.clone();
-            placed_style.mortar_source = selected_style.mortar_source.clone();
-            placed_style.frame_source = selected_style.frame_source.clone();
-            placed_style.stone_variation = selected_style.stone_variation;
-        }
         let previous = map.clone();
         match map.connect_wall_points(start, end, Self::snap_distance(map)) {
             Ok((assembly_id, span_id, start_node, end_node)) => {
                 if let Some(assembly) = map.wall_assembly_mut(assembly_id) {
                     if assembly.spans.len() == 1 {
                         assembly.auto_floor = self.build_auto_floor;
+                        assembly.pattern_id = self.build_pattern_id;
+                        assembly.style = self.build_style.clone();
                     }
+                    // New spans use their assembly's shared construction graph.
                     if let Some(span) = assembly.span_mut(span_id) {
-                        span.style_override = Some(placed_style);
+                        span.style_override = None;
                     }
                 }
                 map.rebuild_wall_geometry();
@@ -1429,9 +1166,12 @@ impl WallTool {
             ),
             stride,
             if self.interaction_mode == WallInteractionMode::Surface {
-                "HUD: SURFACE"
+                match self.surface_kind {
+                    WallAreaSurfaceKind::Floor => "CREATE FLOOR",
+                    WallAreaSurfaceKind::Ceiling => "CREATE CEILING",
+                }
             } else {
-                "HUD: STONE · VAR1 · VAR2 · MORTAR"
+                "STYLE IN CONSTRUCTION GRAPH"
             },
             TheFontSettings {
                 size: 10.5,
@@ -1479,6 +1219,31 @@ impl WallTool {
             stride,
             &[36, 39, 44, 250],
         );
+        if self.interaction_mode == WallInteractionMode::Surface {
+            for (line, y) in [
+                (fl!("construction_surface_click_loop"), Self::PANEL_Y + 72),
+                (fl!("construction_surface_drag_open"), Self::PANEL_Y + 91),
+            ] {
+                ctx.draw.text_rect_blend(
+                    buffer.pixels_mut(),
+                    &(
+                        (Self::PANEL_X + 18) as usize,
+                        y as usize,
+                        (Self::PANEL_WIDTH - 36) as usize,
+                        18,
+                    ),
+                    stride,
+                    &line,
+                    TheFontSettings {
+                        size: 11.0,
+                        ..Default::default()
+                    },
+                    &[216, 219, 224, 255],
+                    TheHorizontalAlign::Left,
+                    TheVerticalAlign::Center,
+                );
+            }
+        }
         if self.interaction_mode == WallInteractionMode::Build {
             for (index, (mode, label)) in
                 [(WallBuildMode::Line, "LINE"), (WallBuildMode::Ring, "RING")]
@@ -1494,6 +1259,52 @@ impl WallTool {
                     true,
                 );
             }
+        } else if self.interaction_mode == WallInteractionMode::Surface {
+            for (index, (kind, label)) in [
+                (WallAreaSurfaceKind::Floor, "FLOOR"),
+                (WallAreaSurfaceKind::Ceiling, "CEILING"),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                Self::draw_panel_button(
+                    buffer,
+                    ctx,
+                    Self::panel_build_mode_rect(index as i32),
+                    label,
+                    self.surface_kind == kind,
+                    true,
+                );
+            }
+            let ceilings_hidden = crate::editor::SCENEMANAGER
+                .read()
+                .unwrap()
+                .preview_wall_surfaces_hidden()
+                .1;
+            Self::draw_panel_button(
+                buffer,
+                ctx,
+                Self::panel_surface_action_rect(0),
+                &if self.surface_fill_preview.is_some() {
+                    fl!("construction_surface_create_all")
+                } else {
+                    fl!("construction_surface_fill_all")
+                },
+                self.surface_fill_preview.is_some(),
+                true,
+            );
+            Self::draw_panel_button(
+                buffer,
+                ctx,
+                Self::panel_surface_action_rect(1),
+                &if ceilings_hidden {
+                    fl!("construction_surface_show_ceilings")
+                } else {
+                    fl!("construction_surface_hide_ceilings")
+                },
+                ceilings_hidden,
+                true,
+            );
         }
         let selected_opening = map.selected_wall_assembly.and_then(|assembly_id| {
             let span_id = *map.selected_wall_spans.first()?;
@@ -1633,7 +1444,10 @@ impl WallTool {
                 "Choose SELECT, then click the visible wall".to_string(),
             )
         };
-        if self.interaction_mode != WallInteractionMode::Build {
+        if !matches!(
+            self.interaction_mode,
+            WallInteractionMode::Build | WallInteractionMode::Surface
+        ) {
             for (line, y, color, size) in [
                 (
                     selection_line.as_str(),
@@ -1665,119 +1479,6 @@ impl WallTool {
                     &color,
                     TheHorizontalAlign::Left,
                     TheVerticalAlign::Center,
-                );
-            }
-        }
-
-        for (row, (field, label)) in self.visible_style_fields().iter().copied().enumerate() {
-            let value = selection
-                .as_ref()
-                .map(
-                    |(
-                        _,
-                        _,
-                        curve,
-                        curve_segments,
-                        height,
-                        thickness,
-                        masonry,
-                        auto_floor,
-                        brick_width,
-                        brick_height,
-                        mortar_gap,
-                        bevel,
-                        irregularity,
-                        damage,
-                        stone_variation,
-                        frame_width,
-                        frame_depth,
-                        arch_stones,
-                        _,
-                        _,
-                    )| match field {
-                        WallStyleField::Masonry => masonry.label().to_string(),
-                        WallStyleField::AutoFloor => {
-                            if *auto_floor { "On" } else { "Off" }.to_string()
-                        }
-                        WallStyleField::Height => format!("{height:.2}"),
-                        WallStyleField::Thickness => format!("{thickness:.2}"),
-                        WallStyleField::Curve => format!("{curve:+.2}"),
-                        WallStyleField::CurveSegments => curve_segments.to_string(),
-                        WallStyleField::BrickWidth => format!("{brick_width:.2}"),
-                        WallStyleField::BrickHeight => format!("{brick_height:.2}"),
-                        WallStyleField::MortarGap => format!("{mortar_gap:.3}"),
-                        WallStyleField::Bevel => format!("{bevel:.3}"),
-                        WallStyleField::Irregularity => format!("{irregularity:.2}"),
-                        WallStyleField::Damage => format!("{damage:.2}"),
-                        WallStyleField::StoneVariation => format!("{stone_variation:.2}"),
-                        WallStyleField::FrameWidth => format!("{frame_width:.2}"),
-                        WallStyleField::FrameDepth => format!("{frame_depth:.2}"),
-                        WallStyleField::ArchStones => arch_stones.to_string(),
-                        WallStyleField::SurfaceElevation => selected_surface
-                            .map(|surface| format!("{:.2}", surface.elevation))
-                            .unwrap_or_else(|| format!("{:.2}", self.surface_elevation)),
-                        WallStyleField::SurfaceThickness => selected_surface
-                            .map(|surface| format!("{:.2}", surface.thickness))
-                            .unwrap_or_else(|| format!("{:.2}", self.surface_thickness)),
-                        WallStyleField::SurfaceClearance => selected_surface
-                            .map(|surface| format!("{:.3}", surface.clearance))
-                            .unwrap_or_else(|| format!("{:.3}", self.surface_clearance)),
-                    },
-                )
-                .unwrap_or_else(|| match field {
-                    WallStyleField::SurfaceElevation => {
-                        format!("{:.2}", self.surface_elevation)
-                    }
-                    WallStyleField::SurfaceThickness => {
-                        format!("{:.2}", self.surface_thickness)
-                    }
-                    WallStyleField::SurfaceClearance => {
-                        format!("{:.3}", self.surface_clearance)
-                    }
-                    _ => "—".to_string(),
-                });
-            let row_offset = if self.interaction_mode == WallInteractionMode::Opening {
-                2
-            } else {
-                0
-            };
-            let y = Self::PANEL_Y
-                + Self::PANEL_ROW_Y
-                + (row as i32 + row_offset) * Self::PANEL_ROW_SPACING;
-            ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
-                &((Self::PANEL_X + 14) as usize, y as usize, 88, 20),
-                stride,
-                label,
-                TheFontSettings {
-                    size: 11.5,
-                    ..Default::default()
-                },
-                &[182, 185, 192, 255],
-                TheHorizontalAlign::Left,
-                TheVerticalAlign::Center,
-            );
-            ctx.draw.text_rect_blend(
-                buffer.pixels_mut(),
-                &((Self::PANEL_X + 98) as usize, y as usize, 76, 20),
-                stride,
-                &value,
-                TheFontSettings {
-                    size: 12.0,
-                    ..Default::default()
-                },
-                &[239, 240, 243, 255],
-                TheHorizontalAlign::Right,
-                TheVerticalAlign::Center,
-            );
-            for plus in [false, true] {
-                Self::draw_panel_button(
-                    buffer,
-                    ctx,
-                    self.panel_adjust_rect(row as i32, plus),
-                    if plus { "+" } else { "−" },
-                    false,
-                    selection.is_some(),
                 );
             }
         }
@@ -1870,13 +1571,13 @@ impl WallTool {
             }
             WallInteractionMode::Opening => "Click opening to edit, empty wall to create",
             WallInteractionMode::Brick => "R  Hover a brick; click to remove / restore",
-            WallInteractionMode::Surface => "U  Click a bounded area  •  Delete removes",
+            WallInteractionMode::Surface => "Click loop · Shift-drag area · H hide",
         };
         ctx.draw.text_rect_blend(
             buffer.pixels_mut(),
             &(
                 (Self::PANEL_X + 12) as usize,
-                (Self::PANEL_Y + 396) as usize,
+                (Self::PANEL_Y + 160) as usize,
                 (Self::PANEL_WIDTH - 24) as usize,
                 17,
             ),
@@ -1911,13 +1612,21 @@ impl Tool for WallTool {
             build_mode: WallBuildMode::Line,
             build_style: WallStyle::default(),
             build_auto_floor: false,
-            held_adjustment: None,
             node_drag: None,
             ring_drag: None,
             opening_drag: None,
+            surface_rect_drag: None,
+            build_pattern_id: None,
+            surface_pattern_id: None,
+            surface_projection: None,
+            ceiling_pattern_id: None,
+            ceiling_projection: None,
             surface_elevation: 0.25,
             surface_thickness: 0.08,
             surface_clearance: 0.015,
+            surface_kind: WallAreaSurfaceKind::Floor,
+            surface_fill_preview: None,
+            previous_dock: None,
         }
     }
 
@@ -1943,12 +1652,116 @@ impl Tool for WallTool {
     ) -> bool {
         match tool_event {
             Activate => {
-                self.held_adjustment = None;
                 self.node_drag = None;
                 self.ring_drag = None;
                 self.opening_drag = None;
                 self.build_mode = WallBuildMode::Line;
+                let needs_wall = !project
+                    .construction_patterns
+                    .values()
+                    .any(|asset| asset.kind == ConstructionPatternKind::Wall);
+                let needs_floor = !project.construction_patterns.values().any(|asset| {
+                    asset.kind == ConstructionPatternKind::Surface
+                        && asset.name != "Default Ceiling"
+                });
+                let needs_ceiling = !project.construction_patterns.values().any(|asset| {
+                    asset.name == "Default Ceiling"
+                        && asset.kind == ConstructionPatternKind::Surface
+                });
+                let before_patterns =
+                    (needs_wall || needs_floor || needs_ceiling).then(|| project.clone());
+                if needs_wall {
+                    let style = WallStyle::default();
+                    let pattern = ConstructionPatternAsset::new_pattern("Default Pattern", &style);
+                    let pattern_id = pattern.id;
+                    project.construction_patterns.insert(pattern_id, pattern);
+                    let mut wall = ConstructionPatternAsset::new_wall("Default Wall", &style);
+                    wall.graph = construction_graph::wall_reference_graph(&style, pattern_id);
+                    construction_graph::set_root_name(&mut wall.graph, &wall.name);
+                    project.construction_patterns.insert(wall.id, wall);
+                }
+                if needs_floor {
+                    let asset = ConstructionPatternAsset::new_surface("Default Floor", 0.25, 0.08);
+                    project.construction_patterns.insert(asset.id, asset);
+                }
+                if needs_ceiling {
+                    let asset = ConstructionPatternAsset::new_surface("Default Ceiling", 3.0, 0.08);
+                    project.construction_patterns.insert(asset.id, asset);
+                }
+                if let Some(before_patterns) = before_patterns {
+                    UNDOMANAGER.write().unwrap().add_undo(
+                        ProjectUndoAtom::ProjectEdit(
+                            "Create construction patterns".into(),
+                            Box::new(before_patterns),
+                            Box::new(project.clone()),
+                        ),
+                        ctx,
+                    );
+                }
+                self.build_pattern_id = project
+                    .construction_patterns
+                    .iter()
+                    .find(|(_, asset)| asset.kind == ConstructionPatternKind::Wall)
+                    .map(|(id, _)| *id);
+                if let Some(asset) = self
+                    .build_pattern_id
+                    .and_then(|id| project.construction_patterns.get(&id))
+                {
+                    self.build_style = construction_graph::compile_wall_in_project(
+                        &asset.graph,
+                        &WallStyle::default(),
+                        project,
+                    )
+                    .unwrap_or_default();
+                }
+                self.surface_pattern_id = project
+                    .construction_patterns
+                    .iter()
+                    .find(|(_, asset)| {
+                        asset.kind == ConstructionPatternKind::Surface
+                            && asset.name != "Default Ceiling"
+                    })
+                    .map(|(id, _)| *id);
+                self.surface_projection = self
+                    .surface_pattern_id
+                    .and_then(|id| project.construction_patterns.get(&id))
+                    .and_then(|asset| {
+                        construction_graph::compile_surface_with_patterns(
+                            &asset.graph,
+                            &project.construction_patterns,
+                        )
+                        .ok()
+                    });
+                self.ceiling_pattern_id = project
+                    .construction_patterns
+                    .iter()
+                    .find(|(_, asset)| {
+                        asset.kind == ConstructionPatternKind::Surface
+                            && asset.name == "Default Ceiling"
+                    })
+                    .map(|(id, _)| *id);
+                self.ceiling_projection = self
+                    .ceiling_pattern_id
+                    .and_then(|id| project.construction_patterns.get(&id))
+                    .and_then(|asset| {
+                        construction_graph::compile_surface_with_patterns(
+                            &asset.graph,
+                            &project.construction_patterns,
+                        )
+                        .ok()
+                    });
                 server_ctx.curr_map_tool_type = MapToolType::Wall;
+                let current_dock = crate::editor::DOCKMANAGER.read().unwrap().dock.clone();
+                if current_dock != "Construction" {
+                    self.previous_dock = (!current_dock.is_empty()).then_some(current_dock);
+                }
+                crate::editor::DOCKMANAGER.write().unwrap().set_dock(
+                    "Construction".into(),
+                    _ui,
+                    ctx,
+                    project,
+                    server_ctx,
+                );
                 server_ctx.hover_cursor = None;
                 if let Some(map) = project.get_map_mut(server_ctx) {
                     self.cancel_opening(map);
@@ -1966,13 +1779,14 @@ impl Tool for WallTool {
                 true
             }
             DeActivate => {
-                self.held_adjustment = None;
                 self.node_drag = None;
+                self.surface_fill_preview = None;
                 self.opening_drag = None;
                 self.build_mode = WallBuildMode::Line;
                 server_ctx.curr_map_tool_type = MapToolType::General;
                 server_ctx.hover_cursor = None;
                 if let Some(map) = project.get_map_mut(server_ctx) {
+                    self.cancel_surface_rect_drag(map);
                     self.cancel_ring_drag(map);
                     self.finish_run(map);
                     self.cancel_opening(map);
@@ -1982,20 +1796,17 @@ impl Tool for WallTool {
                     map.selected_wall_surface = None;
                     map.hovered_wall_span = None;
                 }
+                if crate::editor::DOCKMANAGER.read().unwrap().dock == "Construction" {
+                    let mut manager = crate::editor::DOCKMANAGER.write().unwrap();
+                    manager.minimize_for_tool_switch(_ui, ctx, project, server_ctx);
+                    if let Some(previous) = self.previous_dock.take() {
+                        manager.set_dock(previous, _ui, ctx, project, server_ctx);
+                    }
+                }
                 true
             }
             _ => false,
         }
-    }
-
-    fn update(
-        &mut self,
-        _ui: &mut TheUI,
-        ctx: &mut TheContext,
-        map: &mut Map,
-        server_ctx: &mut ServerContext,
-    ) -> bool {
-        self.repeat_held_adjustment(map, ctx, server_ctx)
     }
 
     fn map_event(
@@ -2049,6 +1860,61 @@ impl Tool for WallTool {
                 self.set_interaction_mode(WallInteractionMode::Surface, map, ctx, server_ctx);
                 None
             }
+            MapKey(key) if matches!(key, 'f' | 'F' | 'c' | 'C') => {
+                self.set_interaction_mode(WallInteractionMode::Surface, map, ctx, server_ctx);
+                self.cancel_surface_preview(map);
+                map.selected_wall_surface = None;
+                self.surface_kind = if matches!(key, 'f' | 'F') {
+                    WallAreaSurfaceKind::Floor
+                } else {
+                    WallAreaSurfaceKind::Ceiling
+                };
+                self.surface_elevation = if self.surface_kind == WallAreaSurfaceKind::Floor {
+                    0.25
+                } else {
+                    3.0
+                };
+                RUSTERIX.write().unwrap().set_overlay_dirty();
+                ctx.ui.redraw_all = true;
+                None
+            }
+            MapKey(key)
+                if matches!(key, 'h' | 'H')
+                    && self.interaction_mode == WallInteractionMode::Surface =>
+            {
+                let mut manager = crate::editor::SCENEMANAGER.write().unwrap();
+                let (mut floors, mut ceilings) = manager.preview_wall_surfaces_hidden();
+                match self.surface_kind {
+                    WallAreaSurfaceKind::Floor => floors = !floors,
+                    WallAreaSurfaceKind::Ceiling => ceilings = !ceilings,
+                }
+                manager.set_preview_wall_surfaces_hidden(floors, ceilings);
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    format!(
+                        "Editor preview: floors {}, ceilings {}. Game visibility is unchanged.",
+                        if floors { "hidden" } else { "shown" },
+                        if ceilings { "hidden" } else { "shown" }
+                    ),
+                ));
+                ctx.ui.redraw_all = true;
+                None
+            }
+            MapKey(key)
+                if matches!(key, 'v' | 'V')
+                    && self.interaction_mode == WallInteractionMode::Surface =>
+            {
+                crate::editor::SCENEMANAGER
+                    .write()
+                    .unwrap()
+                    .set_preview_wall_surfaces_hidden(false, false);
+                ctx.ui.send(TheEvent::SetStatusText(
+                    TheId::empty(),
+                    "Editor preview: floors and ceilings shown.".to_string(),
+                ));
+                ctx.ui.redraw_all = true;
+                None
+            }
             MapHover(coord) => {
                 self.hud.hovered(coord.x, coord.y, map, ui, ctx, server_ctx);
                 if Self::panel_rect().contains(coord) {
@@ -2072,12 +1938,14 @@ impl Tool for WallTool {
                 if map.hovered_wall_span != previous_hovered_span {
                     RUSTERIX.write().unwrap().set_overlay_dirty();
                 }
-                if self.interaction_mode == WallInteractionMode::Surface {
+                if self.interaction_mode == WallInteractionMode::Surface
+                    && self.surface_rect_drag.is_none()
+                {
                     let hit_existing = Self::surface_hit(map, server_ctx).is_some_and(
                         |(assembly_id, surface_id)| {
                             map.wall_assembly(assembly_id)
                                 .and_then(|assembly| assembly.area_surface(surface_id))
-                                .is_some()
+                                .is_some_and(|surface| surface.kind == self.surface_kind)
                         },
                     );
                     let hit_preview = Self::surface_hit(map, server_ctx).is_some_and(
@@ -2194,167 +2062,91 @@ impl Tool for WallTool {
                             }
                         }
                     }
-                    if map.selected_wall_assembly.is_some()
-                        || self.interaction_mode == WallInteractionMode::Build
-                        || self.interaction_mode == WallInteractionMode::Surface
-                    {
-                        for (row, (field, _)) in
-                            self.visible_style_fields().iter().copied().enumerate()
+                    if self.interaction_mode == WallInteractionMode::Surface {
+                        for (index, kind) in
+                            [WallAreaSurfaceKind::Floor, WallAreaSurfaceKind::Ceiling]
+                                .into_iter()
+                                .enumerate()
                         {
-                            for plus in [false, true] {
-                                if self.panel_adjust_rect(row as i32, plus).contains(coord) {
-                                    if self.opening_armed {
-                                        self.cancel_opening(map);
-                                    }
-                                    self.cancel_brick_preview(map);
-                                    let direction = if plus { 1.0 } else { -1.0 };
-                                    let amount = Self::adjustment_amount(map, field);
-                                    let delta = amount * direction;
-                                    let previous =
-                                        if self.interaction_mode == WallInteractionMode::Surface {
-                                            map.selected_wall_surface.is_some().then(|| map.clone())
-                                        } else {
-                                            (self.interaction_mode != WallInteractionMode::Build)
-                                                .then(|| map.clone())
-                                        };
-                                    let undo =
-                                        self.adjust_wall_field(map, server_ctx, field, delta);
-                                    ctx.ui.redraw_all = true;
-                                    if matches!(
-                                        field,
-                                        WallStyleField::Masonry | WallStyleField::AutoFloor
-                                    ) {
-                                        return undo;
-                                    }
-                                    let now = Instant::now();
-                                    self.held_adjustment = Some(HeldWallAdjustment {
-                                        field,
-                                        delta,
-                                        pressed_at: now,
-                                        last_repeat: now,
-                                        previous,
-                                    });
-                                    return None;
-                                }
+                            if Self::panel_build_mode_rect(index as i32).contains(coord) {
+                                self.cancel_surface_preview(map);
+                                self.surface_fill_preview = None;
+                                map.selected_wall_surface = None;
+                                self.surface_kind = kind;
+                                self.surface_elevation = if kind == WallAreaSurfaceKind::Floor {
+                                    0.25
+                                } else {
+                                    3.0
+                                };
+                                ctx.ui.redraw_all = true;
+                                return None;
                             }
                         }
-                        if self.interaction_mode == WallInteractionMode::Opening {
-                            for (index, shape) in
-                                [WallOpeningShape::Rectangular, WallOpeningShape::Arch]
-                                    .into_iter()
-                                    .enumerate()
-                            {
-                                if Self::panel_shape_rect(index as i32).contains(coord) {
-                                    if let (Some(assembly_id), Some(span_id), Some(opening_id)) = (
-                                        map.selected_wall_assembly,
-                                        map.selected_wall_spans.first().copied(),
-                                        map.selected_wall_opening,
-                                    ) {
-                                        let previous = map.clone();
-                                        let changed = map
-                                            .wall_assembly_mut(assembly_id)
-                                            .and_then(|assembly| {
-                                                assembly.opening_mut(span_id, opening_id)
-                                            })
-                                            .is_some_and(|opening| {
-                                                if opening.shape == shape {
-                                                    false
-                                                } else {
-                                                    opening.shape = shape;
-                                                    true
-                                                }
-                                            });
-                                        if changed {
-                                            map.rebuild_wall_geometry();
-                                            let mut rusterix = RUSTERIX.write().unwrap();
-                                            rusterix.set_dirty();
-                                            rusterix.set_overlay_dirty();
-                                            ctx.ui.redraw_all = true;
-                                            return Some(ProjectUndoAtom::MapEdit(
-                                                server_ctx.pc,
-                                                Box::new(previous),
-                                                Box::new(map.clone()),
-                                            ));
-                                        }
-                                        return None;
-                                    }
-                                    self.opening_shape = shape;
-                                    let mut rebuild_preview = false;
-                                    if let Some(preview) = map.wall_opening_preview.as_mut() {
-                                        preview.shape = shape;
-                                        rebuild_preview = self.opening_anchor.is_some();
-                                    }
-                                    if rebuild_preview {
-                                        map.rebuild_wall_geometry_with_opening_preview();
-                                        let mut rusterix = RUSTERIX.write().unwrap();
-                                        rusterix.set_dirty();
-                                        rusterix.set_overlay_dirty();
-                                    }
-                                    ctx.ui.redraw_all = true;
-                                    return None;
-                                }
+                        if Self::panel_surface_action_rect(0).contains(coord) {
+                            self.cancel_surface_preview(map);
+                            if self.surface_fill_preview.is_none() {
+                                let preview = self.enclosed_surface_preview(map);
+                                let count = preview.len();
+                                self.surface_fill_preview =
+                                    (!preview.is_empty()).then_some(preview);
+                                ctx.ui.send(TheEvent::SetStatusText(
+                                    TheId::empty(),
+                                    if count == 0 {
+                                        fl!("construction_surface_fill_none")
+                                    } else {
+                                        fl!("construction_surface_fill_preview", count = count)
+                                    },
+                                ));
+                                ctx.ui.redraw_all = true;
+                                return None;
                             }
-                            for (index, surround) in [
-                                WallOpeningSurround::None,
-                                WallOpeningSurround::Trim,
-                                WallOpeningSurround::Blocks,
-                            ]
-                            .into_iter()
-                            .enumerate()
-                            {
-                                if Self::panel_surround_rect(index as i32).contains(coord) {
-                                    if let (Some(assembly_id), Some(span_id), Some(opening_id)) = (
-                                        map.selected_wall_assembly,
-                                        map.selected_wall_spans.first().copied(),
-                                        map.selected_wall_opening,
-                                    ) {
-                                        let previous = map.clone();
-                                        let changed = map
-                                            .wall_assembly_mut(assembly_id)
-                                            .and_then(|assembly| {
-                                                assembly.opening_mut(span_id, opening_id)
-                                            })
-                                            .is_some_and(|opening| {
-                                                if opening.frame.surround == surround {
-                                                    false
-                                                } else {
-                                                    opening.frame.surround = surround;
-                                                    true
-                                                }
-                                            });
-                                        if changed {
-                                            map.rebuild_wall_geometry();
-                                            let mut rusterix = RUSTERIX.write().unwrap();
-                                            rusterix.set_dirty();
-                                            rusterix.set_overlay_dirty();
-                                            ctx.ui.redraw_all = true;
-                                            return Some(ProjectUndoAtom::MapEdit(
-                                                server_ctx.pc,
-                                                Box::new(previous),
-                                                Box::new(map.clone()),
-                                            ));
-                                        }
-                                        return None;
-                                    }
-                                    self.opening_surround = surround;
-                                    let mut rebuild_preview = false;
-                                    if let Some(preview) = map.wall_opening_preview.as_mut() {
-                                        preview.surround = surround;
-                                        rebuild_preview = self.opening_anchor.is_some();
-                                    }
-                                    if rebuild_preview {
-                                        map.rebuild_wall_geometry_with_opening_preview();
-                                        let mut rusterix = RUSTERIX.write().unwrap();
-                                        rusterix.set_dirty();
-                                        rusterix.set_overlay_dirty();
-                                    }
-                                    ctx.ui.redraw_all = true;
-                                    return None;
-                                }
+                            self.surface_fill_preview = None;
+                            let previous = map.clone();
+                            let count = self.fill_enclosed_surfaces(map);
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                if count == 0 {
+                                    fl!("construction_surface_fill_none")
+                                } else {
+                                    fl!("construction_surface_fill_created", count = count)
+                                },
+                            ));
+                            if count > 0 {
+                                let mut rusterix = RUSTERIX.write().unwrap();
+                                rusterix.set_dirty();
+                                rusterix.set_overlay_dirty();
+                                ctx.ui.redraw_all = true;
+                                return Some(ProjectUndoAtom::MapEdit(
+                                    server_ctx.pc,
+                                    Box::new(previous),
+                                    Box::new(map.clone()),
+                                ));
                             }
+                            return None;
+                        }
+                        if Self::panel_surface_action_rect(1).contains(coord) {
+                            let mut manager = crate::editor::SCENEMANAGER.write().unwrap();
+                            let (floors_hidden, ceilings_hidden) =
+                                manager.preview_wall_surfaces_hidden();
+                            manager
+                                .set_preview_wall_surfaces_hidden(floors_hidden, !ceilings_hidden);
+                            ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                if ceilings_hidden {
+                                    fl!("construction_surface_ceilings_shown")
+                                } else {
+                                    fl!("construction_surface_ceilings_hidden")
+                                },
+                            ));
+                            ctx.ui.redraw_all = true;
+                            return None;
                         }
                     }
+
                     return None;
+                }
+                if self.surface_fill_preview.take().is_some() {
+                    ctx.ui.redraw_all = true;
                 }
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     return None;
@@ -2365,12 +2157,14 @@ impl Tool for WallTool {
                             .wall_assembly(assembly_id)
                             .and_then(|assembly| assembly.area_surface(surface_id))
                             .cloned()
+                        && surface.kind == self.surface_kind
                     {
                         self.cancel_surface_preview(map);
                         if Self::select_area_surface(map, assembly_id, surface_id) {
                             self.surface_elevation = surface.elevation;
                             self.surface_thickness = surface.thickness;
                             self.surface_clearance = surface.clearance;
+                            self.surface_kind = surface.kind;
                             ctx.ui.send(TheEvent::SetStatusText(
                                 TheId::empty(),
                                 "Area surface selected. Adjust its fit or apply a Surface material."
@@ -2386,6 +2180,43 @@ impl Tool for WallTool {
                         return None;
                     }
 
+                    if ui.shift {
+                        self.cancel_surface_preview(map);
+                        let start =
+                            self.raw_pointer_position(ui, map, coord, server_ctx, Some(0.0))?;
+                        let previous = map.clone();
+                        let assembly_id = map
+                            .selected_wall_assembly
+                            .or_else(|| map.wall_assemblies.first().map(|assembly| assembly.id))
+                            .unwrap_or_else(|| {
+                                let assembly = WallAssembly::new("Surfaces");
+                                let id = assembly.id;
+                                map.wall_assemblies.push(assembly);
+                                id
+                            });
+                        let mut surface = WallAreaSurface::new(Vec::new());
+                        surface.source = map
+                            .wall_assembly(assembly_id)
+                            .map(WallAssembly::floor_pixel_source);
+                        self.configure_new_surface(&mut surface);
+                        let surface_id = surface.id;
+                        map.wall_assembly_mut(assembly_id)?
+                            .area_surfaces
+                            .push(surface);
+                        self.surface_rect_drag = Some(SurfaceRectDrag {
+                            start,
+                            assembly_id,
+                            surface_id,
+                            previous,
+                            changed: false,
+                        });
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            "Drag to draw a free floor or ceiling rectangle.".to_string(),
+                        ));
+                        return None;
+                    }
+
                     let preview = if let Some(preview) = map.wall_surface_preview.take() {
                         Some(preview)
                     } else {
@@ -2397,12 +2228,10 @@ impl Tool for WallTool {
                             .wall_surface_region_at(point)
                             .map(|(assembly_id, boundary)| {
                                 let mut surface = WallAreaSurface::new(boundary);
-                                surface.elevation = self.surface_elevation;
-                                surface.thickness = self.surface_thickness;
-                                surface.clearance = self.surface_clearance;
                                 surface.source = resolved_map
                                     .wall_assembly(assembly_id)
                                     .map(WallAssembly::floor_pixel_source);
+                                self.configure_new_surface(&mut surface);
                                 WallAreaSurfacePreview {
                                     assembly_id,
                                     surface,
@@ -2416,8 +2245,7 @@ impl Tool for WallTool {
                     let Some(preview) = preview else {
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
-                            "No bounded wall area here. The surrounding wall nodes must form a closed region."
-                                .to_string(),
+                            fl!("construction_surface_open_area"),
                         ));
                         return None;
                     };
@@ -2438,7 +2266,10 @@ impl Tool for WallTool {
                     if let Some(existing) = assembly
                         .area_surfaces
                         .iter()
-                        .find(|surface| surface.boundary == preview.surface.boundary)
+                        .find(|surface| {
+                            surface.boundary == preview.surface.boundary
+                                && surface.kind == preview.surface.kind
+                        })
                         .map(|surface| surface.id)
                     {
                         map.rebuild_wall_geometry();
@@ -2453,8 +2284,7 @@ impl Tool for WallTool {
                     rusterix.set_overlay_dirty();
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
-                        "Fitted area surface created. Use the Surface HUD slot for its coal tile or color."
-                            .to_string(),
+                        fl!("construction_surface_created"),
                     ));
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Map Selection Changed"),
@@ -2776,6 +2606,34 @@ impl Tool for WallTool {
                 self.place_span(map, start, point, ctx, server_ctx)
             }
             MapDragged(coord) => {
+                if let Some(drag) = self.surface_rect_drag.as_ref() {
+                    let Some(end) =
+                        self.raw_pointer_position(ui, map, coord, server_ctx, Some(0.0))
+                    else {
+                        return None;
+                    };
+                    let step = ServerContext::edit_grid_step(map.subdivisions).max(0.05);
+                    let changed = (end.x - drag.start.x).abs() >= step * 0.5
+                        && (end.z - drag.start.z).abs() >= step * 0.5;
+                    if changed {
+                        let outline = Self::rect_outline(drag.start, end);
+                        if let Some(surface) = map
+                            .wall_assembly_mut(drag.assembly_id)
+                            .and_then(|assembly| assembly.area_surface_mut(drag.surface_id))
+                        {
+                            surface.outline = outline;
+                            map.rebuild_wall_geometry();
+                            if let Some(drag) = self.surface_rect_drag.as_mut() {
+                                drag.changed = true;
+                            }
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.set_dirty();
+                            rusterix.set_overlay_dirty();
+                            ctx.ui.redraw_all = true;
+                        }
+                    }
+                    return None;
+                }
                 if let Some(center) = self.ring_drag.as_ref().map(|drag| drag.center) {
                     let Some(point) =
                         self.raw_pointer_position(ui, map, coord, server_ctx, Some(center.y))
@@ -2788,7 +2646,14 @@ impl Tool for WallTool {
                     let style = self.build_style.clone();
                     let auto_floor = self.build_auto_floor;
                     let changed = self.ring_drag.as_mut().is_some_and(|drag| {
-                        Self::update_ring_preview(map, drag, &style, auto_floor, radius)
+                        Self::update_ring_preview(
+                            map,
+                            drag,
+                            &style,
+                            self.build_pattern_id,
+                            auto_floor,
+                            radius,
+                        )
                     });
                     if changed {
                         self.hover = Some(point);
@@ -2856,11 +2721,27 @@ impl Tool for WallTool {
                     }
                     return None;
                 }
-                let _ = self.repeat_held_adjustment(map, ctx, server_ctx);
                 self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx);
                 None
             }
             MapUp(_) => {
+                if let Some(drag) = self.surface_rect_drag.take() {
+                    if !drag.changed {
+                        *map = drag.previous;
+                        return None;
+                    }
+                    Self::select_area_surface(map, drag.assembly_id, drag.surface_id);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.redraw_all = true;
+                    return Some(ProjectUndoAtom::MapEdit(
+                        server_ctx.pc,
+                        Box::new(drag.previous),
+                        Box::new(map.clone()),
+                    ));
+                }
                 if let Some(drag) = self.ring_drag.take() {
                     self.build_mode = WallBuildMode::Line;
                     self.anchor = None;
@@ -2914,16 +2795,13 @@ impl Tool for WallTool {
                     }
                     return None;
                 }
-                let held = self.held_adjustment.take()?;
-                held.previous.map(|previous| {
-                    ProjectUndoAtom::MapEdit(
-                        server_ctx.pc,
-                        Box::new(previous),
-                        Box::new(map.clone()),
-                    )
-                })
+                None
             }
             MapEscape => {
+                if self.surface_rect_drag.is_some() {
+                    self.cancel_surface_rect_drag(map);
+                    return None;
+                }
                 if self.ring_drag.is_some() {
                     self.cancel_ring_drag(map);
                     self.build_mode = WallBuildMode::Line;
@@ -2966,6 +2844,14 @@ impl Tool for WallTool {
                     return None;
                 }
                 if self.interaction_mode == WallInteractionMode::Surface {
+                    if self.surface_fill_preview.take().is_some() {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("construction_surface_fill_cancelled"),
+                        ));
+                        ctx.ui.redraw_all = true;
+                        return None;
+                    }
                     self.cancel_surface_preview(map);
                     map.selected_wall_surface = None;
                     ctx.ui.send(TheEvent::SetStatusText(
@@ -3050,6 +2936,53 @@ impl Tool for WallTool {
         server_ctx: &mut ServerContext,
         assets: &Assets,
     ) {
+        if let Some(preview) = &self.surface_fill_preview {
+            let dim = *buffer.dim();
+            let camera = if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                None
+            } else {
+                RUSTERIX.read().ok().map(|rusterix| {
+                    (
+                        rusterix.client.camera_d3.view_matrix(),
+                        rusterix
+                            .client
+                            .camera_d3
+                            .projection_matrix(dim.width as f32, dim.height as f32),
+                    )
+                })
+            };
+            let project = |point: Vec3<f32>| -> Option<Vec2<i32>> {
+                if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                    return Some(Self::map_to_screen(map, dim, point));
+                }
+                let (view, projection) = camera.as_ref()?;
+                let clip = (*projection).clone()
+                    * (*view).clone()
+                    * Vec4::new(point.x, point.y + 0.5, point.z, 1.0);
+                if clip.w <= 0.0 || !clip.w.is_finite() {
+                    return None;
+                }
+                let ndc = Vec3::new(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
+                if !ndc.x.is_finite() || !ndc.y.is_finite() || !(-1.0..=1.0).contains(&ndc.z) {
+                    return None;
+                }
+                Some(Vec2::new(
+                    ((ndc.x * 0.5 + 0.5) * dim.width as f32).round() as i32,
+                    ((1.0 - (ndc.y * 0.5 + 0.5)) * dim.height as f32).round() as i32,
+                ))
+            };
+            for outline in preview {
+                for index in 0..outline.len() {
+                    if let (Some(a), Some(b)) = (
+                        project(outline[index]),
+                        project(outline[(index + 1) % outline.len()]),
+                    ) {
+                        buffer.draw_line(a.x, a.y, b.x, b.y, [105, 239, 158, 255]);
+                        buffer.draw_line(a.x + 1, a.y, b.x + 1, b.y, [23, 103, 64, 255]);
+                    }
+                }
+            }
+        }
         if server_ctx.editor_view_mode == EditorViewMode::D2
             && self.interaction_mode == WallInteractionMode::Build
         {
@@ -3131,6 +3064,41 @@ impl Tool for WallTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bulk_surfaces_respect_selected_kind_and_do_not_duplicate() {
+        let mut map = Map::default();
+        let mut assembly = WallAssembly::new("Room".to_string());
+        let nodes = [
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, 4.0),
+        ]
+        .map(|position| assembly.add_node(position));
+        for i in 0..4 {
+            assembly.add_span(nodes[i], nodes[(i + 1) % 4]).unwrap();
+        }
+        map.wall_assemblies.push(assembly);
+        let mut tool = WallTool::new();
+        for kind in [WallAreaSurfaceKind::Floor, WallAreaSurfaceKind::Ceiling] {
+            tool.surface_kind = kind;
+            assert_eq!(tool.enclosed_surface_preview(&map).len(), 1);
+            assert_eq!(tool.fill_enclosed_surfaces(&mut map), 1);
+            let surfaces = &map.wall_assemblies[0].area_surfaces;
+            assert_eq!(
+                surfaces
+                    .iter()
+                    .filter(|surface| surface.kind == kind)
+                    .count(),
+                1
+            );
+            assert_eq!(surfaces.last().unwrap().clearance, 0.0);
+            assert!(tool.enclosed_surface_preview(&map).is_empty());
+            assert_eq!(tool.fill_enclosed_surfaces(&mut map), 0);
+        }
+        assert_eq!(map.wall_assemblies[0].area_surfaces.len(), 2);
+    }
 
     #[test]
     fn generated_floor_is_not_a_wall_editing_hit_target() {

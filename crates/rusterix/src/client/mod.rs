@@ -780,6 +780,7 @@ pub struct Client {
     pub target_fps: i32,
     pub game_tick_ms: i32,
     pub firstp_eye_level: f32,
+    pub mouse_look: crate::camera::mouse_look::MouseLook,
     firstp_camera_y: Option<f32>,
     active_player_camera: Option<PlayerCamera>,
 
@@ -1348,7 +1349,9 @@ impl Client {
         let mut found_d2 = false;
         for widget in self.game_widgets.values() {
             match widget.camera {
-                PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid => {
+                PlayerCamera::D3FirstP
+                | PlayerCamera::D3FirstPMouse
+                | PlayerCamera::D3FirstPGrid => {
                     return Some(widget.camera.clone());
                 }
                 PlayerCamera::D3Iso => found_iso = true,
@@ -1375,6 +1378,45 @@ impl Client {
             });
     }
 
+    pub fn begin_mouse_look(&mut self, coord: Vec2<i32>, map: &Map) -> bool {
+        let coord = self.screen_to_viewport(coord);
+        let point = Vec2::new(coord.x as f32, coord.y as f32);
+        let Some(widget) = self.game_widgets.values().find(|widget| {
+            widget.camera == PlayerCamera::D3FirstPMouse && widget.rect.contains(point)
+        }) else {
+            return false;
+        };
+        let Some(player) = map.entities.iter().find(|entity| entity.is_player()) else {
+            return false;
+        };
+        self.mouse_look.begin(
+            player.orientation,
+            widget.mouse_sensitivity,
+            widget.mouse_invert_y,
+        );
+        true
+    }
+
+    pub fn end_mouse_look(&mut self) -> bool {
+        let active = self.mouse_look.active;
+        self.mouse_look.active = false;
+        active
+    }
+
+    pub fn mouse_look_hover(&mut self, coord: Vec2<i32>, map: &Map) {
+        let viewport_coord = self.screen_to_viewport(coord);
+        let point = Vec2::new(viewport_coord.x as f32, viewport_coord.y as f32);
+        if self.game_widgets.values().any(|widget| {
+            widget.camera == PlayerCamera::D3FirstPMouse && widget.rect.contains(point)
+        }) {
+            if !self.mouse_look.active {
+                self.begin_mouse_look(coord, map);
+            }
+        } else {
+            self.end_mouse_look();
+        }
+    }
+
     fn parse_player_camera_mode(camera: &str) -> Option<PlayerCamera> {
         match camera.to_ascii_lowercase().as_str() {
             "2d" => Some(PlayerCamera::D2),
@@ -1382,6 +1424,7 @@ impl Client {
             "iso" => Some(PlayerCamera::D3Iso),
             "iso_grid" => Some(PlayerCamera::D2Grid),
             "firstp" => Some(PlayerCamera::D3FirstP),
+            "firstp_mouse" => Some(PlayerCamera::D3FirstPMouse),
             "firstp_grid" => Some(PlayerCamera::D3FirstPGrid),
             _ => None,
         }
@@ -1446,6 +1489,7 @@ impl Client {
             target_fps: 30,
             game_tick_ms: 250,
             firstp_eye_level: 1.7,
+            mouse_look: Default::default(),
             firstp_camera_y: None,
             active_player_camera: None,
 
@@ -1642,6 +1686,14 @@ impl Client {
             let mut visual_entity = entity.clone();
             visual_entity.position.y = smoothed_y;
             visual_entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
+            self.camera_d3.set_parameter_f32(
+                "pitch",
+                if self.active_player_camera == Some(PlayerCamera::D3FirstPMouse) {
+                    self.mouse_look.pitch
+                } else {
+                    0.0
+                },
+            );
         } else {
             self.firstp_camera_y = None;
             entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
@@ -2873,6 +2925,20 @@ impl Client {
         }
     }
 
+    /// Editor quick play uses authored entity configuration rather than setup-screen choices.
+    /// This is opt-in; normal client startup continues to show the configured start screen.
+    pub fn start_with_entity_defaults(
+        &mut self,
+        assets: &mut Assets,
+        scene_handler: &mut SceneHandler,
+    ) -> Vec<Command> {
+        self.ui_state.remove("start.class");
+        self.ui_state.remove("start.name");
+        let mut commands = Vec::new();
+        self.process_game_command("start", assets, scene_handler, &mut commands);
+        commands
+    }
+
     fn process_game_command(
         &mut self,
         command: &str,
@@ -2999,6 +3065,7 @@ impl Client {
             }
         }
         self.game_widgets.clear();
+        self.mouse_look = Default::default();
         self.button_widgets.clear();
         self.action_bar_button_ids.clear();
         self.avatar_widgets.clear();
@@ -3259,6 +3326,7 @@ impl Client {
         for widget in self.game_widgets.values_mut() {
             let stage_started = Instant::now();
             widget.firstp_eye_level = self.firstp_eye_level;
+            widget.mouse_look_pitch = self.mouse_look.pitch;
             widget.apply_entities(map, assets, self.animation_frame, scene_handler);
             widget.prepare_frame(
                 map,
@@ -4018,6 +4086,7 @@ impl Client {
         }
 
         widget.firstp_eye_level = self.firstp_eye_level;
+        widget.mouse_look_pitch = self.mouse_look.pitch;
         widget.apply_entities(map, assets, self.animation_frame, scene_handler);
         widget.prepare_frame(
             map,
@@ -13326,6 +13395,29 @@ impl Client {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn mouse_look_tracks_scaled_viewport_hover_without_a_button() {
+        let mut client = Client::default();
+        client.target_offset = Vec2::new(100, 50);
+        client.upscale_factor = 2.0;
+        let mut widget = GameWidget::new();
+        widget.set_camera_mode(PlayerCamera::D3FirstPMouse);
+        widget.rect = Rect::new(0.0, 0.0, 200.0, 100.0);
+        client.game_widgets.insert(Uuid::new_v4(), widget);
+        let mut map = Map::default();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        map.entities.push(player);
+        client.mouse_look_hover(Vec2::new(200, 100), &map);
+        assert!(client.mouse_look.active);
+        client.mouse_look.motion(Vec2::new(0.0, -10.0));
+        let pitch = client.mouse_look.pitch;
+        client.mouse_look_hover(Vec2::new(600, 100), &map);
+        assert!(!client.mouse_look.active);
+        client.mouse_look_hover(Vec2::new(200, 100), &map);
+        assert!(client.mouse_look.active);
+        assert_eq!(client.mouse_look.pitch, pitch);
+    }
     use super::*;
 
     #[test]
@@ -14438,5 +14530,45 @@ mod tests {
             &pixels[opaque_dest..opaque_dest + 4]
         );
         assert_eq!(pixels[opaque_dest + 3], 255);
+    }
+    #[test]
+    fn editor_quick_start_preserves_entity_defaults_and_spawns_only_once() {
+        let mut assets = Assets::default();
+        let mut map = Map::default();
+        let mut player = Entity::new();
+        player.set_attribute("class_name", Value::Str("Player".into()));
+        player.set_attribute("class", Value::Str("Warrior".into()));
+        player.set_attribute("name", Value::Str("Default Hero".into()));
+        player.set_attribute(
+            "_entity_configuration",
+            Value::Str("[attributes]\nclass = \"Warrior\"".into()),
+        );
+        map.entities.push(player);
+        assets.maps.insert("Test".into(), map);
+        let mut client = Client::new();
+        client.current_map = "Test".into();
+        client.player_entities.push("Player".into());
+        client
+            .ui_state
+            .insert("start.class".into(), "Cleric".into());
+        client
+            .ui_state
+            .insert("start.name".into(), "Setup Hero".into());
+        let mut scene = SceneHandler::default();
+        let commands = client.start_with_entity_defaults(&mut assets, &mut scene);
+        assert_eq!(commands.len(), 1);
+        let Command::CreateEntity(_, entity) = &commands[0] else {
+            panic!("Expected player creation");
+        };
+        assert_eq!(entity.attributes.get_str("class"), Some("Warrior"));
+        assert_eq!(entity.attributes.get_str("name"), Some("Default Hero"));
+        assert!(entity.attributes.get_str("_entity_configuration").is_some());
+        assert!(entity.attributes.get_str("_start_class").is_none());
+        assert!(entity.attributes.get_str("_start_name").is_none());
+        assert!(
+            client
+                .start_with_entity_defaults(&mut assets, &mut scene)
+                .is_empty()
+        );
     }
 }

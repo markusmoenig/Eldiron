@@ -119,8 +119,11 @@ impl Sidebar {
     ) -> bool {
         let changed = Self::set_navigation_page(index, ui, ctx);
         if index == 2 {
-            crate::docks::nodes::sync_node_list(ui, ctx, server_ctx.pc);
-            if crate::docks::nodes::has_catalog(server_ctx.pc) {
+            let construction = DOCKMANAGER.read().unwrap().dock == "Construction";
+            if !construction {
+                crate::docks::nodes::sync_node_list(ui, ctx, server_ctx.pc);
+            }
+            if !construction && crate::docks::nodes::has_catalog(server_ctx.pc) {
                 DOCKMANAGER
                     .write()
                     .unwrap()
@@ -1600,7 +1603,11 @@ impl Sidebar {
             }
             TheEvent::DragStarted(id, text, offset) => {
                 if let Some(key) = id.name.strip_prefix("Node Catalog/") {
-                    if crate::docks::nodes::node_available(server_ctx.pc, key) {
+                    let construction = DOCKMANAGER.read().unwrap().dock == "Construction";
+                    if (construction && crate::docks::construction::node_available(key))
+                        || (!construction
+                            && crate::docks::nodes::node_available(server_ctx.pc, key))
+                    {
                         let mut drop = TheDrop::new(id.clone());
                         drop.set_title(text.clone());
                         drop.set_text(text.clone());

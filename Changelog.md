@@ -4,22 +4,62 @@
 
 ### Nodes
 
-- Added the **behavior node system** as the replacement for Eldrin character scripts. Characters, items, named places, regions and the world own node graphs built from small single-purpose operations, with control flow expressed in the graph instead of conditionals inside a node. A project that provides a graph no longer evaluates the matching Eldrin `event` handler.
-- Added **area-owned behavior**. Named 2D sectors and named 3D geometry areas are listed in the region tree, open their own graph when selected, and centre the map on the place. The **On Area** node routes both the transition and who caused it, so a place can react to the player entering without also firing for every NPC that walks through it.
-- Added **instance graphs layered over template graphs**. An **On Instance** entry adds per-instance behavior on top of the template's chains, while answering any other event overrides just that chain, so per-instance behavior no longer means maintaining a full copy that drifts. The Nodes dock names the graph an instance is actually running.
-- Made the **ruleset the source of behavior policies**. Lookout and engage profiles (radius, retry, pursuit distance, blocked time, attack actions) are validated on load, listed by the CLI and documented, and node behavior resolves cooldowns and distances from them instead of script constants.
-- Added **Add Item** and **Drop Items** nodes, including the ruleset loot container path. A character can now carry an item from a graph and leave it behind again, so dropped loot no longer depends on a script.
-- Added the **Talk node**, which holds a whole conversation — its steps, the choices and their conditions — inside one node instead of a dialogue tree spread over the canvas. A choice either jumps to another step, ends the conversation, or leaves through one of the node's consequence ports, where ordinary nodes such as Say, Set Attribute, Add Item and Offer Inventory do the work, and the chain can hand the conversation back at another step; a consequence therefore stays graph rather than script. The Nodes dock opens a dedicated conversation editor over the graph, and Escape closes it. The Hideout2D characters were migrated to it from their dialog trees.
-- Migrated the **Gate** test project to behavior nodes. All five scripted characters — Player, Guard, Rogue, Farmer and Merchant — now run from graphs: the player keeps first-person startup and its death revive, the Guard walks a GuardHouseRoof → Road → GateRoof patrol loop and answers damage, and the hostile characters use ruleset-driven Lookout and Engage instead of the old proximity and follow verbs. No Gate character evaluates an Eldrin script anymore.
-- Added a **live behavior view** to the Nodes dock. Executed nodes, connections and their branches are highlighted while playing for character, item, region and area graphs, and live graph edits are recomposed and applied without restarting the game.
-- Removed the dead **Eldrin source** text from the Hideout2D and Gate fixtures now that their graphs own every event, so a shipped project no longer carries scripts that can never run. A regression test keeps both fixtures Eldrin-free. Global world and region script fields remain in the format for older projects, but nothing in these two is left.
-- Reworked the **node runtime** to share a single module registry, cache compiled plans per graph and select watchers deterministically. Repeated events no longer recompile a graph, and behavior no longer depends on hash iteration order.
+- Added event-driven **Behavior Nodes** for characters, items, areas, regions and the world.
+- Added **Entity Nodes** for race, class, attributes, appearance, inventory, lights and input mappings.
+- Added independent **template and instance graphs**, with template startup running first.
+- Added **Routine**, **Time Range**, **Random Walk** and **Go To** nodes for schedules and movement.
+- Added ruleset-driven **Lookout** and **Engage**, with adjustable detection and escape distances.
+- Added **Prompt** conversation branches for talk interactions, with per-answer outputs and visibility guards.
+- Added **Quest State**, **Set Quest** and **Quest Guard** nodes.
+- Added **Add Item**, **Drop Items** and inventory checks for loot and item interactions.
+- Added **party nodes** for recruiting companions and responding to party events.
+- Added live **execution highlighting**, event values and graph updates without restarting the game.
+- Added a contextual, color-coded **Node List** with drag-and-drop and global undo/redo.
+- Added **Enable/Disable Branch** toggles for behavior graphs.
+- Added Shift-drag gestures to cut node connections.
+- Fixed behavior branch isolation for node insertion and Undo/Redo.
+- Converted **Hideout2D**, **Gate**, **Cellar** and **Stonefall Dungeon** to nodes.
 
 ### Game
 
-- Routed **UI-initiated ruleset actions** through the node runtime. Toolbar and shortcut attack, use, take and similar intents resolve to the action the ruleset binds to them and run through the shared action pipeline, and NPC attack cadence follows the ruleset's action cooldown.
-- Made **death a matter of presence rather than visibility**. A character that dies leaves the region instead of being flagged invisible, so a corpse can no longer be walked into, targeted or rendered while its own graph still reaches it to drop loot or raise it again, and coming back to life re-inserts the body. **Visibility is left to spell effects** and is no longer written by death or respawn, so a character that was invisible when it fell returns invisible. Clients are told to drop the body explicitly, because entity updates are upserts.
-- Made **3D areas opt-in**. The **Area** flag on a geometry object now defaults to off, so the labels creators give objects — `Box`, `Column 1`, `Box Copy` and the parts of blocks, walls and fitted geometry — stay editor labels rather than named places. Only objects explicitly ticked Area appear in the region tree, resolve for Go To and Teleport and can own an area graph, while an unticked object still counts as walkable geometry. Gate's `Road`, `GateRoof` and `GuardHouseRoof` keep the flag.
+- Routed UI and keyboard **ruleset actions** through the shared action pipeline.
+- Separated character **life state and presence** from optional visibility.
+- Added opt-in **3D areas** for named destinations and area events.
+- Added **firstp_mouse** camera mode with automatic mouse look, pitch, sensitivity and inverted-Y settings.
+- Hid the player's own avatar in **first-person views** while preserving entity lights.
+- Converted **Stonefall Dungeon** walls to native Wall Tool geometry; removed its old floor and ceiling meshes for rebuilding with Wall Tool surfaces.
+- Removed the source-project compiler.
+
+### Creator
+
+- Made console command suggestions **clickable to execute**.
+- Added **Cellar** as a starter project.
+- Added an editor **Skip Character Setup** toggle for testing with Entity Node defaults.
+- Added separate **Floor** and **Ceiling** surfaces with editor-only visibility controls.
+- Added shared **Construction branches** for walls and floor/ceiling surfaces, with modular Pattern geometry and material nodes, branch assignment, visual material selection and subdivision.
+- Added free floor and ceiling rectangle creation to the Wall Tool.
+- Added previewed bulk floor and ceiling creation from enclosed wall areas, with assigned editable starter branches.
+- Added seamless **Value/Voronoi Noise** fields and **Gradient** material mapping, with gray defaults for new floors and ceilings.
+
+## Bug Fixes
+
+### Game
+
+- Fixed grid movement triggering pathfinding and stalls at blocked passages.
+- Fixed prefab particle effects missing in the standalone client.
+- Matched particle simulation to the original editor speed across editor and client views, independently of update rate.
+- Fixed inferred ceiling heights and closed gaps above shorter boundary walls and between adjoining ceilings.
+- Fixed masonry junctions leaving gaps where walls of different heights and styles meet.
+- Repaired Stonefall’s disconnected wall layout with continuous room and passage boundaries.
+
+### Creator
+
+- Fixed graph edits resetting manual layouts; automatic tidying now runs only on first branch opening, with new construction graphs arranged at creation.
+- Fixed Authoring activation and Text Play dialogue choices, Entity Node input mappings, and basic interaction in scenes without sectors.
+- Fixed 2D Object mode to hide geometry overlays while preserving stopped-game character and item symbols.
+
+- Fixed combat effects displaying chest markers in editor play views.
+- Fixed game input routing losing effect after stopping and restarting play.
 
 ---
 

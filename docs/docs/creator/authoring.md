@@ -27,7 +27,7 @@ This makes Authoring a persistent mode:
 
 - geometry and selection tools still work normally
 - tile-backed contexts switch from **Tiles** to **Authoring**
-- other docks like **Data** and **Code** are unaffected, and the sidebar **Console** remains independently available
+- clicking Authoring opens its dock from any tool context; the sidebar **Console** remains independently available
 
 ## What You Can Edit
 
@@ -45,12 +45,12 @@ Important:
 - sectors, linedefs, and Geometry Objects are authored from the current region selection
 - linked Prefab instances edit the shared Prefab asset authoring used by every linked instance
 - characters and items are authored on their templates, not on placed instances
-- gameplay/mechanical TOML still belongs in the normal `Data` dock
+- character and item configuration belongs in **Entity Nodes**, and gameplay logic in **Behavior Nodes**
 
 So the split is:
 
 - `Authoring`: descriptive and presentation text
-- `Data`: stats, flags, input, rules-related values, and other mechanics
+- `Entity Nodes` and `Behavior Nodes`: configuration, input mappings, rules-based actions, and gameplay logic
 
 ## Minimal Format
 
@@ -94,7 +94,7 @@ Right now the authoring metadata is already used by:
 - text-style terminal room titles and descriptions
 - text-style exit and room presentation
 - authored sector description messages in regular gameplay
-- `look` for characters and items in 2D, 3D, and text play when no explicit `on_look` message is present
+- `look` for characters and items in 2D, 3D, and text play when no behavior response supplies a description
 
 ## Character And Item Authoring
 

@@ -335,14 +335,6 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
     item.set_text(fl!("entity_nodes"));
     node.add_widget(Box::new(item));
 
-    let mut item = TheTreeItem::new(TheId::named_with_reference(
-        "Character Item Preview Rigging Edit",
-        character.id,
-    ));
-    item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-    item.set_text(fl!("preview_rigging"));
-    node.add_widget(Box::new(item));
-
     node
 }
 
@@ -1123,7 +1115,9 @@ pub fn set_project_context(
     }
 
     server_ctx.pc = pc;
-    crate::docks::nodes::sync_node_list(ui, ctx, pc);
+    if crate::editor::DOCKMANAGER.read().unwrap().dock != "Construction" {
+        crate::docks::nodes::sync_node_list(ui, ctx, pc);
+    }
     update_project_export_context_menu(ui, pc, project);
 
     let duplicate_allowed = matches!(

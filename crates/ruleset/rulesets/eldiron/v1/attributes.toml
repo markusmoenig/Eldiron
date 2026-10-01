@@ -13,6 +13,10 @@ weapon_damage = "DMG"
 armor = "ARMOR"
 
 [attributes.defaults]
+visible = true
+radius = 0.5
+inventory_slots = 8
+max_step_height = 1.0
 HP = 10
 MAX_HP = 10
 MP = 0
@@ -56,3 +60,12 @@ minimum = 0
 formula = "base + floor(max(0, DEX - 10) / 20)"
 minimum = 1
 maximum = 3
+
+# Default configuration for custom items; linked items use their own rule template.
+[item_defaults]
+visible = true
+static = false
+blocking = false
+radius = 0.5
+worth = 0.0
+monetary = false

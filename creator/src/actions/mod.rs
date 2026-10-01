@@ -79,7 +79,9 @@ pub fn builder_item_graph_name_property_key(label: &str) -> String {
 }
 
 pub fn current_selection_tool_type(map: &Map) -> MapToolType {
-    if map.selected_wall_assembly.is_some() && !map.selected_wall_spans.is_empty() {
+    if map.selected_wall_assembly.is_some()
+        && (!map.selected_wall_spans.is_empty() || map.selected_wall_surface.is_some())
+    {
         MapToolType::Wall
     } else if !map.selected_vertices.is_empty() {
         MapToolType::Vertex
@@ -139,6 +141,32 @@ pub fn wall_hud_material_slots(map: &Map) -> Option<Vec<ActionMaterialSlot>> {
             source: Some(assembly.floor_pixel_source()),
         },
     ])
+}
+
+/// Graph-linked materials are read-only in the legacy HUD. The opening surround and
+/// assembly-floor slots are separate overrides and remain editable.
+pub fn wall_hud_material_slot_locked(map: &Map, slot_index: i32) -> bool {
+    let Some(assembly) = map
+        .selected_wall_assembly
+        .and_then(|id| map.wall_assembly(id))
+    else {
+        return false;
+    };
+    if let Some(surface_id) = map.selected_wall_surface {
+        return slot_index == 0
+            && assembly
+                .area_surface(surface_id)
+                .is_some_and(|surface| surface.pattern_id.is_some());
+    }
+    if !(0..=4).contains(&slot_index) || slot_index == 4 && map.selected_wall_opening.is_some() {
+        return false;
+    }
+    assembly.pattern_id.is_some()
+        || map.selected_wall_spans.iter().any(|id| {
+            assembly
+                .span(*id)
+                .is_some_and(|span| span.pattern_id.is_some())
+        })
 }
 
 fn builder_material_slots_from_properties(
@@ -529,6 +557,11 @@ pub fn apply_builder_hud_material_to_selection(
     source: Option<PixelSource>,
 ) -> bool {
     if slot_index < 0 {
+        return false;
+    }
+    if server_ctx.curr_map_tool_type == MapToolType::Wall
+        && wall_hud_material_slot_locked(map, slot_index)
+    {
         return false;
     }
     if let Some(slot) = builder_hud_material_slots_for_selected_geometry(map)
@@ -2283,6 +2316,28 @@ mod tests {
             map.wall_assembly(assembly_id).unwrap().floor_source,
             Some(floor)
         );
+    }
+
+    #[test]
+    fn graph_owned_wall_material_slots_reject_direct_assignment() {
+        let mut map = Map::default();
+        let (assembly_id, span_id, _, _) = map
+            .connect_wall_points(Vec3::zero(), Vec3::new(2.0, 0.0, 0.0), 0.1)
+            .unwrap();
+        map.selected_wall_assembly = Some(assembly_id);
+        map.selected_wall_spans.push(span_id);
+        map.wall_assembly_mut(assembly_id).unwrap().pattern_id = Some(Uuid::new_v4());
+        let mut server_ctx = ServerContext::default();
+        server_ctx.curr_map_tool_type = MapToolType::Wall;
+        assert!(wall_hud_material_slot_locked(&map, 0));
+        assert!(!wall_hud_material_slot_locked(&map, 5));
+        assert!(!apply_builder_hud_material_to_selection(
+            &mut map,
+            &server_ctx,
+            0,
+            Some(PixelSource::PaletteIndex(6)),
+        ));
+        assert_eq!(wall_hud_material_slots(&map).unwrap()[0].label, "STONE");
     }
 
     #[test]

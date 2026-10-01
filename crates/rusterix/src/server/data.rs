@@ -50,6 +50,7 @@ fn player_camera_from_str(camera: &str) -> Option<PlayerCamera> {
         "iso" => Some(PlayerCamera::D3Iso),
         "iso_grid" => Some(PlayerCamera::D2Grid),
         "firstp" => Some(PlayerCamera::D3FirstP),
+        "firstp_mouse" => Some(PlayerCamera::D3FirstPMouse),
         "firstp_grid" => Some(PlayerCamera::D3FirstPGrid),
         _ => None,
     }

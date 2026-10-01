@@ -60,6 +60,11 @@ impl TextSession {
         match sg::authoring_startup_display(authoring) {
             sg::StartupDisplay::Description => sg::render_current_sector_description(map)
                 .map(TextSessionOutput::Plain)
+                .or_else(|| {
+                    (sg::current_player_and_sector(map).is_none()
+                        && sg::build_text_room(map, authoring).is_some())
+                    .then_some(TextSessionOutput::RenderRoom)
+                })
                 .into_iter()
                 .collect(),
             sg::StartupDisplay::Room => vec![TextSessionOutput::RenderRoom],

@@ -166,11 +166,10 @@ impl ConversationEditor {
     /// the laid-out targets, so this does not fall back for a visible field.
     pub fn editor_rect(&self, field: Field, view: [f32; 2]) -> GraphRect {
         let base = self.field_rect(field);
-        let width = base.size[0].max(EDITOR_MIN_W).min((view[0] - 40.).max(120.));
-        let height = base
-            .size[1]
-            .max(EDITOR_MIN_H)
-            .min((view[1] - 40.).max(80.));
+        let width = base.size[0]
+            .max(EDITOR_MIN_W)
+            .min((view[0] - 40.).max(120.));
+        let height = base.size[1].max(EDITOR_MIN_H).min((view[1] - 40.).max(80.));
         GraphRect {
             origin: [
                 base.origin[0].clamp(20., (view[0] - width - 20.).max(20.)),
@@ -199,9 +198,7 @@ impl ConversationEditor {
         match field {
             Field::StepName(index) => Some(self.step_at(index)?.name.clone()),
             Field::StepLine(index) => Some(self.step_at(index)?.text.clone()),
-            Field::ChoiceLabel(step, index) => {
-                Some(self.choice_at(step, index)?.label.clone())
-            }
+            Field::ChoiceLabel(step, index) => Some(self.choice_at(step, index)?.label.clone()),
             Field::ChoiceCondition(step, index) => {
                 Some(self.choice_at(step, index)?.condition.clone())
             }
@@ -409,10 +406,7 @@ impl ConversationEditor {
     /// Every target, unscrolled: the left steps column and the right fields
     /// column. Positions are top-down from the content top; scrolling and
     /// clipping happen in `targets`.
-    fn layout(&self) -> (
-        Vec<(GraphRect, Target)>,
-        Vec<(GraphRect, Target)>,
-    ) {
+    fn layout(&self) -> (Vec<(GraphRect, Target)>, Vec<(GraphRect, Target)>) {
         let mut left_targets = Vec::new();
         let left = self.left_x();
         let right = self.right_x();
@@ -464,7 +458,12 @@ impl ConversationEditor {
         };
 
         if self.conversation.steps.get(self.step).is_some() {
-            field(&mut targets, ROW, Target::Field(Field::StepName(self.step)), &mut y);
+            field(
+                &mut targets,
+                ROW,
+                Target::Field(Field::StepName(self.step)),
+                &mut y,
+            );
             field(
                 &mut targets,
                 ROW * 2.,
@@ -556,10 +555,7 @@ impl ConversationEditor {
 
     /// The laid-out targets with the two scroll offsets applied, still without
     /// any clipping. Hit testing and `field_rect` use this one.
-    fn scrolled(&self) -> (
-        Vec<(GraphRect, Target)>,
-        Vec<(GraphRect, Target)>,
-    ) {
+    fn scrolled(&self) -> (Vec<(GraphRect, Target)>, Vec<(GraphRect, Target)>) {
         let (mut left, mut right) = self.layout();
         for (rect, _) in left.iter_mut() {
             rect.origin[1] -= self.step_scroll;
@@ -717,7 +713,10 @@ impl ConversationEditor {
         );
         painter.text(
             GraphRect {
-                origin: [self.panel.origin[0] + LEFT_W + 14., self.panel.origin[1] + 14.],
+                origin: [
+                    self.panel.origin[0] + LEFT_W + 14.,
+                    self.panel.origin[1] + 14.,
+                ],
                 size: [self.panel.size[0] - LEFT_W - 30., 18.],
             },
             &fl!("node_talk_editor_hint"),
@@ -739,11 +738,7 @@ impl ConversationEditor {
                         .map(|step| step.name.clone())
                         .unwrap_or_default();
                     let entry = self.conversation.entry.trim() == name.trim();
-                    let label = if entry {
-                        format!("• {name}")
-                    } else {
-                        name
-                    };
+                    let label = if entry { format!("• {name}") } else { name };
                     painter.text(
                         GraphRect {
                             origin: [rect.origin[0] + 8., rect.origin[1] + 4.],

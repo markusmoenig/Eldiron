@@ -5,6 +5,7 @@ use toml::Table;
 use vek::Vec2;
 
 const TEXT_ROOM_FALLBACK_DISTANCE: f32 = 2.0;
+const TEXT_NEARBY_DISTANCE: f32 = 6.0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum StartupDisplay {
@@ -451,7 +452,36 @@ pub fn resolve_text_exits(map: &Map, sector: &Sector, probe_distance: f32) -> Ve
 }
 
 pub fn build_text_room(map: &Map, authoring: &str) -> Option<TextRoom> {
-    let (player, sector) = current_player_and_sector(map)?;
+    let Some((player, sector)) = current_player_and_sector(map) else {
+        let player = map.entities.iter().find(|entity| entity.is_player())?;
+        let nearby = |pos: Vec2<f32>| player.get_pos_xz().distance(pos) <= TEXT_NEARBY_DISTANCE;
+        return Some(TextRoom {
+            title: map.name.clone(),
+            live_entities: map
+                .entities
+                .iter()
+                .filter(|entity| {
+                    !entity.is_player() && !entity_is_dead(entity) && nearby(entity.get_pos_xz())
+                })
+                .map(display_name_for_entity)
+                .collect(),
+            dead_entities: map
+                .entities
+                .iter()
+                .filter(|entity| {
+                    !entity.is_player() && entity_is_dead(entity) && nearby(entity.get_pos_xz())
+                })
+                .map(corpse_name_for_entity)
+                .collect(),
+            items: map
+                .items
+                .iter()
+                .filter(|item| nearby(item.get_pos_xz()))
+                .map(display_name_for_item)
+                .collect(),
+            ..TextRoom::default()
+        });
+    };
     let probe_distance = authoring_connection_probe_distance(authoring);
     let (title, description) = sector_text_metadata(sector);
     let exits = resolve_text_exits(map, sector, probe_distance);
@@ -510,7 +540,7 @@ pub fn render_current_sector_description(map: &Map) -> Option<String> {
 }
 
 pub fn render_player_inventory(map: &Map) -> Option<String> {
-    let (player, _) = current_player_and_sector(map)?;
+    let player = map.entities.iter().find(|entity| entity.is_player())?;
 
     let mut lines = vec!["Inventory:".to_string()];
     let configured_slots = player
@@ -722,7 +752,7 @@ pub fn render_player_stats(
     config_src: &str,
     rules_src: &str,
 ) -> Option<String> {
-    let (player, _) = current_player_and_sector(map)?;
+    let player = map.entities.iter().find(|entity| entity.is_player())?;
     let template = resolve_player_stats_template(authoring_src).unwrap_or_else(|| {
         [
             "STR:\t{PLAYER.STR}\tDEX:\t{PLAYER.DEX}",
@@ -740,6 +770,54 @@ pub fn render_player_stats(
 #[cfg(test)]
 mod ruleset_equipment_tests {
     use super::*;
+
+    #[test]
+    fn text_game_works_without_authored_sectors() {
+        let mut map = Map::default();
+        map.name = "Cellar".into();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        map.entities.push(player);
+        let room = build_text_room(&map, "").unwrap();
+        assert_eq!(room.title, "Cellar");
+        assert!(room.exits.is_empty());
+        assert!(render_player_inventory(&map).is_some());
+        assert!(render_player_stats(&map, "", "", "").is_some());
+        let mut guard = Entity::new();
+        guard.id = 7;
+        guard.set_attribute("name", Value::Str("Guard".into()));
+        map.entities.push(guard);
+        assert!(matches!(
+            resolve_current_text_target(&map, "Guard"),
+            Ok(TextTarget::Entity { id: 7, .. })
+        ));
+        map.entities[1].position.x = 100.0;
+        assert!(resolve_current_text_target(&map, "Guard").is_err());
+    }
+
+    #[test]
+    fn text_intents_read_entity_graph_instead_of_stale_data() {
+        let mut project = Project::default();
+        let mut character = crate::character::Character::new();
+        character.name = "Player".into();
+        character.data = "[input]\nt = 'intent.old'\n".into();
+        let graph =
+            crate::entity_graph::import("[input]\nt = 'intent.talk'\n", &Table::new()).unwrap();
+        project.node_graphs.insert(
+            crate::entity_graph::character_key(character.id),
+            serde_json::to_value(graph).unwrap(),
+        );
+        project.characters.insert(character.id, character);
+        let mut map = Map::default();
+        let mut player = Entity::new();
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("class_name", Value::Str("Player".into()));
+        map.entities.push(player);
+        assert_eq!(
+            current_player_supported_intents(&project, &map),
+            BTreeSet::from(["talk".into()])
+        );
+    }
 
     #[test]
     fn text_stats_use_ruleset_owned_custom_slots() {
@@ -813,7 +891,24 @@ pub fn target_matches(name: &str, query: &str) -> bool {
 }
 
 pub fn resolve_text_target(map: &Map, sector: &Sector, query: &str) -> Result<TextTarget, String> {
-    let Some((player, _)) = current_player_and_sector(map) else {
+    resolve_text_target_in_room(map, Some(sector), query)
+}
+
+/// Use authored room boundaries when available, or nearby targets in geometry-only scenes.
+pub fn resolve_current_text_target(map: &Map, query: &str) -> Result<TextTarget, String> {
+    resolve_text_target_in_room(
+        map,
+        current_player_and_sector(map).map(|(_, sector)| sector),
+        query,
+    )
+}
+
+fn resolve_text_target_in_room(
+    map: &Map,
+    sector: Option<&Sector>,
+    query: &str,
+) -> Result<TextTarget, String> {
+    let Some(player) = map.entities.iter().find(|entity| entity.is_player()) else {
         return Err("No local player found.".into());
     };
     let player_pos = player.get_pos_xz();
@@ -823,7 +918,10 @@ pub fn resolve_text_target(map: &Map, sector: &Sector, query: &str) -> Result<Te
         if entity.is_player() || entity_is_dead(entity) {
             continue;
         }
-        let in_room = entity_sector_matches(map, entity, sector);
+        let in_room = sector.map_or_else(
+            || player_pos.distance(entity.get_pos_xz()) <= TEXT_NEARBY_DISTANCE,
+            |sector| entity_sector_matches(map, entity, sector),
+        );
         let attacking_player = entity_target_matches_player(entity, player.id);
         if !in_room && !attacking_player {
             continue;
@@ -844,7 +942,10 @@ pub fn resolve_text_target(map: &Map, sector: &Sector, query: &str) -> Result<Te
     }
 
     for item in &map.items {
-        if !item_sector_matches(map, item, sector) {
+        if !sector.map_or_else(
+            || player_pos.distance(item.get_pos_xz()) <= TEXT_NEARBY_DISTANCE,
+            |sector| item_sector_matches(map, item, sector),
+        ) {
             continue;
         }
         let name = display_name_for_item(item);
@@ -993,7 +1094,7 @@ pub fn text_target_look_description(
 
 pub fn current_player_supported_intents(project: &Project, map: &Map) -> BTreeSet<String> {
     let mut intents = BTreeSet::new();
-    let Some((player, _)) = current_player_and_sector(map) else {
+    let Some(player) = map.entities.iter().find(|entity| entity.is_player()) else {
         return intents;
     };
     let Some(class_name) = player.get_attr_string("class_name") else {
@@ -1002,7 +1103,38 @@ pub fn current_player_supported_intents(project: &Project, map: &Map) -> BTreeSe
     let Some(character) = project.characters.values().find(|c| c.name == class_name) else {
         return intents;
     };
-    let Ok(table) = character.data.parse::<Table>() else {
+    let rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
+        .ok()
+        .and_then(|source| source.parse::<Table>().ok())
+        .unwrap_or_default();
+    let project_input = |key: String, previous: &str| {
+        project
+            .node_graphs
+            .get(&key)
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .and_then(|doc| crate::entity_graph::project_data(&doc, previous, &rules).ok())
+            .unwrap_or_else(|| previous.to_string())
+    };
+    let template = project_input(
+        crate::entity_graph::character_key(character.id),
+        &character.data,
+    );
+    let instance = project
+        .regions
+        .iter()
+        .find_map(|region| {
+            region.characters.get(&player.creator_id).map(|instance| {
+                project_input(
+                    crate::entity_graph::instance_key(region.id, "character", instance.id),
+                    &instance.data,
+                )
+            })
+        })
+        .unwrap_or_default();
+    let Ok(data) = crate::entity_graph::merged_input(&template, &instance) else {
+        return intents;
+    };
+    let Ok(table) = data.parse::<Table>() else {
         return intents;
     };
     let Some(input) = table.get("input").and_then(toml::Value::as_table) else {

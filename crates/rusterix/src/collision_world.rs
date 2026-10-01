@@ -3343,6 +3343,43 @@ mod tests {
     }
 
     #[test]
+    fn grid_local_step_crosses_room_to_passage_floor_seam() {
+        let mut world = CollisionWorld::new(10);
+        let mut chunk = ChunkCollision::new();
+        let geo_id = GeoId::GeometryObject(uuid::Uuid::nil());
+        // Existing fitted floors can have a small inset on either side of a doorway.
+        chunk
+            .walkable_floors
+            .push(WalkableFloor::flat(geo_id, 0.0, rect(0.0, 0.0, 3.985, 4.0)));
+        chunk
+            .walkable_floors
+            .push(WalkableFloor::flat(geo_id, 0.0, rect(4.015, 1.0, 8.0, 3.0)));
+        world.update_chunk(Vec2::new(0, 0), chunk);
+        for (start, target) in [(3.5, 4.5), (4.5, 3.5)] {
+            let mut position = Vec2::new(start, 2.0);
+            for _ in 0..20 {
+                let (next, arrived) = world
+                    .move_towards_on_floors_local(
+                        position,
+                        Vec2::new(target, 2.0),
+                        0.1,
+                        0.49,
+                        1.0,
+                        0.0,
+                    )
+                    .unwrap();
+                assert!((next.z - 2.0).abs() < 1e-4);
+                assert!(next.y.abs() < 1e-4);
+                position = Vec2::new(next.x, next.z);
+                if arrived {
+                    break;
+                }
+            }
+            assert!((position.x - target).abs() <= 0.05);
+        }
+    }
+
+    #[test]
     fn test_floor_direct_movement_preserves_tiny_input_steps() {
         let mut world = CollisionWorld::new(10);
         let mut chunk = ChunkCollision::new();

@@ -90,10 +90,27 @@ pub fn graph_branches(doc: &GraphDocument, definitions: &GraphDefinitions) -> Gr
 
     let mut branches = Vec::new();
     let mut reached: HashSet<GraphId> = HashSet::new();
-    for root in roots {
+    for root in &roots {
+        let root = *root;
         let mut seen = HashSet::new();
         let mut stack = vec![root];
+        stack.extend(
+            doc.nodes
+                .iter()
+                .filter(|n| n.branch == Some(root))
+                .map(|n| n.id),
+        );
         while let Some(id) = stack.pop() {
+            if id != root
+                && (roots.contains(&id)
+                    || doc
+                        .nodes
+                        .iter()
+                        .find(|n| n.id == id)
+                        .is_some_and(|n| n.branch.is_some_and(|owner| owner != root)))
+            {
+                continue;
+            }
             if !seen.insert(id) {
                 continue;
             }
@@ -102,7 +119,13 @@ pub fn graph_branches(doc: &GraphDocument, definitions: &GraphDefinitions) -> Gr
             }
         }
         for (guard, prompt) in &guard_edges {
-            if seen.contains(prompt) {
+            if seen.contains(prompt)
+                && doc
+                    .nodes
+                    .iter()
+                    .find(|n| n.id == *guard)
+                    .is_some_and(|n| n.branch.is_none_or(|owner| owner == root))
+            {
                 seen.insert(*guard);
             }
         }
@@ -117,6 +140,32 @@ pub fn graph_branches(doc: &GraphDocument, definitions: &GraphDefinitions) -> Gr
         .filter(|id| !reached.contains(id))
         .collect();
     GraphBranches { branches, detached }
+}
+
+/// Adopt legacy connection-based branches once. New unconnected nodes already
+/// carry an owner, so disconnecting them never moves them to a different branch.
+pub fn assign_branch_owners(
+    doc: &mut GraphDocument,
+    definitions: &GraphDefinitions,
+    fallback: Option<GraphId>,
+) {
+    let branches = graph_branches(doc, definitions);
+    let fallback = fallback
+        .filter(|id| branches.branch(*id).is_some())
+        .or_else(|| branches.branches.first().map(|b| b.root));
+    let roots: HashSet<_> = branches.branches.iter().map(|b| b.root).collect();
+    for node in &mut doc.nodes {
+        if roots.contains(&node.id) {
+            node.branch = Some(node.id);
+        } else if node.branch.is_none_or(|owner| !roots.contains(&owner)) {
+            node.branch = branches
+                .branches
+                .iter()
+                .find(|b| b.nodes.contains(&node.id))
+                .map(|b| b.root)
+                .or(fallback);
+        }
+    }
 }
 
 impl GraphBranches {

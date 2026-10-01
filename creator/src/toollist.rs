@@ -733,7 +733,7 @@ impl ToolList {
                 {
                     region.map.changed += 1;
                 }
-                return undo_atom;
+                return Self::link_new_wall_surfaces(undo_atom, project, server_ctx, ctx);
             }
         } else if let Some(map) = Self::get_tool_map_mut(project, server_ctx) {
             let undo_atom = self
@@ -742,9 +742,124 @@ impl ToolList {
             if undo_atom.is_some() {
                 map.changed += 1;
             }
-            return undo_atom;
+            return Self::link_new_wall_surfaces(undo_atom, project, server_ctx, ctx);
         }
         None
+    }
+
+    /// Commit surface geometry and its starter branches as one undoable project edit.
+    fn link_new_wall_surfaces(
+        atom: Option<ProjectUndoAtom>,
+        project: &mut Project,
+        server: &ServerContext,
+        ctx: &mut TheContext,
+    ) -> Option<ProjectUndoAtom> {
+        use rusterix::map::wall::{WallAreaSurface, WallAreaSurfaceKind};
+        use shared::construction_graph::{self, ConstructionPatternAsset};
+        if server.curr_map_tool_type != MapToolType::Wall {
+            return atom;
+        }
+        let Some(ProjectUndoAtom::MapEdit(_, previous, next)) = atom.as_ref() else {
+            return atom;
+        };
+        let existing: std::collections::HashSet<_> = previous
+            .wall_assemblies
+            .iter()
+            .flat_map(|assembly| assembly.area_surfaces.iter().map(|surface| surface.id))
+            .collect();
+        let created = next
+            .wall_assemblies
+            .iter()
+            .flat_map(|assembly| assembly.area_surfaces.iter())
+            .filter(|surface| !existing.contains(&surface.id))
+            .cloned()
+            .collect::<Vec<_>>();
+        if created.is_empty() {
+            return atom;
+        }
+        let mut before = project.clone();
+        *before.get_map_mut(server)? = (**previous).clone();
+        let mut groups: Vec<(WallAreaSurface, Uuid)> = Vec::new();
+        let mut assignments = Vec::new();
+        for surface in created {
+            let id = if let Some((_, id)) = groups.iter().find(|(other, _)| {
+                other.kind == surface.kind
+                    && other.elevation == surface.elevation
+                    && other.thickness == surface.thickness
+                    && other.source == surface.source
+                    && other.side_source == surface.side_source
+                    && other.clearance == surface.clearance
+                    && other.texture_scale == surface.texture_scale
+            }) {
+                *id
+            } else {
+                let label = if surface.kind == WallAreaSurfaceKind::Floor {
+                    fl!("construction_surface_floor_branch")
+                } else {
+                    fl!("construction_surface_ceiling_branch")
+                };
+                let name = format!("{} {}", label, project.construction_patterns.len() + 1);
+                let mut starter = surface.clone();
+                starter.source = None;
+                starter.side_source = None;
+                let asset = ConstructionPatternAsset::from_surface(name, &starter);
+                let id = asset.id;
+                project.construction_patterns.insert(id, asset);
+                groups.push((surface.clone(), id));
+                id
+            };
+            assignments.push((surface.id, id));
+        }
+        let projections = groups
+            .iter()
+            .filter_map(|(_, id)| {
+                construction_graph::compile_surface_with_patterns(
+                    &project.construction_patterns[id].graph,
+                    &project.construction_patterns,
+                )
+                .ok()
+                .map(|projection| (*id, projection))
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        let map = project.get_map_mut(server)?;
+        for assembly in &mut map.wall_assemblies {
+            for surface in &mut assembly.area_surfaces {
+                if let Some((_, id)) = assignments
+                    .iter()
+                    .find(|(surface_id, _)| *surface_id == surface.id)
+                {
+                    surface.pattern_id = Some(*id);
+                    if let Some(projection) = projections.get(id) {
+                        construction_graph::apply_to_surface(surface, projection);
+                    }
+                }
+            }
+        }
+        if let Some((surface_id, _)) = assignments.first() {
+            map.selected_wall_surface = Some(*surface_id);
+            map.selected_wall_assembly = map
+                .wall_assemblies
+                .iter()
+                .find(|assembly| {
+                    assembly
+                        .area_surfaces
+                        .iter()
+                        .any(|surface| surface.id == *surface_id)
+                })
+                .map(|assembly| assembly.id);
+        }
+        map.rebuild_wall_geometry();
+        crate::utils::editor_scene_full_rebuild(project, server);
+        ctx.ui.redraw_all = true;
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Map Selection Changed"),
+            TheValue::Empty,
+        ));
+        Some(ProjectUndoAtom::ProjectEdit(
+            fl!("construction_surface_created"),
+            Box::new(before),
+            Box::new(project.clone()),
+        ))
     }
 
     fn geometry_selection_snapshot(map: &Map) -> GeometrySelectionSnapshot {
@@ -2184,6 +2299,9 @@ impl ToolList {
 
                 b.set_icon_name(tool.icon_name());
                 b.set_status_text(&Self::status_text_with_accel(tool.info(), tool.accel()));
+                if command_id == Some("tool.game") {
+                    b.set_custom_color(Some(TheColor::from_u8(35, 78, 57, 255)));
+                }
                 if index == self.curr_game_tool && !(self.prefab_mode && self.palette_mode) {
                     b.set_state(TheWidgetState::Selected);
                 }
@@ -2599,6 +2717,17 @@ impl ToolList {
     ) -> bool {
         if self.handle_editor_display_event(event, ui, ctx, project, server_ctx) {
             return true;
+        }
+        if let TheEvent::ValueChanged(id, value) = event {
+            if id.name == "Editor Fill Light" {
+                if let Some(strength) = value.to_f32() {
+                    let mut rusterix = crate::editor::RUSTERIX.write().unwrap();
+                    rusterix.editor_preview_fill_strength = strength.clamp(0.0, 1.0);
+                    rusterix.set_dirty();
+                    ctx.ui.redraw_all = true;
+                }
+                return true;
+            }
         }
         if self.editor_mode && self.curr_editor_tool < self.editor_tools.len() {
             let should_forward_to_tool = match event {
@@ -3222,7 +3351,7 @@ impl ToolList {
                 if id.name == Self::AUTHORING_BUTTON_NAME && *state == TheWidgetState::Clicked {
                     self.authoring_mode = !self.authoring_mode;
                     let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
-                    if current_dock == "Tiles" || current_dock == "Authoring" {
+                    if self.authoring_mode || current_dock == "Authoring" {
                         let dock = if self.authoring_mode {
                             "Authoring"
                         } else {

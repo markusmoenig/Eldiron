@@ -17,12 +17,12 @@ export const homepageContent = {
       },
     ],
     screenshot: {
-      label: "Build with Walls and Prefabs.",
+      label: "Bring your world to life with Nodes.",
       linkLabel: "See release.",
-      href: "/blog/2026/09/07/eldiron-v0.94.0",
-      version: "Eldiron v0.94.0",
-      image: "/img/eldiron_v0.94.0.png",
-      alt: "Eldiron Creator v0.94.0 showing an isometric masonry cellar with furniture, lighting, smoke, and the Prefab browser",
+      href: "/blog/2026/10/01/eldiron-v0.95.0",
+      version: "Eldiron v0.95.0",
+      image: "/img/eldiron_v0.95.0.png",
+      alt: "Eldiron Creator v0.95.0 showing Hideout 2D and an Orc routine with highlighted Behavior Nodes",
     },
   },
   sections: [
@@ -49,6 +49,14 @@ export const homepageContent = {
       type: "news",
       items: [
         {
+          date: "Oct 1, 2026",
+          title: "Eldiron v0.95.0",
+          description:
+            "Create gameplay with Behavior Nodes, configure characters with Entity Nodes, and build shared wall and surface patterns. Live execution highlighting makes your game easier to follow.",
+          href: "/blog/2026/10/01/eldiron-v0.95.0",
+          linkLabel: "Read more",
+        },
+        {
           date: "Sep 13, 2026",
           title: "Eldiron v0.94 Feature Overview",
           href: "https://youtu.be/jrbZ6ErD93c",
@@ -63,14 +71,6 @@ export const homepageContent = {
           description:
             "Build connected masonry walls, furnish scenes with editable Prefabs, and shape and paint 3D geometry. A refreshed Creator and responsive game UI bring the workflows together.",
           href: "/blog/2026/09/07/eldiron-v0.94.0",
-          linkLabel: "Read more",
-        },
-        {
-          date: "Aug 15, 2026",
-          title: "Eldiron v0.93.0",
-          description:
-            "Build with selectable ruleset packages and procedural recipes, use Actions and Words of Power, and explore Stonefall as a Dungeon Master-style Source project.",
-          href: "/blog/2026/08/15/eldiron-v0.93.0",
           linkLabel: "Read more",
         },
       ],
@@ -142,12 +142,12 @@ export const homepageContent = {
           linkLabel: "Open docs",
         },
         {
-          title: "Tile Graph",
+          title: "Nodes",
           description:
-            "Author procedural tile groups with reusable node graphs, layered materials, automatic wrapping, and more. Tile graphs can span multiple tile blocks, allowing for larger procedural detail.",
-          image: "/img/screenshots/Eldiron_v0.92_TG.png",
-          alt: "TileGraph screenshot",
-          href: "/docs/creator/docks/tile_node_graph",
+            "Build character routines, combat, dialogue, and quests with visual Behavior Nodes. Configure entities and shared construction patterns through nodes, and follow active gameplay with live execution highlighting.",
+          image: "/img/eldiron_v0.95.0.png",
+          alt: "Eldiron Creator showing an Orc routine with highlighted Behavior Nodes",
+          href: "/docs/characters_items/behavior_nodes",
           linkLabel: "Open docs",
         },
         {

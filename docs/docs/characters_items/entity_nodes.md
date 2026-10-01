@@ -14,7 +14,8 @@ The separate **Input Mapping** branch starts with an Input Mapping node. Connect
 | Node | Settings |
 | --- | --- |
 | Entity | Ruleset race, class, and initial level. Empty race/class and level 0 inherit defaults. |
-| Appearance | Avatar, tile, 2D size, and visibility. Visibility is independent of life/activity state. |
+| Set Tile | Assign a sprite tile using a scrollable grid of previews. Type to search aliases; no UUID entry is needed. Procedural recipe outputs and legacy module tiles are excluded. |
+| Appearance | Avatar, 2D size, and visibility. Visibility is independent of life/activity state. |
 | Collision | Radius and blocking. |
 | Inventory | Slot count and starting wealth. |
 | Player | Whether the character is available for player selection. It does not spawn the character. |
@@ -26,7 +27,9 @@ The separate **Input Mapping** branch starts with an Input Mapping node. Connect
 
 The Entity node reports configuration errors and indicates whether the graph is valid.
 
-Race and class choices come from the active ruleset. Ruleset stats, abilities, permissions, progression, and starting equipment do not need duplicate configuration nodes. Add overrides only for exceptions.
+Race and class choices come from the active ruleset. Ruleset stats, abilities, permissions, progression, and starting equipment do not need duplicate configuration nodes. Add overrides only for exceptions. Character defaults come from `attributes.defaults` and the selected race and class; custom item defaults come from `item_defaults`. Matching defaults are omitted during import.
+
+Entity stays limited to race, class and level. Other authored settings use separate configuration nodes.
 
 Choice controls open compact, searchable, scrollable pickers. Inline text commits on Return. Edits use the global Undo/Redo system.
 
@@ -35,6 +38,8 @@ Choice controls open compact, searchable, scrollable pickers. Inline text commit
 Template and instance configuration graphs are separate. An instance graph supplies only its overrides; an empty instance graph inherits the template.
 
 At spawn, template settings are applied first, then instance overrides. Ruleset defaults and race/class progression fill values that were not explicitly supplied. Behavior **Startup** runs afterward, template first and instance second.
+
+Creator’s top toolbar has a **Skip Character Setup** toggle (fast-forward icon beside the input-routing button). Enable it before Play to spawn the player using Entity Node defaults and open the configured play screen directly. The toggle remains selected across editor restarts of play; standalone games keep their character setup screen.
 
 Configuration is resolved before spawning. Editing it does not reset the state of characters already running in the game. Behavior nodes handle runtime changes.
 

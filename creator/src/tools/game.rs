@@ -75,6 +75,7 @@ impl Tool for GameTool {
                 true
             }
             ToolEvent::DeActivate => {
+                RUSTERIX.write().unwrap().client.end_mouse_look();
                 ctx.set_cursor_visible(true);
 
                 if let Some(layout) = ui.get_sharedvlayout("Shared VLayout") {
@@ -168,6 +169,9 @@ impl Tool for GameTool {
     ) -> bool {
         #[allow(clippy::single_match)]
         match event {
+            TheEvent::RenderViewLostHover(id) if id.name == "PolyView" => {
+                RUSTERIX.write().unwrap().client.end_mouse_look();
+            }
             TheEvent::KeyDown(TheValue::Char(char)) => {
                 if server_ctx.text_game_mode {
                     return false;
@@ -261,6 +265,7 @@ impl Tool for GameTool {
                             }
                         }
                     } else {
+                        rusterix.client.end_mouse_look();
                         ctx.set_cursor_visible(true);
                     }
                 }

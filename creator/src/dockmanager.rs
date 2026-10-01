@@ -111,6 +111,11 @@ impl DockManager {
             Box::new(crate::docks::nodes::NodesDock::new()) as Box<dyn Dock>,
         );
 
+        docks.insert(
+            "Construction".into(),
+            Box::new(crate::docks::construction::ConstructionDock::new()) as Box<dyn Dock>,
+        );
+
         let dock: Box<dyn Dock> = Box::new(crate::docks::data::DataDock::new());
         docks.insert("Data".into(), dock);
 

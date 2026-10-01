@@ -3008,6 +3008,9 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
                             app.set_scale(scale_factor as f32);
                             apply_logical_scale(vm_ref, scale_factor);
                         }
+                        WindowEvent::CursorLeft { .. } | WindowEvent::Focused(false) => {
+                            app.mouse_leave(vm_ref)
+                        }
                         WindowEvent::CursorMoved { position, .. } => {
                             cursor_pos = position;
                             let scale = win.scale_factor() as f32;
@@ -3192,6 +3195,14 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
                         _ => {}
                     }
                 }
+            }
+        }
+        Event::DeviceEvent {
+            event: winit::event::DeviceEvent::MouseMotion { delta },
+            ..
+        } if app.wants_mouse_motion() => {
+            if let Some(vm_ref) = vm.as_mut() {
+                app.mouse_motion(vm_ref, delta.0 as f32, delta.1 as f32);
             }
         }
         Event::AboutToWait => {

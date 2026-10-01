@@ -25,6 +25,9 @@ pub struct D2PreviewBuilder {
     /// Draw Grid Switch
     pub draw_grid: bool,
 
+    /// Placement symbols for the stopped creator scene, independent of avatars.
+    pub show_entity_markers: bool,
+
     /// Stores textures for dynamic access
     pub textures: Vec<Tile>,
 
@@ -57,6 +60,7 @@ impl D2PreviewBuilder {
 
             clip_rect: None,
             draw_grid: true,
+            show_entity_markers: false,
 
             textures: Vec::new(),
 
@@ -277,6 +281,12 @@ impl D2PreviewBuilder {
         scene_handler.vm.execute(Atom::ClearLights);
         scene_handler.mark_dynamics_dirty();
 
+        // Object mode is a clean scene view in 2D. Surface and screen editing
+        // still need their own previews, including textured widget sectors.
+        let clean_object_view = self.map_tool_type == MapToolType::Selection
+            && editing_surface.is_none()
+            && !draw_sectors;
+
         // Add the clipping area
         if let Some(clip_rect) = self.clip_rect {
             let rect = (
@@ -436,7 +446,7 @@ impl D2PreviewBuilder {
         // let mut selected_batch = Batch2D::empty().source(PixelSource::Pixel(self.selection_color));
         // let mut batch = Batch2D::empty().source(PixelSource::Pixel([128, 128, 128, 255]));
 
-        if self.map_tool_type == MapToolType::Selection
+        if (self.map_tool_type == MapToolType::Selection && !clean_object_view)
             || self.map_tool_type == MapToolType::Vertex
             || self.map_tool_type == MapToolType::Sector
             || self.map_tool_type == MapToolType::Linedef
@@ -526,7 +536,7 @@ impl D2PreviewBuilder {
         // scene.d2_dynamic.push(batch);
 
         // Add Lines
-        if self.map_tool_type == MapToolType::Selection
+        if (self.map_tool_type == MapToolType::Selection && !clean_object_view)
             || self.map_tool_type == MapToolType::Vertex
             || self.map_tool_type == MapToolType::Linedef
             || self.map_tool_type == MapToolType::Sector
@@ -705,6 +715,12 @@ impl D2PreviewBuilder {
         if self.map_tool_type != MapToolType::Effects {
             // Items
             for (item_index, item) in map.items.iter().enumerate() {
+                // Runtime FX use invisible items as particle anchors, not
+                // authored objects that need an editor treasure marker.
+                // Their particles are built separately by SceneHandler.
+                if item.attributes.get_bool_default("is_ruleset_fx", false) {
+                    continue;
+                }
                 let item_pos = Vec2::new(item.position.x, item.position.z);
                 let pos =
                     self.map_grid_to_local(screen_size, Vec2::new(item_pos.x, item_pos.y), map);
@@ -1036,6 +1052,63 @@ impl D2PreviewBuilder {
             }
         }
 
+        if clean_object_view {
+            // Clear every editor marker, including stale hover/selection outlines,
+            // while retaining scene geometry, entity sprites and runtime effects.
+            scene_handler.clear_overlay();
+        }
+        if self.show_entity_markers && self.map_tool_type != MapToolType::Effects {
+            // Placement symbols belong to the editor, not runtime appearance.
+            // Draw after clearing geometry guides so Object mode retains them.
+            for (index, entity) in map.entities.iter().enumerate() {
+                let pos = self.map_grid_to_local(
+                    screen_size,
+                    Vec2::new(entity.position.x, entity.position.z),
+                    map,
+                );
+                let tile = if Some(entity.creator_id) == map.selected_entity_item {
+                    scene_handler.character_on
+                } else {
+                    scene_handler.character_off
+                };
+                scene_handler.overlay_2d.add_square_2d(
+                    SceneHandler::entity_render_geo_id(entity, index),
+                    tile,
+                    [pos.x, pos.y],
+                    1.,
+                    200,
+                    true,
+                );
+            }
+            for (index, item) in map.items.iter().enumerate() {
+                if item.attributes.get_bool_default("is_ruleset_fx", false) {
+                    continue;
+                }
+                let pos = self.map_grid_to_local(
+                    screen_size,
+                    Vec2::new(item.position.x, item.position.z),
+                    map,
+                );
+                let tile = if Some(item.creator_id) == map.selected_entity_item {
+                    scene_handler.item_on
+                } else {
+                    scene_handler.item_off
+                };
+                let id = if item.id != 0 {
+                    item.id
+                } else {
+                    u32::MAX.saturating_sub(index as u32)
+                };
+                scene_handler.overlay_2d.add_square_2d(
+                    GeoId::Item(id),
+                    tile,
+                    [pos.x, pos.y],
+                    1.,
+                    200,
+                    true,
+                );
+            }
+        }
         scene_handler.set_overlay();
         scene.dynamic_textures = self.textures.clone();
     }

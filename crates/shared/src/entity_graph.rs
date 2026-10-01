@@ -173,6 +173,22 @@ fn prototype(id: &str, title: &str) -> GraphNode {
     n
 }
 fn default_control(key: &str, rules: &Table) -> GraphControlValue {
+    let defaults = rules
+        .get("attributes")
+        .and_then(Value::as_table)
+        .and_then(|attributes| attributes.get("defaults"))
+        .and_then(Value::as_table);
+    let numeric = |fallback: f32| {
+        defaults
+            .and_then(|values| values.get(key))
+            .and_then(|value| {
+                value
+                    .as_float()
+                    .or_else(|| value.as_integer().map(|v| v as f64))
+            })
+            .map(|value| value as f32)
+            .unwrap_or(fallback)
+    };
     match key {
         "race" | "class" => {
             let section = if key == "race" { "races" } else { "classes" };
@@ -185,22 +201,39 @@ fn default_control(key: &str, rules: &Table) -> GraphControlValue {
                 selected: 0,
             }
         }
+        "tile_id" => GraphControlValue::Custom {
+            kind: "tile".into(),
+            data: serde_json::Value::String(String::new()),
+        },
         "level" => number(0., 0., 100., 1.),
-        "radius" => number(0.5, 0., 10., 0.1),
-        "size_2d" => number(1., 0.1, 10., 0.1),
-        "inventory_slots" => number(8., 0., 100., 1.),
+        "radius" => number(numeric(0.5), 0., 10., 0.1),
+        "size_2d" => number(numeric(1.), 0.1, 10., 0.1),
+        "inventory_slots" => number(numeric(8.), 0., 100., 1.),
         "wealth" => number(0., 0., 100000., 1.),
         "strength" => number(5., 0., 20., 0.1),
         "range" => number(10., 0., 100., 0.1),
         "lift" => number(0., -10., 10., 0.1),
         "color" => GraphControlValue::Text("#ffffff".into()),
-        "visible" => GraphControlValue::Toggle(true),
+        "visible" => GraphControlValue::Toggle(
+            defaults
+                .and_then(|values| values.get(key))
+                .and_then(Value::as_bool)
+                .unwrap_or(true),
+        ),
         "player" | "blocking" => GraphControlValue::Toggle(false),
         _ => GraphControlValue::Text(String::new()),
     }
 }
 fn control_value(control: &GraphControlValue) -> Result<Option<Value>, String> {
     Ok(match control {
+        GraphControlValue::Custom { kind, data } if kind == "tile" => {
+            let id = data.as_str().ok_or("Invalid tile selection")?;
+            if id.is_empty() {
+                None
+            } else {
+                Some(Value::String(id.into()))
+            }
+        }
         GraphControlValue::Text(s) => (!s.is_empty()).then(|| Value::String(s.clone())),
         GraphControlValue::Toggle(v) => Some(Value::Boolean(*v)),
         GraphControlValue::Number { value, step, .. } => {
@@ -250,6 +283,17 @@ fn put(result: &mut Table, table: &str, key: &str, value: Value) -> Result<(), S
     target.insert(key.into(), value);
     Ok(())
 }
+impl Fields {
+    fn extra_keys(&self) -> &'static [&'static str] {
+        if self.id == "entity_appearance" {
+            &["tile_id"]
+        } else if self.id == "entity_light" {
+            &["flicker"]
+        } else {
+            &[]
+        }
+    }
+}
 impl ConfigurationNode for Fields {
     fn definition(&self, rules: &Table) -> GraphNodeDefinition {
         let mut node = prototype(self.id, self.title);
@@ -273,7 +317,7 @@ impl ConfigurationNode for Fields {
             let Some(key) = r.key.as_deref() else {
                 continue;
             };
-            if !self.keys.contains(&key) {
+            if !self.keys.contains(&key) && !self.extra_keys().contains(&key) {
                 continue;
             }
             let value = if let GraphControlValue::Text(text) = &r.value {
@@ -459,7 +503,13 @@ pub fn builtin_registry() -> ConfigurationRegistry {
             section: "attributes",
             id: "entity_appearance",
             title: "Appearance",
-            keys: &["avatar", "tile_id", "size_2d", "visible"],
+            keys: &["avatar", "size_2d", "visible"],
+        },
+        Fields {
+            section: "attributes",
+            id: "entity_set_tile",
+            title: "Set Tile",
+            keys: &["tile_id"],
         },
         Fields {
             section: "attributes",
@@ -531,6 +581,69 @@ fn toml_control(value: &Value) -> GraphControlValue {
 }
 /// Import existing explicit values without changing their meaning. Unknown keys
 /// are retained as typed Attribute nodes; metadata tables remain in the projection.
+/// Import authored character overrides, leaving matching rule values inherited.
+/// Instances use the ordinary importer: their baseline also includes the template.
+pub fn import_character(data: &str, rules: &Table) -> Result<GraphDocument, String> {
+    let mut table = if data.trim().is_empty() {
+        Table::new()
+    } else {
+        data.parse::<Table>().map_err(|e| e.to_string())?
+    };
+    if let Some(attrs) = table.get_mut("attributes").and_then(Value::as_table_mut) {
+        let level = level_attribute(rules);
+        let identity: Table = attrs
+            .iter()
+            .filter(|(key, _)| {
+                matches!(key.as_str(), "race" | "class") || Some(key.as_str()) == level.as_deref()
+            })
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+        let mut seed = Table::new();
+        seed.insert("attributes".into(), Value::Table(identity));
+        let mut inherited = rusterix::Entity::default();
+        rusterix::server::data::apply_entity_data(
+            &mut inherited,
+            &toml::to_string(&seed).map_err(|e| e.to_string())?,
+        );
+        rusterix::server::region::apply_ruleset_character_defaults(rules, &mut inherited);
+        attrs.retain(|key, value| {
+            matches!(key, "race" | "class")
+                || Some(key) == level.as_deref()
+                || !inherited
+                    .attributes
+                    .get(key)
+                    .is_some_and(|default| match (&*value, default) {
+                        (Value::Boolean(a), rusterix::Value::Bool(b)) => a == b,
+                        (Value::Integer(a), rusterix::Value::Int(b)) => *a == i64::from(*b),
+                        (Value::Float(a), rusterix::Value::Float(b)) => *a as f32 == *b,
+                        (Value::String(a), rusterix::Value::Str(b)) => a == b,
+                        (Value::Array(a), rusterix::Value::StrArray(b)) => a
+                            .iter()
+                            .map(Value::as_str)
+                            .eq(b.iter().map(|s| Some(s.as_str()))),
+                        _ => false,
+                    })
+        });
+    }
+    import(&toml::to_string(&table).map_err(|e| e.to_string())?, rules)
+}
+
+pub fn import_item(data: &str, rules: &Table) -> Result<GraphDocument, String> {
+    let mut table = if data.trim().is_empty() {
+        Table::new()
+    } else {
+        data.parse::<Table>().map_err(|e| e.to_string())?
+    };
+    if let Some(attrs) = table.get_mut("attributes").and_then(Value::as_table_mut) {
+        if !attrs.contains_key("ruleset_path") {
+            if let Some(defaults) = rules.get("item_defaults").and_then(Value::as_table) {
+                attrs.retain(|key, value| defaults.get(key) != Some(&*value));
+            }
+        }
+    }
+    import(&toml::to_string(&table).map_err(|e| e.to_string())?, rules)
+}
+
 pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
     let table: Table = if data.trim().is_empty() {
         Table::new()
@@ -573,7 +686,8 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
                 "race" | "class" => ("entity_identity", "Identity"),
                 "ruleset_path" => ("entity_ruleset_item", "Ruleset Item"),
                 key if Some(key) == level_key.as_deref() => ("entity_identity", "Identity"),
-                "avatar" | "tile_id" | "size_2d" | "visible" => ("entity_appearance", "Appearance"),
+                "tile_id" => ("entity_set_tile", "Set Tile"),
+                "avatar" | "size_2d" | "visible" => ("entity_appearance", "Appearance"),
                 "radius" | "blocking" => ("entity_body", "Collision"),
                 "inventory_slots" | "wealth" => ("entity_inventory", "Inventory"),
                 "player" => ("entity_player", "Player"),
@@ -611,7 +725,14 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
                 } else {
                     key
                 };
-                let mut control = toml_control(value);
+                let mut control = if key == "tile_id" && value.as_str().is_some() {
+                    GraphControlValue::Custom {
+                        kind: "tile".into(),
+                        data: serde_json::Value::String(value.as_str().unwrap_or_default().into()),
+                    }
+                } else {
+                    toml_control(value)
+                };
                 if key == "race" || key == "class" {
                     control = default_control(key, rules);
                     if let GraphControlValue::Choice { options, selected } = &mut control {
@@ -693,6 +814,73 @@ fn connect_imported(doc: &mut GraphDocument, root: &GraphNode, mut node: GraphNo
 }
 /// Convert the initial fan-in prototype to two left-to-right configuration strips.
 pub fn normalize(doc: &mut GraphDocument) {
+    // Tile assignment has its own visual selector; retain the existing chain.
+    let mut added = Vec::new();
+    for node in &mut doc.nodes {
+        if node.definition.as_deref() == Some("entity_appearance") {
+            if let Some(index) = node
+                .rows
+                .iter()
+                .position(|r| r.key.as_deref() == Some("tile_id"))
+            {
+                let tile = node.rows.remove(index);
+                if node.rows.is_empty() {
+                    node.definition = Some("entity_set_tile".into());
+                    node.title = "Set Tile".into();
+                    node.rows.push(tile);
+                } else {
+                    let mut next = prototype("entity_set_tile", "Set Tile");
+                    next.position = [node.position[0] + node.width + 60., node.position[1]];
+                    next.rows.push(tile);
+                    if let Some(output) = node
+                        .ports
+                        .iter()
+                        .find(|p| p.direction == PortDirection::Output)
+                    {
+                        for c in &mut doc.connections {
+                            if c.from == output.id {
+                                c.from = next.ports[1].id;
+                            }
+                        }
+                        doc.connections.push(GraphConnection {
+                            id: Uuid::new_v4(),
+                            from: output.id,
+                            to: next.ports[0].id,
+                        });
+                    } else {
+                        // Legacy fan-in is normalized below.
+                        if let Some(input) = node.ports.first() {
+                            for c in doc.connections.clone() {
+                                if c.to == input.id {
+                                    doc.connections.push(GraphConnection {
+                                        id: Uuid::new_v4(),
+                                        from: c.from,
+                                        to: next.ports[0].id,
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    added.push(next);
+                }
+            }
+        }
+    }
+    doc.nodes.extend(added);
+    for node in &mut doc.nodes {
+        if node.definition.as_deref() == Some("entity_set_tile") {
+            for row in &mut node.rows {
+                if row.key.as_deref() == Some("tile_id") {
+                    if let GraphControlValue::Text(id) = &row.value {
+                        row.value = GraphControlValue::Custom {
+                            kind: "tile".into(),
+                            data: serde_json::Value::String(id.clone()),
+                        };
+                    }
+                }
+            }
+        }
+    }
     for node in &mut doc.nodes {
         for port in &mut node.ports {
             if port.kind == "entity-config" {
@@ -854,8 +1042,27 @@ pub fn project_data(doc: &GraphDocument, previous: &str, rules: &Table) -> Resul
     toml::to_string_pretty(&data).map_err(|e| e.to_string())
 }
 
-/// Upgrade old projects and refresh generated compatibility data. Call before
-/// runtime asset creation so character selection sees Player and Input nodes.
+/// Materialize custom item defaults without storing duplicate authoring nodes.
+fn project_item_data(doc: &GraphDocument, previous: &str, rules: &Table) -> Result<String, String> {
+    let mut table = project_data(doc, previous, rules)?
+        .parse::<Table>()
+        .map_err(|e| e.to_string())?;
+    let attrs = table
+        .entry("attributes".to_string())
+        .or_insert_with(|| Value::Table(Table::new()))
+        .as_table_mut()
+        .ok_or("Invalid item attributes")?;
+    if !attrs.contains_key("ruleset_path") {
+        if let Some(defaults) = rules.get("item_defaults").and_then(Value::as_table) {
+            for (key, value) in defaults {
+                attrs.entry(key.clone()).or_insert_with(|| value.clone());
+            }
+        }
+    }
+    toml::to_string_pretty(&table).map_err(|e| e.to_string())
+}
+
+/// Upgrade old projects and refresh generated compatibility data before spawning.
 pub fn synchronize(project: &mut Project) -> Result<(), String> {
     let source = crate::rulesets::resolve_project_rules(&project.config, &project.rules)?;
     let rules = source.parse::<Table>().map_err(|e| e.to_string())?;
@@ -864,11 +1071,20 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
         key: String,
         data: &mut String,
         rules: &Table,
+        character_template: bool,
+        item_template: bool,
     ) -> Result<(), String> {
         if !graphs.contains_key(&key) {
             graphs.insert(
                 key.clone(),
-                serde_json::to_value(import(data, rules)?).map_err(|e| e.to_string())?,
+                serde_json::to_value(if character_template {
+                    import_character(data, rules)?
+                } else if item_template {
+                    import_item(data, rules)?
+                } else {
+                    import(data, rules)?
+                })
+                .map_err(|e| e.to_string())?,
             );
         }
         let mut doc = serde_json::from_value::<GraphDocument>(graphs[&key].clone())
@@ -878,7 +1094,12 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
             key.clone(),
             serde_json::to_value(&doc).map_err(|e| e.to_string())?,
         );
-        *data = project_data(&doc, data, rules).map_err(|e| format!("{key}: {e}"))?;
+        *data = (if item_template {
+            project_item_data(&doc, data, rules)
+        } else {
+            project_data(&doc, data, rules)
+        })
+        .map_err(|e| format!("{key}: {e}"))?;
         Ok(())
     }
     let mut errors = vec![];
@@ -888,6 +1109,8 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
             character_key(c.id),
             &mut c.data,
             &rules,
+            true,
+            false,
         ) {
             errors.push(e);
         }
@@ -898,6 +1121,8 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
             item_key(i.id),
             &mut i.data,
             &rules,
+            false,
+            true,
         ) {
             errors.push(e);
         }
@@ -910,7 +1135,14 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
                 || c.data.contains("[input]")
                 || c.data.contains("[light]")
             {
-                if let Err(e) = sync(&mut project.node_graphs, key, &mut c.data, &rules) {
+                if let Err(e) = sync(
+                    &mut project.node_graphs,
+                    key,
+                    &mut c.data,
+                    &rules,
+                    false,
+                    false,
+                ) {
                     errors.push(e);
                 }
             }
@@ -921,7 +1153,14 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
                 || i.data.contains("[attributes]")
                 || i.data.contains("[light]")
             {
-                if let Err(e) = sync(&mut project.node_graphs, key, &mut i.data, &rules) {
+                if let Err(e) = sync(
+                    &mut project.node_graphs,
+                    key,
+                    &mut i.data,
+                    &rules,
+                    false,
+                    false,
+                ) {
                     errors.push(e);
                 }
             }
@@ -945,6 +1184,7 @@ pub fn update_owner(project: &mut Project, owner: &str, doc: &GraphDocument) -> 
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or("Invalid Entity owner")?;
     let is_character = owner.starts_with("entity/character/");
+    let item_template = !is_character && project.items.contains_key(&id);
     let data = if is_character {
         if let Some(c) = project.characters.get_mut(&id) {
             Some(&mut c.data)
@@ -965,7 +1205,11 @@ pub fn update_owner(project: &mut Project, owner: &str, doc: &GraphDocument) -> 
         }
     }
     .ok_or("Entity owner no longer exists")?;
-    let generated = project_data(doc, data, &rules)?;
+    let generated = if item_template {
+        project_item_data(doc, data, &rules)?
+    } else {
+        project_data(doc, data, &rules)?
+    };
     *data = generated;
     Ok(())
 }
@@ -1113,6 +1357,56 @@ mod tests {
             .unwrap()
     }
     #[test]
+    fn tile_selection_and_legacy_appearance_preserve_configuration() {
+        let id = Uuid::new_v4().to_string();
+        let source = format!("[attributes]\ntile_id = \"{id}\"\nsize_2d = 1.25\nvisible = false");
+        let mut doc = import(&source, &rules()).unwrap();
+        let tile = doc
+            .nodes
+            .iter()
+            .position(|n| n.definition.as_deref() == Some("entity_set_tile"))
+            .unwrap();
+        // Recreate the previous Appearance node to exercise migration as well.
+        doc.nodes[tile].definition = Some("entity_appearance".into());
+        doc.nodes[tile].rows[0].value = GraphControlValue::Text(id.clone());
+        row(
+            &mut doc.nodes[tile],
+            "avatar",
+            GraphControlValue::Text("custom".into()),
+        );
+        let before = data(&doc, "");
+        normalize(&mut doc);
+        assert_eq!(data(&doc, ""), before);
+        let nodes = doc.nodes.len();
+        normalize(&mut doc);
+        assert_eq!(doc.nodes.len(), nodes);
+        let selected = doc
+            .nodes
+            .iter_mut()
+            .find(|n| n.definition.as_deref() == Some("entity_set_tile"))
+            .unwrap();
+        assert!(
+            matches!(&selected.rows[0].value, GraphControlValue::Custom { kind, data } if kind == "tile" && data.as_str() == Some(id.as_str()))
+        );
+        selected.rows[0].value = GraphControlValue::Custom {
+            kind: "tile".into(),
+            data: serde_json::Value::Null,
+        };
+        assert!(builtin_registry().compile(&doc, &rules()).is_err());
+        let selected = doc
+            .nodes
+            .iter_mut()
+            .find(|n| n.definition.as_deref() == Some("entity_set_tile"))
+            .unwrap();
+        selected.rows[0].value = default_control("tile_id", &rules());
+        assert!(
+            !data(&doc, "")["attributes"]
+                .as_table()
+                .unwrap()
+                .contains_key("tile_id")
+        );
+    }
+    #[test]
     fn stonefall_project_compiles_all_graphs_and_rebuilds_editable_walls() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../test_projects/StonefallDungeon.eldiron");
@@ -1150,6 +1444,119 @@ mod tests {
             let keys: HashSet<_> = definition.ports.iter().map(|p| &p.id).collect();
             assert_eq!(keys.len(), definition.ports.len(), "{}", definition.id);
         }
+    }
+    #[test]
+    fn npc_custom_configuration_uses_separate_nodes_without_losing_values() {
+        let source = r##"[attributes]
+race = "Human"
+class = "Warrior"
+facing = "west"
+faction = "guard"
+on_look = "You see a guard"
+autodamage = true
+source_id = "guard"
+light_skin_index = 24
+hair_index = 4
+size = 2.2
+start_items = ["Blessed Herb"]
+start_equipped_items = ["Sword"]
+[light]
+flicker = 0.52
+"##;
+        let doc = import(source, &rules()).unwrap();
+        let entity = doc
+            .nodes
+            .iter()
+            .find(|node| node.definition.as_deref() == Some("entity"))
+            .unwrap();
+        assert!(
+            entity
+                .rows
+                .iter()
+                .all(|row| matches!(row.key.as_deref(), Some("race" | "class" | "level")))
+        );
+        assert!(
+            doc.nodes
+                .iter()
+                .any(|node| node.definition.as_deref() == Some("entity_attribute"))
+        );
+        let projected = data(&doc, source);
+        let original = source.parse::<Table>().unwrap();
+        assert_eq!(projected["attributes"], original["attributes"]);
+        assert_eq!(projected["light"], original["light"]);
+    }
+    #[test]
+    fn custom_item_defaults_are_inherited_and_overrides_survive() {
+        let rules = rules();
+        let doc = import_item(
+            "[attributes]\nvisible = true\nradius = 0.5\nblocking = true",
+            &rules,
+        )
+        .unwrap();
+        let authored = builtin_registry().compile(&doc, &rules).unwrap();
+        let attrs = authored["attributes"].as_table().unwrap();
+        assert!(!attrs.contains_key("visible"));
+        assert!(!attrs.contains_key("radius"));
+        assert_eq!(attrs["blocking"].as_bool(), Some(true));
+        let generated = project_item_data(&doc, "", &rules)
+            .unwrap()
+            .parse::<Table>()
+            .unwrap();
+        assert_eq!(generated["attributes"]["visible"].as_bool(), Some(true));
+        assert_eq!(generated["attributes"]["radius"].as_float(), Some(0.5));
+        assert_eq!(generated["attributes"]["blocking"].as_bool(), Some(true));
+    }
+    #[test]
+    fn npc_navigation_keeps_the_original_step_height() {
+        let mut guard = rusterix::Entity::default();
+        rusterix::server::data::apply_entity_data(
+            &mut guard,
+            "[attributes]\nrace = \"Human\"\nclass = \"Warrior\"",
+        );
+        rusterix::server::region::apply_ruleset_character_defaults(&rules(), &mut guard);
+        assert_eq!(
+            guard.attributes.get_float_default("max_step_height", 0.),
+            1.0
+        );
+    }
+    #[test]
+    fn character_import_keeps_overrides_and_inherits_rule_configuration() {
+        let source = r#"[attributes]
+race = "Human"
+class = "Warrior"
+visible = true
+radius = 0.5
+inventory_slots = 6
+max_step_height = 1.0
+abilities = ["basic_attack", "guard"]
+custom_flag = true
+size_2d = 1.25
+"#;
+        let rules = rules();
+        let doc = import_character(source, &rules).unwrap();
+        let result = data(&doc, source);
+        let attrs = result["attributes"].as_table().unwrap();
+        for key in [
+            "visible",
+            "radius",
+            "inventory_slots",
+            "max_step_height",
+            "abilities",
+        ] {
+            assert!(!attrs.contains_key(key), "{key} should be inherited");
+        }
+        assert_eq!(attrs["custom_flag"].as_bool(), Some(true));
+        assert_eq!(attrs["size_2d"].as_float(), Some(1.25));
+        let mut entity = rusterix::Entity::default();
+        rusterix::server::data::apply_entity_data(&mut entity, &toml::to_string(&result).unwrap());
+        rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut entity);
+        assert!(entity.attributes.get_bool_default("visible", false));
+        assert_eq!(entity.attributes.get_float_default("radius", 0.), 0.5);
+        let custom =
+            import_character("[attributes]\nvisible = false\nradius = 0.8", &rules).unwrap();
+        let custom = data(&custom, "");
+        assert_eq!(custom["attributes"]["visible"].as_bool(), Some(false));
+        assert_eq!(custom["attributes"]["radius"].as_float(), Some(0.8));
     }
     #[test]
     fn import_preserves_typed_values_metadata_and_player_bindings() {
@@ -1364,7 +1771,11 @@ pub fn effective_item(
         .map(|i| i.data.as_str())
         .or_else(|| instance.map(|i| i.data.as_str()))
         .unwrap_or("");
-    let generated = project_data(doc, previous, &rules)?;
+    let generated = if template.is_some() {
+        project_item_data(doc, previous, &rules)?
+    } else {
+        project_data(doc, previous, &rules)?
+    };
     let inherited = item.attributes.keys().cloned().collect::<HashSet<_>>();
     rusterix::server::data::apply_item_data(&mut item, &generated);
     let overrides = builtin_registry().compile(doc, &rules)?;

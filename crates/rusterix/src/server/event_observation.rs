@@ -106,6 +106,7 @@ pub fn capture(ctx: &RegionCtx, name: &str, value: &VMValue) -> Option<EventObse
     match name {
         "arrived" => text("destination"),
         "entered" | "left" => text("area"),
+        "entered_tile" | "left_tile" => text("tag"),
         "damaged" | "party_damaged" => text("kind"),
         "intent" => text("intent"),
         _ => {}
@@ -126,6 +127,11 @@ pub fn capture(ctx: &RegionCtx, name: &str, value: &VMValue) -> Option<EventObse
         }
         "time" => {
             fields.insert("hour".into(), EventField::Number(value.x as f64));
+        }
+        "entered_tile" | "left_tile" => {
+            fields.insert("x".into(), EventField::Number(value.x as f64));
+            fields.insert("y".into(), EventField::Number(value.y as f64));
+            fields.insert("layer".into(), EventField::Number(value.z as f64));
         }
         // Collision events carry the other party in `x`. `bumped_by_entity` is the
         // one an item reacts to, which is how doors and gates notice a walker.
@@ -169,6 +175,30 @@ pub fn capture(ctx: &RegionCtx, name: &str, value: &VMValue) -> Option<EventObse
 mod tests {
     use super::*;
 
+    #[test]
+    fn tile_events_expose_tag_cell_and_layer_to_nodes() {
+        let mut ctx = RegionCtx::default();
+        let mut entity = crate::Entity::new();
+        entity.id = 7;
+        let owner = entity.creator_id;
+        ctx.map.entities.push(entity);
+        ctx.curr_entity_id = 7;
+        ctx.current_script_scope = ScriptScope::Entity;
+        let value = VMValue::new_with_string(-2., 4., 3., "chair");
+        for name in ["entered_tile", "left_tile"] {
+            let event = capture(&ctx, name, &value).unwrap();
+            assert_eq!(event.owner, EventOwner::Entity(owner));
+            assert_eq!(event.name, name);
+            assert_eq!(
+                event.fields.get("tag"),
+                Some(&EventField::Text("chair".into()))
+            );
+            assert_eq!(event.fields.get("x"), Some(&EventField::Number(-2.)));
+            assert_eq!(event.fields.get("y"), Some(&EventField::Number(4.)));
+            assert_eq!(event.fields.get("layer"), Some(&EventField::Number(3.)));
+            assert!(!event.fields.contains_key("area"));
+        }
+    }
     #[test]
     fn capture_exposes_who_bumped_into_what() {
         let mut ctx = RegionCtx::default();

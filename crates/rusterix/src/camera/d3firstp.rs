@@ -8,6 +8,7 @@ pub struct D3FirstPCamera {
     pub position: Vec3<f32>,
     pub center: Vec3<f32>,
 
+    pub pitch: f32,
     pub fov: f32,
     pub near: f32,
     pub far: f32,
@@ -19,6 +20,7 @@ impl D3Camera for D3FirstPCamera {
             position: Vec3::zero(),
             center: Vec3::zero(),
 
+            pitch: 0.0,
             fov: 75.0,
             near: 0.01,
             far: 100.0,
@@ -34,7 +36,7 @@ impl D3Camera for D3FirstPCamera {
     }
 
     fn view_matrix(&self) -> Mat4<f32> {
-        vek::Mat4::look_at_rh(self.position, self.center, Vec3::unit_y())
+        vek::Mat4::look_at_rh(self.position, self.look_center(), Vec3::unit_y())
     }
 
     fn projection_matrix(&self, width: f32, height: f32) -> Mat4<f32> {
@@ -48,6 +50,7 @@ impl D3Camera for D3FirstPCamera {
 
     fn set_parameter_f32(&mut self, key: &str, value: f32) {
         match key {
+            "pitch" => self.pitch = value.clamp(-85.0, 85.0),
             "fov" => {
                 self.fov = value;
             }
@@ -82,7 +85,7 @@ impl D3Camera for D3FirstPCamera {
         let eps = 1e-8_f32;
 
         // Forward: from position to center. Fallback if zero.
-        let mut forward = self.center - self.position;
+        let mut forward = self.look_center() - self.position;
         if forward.magnitude_squared() < eps {
             forward = Vec3::unit_z(); // default look direction
         }
@@ -116,7 +119,7 @@ impl D3Camera for D3FirstPCamera {
         let half_height = (self.fov.to_radians() * 0.5).tan();
         let half_width = half_height * aspect;
 
-        let forward = (self.center - self.position).normalized();
+        let forward = (self.look_center() - self.position).normalized();
         let right = forward.cross(Vec3::unit_y()).normalized();
         let up = right.cross(forward);
 
@@ -151,5 +154,37 @@ impl D3Camera for D3FirstPCamera {
             far: self.far,
             ..Default::default()
         }
+    }
+}
+
+impl D3FirstPCamera {
+    fn look_center(&self) -> Vec3<f32> {
+        if self.pitch == 0.0 {
+            return self.center;
+        }
+        let direction = self.center - self.position;
+        let horizontal = Vec3::new(direction.x, 0.0, direction.z)
+            .try_normalized()
+            .unwrap_or(-Vec3::unit_z());
+        let pitch = self.pitch.to_radians();
+        self.position + horizontal * pitch.cos() + Vec3::unit_y() * pitch.sin()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn pitch_changes_render_basis_without_changing_horizontal_facing() {
+        let mut camera = D3FirstPCamera::new();
+        camera.center = -Vec3::unit_z();
+        let horizontal = camera.basis_vectors().0;
+        camera.set_parameter_f32("pitch", 45.0);
+        let upward = camera.basis_vectors().0;
+        assert!(upward.y > 0.7);
+        assert!(upward.z < -0.7);
+        assert_eq!(camera.center, -Vec3::unit_z());
+        camera.set_parameter_f32("pitch", 0.0);
+        assert_eq!(camera.basis_vectors().0, horizontal);
     }
 }

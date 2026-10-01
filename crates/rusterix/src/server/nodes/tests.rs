@@ -21,6 +21,21 @@ fn graph(event: &str, text: &str) -> Value {
     ],"connections":[{"id":Uuid::new_v4(),"from":out,"to":input}]})
 }
 #[test]
+fn runtime_diagnostics_use_authored_node_titles_with_a_type_fallback() {
+    let mut document = graph("startup", "Hello");
+    let event_id = serde_json::from_value(document["nodes"][0]["id"].clone()).unwrap();
+    let say_id = serde_json::from_value(document["nodes"][1]["id"].clone()).unwrap();
+    document["nodes"][1]["title"] = json!("Welcome Player");
+    let plan = Registry::builtin().compile(&document).unwrap();
+    let mut runtime = Runtime::default();
+    runtime
+        .spawn(Uuid::new_v4(), Uuid::new_v4(), 1, Some(plan))
+        .unwrap();
+    assert_eq!(runtime.node_title(say_id), "Welcome Player");
+    assert_eq!(runtime.node_title(event_id), "Event");
+}
+
+#[test]
 fn startup_spawn_and_trace_are_native_and_once_only() {
     let mut runtime = Runtime::default();
     let mut output = Output::default();
@@ -479,13 +494,14 @@ fn hideout2d_player_graph() -> Option<(Value, Uuid)> {
     hideout2d_character_graph("Player")
 }
 
-/// Both converted fixtures must ship no Eldrin at all: their graphs answer every
+/// Converted fixtures must ship no Eldrin at all: their graphs answer every
 /// event, so a leftover script would only be dead, uneditable code.
 #[test]
 fn shipped_fixtures_carry_no_eldrin() {
     for (label, path) in [
         ("Hideout2D", "test_projects/Hideout2D.eldiron"),
         ("Gate", "test_projects/Gate.eldiron"),
+        ("Cellar", "test_projects/Cellar.eldiron"),
     ] {
         let Some(json) = read_project_json(path) else {
             continue;
@@ -531,6 +547,49 @@ fn gate_characters_are_converted_and_their_graphs_compile() {
         Registry::shared()
             .compile(document)
             .unwrap_or_else(|error| panic!("Gate character '{name}': {error}"));
+    }
+}
+
+#[test]
+fn cellar_player_graph_preserves_camera_and_respawn() {
+    let Some(project) = read_project_json("test_projects/Cellar.eldiron") else {
+        return;
+    };
+    let player = project["characters"]
+        .as_object()
+        .unwrap()
+        .values()
+        .next()
+        .unwrap();
+    let key = format!("behavior/character/{}", player["id"].as_str().unwrap());
+    let graph = &project["node_graphs"][key];
+    Registry::shared()
+        .compile(graph)
+        .expect("Cellar player graph must compile");
+    let nodes = graph["nodes"].as_array().unwrap();
+    assert!(
+        nodes
+            .iter()
+            .any(|node| node["definition"] == "respawn_character")
+    );
+    assert!(nodes.iter().any(|node| node["definition"] == "drop_items"));
+    let camera = nodes
+        .iter()
+        .find(|node| node["definition"] == "player_camera")
+        .unwrap();
+    let setting = camera["rows"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|row| row["key"] == "camera")
+        .unwrap();
+    assert_eq!(setting["value"]["Choice"]["selected"], json!(2));
+    for (key, graph) in project["node_graphs"].as_object().unwrap() {
+        if key.starts_with("behavior/item/") {
+            Registry::shared()
+                .compile(graph)
+                .unwrap_or_else(|error| panic!("Cellar item graph {key}: {error}"));
+        }
     }
 }
 
@@ -2686,4 +2745,135 @@ fn party_nodes_route_subject_and_health_without_scripts() {
     );
     runtime.update(&mut probe);
     assert_eq!(probe.messages, vec![42, 42]);
+}
+
+#[test]
+fn set_tile_changes_self_or_current_target_and_rejects_empty_selection() {
+    #[derive(Default)]
+    struct Tiles {
+        writes: Vec<(u32, Option<u32>, Uuid)>,
+        target: Option<u32>,
+    }
+    impl WorldServices for Tiles {
+        fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
+            Default::default()
+        }
+        fn say(&mut self, _: &Actor, _: String) {}
+        fn current_target(&self, _: &Actor) -> Option<u32> {
+            self.target
+        }
+        fn set_tile(
+            &mut self,
+            actor: &Actor,
+            target: Option<u32>,
+            tile: Uuid,
+        ) -> Result<(), String> {
+            self.writes.push((actor.render_id, target, tile));
+            Ok(())
+        }
+    }
+    let tile = Uuid::new_v4();
+    for (recipient, target) in [(0, Some(8)), (1, Some(8)), (1, None)] {
+        let mut document = graph("startup", "unused");
+        let node = &mut document["nodes"][1];
+        node["definition"] = json!("set_tile");
+        node["rows"] = json!([
+            {"key":"recipient", "value":{"Choice":{"options":["Self","Target"],"selected":recipient}}},
+            {"key":"tile_id", "value":{"Custom":{"kind":"tile","data":tile}}}
+        ]);
+        let compiled = Registry::builtin().compile(&document).unwrap();
+        let mut runtime = Runtime::default();
+        runtime
+            .spawn(Uuid::new_v4(), Uuid::new_v4(), 1, Some(compiled))
+            .unwrap();
+        let mut world = Tiles {
+            target,
+            ..Default::default()
+        };
+        runtime.update(&mut world);
+        let expected = if recipient == 0 {
+            vec![(1, None, tile)]
+        } else if target.is_some() {
+            vec![(1, target, tile)]
+        } else {
+            vec![]
+        };
+        assert_eq!(world.writes, expected);
+        document["nodes"][1]["rows"][1]["value"]["Custom"]["data"] = json!("");
+        assert!(Registry::builtin().compile(&document).is_err());
+    }
+}
+
+#[test]
+fn disabled_branch_is_skipped_and_shared_actions_remain_available() {
+    let mut disabled = graph("startup", "disabled");
+    disabled["nodes"][0]["disabled"] = json!(true);
+    // An incomplete disabled action must not block another branch.
+    disabled["nodes"][1]["rows"][0]["value"] = json!({"Text": null});
+    let enabled = graph("startup", "enabled");
+    disabled["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .extend(enabled["nodes"].as_array().unwrap().clone());
+    disabled["connections"]
+        .as_array_mut()
+        .unwrap()
+        .extend(enabled["connections"].as_array().unwrap().clone());
+    let mut runtime = Runtime::default();
+    runtime
+        .spawn(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            1,
+            Some(Registry::builtin().compile(&disabled).unwrap()),
+        )
+        .unwrap();
+    let mut output = Output::default();
+    runtime.update(&mut output);
+    assert_eq!(output.0, ["enabled"]);
+    disabled["nodes"][0]["disabled"] = json!(false);
+    assert!(Registry::builtin().compile(&disabled).is_err());
+
+    let mut shared = graph("startup", "shared");
+    let mut other = graph("startup", "unused");
+    shared["nodes"][0]["disabled"] = json!(true);
+    other["connections"][0]["to"] = shared["nodes"][1]["ports"][0]["id"].clone();
+    shared["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .push(other["nodes"][0].clone());
+    shared["connections"]
+        .as_array_mut()
+        .unwrap()
+        .push(other["connections"][0].clone());
+    let mut runtime = Runtime::default();
+    runtime
+        .spawn(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            1,
+            Some(Registry::builtin().compile(&shared).unwrap()),
+        )
+        .unwrap();
+    let mut output = Output::default();
+    runtime.update(&mut output);
+    assert_eq!(output.0, ["shared"]);
+}
+
+#[test]
+fn separate_branch_documents_execute_in_saved_order() {
+    let bundle = json!({"version": 1, "nodes": [], "connections": [],
+        "branches": [graph("startup", "first"), graph("startup", "second")]});
+    let mut runtime = Runtime::default();
+    runtime
+        .spawn(
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            1,
+            Some(Registry::builtin().compile(&bundle).unwrap()),
+        )
+        .unwrap();
+    let mut output = Output::default();
+    runtime.update(&mut output);
+    assert_eq!(output.0, ["first", "second"]);
 }

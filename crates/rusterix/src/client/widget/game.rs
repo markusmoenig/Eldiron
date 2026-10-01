@@ -98,6 +98,9 @@ pub struct GameWidget {
     pub iso_geometry_fade: FxHashMap<uuid::Uuid, f32>,
     pub force_dynamics_rebuild: bool,
     pub firstp_eye_level: f32,
+    pub mouse_look_pitch: f32,
+    pub mouse_sensitivity: f32,
+    pub mouse_invert_y: bool,
     pub(crate) firstp_camera_y: Option<f32>,
     pub loaded_chunks: FxHashSet<(i32, i32)>,
     pub stream_load_radius_chunks: i32,
@@ -184,6 +187,9 @@ impl GameWidget {
             iso_geometry_fade: FxHashMap::default(),
             force_dynamics_rebuild: true,
             firstp_eye_level: 1.7,
+            mouse_look_pitch: 0.0,
+            mouse_sensitivity: 0.2,
+            mouse_invert_y: false,
             firstp_camera_y: None,
             loaded_chunks: FxHashSet::default(),
             stream_load_radius_chunks: 2,
@@ -246,7 +252,7 @@ impl GameWidget {
                 self.apply_iso_camera_overrides(&mut iso);
                 self.camera_d3 = Box::new(iso);
             }
-            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid => {
+            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPMouse | PlayerCamera::D3FirstPGrid => {
                 self.camera_d3 = Box::new(D3FirstPCamera::new());
             }
         }
@@ -266,6 +272,14 @@ impl GameWidget {
             let mut visual_entity = entity.clone();
             visual_entity.position.y = smoothed_y;
             visual_entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
+            self.camera_d3.set_parameter_f32(
+                "pitch",
+                if self.camera == PlayerCamera::D3FirstPMouse {
+                    self.mouse_look_pitch
+                } else {
+                    0.0
+                },
+            );
         } else {
             self.firstp_camera_y = None;
             entity.apply_to_camera(&mut self.camera_d3, self.firstp_eye_level);
@@ -314,10 +328,15 @@ impl GameWidget {
             }
             self.table = groups;
             if let Some(camera) = self.table.get("camera") {
+                self.mouse_sensitivity = camera
+                    .get_float_default("mouse_sensitivity", 0.2)
+                    .clamp(0.01, 5.0);
+                self.mouse_invert_y = camera.get_bool_default("invert_y", false);
                 let camera_type = camera.get_str_default("type".into(), "2d".into());
                 match camera_type.as_str() {
                     "iso" => self.set_camera_mode(PlayerCamera::D3Iso),
                     "firstp" => self.set_camera_mode(PlayerCamera::D3FirstP),
+                    "firstp_mouse" => self.set_camera_mode(PlayerCamera::D3FirstPMouse),
                     "firstp_grid" => self.set_camera_mode(PlayerCamera::D3FirstPGrid),
                     "2d_grid" => self.set_camera_mode(PlayerCamera::D2Grid),
                     _ => self.set_camera_mode(PlayerCamera::D2),

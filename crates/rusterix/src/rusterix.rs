@@ -32,6 +32,8 @@ pub struct Rusterix {
 
     pub editor_preview_post_enabled: bool,
     pub editor_preview_lighting_enabled: bool,
+    /// Editor-only minimum ambient strength. Never written to the project's render state.
+    pub editor_preview_fill_strength: f32,
     pub orthographic_bake: OrthographicBakeController,
     orthographic_bake_work_pixels: Vec<u8>,
     orthographic_bake_overlay_pixels: Vec<u8>,
@@ -53,6 +55,20 @@ impl Rusterix {
             state.render.set("sun_enabled", Value::Bool(false));
             state.render.set("shadow_enabled", Value::Bool(false));
             state.render.set("ambient_strength", Value::Float(1.0));
+        } else if apply_editor_preview && self.editor_preview_fill_strength > 0.0 {
+            let authored = state.render.get_float_default("ambient_strength", 0.0);
+            // A dark authored ambient color can make a strength-only editor control
+            // appear ineffective. Preview fill is neutral and never reaches game render state.
+            state
+                .render
+                .set("ambient_color", Value::Vec3([1.0, 1.0, 1.0]));
+            // Project fog can darken everything beyond a nearby torch even with
+            // full ambient light. Keep navigation visibility uniform in the editor.
+            state.render.set("fog_density", Value::Float(0.0));
+            state.render.set(
+                "ambient_strength",
+                Value::Float(authored.max(self.editor_preview_fill_strength.clamp(0.0, 1.0))),
+            );
         }
         self.scene_handler.runtime_render_state = state;
     }
@@ -96,6 +112,7 @@ impl Rusterix {
             scene_handler,
             editor_preview_post_enabled: true,
             editor_preview_lighting_enabled: true,
+            editor_preview_fill_strength: 0.45,
             orthographic_bake: OrthographicBakeController::default(),
             orthographic_bake_work_pixels: Vec::new(),
             orthographic_bake_overlay_pixels: Vec::new(),
@@ -344,7 +361,9 @@ impl Rusterix {
                             PlayerCamera::D3Iso => {
                                 self.client.camera_d3 = Box::new(D3IsoCamera::new())
                             }
-                            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid => {
+                            PlayerCamera::D3FirstP
+                            | PlayerCamera::D3FirstPMouse
+                            | PlayerCamera::D3FirstPGrid => {
                                 self.client.camera_d3 = Box::new(D3FirstPCamera::new());
                             }
                             PlayerCamera::D2 | PlayerCamera::D2Grid => {}
@@ -762,6 +781,12 @@ impl Rusterix {
         cmds
     }
 
+    /// Optional authoring shortcut after client setup; does not modify project configuration.
+    pub fn start_with_entity_defaults(&mut self) -> Vec<Command> {
+        self.client
+            .start_with_entity_defaults(&mut self.assets, &mut self.scene_handler)
+    }
+
     /// Draw the game as the client sees it.
     pub fn draw_game(
         &mut self,
@@ -972,6 +997,9 @@ impl Rusterix {
 
     /// Send a touch dragged event to the client.
     pub fn client_touch_dragged(&mut self, coord: Vec2<i32>, map: &Map) {
+        if self.client.mouse_look.active {
+            return;
+        }
         self.client
             .touch_dragged(coord, map, &mut self.scene_handler);
     }
@@ -981,8 +1009,33 @@ impl Rusterix {
         self.client.touch_up(coord, map, &self.assets)
     }
 
+    pub fn client_mouse_motion(&mut self, delta: Vec2<f32>) -> bool {
+        if self.client.mouse_look.motion(delta).is_some() {
+            self.server.local_player_action(EntityAction::LookYaw(
+                delta.x * self.client.mouse_look.sensitivity,
+            ));
+            true
+        } else {
+            false
+        }
+    }
+
     /// Send a touch hover event to the client.
     pub fn client_touch_hover(&mut self, coord: Vec2<i32>, map: &Map) {
+        #[cfg(target_arch = "wasm32")]
+        let was_active = self.client.mouse_look.active;
+        self.client.mouse_look_hover(coord, map);
+        #[cfg(target_arch = "wasm32")]
+        {
+            if was_active
+                && self.client.mouse_look.active
+                && let Some(previous) = self.client.mouse_look.pointer
+            {
+                let delta = coord - previous;
+                self.client_mouse_motion(Vec2::new(delta.x as f32, delta.y as f32));
+            }
+            self.client.mouse_look.pointer = self.client.mouse_look.active.then_some(coord);
+        }
         self.client
             .touch_hover(coord, map, &self.assets, &mut self.scene_handler);
     }

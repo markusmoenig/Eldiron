@@ -26,6 +26,7 @@ pub struct TextGameState {
     appended_since_sync: bool,
     force_scroll_to_bottom: bool,
     active_input_id: &'static str,
+    choices: Vec<rusterix::Choice>,
 }
 
 impl Default for TextGameState {
@@ -48,6 +49,7 @@ impl TextGameState {
             appended_since_sync: false,
             force_scroll_to_bottom: false,
             active_input_id: Self::GAME_INPUT_ID,
+            choices: Vec::new(),
         }
     }
 
@@ -88,6 +90,7 @@ impl TextGameState {
     pub fn reset(&mut self) {
         self.blocks.clear();
         self.session.reset();
+        self.choices.clear();
         self.dirty = true;
         self.appended_since_sync = false;
         self.force_scroll_to_bottom = true;
@@ -184,6 +187,7 @@ impl TextGameState {
         server_ctx: &ServerContext,
         messages: &mut Vec<TextGameMessage>,
         says: &mut Vec<TextGameSay>,
+        choices: &mut Vec<rusterix::MultipleChoice>,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
@@ -207,11 +211,118 @@ impl TextGameState {
             Vec::new()
         };
         self.apply_outputs(project, server_ctx, &outputs);
+        self.prune_choices(project, server_ctx);
+        for prompt in std::mem::take(choices) {
+            let Some(player) = current_region(project, server_ctx)
+                .and_then(|region| region.map.entities.iter().find(|entity| entity.is_player()))
+            else {
+                continue;
+            };
+            if prompt.to != player.id {
+                continue;
+            }
+            self.choices = prompt.choices;
+            self.choices.push(rusterix::Choice::Cancel(
+                prompt.from,
+                prompt.to,
+                prompt.expires_at_tick,
+                prompt.max_distance,
+            ));
+            self.prune_choices(project, server_ctx);
+            let labels = self
+                .choices
+                .iter()
+                .enumerate()
+                .map(|(index, choice)| {
+                    let label = match choice {
+                        rusterix::Choice::NodeChoice(choice) => choice.label.clone(),
+                        rusterix::Choice::DialogChoice(choice) => choice.label.clone(),
+                        rusterix::Choice::ScriptChoice(label, ..) => label.clone(),
+                        rusterix::Choice::ItemToSell(id, seller, ..) => {
+                            current_region(project, server_ctx)
+                                .and_then(|region| {
+                                    region
+                                        .map
+                                        .entities
+                                        .iter()
+                                        .find(|entity| entity.id == *seller)
+                                })
+                                .and_then(|entity| entity.get_item(*id))
+                                .map(sg::display_name_for_item)
+                                .unwrap_or_else(|| format!("Item {id}"))
+                        }
+                        rusterix::Choice::Cancel(..) => fl!("text_play_cancel"),
+                    };
+                    let label = current_region(project, server_ctx)
+                        .map(|region| {
+                            let runtime = RUSTERIX.read().unwrap();
+                            let (from, to, _, _) = choice.session_meta();
+                            rusterix::client::resolver::MsgResolver::new().resolve_with_context(
+                                rusterix::MsgParser::new().parse(&label),
+                                &region.map,
+                                &runtime.assets,
+                                rusterix::client::resolver::MessageContext {
+                                    sender_entity: Some(from),
+                                    receiver_entity: Some(to),
+                                    world_time: Some(runtime.client.server_time),
+                                    ..Default::default()
+                                },
+                            )
+                        })
+                        .unwrap_or(label);
+                    let number = if matches!(choice, rusterix::Choice::Cancel(..)) {
+                        0
+                    } else {
+                        index + 1
+                    };
+                    format!("{number}. {label}")
+                })
+                .collect::<Vec<_>>();
+            for label in labels {
+                self.push_plain_line(&label);
+            }
+            if !self.choices.is_empty() {
+                self.push_plain_line(&fl!("text_play_choose"));
+            }
+        }
         self.process_auto_attack(project, server_ctx);
         self.sync_output(ui, ctx);
         self.dirty = false;
         self.appended_since_sync = false;
         self.force_scroll_to_bottom = false;
+    }
+
+    fn prune_choices(&mut self, project: &Project, server_ctx: &ServerContext) {
+        let Some(region) = current_region(project, server_ctx) else {
+            self.choices.clear();
+            return;
+        };
+        let ticks_per_minute = project
+            .config
+            .parse::<Table>()
+            .ok()
+            .and_then(|table| table.get("game")?.get("ticks_per_minute")?.as_integer())
+            .unwrap_or(4)
+            .max(1) as u32;
+        let ticks = RUSTERIX
+            .read()
+            .unwrap()
+            .client
+            .server_time
+            .to_ticks(ticks_per_minute);
+        self.choices.retain(|choice| {
+            let (from, to, expires, distance) = choice.session_meta();
+            ticks <= expires
+                && region
+                    .map
+                    .entities
+                    .iter()
+                    .find(|entity| entity.id == from)
+                    .zip(region.map.entities.iter().find(|entity| entity.id == to))
+                    .is_some_and(|(from, to)| {
+                        from.get_pos_xz().distance(to.get_pos_xz()) <= distance
+                    })
+        });
     }
 
     fn handle_command(
@@ -220,6 +331,21 @@ impl TextGameState {
         project: &mut Project,
         server_ctx: &ServerContext,
     ) -> bool {
+        self.prune_choices(project, server_ctx);
+        if let Ok(number) = input.parse::<usize>() {
+            let selected = selected_text_choice(&self.choices, number).cloned();
+            if let Some(choice) = selected {
+                self.choices.clear();
+                RUSTERIX
+                    .write()
+                    .unwrap()
+                    .server
+                    .local_player_action(EntityAction::Choice(choice));
+                return true;
+            }
+            self.push_plain_line(&fl!("text_play_invalid_choice"));
+            return true;
+        }
         let lower = input.to_ascii_lowercase();
         let direction = match lower.as_str() {
             "n" => "north",
@@ -537,6 +663,42 @@ impl TextGameState {
     }
 }
 
+fn selected_text_choice(choices: &[rusterix::Choice], number: usize) -> Option<&rusterix::Choice> {
+    if number == 0 {
+        choices
+            .iter()
+            .find(|choice| matches!(choice, rusterix::Choice::Cancel(..)))
+    } else {
+        choices
+            .get(number - 1)
+            .filter(|choice| !matches!(choice, rusterix::Choice::Cancel(..)))
+    }
+}
+
+#[cfg(test)]
+mod choice_tests {
+    use super::*;
+
+    #[test]
+    fn text_answers_preserve_runtime_choice_and_cancel_is_zero() {
+        let answer = rusterix::Choice::NodeChoice(rusterix::server::message::NodeChoice {
+            label: "Help Mara".into(),
+            index: 3,
+            from: 7,
+            to: 1,
+            expires_at_tick: 100,
+            max_distance: 4.0,
+        });
+        let cancel = rusterix::Choice::Cancel(7, 1, 100, 4.0);
+        let choices = vec![answer.clone(), cancel.clone()];
+        assert_eq!(selected_text_choice(&choices, 1), Some(&answer));
+        assert_eq!(selected_text_choice(&choices, 0), Some(&cancel));
+        assert!(selected_text_choice(&choices, 2).is_none());
+        assert!(selected_text_choice(&choices, 99).is_none());
+        assert!(selected_text_choice(&[], 1).is_none());
+    }
+}
+
 fn expand_tabs(text: &str, tab_width: usize) -> String {
     let mut expanded = String::new();
 
@@ -841,10 +1003,7 @@ fn trigger_text_intent(
     let Some(region) = current_region(project, server_ctx) else {
         return Some("Current region not found.".into());
     };
-    let Some((_player, sector)) = sg::current_player_and_sector(&region.map) else {
-        return Some("No local player found.".into());
-    };
-    let target = match sg::resolve_text_target(&region.map, sector, query) {
+    let target = match sg::resolve_current_text_target(&region.map, query) {
         Ok(target) => target,
         Err(err) => return Some(err),
     };
@@ -963,7 +1122,7 @@ fn trigger_text_spell(
     let Some(region) = current_region(project, server_ctx) else {
         return Some("Current region not found.".into());
     };
-    let Some((player, _sector)) = sg::current_player_and_sector(&region.map) else {
+    let Some(player) = region.map.entities.iter().find(|entity| entity.is_player()) else {
         return Some("No local player found.".into());
     };
     RUSTERIX

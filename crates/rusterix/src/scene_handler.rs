@@ -19,6 +19,32 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, Chunk, DynamicObject, GeoId, Light, SceneVM};
 use theframework::prelude::*;
 
+#[derive(Default)]
+struct ParticleClock {
+    last_tick: Option<Instant>,
+    remainder: f64,
+}
+
+impl ParticleClock {
+    fn tick(&mut self) -> usize {
+        let now = Instant::now();
+        let elapsed = self
+            .last_tick
+            .replace(now)
+            .map(|last| now.duration_since(last));
+        self.advance(elapsed.map_or(0.0, |elapsed| elapsed.as_secs_f64()))
+    }
+
+    fn advance(&mut self, elapsed: f64) -> usize {
+        // Do not simulate a long editor pause or stall on resuming.
+        let step = 1.0 / SceneHandler::PARTICLE_CLOCK_FPS as f64;
+        self.remainder += elapsed.min(0.25);
+        let steps = ((self.remainder / step) + 1e-9).floor() as usize;
+        self.remainder = (self.remainder - steps as f64 * step).max(0.0);
+        steps
+    }
+}
+
 /// Tracks per-billboard animation state so we can interpolate on visibility changes.
 #[derive(Default)]
 pub(crate) struct BillboardAnimState {
@@ -89,6 +115,65 @@ impl BillboardAnimState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn particle_speed_is_independent_of_update_rate() {
+        for updates_per_second in [4, 10, 15, 30, 60, 144] {
+            let mut clock = ParticleClock::default();
+            let steps: usize = (0..updates_per_second)
+                .map(|_| clock.advance(1.0 / updates_per_second as f64))
+                .sum();
+            assert_eq!(steps, 4, "update rate: {updates_per_second}");
+            assert_eq!(clock.advance(0.0), 0);
+        }
+    }
+
+    #[test]
+    fn particle_clock_limits_catchup_after_a_pause() {
+        let mut clock = ParticleClock::default();
+        assert_eq!(clock.advance(30.0), 1);
+        assert_eq!(clock.advance(0.0), 0);
+        assert_eq!(clock.advance(1.0 / 60.0), 0);
+        assert_eq!(clock.advance(14.0 / 60.0), 1);
+    }
+
+    #[test]
+    fn particle_simulation_preserves_original_editor_pace() {
+        for updates_per_second in [4, 15, 30, 60, 144] {
+            let mut clock = ParticleClock::default();
+            let steps: usize = (0..updates_per_second)
+                .map(|_| clock.advance(1.0 / updates_per_second as f64))
+                .sum();
+            let simulated_seconds = steps as f32 * SceneHandler::PARTICLE_SIM_STEP;
+            // Original editor: one 1/15-second step every 250 ms.
+            assert_eq!(steps, 4);
+            assert!((simulated_seconds - 4.0 / 15.0).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn first_person_hides_only_the_body_at_the_players_camera() {
+        let mut player = Entity::new();
+        player.position = Vec3::new(2.0, 0.0, 3.0);
+        player.set_attribute("player", Value::Bool(true));
+        player.set_attribute("visible", Value::Bool(true));
+        let mut camera = crate::D3FirstPCamera::new();
+        camera.position = player.position + Vec3::unit_y() * 1.7;
+        camera.center = camera.position - Vec3::unit_z();
+        for pitch in [-85.0, 0.0, 85.0] {
+            camera.set_parameter_f32("pitch", pitch);
+            assert!(!SceneHandler::draws_entity_body_3d(&player, &camera));
+        }
+        assert_eq!(player.attributes.get_bool_default("visible", false), true);
+        let mut other = player.clone();
+        other.position.x += 1.0;
+        assert!(SceneHandler::draws_entity_body_3d(&other, &camera));
+        other.position = player.position;
+        other.set_attribute("player", Value::Bool(false));
+        assert!(SceneHandler::draws_entity_body_3d(&other, &camera));
+        let iso = crate::D3IsoCamera::new();
+        assert!(SceneHandler::draws_entity_body_3d(&player, &iso));
+    }
     use crate::server::message::RuntimeRenderState;
     use crate::{
         Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarPerspective, AvatarPerspectiveCount,
@@ -295,6 +380,8 @@ pub struct SceneHandler {
     game_tick_fps: f32,
     pending_particle_steps_2d: usize,
     pending_particle_steps_3d: usize,
+    particle_clock_2d: ParticleClock,
+    particle_clock_3d: ParticleClock,
     particle_debug_stats: ParticleDebugStats,
 }
 
@@ -340,7 +427,10 @@ impl SceneHandler {
     const PARTICLE_SIM_FPS: f32 = 15.0;
     const PARTICLE_SIM_STEP: f32 = 1.0 / Self::PARTICLE_SIM_FPS;
     const MAX_PARTICLE_STEPS_PER_BUILD: usize = 8;
-    const PARTICLE_TIME_SCALE: f32 = 1.0;
+    // Original editor cadence: one 1/15-second simulation step every 250 ms.
+    // Match the update frequency too: each update resamples particle brightness
+    // and turbulence, so smaller steps at render frequency still flicker faster.
+    const PARTICLE_CLOCK_FPS: f32 = 4.0;
 
     pub fn tick_particle_clocks(&mut self) {
         self.tick_particle_clock_2d();
@@ -348,18 +438,20 @@ impl SceneHandler {
     }
 
     pub fn tick_particle_clock_2d(&mut self) {
-        self.pending_particle_steps_2d =
-            (self.pending_particle_steps_2d + 1).min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
+        self.pending_particle_steps_2d = (self.pending_particle_steps_2d
+            + self.particle_clock_2d.tick())
+        .min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
     }
 
     pub fn tick_particle_clock_3d(&mut self) {
-        self.pending_particle_steps_3d =
-            (self.pending_particle_steps_3d + 1).min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
+        self.pending_particle_steps_3d = (self.pending_particle_steps_3d
+            + self.particle_clock_3d.tick())
+        .min(Self::MAX_PARTICLE_STEPS_PER_BUILD);
     }
 
     fn advance_emitter(emitter: &mut ParticleEmitter, steps: usize) {
         for _ in 0..steps {
-            emitter.update(Self::PARTICLE_SIM_STEP * Self::PARTICLE_TIME_SCALE);
+            emitter.update(Self::PARTICLE_SIM_STEP);
         }
     }
 
@@ -2569,6 +2661,10 @@ impl SceneHandler {
         self.builder_emitters_2d.clear();
         self.builder_emitters_3d.clear();
         self.ruleset_fx_first_seen.clear();
+        self.pending_particle_steps_2d = 0;
+        self.pending_particle_steps_3d = 0;
+        self.particle_clock_2d = ParticleClock::default();
+        self.particle_clock_3d = ParticleClock::default();
         self.mark_dynamics_dirty();
     }
 
@@ -2587,6 +2683,8 @@ impl SceneHandler {
         self.ruleset_fx_first_seen.clear();
         self.pending_particle_steps_2d = 0;
         self.pending_particle_steps_3d = 0;
+        self.particle_clock_2d = ParticleClock::default();
+        self.particle_clock_3d = ParticleClock::default();
         self.mark_dynamics_dirty();
     }
 
@@ -2599,6 +2697,8 @@ impl SceneHandler {
         self.builder_emitters_3d.clear();
         self.pending_particle_steps_2d = 0;
         self.pending_particle_steps_3d = 0;
+        self.particle_clock_2d = ParticleClock::default();
+        self.particle_clock_3d = ParticleClock::default();
         self.mark_dynamics_dirty();
     }
 
@@ -2793,6 +2893,8 @@ impl SceneHandler {
             game_tick_fps: 4.0, // default 250ms ticks
             pending_particle_steps_2d: 0,
             pending_particle_steps_3d: 0,
+            particle_clock_2d: ParticleClock::default(),
+            particle_clock_3d: ParticleClock::default(),
             particle_debug_stats: ParticleDebugStats::default(),
         }
     }
@@ -2874,6 +2976,10 @@ impl SceneHandler {
                 hasher.write_u8(5);
                 hasher.write_u32(*a);
                 hasher.write_u32(*b);
+            }
+            PixelSource::Noise(noise) => {
+                hasher.write_u8(16);
+                hasher.write(noise.tile_id().as_bytes());
             }
             PixelSource::Color(c) => {
                 hasher.write_u8(6);
@@ -3138,6 +3244,14 @@ impl SceneHandler {
         }
 
         hasher.finish()
+    }
+
+    fn draws_entity_body_3d(entity: &Entity, camera: &dyn D3Camera) -> bool {
+        let camera_pos = camera.position();
+        let camera_xz = Vec2::new(camera_pos.x, camera_pos.z);
+        !(entity.is_player()
+            && camera.id() == "firstp"
+            && (entity.get_pos_xz() - camera_xz).magnitude_squared() <= 1e-8)
     }
 
     fn dynamics_hash_3d(
@@ -4001,9 +4115,7 @@ impl SceneHandler {
                 continue;
             }
 
-            let show_entity = true; // !(entity.is_player() && camera.id() == "firstp");
-
-            if show_entity {
+            {
                 // Find light on entity
                 if let Some(Value::Light(light)) = entity.attributes.get("light") {
                     self.vm.execute(Atom::AddLight {
@@ -4038,6 +4150,11 @@ impl SceneHandler {
                     }
                 }
 
+                // First-person body suppression is local to this view, independent of
+                // entity visibility. Keep the player's and carried items' lights above.
+                if !Self::draws_entity_body_3d(entity, camera) {
+                    continue;
+                }
                 let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
                 let pos_xz = entity.get_pos_xz();
                 let mut ground_y = map
@@ -4299,7 +4416,8 @@ impl SceneHandler {
                 });
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
                 selection_bounds = (geo_id, center3, view_right, view_up, size, size);
-            } else {
+            } else if !item.attributes.get_bool_default("is_ruleset_fx", false) {
+                // Particle-only combat effects have no item sprite or editor marker.
                 let dynamic = DynamicObject::billboard_tile(
                     geo_id,
                     self.item_off,

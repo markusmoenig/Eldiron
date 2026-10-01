@@ -228,6 +228,9 @@ impl WallNode {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WallSpan {
     pub id: Uuid,
+    /// Optional shared pattern for this span; otherwise the assembly pattern applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern_id: Option<Uuid>,
     pub start_node: Uuid,
     pub end_node: Uuid,
     /// Signed perpendicular displacement of the quadratic path control point. Zero is straight.
@@ -253,26 +256,68 @@ pub struct WallSurfaceEdge {
 /// A horizontal surface fitted to one bounded face of the connected wall graph.
 /// Keeping the directed span boundary instead of baked vertices lets the surface follow later
 /// wall-node moves and curve edits.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+pub enum WallAreaSurfaceKind {
+    #[default]
+    Floor,
+    Ceiling,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WallAreaSurface {
     pub id: Uuid,
+    /// Project-level construction pattern. The applied values below remain a renderable snapshot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern_id: Option<Uuid>,
+    #[serde(default)]
+    pub kind: WallAreaSurfaceKind,
+    /// Free outline for authored areas that do not follow a wall-span loop.
+    /// Boundary-linked surfaces leave this empty and follow their source nodes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub outline: Vec<Vec3<f32>>,
     pub boundary: Vec<WallSurfaceEdge>,
     pub elevation: f32,
     pub thickness: f32,
     pub clearance: f32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub texture_scale: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<PixelSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side_source: Option<PixelSource>,
+    /// Optional shallow slab pattern on the visible side of a floor or ceiling.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subdivision: Option<WallSurfaceSubdivision>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct WallSurfaceSubdivision {
+    pub cell_size: f32,
+    /// Optional second axis size; old surface patterns remain square.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cell_size_v: Option<f32>,
+    pub gap: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub alternate_source: Option<PixelSource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grout_source: Option<PixelSource>,
 }
 
 impl WallAreaSurface {
     pub fn new(boundary: Vec<WallSurfaceEdge>) -> Self {
         Self {
             id: Uuid::new_v4(),
+            pattern_id: None,
+            kind: WallAreaSurfaceKind::Floor,
+            outline: Vec::new(),
             boundary,
             elevation: 0.25,
             thickness: 0.08,
             clearance: 0.015,
+            texture_scale: None,
             source: None,
+            side_source: None,
+            subdivision: None,
         }
     }
 }
@@ -546,6 +591,9 @@ impl WallPath {
 pub struct WallAssembly {
     pub id: Uuid,
     pub name: String,
+    /// Shared project-level construction pattern. `style` is its renderable snapshot.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern_id: Option<Uuid>,
     #[serde(default)]
     pub nodes: Vec<WallNode>,
     #[serde(default)]
@@ -565,6 +613,7 @@ impl WallAssembly {
         Self {
             id: Uuid::new_v4(),
             name: name.into(),
+            pattern_id: None,
             nodes: Vec::new(),
             spans: Vec::new(),
             style: WallStyle::default(),
@@ -656,6 +705,42 @@ impl WallAssembly {
         self.area_surfaces
             .iter()
             .find(|surface| surface.id == surface_id)
+    }
+
+    /// Compare a proposed free outline with both free and boundary-linked authored surfaces.
+    pub fn has_area_surface_outline(
+        &self,
+        kind: WallAreaSurfaceKind,
+        proposed: &[Vec3<f32>],
+    ) -> bool {
+        self.area_surfaces.iter().any(|surface| {
+            if surface.kind != kind {
+                return false;
+            }
+            let existing = if surface.outline.is_empty() {
+                self.wall_surface_boundary_outline(&surface.boundary)
+            } else {
+                Some(surface.outline.clone())
+            };
+            let Some(existing) = existing else {
+                return false;
+            };
+            if existing.len() != proposed.len() {
+                return false;
+            }
+            let near =
+                |a: Vec3<f32>, b: Vec3<f32>| (a.x - b.x).abs() < 0.01 && (a.z - b.z).abs() < 0.01;
+            (0..existing.len()).any(|shift| {
+                (0..existing.len())
+                    .all(|index| near(existing[(index + shift) % existing.len()], proposed[index]))
+                    || (0..existing.len()).all(|index| {
+                        near(
+                            existing[(shift + existing.len() - index) % existing.len()],
+                            proposed[index],
+                        )
+                    })
+            })
+        })
     }
 
     pub fn area_surface_mut(&mut self, surface_id: Uuid) -> Option<&mut WallAreaSurface> {
@@ -888,6 +973,7 @@ impl WallAssembly {
         let id = Uuid::new_v4();
         self.spans.push(WallSpan {
             id,
+            pattern_id: None,
             start_node,
             end_node,
             curve_offset: 0.0,
@@ -1047,6 +1133,33 @@ impl WallAssembly {
         Vec3::new(direction.x, 0.0, direction.z).try_normalized()
     }
 
+    fn junction_bond_spans(&self, node_id: Uuid) -> Vec<&WallSpan> {
+        self.connected_spans(node_id)
+            .filter(|span| {
+                let style = span.style_override.as_ref().unwrap_or(&self.style);
+                let endpoint = if span.start_node == node_id {
+                    0.0
+                } else {
+                    self.span_length(span.id).unwrap_or(0.0)
+                };
+                !span.openings.iter().any(|opening| {
+                    opening.shape == WallOpeningShape::Rectangular
+                        && opening.bottom <= 1e-5
+                        && opening.bottom + opening.height >= style.height - 1e-5
+                        && opening.center - opening.width * 0.5 <= endpoint + 1e-5
+                        && opening.center + opening.width * 0.5 >= endpoint - 1e-5
+                })
+            })
+            .collect()
+    }
+
+    fn junction_bond_style<'a>(&'a self, incident: &[&'a WallSpan]) -> Option<&'a WallStyle> {
+        incident
+            .iter()
+            .map(|span| span.style_override.as_ref().unwrap_or(&self.style))
+            .max_by(|a, b| a.height.total_cmp(&b.height))
+    }
+
     fn junction_inset_for_course(
         &self,
         span: &WallSpan,
@@ -1054,8 +1167,9 @@ impl WallAssembly {
         course: i32,
         style: &WallStyle,
     ) -> f32 {
-        let directions = self
-            .connected_spans(node_id)
+        let incident = self.junction_bond_spans(node_id);
+        let directions = incident
+            .iter()
             .filter_map(|incident| self.span_direction_from_node(incident, node_id))
             .collect::<Vec<_>>();
         if directions.len() < 2 {
@@ -1064,16 +1178,36 @@ impl WallAssembly {
         let Some(span_direction) = self.span_direction_from_node(span, node_id) else {
             return 0.0;
         };
-        let bond_direction = directions[course.rem_euclid(directions.len() as i32) as usize];
-        let layout = wall_masonry_layout(style);
-        let half_length = layout.stone_width.max(style.thickness * 1.35).max(0.05) * 0.5;
-        let half_depth = style.thickness * (0.54 + style.irregularity.clamp(0.0, 1.0) * 0.06);
+        let Some(bond_style) = self.junction_bond_style(&incident) else {
+            return 0.0;
+        };
+        let span_layout = wall_masonry_layout(style);
+        let layout = wall_masonry_layout(bond_style);
+        let span_pitch = span_layout.course_height
+            + style
+                .mortar_gap
+                .max(0.0)
+                .min(span_layout.stone_width.min(span_layout.course_height) * 0.45);
+        let bond_pitch = layout.course_height
+            + bond_style
+                .mortar_gap
+                .max(0.0)
+                .min(layout.stone_width.min(layout.course_height) * 0.45);
+        let bond_course = ((course as f32 * span_pitch) / bond_pitch).floor().max(0.0) as usize;
+        let bond_direction = directions[bond_course % directions.len()];
+        let half_length = layout
+            .stone_width
+            .max(bond_style.thickness * 1.35)
+            .max(0.05)
+            * 0.5;
+        let half_depth =
+            bond_style.thickness * (0.54 + bond_style.irregularity.clamp(0.0, 1.0) * 0.06);
         let bond_perpendicular = Vec3::new(-bond_direction.z, 0.0, bond_direction.x);
         // Project the bonded corner stone's oriented bounds onto this span. Every incident span
         // stops outside that owned volume, so the corner is interlocked without duplicate blocks.
         span_direction.dot(bond_direction).abs() * half_length
             + span_direction.dot(bond_perpendicular).abs() * half_depth
-            + style.mortar_gap.max(0.0) * 0.5
+            + bond_style.mortar_gap.max(0.0) * 0.5
     }
 
     fn closed_floor_outline(&self) -> Option<Vec<Vec3<f32>>> {
@@ -1308,6 +1442,194 @@ impl WallAssembly {
             .map(|(_, boundary)| boundary)
     }
 
+    /// Find enclosed areas for bulk floor/ceiling creation. Short, aligned gaps are closed only
+    /// in this temporary graph; no wall is added to the authored assembly. This lets a doorway
+    /// remain a gap while the rooms on either side can still have fitted surfaces.
+    pub fn inferred_surface_outlines(&self, maximum_gap: f32) -> Vec<(Vec<Vec3<f32>>, f32)> {
+        let maximum_gap = maximum_gap.max(0.0);
+        let mut analysis = self.clone();
+        let authored_spans = self
+            .spans
+            .iter()
+            .map(|span| span.id)
+            .collect::<std::collections::HashSet<_>>();
+        let nodes = self.nodes.iter().map(|node| node.id).collect::<Vec<_>>();
+        let mut virtual_spans = std::collections::HashSet::new();
+        for (index, start_id) in nodes.iter().copied().enumerate() {
+            let Some(start) = self.node(start_id).map(|node| node.position) else {
+                continue;
+            };
+            for end_id in nodes.iter().copied().skip(index + 1) {
+                let Some(end) = self.node(end_id).map(|node| node.position) else {
+                    continue;
+                };
+                if (start.y - end.y).abs() > 0.05 {
+                    continue;
+                }
+                let along_x = (start.z - end.z).abs() < 0.01;
+                let along_z = (start.x - end.x).abs() < 0.01;
+                let gap = if along_x {
+                    (start.x - end.x).abs()
+                } else if along_z {
+                    (start.z - end.z).abs()
+                } else {
+                    continue;
+                };
+                if gap < 0.01 || gap > maximum_gap + 0.01 {
+                    continue;
+                }
+                let between = |point: Vec3<f32>| {
+                    if along_x {
+                        (point.z - start.z).abs() < 0.01
+                            && point.x > start.x.min(end.x) + 0.01
+                            && point.x < start.x.max(end.x) - 0.01
+                    } else {
+                        (point.x - start.x).abs() < 0.01
+                            && point.z > start.z.min(end.z) + 0.01
+                            && point.z < start.z.max(end.z) - 0.01
+                    }
+                };
+                if self
+                    .nodes
+                    .iter()
+                    .any(|node| node.id != start_id && node.id != end_id && between(node.position))
+                {
+                    continue;
+                }
+                let covered = self.spans.iter().any(|span| {
+                    if span.curve_offset.abs() > 0.01 {
+                        return false;
+                    }
+                    let (Some(a), Some(b)) = (
+                        self.node(span.start_node).map(|node| node.position),
+                        self.node(span.end_node).map(|node| node.position),
+                    ) else {
+                        return false;
+                    };
+                    if along_x {
+                        (a.z - start.z).abs() < 0.01
+                            && (b.z - start.z).abs() < 0.01
+                            && a.x.min(b.x) <= start.x.min(end.x) + 0.01
+                            && a.x.max(b.x) >= start.x.max(end.x) - 0.01
+                    } else {
+                        (a.x - start.x).abs() < 0.01
+                            && (b.x - start.x).abs() < 0.01
+                            && a.z.min(b.z) <= start.z.min(end.z) + 0.01
+                            && a.z.max(b.z) >= start.z.max(end.z) - 0.01
+                    }
+                });
+                let crosses = analysis.spans.iter().any(|span| {
+                    let (Some(a), Some(b)) = (
+                        analysis.node(span.start_node).map(|node| node.position),
+                        analysis.node(span.end_node).map(|node| node.position),
+                    ) else {
+                        return false;
+                    };
+                    if along_x && (a.x - b.x).abs() < 0.01 {
+                        a.x > start.x.min(end.x) + 0.01
+                            && a.x < start.x.max(end.x) - 0.01
+                            && start.z > a.z.min(b.z) + 0.01
+                            && start.z < a.z.max(b.z) - 0.01
+                    } else if along_z && (a.z - b.z).abs() < 0.01 {
+                        a.z > start.z.min(end.z) + 0.01
+                            && a.z < start.z.max(end.z) - 0.01
+                            && start.x > a.x.min(b.x) + 0.01
+                            && start.x < a.x.max(b.x) - 0.01
+                    } else {
+                        false
+                    }
+                });
+                if !covered
+                    && !crosses
+                    && let Ok(span_id) = analysis.add_span(start_id, end_id)
+                {
+                    virtual_spans.insert(span_id);
+                }
+            }
+        }
+
+        let faces = analysis.wall_surface_faces().unwrap_or_default();
+        let exterior_virtual = faces
+            .iter()
+            .filter(|(area, _)| *area < 0.0)
+            .min_by(|left, right| left.0.total_cmp(&right.0))
+            .map(|(_, boundary)| {
+                boundary
+                    .iter()
+                    .filter(|edge| virtual_spans.contains(&edge.span_id))
+                    .map(|edge| edge.span_id)
+                    .collect::<std::collections::HashSet<_>>()
+            })
+            .unwrap_or_default();
+        let mut regions = Vec::new();
+        for (area, boundary) in faces {
+            if area <= 1e-5
+                || !boundary
+                    .iter()
+                    .any(|edge| authored_spans.contains(&edge.span_id))
+            {
+                continue;
+            }
+            let Some(outline) = analysis.wall_surface_boundary_outline(&boundary) else {
+                continue;
+            };
+            let (min_x, max_x, min_z, max_z) = outline.iter().fold(
+                (
+                    f32::INFINITY,
+                    f32::NEG_INFINITY,
+                    f32::INFINITY,
+                    f32::NEG_INFINITY,
+                ),
+                |(min_x, max_x, min_z, max_z), point| {
+                    (
+                        min_x.min(point.x),
+                        max_x.max(point.x),
+                        min_z.min(point.z),
+                        max_z.max(point.z),
+                    )
+                },
+            );
+            let mut real_sides = [false; 4];
+            let mut heights = Vec::new();
+            for edge in &boundary {
+                if !authored_spans.contains(&edge.span_id) {
+                    continue;
+                }
+                let Some(span) = self.span(edge.span_id) else {
+                    continue;
+                };
+                heights.push(span.style_override.as_ref().unwrap_or(&self.style).height);
+                let (Some(a), Some(b)) = (
+                    self.node(span.start_node).map(|node| node.position),
+                    self.node(span.end_node).map(|node| node.position),
+                ) else {
+                    continue;
+                };
+                real_sides[0] |= (a.x - min_x).abs() < 0.01 && (b.x - min_x).abs() < 0.01;
+                real_sides[1] |= (a.x - max_x).abs() < 0.01 && (b.x - max_x).abs() < 0.01;
+                real_sides[2] |= (a.z - min_z).abs() < 0.01 && (b.z - min_z).abs() < 0.01;
+                real_sides[3] |= (a.z - max_z).abs() < 0.01 && (b.z - max_z).abs() < 0.01;
+            }
+            let touches_exterior_gap = boundary
+                .iter()
+                .any(|edge| exterior_virtual.contains(&edge.span_id));
+            let real_side_count = real_sides.iter().filter(|side| **side).count();
+            if touches_exterior_gap
+                && (real_side_count < 3
+                    || (real_side_count == 3 && area <= maximum_gap * maximum_gap))
+            {
+                continue;
+            }
+            // A room's low doorway/corridor wall must not pull its ceiling below taller walls.
+            let ceiling_height = heights
+                .into_iter()
+                .reduce(f32::max)
+                .unwrap_or(self.style.height);
+            regions.push((outline, ceiling_height));
+        }
+        regions
+    }
+
     fn wall_surface_faces(&self) -> Option<Vec<(f32, Vec<WallSurfaceEdge>)>> {
         let half_edges = self
             .spans
@@ -1422,20 +1744,24 @@ impl WallAssembly {
     }
 
     fn area_surface_geometry(&self, surface: &WallAreaSurface) -> Option<GeometryObject> {
-        let mut outline = self.wall_surface_boundary_outline(&surface.boundary)?;
-        if Self::wall_surface_polygon_area(&outline) < 0.0 {
-            outline.reverse();
-        }
-        outline = Self::inset_wall_surface_outline(&outline, surface.clearance.max(0.0))?;
-        let base_y = surface
-            .boundary
+        let mut outline = if surface.outline.is_empty() {
+            self.wall_surface_boundary_outline(&surface.boundary)?
+        } else if surface.outline.len() >= 3 {
+            surface.outline.clone()
+        } else {
+            return None;
+        };
+        let base_y = outline
             .iter()
-            .filter_map(|edge| self.wall_surface_edge_nodes(*edge))
-            .filter_map(|(node, _)| self.node(node).map(|node| node.position.y))
+            .map(|point| point.y)
             .fold(f32::INFINITY, f32::min);
         if !base_y.is_finite() {
             return None;
         }
+        if Self::wall_surface_polygon_area(&outline) < 0.0 {
+            outline.reverse();
+        }
+        outline = Self::inset_wall_surface_outline(&outline, surface.clearance.max(0.0))?;
         let top_y = base_y + surface.elevation;
         let thickness = surface.thickness.max(0.005);
         for point in &mut outline {
@@ -1449,7 +1775,11 @@ impl WallAssembly {
             .clone()
             .unwrap_or_else(|| self.floor_pixel_source());
         let count = outline.len();
-        let mut object = GeometryObject::new(format!("{} / Area Surface", self.name));
+        let label = match surface.kind {
+            WallAreaSurfaceKind::Floor => "Floor",
+            WallAreaSurfaceKind::Ceiling => "Ceiling",
+        };
+        let mut object = GeometryObject::new(format!("{} / {label}", self.name));
         object.id = generated_wall_surface_object_id(surface.id);
         object.kind = GeometryObjectKind::Generated;
         object.vertices.extend(outline.iter().copied());
@@ -1458,17 +1788,29 @@ impl WallAssembly {
                 .iter()
                 .map(|point| *point - Vec3::unit_y() * thickness),
         );
+        let grout = surface
+            .subdivision
+            .as_ref()
+            .and_then(|division| division.grout_source.as_ref());
         object.faces.push(wall_face(
             surface.id,
             0,
             (0..count).collect(),
-            Some(&source),
+            Some(if surface.kind == WallAreaSurfaceKind::Floor {
+                grout.unwrap_or(&source)
+            } else {
+                &source
+            }),
         ));
         object.faces.push(wall_face(
             surface.id,
             1,
             (count..count * 2).rev().collect(),
-            Some(&source),
+            Some(if surface.kind == WallAreaSurfaceKind::Ceiling {
+                grout.unwrap_or(&source)
+            } else {
+                &source
+            }),
         ));
         for index in 0..count {
             let next = (index + 1) % count;
@@ -1476,9 +1818,17 @@ impl WallAssembly {
                 surface.id,
                 index + 2,
                 vec![index, count + index, count + next, next],
-                Some(&source),
+                Some(surface.side_source.as_ref().unwrap_or(&source)),
             ));
         }
+        if let Some(division) = &surface.subdivision {
+            Self::add_area_surface_subdivision(&mut object, surface, &outline, &source, division);
+        }
+        if surface.kind == WallAreaSurfaceKind::Ceiling {
+            self.add_ceiling_transitions(&mut object, surface, &source);
+            self.add_ceiling_wall_closures(&mut object, surface);
+        }
+
         object.tags.push(GENERATED_WALL_TAG.to_string());
         object
             .properties
@@ -1488,12 +1838,274 @@ impl WallAssembly {
             .set("wall_area_surface_id", Value::Id(surface.id));
         object
             .properties
+            .set("wall_area_surface_kind", Value::Str(label.to_lowercase()));
+        object
+            .properties
             .set("wall_area_surface", Value::Bool(true));
         for face in &mut object.faces {
-            face.texture_scale = vek::Vec2::broadcast(self.style.texture_scale.max(0.001));
+            face.texture_scale = vek::Vec2::broadcast(
+                surface
+                    .texture_scale
+                    .unwrap_or(self.style.texture_scale)
+                    .max(0.001),
+            );
         }
         object.ensure_face_paint_data();
         Some(object)
+    }
+
+    /// Close the exposed height step between adjacent ceiling slabs. Keep the closure with the
+    /// higher slab so editing visibility, materials and regeneration follow the ceiling itself.
+    fn add_ceiling_transitions(
+        &self,
+        object: &mut GeometryObject,
+        surface: &WallAreaSurface,
+        source: &PixelSource,
+    ) {
+        let get_outline = |surface: &WallAreaSurface| {
+            if surface.outline.is_empty() {
+                self.wall_surface_boundary_outline(&surface.boundary)
+            } else {
+                Some(surface.outline.clone())
+            }
+        };
+        let Some(outline) = get_outline(surface) else {
+            return;
+        };
+        let base = outline.iter().map(|p| p.y).fold(f32::INFINITY, f32::min);
+        let high_y = base + surface.elevation - surface.thickness.max(0.005);
+        let cross = |a: vek::Vec2<f32>, b: vek::Vec2<f32>| a.x * b.y - a.y * b.x;
+        for other in &self.area_surfaces {
+            if other.id == surface.id || other.kind != WallAreaSurfaceKind::Ceiling {
+                continue;
+            }
+            let Some(other_outline) = get_outline(other) else {
+                continue;
+            };
+            let other_base = other_outline
+                .iter()
+                .map(|p| p.y)
+                .fold(f32::INFINITY, f32::min);
+            let low_y = other_base + other.elevation - other.thickness.max(0.005);
+            if !low_y.is_finite() || high_y <= low_y + 0.01 {
+                continue;
+            }
+            for i in 0..outline.len() {
+                let a = vek::Vec2::new(outline[i].x, outline[i].z);
+                let next = outline[(i + 1) % outline.len()];
+                let b = vek::Vec2::new(next.x, next.z);
+                let length = (b - a).magnitude();
+                if length < 0.001 {
+                    continue;
+                }
+                let direction = (b - a) / length;
+                for j in 0..other_outline.len() {
+                    let c = vek::Vec2::new(other_outline[j].x, other_outline[j].z);
+                    let next = other_outline[(j + 1) % other_outline.len()];
+                    let d = vek::Vec2::new(next.x, next.z);
+                    if cross(direction, c - a).abs() > 0.01 || cross(direction, d - a).abs() > 0.01
+                    {
+                        continue;
+                    }
+                    let tc = (c - a).dot(direction);
+                    let td = (d - a).dot(direction);
+                    let start = tc.min(td).max(0.0);
+                    let end = tc.max(td).min(length);
+                    if end - start < 0.01 {
+                        continue;
+                    }
+                    let p = a + direction * start;
+                    let q = a + direction * end;
+                    let depth = surface.thickness.max(0.005) * 0.5;
+                    let side = vek::Vec2::new(-direction.y, direction.x) * depth;
+                    let vertex = |p: vek::Vec2<f32>, y| Vec3::new(p.x, y, p.y);
+                    let offset = object.vertices.len();
+                    object.vertices.extend([
+                        vertex(p - side, low_y),
+                        vertex(q - side, low_y),
+                        vertex(q + side, low_y),
+                        vertex(p + side, low_y),
+                        vertex(p - side, high_y),
+                        vertex(q - side, high_y),
+                        vertex(q + side, high_y),
+                        vertex(p + side, high_y),
+                    ]);
+                    for face in [
+                        vec![0, 3, 2, 1],
+                        vec![4, 5, 6, 7],
+                        vec![0, 1, 5, 4],
+                        vec![1, 2, 6, 5],
+                        vec![2, 3, 7, 6],
+                        vec![3, 0, 4, 7],
+                    ] {
+                        let index = object.faces.len();
+                        object.faces.push(wall_face(
+                            surface.id,
+                            index,
+                            face.into_iter().map(|i| offset + i).collect(),
+                            Some(source),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    /// Fill the band between a low boundary wall and the ceiling above it. Open doorway
+    /// boundaries have no authored span, so remain open below their ceiling transitions.
+    fn add_ceiling_wall_closures(&self, object: &mut GeometryObject, surface: &WallAreaSurface) {
+        let outline = if surface.outline.is_empty() {
+            self.wall_surface_boundary_outline(&surface.boundary)
+                .unwrap_or_default()
+        } else {
+            surface.outline.clone()
+        };
+        let ceiling_y = outline.iter().map(|p| p.y).fold(f32::INFINITY, f32::min)
+            + surface.elevation
+            - surface.thickness.max(0.005);
+        if !ceiling_y.is_finite() {
+            return;
+        }
+        let cross = |a: vek::Vec2<f32>, b: vek::Vec2<f32>| a.x * b.y - a.y * b.x;
+        for span in &self.spans {
+            let (Some(start), Some(end)) = (self.node(span.start_node), self.node(span.end_node))
+            else {
+                continue;
+            };
+            let style = span.style_override.as_ref().unwrap_or(&self.style);
+            let low_y = start.position.y.max(end.position.y) + style.height;
+            if ceiling_y <= low_y + 0.001 || span.curve_offset.abs() > 0.001 {
+                continue;
+            }
+            let a = vek::Vec2::new(start.position.x, start.position.z);
+            let b = vek::Vec2::new(end.position.x, end.position.z);
+            let length = (b - a).magnitude();
+            if length <= 0.001 {
+                continue;
+            }
+            let direction = (b - a) / length;
+            for i in 0..outline.len() {
+                let c = vek::Vec2::new(outline[i].x, outline[i].z);
+                let next = outline[(i + 1) % outline.len()];
+                let d = vek::Vec2::new(next.x, next.z);
+                if cross(direction, c - a).abs() > 0.01 || cross(direction, d - a).abs() > 0.01 {
+                    continue;
+                }
+                let tc = (c - a).dot(direction);
+                let td = (d - a).dot(direction);
+                let lo = tc.min(td).max(0.0);
+                let hi = tc.max(td).min(length);
+                if hi - lo <= 0.01 {
+                    continue;
+                }
+                let p = a + direction * lo;
+                let q = a + direction * hi;
+                let side = vek::Vec2::new(-direction.y, direction.x) * (style.thickness * 0.5);
+                let vertex = |p: vek::Vec2<f32>, y| Vec3::new(p.x, y, p.y);
+                let offset = object.vertices.len();
+                object.vertices.extend([
+                    vertex(p - side, low_y),
+                    vertex(q - side, low_y),
+                    vertex(q + side, low_y),
+                    vertex(p + side, low_y),
+                    vertex(p - side, ceiling_y),
+                    vertex(q - side, ceiling_y),
+                    vertex(q + side, ceiling_y),
+                    vertex(p + side, ceiling_y),
+                ]);
+                let source = style
+                    .stone_source
+                    .clone()
+                    .unwrap_or_else(|| self.floor_pixel_source());
+                for face in [
+                    vec![0, 3, 2, 1],
+                    vec![4, 5, 6, 7],
+                    vec![0, 1, 5, 4],
+                    vec![1, 2, 6, 5],
+                    vec![2, 3, 7, 6],
+                    vec![3, 0, 4, 7],
+                ] {
+                    object.faces.push(wall_face(
+                        surface.id,
+                        object.faces.len(),
+                        face.into_iter().map(|i| offset + i).collect(),
+                        Some(&source),
+                    ));
+                }
+            }
+        }
+    }
+
+    fn add_area_surface_subdivision(
+        object: &mut GeometryObject,
+        surface: &WallAreaSurface,
+        outline: &[Vec3<f32>],
+        source: &PixelSource,
+        division: &WallSurfaceSubdivision,
+    ) {
+        // A quadrilateral can be subdivided without changing its outer collision face. Other
+        // outlines retain their ordinary solid surface until a polygon-aware subdivision arrives.
+        if outline.len() != 4 || !division.cell_size.is_finite() || division.cell_size <= 0.0 {
+            return;
+        }
+        let edge_u = (outline[1] - outline[0]).magnitude();
+        let edge_v = (outline[3] - outline[0]).magnitude();
+        if edge_u <= 0.001 || edge_v <= 0.001 {
+            return;
+        }
+        let cols = (edge_u / division.cell_size).ceil().clamp(1.0, 32.0) as usize;
+        let size_v = division.cell_size_v.unwrap_or(division.cell_size);
+        if !size_v.is_finite() || size_v <= 0.0 {
+            return;
+        }
+        let rows = (edge_v / size_v).ceil().clamp(1.0, 32.0) as usize;
+        let gap_u = (division.gap.max(0.0) / edge_u * 0.5).min(0.4 / cols as f32);
+        let gap_v = (division.gap.max(0.0) / edge_v * 0.5).min(0.4 / rows as f32);
+        let visible_y = if surface.kind == WallAreaSurfaceKind::Floor {
+            outline[0].y + 0.006
+        } else {
+            outline[0].y - surface.thickness.max(0.005) - 0.006
+        };
+        let point = |u: f32, v: f32| {
+            let p = outline[0] * ((1.0 - u) * (1.0 - v))
+                + outline[1] * (u * (1.0 - v))
+                + outline[2] * (u * v)
+                + outline[3] * ((1.0 - u) * v);
+            Vec3::new(p.x, visible_y, p.z)
+        };
+        let face_offset = object.faces.len();
+        for row in 0..rows {
+            for col in 0..cols {
+                let u0 = col as f32 / cols as f32 + gap_u;
+                let u1 = (col + 1) as f32 / cols as f32 - gap_u;
+                let v0 = row as f32 / rows as f32 + gap_v;
+                let v1 = (row + 1) as f32 / rows as f32 - gap_v;
+                let start = object.vertices.len();
+                object.vertices.extend([
+                    point(u0, v0),
+                    point(u1, v0),
+                    point(u1, v1),
+                    point(u0, v1),
+                ]);
+                let alternating = (row + col) % 2 != 0;
+                let material = if alternating {
+                    division.alternate_source.as_ref().unwrap_or(source)
+                } else {
+                    source
+                };
+                let indices = if surface.kind == WallAreaSurfaceKind::Floor {
+                    vec![start, start + 1, start + 2, start + 3]
+                } else {
+                    vec![start + 3, start + 2, start + 1, start]
+                };
+                object.faces.push(wall_face(
+                    surface.id,
+                    face_offset + row * cols + col,
+                    indices,
+                    Some(material),
+                ));
+            }
+        }
     }
 
     fn structural_floor_geometry(&self) -> Option<GeometryObject> {
@@ -1557,26 +2169,10 @@ impl WallAssembly {
         }
         // A full-height opening reaching an endpoint leaves no masonry there.
         // Do not generate a solid junction post across an otherwise open boundary.
-        let incident = self
-            .connected_spans(node.id)
-            .filter(|span| {
-                let style = span.style_override.as_ref().unwrap_or(&self.style);
-                let endpoint = if span.start_node == node.id {
-                    0.0
-                } else {
-                    self.span_length(span.id).unwrap_or(0.0)
-                };
-                !span.openings.iter().any(|opening| {
-                    opening.shape == WallOpeningShape::Rectangular
-                        && opening.bottom <= 1e-5
-                        && opening.bottom + opening.height >= style.height - 1e-5
-                        && opening.center - opening.width * 0.5 <= endpoint + 1e-5
-                        && opening.center + opening.width * 0.5 >= endpoint - 1e-5
-                })
-            })
-            .collect::<Vec<_>>();
+        let incident = self.junction_bond_spans(node.id);
         let primary_span = *incident.first()?;
-        let style = primary_span.style_override.as_ref().unwrap_or(&self.style);
+        // The corner owns the volume trimmed from every incident span, including taller ones.
+        let style = self.junction_bond_style(&incident)?;
         if style.height <= 0.0 || style.thickness <= 0.0 {
             return None;
         }
@@ -3909,6 +4505,204 @@ mod tests {
     use super::*;
 
     #[test]
+    fn inferred_ceiling_uses_tallest_boundary_and_height_steps_are_closed() {
+        let mut wall = WallAssembly::new("Room");
+        let nodes = [
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, 4.0),
+        ]
+        .map(|p| wall.add_node(p));
+        wall.style.height = 2.25;
+        for i in 0..4 {
+            let id = wall.add_span(nodes[i], nodes[(i + 1) % 4]).unwrap();
+            if i == 0 {
+                let style = WallStyle {
+                    height: 4.25,
+                    ..wall.style.clone()
+                };
+                wall.span_mut(id).unwrap().style_override = Some(style);
+            }
+        }
+        assert_eq!(wall.inferred_surface_outlines(4.0)[0].1, 4.25);
+        let mut low = WallAreaSurface::new(Vec::new());
+        low.kind = WallAreaSurfaceKind::Ceiling;
+        low.outline = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, 4.0),
+        ];
+        low.elevation = 2.33;
+        low.thickness = 0.08;
+        low.clearance = 0.0;
+        let mut high = low.clone();
+        high.id = Uuid::new_v4();
+        high.outline.iter_mut().for_each(|p| p.x += 4.0);
+        high.elevation = 4.33;
+        wall.area_surfaces = vec![low.clone(), high.clone()];
+        let low_object = wall.area_surface_geometry(&low).unwrap();
+        let high_object = wall.area_surface_geometry(&high).unwrap();
+        assert_eq!(low_object.faces.len(), 6);
+        assert!(high_object.faces.len() >= 12);
+        let transition = &high_object.vertices[8..16];
+        assert!(transition.iter().all(|p| (p.x - 4.0).abs() <= 0.041));
+        assert!(transition.iter().any(|p| (p.y - 2.25).abs() < 1e-4));
+        assert!(transition.iter().any(|p| (p.y - 4.25).abs() < 1e-4));
+    }
+
+    #[test]
+    fn ceiling_closes_above_short_walls_without_filling_doorways() {
+        let mut wall = WallAssembly::new("Mixed height room");
+        wall.style.height = 2.25;
+        wall.style.thickness = 0.2;
+        let points = [
+            Vec3::new(0., 0., 0.),
+            Vec3::new(4., 0., 0.),
+            Vec3::new(4., 0., 4.),
+            Vec3::new(0., 0., 4.),
+        ];
+        let ids = points.map(|p| wall.add_node(p));
+        // Leave the fourth edge open: it is not an authored wall to extend.
+        for i in 0..3 {
+            wall.add_span(ids[i], ids[i + 1]).unwrap();
+        }
+        let mut ceiling = WallAreaSurface::new(Vec::new());
+        ceiling.kind = WallAreaSurfaceKind::Ceiling;
+        ceiling.outline = points.to_vec();
+        ceiling.elevation = 4.33;
+        ceiling.thickness = 0.08;
+        ceiling.clearance = 0.;
+        let object = wall.area_surface_geometry(&ceiling).unwrap();
+        assert_eq!(object.faces.len(), 6 + 3 * 6);
+        for band in object.vertices[8..].chunks_exact(8) {
+            assert!(band[..4].iter().all(|p| (p.y - 2.25).abs() < 1e-4));
+            assert!(band[4..].iter().all(|p| (p.y - 4.25).abs() < 1e-4));
+        }
+    }
+
+    #[test]
+    fn mixed_height_junction_bonds_reach_the_tallest_span_in_either_order() {
+        for tall_first in [false, true] {
+            let mut wall = WallAssembly::new("Mixed height corner");
+            wall.style.height = 2.25;
+            wall.style.thickness = 0.2;
+            let center = wall.add_node(Vec3::zero());
+            let east = wall.add_node(Vec3::new(3., 0., 0.));
+            let north = wall.add_node(Vec3::new(0., 0., 3.));
+            for (endpoint, height) in if tall_first {
+                [(east, 4.25), (north, 2.25)]
+            } else {
+                [(north, 2.25), (east, 4.25)]
+            } {
+                let id = wall.add_span(center, endpoint).unwrap();
+                let mut style = wall.style.clone();
+                style.height = height;
+                wall.span_mut(id).unwrap().style_override = Some(style);
+            }
+            let bond = wall
+                .structural_junction_geometry(wall.node(center).unwrap())
+                .unwrap();
+            let top = bond
+                .vertices
+                .iter()
+                .map(|p| p.y)
+                .fold(f32::NEG_INFINITY, f32::max);
+            assert!((top - 4.25).abs() < 0.001, "corner was truncated at {top}");
+            let incident = wall.junction_bond_spans(center);
+            assert_eq!(wall.junction_bond_style(&incident).unwrap().height, 4.25);
+        }
+    }
+
+    #[test]
+    fn legacy_area_surfaces_default_to_floor() {
+        let surface = WallAreaSurface::new(Vec::new());
+        let mut value = serde_json::to_value(&surface).unwrap();
+        value.as_object_mut().unwrap().remove("kind");
+        let loaded: WallAreaSurface = serde_json::from_value(value).unwrap();
+        assert_eq!(loaded.kind, WallAreaSurfaceKind::Floor);
+    }
+
+    #[test]
+    fn inferred_surface_closes_a_door_gap_without_changing_the_wall() {
+        let mut wall = WallAssembly::new("Room with doorway");
+        let positions = [
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 0.0),
+            Vec3::new(4.0, 0.0, 1.0),
+            Vec3::new(4.0, 0.0, 3.0),
+            Vec3::new(4.0, 0.0, 4.0),
+            Vec3::new(0.0, 0.0, 4.0),
+        ];
+        let ids = positions.map(|position| wall.add_node(position));
+        for (start, end) in [(0, 1), (1, 2), (3, 4), (4, 5), (5, 0)] {
+            wall.add_span(ids[start], ids[end]).unwrap();
+        }
+        let regions = wall.inferred_surface_outlines(2.0);
+        assert_eq!(regions.len(), 1);
+        assert!((WallAssembly::wall_surface_polygon_area(&regions[0].0) - 16.0).abs() < 0.01);
+        assert_eq!(wall.spans.len(), 5);
+    }
+
+    #[test]
+    fn free_area_surfaces_generate_without_wall_spans() {
+        let mut wall = WallAssembly::new("Independent room");
+        let mut floor = WallAreaSurface::new(Vec::new());
+        floor.elevation = 0.0;
+        floor.clearance = 0.0;
+        floor.texture_scale = Some(4.0);
+        floor.outline = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 2.0),
+            Vec3::new(0.0, 0.0, 2.0),
+        ];
+        let mut ceiling = floor.clone();
+        ceiling.id = Uuid::new_v4();
+        ceiling.kind = WallAreaSurfaceKind::Ceiling;
+        ceiling.elevation = 3.0;
+        wall.area_surfaces.extend([floor, ceiling]);
+        let geometry = wall.structural_geometry();
+        assert_eq!(geometry.len(), 2);
+        assert!(geometry.iter().all(|object| object.faces.len() == 6));
+        assert!(geometry.iter().all(|object| {
+            object
+                .faces
+                .iter()
+                .all(|face| face.texture_scale == vek::Vec2::broadcast(4.0))
+        }));
+    }
+
+    #[test]
+    fn subdivided_floor_and_ceiling_keep_solid_support_faces() {
+        let mut wall = WallAssembly::new("Slab room");
+        let mut floor = WallAreaSurface::new(Vec::new());
+        floor.outline = vec![
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 0.0),
+            Vec3::new(3.0, 0.0, 2.0),
+            Vec3::new(0.0, 0.0, 2.0),
+        ];
+        floor.subdivision = Some(WallSurfaceSubdivision {
+            cell_size: 1.0,
+            cell_size_v: None,
+            gap: 0.02,
+            alternate_source: Some(wall_color(90, 96, 102)),
+            grout_source: Some(wall_color(35, 38, 42)),
+        });
+        let mut ceiling = floor.clone();
+        ceiling.id = Uuid::new_v4();
+        ceiling.kind = WallAreaSurfaceKind::Ceiling;
+        ceiling.elevation = 3.0;
+        wall.area_surfaces.extend([floor, ceiling]);
+        let geometry = wall.structural_geometry();
+        assert_eq!(geometry.len(), 2);
+        assert!(geometry.iter().all(|object| object.faces.len() == 12));
+        assert!(geometry.iter().all(|object| object.vertices.len() == 32));
+    }
+
+    #[test]
     fn open_surface_boundaries_do_not_create_masonry_posts() {
         let mut wall = WallAssembly::new("Open room surfaces");
         wall.style.texture_scale = 4.0;
@@ -3946,6 +4740,7 @@ mod tests {
         floor.elevation = 0.0;
         floor.clearance = 0.0;
         let mut ceiling = WallAreaSurface::new(boundary);
+        ceiling.kind = WallAreaSurfaceKind::Ceiling;
         ceiling.elevation = 3.1;
         ceiling.clearance = 0.0;
         wall.area_surfaces.extend([floor, ceiling]);
@@ -3955,6 +4750,8 @@ mod tests {
             2,
             "Only the floor and ceiling should remain"
         );
+        assert_eq!(wall.area_surfaces[0].kind, WallAreaSurfaceKind::Floor);
+        assert_eq!(wall.area_surfaces[1].kind, WallAreaSurfaceKind::Ceiling);
         assert!(
             geometry
                 .iter()

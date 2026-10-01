@@ -3,6 +3,8 @@ mod entity;
 mod list;
 mod live;
 mod overlay;
+mod tiles;
+mod workspace;
 use crate::prelude::*;
 pub use list::{
     branch_list_canvas, has_catalog, node_available, node_list_canvas, sync_branch_list,
@@ -23,6 +25,7 @@ const CLEAR_NODES: &str = "Node Graph Clear";
 const COPY_BRANCH: &str = "Node Graph Copy Branch";
 const PASTE_BRANCH: &str = "Node Graph Paste Branch";
 const BRANCH_REMOVE: &str = "Node Graph Branch Remove";
+const BRANCH_TOGGLE: &str = "Node Graph Branch Toggle";
 const BRANCH_TIDY: &str = "Node Graph Branch Tidy";
 #[derive(Default)]
 struct History {
@@ -36,6 +39,7 @@ pub struct NodesDock {
     editor: GraphEditor,
     definitions: GraphDefinitions,
     resources: GraphRasterResources,
+    tiles: tiles::TileControls,
     owner: Option<String>,
     histories: HashMap<String, History>,
     committed: GraphDocument,
@@ -57,8 +61,11 @@ pub struct NodesDock {
     /// Which branch the canvas shows. Branches are separate, so exactly one is
     /// shown; `None` only while a graph has no trigger at all.
     active_branch: Option<GraphId>,
+    branch_graphs: HashMap<GraphId, GraphDocument>,
+    branch_order: Vec<GraphId>,
     /// The branch list has to be rebuilt after the graph changed.
     branches_dirty: bool,
+    initial_layouts: HashMap<(String, GraphId), (GraphDocument, GraphDocument)>,
 }
 /// Appends a copied graph to a document. Node, row, port and connection ids are
 /// regenerated, connections follow their ports, and the pasted copy is nudged so
@@ -83,6 +90,13 @@ fn paste_graph(document: &mut GraphDocument, clipboard: &GraphDocument) -> HashM
         node.position[0] += PASTE_OFFSET;
         node.position[1] += PASTE_OFFSET;
         document.nodes.push(node);
+    }
+    for node in document
+        .nodes
+        .iter_mut()
+        .filter(|n| moved.values().any(|id| *id == n.id))
+    {
+        node.branch = node.branch.and_then(|owner| moved.get(&owner).copied());
     }
     for source in &clipboard.connections {
         document.connections.push(GraphConnection {
@@ -193,6 +207,7 @@ impl NodesDock {
         })
     }
     fn render(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.apply_branch_filter();
         let Some(view) = ui.get_render_view(VIEW) else {
             return;
         };
@@ -222,7 +237,7 @@ impl NodesDock {
             height,
             density,
             &mut self.resources,
-            &(),
+            &self.tiles,
         );
         self.editor.paint(
             &self.doc,
@@ -230,7 +245,7 @@ impl NodesDock {
                 definitions: &self.definitions,
                 live: &self.live,
             },
-            &BasicGraphControls,
+            &self.tiles,
             &mut painter,
             [d.width as f32, d.height as f32],
             &GraphTheme::default(),
@@ -307,12 +322,13 @@ impl NodesDock {
             catalog::sync_fields(&mut self.doc, &self.definitions);
         }
         if checkpoint && self.doc != self.committed {
-            let h = self.histories.entry(owner.clone()).or_default();
+            let key = self.history_key().unwrap();
+            let h = self.histories.entry(key).or_default();
             h.undo.push(self.committed.clone());
             h.redo.clear();
             self.committed = self.doc.clone();
         }
-        let value = serde_json::to_value(&self.doc).unwrap();
+        let value = self.branch_value();
         if project.node_graphs.get(&owner) != Some(&value) {
             project.node_graphs.insert(owner.clone(), value.clone());
             if owner.starts_with(shared::entity_graph::PREFIX) {
@@ -429,8 +445,13 @@ impl NodesDock {
     }
     /// Human label for a branch root, such as `On Event: claim_sigil`.
     fn branch_label(&self, root: GraphId) -> String {
-        let Some(node) = self.doc.nodes.iter().find(|n| n.id == root) else {
-            return String::new();
+        let graph = if self.active_branch == Some(root) {
+            &self.doc
+        } else {
+            self.branch_graphs.get(&root).unwrap_or(&self.doc)
+        };
+        let Some(node) = graph.nodes.iter().find(|n| n.id == root) else {
+            return fl!("node_branch_empty");
         };
         let kind = node
             .definition
@@ -468,6 +489,45 @@ impl NodesDock {
     /// Rows for the branch list: `(item id, label, active)`. Branches are
     /// separate, so there is no combined entry.
     fn branch_items(&self) -> Vec<(String, String, bool)> {
+        if !self.is_configuration() {
+            let mut roots = self.branch_order.clone();
+            if let Some(root) = self.active_branch {
+                if !roots.contains(&root) {
+                    roots.push(root);
+                }
+            }
+            return roots
+                .into_iter()
+                .filter(|root| {
+                    if self.active_branch == Some(*root) {
+                        !self.doc.nodes.is_empty()
+                    } else {
+                        self.branch_graphs
+                            .get(root)
+                            .is_some_and(|g| !g.nodes.is_empty())
+                    }
+                })
+                .map(|root| {
+                    let graph = if self.active_branch == Some(root) {
+                        Some(&self.doc)
+                    } else {
+                        self.branch_graphs.get(&root)
+                    };
+                    let disabled =
+                        graph.is_some_and(|g| g.nodes.iter().any(|n| n.id == root && n.disabled));
+                    let label = self.branch_label(root);
+                    (
+                        format!("Branch/{root}"),
+                        if disabled {
+                            format!("{label} ({})", fl!("node_branch_disabled"))
+                        } else {
+                            label
+                        },
+                        self.active_branch == Some(root),
+                    )
+                })
+                .collect();
+        }
         let branches = graph_branches(&self.doc, &self.definitions);
         branches
             .branches
@@ -475,7 +535,20 @@ impl NodesDock {
             .map(|branch| {
                 (
                     format!("Branch/{}", branch.root),
-                    self.branch_label(branch.root),
+                    if self
+                        .doc
+                        .nodes
+                        .iter()
+                        .any(|n| n.id == branch.root && n.disabled)
+                    {
+                        format!(
+                            "{} ({})",
+                            self.branch_label(branch.root),
+                            fl!("node_branch_disabled")
+                        )
+                    } else {
+                        self.branch_label(branch.root)
+                    },
                     self.active_branch == Some(branch.root),
                 )
             })
@@ -486,6 +559,12 @@ impl NodesDock {
     /// branch when the active one is gone, and to everything when a graph has no
     /// trigger yet.
     fn shown_branch(&self) -> (Option<GraphId>, Option<std::collections::HashSet<GraphId>>) {
+        if !self.is_configuration() {
+            return (
+                self.active_branch,
+                Some(self.doc.nodes.iter().map(|n| n.id).collect()),
+            );
+        }
         let branches = graph_branches(&self.doc, &self.definitions);
         if branches.branches.is_empty() {
             return (None, None);
@@ -494,19 +573,41 @@ impl NodesDock {
             .active_branch
             .filter(|root| branches.branch(*root).is_some())
             .or_else(|| branches.branches.first().map(|branch| branch.root));
-        let nodes = root.and_then(|root| branches.branch(root)).map(|branch| {
-            let mut nodes = branch.nodes.clone();
-            nodes.extend(branches.detached.iter().copied());
-            nodes
-        });
+        let nodes = root
+            .and_then(|root| branches.branch(root))
+            .map(|branch| branch.nodes.clone());
         (root, nodes)
     }
     /// Show one branch, and nothing else.
     fn set_branch(&mut self, root: Option<GraphId>) {
+        if !self.is_configuration() {
+            if let Some(root) = root {
+                self.open_branch_document(root);
+            }
+        }
         self.active_branch = root;
         self.apply_branch_filter();
+        self.tidy_branch_once();
+        self.committed = self.doc.clone();
     }
     fn apply_branch_filter(&mut self) {
+        if !self.is_configuration() {
+            if self.active_branch.is_none() {
+                self.active_branch = self
+                    .doc
+                    .nodes
+                    .iter()
+                    .find(|n| is_branch_trigger(n, &self.definitions))
+                    .map(|n| n.id);
+            }
+            for node in &mut self.doc.nodes {
+                node.branch = self.active_branch;
+            }
+            self.editor
+                .set_visible(Some(self.doc.nodes.iter().map(|n| n.id).collect()));
+            return;
+        }
+        assign_branch_owners(&mut self.doc, &self.definitions, self.active_branch);
         let (root, nodes) = self.shown_branch();
         self.active_branch = root;
         self.editor.set_visible(nodes);
@@ -524,6 +625,23 @@ impl NodesDock {
             .viewport
             .fit_to_nodes(&self.doc, [d.width as f32, d.height as f32], &nodes);
     }
+    /// Arrange each branch once, retaining that initial view across owner reloads.
+    fn tidy_branch_once(&mut self) {
+        let (Some(owner), Some(root)) = (self.owner.clone(), self.active_branch) else {
+            return;
+        };
+        let key = (owner, root);
+        if let Some((original, arranged)) = self.initial_layouts.get(&key) {
+            if self.doc == *original {
+                self.doc = arranged.clone();
+            }
+        } else {
+            let original = self.doc.clone();
+            self.tidy_branch();
+            self.initial_layouts
+                .insert(key, (original, self.doc.clone()));
+        }
+    }
     /// Lay the shown branch out left to right. Returns true when it moved.
     fn tidy_branch(&mut self) -> bool {
         let Some(nodes) = self.shown_branch().1 else {
@@ -535,6 +653,18 @@ impl NodesDock {
         self.branches_dirty = false;
         let items = self.branch_items();
         sync_branch_list(ui, ctx, &items);
+        let root = self
+            .active_branch
+            .and_then(|id| self.doc.nodes.iter().find(|n| n.id == id));
+        let unavailable = self.is_configuration() || root.is_none();
+        if let Some(button) = ui.get_widget(BRANCH_TOGGLE) {
+            button.set_disabled(unavailable);
+            button.set_value(TheValue::Text(if root.is_some_and(|n| n.disabled) {
+                fl!("node_branch_enable")
+            } else {
+                fl!("node_branch_disable")
+            }));
+        }
     }
     /// A node's conversation: the document row it carries.
     fn conversation_of(node: &GraphNode) -> Option<Conversation> {
@@ -701,6 +831,13 @@ impl NodesDock {
         self.finish(project);
         let clipboard = clipboard;
 
+        if clipboard
+            .nodes
+            .iter()
+            .any(|n| is_branch_trigger(n, &self.definitions))
+        {
+            self.begin_branch();
+        }
         let moved = paste_graph(&mut self.doc, &clipboard);
         // The copied trigger heads the pasted branch, so focus what just landed.
         let root = clipboard
@@ -711,7 +848,7 @@ impl NodesDock {
         self.active_branch = root;
         self.branches_dirty = true;
         self.apply_branch_filter();
-        self.tidy_branch();
+        self.tidy_branch_once();
         self.finish(project);
         self.set_undo_state_to_ui(ctx);
         self.sync_branches(ui, ctx);
@@ -749,7 +886,9 @@ impl NodesDock {
         self.doc
             .connections
             .retain(|c| !ports.contains(&c.from) && !ports.contains(&c.to));
-        self.active_branch = None;
+        if self.is_configuration() {
+            self.active_branch = None;
+        }
         self.branches_dirty = true;
         self.apply_branch_filter();
         true
@@ -779,7 +918,7 @@ impl NodesDock {
                 .find(|n| n.id == choice.node)
                 .and_then(|n| n.rows.iter_mut().find(|r| r.id == choice.row))
             {
-                let value = if let Some((r, c)) = choice.cell {
+                let mut value = if let Some((r, c)) = choice.cell {
                     if let GraphControlValue::List { rows, .. } = &mut row.value {
                         rows.get_mut(r).and_then(|r| r.get_mut(c))
                     } else {
@@ -788,6 +927,11 @@ impl NodesDock {
                 } else {
                     Some(&mut row.value)
                 };
+                if let Some(GraphControlValue::Custom { kind, data }) = value.as_deref_mut() {
+                    if kind == "tile" {
+                        *data = item.id.clone().into();
+                    }
+                }
                 if let Some(GraphControlValue::Choice { options, selected }) = value {
                     if let Ok(index) = item.id.parse::<usize>() {
                         if index < options.len() {
@@ -809,7 +953,15 @@ impl NodesDock {
                     };
                 }
             }
-        } else if let Ok(n) = self.definitions.instantiate(&item.id, position) {
+        } else if let Ok(mut n) = self.definitions.instantiate(&item.id, position) {
+            if is_branch_trigger(&n, &self.definitions) {
+                self.begin_branch();
+            }
+            n.branch = if is_branch_trigger(&n, &self.definitions) {
+                Some(n.id)
+            } else {
+                self.active_branch
+            };
             self.editor.selected = Some(n.id);
             self.doc.nodes.push(n);
             // A new trigger is a new branch, so the list has to catch up.
@@ -838,6 +990,11 @@ impl NodesDock {
         layout.set_margin(Vec4::new(6, 2, 6, 2));
         layout.set_padding(5);
         for (id, text, status) in [
+            (
+                BRANCH_TOGGLE,
+                fl!("node_branch_disable"),
+                fl!("status_node_branch_toggle"),
+            ),
             (CLEAR_NODES, fl!("node_clear"), fl!("status_node_clear")),
             (
                 COPY_BRANCH,
@@ -874,7 +1031,9 @@ impl NodesDock {
         self.finish(project);
         self.doc.nodes.clear();
         self.doc.connections.clear();
-        self.active_branch = None;
+        if self.is_configuration() {
+            self.active_branch = None;
+        }
         self.branches_dirty = true;
         self.apply_branch_filter();
         self.finish(project);
@@ -898,6 +1057,7 @@ impl Dock for NodesDock {
             editor: node_editor(),
             definitions: catalog::definitions(),
             resources: GraphRasterResources::new(font),
+            tiles: Default::default(),
             owner: None,
             histories: HashMap::new(),
             dirty: false,
@@ -911,7 +1071,10 @@ impl Dock for NodesDock {
             conversation_field: None,
             last_click: None,
             active_branch: None,
+            branch_graphs: HashMap::new(),
+            branch_order: Vec::new(),
             branches_dirty: true,
+            initial_layouts: HashMap::new(),
         }
     }
     fn setup(&mut self, _: &mut TheContext) -> TheCanvas {
@@ -935,6 +1098,8 @@ impl Dock for NodesDock {
         project: &Project,
         server: &mut ServerContext,
     ) {
+        sync_node_list(ui, ctx, server.pc);
+        self.tiles.refresh(project);
         let owner = Self::owner(server.pc);
         self.definitions = if entity::is_configuration(server.pc) {
             entity::definitions(project)
@@ -948,14 +1113,17 @@ impl Dock for NodesDock {
         self.text_overlay = None;
         self.last_click = None;
         // Edits are persisted on input; keep the pending undo group on reactivation.
-        if let Some(key) = &self.owner {
+        if let Some(key) = self.history_key() {
             if self.doc != self.committed {
-                let h = self.histories.entry(key.clone()).or_default();
+                let h = self.histories.entry(key).or_default();
                 h.undo.push(self.committed.clone());
                 h.redo.clear();
             }
         }
         if self.owner != owner {
+            self.branch_graphs.clear();
+            self.branch_order.clear();
+            self.active_branch = None;
             self.owner = owner;
             self.live = Default::default();
             self.editor = node_editor();
@@ -963,9 +1131,18 @@ impl Dock for NodesDock {
             self.choice_target = None;
         }
         self.load_error = None;
-        self.doc = if let Some(value) = self.owner.as_ref().and_then(|k| project.node_graphs.get(k))
-        {
-            match serde_json::from_value::<GraphDocument>(value.clone()) {
+        let saved = self
+            .owner
+            .as_ref()
+            .and_then(|k| project.node_graphs.get(k))
+            .cloned();
+        self.doc = if let Some(value) = saved {
+            let loaded = if self.is_configuration() {
+                serde_json::from_value::<GraphDocument>(value).map_err(|e| e.to_string())
+            } else {
+                self.load_branch_documents(&value)
+            };
+            match loaded {
                 Ok(doc) if doc.version == 1 => doc,
                 _ => {
                     self.load_error = Some(fl!("node_unsupported"));
@@ -977,13 +1154,30 @@ impl Dock for NodesDock {
                 .unwrap_or_default()
                 .parse::<shared::entity_graph::RulesTable>()
                 .unwrap_or_default();
-            shared::entity_graph::import(
-                self.owner
-                    .as_ref()
-                    .and_then(|key| shared::entity_graph::owner_data(project, key))
-                    .unwrap_or(""),
-                &rules,
-            )
+            let data = self
+                .owner
+                .as_ref()
+                .and_then(|key| shared::entity_graph::owner_data(project, key))
+                .unwrap_or("");
+            let character_template = self
+                .owner
+                .as_ref()
+                .and_then(|key| key.strip_prefix("entity/character/"))
+                .and_then(|id| Uuid::parse_str(id).ok())
+                .is_some_and(|id| project.characters.contains_key(&id));
+            let item_template = self
+                .owner
+                .as_ref()
+                .and_then(|key| key.strip_prefix("entity/item/"))
+                .and_then(|id| Uuid::parse_str(id).ok())
+                .is_some_and(|id| project.items.contains_key(&id));
+            (if character_template {
+                shared::entity_graph::import_character(data, &rules)
+            } else if item_template {
+                shared::entity_graph::import_item(data, &rules)
+            } else {
+                shared::entity_graph::import(data, &rules)
+            })
             .unwrap_or_default()
         } else {
             GraphDocument::default()
@@ -994,13 +1188,13 @@ impl Dock for NodesDock {
         self.refresh_configuration(project);
         catalog::hydrate_lookout_distances(&mut self.doc, project);
         catalog::sync_fields(&mut self.doc, &self.definitions);
-        // A branch is shown in its laid out shape, so an imported graph that
-        // arrived tangled reads properly the moment it is opened. Tidy runs
-        // before the baseline snapshot, so opening alone is not an edit.
-        self.active_branch = None;
+        // First opening arranges the branch; later edits keep their authored layout.
+        if self.is_configuration() {
+            self.active_branch = None;
+        }
         self.branches_dirty = true;
         self.apply_branch_filter();
-        self.tidy_branch();
+        self.tidy_branch_once();
         self.committed = self.doc.clone();
         self.fit_branch(ui);
         self.render(ui, ctx);
@@ -1036,6 +1230,8 @@ impl Dock for NodesDock {
     }
     fn reset_for_project_switch(&mut self) {
         self.histories.clear();
+        self.branch_graphs.clear();
+        self.branch_order.clear();
         self.live = Default::default();
         self.owner = None;
         if self.is_configuration() {
@@ -1055,7 +1251,10 @@ impl Dock for NodesDock {
         self.dirty = false;
     }
     fn set_undo_state_to_ui(&self, ctx: &mut TheContext) {
-        let h = self.owner.as_ref().and_then(|k| self.histories.get(k));
+        let h = self
+            .history_key()
+            .as_ref()
+            .and_then(|k| self.histories.get(k));
         if h.is_some_and(|h| !h.undo.is_empty()) {
             ctx.ui.set_enabled("Undo");
         } else {
@@ -1075,12 +1274,16 @@ impl Dock for NodesDock {
         _: &mut ServerContext,
     ) {
         self.finish(project);
-        if let Some(h) = self.owner.as_ref().and_then(|k| self.histories.get_mut(k)) {
+        let key = self.history_key();
+        if let Some(h) = key.as_ref().and_then(|k| self.histories.get_mut(k)) {
             if let Some(doc) = h.undo.pop() {
                 h.redo.push(self.doc.clone());
                 self.doc = doc;
                 self.committed = self.doc.clone();
+                let viewport = self.editor.viewport.clone();
                 self.editor = node_editor();
+                self.editor.viewport = viewport;
+                self.apply_branch_filter();
                 self.store(project, false);
             }
         }
@@ -1095,12 +1298,16 @@ impl Dock for NodesDock {
         _: &mut ServerContext,
     ) {
         self.finish(project);
-        if let Some(h) = self.owner.as_ref().and_then(|k| self.histories.get_mut(k)) {
+        let key = self.history_key();
+        if let Some(h) = key.as_ref().and_then(|k| self.histories.get_mut(k)) {
             if let Some(doc) = h.redo.pop() {
                 h.undo.push(self.doc.clone());
                 self.doc = doc;
                 self.committed = self.doc.clone();
+                let viewport = self.editor.viewport.clone();
                 self.editor = node_editor();
+                self.editor.viewport = viewport;
+                self.apply_branch_filter();
                 self.store(project, false);
             }
         }
@@ -1136,6 +1343,22 @@ impl Dock for NodesDock {
                 PASTE_BRANCH if *state == TheWidgetState::Clicked => {
                     return self.paste_branch(ui, ctx, project);
                 }
+                BRANCH_TOGGLE if *state == TheWidgetState::Clicked => {
+                    if !self.is_configuration() {
+                        self.finish(project);
+                        if let Some(node) = self
+                            .active_branch
+                            .and_then(|id| self.doc.nodes.iter_mut().find(|n| n.id == id))
+                        {
+                            node.disabled = !node.disabled;
+                            self.store(project, true);
+                            self.set_undo_state_to_ui(ctx);
+                        }
+                    }
+                    self.sync_branches(ui, ctx);
+                    self.render(ui, ctx);
+                    return true;
+                }
                 BRANCH_REMOVE if *state == TheWidgetState::Clicked => {
                     if self.remove_branch() {
                         self.finish(project);
@@ -1159,12 +1382,10 @@ impl Dock for NodesDock {
             if let Some(key) = id.name.strip_prefix("Branch/")
                 && let Ok(root) = Uuid::parse_str(key)
             {
-                // Branches are separate: show this one, tidy it and centre it.
+                self.finish(project);
+                // Each branch owns a document and its own history.
                 self.set_branch(Some(root));
-                if self.tidy_branch() {
-                    self.store(project, true);
-                    self.set_undo_state_to_ui(ctx);
-                }
+                self.set_undo_state_to_ui(ctx);
                 self.sync_branches(ui, ctx);
                 self.fit_branch(ui);
                 self.render(ui, ctx);
@@ -1190,6 +1411,18 @@ impl Dock for NodesDock {
                     .viewport
                     .to_graph([point.x as f32, point.y as f32]);
                 if let Ok(mut node) = self.definitions.instantiate(key, position) {
+                    let trigger = is_branch_trigger(&node, &self.definitions);
+                    if trigger {
+                        self.begin_branch();
+                    }
+                    node.branch = if trigger {
+                        Some(node.id)
+                    } else {
+                        self.active_branch
+                    };
+                    if trigger {
+                        self.active_branch = Some(node.id);
+                    }
                     if key == "event"
                         && !matches!(
                             server.pc,
@@ -1248,6 +1481,17 @@ impl Dock for NodesDock {
                 ctx.ui
                     .send(TheEvent::SetStatusText(id.clone(), String::new()));
                 return false;
+            }
+            TheEvent::RenderViewClicked(id, p)
+                if id.name == VIEW
+                    && ui.shift
+                    && self.popup.is_none()
+                    && self.text_overlay.is_none()
+                    && self.conversation.is_none() =>
+            {
+                self.finish(project);
+                self.editor
+                    .begin_cut(&mut self.doc, [p.x as f32, p.y as f32]);
             }
             TheEvent::RenderViewClicked(id, p) if id.name == VIEW => {
                 let point = [p.x as f32, p.y as f32];
@@ -1339,7 +1583,9 @@ impl Dock for NodesDock {
                                 && n.row_rect(0, &self.doc.metrics()).contains(graph_point)
                         })
                         .map(|n| n.id);
-                    if self.is_configuration() && self.open_configuration_choice(point, ui) {
+                    if self.open_tile_picker(point, ui, project)
+                        || self.open_configuration_choice(point, ui)
+                    {
                         self.editor.finish_text(&mut self.doc, false);
                     } else if let Some(id) = event_node {
                         self.choice_target = None;

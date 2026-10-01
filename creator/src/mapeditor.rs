@@ -894,7 +894,21 @@ impl MapEditor {
             TheEvent::RenderViewZoomBy(id, delta) => {
                 if id.name == "PolyView"
                     && !server_ctx.world_mode
-                    && server_ctx.editor_view_mode != EditorViewMode::D2
+                    && server_ctx.editor_view_mode == EditorViewMode::D2
+                {
+                    let is_running =
+                        RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running;
+                    if !(is_running && server_ctx.game_mode)
+                        && let Some(map) = project.get_map_mut(server_ctx)
+                    {
+                        let old_grid_size = map.grid_size;
+                        map.grid_size = (old_grid_size * (*delta * 2.5).exp()).clamp(5.0, 100.0);
+                        map.offset *= map.grid_size / old_grid_size;
+                        map.curr_rectangle = None;
+                        redraw = true;
+                    }
+                } else if id.name == "PolyView"
+                    && !server_ctx.world_mode
                     && server_ctx.get_map_context() == MapContext::Region
                 {
                     // NSEvent magnification is a small relative value. Scale it

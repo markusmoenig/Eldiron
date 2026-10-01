@@ -987,3 +987,34 @@ fn searchable_choice_targets_use_list_geometry_at_every_zoom() {
         assert_eq!(target.options, vec!["one", "two"]);
     }
 }
+
+#[test]
+fn cut_stroke_removes_crossed_wires_and_can_be_cancelled() {
+    let mut doc = graph();
+    let wire = GraphConnection {
+        id: GraphId::new_v4(),
+        from: doc.nodes[0].ports[0].id,
+        to: doc.nodes[1].ports[0].id,
+    };
+    doc.connections.push(wire.clone());
+    let mut editor = GraphEditor::default();
+    editor.viewport.zoom_at([0., 0.], 0.5);
+    let middle = bezier(
+        connection_curve(&doc, &wire, &editor.viewport).unwrap(),
+        0.5,
+    );
+    let a = [middle[0], middle[1] - 40.];
+    let b = [middle[0], middle[1] + 40.];
+    editor.begin_cut(&mut doc, a);
+    editor.pointer_move(&mut doc, b, &BasicGraphControls);
+    assert_eq!(doc.connections.len(), 1);
+    editor.cancel(&mut doc);
+    assert_eq!(doc.connections.len(), 1);
+    editor.begin_cut(&mut doc, a);
+    editor.pointer_up(&mut doc, b, &AllowGraphConnections);
+    assert!(doc.connections.is_empty());
+    let edits = editor.take_edits();
+    assert_eq!(edits.len(), 1);
+    edits[0].apply(&mut doc, false);
+    assert_eq!(doc.connections[0], wire);
+}

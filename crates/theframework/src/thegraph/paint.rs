@@ -20,6 +20,8 @@ pub struct GraphTheme {
     pub muted: GraphColor,
     pub wire: GraphColor,
     pub active: GraphColor,
+    /// Execution highlight, distinct from category colors and editing accents.
+    pub execution: GraphColor,
     pub yes: GraphColor,
     pub no: GraphColor,
 }
@@ -34,6 +36,7 @@ impl Default for GraphTheme {
             muted: [163, 169, 166, 255],
             wire: [146, 156, 156, 255],
             active: [94, 210, 247, 255],
+            execution: [255, 235, 64, 255],
             yes: [48, 179, 130, 255],
             no: [213, 81, 81, 255],
         }
@@ -96,12 +99,24 @@ impl GraphEditor {
                 continue;
             }
             if let Some(points) = connection_curve(doc, c, &self.viewport) {
-                let active =
-                    context.connection_active(c.id) || self.selected_connection == Some(c.id);
+                let executing = context.connection_active(c.id);
+                let selected = self.selected_connection == Some(c.id);
                 painter.curve(
                     points,
-                    if active { 3. } else { 1.8 } * z,
-                    if active { theme.active } else { theme.wire },
+                    if executing {
+                        (4. * z).max(3.)
+                    } else if selected {
+                        3. * z
+                    } else {
+                        1.8 * z
+                    },
+                    if executing {
+                        theme.execution
+                    } else if selected {
+                        theme.active
+                    } else {
+                        theme.wire
+                    },
                 );
             }
         }
@@ -143,10 +158,10 @@ impl GraphEditor {
                     22. * z,
                     if diagnostic.is_some() || obs.execution == GraphExecution::Failed {
                         theme.no
-                    } else if self.selected == Some(n.id) && !context.node_active(n.id) {
-                        [228, 218, 183, 255]
+                    } else if context.node_active(n.id) || obs.execution != GraphExecution::Idle {
+                        theme.execution
                     } else {
-                        theme.active
+                        [228, 218, 183, 255]
                     },
                 );
             }
@@ -207,7 +222,14 @@ impl GraphEditor {
                         origin: [rect.origin[0], rect.origin[1] + metrics.label_offset()],
                         size: [rect.size[0], metrics.label - 4.],
                     }),
-                    &fit_text(&row.label, rect.size[0] * z, row_size, controls),
+                    &fit_text(
+                        &context
+                            .parameter_label(n, row)
+                            .unwrap_or_else(|| row.label.clone()),
+                        rect.size[0] * z,
+                        row_size,
+                        controls,
+                    ),
                     row_size,
                     theme.muted,
                 );
@@ -268,9 +290,8 @@ impl GraphEditor {
                         );
                     }
                     for (index, cells) in rows.iter().enumerate() {
-                        let y = rect.origin[1]
-                            + metrics.list_header
-                            + metrics.list_row * index as f32;
+                        let y =
+                            rect.origin[1] + metrics.list_header + metrics.list_row * index as f32;
                         for (column, cell) in cells.iter().enumerate() {
                             let cell_rect = GraphRect {
                                 origin: [
@@ -310,10 +331,7 @@ impl GraphEditor {
                         }
                         painter.text(
                             screen(GraphRect {
-                                origin: [
-                                    rect.origin[0] + rect.size[0] - 20.,
-                                    y + text_offset,
-                                ],
+                                origin: [rect.origin[0] + rect.size[0] - 20., y + text_offset],
                                 size: [16., 18.],
                             }),
                             "x",
@@ -321,9 +339,8 @@ impl GraphEditor {
                             theme.muted,
                         );
                     }
-                    let y = rect.origin[1]
-                        + metrics.list_header
-                        + metrics.list_row * rows.len() as f32;
+                    let y =
+                        rect.origin[1] + metrics.list_header + metrics.list_row * rows.len() as f32;
                     painter.text(
                         screen(GraphRect {
                             origin: [rect.origin[0] + 6., y + text_offset],
@@ -475,7 +492,7 @@ impl GraphEditor {
                         origin,
                         size: [width, 16. * z],
                     },
-                    &p.label,
+                    &context.port_label(n, p).unwrap_or_else(|| p.label.clone()),
                     metrics.port_size * z,
                     theme.muted,
                 );
@@ -491,6 +508,15 @@ impl GraphEditor {
                         PortSide::Left,
                     ),
                     2. * z,
+                    theme.active,
+                );
+            }
+        }
+        if let Some(path) = &self.cut_path {
+            for segment in path.windows(2) {
+                painter.curve(
+                    [segment[0], segment[0], segment[1], segment[1]],
+                    2.,
                     theme.active,
                 );
             }

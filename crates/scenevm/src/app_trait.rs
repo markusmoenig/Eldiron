@@ -53,6 +53,12 @@ pub trait SceneVMApp {
     fn mouse_up(&mut self, _vm: &mut SceneVM, _x: f32, _y: f32) {}
     /// Mouse/touch move callback in logical pixels.
     fn mouse_move(&mut self, _vm: &mut SceneVM, _x: f32, _y: f32) {}
+    /// Opt in to relative pointer motion while hovering a game viewport.
+    fn wants_mouse_motion(&self) -> bool {
+        false
+    }
+    fn mouse_motion(&mut self, _vm: &mut SceneVM, _dx: f32, _dy: f32) {}
+    fn mouse_leave(&mut self, _vm: &mut SceneVM) {}
     /// Scroll/pan delta (e.g. trackpad or wheel) in logical units.
     fn scroll(&mut self, _vm: &mut SceneVM, _dx: f32, _dy: f32) {}
     /// Keyboard key pressed callback.

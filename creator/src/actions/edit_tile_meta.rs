@@ -6,8 +6,6 @@ use rusterix::material_library::{
 };
 use rusterix::{TileMaterialMeta, TileRole};
 
-const PROCEDURAL_KIND_VALUES: [&str; 5] = ["none", "floor", "wall", "entrance", "exit"];
-
 pub struct EditTileMeta {
     id: TheId,
     nodeui: TheNodeUI,
@@ -69,8 +67,8 @@ impl Action for EditTileMeta {
 
         let item = TheNodeUIItem::Text(
             "actionTileAlias".into(),
-            "".into(),
-            "".into(),
+            fl!("action_tile_alias"),
+            fl!("status_tile_alias"),
             "".into(),
             None,
             false,
@@ -86,35 +84,6 @@ impl Action for EditTileMeta {
             false,
         );
         nodeui.add_item(item);
-
-        nodeui.add_item(TheNodeUIItem::OpenTree("procedural".into()));
-        nodeui.add_item(TheNodeUIItem::Text(
-            "actionTileProceduralStyle".into(),
-            fl!("action_tile_procedural_style"),
-            "".into(),
-            "".into(),
-            None,
-            false,
-        ));
-        nodeui.add_item(TheNodeUIItem::Selector(
-            "actionTileProceduralKind".into(),
-            fl!("action_tile_procedural_kind"),
-            "".into(),
-            PROCEDURAL_KIND_VALUES
-                .iter()
-                .map(|kind| kind.to_string())
-                .collect(),
-            0,
-        ));
-        nodeui.add_item(TheNodeUIItem::IntEditSlider(
-            "actionTileProceduralWeight".into(),
-            fl!("action_tile_procedural_weight"),
-            "".into(),
-            1,
-            1..=100,
-            false,
-        ));
-        nodeui.add_item(TheNodeUIItem::CloseTree);
 
         nodeui.add_item(TheNodeUIItem::OpenTree("material".into()));
         nodeui.add_item(TheNodeUIItem::Selector(
@@ -173,18 +142,6 @@ impl Action for EditTileMeta {
                     .set_text_value("actionTileAlias", tile.alias.clone());
                 self.nodeui
                     .set_text_value("actionTileGameplayTags", tile.gameplay_tags.join(", "));
-                self.nodeui
-                    .set_text_value("actionTileProceduralStyle", tile.procedural.style.clone());
-                let kind_index = PROCEDURAL_KIND_VALUES
-                    .iter()
-                    .position(|kind| *kind == tile.procedural.kind.trim())
-                    .unwrap_or(0) as i32;
-                self.nodeui
-                    .set_i32_value("actionTileProceduralKind", kind_index);
-                self.nodeui.set_i32_value(
-                    "actionTileProceduralWeight",
-                    tile.procedural.weight.max(1) as i32,
-                );
                 let preset_index = MATERIAL_PRESET_VALUES
                     .iter()
                     .position(|preset| preset.eq_ignore_ascii_case(tile.material.preset.trim()))
@@ -218,24 +175,6 @@ impl Action for EditTileMeta {
                 .get_text_value("actionTileGameplayTags")
                 .unwrap_or_default(),
         );
-        let proc_style = self
-            .nodeui
-            .get_text_value("actionTileProceduralStyle")
-            .unwrap_or_default();
-        let proc_kind_index = self
-            .nodeui
-            .get_i32_value("actionTileProceduralKind")
-            .unwrap_or(0)
-            .max(0) as usize;
-        let proc_kind = PROCEDURAL_KIND_VALUES
-            .get(proc_kind_index)
-            .copied()
-            .unwrap_or("none");
-        let proc_weight = self
-            .nodeui
-            .get_i32_value("actionTileProceduralWeight")
-            .unwrap_or(1)
-            .max(1) as u32;
         let material_preset_index = self
             .nodeui
             .get_i32_value("materialPreset")
@@ -267,13 +206,6 @@ impl Action for EditTileMeta {
                 tile.blocking = blocking;
                 tile.alias = name.clone();
                 tile.gameplay_tags = gameplay_tags.clone();
-                tile.procedural.style = proc_style.trim().to_string();
-                tile.procedural.kind = if proc_kind == "none" {
-                    String::new()
-                } else {
-                    proc_kind.to_string()
-                };
-                tile.procedural.weight = proc_weight;
                 tile.material = TileMaterialMeta {
                     preset: material_preset.to_string(),
                     finish: material_finish.to_string(),
@@ -321,6 +253,7 @@ mod tests {
         assert!(toml.contains(
             "# Alias identifies this visual tile in tile source references such as set_tile; it does not trigger tile events.\nalias = \"\"\n# Gameplay tags trigger entered_tile and left_tile events.\ngameplay_tags = []"
         ));
+        assert!(!toml.contains("[procedural]"));
         assert!(toml.contains("[material]\n"));
         assert!(toml.contains("preset = \"Default\""));
         assert!(toml.contains("finish = \"Natural\""));

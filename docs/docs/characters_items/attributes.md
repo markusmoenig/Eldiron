@@ -571,7 +571,7 @@ static = true
 
 *General attribute (applies to both characters and items).*
 
-Tile ID for the visual representation. Use the tile picker to find valid IDs.
+Tile ID for the visual representation. In Entity Nodes, add **Set Tile** and click its thumbnail control to select a tile visually.
 
 Accepted forms:
 

@@ -861,3 +861,33 @@ action_face_particles_palette_linked = Связать с палитрой
 status_action_face_particles_palette_linked = Связать градиент частиц с цветами палитры проекта
 action_face_particles_palette_colors = Цвета палитры
 status_action_face_particles_palette_colors = Выберите четыре цвета проекта от появления до исчезновения
+
+status_game_entity_defaults_button = Пропустить настройку персонажа: начать игру в редакторе со значениями узлов сущности. Применяется при следующем запуске; запуск отдельной игры не изменяется.
+
+node_branch_disable = Отключить ветку
+node_branch_enable = Включить ветку
+node_branch_disabled = отключена
+status_node_branch_toggle = Включить или отключить выбранную ветку поведения без удаления. Изменения применяются во время игры и поддерживают отмену и повтор.
+
+node_branch_empty = Пустая ветка
+
+construction_node_noise = Шум
+construction_row_noise_mode = Алгоритм
+construction_row_noise_scale = Масштаб
+construction_row_noise_seed = Начальное число
+construction_row_noise_low = Тёмное значение
+construction_row_noise_high = Светлое значение
+construction_noise_value = Значений
+construction_noise_voronoi = Вороной
+construction_help_noise = Создаёт поле значений. Подключите его к градиенту для создания материала.
+
+construction_node_gradient = Градиент
+construction_port_value = Значение
+construction_help_gradient = Преобразует поле значений в градиент между двумя выбранными цветами.
+
+construction_row_color_low = Нижний цвет
+construction_row_color_high = Верхний цвет
+
+text_play_cancel = Отмена
+text_play_choose = Введите номер ответа и нажмите Enter (0 для отмены).
+text_play_invalid_choice = Нет активного ответа с таким номером.

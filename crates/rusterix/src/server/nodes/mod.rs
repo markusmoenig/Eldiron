@@ -211,6 +211,15 @@ pub trait WorldServices {
     fn player_camera(&mut self, _actor: &Actor, _camera: &str) -> Result<(), String> {
         Err("Player camera service is unavailable in this context".into())
     }
+    /// Changes the actor's sprite, or a selected target's sprite, without changing life state.
+    fn set_tile(
+        &mut self,
+        _actor: &Actor,
+        _target: Option<u32>,
+        _tile: Uuid,
+    ) -> Result<(), String> {
+        Err("Set Tile is unavailable in this context".into())
+    }
     fn set_attribute(
         &mut self,
         _actor: &Actor,
@@ -425,14 +434,93 @@ impl Registry {
     }
     /// Read only the semantic subset of the versioned graph document.
     pub fn compile(&self, value: &Value) -> Result<Plan, String> {
-        let doc: Document = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+        let mut doc: Document = serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+        let mut pending: VecDeque<_> = std::mem::take(&mut doc.branches).into();
+        while let Some(mut branch) = pending.pop_front() {
+            if branch.version != 1 {
+                return Err("Unsupported branch graph version".into());
+            }
+            pending.extend(std::mem::take(&mut branch.branches));
+            doc.nodes.extend(branch.nodes);
+            doc.connections.extend(branch.connections);
+        }
         if doc.version != 1 {
             return Err(format!("Unsupported graph version {}", doc.version));
         }
         if doc.nodes.len() > 4096 || doc.connections.len() > 16384 {
             return Err("Graph exceeds runtime size limits".into());
         }
+        // Disabled branches stay in the authoring document but never compile or run.
+        // Guard dependencies are followed backwards from the Prompt they protect.
+        if doc.nodes.iter().any(|n| n.disabled) {
+            let owners: HashMap<_, _> = doc
+                .nodes
+                .iter()
+                .flat_map(|n| n.ports.iter().map(move |p| (p.id, (n.id, p.key.as_str()))))
+                .collect();
+            let mut adjacency: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+            for c in &doc.connections {
+                if let (Some(a), Some(b)) = (owners.get(&c.from), owners.get(&c.to)) {
+                    let (from, to) = if b.1.starts_with("when:") {
+                        (b.0, a.0)
+                    } else {
+                        (a.0, b.0)
+                    };
+                    adjacency.entry(from).or_default().push(to);
+                }
+            }
+            let reach = |seeds: Vec<Uuid>| {
+                let mut seen = HashSet::new();
+                let mut pending = seeds;
+                while let Some(id) = pending.pop() {
+                    if seen.insert(id) {
+                        pending.extend(adjacency.get(&id).into_iter().flatten().copied());
+                    }
+                }
+                seen
+            };
+            let disabled_roots: HashSet<_> = doc
+                .nodes
+                .iter()
+                .filter(|n| n.disabled)
+                .map(|n| n.id)
+                .collect();
+            let disabled = reach(
+                doc.nodes
+                    .iter()
+                    .filter(|n| {
+                        n.disabled || n.branch.is_some_and(|root| disabled_roots.contains(&root))
+                    })
+                    .map(|n| n.id)
+                    .collect(),
+            );
+            let enabled = reach(
+                doc.nodes
+                    .iter()
+                    .filter(|n| {
+                        !n.disabled
+                            && (!disabled.contains(&n.id)
+                                || self.modules.get(&n.definition).is_some_and(|m| {
+                                    m.inputs().is_empty() && !m.outputs().contains(&"condition")
+                                }))
+                    })
+                    .map(|n| n.id)
+                    .collect(),
+            );
+            let kept: HashSet<_> = doc
+                .nodes
+                .iter()
+                .filter(|n| !n.disabled && (!disabled.contains(&n.id) || enabled.contains(&n.id)))
+                .map(|n| n.id)
+                .collect();
+            doc.connections.retain(|c| {
+                owners.get(&c.from).is_some_and(|a| kept.contains(&a.0))
+                    && owners.get(&c.to).is_some_and(|b| kept.contains(&b.0))
+            });
+            doc.nodes.retain(|n| kept.contains(&n.id));
+        }
         let mut nodes = HashMap::new();
+        let mut node_titles = HashMap::new();
         let mut ports = HashMap::new();
         let mut ids = HashSet::new();
         let mut events: HashMap<String, Vec<Uuid>> = HashMap::new();
@@ -444,6 +532,22 @@ impl Registry {
                 .modules
                 .get(&node.definition)
                 .ok_or_else(|| format!("Unsupported node: {}", node.definition))?;
+            let title = if node.title.trim().is_empty() {
+                node.definition
+                    .split('_')
+                    .map(|word| {
+                        let mut chars = word.chars();
+                        chars
+                            .next()
+                            .map(|first| first.to_uppercase().collect::<String>() + chars.as_str())
+                            .unwrap_or_default()
+                    })
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            } else {
+                node.title.clone()
+            };
+            node_titles.insert(node.id, title);
             let mut params = BTreeMap::new();
             for row in node.rows {
                 if let Some(key) = row.key {
@@ -517,6 +621,7 @@ impl Registry {
         }
         Ok(Plan {
             nodes,
+            node_titles,
             events,
             edges,
             guards,
@@ -526,12 +631,20 @@ impl Registry {
 #[derive(Deserialize, Serialize)]
 struct Document {
     version: u32,
+    #[serde(default)]
+    branches: Vec<Document>,
     nodes: Vec<Node>,
     connections: Vec<Connection>,
 }
 #[derive(Deserialize, Serialize)]
 struct Node {
     id: Uuid,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    disabled: bool,
+    #[serde(default)]
+    branch: Option<Uuid>,
     definition: String,
     rows: Vec<Row>,
     ports: Vec<Port>,
@@ -556,6 +669,7 @@ struct Connection {
 }
 pub struct Plan {
     nodes: HashMap<Uuid, Box<dyn Operation>>,
+    node_titles: HashMap<Uuid, String>,
     events: HashMap<String, Vec<Uuid>>,
     edges: HashMap<(Uuid, String), Vec<(Uuid, Uuid)>>,
     guards: HashMap<(Uuid, usize), Vec<(Uuid, Uuid)>>,
@@ -574,6 +688,16 @@ pub struct Runtime {
     pub observations: VecDeque<EventObservation>,
 }
 impl Runtime {
+    /// Keep authored names in diagnostics while UUIDs remain the tracing identity.
+    pub fn node_title(&self, id: Uuid) -> &str {
+        self.actors
+            .values()
+            .filter_map(|actor| actor.graph.as_ref())
+            .find_map(|plan| plan.node_titles.get(&id))
+            .map(String::as_str)
+            .unwrap_or("Unknown Node")
+    }
+
     /// Presence in this collection means alive and spawned. Death removes presence;
     /// stable identity may later be spawned again with a different incarnation.
     pub fn spawn(

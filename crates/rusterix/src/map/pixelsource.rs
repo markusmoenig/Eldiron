@@ -19,6 +19,125 @@ impl From<i32> for NoiseTarget {
     }
 }
 
+/// Serializable procedural material, generated once into a seamless atlas tile.
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct NoiseMaterial {
+    pub voronoi: bool,
+    pub scale: u32,
+    pub seed: u32,
+    pub low: u8,
+    pub high: u8,
+    #[serde(default)]
+    pub low_color: Option<[u8; 4]>,
+    #[serde(default)]
+    pub high_color: Option<[u8; 4]>,
+}
+
+impl Default for NoiseMaterial {
+    fn default() -> Self {
+        Self {
+            voronoi: false,
+            scale: 8,
+            seed: 0,
+            low: 65,
+            high: 115,
+            low_color: None,
+            high_color: None,
+        }
+    }
+}
+
+impl NoiseMaterial {
+    pub fn colors(&self) -> ([u8; 4], [u8; 4]) {
+        (
+            self.low_color
+                .unwrap_or([self.low, self.low, self.low, 255]),
+            self.high_color
+                .unwrap_or([self.high, self.high, self.high, 255]),
+        )
+    }
+
+    pub fn tile_id(&self) -> Uuid {
+        if self.low_color.is_some() || self.high_color.is_some() {
+            let (low, high) = self.colors();
+            let packed = self.seed as u128
+                | ((self.scale.clamp(1, 32) as u128) << 32)
+                | ((self.voronoi as u128) << 38)
+                | ((u32::from_be_bytes(low) as u128) << 40)
+                | ((u32::from_be_bytes(high) as u128) << 72);
+            return Uuid::from_u128((0x4e4f49u128 << 104) | packed);
+        }
+        let packed = self.seed as u128
+            | ((self.scale.clamp(1, 32) as u128) << 32)
+            | ((self.low as u128) << 40)
+            | ((self.high as u128) << 48)
+            | ((self.voronoi as u128) << 56);
+        Uuid::from_u128(0x4e4f_4953_4500_0000_0000_0000_0000_0000u128 | packed)
+    }
+
+    fn hash(&self, x: i32, y: i32, channel: u32) -> f32 {
+        let period = self.scale.clamp(1, 32) as i32;
+        let mut h = self.seed
+            ^ (x.rem_euclid(period) as u32).wrapping_mul(0x9e3779b9)
+            ^ (y.rem_euclid(period) as u32).wrapping_mul(0x85ebca6b)
+            ^ channel;
+        h ^= h >> 16;
+        h = h.wrapping_mul(0x7feb352d);
+        h ^= h >> 15;
+        h = h.wrapping_mul(0x846ca68b);
+        h ^= h >> 16;
+        h as f32 / u32::MAX as f32
+    }
+
+    pub fn sample(&self, u: f32, v: f32) -> f32 {
+        let scale = self.scale.clamp(1, 32) as f32;
+        let x = u * scale;
+        let y = v * scale;
+        let ix = x.floor() as i32;
+        let iy = y.floor() as i32;
+        let fx = x - x.floor();
+        let fy = y - y.floor();
+        if self.voronoi {
+            let mut distance = f32::INFINITY;
+            for dy in -1..=1 {
+                for dx in -1..=1 {
+                    let px = dx as f32 + self.hash(ix + dx, iy + dy, 0);
+                    let py = dy as f32 + self.hash(ix + dx, iy + dy, 0xa511e9b3);
+                    distance = distance.min((px - fx).powi(2) + (py - fy).powi(2));
+                }
+            }
+            distance.sqrt().clamp(0.0, 1.0)
+        } else {
+            let smooth = |t: f32| t * t * (3.0 - 2.0 * t);
+            let sx = smooth(fx);
+            let sy = smooth(fy);
+            let a = self.hash(ix, iy, 0) * (1.0 - sx) + self.hash(ix + 1, iy, 0) * sx;
+            let b = self.hash(ix, iy + 1, 0) * (1.0 - sx) + self.hash(ix + 1, iy + 1, 0) * sx;
+            a * (1.0 - sy) + b * sy
+        }
+    }
+
+    pub fn to_tile(&self, size: usize) -> Tile {
+        let size = size.clamp(2, 256);
+        let mut data = Vec::with_capacity(size * size * 4);
+        for y in 0..size {
+            for x in 0..size {
+                let value = self.sample(x as f32 / size as f32, y as f32 / size as f32);
+                let (low, high) = self.colors();
+                for channel in 0..4 {
+                    data.push(
+                        (low[channel] as f32 + (high[channel] as f32 - low[channel] as f32) * value)
+                            .round() as u8,
+                    );
+                }
+            }
+        }
+        let mut tile = Tile::from_texture(Texture::new(data, size, size));
+        tile.id = self.tile_id();
+        tile
+    }
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 pub enum PixelSource {
     #[default]
@@ -36,6 +155,7 @@ pub enum PixelSource {
     EntityTile(u32, u32),
     ItemTile(u32, u32),
     Color(TheColor),
+    Noise(NoiseMaterial),
     #[serde(rename = "ShapeFXGraphId")]
     LegacyShapeFXGraphId(Uuid),
     StaticTileIndex(u16),
@@ -61,6 +181,7 @@ impl PixelSource {
             TileId(id) | MaterialId(id) => Some(*id),
             PaletteIndex(index) => Some(Self::palette_tile_uuid(*index)),
             Color(color) => Some(Self::color_tile_uuid(color)),
+            Noise(noise) => Some(noise.tile_id()),
             _ => self.tile_from_tile_list(assets).map(|tile| tile.id),
         }
     }
@@ -89,6 +210,7 @@ impl PixelSource {
         _map: &Map,
     ) -> Option<Tile> {
         match self {
+            Noise(noise) => Some(noise.to_tile(size)),
             TileId(id) => assets.tiles.get(id).cloned(),
             TileGroup(_) | TileGroupMember { .. } | ProceduralTile(_) => None,
             PaletteIndex(index) => {
@@ -159,6 +281,11 @@ impl PixelSource {
     /// Generate a tile from the tile_list indices
     pub fn tile_from_tile_list(&self, assets: &Assets) -> Option<Tile> {
         match self {
+            Noise(noise) => assets
+                .tiles
+                .get(&noise.tile_id())
+                .cloned()
+                .or_else(|| Some(noise.to_tile(64))),
             TileId(id) | MaterialId(id) => {
                 if let Some(index) = assets.tile_indices.get(id) {
                     assets.tile_list.get(*index as usize).cloned()
@@ -255,5 +382,56 @@ impl PixelSource {
             a *= 0.5;
         }
         v
+    }
+}
+
+#[cfg(test)]
+mod noise_tests {
+    use super::*;
+    #[test]
+    fn noise_gradient_interpolates_colors_and_has_distinct_atlas_ids() {
+        let noise = NoiseMaterial {
+            low_color: Some([200, 20, 40, 255]),
+            high_color: Some([20, 180, 220, 255]),
+            ..Default::default()
+        };
+        let tile = noise.to_tile(8);
+        for pixel in tile.textures[0].data.chunks_exact(4) {
+            assert!((20..=200).contains(&pixel[0]));
+            assert!((20..=180).contains(&pixel[1]));
+            assert!((40..=220).contains(&pixel[2]));
+            assert_eq!(pixel[3], 255);
+        }
+        let mut changed = noise.clone();
+        changed.high_color = Some([20, 180, 221, 255]);
+        assert_ne!(noise.tile_id(), changed.tile_id());
+        assert_ne!(noise.tile_id(), NoiseMaterial::default().tile_id());
+    }
+
+    #[test]
+    fn noise_is_repeatable_periodic_and_varies_with_seed_and_mode() {
+        for voronoi in [false, true] {
+            let noise = NoiseMaterial {
+                voronoi,
+                ..Default::default()
+            };
+            for (u, v) in [(0.13, 0.27), (0.52, 0.79), (0.0, 0.0)] {
+                assert!((noise.sample(u, v) - noise.sample(u + 1.0, v - 1.0)).abs() < 1e-5);
+                assert!((0.0..=1.0).contains(&noise.sample(u, v)));
+            }
+            let mut seeded = noise.clone();
+            seeded.seed = 42;
+            assert_ne!(noise.tile_id(), seeded.tile_id());
+            assert_ne!(noise.sample(0.13, 0.27), seeded.sample(0.13, 0.27));
+            assert_eq!(noise.to_tile(16).id, noise.tile_id());
+        }
+        assert_ne!(
+            NoiseMaterial::default().sample(0.13, 0.27),
+            NoiseMaterial {
+                voronoi: true,
+                ..Default::default()
+            }
+            .sample(0.13, 0.27)
+        );
     }
 }

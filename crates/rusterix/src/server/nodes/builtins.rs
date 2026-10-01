@@ -22,6 +22,7 @@ pub(super) fn register(registry: &mut Registry) {
     registry.register(Box::new(RandomWalkModule)).unwrap();
     registry.register(Box::new(ResumeRoutineModule)).unwrap();
     registry.register(Box::new(SetAttributeModule)).unwrap();
+    registry.register(Box::new(SetTileModule)).unwrap();
     registry.register(Box::new(TeleportModule)).unwrap();
     registry.register(Box::new(MessageModule)).unwrap();
     registry.register(Box::new(StateModule)).unwrap();
@@ -134,6 +135,67 @@ fn render_event_template(ctx: &EventContext<'_>, template: &str) -> Result<Strin
     }
     text.push_str(rest);
     Ok(text)
+}
+struct SetTileModule;
+impl NodeModule for SetTileModule {
+    fn id(&self) -> &'static str {
+        "set_tile"
+    }
+    fn inputs(&self) -> &'static [&'static str] {
+        &["in"]
+    }
+    fn outputs(&self) -> &'static [&'static str] {
+        &["out", "failed"]
+    }
+    fn compile(&self, p: &BTreeMap<String, Value>) -> Result<Box<dyn Operation>, String> {
+        let value = p
+            .get("tile_id")
+            .and_then(|v| v.get("Custom"))
+            .ok_or("Set Tile needs a tile selection")?;
+        if value.get("kind").and_then(Value::as_str) != Some("tile") {
+            return Err("Invalid tile control".into());
+        }
+        let tile = value
+            .get("data")
+            .and_then(Value::as_str)
+            .and_then(|id| Uuid::parse_str(id).ok())
+            .ok_or("Set Tile needs a tile selection")?;
+        let recipient = selected(p, "recipient")?;
+        if recipient > 1 {
+            return Err("Invalid Set Tile recipient".into());
+        }
+        Ok(Box::new(SetTile {
+            tile,
+            target: recipient == 1,
+        }))
+    }
+}
+struct SetTile {
+    tile: Uuid,
+    target: bool,
+}
+impl Operation for SetTile {
+    fn execute(
+        &self,
+        ctx: &EventContext<'_>,
+        world: &mut dyn WorldServices,
+    ) -> Result<&'static str, String> {
+        let target = if self.target {
+            let Some(target) = world
+                .current_target(ctx.actor)
+                .or_else(|| acting_target(ctx))
+            else {
+                return Ok("failed");
+            };
+            Some(target)
+        } else {
+            None
+        };
+        match world.set_tile(ctx.actor, target, self.tile) {
+            Ok(()) => Ok("out"),
+            Err(_) => Ok("failed"),
+        }
+    }
 }
 struct SetAttributeModule;
 impl NodeModule for SetAttributeModule {
@@ -610,9 +672,16 @@ impl NodeModule for PlayerCameraModule {
             .and_then(|v| v.pointer("/Choice/selected"))
             .and_then(Value::as_u64)
             .ok_or("Missing camera selection")?;
-        let camera = ["2d", "2d_grid", "iso", "firstp", "firstp_grid"]
-            .get(selected as usize)
-            .ok_or("Invalid camera selection")?;
+        let camera = [
+            "2d",
+            "2d_grid",
+            "iso",
+            "firstp",
+            "firstp_grid",
+            "firstp_mouse",
+        ]
+        .get(selected as usize)
+        .ok_or("Invalid camera selection")?;
         Ok(Box::new(PlayerCamera(*camera)))
     }
 }

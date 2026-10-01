@@ -618,6 +618,17 @@ impl SceneVMApp for EldironPlayerApp {
         std::mem::swap(_vm, &mut self.rusterix.scene_handler.vm);
     }
 
+    fn wants_mouse_motion(&self) -> bool {
+        self.rusterix.client.mouse_look.active
+    }
+
+    fn mouse_motion(&mut self, _vm: &mut SceneVM, dx: f32, dy: f32) {
+        self.rusterix.client_mouse_motion(Vec2::new(dx, dy));
+    }
+    fn mouse_leave(&mut self, _vm: &mut SceneVM) {
+        self.rusterix.client.end_mouse_look();
+    }
+
     fn mouse_up(&mut self, _vm: &mut SceneVM, x: f32, y: f32) {
         std::mem::swap(_vm, &mut self.rusterix.scene_handler.vm);
         self.pointer_down = false;

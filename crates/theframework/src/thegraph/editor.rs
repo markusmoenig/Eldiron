@@ -108,6 +108,7 @@ pub struct GraphEditor {
     pub selected: Option<GraphId>,
     pub selected_connection: Option<GraphId>,
     pub cursor: Point,
+    pub(crate) cut_path: Option<Vec<Point>>,
     pub error: Option<String>,
     gesture: Option<Gesture>,
     pub(crate) text_focus: Option<GraphTextFocus>,
@@ -117,6 +118,47 @@ pub struct GraphEditor {
     pub visible: Option<std::collections::HashSet<GraphId>>,
 }
 impl GraphEditor {
+    /// Start a screen-space stroke; cutting commits as one edit on release.
+    pub fn begin_cut(&mut self, doc: &mut GraphDocument, screen: Point) {
+        self.finish_text(doc, true);
+        self.gesture = None;
+        self.selected_connection = None;
+        self.cut_path = Some(vec![screen]);
+        self.cursor = screen;
+    }
+    fn finish_cut(&mut self, doc: &mut GraphDocument) {
+        let Some(path) = self.cut_path.take() else {
+            return;
+        };
+        let ids: Vec<_> = doc
+            .connections
+            .iter()
+            .filter(|c| {
+                if !self.connection_visible(doc, c.id) {
+                    return false;
+                }
+                let Some(curve) = connection_curve(doc, c, &self.viewport) else {
+                    return false;
+                };
+                path.windows(2).any(|stroke| {
+                    (0..64).any(|i| {
+                        segments_cross(
+                            stroke[0],
+                            stroke[1],
+                            bezier(curve, i as f32 / 64.),
+                            bezier(curve, (i + 1) as f32 / 64.),
+                        )
+                    })
+                })
+            })
+            .map(|c| c.id)
+            .collect();
+        for id in ids {
+            self.selected_connection = Some(id);
+            self.delete_connection(doc);
+        }
+    }
+
     /// True when a node is part of the branch currently shown, or when no
     /// filter is active.
     pub fn node_visible(&self, id: GraphId) -> bool {
@@ -425,6 +467,10 @@ impl GraphEditor {
         controls: &dyn GraphControls,
     ) {
         self.cursor = screen;
+        if let Some(path) = &mut self.cut_path {
+            path.push(screen);
+            return;
+        }
         match self.gesture.clone() {
             Some(Gesture::Pan { start, before }) => {
                 self.viewport.pan = [
@@ -453,6 +499,11 @@ impl GraphEditor {
         policy: &dyn GraphConnectionPolicy,
     ) {
         self.cursor = screen;
+        if let Some(path) = &mut self.cut_path {
+            path.push(screen);
+            self.finish_cut(doc);
+            return;
+        }
         match self.gesture.take() {
             Some(Gesture::Move { node, before, .. }) => {
                 if let Some(n) = doc.nodes.iter().find(|n| n.id == node) {
@@ -516,6 +567,7 @@ impl GraphEditor {
         }
     }
     pub fn cancel(&mut self, doc: &mut GraphDocument) {
+        self.cut_path = None;
         self.finish_text(doc, false);
         match self.gesture.take() {
             Some(Gesture::Move { node, before, .. }) => {
@@ -635,4 +687,18 @@ fn caret_at(text: &str, x: f32, size: f32, controls: &dyn GraphControls) -> usiz
         width += advance;
     }
     text.len()
+}
+
+fn segments_cross(a: Point, b: Point, c: Point, d: Point) -> bool {
+    let cross = |u: Point, v: Point| u[0] * v[1] - u[1] * v[0];
+    let r = [b[0] - a[0], b[1] - a[1]];
+    let s = [d[0] - c[0], d[1] - c[1]];
+    let determinant = cross(r, s);
+    if determinant.abs() < 0.0001 {
+        return false;
+    }
+    let delta = [c[0] - a[0], c[1] - a[1]];
+    let t = cross(delta, s) / determinant;
+    let u = cross(delta, r) / determinant;
+    (0. ..=1.).contains(&t) && (0. ..=1.).contains(&u)
 }

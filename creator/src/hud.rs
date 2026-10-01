@@ -698,6 +698,31 @@ impl Hud {
                 }
             }
 
+            if self.mode == HudMode::Wall && crate::actions::wall_hud_material_slot_locked(map, i) {
+                let badge = (
+                    rect.x as usize + rect.width as usize - 15,
+                    rect.y as usize + 2,
+                    13,
+                    13,
+                );
+                ctx.draw
+                    .rect(buffer.pixels_mut(), &badge, stride, &[25, 30, 34, 255]);
+                ctx.draw.text_rect(
+                    buffer.pixels_mut(),
+                    &badge,
+                    stride,
+                    "N",
+                    TheFontSettings {
+                        size: 10.0,
+                        ..Default::default()
+                    },
+                    &text_color,
+                    &bg_color,
+                    TheHorizontalAlign::Center,
+                    TheVerticalAlign::Center,
+                );
+            }
+
             if i == server_ctx.selected_hud_icon_index {
                 ctx.draw.rect_outline(
                     buffer.pixels_mut(),
@@ -985,6 +1010,14 @@ impl Hud {
 
         for (i, rect) in self.icon_rects.iter().enumerate() {
             if rect.contains(Vec2::new(x, y)) {
+                if self.mode == HudMode::Wall
+                    && crate::actions::wall_hud_material_slot_locked(map, i as i32)
+                {
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        TheId::empty(),
+                        fl!("construction_material_graph_owned"),
+                    ));
+                }
                 self.selected_icon_index = i as i32;
                 server_ctx.selected_hud_icon_index = i as i32;
                 ctx.ui.send(TheEvent::Custom(

@@ -1996,6 +1996,33 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn mouse_look_updates_facing_without_starting_movement_or_a_turn() {
+        let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
+        clear_regionctx_store();
+        let mut context = directional_intent_test_ctx(PlayerCamera::D3FirstPMouse, false);
+        context.map.entities[0].set_orientation(Vec2::new(0.0, -1.0));
+        let ctx = Arc::new(Mutex::new(context));
+        register_regionctx(9920, ctx.clone());
+        let mut instance = RegionInstance::new(9920);
+        assert!(!RegionInstance::action_requests_simulation_step(
+            &EntityAction::LookYaw(90.0)
+        ));
+        instance
+            .to_sender
+            .send(RegionMessage::UserAction(1, EntityAction::LookYaw(90.0)))
+            .unwrap();
+        instance.redraw_tick();
+        {
+            let ctx = ctx.lock().unwrap();
+            let player = &ctx.map.entities[0];
+            assert_eq!(player.action, EntityAction::Off);
+            assert!((player.orientation - Vec2::unit_x()).magnitude() < 1e-5);
+            assert_eq!(player.get_pos_xz(), Vec2::new(1.5, 1.5));
+        }
+        clear_regionctx_store();
+    }
+
+    #[test]
     fn spawned_grid_player_startup_ignores_previous_item_context() {
         let _regionctx_guard = REGIONCTX_TEST_LOCK.lock().unwrap();
         clear_regionctx_store();
@@ -4799,7 +4826,7 @@ impl RegionInstance {
     fn is_first_person_camera(player_camera: &PlayerCamera) -> bool {
         matches!(
             player_camera,
-            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid
+            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPMouse | PlayerCamera::D3FirstPGrid
         )
     }
 
@@ -4817,7 +4844,10 @@ impl RegionInstance {
 
         match entity.attributes.get("player_camera") {
             Some(Value::PlayerCamera(
-                PlayerCamera::D3Iso | PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid,
+                PlayerCamera::D3Iso
+                | PlayerCamera::D3FirstP
+                | PlayerCamera::D3FirstPMouse
+                | PlayerCamera::D3FirstPGrid,
             )) => true,
             Some(Value::PlayerCamera(PlayerCamera::D2 | PlayerCamera::D2Grid)) | None => {
                 get_config_bool_default(ctx, "game", "persistent_intents", false)
@@ -7002,7 +7032,10 @@ impl RegionInstance {
     fn action_requests_simulation_step(action: &EntityAction) -> bool {
         !matches!(
             action,
-            EntityAction::Off | EntityAction::Intent(_) | EntityAction::SetCommandSlot { .. }
+            EntityAction::Off
+                | EntityAction::Intent(_)
+                | EntityAction::SetCommandSlot { .. }
+                | EntityAction::LookYaw(_)
         )
     }
 
@@ -9776,6 +9809,22 @@ impl RegionInstance {
                                 }
                             });
                         }
+                        LookYaw(degrees) => {
+                            if degrees.is_finite() {
+                                with_regionctx(self.id, |ctx| {
+                                    if let Some(entity) =
+                                        ctx.map.entities.iter_mut().find(|e| e.id == entity_id)
+                                        && entity.is_player()
+                                        && matches!(
+                                            entity.attributes.get("player_camera"),
+                                            Some(Value::PlayerCamera(PlayerCamera::D3FirstPMouse))
+                                        )
+                                    {
+                                        entity.turn_right(degrees);
+                                    }
+                                });
+                            }
+                        }
                         SetPlayerCamera(player_camera) => {
                             with_regionctx(self.id, |ctx: &mut RegionCtx| {
                                 if let Some(entity) = ctx
@@ -11368,9 +11417,11 @@ impl RegionInstance {
                                         if probe.blocking_collision {
                                             (position, entity.position.y, false, false, true)
                                         } else {
+                                            // A grid step must follow its axis and stop at
+                                            // obstacles, never search for a route around them.
                                             let (p, arrived) = ctx
                                                 .collision_world
-                                                .move_towards_on_floors(
+                                                .move_towards_on_floors_local(
                                                     position,
                                                     curr_coord,
                                                     remaining_speed,
@@ -13641,6 +13692,7 @@ fn set_player_camera(camera: String, vm: &VirtualMachine) {
             "iso" => PlayerCamera::D3Iso,
             "iso_grid" => PlayerCamera::D2Grid,
             "firstp" => PlayerCamera::D3FirstP,
+            "firstp_mouse" => PlayerCamera::D3FirstPMouse,
             "firstp_grid" => PlayerCamera::D3FirstPGrid,
             _ => PlayerCamera::D2,
         };
@@ -18776,7 +18828,7 @@ fn cast_spell_for_entity(
     let caster_is_firstp = matches!(
         caster.attributes.get("player_camera"),
         Some(Value::PlayerCamera(
-            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid
+            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPMouse | PlayerCamera::D3FirstPGrid
         ))
     );
     let target_pos = target.position;
@@ -18920,7 +18972,7 @@ fn cast_spell_for_entity_to_pos(
     let caster_is_firstp = matches!(
         caster.attributes.get("player_camera"),
         Some(Value::PlayerCamera(
-            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid
+            PlayerCamera::D3FirstP | PlayerCamera::D3FirstPMouse | PlayerCamera::D3FirstPGrid
         ))
     );
     let had_cast_height = spell_item.attributes.contains("spell_cast_height");

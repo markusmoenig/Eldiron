@@ -520,6 +520,10 @@ pub struct Project {
     #[serde(default)]
     pub builder_graphs: IndexMap<Uuid, BuilderGraphAsset>,
 
+    /// Reusable construction graphs for walls, floors, and ceilings.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub construction_patterns: IndexMap<Uuid, crate::construction_graph::ConstructionPatternAsset>,
+
     /// Reusable linked construction blocks, furniture, and interactive props.
     #[serde(default)]
     pub block_props: IndexMap<Uuid, rusterix::BlockPropAsset>,
@@ -661,6 +665,7 @@ impl Project {
             tiles: IndexMap::default(),
             tile_groups: IndexMap::default(),
             builder_graphs: IndexMap::default(),
+            construction_patterns: IndexMap::default(),
             block_props: IndexMap::default(),
             block_prop_paint: IndexMap::default(),
             prefab_editor_map: None,
@@ -1837,12 +1842,32 @@ mod tests {
             return;
         }
 
-        let project = load_project_fixture(&path);
+        let mut project = load_project_fixture(&path);
 
         assert!(
             !project.regions.is_empty(),
             "3D starter fixture should contain at least one region"
         );
+        assert!(project.characters.values().all(|c| c.source.is_empty()));
+        assert!(project.items.values().all(|i| i.source.is_empty()));
+        for (key, graph) in &project.node_graphs {
+            if key.starts_with("behavior/") {
+                assert!(graph["branches"].is_array());
+                rusterix::server::nodes::Registry::shared()
+                    .compile(graph)
+                    .unwrap_or_else(|error| panic!("{key}: {error}"));
+            }
+        }
+        crate::entity_graph::synchronize(&mut project).expect("valid entity configuration graphs");
+        let player = project
+            .characters
+            .values()
+            .find(|c| c.name == "Player")
+            .unwrap();
+        let data: toml::Table = player.data.parse().unwrap();
+        assert_eq!(data["attributes"]["race"].as_str(), Some("Human"));
+        assert_eq!(data["attributes"]["class"].as_str(), Some("Warrior"));
+        assert_eq!(data["input"]["w"].as_str(), Some("control.forward"));
     }
 
     #[test]

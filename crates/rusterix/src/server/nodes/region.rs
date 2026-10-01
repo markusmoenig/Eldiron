@@ -268,7 +268,13 @@ fn dispatch_graph(
     let traces: Vec<_> = behaviors.runtime.traces.drain(..).collect();
     for trace in &traces {
         if let Some(error) = &trace.error {
-            log(ctx, format!("[error] Node {}: {error}", trace.node));
+            log(
+                ctx,
+                format!(
+                    "[error] Node {}: {error}",
+                    behaviors.runtime.node_title(trace.node)
+                ),
+            );
         }
     }
     if !traces.is_empty() {
@@ -972,12 +978,40 @@ impl WorldServices for RegionServices<'_> {
             "2d_grid" => PlayerCamera::D2Grid,
             "iso" => PlayerCamera::D3Iso,
             "firstp" => PlayerCamera::D3FirstP,
+            "firstp_mouse" => PlayerCamera::D3FirstPMouse,
             "firstp_grid" => PlayerCamera::D3FirstPGrid,
             _ => return Err("Unknown player camera".into()),
         };
         let entity = find_actor_entity_mut(self.ctx, &self.owner, actor)
             .ok_or("Character no longer exists")?;
         entity.set_attribute("player_camera", WorldValue::PlayerCamera(camera));
+        Ok(())
+    }
+    fn set_tile(&mut self, actor: &Actor, target: Option<u32>, tile: Uuid) -> Result<(), String> {
+        if !self.ctx.assets.tiles.contains_key(&tile) {
+            return Err("Tile no longer exists".into());
+        }
+        let source = WorldValue::Source(crate::PixelSource::TileId(tile));
+        if let Some(id) = target {
+            let entity = self
+                .ctx
+                .get_entity_mut(id)
+                .ok_or("Target no longer exists")?;
+            entity.set_attribute("tile_id", WorldValue::Id(tile));
+            entity.set_attribute("source", source);
+        } else if matches!(self.owner, EventOwner::Item(_)) {
+            let item = self
+                .ctx
+                .get_item_mut(actor.render_id)
+                .ok_or("Item no longer exists")?;
+            item.set_attribute("tile_id", WorldValue::Id(tile));
+            item.set_attribute("source", source);
+        } else {
+            let entity = find_actor_entity_mut(self.ctx, &self.owner, actor)
+                .ok_or("Character no longer exists")?;
+            entity.set_attribute("tile_id", WorldValue::Id(tile));
+            entity.set_attribute("source", source);
+        }
         Ok(())
     }
     fn set_attribute(
@@ -1472,7 +1506,13 @@ fn tick_graph(ctx: &mut RegionCtx, key: &str, behaviors: &mut GraphBehavior) {
     let traces: Vec<_> = behaviors.runtime.traces.drain(..).collect();
     for trace in &traces {
         if let Some(error) = &trace.error {
-            log(ctx, format!("[error] Node {}: {error}", trace.node));
+            log(
+                ctx,
+                format!(
+                    "[error] Node {}: {error}",
+                    behaviors.runtime.node_title(trace.node)
+                ),
+            );
         }
     }
     if !traces.is_empty() {
@@ -1591,7 +1631,13 @@ fn refresh_runtime(ctx: &mut RegionCtx, key: &str, plan: Arc<Plan>, behaviors: &
     let traces: Vec<_> = behaviors.runtime.traces.drain(..).collect();
     for trace in &traces {
         if let Some(error) = &trace.error {
-            log(ctx, format!("[error] Node {}: {error}", trace.node));
+            log(
+                ctx,
+                format!(
+                    "[error] Node {}: {error}",
+                    behaviors.runtime.node_title(trace.node)
+                ),
+            );
         }
     }
     if !traces.is_empty() {

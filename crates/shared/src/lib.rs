@@ -1,5 +1,6 @@
 pub mod asset;
 pub mod character;
+pub mod construction_graph;
 pub mod context;
 pub mod entity_graph;
 pub mod interaction;
@@ -31,6 +32,7 @@ pub mod prelude {
         BuilderOutputTarget, BuilderPrimitive, BuilderTransform,
     };
     pub use crate::character::Character;
+    pub use crate::construction_graph::ConstructionPatternAsset;
     pub use crate::context::*;
     pub use crate::interaction::*;
     pub use crate::iso_paint::*;

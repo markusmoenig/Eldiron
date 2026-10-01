@@ -15,6 +15,8 @@ Choose an event on an Event node to start a branch. These are the named fields e
 | Active | None | React to activation; Set Emit Light can follow the object's active state. |
 | Time | `hour` (number) | React to a time event. For schedules, use Routine and Time Range. |
 | Entered | `area` (text) | React to entering a named area. |
+| Entered Tile | `tag` (text), `x`, `y`, `layer` (numbers) | React to entering a tagged painted 2D tile. |
+| Left Tile | `tag` (text), `x`, `y`, `layer` (numbers) | React to leaving a tagged painted 2D tile. |
 | Damaged | `attacker` (entity), `amount` (number), `kind` (text) | React to received damage. |
 | Intent | `intent` (text), `subject` (entity), `distance`, `count` (numbers) | Handle an interaction intent. |
 | Death | None | Handle death, for example dropping inventory or restoring life state. |
@@ -24,7 +26,7 @@ A field marked as awaiting an event has no observed value yet. Do not assume ano
 
 ## Named events
 
-Use **On Event** to listen for a named event. **Notify In** schedules a named event after a delay in game minutes. This is useful for deferred checks without keeping a movement action open. Named engine events can also be listened to this way, including `entered_tile` and `left_tile` for gameplay-tagged tiles. These events currently have no named payload fields in the node adapter.
+Use **On Event** to listen for a named event. **Notify In** schedules a named event after a delay in game minutes. This is useful for deferred checks without keeping a movement action open. Named engine events can also be listened to this way. For tagged tile transitions, select **Entered Tile** or **Left Tile** on an Event node; both expose `tag`, `x`, `y`, and `layer`.
 
 ## Area transitions and navigation
 
@@ -35,3 +37,14 @@ Entering an area and completing navigation are different conditions. Connect to 
 ## Interaction versus ruleset action
 
 An Intent branch can filter `event.intent` against `use` to start a conversation. A UI command such as `rules.basic_attack` requests the ruleset action directly; do not add an attack intent chain to make that command work.
+
+## Tagged tile interactions
+
+Set **Tags** in Tile Metadata to `chair`. Each tag generates its own event, normalized to lowercase. The position fields `x` and `y` describe the map cell; `layer` identifies the painted tile layer. Left Tile reports the tile being left.
+
+Create two branches:
+
+- **Event: Entered Tile → Filter** (`event.tag` equals `chair`) **→ Match → Set Tile** (Self, seated sprite).
+- **Event: Left Tile → Filter** (`event.tag` equals `chair`) **→ Match → Set Tile** (Self, standing sprite).
+
+These transitions are separate from named area events and movement completion.

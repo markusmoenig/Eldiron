@@ -5719,6 +5719,16 @@ impl Editor {
                 "item_id": item_id,
                 "tile_index": tile_index,
             }),
+            PixelSource::Noise(noise) => serde_json::json!({
+                "kind": "noise",
+                "algorithm": if noise.voronoi { "voronoi" } else { "value" },
+                "scale": noise.scale,
+                "seed": noise.seed,
+                "low": noise.low,
+                "high": noise.high,
+                "colors": noise.colors(),
+                "tile_id": noise.tile_id().to_string(),
+            }),
             PixelSource::Color(color) => serde_json::json!({
                 "kind": "color",
                 "rgba": color.to_u8_array(),
@@ -8201,6 +8211,13 @@ impl TheTrait for Editor {
         input_button.set_icon_name("keyboard".to_string());
         input_button.set_has_state(true);
 
+        let mut defaults_button = TheMenubarButton::new(TheId::named("Game Entity Defaults"));
+        defaults_button.set_status_text(&fl!("status_game_entity_defaults_button"));
+        // Phosphor regular fast-forward, matching the neighboring 28px icons.
+        defaults_button.set_icon_name("fast-forward".to_string());
+        defaults_button.set_fixed_size(Vec2::new(28, 28));
+        defaults_button.set_has_state(true);
+
         let mut time_slider = TheTimeSlider::new(TheId::named("Server Time Slider"));
         time_slider.set_status_text(&fl!("status_time_slider"));
         time_slider.set_tall(true);
@@ -8243,6 +8260,7 @@ impl TheTrait for Editor {
         hlayout.add_widget(Box::new(pause_button));
         hlayout.add_widget(Box::new(stop_button));
         hlayout.add_widget(Box::new(input_button));
+        hlayout.add_widget(Box::new(defaults_button));
         hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
         hlayout.add_widget(Box::new(time_slider));
         //hlayout.add_widget(Box::new(TheMenubarSeparator::new(TheId::empty())));
@@ -8351,7 +8369,9 @@ impl TheTrait for Editor {
         ));
         dock_restore.set_disabled(dock_is_normal);
         project_strip_layout.add_widget(Box::new(dock_restore));
-        project_strip_layout.set_reverse_index(Some(4));
+        // Camera controls, fill light, and dock buttons share the right side;
+        // keep the left side clear for the project tabs.
+        project_strip_layout.set_reverse_index(Some(5));
 
         tabs_canvas.set_layout(project_strip_layout);
         shared_canvas.set_top(tabs_canvas);
@@ -8801,12 +8821,14 @@ impl TheTrait for Editor {
                     let region_id = region.map.id;
                     let mut messages = RUSTERIX.write().unwrap().server.get_messages(&region_id);
                     let mut says = RUSTERIX.write().unwrap().server.get_says(&region_id);
+                    let mut choices = RUSTERIX.write().unwrap().server.get_choices(&region_id);
 
                     TEXTGAME.write().unwrap().update(
                         &self.project,
                         &self.server_ctx,
                         &mut messages,
                         &mut says,
+                        &mut choices,
                         ui,
                         ctx,
                     );
@@ -9245,12 +9267,16 @@ impl TheTrait for Editor {
                     if !self.pending_game_says.is_empty() {
                         says = std::mem::take(&mut self.pending_game_says);
                     }
+                    if !self.pending_game_choices.is_empty() {
+                        choices = std::mem::take(&mut self.pending_game_choices);
+                    }
                 }
                 TEXTGAME.write().unwrap().update(
                     &self.project,
                     &self.server_ctx,
                     &mut messages,
                     &mut says,
+                    &mut choices,
                     ui,
                     ctx,
                 );
@@ -9677,6 +9703,9 @@ impl TheTrait for Editor {
                                         .client
                                         .set_map_hover_info_d2(self.server_ctx.hover, None);
                                 }
+
+                                rusterix.client.builder_d2.show_entity_markers =
+                                    rusterix.server.state == rusterix::ServerState::Off;
 
                                 // let start_time = ctx.get_time();
 
@@ -10952,6 +10981,11 @@ impl TheTrait for Editor {
                     }
                     // Server
                     else if id.name == "Play" {
+                        // Stop suspends routing without deselecting the user's
+                        // toolbar preference. Restore it for each run/resume.
+                        self.server_ctx.game_input_mode = ui
+                            .get_widget("GameInput")
+                            .is_some_and(|button| button.state() == TheWidgetState::Clicked);
                         let state = RUSTERIX.read().unwrap().server.state;
                         if state == rusterix::ServerState::Paused {
                             self.pending_game_messages.clear();
@@ -10977,8 +11011,16 @@ impl TheTrait for Editor {
                                     true,
                                 );
                                 RUSTERIX.write().unwrap().clear_say_messages();
-                                let commands =
+                                let mut commands =
                                     setup_client(&mut RUSTERIX.write().unwrap(), &mut self.project);
+                                if ui
+                                    .get_widget("Game Entity Defaults")
+                                    .is_some_and(|button| button.state() == TheWidgetState::Clicked)
+                                {
+                                    commands.extend(
+                                        RUSTERIX.write().unwrap().start_with_entity_defaults(),
+                                    );
+                                }
                                 RUSTERIX
                                     .write()
                                     .unwrap()
@@ -11406,7 +11448,22 @@ impl TheTrait for Editor {
         redraw
     }
 
+    fn wants_mouse_motion(&self) -> bool {
+        RUSTERIX.read().unwrap().client.mouse_look.active
+    }
+    fn mouse_leave(&mut self, _ctx: &mut TheContext) -> bool {
+        RUSTERIX.write().unwrap().client.end_mouse_look()
+    }
+
     fn mouse_motion(&mut self, delta_x: f32, delta_y: f32, ctx: &mut TheContext) -> bool {
+        if RUSTERIX
+            .write()
+            .unwrap()
+            .client_mouse_motion(Vec2::new(delta_x, delta_y))
+        {
+            ctx.ui.redraw_all = true;
+            return true;
+        }
         if self.server_ctx.game_input_mode
             || self.server_ctx.editor_view_mode == EditorViewMode::D2
             || self.server_ctx.curr_map_tool_type == MapToolType::Game

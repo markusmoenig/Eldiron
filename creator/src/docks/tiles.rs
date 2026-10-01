@@ -669,6 +669,24 @@ impl Dock for TilesDock {
                         }
                         return true;
                     }
+                    if let Some(map) = project.get_map(server_ctx) {
+                        server_ctx.curr_map_tool_type =
+                            crate::actions::current_selection_tool_type(map);
+                    }
+                    if server_ctx.curr_map_tool_type == MapToolType::Wall
+                        && project.get_map(server_ctx).is_some_and(|map| {
+                            crate::actions::wall_hud_material_slot_locked(
+                                map,
+                                server_ctx.selected_hud_icon_index,
+                            )
+                        })
+                    {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("construction_material_graph_owned"),
+                        ));
+                        return true;
+                    }
                     let selected_source =
                         crate::utils::get_surface_apply_source(project, server_ctx);
                     if let Some(selected_source) = selected_source {
@@ -861,6 +879,24 @@ impl Dock for TilesDock {
                         }
                     }
                 } else if id.name == self.widget_name("Tiles Dock Clear Tile") {
+                    if let Some(map) = project.get_map(server_ctx) {
+                        server_ctx.curr_map_tool_type =
+                            crate::actions::current_selection_tool_type(map);
+                    }
+                    if server_ctx.curr_map_tool_type == MapToolType::Wall
+                        && project.get_map(server_ctx).is_some_and(|map| {
+                            crate::actions::wall_hud_material_slot_locked(
+                                map,
+                                server_ctx.selected_hud_icon_index,
+                            )
+                        })
+                    {
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            TheId::empty(),
+                            fl!("construction_material_graph_owned"),
+                        ));
+                        return true;
+                    }
                     let mut cleared_action_slot = false;
                     let mut undo_atom: Option<ProjectUndoAtom> = None;
                     let mut needs_scene_redraw = false;

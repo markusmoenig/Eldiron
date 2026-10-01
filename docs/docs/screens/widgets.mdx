@@ -35,7 +35,11 @@ On startup, chunks around the player are built first. Farther chunks inside `chu
 
 ### Camera Section
 
-- **type**: Rendering camera mode; **iso**, **firstp**, or **2D**.
+- **type**: Rendering camera mode: `2d`, `2d_grid`, `iso`, `firstp`, `firstp_grid`, or `firstp_mouse`.
+- **mouse_sensitivity** (`firstp_mouse`, optional): degrees of turning per mouse-motion unit; default `0.2`.
+- **invert_y** (`firstp_mouse`, optional): reverse vertical mouse look; default `false`.
+
+`firstp_mouse` looks horizontally and vertically when the pointer is over the game viewport. No mouse button is required. Moving onto the UI or leaving the window stops mouse look. Vertical look is limited to 85 degrees up or down; horizontal turning updates the character's facing. Set the player's camera to `firstp_mouse` as well so movement follows that facing.
 - **azimuth** (iso, optional): horizontal rotation in degrees. If omitted, camera default is used.
 - **elevation** (iso, optional): vertical angle in degrees. Higher values look more top-down and help seeing inside buildings. If omitted, camera default is used.
 - **scale** (iso, optional): orthographic half-height (zoom). Larger values zoom out. If omitted, camera default is used.
@@ -334,8 +338,8 @@ If only those two icons exist, Eldiron keeps using them. Pressed buttons tempora
 - **max_parts** / **binding_max_parts** - Maximum number of appended parts to keep.
 - **selection** - Use `"single"` for mutually exclusive choice buttons. A button is selected when its `value` matches the current value of `bind`.
 - **group** - Optional group name. Buttons with `bind` and `group` default to single-choice behavior.
-- **camera** - Switch game widget rendering camera: `2d`, `iso`, `firstp`.
-- **player_camera** - Switch player input mapping camera mode on the server: `2d`, `iso`, `firstp`.
+- **camera** - Switch game widget rendering camera: `2d`, `2d_grid`, `iso`, `firstp`, `firstp_grid`, `firstp_mouse`.
+- **player_camera** - Switch player input mapping camera mode on the server using the same mode names.
 - **camera_target** - Optional target game widget name; if omitted, applies to all game widgets.
 - **border_size** - An optional border for the button. Default size is 0 (no border).
 - **border_color** - The color for the border. Default is white ("#FFFFFF").

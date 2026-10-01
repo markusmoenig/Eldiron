@@ -1372,7 +1372,9 @@ impl<'a> HostHandler for RegionHost<'a> {
                         is_firstp = matches!(
                             entity.attributes.get("player_camera"),
                             Some(Value::PlayerCamera(
-                                PlayerCamera::D3FirstP | PlayerCamera::D3FirstPGrid
+                                PlayerCamera::D3FirstP
+                                    | PlayerCamera::D3FirstPMouse
+                                    | PlayerCamera::D3FirstPGrid
                             ))
                         );
                     }
@@ -1498,6 +1500,7 @@ impl<'a> HostHandler for RegionHost<'a> {
                             "iso" => PlayerCamera::D3Iso,
                             "iso_grid" => PlayerCamera::D2Grid,
                             "firstp" => PlayerCamera::D3FirstP,
+                            "firstp_mouse" => PlayerCamera::D3FirstPMouse,
                             "firstp_grid" => PlayerCamera::D3FirstPGrid,
                             _ => PlayerCamera::D2,
                         };

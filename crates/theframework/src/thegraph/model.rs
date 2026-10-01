@@ -248,6 +248,12 @@ pub struct GraphNode {
     /// saved files while it is off, so untouched graphs keep their shape.
     #[serde(default, skip_serializing_if = "is_false")]
     pub folded: bool,
+    /// Disable a trigger branch while retaining its authored nodes.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub disabled: bool,
+    /// Authoring branch owner, independent of whether this node is connected yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<GraphId>,
 }
 impl GraphNode {
     pub fn new(title: &str, position: Point, color: GraphColor) -> Self {
@@ -261,6 +267,8 @@ impl GraphNode {
             rows: vec![],
             ports: vec![],
             folded: false,
+            disabled: false,
+            branch: None,
         }
     }
     /// Terminals on the left and right edges.
@@ -460,6 +468,14 @@ pub trait GraphContext {
         None
     }
     fn node_title(&self, _node: &GraphNode) -> Option<String> {
+        None
+    }
+    /// Visible parameter caption; the stored row key remains locale-neutral.
+    fn parameter_label(&self, _node: &GraphNode, _row: &GraphRow) -> Option<String> {
+        None
+    }
+    /// Visible terminal caption; the stored port key remains locale-neutral.
+    fn port_label(&self, _node: &GraphNode, _port: &GraphPort) -> Option<String> {
         None
     }
     fn row_label(&self, _node: &GraphNode, _row: &GraphRow) -> Option<String> {

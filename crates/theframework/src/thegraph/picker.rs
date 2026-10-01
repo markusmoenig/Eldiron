@@ -12,6 +12,8 @@ pub struct GraphPicker {
     pub empty_label: String,
     pub origin: Point,
     pub items: Vec<GraphPickerItem>,
+    /// Optional host asset keys for visual selection.
+    pub previews: std::collections::HashMap<String, String>,
     pub scroll: usize,
     pub hovered: Option<String>,
     pointer: Option<Point>,
@@ -19,6 +21,7 @@ pub struct GraphPicker {
     compact: bool,
     width: f32,
     max_rows: usize,
+    grid: bool,
 }
 impl GraphPicker {
     pub fn new(title: &str, origin: Point, items: Vec<GraphPickerItem>) -> Self {
@@ -29,6 +32,7 @@ impl GraphPicker {
             empty_label: "No matches".into(),
             origin,
             items,
+            previews: Default::default(),
             scroll: 0,
             hovered: None,
             pointer: None,
@@ -36,6 +40,7 @@ impl GraphPicker {
             compact: false,
             width: 330.,
             max_rows: 8,
+            grid: false,
         }
     }
     /// A node-anchored dropdown with no title or unused space. Typing still filters.
@@ -54,34 +59,67 @@ impl GraphPicker {
         p.fit(viewport);
         p
     }
+    /// Compact visual grid. Scroll offsets count rows, not individual cells.
+    pub fn grid(anchor: GraphRect, viewport: Point, items: Vec<GraphPickerItem>) -> Self {
+        let mut p = Self::compact(anchor, viewport, items);
+        p.grid = true;
+        p.width = 260.;
+        p.fit(viewport);
+        if p.origin[1] + p.size()[1] > viewport[1] {
+            p.origin[1] = anchor.origin[1] - p.size()[1];
+            p.fit(viewport);
+        }
+        p
+    }
+    fn columns(&self) -> usize {
+        if self.grid {
+            ((self.width - 12.) / 56.).floor().max(1.) as usize
+        } else {
+            1
+        }
+    }
+    fn row_count(&self) -> usize {
+        self.filtered().len().div_ceil(self.columns())
+    }
     pub fn fit(&mut self, viewport: Point) {
         if !self.compact {
             return;
         }
-        self.max_rows = (((viewport[1] - 32.).max(0.) / 24.) as usize).clamp(1, 6);
+        self.max_rows = (((viewport[1] - 32.).max(0.) / self.step()) as usize)
+            .clamp(1, if self.grid { 4 } else { 6 });
+        self.width = self.width.min(viewport[0].max(1.));
         self.scroll = self
             .scroll
-            .min(self.filtered().len().saturating_sub(self.max_rows));
-        self.width = self.width.min(viewport[0].max(1.));
+            .min(self.row_count().saturating_sub(self.max_rows));
         self.origin[0] = self.origin[0].clamp(0., (viewport[0] - self.width).max(0.));
         self.origin[1] = self.origin[1].clamp(0., (viewport[1] - self.size()[1]).max(0.));
         self.hover(self.pointer);
     }
     fn header(&self) -> f32 {
         if self.compact {
-            if self.query.is_empty() { 4. } else { 28. }
+            if !self.grid && self.query.is_empty() {
+                4.
+            } else {
+                28.
+            }
         } else {
             64.
         }
     }
     fn step(&self) -> f32 {
-        if self.compact { 24. } else { 30. }
+        if self.grid {
+            56.
+        } else if self.compact {
+            24.
+        } else {
+            30.
+        }
     }
     pub fn size(&self) -> Point {
         if self.compact {
             [
                 self.width,
-                self.header() + self.filtered().len().clamp(1, self.max_rows) as f32 * 24. + 4.,
+                self.header() + self.row_count().clamp(1, self.max_rows) as f32 * self.step() + 4.,
             ]
         } else {
             [330., 320.]
@@ -127,7 +165,7 @@ impl GraphPicker {
         self.scroll = (self.scroll as i32 + delta).max(0) as usize;
         self.scroll = self
             .scroll
-            .min(self.filtered().len().saturating_sub(self.max_rows));
+            .min(self.row_count().saturating_sub(self.max_rows));
         self.hover(self.pointer);
     }
     pub fn contains(&self, p: Point) -> bool {
@@ -149,12 +187,20 @@ impl GraphPicker {
         if index >= self.max_rows {
             return None;
         }
+        let column = if self.grid {
+            if p[0] < self.origin[0] + 4. || p[0] >= self.origin[0] + self.width - 8. {
+                return None;
+            }
+            ((p[0] - self.origin[0] - 4.) / ((self.width - 12.) / self.columns() as f32)) as usize
+        } else {
+            0
+        };
         self.filtered()
-            .get(self.scroll + index)
+            .get((self.scroll + index) * self.columns() + column)
             .map(|i| i.id.clone())
     }
     fn paint_scrollbar(&self, p: &mut dyn GraphPainter) {
-        let count = self.filtered().len();
+        let count = self.row_count();
         if count <= self.max_rows {
             return;
         }
@@ -192,18 +238,73 @@ impl GraphPicker {
                 5.,
                 [24, 29, 30, 255],
             );
-            if !self.query.is_empty() {
+            if self.grid || !self.query.is_empty() {
                 p.text(
                     GraphRect {
                         origin: [self.origin[0] + 8., self.origin[1] + 4.],
                         size: [self.width - 16., 20.],
                     },
-                    &self.query,
+                    if self.query.is_empty() {
+                        &self.search_label
+                    } else {
+                        &self.query
+                    },
                     13.,
                     [100, 205, 227, 255],
                 );
             }
             let filtered = self.filtered();
+            if self.grid {
+                let columns = self.columns();
+                let width = (self.width - 12.) / columns as f32;
+                for (index, item) in filtered
+                    .iter()
+                    .skip(self.scroll * columns)
+                    .take(self.max_rows * columns)
+                    .enumerate()
+                {
+                    let rect = GraphRect {
+                        origin: [
+                            self.origin[0] + 4. + (index % columns) as f32 * width,
+                            self.origin[1] + self.header() + (index / columns) as f32 * self.step(),
+                        ],
+                        size: [width - 3., self.step() - 3.],
+                    };
+                    p.round_rect(
+                        rect,
+                        4.,
+                        if self.hovered.as_deref() == Some(item.id.as_str()) {
+                            [66, 105, 116, 255]
+                        } else {
+                            [50, 57, 58, 255]
+                        },
+                    );
+                    if let Some(asset) = self.previews.get(&item.id) {
+                        p.preview(
+                            GraphRect {
+                                origin: [rect.origin[0] + 4., rect.origin[1] + 4.],
+                                size: [rect.size[0] - 8., rect.size[1] - 8.],
+                            },
+                            asset,
+                        );
+                    } else {
+                        p.text(rect, &item.label, 10., [233, 235, 230, 255]);
+                    }
+                }
+                if filtered.is_empty() {
+                    p.text(
+                        GraphRect {
+                            origin: [self.origin[0] + 8., self.origin[1] + self.header()],
+                            size: [self.width - 16., 22.],
+                        },
+                        &self.empty_label,
+                        13.,
+                        [185, 190, 185, 255],
+                    );
+                }
+                self.paint_scrollbar(p);
+                return;
+            }
             for (index, item) in filtered
                 .iter()
                 .skip(self.scroll)
@@ -226,10 +327,22 @@ impl GraphPicker {
                         [50, 57, 58, 255]
                     },
                 );
+                let offset = if let Some(asset) = self.previews.get(&item.id) {
+                    p.preview(
+                        GraphRect {
+                            origin: [rect.origin[0] + 3., rect.origin[1] + 1.],
+                            size: [20., 20.],
+                        },
+                        asset,
+                    );
+                    28.
+                } else {
+                    6.
+                };
                 p.text(
                     GraphRect {
-                        origin: [rect.origin[0] + 6., rect.origin[1] + 2.],
-                        size: [rect.size[0] - 12., 18.],
+                        origin: [rect.origin[0] + offset, rect.origin[1] + 2.],
+                        size: [rect.size[0] - offset - 6., 18.],
                     },
                     &item.label,
                     13.,
@@ -313,5 +426,40 @@ impl GraphPicker {
             );
         }
         self.paint_scrollbar(p);
+    }
+}
+
+#[cfg(test)]
+mod grid_tests {
+    use super::*;
+    #[test]
+    fn grid_picks_columns_and_scrolls_whole_rows() {
+        let items = (0..30)
+            .map(|i| GraphPickerItem {
+                id: i.to_string(),
+                label: format!("sprite {i}"),
+            })
+            .collect();
+        let mut picker = GraphPicker::grid(
+            GraphRect {
+                origin: [0., 0.],
+                size: [200., 24.],
+            },
+            [500., 500.],
+            items,
+        );
+        assert_eq!(picker.columns(), 4);
+        let point = [
+            picker.origin[0] + 4. + 2. * 62. + 10.,
+            picker.origin[1] + picker.header() + 10.,
+        ];
+        assert_eq!(picker.pick(point).as_deref(), Some("2"));
+        picker.scroll_by(1);
+        assert_eq!(picker.pick(point).as_deref(), Some("6"));
+        picker.type_char('9');
+        assert_eq!(picker.scroll, 0);
+        assert_eq!(picker.row_count(), 1);
+        assert_eq!(picker.pick(point).as_deref(), Some("29"));
+        assert!(picker.pick([point[0] + 62., point[1]]).is_none());
     }
 }

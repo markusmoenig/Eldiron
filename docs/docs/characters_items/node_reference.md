@@ -54,7 +54,7 @@ Restart normal behavior after a temporary interaction. Connect it after the inte
 | Set Attribute | Write a named attribute with Text, Number, Boolean or Toggle type. |
 | State | Set Alive, Dead, Sleeping or Unconscious. Visibility remains a separate attribute. |
 | Teleport | Move the character to a named area, optionally in another region, after the current event finishes. |
-| Player Camera | Select 2D, 2D Grid, Isometric, First Person or First Person Grid after character creation. |
+| Player Camera | Select 2D, 2D Grid, Isometric, First Person, First Person Grid or First Person Mouse Look after character creation. |
 | Add Item | Add an item from ruleset item templates to inventory. |
 | Drop Items | Drop matching inventory; leave the filter empty to drop everything. |
 | Offer Inventory | Present carried items to the interaction's initiator; an empty filter offers everything. |

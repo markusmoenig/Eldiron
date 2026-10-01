@@ -1,6 +1,7 @@
 pub mod d3firstp;
 pub mod d3iso;
 pub mod d3orbit;
+pub mod mouse_look;
 
 use crate::Ray;
 use vek::{Mat4, Vec2, Vec3, Vec4};

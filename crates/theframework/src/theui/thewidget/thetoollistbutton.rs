@@ -9,6 +9,7 @@ pub struct TheToolListButton {
 
     dim: TheDim,
     icon_name: String,
+    custom_color: Option<TheColor>,
     is_dirty: bool,
 }
 
@@ -29,6 +30,7 @@ impl TheWidget for TheToolListButton {
 
             dim: TheDim::zero(),
             icon_name: String::new(),
+            custom_color: None,
             is_dirty: false,
         }
     }
@@ -140,7 +142,22 @@ impl TheWidget for TheToolListButton {
         } else {
             (ControlNormal, ToolListButtonNormalBorder)
         };
-        let paint = style.theme().paint(paint_role, rect);
+        let paint = if let Some(color) = &self.custom_color {
+            let brightness = if self.state == TheWidgetState::Selected {
+                1.65
+            } else if hovered {
+                1.35
+            } else {
+                1.0
+            };
+            let mut rgba = color.to_u8_array();
+            for channel in &mut rgba[..3] {
+                *channel = (*channel as f32 * brightness).min(255.0) as u8;
+            }
+            ThePaint::solid(rgba)
+        } else {
+            style.theme().paint(paint_role, rect)
+        };
         let border = *style.theme().color(border_role);
         let radius = style.theme().metric(ControlCornerRadius);
         let inner = ThePixelRect::new(
@@ -196,9 +213,15 @@ impl TheWidget for TheToolListButton {
 
 pub trait TheToolListButtonTrait {
     fn set_icon_name(&mut self, text: String);
+    fn set_custom_color(&mut self, color: Option<TheColor>);
 }
 
 impl TheToolListButtonTrait for TheToolListButton {
+    fn set_custom_color(&mut self, color: Option<TheColor>) {
+        self.custom_color = color;
+        self.is_dirty = true;
+    }
+
     fn set_icon_name(&mut self, icon_name: String) {
         self.icon_name = icon_name;
         self.is_dirty = true;

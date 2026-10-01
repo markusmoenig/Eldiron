@@ -13,6 +13,7 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
             key,
             "entity"
                 | "entity_appearance"
+                | "entity_set_tile"
                 | "entity_body"
                 | "entity_inventory"
                 | "entity_attribute"
@@ -43,9 +44,9 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
                 | ProjectContext::CharacterCode(_)
                 | ProjectContext::RegionCharacterInstance(_, _)
         ),
-        "say" | "set_attribute" | "teleport" | "message" | "state" | "add_item" | "drop_items"
-        | "set_emit_light" | "notify_in" | "entities_in_radius" | "dialog" | "prompt"
-        | "inventory_has" | "offer_inventory" => !matches!(
+        "say" | "set_tile" | "set_attribute" | "teleport" | "message" | "state" | "add_item"
+        | "drop_items" | "set_emit_light" | "notify_in" | "entities_in_radius" | "dialog"
+        | "prompt" | "inventory_has" | "offer_inventory" => !matches!(
             pc,
             ProjectContext::WorldCode | ProjectContext::RegionCode(_)
         ),
@@ -73,6 +74,7 @@ pub fn node_help(key: &str) -> String {
         "filter" => fl!("node_filter_help"),
         "say" => fl!("node_say_help"),
         "set_attribute" => fl!("node_set_attribute_help"),
+        "set_tile" => fl!("node_set_tile_help"),
         "teleport" => fl!("node_teleport_help"),
         "message" => fl!("node_message_help"),
         "state" => fl!("node_state_help"),

@@ -432,16 +432,24 @@ impl Assets {
             for object in &map.geometry_objects {
                 for face in &object.faces {
                     for source in face.tile.iter().chain(face.tiles.values()) {
-                        let PixelSource::Color(color) = source else {
-                            continue;
-                        };
-                        let tile_id = PixelSource::color_tile_uuid(color);
-                        tiles.entry(tile_id).or_insert_with(|| {
-                            let mut tile =
-                                Tile::from_texture(Texture::from_color(color.to_u8_array()));
-                            tile.id = tile_id;
-                            tile
-                        });
+                        match source {
+                            PixelSource::Color(color) => {
+                                let tile_id = PixelSource::color_tile_uuid(color);
+                                tiles.entry(tile_id).or_insert_with(|| {
+                                    let mut tile = Tile::from_texture(Texture::from_color(
+                                        color.to_u8_array(),
+                                    ));
+                                    tile.id = tile_id;
+                                    tile
+                                });
+                            }
+                            PixelSource::Noise(noise) => {
+                                tiles
+                                    .entry(noise.tile_id())
+                                    .or_insert_with(|| noise.to_tile(64));
+                            }
+                            _ => {}
+                        }
                     }
                 }
             }
@@ -682,6 +690,31 @@ mod tests {
         assert_eq!(variant.id, variant_id);
         assert_eq!(variant.material.normalized_preset(), "stone");
         assert_eq!(variant.material.normalized_finish(), "wet");
+    }
+
+    #[test]
+    fn noise_material_is_registered_as_a_real_grayscale_atlas_tile() {
+        let noise = crate::map::pixelsource::NoiseMaterial::default();
+        let mut object = GeometryObject::box_("noise", Vec3::zero(), Vec3::broadcast(1.0));
+        object.faces[0].tile = Some(PixelSource::Noise(noise.clone()));
+        let mut map = Map::default();
+        map.geometry_objects.push(object);
+        let mut tiles = IndexMap::new();
+        Assets::new().materialize_geometry_material_tiles_for_maps(&mut tiles, [&map]);
+        let texture = &tiles[&noise.tile_id()].textures[0];
+        assert_eq!((texture.width, texture.height), (64, 64));
+        for pixel in texture.data.chunks_exact(4) {
+            assert_eq!(pixel[0], pixel[1]);
+            assert_eq!(pixel[1], pixel[2]);
+            assert_eq!(pixel[3], 255);
+            assert!((noise.low..=noise.high).contains(&pixel[0]));
+        }
+        assert!(
+            texture
+                .data
+                .chunks_exact(4)
+                .any(|pixel| pixel[0] != texture.data[0])
+        );
     }
 
     #[test]

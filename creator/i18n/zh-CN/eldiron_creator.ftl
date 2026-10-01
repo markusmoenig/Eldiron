@@ -860,3 +860,33 @@ action_face_particles_palette_linked = 链接到调色板
 status_action_face_particles_palette_linked = 将粒子渐变保持链接到项目调色板条目
 action_face_particles_palette_colors = 调色板颜色
 status_action_face_particles_palette_colors = 选择粒子从生成到淡出的四种项目调色板颜色
+
+status_game_entity_defaults_button = 跳过角色设置：在编辑器中使用实体节点的默认设置开始游戏。下次点击播放时生效；独立游戏的启动流程保持不变。
+
+node_branch_disable = 禁用分支
+node_branch_enable = 启用分支
+node_branch_disabled = 已禁用
+status_node_branch_toggle = 启用或禁用选中的行为分支，无需删除。更改在游戏运行时生效，并支持撤销和重做。
+
+node_branch_empty = 空分支
+
+construction_node_noise = 噪声
+construction_row_noise_mode = 算法
+construction_row_noise_scale = 尺度
+construction_row_noise_seed = 种子
+construction_row_noise_low = 暗值
+construction_row_noise_high = 亮值
+construction_noise_value = 值噪声
+construction_noise_voronoi = 沃罗诺伊
+construction_help_noise = 生成数值场。连接到渐变节点以创建材质。
+
+construction_node_gradient = 渐变
+construction_port_value = 数值
+construction_help_gradient = 将数值场映射为两种所选颜色之间的渐变。
+
+construction_row_color_low = 低值颜色
+construction_row_color_high = 高值颜色
+
+text_play_cancel = 取消
+text_play_choose = 输入选项编号并按回车（输入 0 取消）。
+text_play_invalid_choice = 没有对应编号的有效选项。
