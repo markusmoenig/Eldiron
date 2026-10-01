@@ -1749,11 +1749,9 @@ fn surface_paint_minification_filter(
     return vec4<f32>(premultiplied / alpha_sum, alpha_sum * (1.0 / 9.0));
 }
 
-fn sample_surface_paint(paint_coord: vec2<f32>, paint_geo: vec4<u32>) -> SurfacePaintSample {
+fn sample_surface_paint(paint_coord: vec2<f32>, paint_geo: vec4<u32>, paint_dx: vec2<f32>, paint_dy: vec2<f32>) -> SurfacePaintSample {
     let empty = SurfacePaintSample(vec4<f32>(0.0), vec4<u32>(0u));
     let paint_pos = paint_coord * 32.0;
-    let paint_dx = dpdx(paint_pos);
-    let paint_dy = dpdy(paint_pos);
     let center_px = vec2<i32>(floor(paint_pos));
     let entry_index = surface_paint_entry_index(center_px, paint_geo);
     let center_atlas_px = surface_paint_atlas_pixel(entry_index, center_px);
@@ -1965,19 +1963,19 @@ fn sample_shadow(world_pos: vec3<f32>, NdotL: f32) -> f32 {
     let ref_depth = depth - bias;
     // Wider PCF keeps sun shadows readable but less PBR-crisp.
     var occ = 0.0;
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv, ref_depth) * 2.0;
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.5,  0.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.5,  0.0) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0, -1.5) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0,  1.5) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.5, -1.5) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.5, -1.5) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.5,  1.5) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.5,  1.5) * texel, ref_depth);
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-2.75,  0.0) * texel, ref_depth) * 0.5;
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 2.75,  0.0) * texel, ref_depth) * 0.5;
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0, -2.75) * texel, ref_depth) * 0.5;
-    occ += textureSampleCompare(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0,  2.75) * texel, ref_depth) * 0.5;
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv, ref_depth) * 2.0;
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.5,  0.0) * texel, ref_depth);
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.5,  0.0) * texel, ref_depth);
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0, -1.5) * texel, ref_depth);
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0,  1.5) * texel, ref_depth);
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.5, -1.5) * texel, ref_depth);
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.5, -1.5) * texel, ref_depth);
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-1.5,  1.5) * texel, ref_depth);
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 1.5,  1.5) * texel, ref_depth);
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>(-2.75,  0.0) * texel, ref_depth) * 0.5;
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 2.75,  0.0) * texel, ref_depth) * 0.5;
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0, -2.75) * texel, ref_depth) * 0.5;
+    occ += textureSampleCompareLevel(shadow_tex, shadow_smp, clamped_uv + vec2<f32>( 0.0,  2.75) * texel, ref_depth) * 0.5;
     let shadow = occ * (1.0 / 12.0);
     let edge_dist = min(min(uv.x - margin.x, max_uv.x - uv.x), min(uv.y - margin.y, max_uv.y - uv.y));
     let edge_fade = smoothstep(0.0, max(texel.x, texel.y) * 8.0, edge_dist);
@@ -2138,6 +2136,13 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let dpdy_pos = dpdy(in.world_pos);
     let dpdx_uv = dpdx(in.uv);
     let dpdy_uv = dpdy(in.uv);
+    // Derivatives must run before per-fragment returns and paint fallback branches.
+    let paint_dx = dpdx(in.paint_uv * 32.0);
+    let paint_dy = dpdy(in.paint_uv * 32.0);
+    let fallback_paint_coord = surface_paint_coordinate(in.world_pos, in.paint_geo_fallback);
+    let fallback_paint_dx = dpdx(fallback_paint_coord * 32.0);
+    let fallback_paint_dy = dpdy(fallback_paint_coord * 32.0);
+    let normal_detail = clamp((length(dpdx(normalize(in.normal))) + length(dpdy(normalize(in.normal)))) * 0.16, 0.0, 1.0);
     let sun_enabled = select(0.0, 1.0, UBO.sun_dir_enabled.w > 0.5);
     let L = normalize(-UBO.sun_dir_enabled.xyz);
     let N_shadow = normalize(in.normal);
@@ -2188,14 +2193,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     var color_base = select(mix(c0_base, c1_base, blend), c0_base, is_avatar);
     // 3D Paint uses its own stable surface coordinates, never the material texture UVs. This
     // prevents a tiled/repeating material from duplicating a single painted mark.
-    var paint_sample = sample_surface_paint(in.paint_uv, in.paint_geo);
+    var paint_sample = sample_surface_paint(in.paint_uv, in.paint_geo, paint_dx, paint_dy);
     // Geometry painted before persistent face IDs used a world-plane key. Keep it visible until
     // it is explicitly migrated, while all newly-authored paint uses the stable primary key.
     if (any(in.paint_geo_fallback != vec4<u32>(0u)) &&
         paint_sample.overlay.a <= 0.00001 && paint_sample.material.a == 0u) {
         paint_sample = sample_surface_paint(
-            surface_paint_coordinate(in.world_pos, in.paint_geo_fallback),
-            in.paint_geo_fallback
+            fallback_paint_coord,
+            in.paint_geo_fallback, fallback_paint_dx, fallback_paint_dy
         );
     }
     let paint_overlay = paint_sample.overlay;
@@ -2574,7 +2579,6 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         let outdoor_capped = lit_color * (1.0 - outdoor_highlight * 0.13);
         lit_color = mix(lit_color, outdoor_sat, outdoor_space * 0.14);
         lit_color = mix(lit_color, outdoor_capped, outdoor_highlight);
-        let normal_detail = clamp((length(dpdx(Nf_view)) + length(dpdy(Nf_view))) * 0.16, 0.0, 1.0);
         let dominant_x_wall = abs(N.x) > abs(N.z);
         let wall_uv = select(
             vec2<f32>(in.world_pos.x, in.world_pos.y),
@@ -13856,9 +13860,15 @@ mod shader_tests {
     }
 
     #[test]
-    fn raster_shader_parses() {
-        wgpu::naga::front::wgsl::parse_str(SCENEVM_3D_RASTER_WGSL)
+    fn raster_shader_validates_with_uniformity_checks() {
+        let module = wgpu::naga::front::wgsl::parse_str(SCENEVM_3D_RASTER_WGSL)
             .expect("3D raster WGSL should parse");
+        wgpu::naga::valid::Validator::new(
+            wgpu::naga::valid::ValidationFlags::all(),
+            wgpu::naga::valid::Capabilities::all(),
+        )
+        .validate(&module)
+        .expect("3D raster WGSL should pass validation including derivative uniformity");
     }
 
     #[test]

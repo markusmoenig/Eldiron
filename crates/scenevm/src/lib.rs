@@ -1174,7 +1174,12 @@ impl SceneVM {
         let debug_base_start = instant::Instant::now();
         if let Err(e) = base_vm.draw_into(device, queue, surface, w, h) {
             if log_errors {
-                println!("[SceneVM] Error drawing base VM: {:?}", e);
+                #[cfg(target_arch = "wasm32")]
+                web_sys::console::error_1(
+                    &format!("[SceneVM] Error drawing base VM: {e:?}").into(),
+                );
+                #[cfg(not(target_arch = "wasm32"))]
+                eprintln!("[SceneVM] Error drawing base VM: {e:?}");
             }
         }
         let debug_base_ms = debug_base_start.elapsed().as_secs_f64() * 1000.0;
@@ -1183,7 +1188,12 @@ impl SceneVM {
         for vm in overlays.iter_mut() {
             if let Err(e) = vm.draw_into(device, queue, surface, w, h) {
                 if log_errors {
-                    println!("[SceneVM] Error drawing overlay VM: {:?}", e);
+                    #[cfg(target_arch = "wasm32")]
+                    web_sys::console::error_1(
+                        &format!("[SceneVM] Error drawing overlay VM: {e:?}").into(),
+                    );
+                    #[cfg(not(target_arch = "wasm32"))]
+                    eprintln!("[SceneVM] Error drawing overlay VM: {e:?}");
                 }
             }
         }
@@ -2834,6 +2844,9 @@ async fn global_gpu_init_async() {
         })
         .await
         .expect("Failed to create wgpu device (WebGPU)");
+    device.on_uncaptured_error(std::sync::Arc::new(|error: wgpu::Error| {
+        web_sys::console::error_1(&format!("[SceneVM] WebGPU: {error}").into());
+    }));
     let gg = GlobalGpu {
         instance,
         adapter,
