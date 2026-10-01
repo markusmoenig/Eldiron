@@ -1,6 +1,8 @@
 name: Release
 
+# Manual runs exercise the same builds and installers without publishing a release.
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+*"
@@ -176,7 +178,15 @@ jobs:
       - name: Rename .deb
         run: mv target/release/bundle/deb/*.deb Eldiron-Creator.deb
 
+      - name: Upload Debian installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-creator-installer
+          path: Eldiron-Creator.deb
+          if-no-files-found: error
+
       - name: GitHub release (Linux)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -199,6 +209,7 @@ jobs:
           name: linux-eldiron-client
 
       - name: GitHub release (Linux)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -220,6 +231,7 @@ jobs:
           name: linux-eldiron-client-wgpu
 
       - name: GitHub release (Linux)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -256,7 +268,15 @@ jobs:
           ./WiX.*/tools/light.exe -ext WixUIExtension -ext WixUtilExtension \
             -out Eldiron-Creator.msi -sice:ICE61 -sice:ICE91 eldiron-creator.wixobj
 
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-creator-installer
+          path: Eldiron-Creator.msi
+          if-no-files-found: error
+
       - name: GitHub release (Windows)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -282,6 +302,7 @@ jobs:
           name: windows-eldiron-client
 
       - name: GitHub release (Windows)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -306,6 +327,7 @@ jobs:
           name: windows-eldiron-client-wgpu
 
       - name: GitHub release (Windows)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
@@ -330,6 +352,7 @@ jobs:
           name: wasm-${{ matrix.bin-name }}
 
       - name: GitHub release (WASM)
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v1
         with:
           files: |
