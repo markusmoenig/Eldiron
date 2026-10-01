@@ -4506,14 +4506,29 @@ impl Editor {
     }
 
     fn decode_png_tile(bytes: Vec<u8>) -> Option<TheRGBATile> {
-        let decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+        let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+        decoder.set_transformations(png::Transformations::normalize_to_color8());
         let mut reader = decoder.read_info().ok()?;
         let buffer_size = reader.output_buffer_size()?;
         let mut buf = vec![0; buffer_size];
         let info = reader.next_frame(&mut buf).ok()?;
         let bytes = &buf[..info.buffer_size()];
+        // PNGs may have one, two, three, or four channels; UI tiles require RGBA.
+        let rgba = match info.color_type {
+            png::ColorType::Rgba => bytes.to_vec(),
+            png::ColorType::Rgb => bytes
+                .chunks_exact(3)
+                .flat_map(|p| [p[0], p[1], p[2], 255])
+                .collect(),
+            png::ColorType::Grayscale => bytes.iter().flat_map(|&v| [v, v, v, 255]).collect(),
+            png::ColorType::GrayscaleAlpha => bytes
+                .chunks_exact(2)
+                .flat_map(|p| [p[0], p[0], p[0], p[1]])
+                .collect(),
+            png::ColorType::Indexed => return None, // Expanded by the decoder above.
+        };
         Some(TheRGBATile::buffer(TheRGBABuffer::from(
-            bytes.to_vec(),
+            rgba,
             info.width,
             info.height,
         )))
@@ -11539,6 +11554,42 @@ impl TheTrait for Editor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn starter_previews_decode_to_rgba_for_rendering() {
+        for (color, pixels, expected) in [
+            (png::ColorType::Rgb, vec![20, 40, 60], [20, 40, 60, 255]),
+            (png::ColorType::Rgba, vec![20, 40, 60, 80], [20, 40, 60, 80]),
+            (png::ColorType::Grayscale, vec![40], [40, 40, 40, 255]),
+            (
+                png::ColorType::GrayscaleAlpha,
+                vec![40, 80],
+                [40, 40, 40, 80],
+            ),
+        ] {
+            let mut bytes = Vec::new();
+            {
+                let mut encoder = png::Encoder::new(&mut bytes, 1, 1);
+                encoder.set_color(color);
+                encoder.set_depth(png::BitDepth::Eight);
+                encoder
+                    .write_header()
+                    .unwrap()
+                    .write_image_data(&pixels)
+                    .unwrap();
+            }
+            let tile = Editor::decode_png_tile(bytes).unwrap();
+            assert_eq!(tile.buffer[0].pixels(), &expected);
+            let mut frame = vec![0; 2 * 2 * 4];
+            TheDraw2D::default().blend_scale_chunk(
+                &mut frame,
+                &(0, 0, 2, 2),
+                2,
+                tile.buffer[0].pixels(),
+                &(1, 1),
+            );
+        }
+    }
 
     #[test]
     fn compact_navigation_icons_are_transparent_at_their_runtime_draw_size() {
