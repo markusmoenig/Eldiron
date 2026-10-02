@@ -2,6 +2,10 @@
 
 ## Bug Fixes
 
+### Game
+
+- Fixed surface paint missing in web games because browser and desktop computed different surface IDs.
+
 ### Creator
 
 - Renamed **On Event** to **Custom Event** and clarified its hover help to distinguish it from the built-in Event picker.

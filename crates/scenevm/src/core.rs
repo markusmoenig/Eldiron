@@ -135,15 +135,48 @@ pub fn pack_raster3d_paint_geo_id(geo_id: GeoId) -> [u32; 4] {
 /// Reconstruct the pre-persistent-surface paint identity for one planar 3D
 /// surface. This remains public so editors can migrate authored paint without
 /// changing its visible placement.
+/// Uses the original 64-bit desktop hash on every target, including WASM.
 pub fn legacy_raster3d_paint_surface_id(
     geo_id: GeoId,
     layer: i32,
     normal: [f32; 3],
     point: [f32; 3],
 ) -> [u32; 4] {
-    let mut hasher = rustc_hash::FxHasher::default();
-    geo_id.hash(&mut hasher);
-    layer.hash(&mut hasher);
+    // These IDs are stored in project paint data. FxHasher uses different word sizes,
+    // byte mixing and final rotations on 32-bit targets, so it cannot identify a
+    // persisted surface consistently. Keep the original 64-bit algorithm explicit.
+    fn add(hash: &mut u64, word: u64) {
+        *hash = hash.wrapping_add(word).wrapping_mul(0xf1357aea2e62a9c5);
+    }
+    let (tag, first, second) = match geo_id {
+        GeoId::Unknown(id) => (0, id as u64, None),
+        GeoId::Vertex(id) => (1, id as u64, None),
+        GeoId::Linedef(id) => (2, id as u64, None),
+        GeoId::Sector(id) => (3, id as u64, None),
+        GeoId::Character(id) => (4, id as u64, None),
+        GeoId::Item(id) => (5, id as u64, None),
+        GeoId::Light(id) => (6, id as u64, None),
+        GeoId::ItemLight(id) => (7, id as u64, None),
+        GeoId::Triangle(id) => (8, id as u64, None),
+        GeoId::Terrain(x, z) => (9, x as u32 as u64, Some(z as u32 as u64)),
+        GeoId::GeometryObject(id) => {
+            let bytes = id.as_bytes();
+            let low = u64::from_le_bytes(bytes[..8].try_into().unwrap()) ^ 0x243f6a8885a308d3;
+            let high = u64::from_le_bytes(bytes[8..].try_into().unwrap()) ^ 0x13198a2e03707344;
+            let product = (low as u128) * (high as u128);
+            let mixed = (product as u64) ^ ((product >> 64) as u64) ^ 16;
+            (10, mixed, None)
+        }
+        GeoId::Hole(sector, hole) => (11, sector as u64, Some(hole as u64)),
+        GeoId::Gizmo(id) => (12, id as u64, None),
+    };
+    let mut hash = 0_u64;
+    add(&mut hash, tag);
+    add(&mut hash, first);
+    if let Some(second) = second {
+        add(&mut hash, second);
+    }
+    add(&mut hash, layer as u32 as u64);
     let mut normal = normal;
     let dominant = if normal[0].abs() >= normal[1].abs() && normal[0].abs() >= normal[2].abs() {
         normal[0]
@@ -156,11 +189,11 @@ pub fn legacy_raster3d_paint_surface_id(
         normal = [-normal[0], -normal[1], -normal[2]];
     }
     for value in normal {
-        ((value * 4096.0).round() as i32).hash(&mut hasher);
+        add(&mut hash, (value * 4096.0).round() as i32 as u32 as u64);
     }
     let plane_offset = normal[0] * point[0] + normal[1] * point[1] + normal[2] * point[2];
-    ((plane_offset * 1024.0).round() as i64).hash(&mut hasher);
-    let hash = hasher.finish();
+    add(&mut hash, (plane_offset * 1024.0).round() as i64 as u64);
+    let hash = hash.rotate_left(26);
     let group = (((hash as u32) ^ ((hash >> 32) as u32)) & 0x3fff_ffff) << 2;
     let axis = {
         let x = normal[0].abs();
@@ -177,6 +210,59 @@ pub fn legacy_raster3d_paint_surface_id(
     let mut paint_geo = pack_raster3d_paint_geo_id(geo_id);
     paint_geo[3] = group | axis;
     paint_geo
+}
+
+#[cfg(test)]
+mod paint_identity_tests {
+    use super::*;
+
+    #[test]
+    fn saved_desktop_paint_identity_is_the_same_on_every_target() {
+        let geo =
+            GeoId::GeometryObject(Uuid::parse_str("01234567-89ab-cdef-0123-456789abcdef").unwrap());
+        assert_eq!(
+            legacy_raster3d_paint_surface_id(geo, 0, [0., 1., 0.], [1., 3., 2.]),
+            [11, 2_309_737_967, 19_088_743, 2_171_177_628]
+        );
+    }
+
+    #[test]
+    #[cfg(target_pointer_width = "64")]
+    fn portable_paint_hash_preserves_original_desktop_ids() {
+        let ids = [
+            GeoId::Unknown(2),
+            GeoId::Vertex(3),
+            GeoId::Linedef(4),
+            GeoId::Sector(5),
+            GeoId::Character(6),
+            GeoId::Item(7),
+            GeoId::Light(8),
+            GeoId::ItemLight(9),
+            GeoId::Triangle(10),
+            GeoId::Terrain(-12, 17),
+            GeoId::GeometryObject(Uuid::from_u128(0x0123456789abcdef0123456789abcdef)),
+            GeoId::Hole(11, 12),
+            GeoId::Gizmo(13),
+        ];
+        for geo in ids {
+            for layer in [-1_i32, 0, 4] {
+                let mut original = rustc_hash::FxHasher::default();
+                geo.hash(&mut original);
+                layer.hash(&mut original);
+                for normal in [4096_i32, 0, 0] {
+                    normal.hash(&mut original);
+                }
+                (-2560_i64).hash(&mut original);
+                let hash = original.finish();
+                let expected_group = (((hash as u32) ^ ((hash >> 32) as u32)) & 0x3fff_ffff) << 2;
+                assert_eq!(
+                    legacy_raster3d_paint_surface_id(geo, layer, [-1., 0., 0.], [-2.5, 1., 3.])[3],
+                    expected_group | 1,
+                    "{geo:?}, layer {layer}"
+                );
+            }
+        }
+    }
 }
 
 /// World-projected coordinates used by legacy planar 3D paint.
