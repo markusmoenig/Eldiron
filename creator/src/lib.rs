@@ -220,9 +220,18 @@ mod ffi {
 
     #[unsafe(no_mangle)]
     pub extern "C" fn rust_mouse_motion(delta_x: f32, delta_y: f32) -> bool {
-        APP.lock()
-            .unwrap()
-            .mouse_motion(delta_x, delta_y, &mut CTX.lock().unwrap())
+        let right_mouse_down = UI.lock().unwrap().right_mouse_down;
+        let mut app = APP.lock().unwrap();
+        // Match the native event loop: ordinary hover must not pan editor cameras.
+        if !right_mouse_down && !app.wants_mouse_motion() {
+            return false;
+        }
+        app.mouse_motion(delta_x, delta_y, &mut CTX.lock().unwrap())
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_mouse_leave() -> bool {
+        APP.lock().unwrap().mouse_leave(&mut CTX.lock().unwrap())
     }
 
     #[unsafe(no_mangle)]

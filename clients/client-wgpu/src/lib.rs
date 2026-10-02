@@ -240,6 +240,34 @@ pub unsafe extern "C" fn eldiron_player_runner_mouse_move(
     any(target_os = "macos", target_os = "ios")
 ))]
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn eldiron_player_runner_mouse_motion(
+    ptr: *mut EldironPlayerRunner,
+    dx: f32,
+    dy: f32,
+) {
+    if let Some(r) = unsafe { ptr.as_mut() } {
+        if r.app.wants_mouse_motion() {
+            r.app.mouse_motion(&mut r.vm, dx, dy);
+        }
+    }
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(target_os = "macos", target_os = "ios")
+))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn eldiron_player_runner_mouse_leave(ptr: *mut EldironPlayerRunner) {
+    if let Some(r) = unsafe { ptr.as_mut() } {
+        r.app.mouse_leave(&mut r.vm);
+    }
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(target_os = "macos", target_os = "ios")
+))]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn eldiron_player_runner_scroll(
     ptr: *mut EldironPlayerRunner,
     dx: f32,
@@ -350,6 +378,28 @@ pub unsafe extern "C" fn unified_app_runner_mouse_move(
     y: f32,
 ) {
     unsafe { eldiron_player_runner_mouse_move(ptr, x, y) }
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(target_os = "macos", target_os = "ios")
+))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn unified_app_runner_mouse_motion(
+    ptr: *mut EldironPlayerRunner,
+    dx: f32,
+    dy: f32,
+) {
+    unsafe { eldiron_player_runner_mouse_motion(ptr, dx, dy) }
+}
+
+#[cfg(all(
+    not(target_arch = "wasm32"),
+    any(target_os = "macos", target_os = "ios")
+))]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn unified_app_runner_mouse_leave(ptr: *mut EldironPlayerRunner) {
+    unsafe { eldiron_player_runner_mouse_leave(ptr) }
 }
 
 #[cfg(all(

@@ -23,6 +23,12 @@ func unified_app_runner_mouse_up(_ vm: UnsafeMutableRawPointer?, _ x: Float, _ y
 @_silgen_name("unified_app_runner_mouse_move")
 func unified_app_runner_mouse_move(_ vm: UnsafeMutableRawPointer?, _ x: Float, _ y: Float)
 
+@_silgen_name("unified_app_runner_mouse_motion")
+func unified_app_runner_mouse_motion(_ vm: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float)
+
+@_silgen_name("unified_app_runner_mouse_leave")
+func unified_app_runner_mouse_leave(_ vm: UnsafeMutableRawPointer?)
+
 @_silgen_name("unified_app_runner_scroll")
 func unified_app_runner_scroll(_ vm: UnsafeMutableRawPointer?, _ dx: Float, _ dy: Float)
 
@@ -121,6 +127,16 @@ final class SceneVMHandle {
     func mouseMove(x: CGFloat, y: CGFloat) {
         guard let vm else { return }
         unified_app_runner_mouse_move(vm, Float(x), Float(y))
+    }
+
+    func mouseMotion(dx: CGFloat, dy: CGFloat) {
+        guard let vm else { return }
+        unified_app_runner_mouse_motion(vm, Float(dx), Float(dy))
+    }
+
+    func mouseLeave() {
+        guard let vm else { return }
+        unified_app_runner_mouse_leave(vm)
     }
 
     func scroll(dx: CGFloat, dy: CGFloat) {

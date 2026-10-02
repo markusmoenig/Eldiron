@@ -4,6 +4,7 @@
 
 ### Game
 
+- Fixed first-person mouse look in the Mac Xcode client and Creator C ABI views.
 - Fixed surface paint missing in web games because browser and desktop computed different surface IDs.
 
 ### Creator

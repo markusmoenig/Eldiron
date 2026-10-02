@@ -111,7 +111,7 @@ final class MetalContainer: NSView {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach { removeTrackingArea($0) }
-        let options: NSTrackingArea.Options = [.mouseMoved, .activeInKeyWindow, .inVisibleRect]
+        let options: NSTrackingArea.Options = [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect]
         let area = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
         addTrackingArea(area)
     }
@@ -120,6 +120,11 @@ final class MetalContainer: NSView {
         let loc = convert(event.locationInWindow, from: nil)
         let (x, y) = toLogicalCoords(loc)
         handle?.mouseMove(x: x, y: y)
+        handle?.mouseMotion(dx: event.deltaX, dy: event.deltaY)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        handle?.mouseLeave()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -132,6 +137,7 @@ final class MetalContainer: NSView {
         let loc = convert(event.locationInWindow, from: nil)
         let (x, y) = toLogicalCoords(loc)
         handle?.mouseMove(x: x, y: y)
+        handle?.mouseMotion(dx: event.deltaX, dy: event.deltaY)
     }
 
     override func mouseUp(with event: NSEvent) {
