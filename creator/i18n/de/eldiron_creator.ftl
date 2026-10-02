@@ -991,3 +991,5 @@ construction_row_color_high = Obere Farbe
 text_play_cancel = Abbrechen
 text_play_choose = Antwortnummer eingeben und Return drücken (0 zum Abbrechen).
 text_play_invalid_choice = Keine aktive Antwort mit dieser Nummer.
+node_on_event_node = Eigenes Ereignis
+node_on_event_help = Startet eine Kette beim Empfang eines eigenen benannten Ereignisses. Verwende denselben Ereignisnamen wie in Notify In oder einer Dialogoption.

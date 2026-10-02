@@ -1,3 +1,14 @@
+# Eldiron v0.95.1
+
+## Bug Fixes
+
+### Creator
+
+- Renamed **On Event** to **Custom Event** and clarified its hover help to distinguish it from the built-in Event picker.
+- Fixed **Set Tile** picker text, thumbnails and padding scaling incorrectly when zooming nodes.
+
+---
+
 # Eldiron v0.95.0
 
 ## Improvements

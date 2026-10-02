@@ -51,4 +51,6 @@ See the [Nodes dock](../creator/docks/behavior_nodes) and [Debug](../creator/deb
 
 Connect **Set Tile** to an event or another action to change a sprite during play. Choose **Self** for the character or item owning the graph, or **Target** for its current target (falling back to the event subject). Select a tile from the same visual grid used by Entity Nodes. **Done** continues after the change; **Failed** handles a missing target or tile. This changes presentation without changing visibility or life state.
 
+Set Tile changes the entity's sprite. It does not place a tile on the map and has no X, Y or Layer settings. Those position values belong to Entered Tile and Left Tile events.
+
 Hold **Shift** and drag a stroke across connections to cut them. One Undo restores all wires cut by that stroke. You can also click a connection and press Delete.

@@ -996,3 +996,5 @@ construction_row_color_high = Color superior
 text_play_cancel = Cancelar
 text_play_choose = Introduce el número de una respuesta y pulsa Intro (0 para cancelar).
 text_play_invalid_choice = No hay una respuesta activa con ese número.
+node_on_event_node = Evento personalizado
+node_on_event_help = Inicia una cadena al recibir un evento con nombre personalizado. Introduce el mismo nombre que en Notify In o en una opción de diálogo.

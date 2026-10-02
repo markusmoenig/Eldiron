@@ -20,6 +20,17 @@ pub enum GraphControlInput {
 /// Node-native, mouse-only controls operate in normalized local coordinates.
 /// Custom implementations can resolve previews or open a host picker via an edit request.
 pub trait GraphControls {
+    /// Viewport scale for custom text, padding, and previews. Bounds are in screen coordinates.
+    fn paint_scaled(
+        &self,
+        value: &GraphControlValue,
+        rect: GraphRect,
+        _scale: f32,
+        painter: &mut dyn GraphPainter,
+    ) -> bool {
+        self.paint(value, rect, painter)
+    }
+
     /// Draw custom content inside the control bounds; return true to replace
     /// default content. Coordinates are already transformed by the viewport.
     fn paint(

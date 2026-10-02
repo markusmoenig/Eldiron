@@ -26,7 +26,7 @@ A field marked as awaiting an event has no observed value yet. Do not assume ano
 
 ## Named events
 
-Use **On Event** to listen for a named event. **Notify In** schedules a named event after a delay in game minutes. This is useful for deferred checks without keeping a movement action open. Named engine events can also be listened to this way. For tagged tile transitions, select **Entered Tile** or **Left Tile** on an Event node; both expose `tag`, `x`, `y`, and `layer`.
+Use **Custom Event** to listen for a named event. Enter the same event name used by **Notify In** or a dialogue option. **Notify In** schedules a named event after a delay in game minutes. This is useful for deferred checks without keeping a movement action open. For built-in engine events, use the **Event** picker. For tagged tile transitions, select **Entered Tile** or **Left Tile**; both expose `tag`, `x`, `y`, and `layer`.
 
 ## Area transitions and navigation
 

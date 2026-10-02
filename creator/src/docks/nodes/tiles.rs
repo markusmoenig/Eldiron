@@ -81,10 +81,11 @@ impl GraphControls for TileControls {
     ) -> Option<GraphControlValue> {
         BasicGraphControls.interact(value, input)
     }
-    fn paint(
+    fn paint_scaled(
         &self,
         value: &GraphControlValue,
         rect: GraphRect,
+        scale: f32,
         painter: &mut dyn GraphPainter,
     ) -> bool {
         let GraphControlValue::Custom { kind, data } = value else {
@@ -93,29 +94,32 @@ impl GraphControls for TileControls {
         if kind != "tile" {
             return false;
         }
-        let size = (rect.size[1] - 4.).max(1.).min(32.);
+        let size = (rect.size[1] - 4. * scale).max(scale).min(32. * scale);
         let id = data.as_str().unwrap_or_default();
-        let mut offset = 8.;
+        let mut offset = 8. * scale;
         if self.images.contains_key(id) {
             painter.preview(
                 GraphRect {
                     origin: [
-                        rect.origin[0] + 4.,
+                        rect.origin[0] + 4. * scale,
                         rect.origin[1] + (rect.size[1] - size) * 0.5,
                     ],
                     size: [size, size],
                 },
                 id,
             );
-            offset = size + 10.;
+            offset = size + 10. * scale;
         }
         painter.text(
             GraphRect {
                 origin: [rect.origin[0] + offset, rect.origin[1]],
-                size: [(rect.size[0] - offset - 6.).max(1.), rect.size[1]],
+                size: [
+                    (rect.size[0] - offset - 6. * scale).max(scale),
+                    rect.size[1],
+                ],
             },
             &format!("{} …", self.label(value)),
-            13.,
+            13. * scale,
             [233, 235, 230, 255],
         );
         true

@@ -891,3 +891,5 @@ construction_row_color_high = Верхний цвет
 text_play_cancel = Отмена
 text_play_choose = Введите номер ответа и нажмите Enter (0 для отмены).
 text_play_invalid_choice = Нет активного ответа с таким номером.
+node_on_event_node = Пользовательское событие
+node_on_event_help = Запускает цепочку при получении пользовательского именованного события. Укажите то же имя, что в Notify In или варианте диалога.

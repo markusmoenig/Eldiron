@@ -890,3 +890,5 @@ construction_row_color_high = 高值颜色
 text_play_cancel = 取消
 text_play_choose = 输入选项编号并按回车（输入 0 取消）。
 text_play_invalid_choice = 没有对应编号的有效选项。
+node_on_event_node = 自定义事件
+node_on_event_help = 收到自定义命名事件时启动节点链。输入与 Notify In 或对话选项相同的事件名称。

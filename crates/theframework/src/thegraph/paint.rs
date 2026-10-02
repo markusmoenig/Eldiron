@@ -259,7 +259,7 @@ impl GraphEditor {
                     );
                     continue;
                 }
-                if controls.paint(&row.value, screen(rect), painter) {
+                if controls.paint_scaled(&row.value, screen(rect), z, painter) {
                     continue;
                 }
                 if let GraphControlValue::List { columns, rows } = &row.value {

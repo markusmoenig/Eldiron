@@ -10,7 +10,7 @@ The Node List is contextual. Character movement and combat nodes are offered for
 | Node | Settings and behavior | Outputs |
 | --- | --- | --- |
 | Event | Select an engine event; displays its named values. | Event flow |
-| On Event | Listen for a named event. | Event flow |
+| Custom Event | Listen for a custom event name matching Notify In or a dialogue option. | Event flow |
 | Routine | Start normal character behavior after Startup or Resume Routine. | Routine flow |
 | On Enter Area | Match an entered area by exact name. | Match, No Match |
 | On Area | Handle transitions for the selected place. | Player Entered, NPC Entered, Player Left, NPC Left |
@@ -50,6 +50,7 @@ Restart normal behavior after a temporary interaction. Connect it after the inte
 | Node | Purpose |
 | --- | --- |
 | Say | Display text; supports named event references such as `{event.area}`. |
+| Set Tile | Select a visual tile for Self or Target. Changes the entity's sprite; Done or Failed reports the result. |
 | Message | Send text to the game log with a category; supports event references. |
 | Set Attribute | Write a named attribute with Text, Number, Boolean or Toggle type. |
 | State | Set Alive, Dead, Sleeping or Unconscious. Visibility remains a separate attribute. |

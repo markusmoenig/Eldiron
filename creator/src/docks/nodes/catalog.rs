@@ -1348,6 +1348,10 @@ pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
         if let Some(def) = node.definition.as_deref().and_then(|id| defs.node(id)) {
             node.title = def.title.clone();
             node.color = def.color;
+            if matches!(def.id.as_str(), "set_tile" | "entity_set_tile") {
+                node.rows
+                    .retain(|row| !matches!(row.key.as_deref(), Some("x" | "y" | "layer")));
+            }
             for row in &mut node.rows {
                 if let Some(param) = def
                     .parameters

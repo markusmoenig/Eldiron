@@ -885,3 +885,5 @@ construction_row_color_high = 高值顏色
 text_play_cancel = 取消
 text_play_choose = 輸入選項編號並按 Enter（輸入 0 取消）。
 text_play_invalid_choice = 沒有對應編號的有效選項。
+node_on_event_node = 自訂事件
+node_on_event_help = 收到自訂命名事件時啟動節點鏈。輸入與 Notify In 或對話選項相同的事件名稱。
