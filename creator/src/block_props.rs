@@ -171,6 +171,11 @@ pub fn begin_prefab_editor(project: &mut Project, asset_id: Uuid) -> Result<(), 
         .block_props
         .get(&asset_id)
         .ok_or_else(|| fl!("error_prefab_editor_project_asset"))?;
+    let graphs = project
+        .prefab_graphs
+        .entry(asset_id)
+        .or_insert_with(|| shared::prefab_graph::PrefabGraphs::import(asset));
+    graphs.reconcile(asset);
     let mut map = Map::default();
     map.name = asset.name.clone();
     map.properties
@@ -2095,6 +2100,7 @@ pub fn delete_unused_block_prop(project: &mut Project, asset_id: Uuid) -> Result
     }
 
     project.block_props.shift_remove(&asset_id);
+    project.prefab_graphs.shift_remove(&asset_id);
     project.block_prop_paint.shift_remove(&asset_id);
     Ok(name)
 }

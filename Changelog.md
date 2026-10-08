@@ -1,5 +1,11 @@
 # Eldiron v0.95.1
 
+## Improvements
+
+### Creator
+
+- Started **Prefab Nodes** with independent part branches, geometry links, pivot transforms and door settings; added reusable particle authoring modules.
+
 ## Bug Fixes
 
 ### Game

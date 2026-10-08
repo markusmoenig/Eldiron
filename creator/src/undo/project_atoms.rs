@@ -77,6 +77,21 @@ pub enum ProjectUndoAtom {
 use ProjectUndoAtom::*;
 
 impl ProjectUndoAtom {
+    fn refresh_prefab_editor_after_project_restore(
+        ctx: &mut TheContext,
+        server_ctx: &ServerContext,
+    ) {
+        // Project snapshots restore both compiled parts and their authoring graphs.
+        // Reload the pane too, so its next edit cannot reapply the undone graph.
+        if matches!(server_ctx.pc, ProjectContext::Prefab(_)) {
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named(crate::docks::blocks::BLOCKS_DOCK_SYNC_EVENT),
+                TheValue::Empty,
+            ));
+            ctx.ui.redraw_all = true;
+        }
+    }
+
     fn apply_map_edit_state(
         project: &mut Project,
         ui: &mut TheUI,
@@ -388,6 +403,7 @@ impl ProjectUndoAtom {
                 shared::rusterix_utils::insert_content_into_maps(project);
                 crate::utils::editor_scene_full_rebuild(project, server_ctx);
                 update_region(ctx);
+                Self::refresh_prefab_editor_after_project_restore(ctx, server_ctx);
             }
             AddRegion(region) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -1081,6 +1097,7 @@ impl ProjectUndoAtom {
                 shared::rusterix_utils::insert_content_into_maps(project);
                 crate::utils::editor_scene_full_rebuild(project, server_ctx);
                 update_region(ctx);
+                Self::refresh_prefab_editor_after_project_restore(ctx, server_ctx);
             }
             AddRegion(region) => {
                 // Add Region

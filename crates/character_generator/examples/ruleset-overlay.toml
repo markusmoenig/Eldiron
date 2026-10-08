@@ -1,0 +1,58 @@
+# Appearance overlay for the bundled official ruleset. Gameplay item definitions remain inherited.
+
+[procedural_characters.villager]
+body = "humanoid"
+height = 1.72
+build = 0.4
+skin = "#c99876"
+hair = "#45302a"
+outfit = ["linen_shirt", "wool_trousers", "leather_shoes"]
+equipment = ["training_sword"]
+
+[items.clothing.linen_shirt.appearance]
+generator = "shirt"
+material = "linen"
+color = "#648b87"
+
+[items.clothing.wool_trousers.appearance]
+generator = "trousers"
+color = "#50556b"
+
+[items.clothing.leather_shoes.appearance]
+generator = "boots"
+color = "#684635"
+
+[items.weapons.training_sword.appearance]
+generator = "sword"
+color = "#b6bdc7"
+attachment = "main_hand"
+blade_length = 0.65
+blade_width = 0.045
+
+[procedural_materials.linen]
+size = 64
+seed = 419
+tiling = [2.0, 2.0]
+source = '''
+Material linen
+    name = "Woven Linen"
+    wrap = Repeat
+    Noise Variation
+        type = Gradient
+        scale = F2(9.0, 9.0)
+    Value Weave
+        source = 0.60 + 0.24 * Abs(Sin(U * 100.0) * Sin(V * 100.0)) + Variation * 0.16
+    Color Dark
+        nearest = #909090
+    Color Light
+        nearest = #ffffff
+    Color Cloth
+        source = Mix(Dark, Light, Weave)
+    Surface
+        color = Cloth
+        palette = BaseOnly
+        roughness = 0.92
+        metallic = 0.0
+        opacity = 1.0
+        emission = 0.0
+'''

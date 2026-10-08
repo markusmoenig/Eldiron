@@ -120,10 +120,14 @@ impl Sidebar {
         let changed = Self::set_navigation_page(index, ui, ctx);
         if index == 2 {
             let construction = DOCKMANAGER.read().unwrap().dock == "Construction";
-            if !construction {
+            let prefab = DOCKMANAGER.read().unwrap().dock == "Prefabs";
+            if prefab {
+                crate::docks::prefab_nodes::sync_node_list(ui, ctx);
+            }
+            if !construction && !prefab {
                 crate::docks::nodes::sync_node_list(ui, ctx, server_ctx.pc);
             }
-            if !construction && crate::docks::nodes::has_catalog(server_ctx.pc) {
+            if !construction && !prefab && crate::docks::nodes::has_catalog(server_ctx.pc) {
                 DOCKMANAGER
                     .write()
                     .unwrap()
@@ -1604,8 +1608,11 @@ impl Sidebar {
             TheEvent::DragStarted(id, text, offset) => {
                 if let Some(key) = id.name.strip_prefix("Node Catalog/") {
                     let construction = DOCKMANAGER.read().unwrap().dock == "Construction";
-                    if (construction && crate::docks::construction::node_available(key))
+                    let prefab = DOCKMANAGER.read().unwrap().dock == "Prefabs";
+                    if (prefab && crate::docks::prefab_nodes::node_available(key))
+                        || (construction && crate::docks::construction::node_available(key))
                         || (!construction
+                            && !prefab
                             && crate::docks::nodes::node_available(server_ctx.pc, key))
                     {
                         let mut drop = TheDrop::new(id.clone());

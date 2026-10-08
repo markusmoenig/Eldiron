@@ -1362,3 +1362,16 @@ construction_row_color_high = High color
 text_play_cancel = Cancel
 text_play_choose = Enter a choice number and press Return (0 to cancel).
 text_play_invalid_choice = No active choice with that number.
+
+# Prefab node authoring
+prefab_node_part = Part
+prefab_node_geometry = Geometry
+prefab_node_transform = Transform
+prefab_node_door = Door
+prefab_node_pivot_x = Pivot X
+prefab_node_pivot_y = Pivot Y
+prefab_node_pivot_z = Pivot Z
+prefab_nodes_catalog_help = Drag a node into the selected prefab part branch.
+prefab_nodes_branch_help = Select the part branch to edit its nodes and geometry.
+prefab_node_part_links = Part Links
+prefab_node_part_links_help = Rename the prefab, set the part parent, or reassign selected geometry.

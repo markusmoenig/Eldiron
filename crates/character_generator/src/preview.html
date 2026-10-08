@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eldiron character generator preview</title>
+<style>
+  body { color: #e4e8ef; background: #171b23; font: 15px system-ui; margin: 32px auto; max-width: 760px; padding: 0 20px; }
+  h1 { font-size: 24px; } label { display: inline-block; margin: 12px 16px 12px 0; }
+  select, button { background: #29313e; color: inherit; padding: 8px; border: 1px solid #526078; border-radius: 5px; }
+  canvas { display: block; width: 384px; max-width: 100%; image-rendering: pixelated; border: 1px solid #526078; background: #242d3a; }
+  a { color: #a7ceff; } p { line-height: 1.6; } small { color: #a5b1c4; }
+</style>
+<h1 id="title">Character preview</h1>
+<p>Procedural mesh and animation baked into sprites. All views share the same rig and equipment.</p>
+<label>Animation <select id="motion"></select></label>
+<label>Direction <select id="direction"></select></label>
+<button id="pause">Pause</button>
+<button id="restart">Restart</button>
+<label><input id="repeat" type="checkbox" checked> Repeat actions</label>
+<label>Frame <input id="frame" type="range" min="0" max="7" step="1" value="0"></label>
+<label><input id="anchors" type="checkbox" checked> Hand anchors</label>
+<canvas id="canvas" width="384" height="384"></canvas>
+<p id="status"></p>
+<p><a href="viewer3d.html">3D mesh viewer</a> · <a href="character.glb" download>Download rigged GLB</a> · <a href="atlas.png">Sprite atlas</a> · <a href="channels.png">Semantic masks</a> · <a href="atlas.json">Frame metadata</a></p>
+<small>Prototype: fitted clothing, simple faces and procedural action clips. This preview displays baked sprites; inspect the GLB in a 3D viewer to review skinning independently.</small>
+<script>
+const data = __ATLAS_METADATA__;
+const title = document.getElementById('title'); title.textContent = data.character + ' — ' + data.style.preset + ' preview';
+const motion = document.getElementById('motion'), direction = document.getElementById('direction');
+for (const name of Object.keys(data.durations)) { const option=document.createElement('option'); option.value=name; option.textContent=name; motion.append(option); } motion.value='idle';
+for (const name of [...new Set(data.frames.map(f => f.direction))]) { const option = document.createElement('option'); option.value = name; option.textContent = name.replaceAll('_', ' '); direction.append(option); }
+const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false;
+const image = new Image(); image.src = data.image;
+let running = true, elapsed = 0, last = null;
+document.getElementById('pause').onclick = () => { running = !running; document.getElementById('pause').textContent = running ? 'Pause' : 'Play'; };
+document.getElementById('restart').onclick = () => { elapsed=0; running=true; document.getElementById('pause').textContent='Pause'; };
+const scrub=document.getElementById('frame');
+scrub.oninput = () => {
+  const frames=data.frames.filter(f=>f.motion===motion.value && f.direction===direction.value);
+  const loop=data.looping[motion.value] || document.getElementById('repeat').checked;
+  elapsed=(loop ? Number(scrub.value)*data.durations[motion.value]/frames.length : frames[Number(scrub.value)].time)+0.00001; running=false; document.getElementById('pause').textContent='Play';
+};
+document.getElementById('repeat').onchange = motion.onchange = direction.onchange = () => { elapsed = 0; };
+function draw(now) {
+  if (last !== null && running) elapsed += Math.min((now-last)/1000, 0.1); last = now;
+  const frames = data.frames.filter(f => f.motion === motion.value && f.direction === direction.value);
+  const loop = data.looping[motion.value] || document.getElementById('repeat').checked;
+  const index = loop ? Math.floor(elapsed / data.durations[motion.value] * frames.length) % frames.length : Math.min(frames.length-1, Math.floor(elapsed / data.durations[motion.value] * (frames.length-1)));
+  const frame = frames[index];
+  scrub.max=frames.length-1; scrub.value=index;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (image.complete && image.naturalWidth && frame) {
+    const [x,y,w,h] = frame.rect; ctx.drawImage(image,x,y,w,h,0,0,canvas.width,canvas.height);
+    if (document.getElementById('anchors').checked) {
+      let i = 0; for (const point of Object.values(frame.sockets)) {
+        const px=point[0]/w*canvas.width, py=point[1]/h*canvas.height;
+        ctx.strokeStyle = i++ === 0 ? '#f3ba64' : '#78d3ec'; ctx.beginPath(); ctx.moveTo(px-5,py); ctx.lineTo(px+5,py); ctx.moveTo(px,py-5); ctx.lineTo(px,py+5); ctx.stroke();
+      }
+    }
+    document.getElementById('status').textContent = `${frame.motion} · ${frame.direction.replaceAll('_',' ')} · frame ${frame.frame + 1}/${frames.length} · ${data.frame_size}px · ${data.style.segments} sides · ${data.style.shading} shading${!loop && elapsed >= data.durations[motion.value] ? " · finished (holding final pose)" : ""}`;
+  }
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
+</html>

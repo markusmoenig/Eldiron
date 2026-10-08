@@ -1,0 +1,116 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eldiron 3D character viewer</title>
+<style>
+body{margin:0;background:#171b23;color:#e4e8ef;font:15px system-ui}header{padding:18px 24px}h1{font-size:23px;margin:0 0 10px}label{display:inline-block;margin:6px 14px 6px 0}select,button{background:#29313e;color:inherit;border:1px solid #526078;border-radius:5px;padding:7px}canvas{display:block;width:100%;height:65vh;min-height:360px;touch-action:none;image-rendering:pixelated}p{margin:10px 0;line-height:1.5}a{color:#a7ceff}#status{font-variant-numeric:tabular-nums;color:#b5c0d0}#error{color:#ffb2a7}small{color:#b5c0d0}
+</style>
+<header><h1 id="title">3D character viewer</h1>
+<label>Animation <select id="motion"></select></label><button id="play">Pause</button> <button id="restart">Restart</button>
+<label><input id="repeat" type="checkbox" checked> Repeat actions</label>
+<label>Time <input id="time" type="range" min="0" max="1000" value="0"></label>
+<label><input id="grid" type="checkbox" checked> Ground grid</label>
+<label>Light <input id="light" type="range" min="-180" max="180" value="35"></label>
+<label>Rendering <select id="render"><option value="0">Smooth</option><option value="1" selected>Dithered</option><option value="2">Grainy</option></select></label>
+<label>Pixel size <select id="pixels"><option value="1">1×</option><option value="2">2×</option><option value="3" selected>3×</option><option value="4">4×</option><option value="6">6×</option></select></label>
+<label><input id="detail" type="checkbox" checked> Material detail</label>
+<button id="iso">Isometric</button> <button id="front">Front</button> <button id="side">Side</button> <button id="head">Head close-up</button> <button id="upper">Upper body</button> <button id="body">Full body</button>
+<p id="status"></p><p id="error" role="alert"></p>
+<small>Drag to orbit · scroll to zoom · Shift-drag to pan. Live mesh rendering · Dithered uses a fixed pixel pattern; Grainy uses surface-anchored noise. GLB retains its materials.</small>
+</header><canvas id="view" aria-label="Interactive 3D character"></canvas>
+<header><a href="character.glb" download>Rigged GLB</a> · <a href="preview.html">2D sprite preview</a></header>
+<script>
+const data=__MODEL__, asset=data.asset, canvas=document.getElementById('view');
+document.getElementById('title').textContent=asset.name+' — '+asset.style.preset+' · 3D mesh';
+const motion=document.getElementById('motion'),scrub=document.getElementById('time'),repeat=document.getElementById('repeat');
+for(const name of Object.keys(data.clips)){const o=document.createElement('option');o.value=name;o.textContent=name;motion.append(o);}motion.value='idle';
+function start(){
+const gl=canvas.getContext('webgl',{antialias:false,alpha:false});if(!gl){document.getElementById('error').textContent='WebGL is unavailable in this browser. Open this file in a WebGL-capable browser.';return;}
+const derivatives=gl.getExtension('OES_standard_derivatives');
+const vs=`attribute vec3 pos;attribute vec3 normal;attribute vec2 uv;attribute vec4 joints;attribute vec4 weights;uniform mat4 bones[${asset.joints.length}];uniform mat4 vp;varying vec3 n;varying vec2 tex;varying vec3 rest;void main(){mat4 skin=bones[int(joints.x)]*weights.x+bones[int(joints.y)]*weights.y+bones[int(joints.z)]*weights.z+bones[int(joints.w)]*weights.w;gl_Position=vp*skin*vec4(pos,1.0);n=mat3(skin)*normal;tex=uv;rest=pos;}`;
+const fs=`
+${derivatives ? "#extension GL_OES_standard_derivatives : enable\n#define HAS_DERIVATIVES" : ""}
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform vec4 color;uniform sampler2D albedo;uniform bool textured;
+uniform vec3 light;uniform int renderMode;uniform float bodyHeight;
+uniform int materialKind;uniform bool detail;
+varying vec3 n;varying vec2 tex;varying vec3 rest;
+vec3 linear(vec3 c){return pow(c,vec3(2.2));}
+float bayer2(vec2 p){return 2.0*p.x+3.0*p.y-4.0*p.x*p.y;}
+float ordered(vec2 p){return (4.0*bayer2(mod(p,2.0))+bayer2(mod(floor(p/2.0),2.0))+0.5)/16.0;}
+float grain(vec3 p){p=fract(p*vec3(0.1031,0.1030,0.0973));p+=dot(p,p.yxz+19.19);return fract((p.x+p.y)*p.z);}
+float stripe(float coordinate,float frequency){
+float width=0.12;
+#ifdef HAS_DERIVATIVES
+float footprint=fwidth(coordinate*frequency);
+width=max(width,footprint);
+float visible=1.0-smoothstep(0.35,0.85,footprint);
+#else
+float visible=1.0;
+#endif
+float distance=abs(fract(coordinate*frequency)-0.5);
+return (1.0-smoothstep(0.10,0.10+width,distance))*visible;
+}
+void main(){
+vec3 base=color.rgb;if(textured)base*=linear(texture2D(albedo,fract(tex)).rgb);
+if(detail){
+vec3 local=rest/bodyHeight;
+if(materialKind==3||materialKind==5){
+// Sparse crossing threads, filtered at small sizes rather than random speckles.
+float warp=stripe(local.x+local.z*0.45,42.0);
+float weft=stripe(local.y,55.0);
+base*=1.0-0.12*warp*weft;
+float hem=stripe(local.y+(materialKind==3?0.005:0.012),16.0);
+base*=1.0-0.04*hem;
+}else if(materialKind==6){
+// Follow broad swept locks, with sparse highlights instead of grain.
+float lock=stripe(local.x+0.025*sin(local.y*37.0+local.z*20.0),38.0);
+base*=mix(vec3(0.74,0.76,0.81),vec3(1.16,1.09,0.98),lock);
+}else if(materialKind==9){
+float crease=stripe(local.y+local.z*0.30,24.0);
+base*=1.0-0.13*crease;
+}
+}
+float diffuse=max(0.0,dot(normalize(n),normalize(light)));
+float shade=0.34+0.66*diffuse;
+if(renderMode!=0){
+float threshold=ordered(floor(gl_FragCoord.xy));
+if(renderMode==2)threshold=grain(floor(rest/bodyHeight*600.0));
+float ramp=diffuse*3.0;
+float band=min(3.0,floor(ramp)+step(threshold,fract(ramp)));
+shade=0.22+0.78*band/3.0;
+}
+vec3 lit=base*shade;
+if(detail&&renderMode!=0&&(materialKind==1||materialKind==3||materialKind==5||materialKind==6||materialKind==9)){
+// Material-colored ramps: cooler shadows and warmer, restrained highlights.
+vec3 shadow=base*vec3(0.76,0.84,1.02);
+vec3 highlight=base*vec3(1.09,1.03,0.92);
+lit=mix(shadow,highlight,(shade-0.22)/0.78)*shade;
+}
+gl_FragColor=vec4(pow(clamp(lit,0.0,1.0),vec3(1.0/2.2)),1.0);
+}`;
+function shader(kind,source){const s=gl.createShader(kind);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
+const program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,vs));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);
+const uniforms=Object.fromEntries(['bones[0]','vp','color','albedo','textured','light','renderMode','bodyHeight','materialKind','detail'].map(n=>[n,gl.getUniformLocation(program,n)]));
+const attributes=Object.fromEntries(['pos','normal','uv','joints','weights'].map(n=>[n,gl.getAttribLocation(program,n)]));
+function buffer(values){const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(values),gl.STATIC_DRAW);return b;}
+const meshes=asset.primitives.map(p=>({material:p.material,kind:p.name==='hair'?6:asset.materials[p.material].channel===6?0:asset.materials[p.material].channel,count:p.indices.length,buffers:Object.fromEntries([['pos','position'],['normal','normal'],['uv','uv'],['joints','joints'],['weights','weights']].map(([name,field])=>[name,buffer(p.indices.flatMap(i=>p.vertices[i][field]))]))}));
+const textures=asset.materials.map(m=>{const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);const t=m.texture;gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,t?t.size:1,t?t.size:1,0,gl.RGBA,gl.UNSIGNED_BYTE,new Uint8Array(t?t.rgba:[255,255,255,255]));gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return tex;});
+const gridPoints=[];for(let i=-12;i<=12;i++){const v=i*asset.height/8,r=asset.height*1.5;gridPoints.push(-r,0,v,r,0,v,v,0,-r,v,0,r);}const gridBuffer=buffer(gridPoints);
+gl.enable(gl.DEPTH_TEST);gl.clearColor(0.105,0.13,0.17,1);gl.uniform1i(uniforms.albedo,0);
+let orthographic=false,yaw=0,pitch=0.08,distance=asset.height*2.15,target=[0,asset.height*0.55,0],running=true,elapsed=0,last=null;
+const minus=(a,b)=>a.map((v,i)=>v-b[i]),dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0),unit=v=>{const d=Math.hypot(...v);return v.map(x=>x/d);},cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+function multiply(a,b){const out=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)for(let k=0;k<4;k++)out[c*4+r]+=a[k*4+r]*b[c*4+k];return out;}
+function camera(){const eye=[target[0]+Math.sin(yaw)*Math.cos(pitch)*distance,target[1]+Math.sin(pitch)*distance,target[2]+Math.cos(yaw)*Math.cos(pitch)*distance];const z=unit(minus(eye,target)),x=unit(cross([0,1,0],z)),y=cross(z,x);const view=[x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-dot(x,eye),-dot(y,eye),-dot(z,eye),1];const near=0.005,far=asset.height*30,f=1/Math.tan(Math.PI/8),aspect=canvas.width/canvas.height;const projection=orthographic?[f/(distance*aspect),0,0,0,0,f/distance,0,0,0,0,-2/(far-near),0,0,0,-(far+near)/(far-near),1]:[f/aspect,0,0,0,0,f,0,0,0,0,(far+near)/(near-far),-1,0,0,2*far*near/(near-far),0];return multiply(projection,view);}
+function rotation(q){const [x,y,z,w]=q;return [1-2*(y*y+z*z),2*(x*y+z*w),2*(x*z-y*w),0,2*(x*y-z*w),1-2*(x*x+z*z),2*(y*z+x*w),0,2*(x*z+y*w),2*(y*z-x*w),1-2*(x*x+y*y),0,0,0,0,1];}
+function slerp(a,b,t){let d=dot(a,b);if(d<0){b=b.map(v=>-v);d=-d;}if(d>0.9995){const q=a.map((v,i)=>v+(b[i]-v)*t);const length=Math.hypot(...q);return q.map(v=>v/length);}const angle=Math.acos(Math.min(1,d)),s=Math.sin(angle);return a.map((v,i)=>(Math.sin((1-t)*angle)*v+Math.sin(t*angle)*b[i])/s);}
+let pointer=null;canvas.onpointerdown=e=>{pointer={x:e.clientX,y:e.clientY};canvas.setPointerCapture(e.pointerId);};canvas.onpointerup=()=>pointer=null;canvas.onpointercancel=()=>pointer=null;canvas.onpointermove=e=>{if(!pointer)return;const dx=e.clientX-pointer.x,dy=e.clientY-pointer.y;pointer={x:e.clientX,y:e.clientY};if(e.shiftKey){const scale=distance/canvas.clientHeight;target[0]-=dx*scale*Math.cos(yaw);target[2]+=dx*scale*Math.sin(yaw);target[1]+=dy*scale;}else{yaw-=dx*0.009;pitch=Math.max(-1.3,Math.min(1.3,pitch+dy*0.009));}};canvas.onwheel=e=>{e.preventDefault();distance=Math.max(asset.height*0.12,Math.min(asset.height*10,distance*Math.exp(e.deltaY*0.001)));};
+const play=document.getElementById('play');play.onclick=()=>{if(running&&(data.clips[motion.value].looping||repeat.checked))elapsed%=data.clips[motion.value].duration;running=!running;play.textContent=running?'Pause':'Play';};document.getElementById('restart').onclick=()=>{elapsed=0;running=true;play.textContent='Pause';};motion.onchange=repeat.onchange=()=>elapsed=0;
+scrub.oninput=()=>{elapsed=Number(scrub.value)/1000*data.clips[motion.value].duration;running=false;play.textContent='Play';};document.getElementById('iso').onclick=()=>{orthographic=true;yaw=Math.PI/4;pitch=Math.atan(1/Math.sqrt(2));};document.getElementById('front').onclick=()=>{orthographic=false;yaw=0;pitch=0.08;};document.getElementById('side').onclick=()=>{orthographic=false;yaw=Math.PI/2;pitch=0.08;};document.getElementById('head').onclick=()=>{orthographic=false;target=[0,asset.height*0.93,0];distance=asset.height*0.36;yaw=0;pitch=0;};document.getElementById('upper').onclick=()=>{target=[0,asset.height*0.76,0];distance=asset.height*0.85;yaw=0;pitch=0.08;};document.getElementById('body').onclick=()=>{target=[0,asset.height*0.55,0];distance=asset.height*2.15;};
+function draw(now){if(last!==null&&running)elapsed+=Math.min((now-last)/1000,0.1);last=now;const clip=data.clips[motion.value],loop=clip.looping||repeat.checked;const time=loop&&running?elapsed%clip.duration:Math.min(elapsed,clip.duration);const f=time/clip.duration*32,i=Math.min(31,Math.floor(f)),alpha=Math.min(1,f-i);const transforms=clip.samples[i].map((a,j)=>({translation:a.translation.map((v,k)=>v+(clip.samples[i+1][j].translation[k]-v)*alpha),rotation:slerp(a.rotation,clip.samples[i+1][j].rotation,alpha)}));const bones=new Float32Array(asset.joints.length*16);transforms.forEach((p,j)=>{const m=rotation(p.rotation),b=data.bind[j].translation;m[12]=p.translation[0]-(m[0]*b[0]+m[4]*b[1]+m[8]*b[2]);m[13]=p.translation[1]-(m[1]*b[0]+m[5]*b[1]+m[9]*b[2]);m[14]=p.translation[2]-(m[2]*b[0]+m[6]*b[1]+m[10]*b[2]);bones.set(m,j*16);});const pixel=1/Number(document.getElementById('pixels').value),w=Math.max(1,Math.floor(canvas.clientWidth*pixel)),h=Math.max(1,Math.floor(canvas.clientHeight*pixel));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}gl.viewport(0,0,w,h);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.uniformMatrix4fv(uniforms['bones[0]'],false,bones);gl.uniformMatrix4fv(uniforms.vp,false,camera());const light=Number(document.getElementById('light').value)*Math.PI/180;gl.uniform3fv(uniforms.light,[Math.sin(light),0.8,Math.cos(light)]);gl.uniform1f(uniforms.bodyHeight,asset.height);gl.uniform1i(uniforms.renderMode,0);gl.uniform1i(uniforms.detail,false);if(document.getElementById('grid').checked){gl.uniformMatrix4fv(uniforms['bones[0]'],false,new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]));for(const name of ['normal','uv','joints','weights'])gl.disableVertexAttribArray(attributes[name]);gl.vertexAttrib3f(attributes.normal,0,1,0);gl.vertexAttrib2f(attributes.uv,0,0);gl.vertexAttrib4f(attributes.joints,0,0,0,0);gl.vertexAttrib4f(attributes.weights,1,0,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,gridBuffer);gl.enableVertexAttribArray(attributes.pos);gl.vertexAttribPointer(attributes.pos,3,gl.FLOAT,false,0,0);gl.uniform4fv(uniforms.color,[0.12,0.16,0.22,1]);gl.uniform1i(uniforms.textured,false);gl.drawArrays(gl.LINES,0,gridPoints.length/3);gl.uniformMatrix4fv(uniforms['bones[0]'],false,bones);}gl.uniform1i(uniforms.renderMode,Number(document.getElementById('render').value));gl.uniform1i(uniforms.detail,document.getElementById('detail').checked);for(const mesh of meshes){for(const [name,b] of Object.entries(mesh.buffers)){gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.enableVertexAttribArray(attributes[name]);gl.vertexAttribPointer(attributes[name],name==='uv'?2:['joints','weights'].includes(name)?4:3,gl.FLOAT,false,0,0);}const material=asset.materials[mesh.material];gl.uniform4fv(uniforms.color,material.color);gl.uniform1i(uniforms.materialKind,mesh.kind);gl.uniform1i(uniforms.textured,!!material.texture);gl.bindTexture(gl.TEXTURE_2D,textures[mesh.material]);gl.drawArrays(gl.TRIANGLES,0,mesh.count);}scrub.value=Math.round(time/clip.duration*1000);document.getElementById('status').textContent=`${motion.value} · ${time.toFixed(2)} / ${clip.duration.toFixed(2)} s · ${meshes.reduce((sum,m)=>sum+m.count/3,0)} triangles · ${asset.joints.length} joints`;requestAnimationFrame(draw);}
+requestAnimationFrame(draw);
+}
+try{start();}catch(error){document.getElementById('error').textContent='3D viewer: '+error.message;}
+</script></html>

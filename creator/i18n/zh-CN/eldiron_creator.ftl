@@ -892,3 +892,16 @@ text_play_choose = 输入选项编号并按回车（输入 0 取消）。
 text_play_invalid_choice = 没有对应编号的有效选项。
 node_on_event_node = 自定义事件
 node_on_event_help = 收到自定义命名事件时启动节点链。输入与 Notify In 或对话选项相同的事件名称。
+
+# Prefab node authoring
+prefab_node_part = 部件
+prefab_node_geometry = 几何体
+prefab_node_transform = 变换
+prefab_node_door = 门
+prefab_node_pivot_x = 枢轴 X
+prefab_node_pivot_y = 枢轴 Y
+prefab_node_pivot_z = 枢轴 Z
+prefab_nodes_catalog_help = 将节点拖入选定的预制件分支。
+prefab_nodes_branch_help = 选择部件分支以编辑其节点和几何体。
+prefab_node_part_links = 部件关联
+prefab_node_part_links_help = 重命名预制件、设置父部件或重新分配选定的几何体。

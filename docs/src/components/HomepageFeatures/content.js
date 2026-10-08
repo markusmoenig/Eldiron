@@ -49,6 +49,15 @@ export const homepageContent = {
       type: "news",
       items: [
         {
+          date: "Oct 4, 2026",
+          title: "Interactive Nodes Video",
+          href: "https://youtu.be/SYcvM4JLixw",
+          thumbnail: {
+            image: "https://i.ytimg.com/vi/SYcvM4JLixw/maxresdefault.jpg",
+            alt: "Eldiron Interactive Nodes video thumbnail",
+          },
+        },
+        {
           date: "Oct 1, 2026",
           title: "Eldiron v0.95.0",
           description:
@@ -64,14 +73,6 @@ export const homepageContent = {
             image: "https://i.ytimg.com/vi/jrbZ6ErD93c/maxresdefault.jpg",
             alt: "Eldiron v0.94 feature overview video thumbnail",
           },
-        },
-        {
-          date: "Sep 7, 2026",
-          title: "Eldiron v0.94.0",
-          description:
-            "Build connected masonry walls, furnish scenes with editable Prefabs, and shape and paint 3D geometry. A refreshed Creator and responsive game UI bring the workflows together.",
-          href: "/blog/2026/09/07/eldiron-v0.94.0",
-          linkLabel: "Read more",
         },
       ],
     },

@@ -112,6 +112,7 @@ impl PrefabEditorMode {
 /// region canvas and its visual state completely separate. Its lower controls
 /// are owned by the Prefab editor and therefore remain available in maximized mode.
 pub struct PrefabsEditorDock {
+    nodes: super::prefab_nodes::PrefabNodePane,
     mode: PrefabEditorMode,
     selected_part_id: Option<Uuid>,
     selected_support_surface_id: Option<Uuid>,
@@ -261,9 +262,14 @@ impl PrefabsEditorDock {
                 fl!("status_prefab_editor_remove_support_surface"),
             ),
             (
-                PART_CONFIGURE_DOOR,
-                fl!("prefab_editor_configure_door"),
-                fl!("status_prefab_editor_configure_door"),
+                "Prefab Part Links",
+                fl!("prefab_node_part_links"),
+                fl!("prefab_node_part_links_help"),
+            ),
+            (
+                "Prefab Graph Tidy",
+                fl!("node_branch_tidy"),
+                fl!("status_node_branch_tidy"),
             ),
             (
                 PART_PREVIEW_DOOR,
@@ -282,106 +288,23 @@ impl PrefabsEditorDock {
         canvas
     }
 
-    fn parts_canvas() -> TheCanvas {
+    fn part_links_canvas() -> TheCanvas {
         let mut canvas = TheCanvas::new();
-
-        let mut tree_canvas = TheCanvas::new();
-        tree_canvas.set_layout(TheTreeLayout::new(TheId::named(PART_TREE)));
-
-        let mut inspector_canvas = TheCanvas::new();
-        let mut inspector = TheTextLayout::new(TheId::named("Prefab Part Inspector"));
-        inspector.set_margin(Vec4::new(10, 8, 10, 8));
-        inspector.set_padding(7);
-        inspector.set_text_margin(8);
-        inspector.set_fixed_text_width(120);
-        inspector.set_text_align(TheHorizontalAlign::Right);
-
-        let mut prefab_name = TheTextLineEdit::new(TheId::named(PREFAB_NAME));
-        prefab_name.limiter_mut().set_max_width(i32::MAX);
-        prefab_name.set_status_text(&fl!("status_prefab_editor_prefab_name"));
-        inspector.add_pair(fl!("prefab_editor_prefab_name"), Box::new(prefab_name));
-
-        let mut name = TheTextLineEdit::new(TheId::named(PART_NAME));
-        name.limiter_mut().set_max_width(i32::MAX);
-        name.set_status_text(&fl!("status_prefab_editor_part_name"));
-        inspector.add_pair(fl!("prefab_editor_part_name"), Box::new(name));
-
+        canvas.limiter_mut().set_min_width(360);
+        canvas.limiter_mut().set_max_width(420);
+        let mut layout = TheTextLayout::new(TheId::named("Prefab Part Links Layout"));
+        layout.set_margin(Vec4::new(10, 8, 10, 8));
+        layout.set_fixed_text_width(100);
+        let mut name = TheTextLineEdit::new(TheId::named(PREFAB_NAME));
+        name.set_status_text(&fl!("status_prefab_editor_prefab_name"));
+        layout.add_pair(fl!("prefab_editor_prefab_name"), Box::new(name));
         let mut parent = TheDropdownMenu::new(TheId::named(PART_PARENT));
-        parent.limiter_mut().set_max_width(i32::MAX);
         parent.set_status_text(&fl!("status_prefab_editor_part_parent"));
-        inspector.add_pair(fl!("prefab_editor_part_parent"), Box::new(parent));
-
+        layout.add_pair(fl!("prefab_editor_part_parent"), Box::new(parent));
         let mut assignment = TheDropdownMenu::new(TheId::named(PART_ASSIGNMENT));
-        assignment.limiter_mut().set_max_width(i32::MAX);
         assignment.set_status_text(&fl!("status_prefab_editor_part_assignment"));
-        inspector.add_pair(fl!("prefab_editor_part_assignment"), Box::new(assignment));
-
-        let mut pivot = TheTextLineEdit::new(TheId::named(PART_PIVOT));
-        pivot.limiter_mut().set_max_width(i32::MAX);
-        pivot.set_disabled(true);
-        pivot.set_status_text(&fl!("status_prefab_editor_part_pivot"));
-        inspector.add_pair(fl!("prefab_editor_part_pivot"), Box::new(pivot));
-
-        let mut door_angle = TheTextLineEdit::new(TheId::named(PART_DOOR_ANGLE));
-        door_angle.limiter_mut().set_max_width(i32::MAX);
-        door_angle.set_value(TheValue::Text("90".to_string()));
-        door_angle.set_status_text(&fl!("status_prefab_editor_door_angle"));
-        inspector.add_pair(fl!("prefab_editor_door_angle"), Box::new(door_angle));
-
-        let mut door_layout = TheDropdownMenu::new(TheId::named(PART_DOOR_LAYOUT));
-        door_layout.add_option(fl!("prefab_editor_door_layout_single"));
-        door_layout.add_option(fl!("prefab_editor_door_layout_split"));
-        door_layout.limiter_mut().set_max_width(i32::MAX);
-        door_layout.set_status_text(&fl!("status_prefab_editor_door_layout"));
-        inspector.add_pair(fl!("prefab_editor_door_layout"), Box::new(door_layout));
-
-        let mut door_motion = TheDropdownMenu::new(TheId::named(PART_DOOR_MOTION));
-        door_motion.add_option(fl!("prefab_editor_door_motion_swing"));
-        door_motion.add_option(fl!("prefab_editor_door_motion_slide"));
-        door_motion.limiter_mut().set_max_width(i32::MAX);
-        door_motion.set_status_text(&fl!("status_prefab_editor_door_motion"));
-        inspector.add_pair(fl!("prefab_editor_door_motion"), Box::new(door_motion));
-
-        let mut slide_distance = TheTextLineEdit::new(TheId::named(PART_DOOR_SLIDE_DISTANCE));
-        slide_distance.limiter_mut().set_max_width(i32::MAX);
-        slide_distance.set_value(TheValue::Text("1".to_string()));
-        slide_distance.set_status_text(&fl!("status_prefab_editor_door_slide_distance"));
-        inspector.add_pair(
-            fl!("prefab_editor_door_slide_distance"),
-            Box::new(slide_distance),
-        );
-
-        let mut usage_distance = TheTextLineEdit::new(TheId::named(PART_DOOR_USAGE_DISTANCE));
-        usage_distance.limiter_mut().set_max_width(i32::MAX);
-        usage_distance.set_value(TheValue::Text("3".to_string()));
-        usage_distance.set_status_text(&fl!("status_prefab_editor_door_usage_distance"));
-        inspector.add_pair(
-            fl!("prefab_editor_door_usage_distance"),
-            Box::new(usage_distance),
-        );
-
-        let mut surface_settings = TheTraybarButton::new(TheId::named(SUPPORT_SURFACE_EDIT));
-        surface_settings.set_text(fl!("prefab_editor_edit_support_surface"));
-        surface_settings.set_status_text(&fl!("status_prefab_editor_edit_support_surface"));
-        surface_settings.set_fixed_size(false);
-        surface_settings.limiter_mut().set_max_width(i32::MAX);
-        inspector.add_pair(
-            fl!("prefab_editor_support_surface"),
-            Box::new(surface_settings),
-        );
-
-        inspector_canvas.set_layout(inspector);
-
-        let mut split = TheSharedHLayout::new(TheId::named("Prefab Parts Shared HLayout"));
-        split.set_shared_ratio(0.52);
-        split.set_mode(TheSharedHLayoutMode::Shared);
-        split.add_canvas(tree_canvas);
-        split.add_canvas(inspector_canvas);
-        let mut content = TheCanvas::new();
-        content.set_layout(split);
-
-        canvas.set_center(content);
-        canvas.set_top(Self::part_actions_toolbar());
+        layout.add_pair(fl!("prefab_editor_part_assignment"), Box::new(assignment));
+        canvas.set_layout(layout);
         canvas
     }
 
@@ -950,6 +873,10 @@ impl PrefabsEditorDock {
         project: &Project,
         asset_id: Uuid,
     ) {
+        if self.mode == PrefabEditorMode::Parts {
+            self.nodes
+                .load(project, asset_id, self.selected_part_id, ui, ctx);
+        }
         let asset = project.block_props.get(&asset_id);
         let part = self
             .selected_part_id
@@ -2280,7 +2207,7 @@ impl PrefabsEditorDock {
         }
     }
 
-    fn push_project_undo(before: Project, project: &Project, ctx: &mut TheContext) {
+    pub(super) fn push_project_undo(before: Project, project: &Project, ctx: &mut TheContext) {
         UNDOMANAGER.write().unwrap().add_undo(
             ProjectUndoAtom::ProjectEdit(
                 fl!("undo_prefab_parts_edit"),
@@ -2361,7 +2288,7 @@ impl PrefabsEditorDock {
         Ok(())
     }
 
-    fn sync_prefab_runtime(project: &mut Project) {
+    pub(super) fn sync_prefab_runtime(project: &mut Project) {
         let block_props = &project.block_props;
         for region in &mut project.regions {
             rusterix::sync_block_prop_surface_prop_transforms(
@@ -2398,6 +2325,7 @@ impl Dock for PrefabsEditorDock {
         Self: Sized,
     {
         Self {
+            nodes: super::prefab_nodes::PrefabNodePane::new(),
             mode: PrefabEditorMode::Parts,
             selected_part_id: None,
             selected_support_surface_id: None,
@@ -2429,7 +2357,9 @@ impl Dock for PrefabsEditorDock {
 
         let mut lower_content = TheCanvas::new();
         let mut stack = TheStackLayout::new(TheId::named(MODE_STACK));
-        stack.add_canvas(Self::parts_canvas());
+        stack.add_canvas(super::prefab_nodes::PrefabNodePane::canvas(
+            Self::part_actions_toolbar(),
+        ));
         stack.add_canvas(self.paint_dock.setup(ctx));
         stack.add_canvas(self.tiles_dock.setup(ctx));
         stack.add_canvas(self.palette_dock.setup(ctx));
@@ -2488,6 +2418,48 @@ impl Dock for PrefabsEditorDock {
         let Some(asset_id) = Self::active_asset_id(server_ctx) else {
             return false;
         };
+        if let TheEvent::StateChanged(id, TheWidgetState::Clicked) = event {
+            if id.name == "Prefab Part Links" {
+                if let Some((anchor_id, anchor)) = ui
+                    .get_widget("Prefab Part Links")
+                    .map(|w| (w.id().clone(), *w.dim()))
+                {
+                    ui.show_popover(anchor_id, anchor, Self::part_links_canvas(), ctx);
+                    self.sync_part_inspector(ui, ctx, project, asset_id);
+                }
+                return true;
+            }
+        }
+        if self.mode == PrefabEditorMode::Parts
+            && matches!(event,
+                TheEvent::RenderViewClicked(id,_) | TheEvent::RenderViewDrop(id,_,_) if id.name == super::prefab_nodes::VIEW
+            )
+        {
+            self.close_door_preview(project, asset_id, server_ctx);
+        }
+        if self.mode == PrefabEditorMode::Parts && self.nodes.handle(event, ui, ctx, project) {
+            if self.selected_part_id != self.nodes.part
+                || matches!(event, TheEvent::NewListItemSelected(id,_) if id.name=="Prefab Branch")
+            {
+                self.selected_part_id = self.nodes.part;
+                self.selected_support_surface_id = None;
+                if let Some(map) = project.prefab_editor_map.as_mut() {
+                    map.clear_selection();
+                    map.selected_geometry_objects = project
+                        .prefab_editor_part_by_object
+                        .iter()
+                        .filter(|(_, part)| Some(**part) == self.selected_part_id)
+                        .map(|(object, _)| *object)
+                        .collect();
+                }
+                TOOLLIST
+                    .write()
+                    .unwrap()
+                    .update_geometry_overlay_3d(project, server_ctx);
+                self.sync_part_inspector(ui, ctx, project, asset_id);
+            }
+            return true;
+        }
         if self.mode == PrefabEditorMode::Effects {
             match event {
                 TheEvent::RenderViewClicked(id, _) if id.name == PREFAB_VIEW => {
@@ -3343,13 +3315,24 @@ impl Dock for PrefabsEditorDock {
                 true
             }
             TheEvent::NewListItemSelected(id, layout_id)
-                if id.name == SUPPORT_SURFACE_ITEM && layout_id.name == PART_TREE =>
+                if id.name == SUPPORT_SURFACE_ITEM
+                    && (layout_id.name == PART_TREE
+                        || layout_id.name == "Prefab Graph Branches") =>
             {
                 match crate::block_props::select_prefab_support_surface(project, asset_id, id.uuid)
                 {
                     Ok(part_id) => {
                         self.selected_part_id = Some(part_id);
                         self.selected_support_surface_id = Some(id.uuid);
+                        if layout_id.name == "Prefab Graph Branches" {
+                            self.open_support_surface_popover(
+                                ui,
+                                ctx,
+                                project,
+                                asset_id,
+                                SUPPORT_SURFACE_ITEM,
+                            );
+                        }
                         self.sync_part_inspector(ui, ctx, project, asset_id);
                         // Re-activating the already active face tool clears its
                         // selection. Only switch when necessary; a real switch
@@ -3808,6 +3791,29 @@ impl Dock for PrefabsEditorDock {
                     project, asset_id, part_id,
                 ) {
                     Ok(pivot) => {
+                        if let Some(graphs) = project.prefab_graphs.get_mut(&asset_id) {
+                            if let Some(branch) =
+                                graphs.branches.iter_mut().find(|b| b.part_id == part_id)
+                            {
+                                for node in
+                                    branch.graph.nodes.iter_mut().filter(|n| {
+                                        n.definition.as_deref() == Some("prefab_transform")
+                                    })
+                                {
+                                    for (key, value) in
+                                        ["pivot_x", "pivot_y", "pivot_z"].into_iter().zip(pivot)
+                                    {
+                                        shared::graph_authoring::set(
+                                            node,
+                                            key,
+                                            theframework::thegraph::GraphControlValue::Text(
+                                                value.to_string(),
+                                            ),
+                                        );
+                                    }
+                                }
+                            }
+                        }
                         Self::push_project_undo(before, project, ctx);
                         Self::sync_prefab_runtime(project);
                         self.sync_part_inspector(ui, ctx, project, asset_id);

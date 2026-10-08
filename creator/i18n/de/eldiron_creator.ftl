@@ -993,3 +993,16 @@ text_play_choose = Antwortnummer eingeben und Return drücken (0 zum Abbrechen).
 text_play_invalid_choice = Keine aktive Antwort mit dieser Nummer.
 node_on_event_node = Eigenes Ereignis
 node_on_event_help = Startet eine Kette beim Empfang eines eigenen benannten Ereignisses. Verwende denselben Ereignisnamen wie in Notify In oder einer Dialogoption.
+
+# Prefab node authoring
+prefab_node_part = Teil
+prefab_node_geometry = Geometrie
+prefab_node_transform = Transformation
+prefab_node_door = Tür
+prefab_node_pivot_x = Drehpunkt X
+prefab_node_pivot_y = Drehpunkt Y
+prefab_node_pivot_z = Drehpunkt Z
+prefab_nodes_catalog_help = Ziehe einen Knoten in den ausgewählten Prefab-Teilzweig.
+prefab_nodes_branch_help = Wähle den Teilzweig, um seine Knoten und Geometrie zu bearbeiten.
+prefab_node_part_links = Teil-Verknüpfungen
+prefab_node_part_links_help = Prefab umbenennen, übergeordneten Teil setzen oder ausgewählte Geometrie zuweisen.

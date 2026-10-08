@@ -893,3 +893,16 @@ text_play_choose = Введите номер ответа и нажмите Ente
 text_play_invalid_choice = Нет активного ответа с таким номером.
 node_on_event_node = Пользовательское событие
 node_on_event_help = Запускает цепочку при получении пользовательского именованного события. Укажите то же имя, что в Notify In или варианте диалога.
+
+# Prefab node authoring
+prefab_node_part = Часть
+prefab_node_geometry = Геометрия
+prefab_node_transform = Трансформация
+prefab_node_door = Дверь
+prefab_node_pivot_x = Точка вращения X
+prefab_node_pivot_y = Точка вращения Y
+prefab_node_pivot_z = Точка вращения Z
+prefab_nodes_catalog_help = Перетащите узел в выбранную ветвь части префаба.
+prefab_nodes_branch_help = Выберите ветвь части для редактирования её узлов и геометрии.
+prefab_node_part_links = Связи части
+prefab_node_part_links_help = Переименовать префаб, выбрать родительскую часть или переназначить выбранную геометрию.

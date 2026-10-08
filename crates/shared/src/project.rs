@@ -528,6 +528,10 @@ pub struct Project {
     #[serde(default)]
     pub block_props: IndexMap<Uuid, rusterix::BlockPropAsset>,
 
+    /// Independent declarative authoring branches; runtime assets retain compiled geometry.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub prefab_graphs: IndexMap<Uuid, crate::prefab_graph::PrefabGraphs>,
+
     /// Asset-local 3D Paint keyed by Prefab UUID. Keeping paint beside the
     /// project catalog avoids making the renderer's geometry crate depend on
     /// Creator's shared paint model while still serializing it as Prefab data.
@@ -667,6 +671,7 @@ impl Project {
             builder_graphs: IndexMap::default(),
             construction_patterns: IndexMap::default(),
             block_props: IndexMap::default(),
+            prefab_graphs: IndexMap::default(),
             block_prop_paint: IndexMap::default(),
             prefab_editor_map: None,
             prefab_editor_part_by_object: IndexMap::default(),

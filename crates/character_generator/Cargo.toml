@@ -1,0 +1,31 @@
+[package]
+name = "eldiron-character-generator"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Standalone procedural humanoid, equipment, rig, and sprite generator."
+
+[lib]
+name = "character_generator"
+
+[[bin]]
+name = "character-generator"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.9"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+
+theframework = { path = "../theframework", default-features = false }
+procedural-recipes = { path = "../procedural_recipes", default-features = false }
+rusterix = { path = "../rusterix", default-features = false, features = ["graphics"], optional = true }
+scenevm = { path = "../scenevm", default-features = false, optional = true }
+eldiron-ruleset = { path = "../ruleset", optional = true }
+uuid = { version = "1", features = ["v5"], optional = true }
+
+[features]
+default = []
+eldiron = ["dep:rusterix", "dep:scenevm", "dep:eldiron-ruleset", "dep:uuid"]

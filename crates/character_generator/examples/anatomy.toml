@@ -1,0 +1,20 @@
+version = 1
+
+# Neutral untextured mannequin for reviewing anatomy and deformation.
+[characters.anatomy]
+body = "humanoid"
+height = 1.72
+build = 0.4
+skin = "#b5aa9d"
+hair = "#70665a"
+outfit = []
+equipment = []
+
+[characters.anatomy.head]
+jaw = 1.0
+cheekbones = 1.0
+nose_length = 0.9
+nose_width = 0.9
+eye_spacing = 0.9
+ear_size = 0.85
+eye_color = "#384966"

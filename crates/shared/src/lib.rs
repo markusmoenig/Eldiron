@@ -1,6 +1,9 @@
 pub mod asset;
 pub mod character;
 pub mod construction_graph;
+pub mod graph_authoring;
+pub mod particle_graph;
+pub mod prefab_graph;
 pub mod context;
 pub mod entity_graph;
 pub mod interaction;

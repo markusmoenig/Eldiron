@@ -91,7 +91,7 @@ Advanced source editing happens in this isolated editor. A linked instance in a 
 
 The lower section follows the active tool so each workflow has one shared UI implementation:
 
-- **Parts**: Object, Face, Edge, and Vertex tools show the Prefab hierarchy, part properties, support surfaces, and Prefab actions.
+- **Parts**: Object, Face, Edge, and Vertex tools show independent part branches, the shared node canvas, support surfaces, and Prefab actions.
 - **3D Paint**: the **3D Paint Tool** shows the same brush and layer UI used by the region editor, but writes asset-local Prefab paint.
 - **Tiles**: the **Tile Picker Tool** shows the normal Tiles dock for applying tiles and materials to the Prefab's selected faces or objects.
 - **Palette**: the **Palette Tool** shows the normal Art Palette editor and lets Prefab geometry use the same project palette workflow.
@@ -113,56 +113,48 @@ The same contextual modeling actions are available where applicable. Common Pref
 
 See [Object Tool](object), [Sector / Face Tool](sector), [Linedef / Edge Tool](linedef), [Vertex Tool](vertex), and [Creator Actions](/docs/creator/actions) for the complete shared modeling operations.
 
-### Prefab Hierarchy And Parts
+### Prefab Part Branches
 
-The hierarchy tree is the source of truth for how the Prefab is assembled:
+Each logical part has its own graph. Select a part in the left branch list to edit its nodes and select its Geometry Objects in the viewport. A typical branch runs left to right:
 
 ```text
-Prefab
-  Part
-    Geometry Object
-    Support Surface
-    Child Part
+Part → Transform → Door
 ```
 
-A new directly authored Prefab begins with one part containing all selected Geometry Objects. Extra parts are useful when geometry needs its own name, parent, pivot, support surfaces, or motion. A static table can remain one part; a door leaf, drawer, lid, or lever normally needs a distinct moving part.
+- **Part** sets the part name while preserving its identity.
+The Part node's **Geometry** output carries its authored meshes into the chain. Continue modeling and painting those meshes in the viewport.
+- **Transform** provides numeric text fields for the Prefab-local pivot coordinates. Type a value and press Return to apply it. **Set Pivot** fills these fields from the current geometry selection.
+- **Door** configures swing or slide motion, open angle, slide distance and usage distance. Existing paired gates retain both leaves and their shared state.
 
-Selecting a part exposes these properties:
+Open the sidebar's **Node List** and drag nodes into the selected branch. Connect their terminals from left to right. Shift-drag across a connection to cut it. Disconnected Door nodes retain their settings but do not configure an active door. Reconnect the node to restore it.
 
-- **Prefab**: renames the complete reusable asset without changing its UUID.
-- **Name**: renames the selected logical part without changing its stable identity.
-- **Parent**: assigns another part as the parent. Child parts follow their parent's transformation and motion. Cyclic parenting is rejected.
-- **Selected Objects**: moves the currently selected Geometry Objects into this part. Objects are reassigned, not duplicated.
-- **Pivot**: displays the part's stored Prefab-local pivot. It is intentionally read-only; use **Set Pivot** to derive it from the current 3D selection.
+Branches use global undo/redo. **Tidy Branch** arranges the current branch and fits it into view; branches are also arranged on first opening. Editing connections does not rearrange the graph.
 
-The top Prefab toolbar provides:
+The toolbar keeps direct mesh operations:
 
-- **Create Part**: create a new logical part from the currently selected Geometry Objects. The selected objects move into the new part.
-- **Remove Part**: remove the selected logical part without deleting its Geometry Objects. The objects move to another remaining part. Support surfaces and behavior owned specifically by the removed part are removed, and a Prefab must always retain at least one part.
-- **Set Pivot**: set the selected part's pivot to the center of the selected vertices, edges, faces, or objects.
-- **Create Surface** and **Remove Surface**: create an item-placement area from selected faces or remove the selected definition.
-- **Make Door / Gate** and **Preview Door**: configure and test standard Door behavior.
-
-Clicking a Geometry Object in the tree selects it in the 3D view. Clicking a support surface selects all of its referenced faces, making its exact area visible with the normal Face selection overlay.
-
-When a support surface is selected, **Surface Settings** appears in the inspector settings list and opens its anchored property popover.
+- **Create Part** moves selected Geometry Objects into a new logical part.
+- **Remove Part** moves its objects into another remaining part without deleting the meshes. A Prefab retains at least one part.
+- **Set Pivot** derives the pivot from the current vertex, edge, face or object selection and updates the Transform node.
+- **Part Links** opens prefab naming, part parenting and selected-object assignment controls.
+- **Create Surface** creates a support surface from selected faces. Select a support surface in the left list to open its settings; **Remove Surface** removes its definition.
+- **Preview Door** toggles the selected part's door preview.
 
 ### Set A Part Pivot
 
 The pivot controls part motion. For a swinging door, it must lie on the hinge axis rather than at the center of the leaf.
 
-1. Select the part in the hierarchy.
+1. Select the part in the branch list.
 2. Switch to Vertex, Edge, Face, or Object mode.
 3. Select the geometry whose center represents the desired pivot. For a door hinge, select the vertical hinge edge or its two vertices.
 4. Click **Set Pivot**.
 
-The stored Pivot field updates in Prefab-local coordinates. Rotating a Door part then keeps the hinge edge fixed while the rest of the leaf moves around it.
+The Transform node updates in Prefab-local coordinates. Rotating a Door part then keeps the hinge edge fixed while the rest of the leaf moves around it.
 
 ### Paint A Prefab
 
 Choose the **3D Paint Tool** while the isolated editor is open. The lower section switches to the complete shared Paint UI, including its brush, layer, and palette controls.
 
-Prefab paint is stored in source-local coordinates and is resolved against stable geometry identities. Painting the source therefore appears on every linked instance, including differently positioned or rotated placements. Returning to the Object, Face, Edge, or Vertex tool switches the lower section back to Parts without discarding the paint.
+Prefab paint is stored in source-local coordinates and is resolved against stable geometry identities. Painting the source therefore appears on every linked instance, including differently positioned or rotated placements. Returning to the Object, Face, Edge, or Vertex tool switches the lower section back to the part branches without discarding the paint.
 
 Tiles and materials are still face properties rather than 3D Paint. Use the Tile Picker or Palette Tool for those sources, and 3D Paint for brush-based surface detail.
 
@@ -176,22 +168,11 @@ For a single swinging door:
 2. Convert the new object to a linked Prefab and open its isolated editor.
 3. If the Prefab also contains a frame or other static geometry, select the leaf objects and click **Create Part** so only the leaf moves. A Prefab containing only the leaf can use its existing part.
 4. Select the leaf's hinge edge or hinge vertices and click **Set Pivot**.
-5. Set **Leaves** to **Single** and **Motion** to **Swing**.
-6. Set **Open Angle**. Positive and negative angles open in opposite directions; the valid range is `-180` through `180`, excluding zero.
-7. Set **Usage Distance**, then click **Make Door / Gate**.
-8. Click **Preview Door** to toggle a non-destructive open/closed preview.
+5. Drag a **Door** node from the Node List into the part branch and connect it after Transform.
+6. Set **Motion** to **Swing**, then choose the signed **Open Angle** and **Usage Distance**.
+7. Click **Preview Door** to toggle the open/closed preview.
 
-For a sliding door, choose **Slide** and set **Slide Distance**. Open Angle is ignored. Fitted geometry supplies its motion axis when available.
-
-For a split door or gate, select exactly two fitted leaf Geometry Objects, choose **Split**, and click **Make Door / Gate**. Eldiron assigns or creates two moving parts, derives their outer pivots and motion direction from the fitted geometry, and binds both leaves to one shared open/closed state.
-
-The Door settings are:
-
-- **Leaves**: one moving part or two synchronized fitted leaves.
-- **Motion**: swing around the part pivot or slide along the fitted motion axis.
-- **Open Angle**: signed swing angle in degrees.
-- **Slide Distance**: Prefab-local travel distance for Slide motion.
-- **Usage Distance**: maximum horizontal distance from which the player may operate the Door.
+For a sliding door, choose **Slide** and set **Slide Distance**. Open Angle is ignored. Existing fitted motion axes and paired-gate bindings are preserved when importing a prefab.
 
 **Preview Door** changes only the editor preview. It does not modify the Prefab's authored closed geometry and closes automatically when geometry editing resumes.
 
@@ -222,7 +203,7 @@ The settings are:
   - **Allow Overlap** permits multiple items at the same position.
   - **Single Occupant** permits only one item on the entire surface.
 
-**Create Surface** is enabled only when a valid face selection exists. **Surface Settings** and **Remove Surface** are enabled only while a surface is selected in the hierarchy. Creation is rejected if the faces are not coplanar or span more than one part.
+**Create Surface** is enabled only when a valid face selection exists. **Surface Settings** and **Remove Surface** are enabled only while a surface is selected in the left list. Creation is rejected if the faces are not coplanar or span more than one part.
 
 ### Place Items On A Support Surface
 

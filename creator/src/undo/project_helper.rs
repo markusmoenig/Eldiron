@@ -1115,7 +1115,10 @@ pub fn set_project_context(
     }
 
     server_ctx.pc = pc;
-    if crate::editor::DOCKMANAGER.read().unwrap().dock != "Construction" {
+    let active_dock = crate::editor::DOCKMANAGER.read().unwrap().dock.clone();
+    if active_dock == "Prefabs" {
+        crate::docks::prefab_nodes::sync_node_list(ui, ctx);
+    } else if active_dock != "Construction" {
         crate::docks::nodes::sync_node_list(ui, ctx, pc);
     }
     update_project_export_context_menu(ui, pc, project);

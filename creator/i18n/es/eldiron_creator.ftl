@@ -998,3 +998,16 @@ text_play_choose = Introduce el número de una respuesta y pulsa Intro (0 para c
 text_play_invalid_choice = No hay una respuesta activa con ese número.
 node_on_event_node = Evento personalizado
 node_on_event_help = Inicia una cadena al recibir un evento con nombre personalizado. Introduce el mismo nombre que en Notify In o en una opción de diálogo.
+
+# Prefab node authoring
+prefab_node_part = Parte
+prefab_node_geometry = Geometría
+prefab_node_transform = Transformación
+prefab_node_door = Puerta
+prefab_node_pivot_x = Pivote X
+prefab_node_pivot_y = Pivote Y
+prefab_node_pivot_z = Pivote Z
+prefab_nodes_catalog_help = Arrastra un nodo a la rama seleccionada del prefab.
+prefab_nodes_branch_help = Selecciona una rama para editar sus nodos y geometría.
+prefab_node_part_links = Enlaces de parte
+prefab_node_part_links_help = Renombra el prefab, cambia la parte padre o reasigna la geometría seleccionada.

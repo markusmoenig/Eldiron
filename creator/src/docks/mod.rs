@@ -15,6 +15,7 @@ pub mod log;
 pub mod palette;
 pub mod particle_preview;
 pub mod prefabs_editor;
+pub mod prefab_nodes;
 pub mod recipe_preview_3d;
 pub mod recipes;
 pub mod text_play;
