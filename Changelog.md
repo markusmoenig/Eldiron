@@ -26,6 +26,8 @@
 
 ### Creator
 
+- Fixed update checks recommending older releases, such as v0.6.5 over v0.95.0; the updater selects the newest valid version and rejects downgrade downloads.
+- Fixed Linux/Wayland touchpad scroll handling and Ctrl + scroll zoom in editor and node canvases, including precise scrolling in 3D and profile views. Native Linux pinch gestures remain unsupported by the current winit backend; use Ctrl + two-finger scroll to zoom.
 - Renamed **On Event** to **Custom Event** and clarified its hover help to distinguish it from the built-in Event picker.
 - Fixed **Set Tile** picker text, thumbnails and padding scaling incorrectly when zooming nodes.
 
