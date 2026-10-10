@@ -294,7 +294,10 @@ impl TheTrait for Client {
 
             // Init server / client
 
-            start_server(&mut self.rusterix, &mut project, false);
+            if let Err(error) = start_server(&mut self.rusterix, &mut project, false) {
+                eprintln!("Rules: {error}");
+                return;
+            }
             self.rusterix.clear_say_messages();
             let commands = setup_client(&mut self.rusterix, &mut project);
             self.rusterix.server.process_client_commands(commands);

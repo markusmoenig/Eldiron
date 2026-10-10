@@ -51,6 +51,9 @@ pub struct GraphPort {
     pub side: PortSide,
     /// Stable body row to align with; otherwise use normalized edge position.
     pub row: Option<GraphId>,
+    /// Stable item within a list row, for per-entry terminals.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub list_item: Option<GraphId>,
     pub position: f32,
     pub kind: String,
 }
@@ -63,6 +66,7 @@ impl GraphPort {
             direction,
             side,
             row: None,
+            list_item: None,
             position,
             kind: "flow".into(),
         }
@@ -108,6 +112,8 @@ pub enum GraphControlValue {
     List {
         columns: Vec<GraphListColumn>,
         rows: Vec<Vec<GraphControlValue>>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        row_ids: Vec<GraphId>,
     },
 }
 /// Vertical pitch of one list entry.
@@ -352,7 +358,19 @@ impl GraphNode {
                 .and_then(|id| self.rows.iter().position(|row| row.id == id))
                 .map(|i| {
                     let rect = self.row_rect(i, metrics);
-                    rect.origin[1] - self.position[1] + rect.size[1] * 0.5
+                    let offset = port
+                        .list_item
+                        .and_then(|item| {
+                            if let GraphControlValue::List { row_ids, .. } = &self.rows[i].value {
+                                row_ids.iter().position(|id| *id == item).map(|index| {
+                                    metrics.list_header + metrics.list_row * (index as f32 + 0.5)
+                                })
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or(rect.size[1] * 0.5);
+                    rect.origin[1] - self.position[1] + offset
                 })
         };
         let y = anchored.unwrap_or_else(|| self.terminal_offset(t, metrics));

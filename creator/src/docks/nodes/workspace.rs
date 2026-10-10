@@ -58,6 +58,10 @@ impl NodesDock {
         if self.is_configuration() {
             return serde_json::to_value(&self.doc).unwrap();
         }
+        let documents = self.branch_documents();
+        serde_json::json!({"version":1,"nodes":[],"connections":[],"branches":documents})
+    }
+    pub(super) fn branch_documents(&mut self) -> Vec<GraphDocument> {
         self.remember_graph();
         let mut documents: Vec<_> = self
             .branch_order
@@ -69,7 +73,7 @@ impl NodesDock {
         if self.active_branch.is_none() && !self.doc.nodes.is_empty() {
             documents.push(self.doc.clone());
         }
-        serde_json::json!({"version":1,"nodes":[],"connections":[],"branches":documents})
+        documents
     }
     /// Read separate documents, or split an older connection-based graph.
     pub(super) fn load_branch_documents(
@@ -83,6 +87,39 @@ impl NodesDock {
         } else {
             vec![serde_json::from_value(value.clone()).map_err(|e| e.to_string())?]
         };
+        if self.is_rules() {
+            for doc in documents {
+                if doc.version != 1 {
+                    return Err("Unsupported rules branch version".into());
+                }
+                let Some(root) = doc
+                    .nodes
+                    .iter()
+                    .find(|n| {
+                        matches!(
+                            n.definition.as_deref(),
+                            Some("rules_definition" | "rules_fx")
+                        )
+                    })
+                    .or_else(|| doc.nodes.first())
+                    .map(|n| n.id)
+                else {
+                    continue;
+                };
+                if self.branch_graphs.insert(root, doc).is_some() {
+                    return Err("Duplicate rules branch identity".into());
+                }
+                self.branch_order.push(root);
+            }
+            self.active_branch = self
+                .active_branch
+                .filter(|root| self.branch_graphs.contains_key(root))
+                .or_else(|| self.branch_order.first().copied());
+            return Ok(self
+                .active_branch
+                .and_then(|root| self.branch_graphs.get(&root).cloned())
+                .unwrap_or_default());
+        }
         let mut draft = GraphDocument::default();
         let mut used = std::collections::HashSet::new();
         for doc in documents.drain(..) {

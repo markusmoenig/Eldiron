@@ -14,3 +14,6 @@ While the game runs, node and connection highlights show execution, event rows s
 Start with [Behavior Nodes](../../characters_items/behavior_nodes), the [node reference](../../characters_items/node_reference), and [examples](../../characters_items/behavior_examples). Errors appear in [Debug](../debug).
 
 See [Entity Nodes](../../characters_items/entity_nodes) for identity, appearance, input bindings, and template/instance configuration.
+
+Select **Game / Rules** for [Ruleset Nodes](./ruleset_nodes). These connections
+assemble gameplay definitions rather than executing behavior.

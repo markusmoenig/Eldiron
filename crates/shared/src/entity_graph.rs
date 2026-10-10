@@ -566,6 +566,7 @@ fn toml_control(value: &Value) -> GraphControlValue {
         Value::Integer(v) => number(*v as f32, i32::MIN as f32, i32::MAX as f32, 1.),
         Value::Float(v) => number(*v as f32, -100000., 100000., 0.01),
         Value::Array(values) => GraphControlValue::List {
+            row_ids: vec![],
             columns: vec![GraphListColumn {
                 id: "value".into(),
                 label: "Value".into(),
@@ -767,6 +768,7 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
             &mut node,
             "bindings",
             GraphControlValue::List {
+                row_ids: vec![],
                 columns: vec![],
                 rows: vec![],
             },
@@ -1064,7 +1066,7 @@ fn project_item_data(doc: &GraphDocument, previous: &str, rules: &Table) -> Resu
 
 /// Upgrade old projects and refresh generated compatibility data before spawning.
 pub fn synchronize(project: &mut Project) -> Result<(), String> {
-    let source = crate::rulesets::resolve_project_rules(&project.config, &project.rules)?;
+    let source = project.rules_source()?;
     let rules = source.parse::<Table>().map_err(|e| e.to_string())?;
     fn sync(
         graphs: &mut indexmap::IndexMap<String, serde_json::Value>,
@@ -1175,7 +1177,8 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
 
 /// Commit one graph's generated data only after compilation succeeds.
 pub fn update_owner(project: &mut Project, owner: &str, doc: &GraphDocument) -> Result<(), String> {
-    let rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)?
+    let rules = project
+        .rules_source()?
         .parse::<Table>()
         .map_err(|e| e.to_string())?;
     let id = owner
@@ -1220,7 +1223,8 @@ pub fn effective_character(
     id: Uuid,
     doc: &GraphDocument,
 ) -> Result<Vec<(String, String, &'static str)>, String> {
-    let rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)?
+    let rules = project
+        .rules_source()?
         .parse::<Table>()
         .map_err(|e| e.to_string())?;
     let mut entity = rusterix::Entity::default();
@@ -1756,7 +1760,8 @@ pub fn effective_item(
     id: Uuid,
     doc: &GraphDocument,
 ) -> Result<Vec<(String, String, &'static str)>, String> {
-    let rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)?
+    let rules = project
+        .rules_source()?
         .parse::<Table>()
         .map_err(|e| e.to_string())?;
     let template = project.items.get(&id);

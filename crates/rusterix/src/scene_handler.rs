@@ -963,10 +963,9 @@ impl SceneHandler {
         ];
         Self::advance_emitter(emitter, particle_steps);
 
-        let lifetime_max = emitter.lifetime_range.1.max(0.001);
         for (index, particle) in emitter.particles.iter().enumerate() {
             *has_particles = true;
-            let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
+            let opacity = particle.color[3] as f32 / 255.0;
             let size = (particle.radius * 1.8 * size_scale).max(0.08);
             let tint = Vec3::new(
                 (particle.color[0] as f32 / 255.0).powf(2.2),
@@ -1016,10 +1015,9 @@ impl SceneHandler {
         emitter.spawn_area = def.spawn_area;
         Self::advance_emitter(emitter, particle_steps);
 
-        let lifetime_max = emitter.lifetime_range.1.max(0.001);
         for (index, particle) in emitter.particles.iter().enumerate() {
             *has_particles = true;
-            let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
+            let opacity = particle.color[3] as f32 / 255.0;
             let size = (particle.radius * 1.9 * size_scale).max(0.08);
             let center = particle.pos + Vec3::new(0.0, size * 0.2, 0.0);
             let tint = Vec3::new(
@@ -2242,7 +2240,7 @@ impl SceneHandler {
                         .get_float_default("fx_size_scale", 1.0)
                         .max(0.1),
                     Vec3::new(0.0, -1.0, 0.0),
-                    35,
+                    5, // Raster 2D draws lower layers last: impact FX overlay characters.
                     particle_steps,
                     &mut active_emitters,
                     &mut has_particles,

@@ -36,6 +36,7 @@ Navigation depends on the active camera:
 - **Physical mouse on every platform**: the existing wheel, right-drag, modifier-drag, and arrow-key controls remain unchanged.
 - **macOS trackpad in Orbit**: two-finger scroll pans, pinch zooms, and primary click-drag on empty space or the ViewCube orbits. `Command` + two-finger scroll is a zoom fallback.
 - **macOS trackpad in Iso**: two-finger scroll pans and pinch zooms.
+- **Linux Wayland touchpad**: two-finger scroll pans in Orbit and Iso; hold `Ctrl` while scrolling to zoom. `Ctrl` + scroll also zooms the 2D editor, profile editor, and node canvas. Native Linux pinch gestures are not delivered by the current winit 0.30 backend.
 - **First Person**: `WASD` moves whenever the viewport is focused; hold right mouse to look or press `Space` to toggle touchpad look. First Person does not pan.
 - **ViewCube in Orbit**: click a visible face to align the camera to that axis.
 - **Mini-map**: click the mini-map in the **Region** section to jump to a location.

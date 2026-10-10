@@ -104,8 +104,7 @@ pub fn render_roguelike_screen(
         return render_roguelike_view(region, frame);
     };
 
-    let rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
-        .unwrap_or_else(|_| project.rules.clone());
+    let rules = project.rules_source().unwrap_or_else(|_| String::new());
     let mut canvas = vec![vec![' '; layout.width]; layout.height];
     for widget in &layout.widgets {
         match widget.role.as_str() {

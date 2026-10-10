@@ -370,9 +370,7 @@ impl TextGameState {
             }
             "stats" | "stat" => {
                 if let Some(region) = current_region(project, server_ctx) {
-                    let effective_rules =
-                        shared::rulesets::resolve_project_rules(&project.config, &project.rules)
-                            .unwrap_or_default();
+                    let effective_rules = project.rules_source().unwrap_or_default();
                     if let Some(text) = sg::render_player_stats(
                         &region.map,
                         &project.authoring,
@@ -1055,7 +1053,8 @@ fn current_player_supported_intents(
 }
 
 fn current_ruleset_spell_ids(project: &Project) -> BTreeSet<String> {
-    shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+    project
+        .rules_source()
         .ok()
         .and_then(|rules| shared::rulesets::ruleset_section_ids_from_source(&rules, "spells").ok())
         .map(|spells| spells.into_iter().collect())
@@ -1063,7 +1062,8 @@ fn current_ruleset_spell_ids(project: &Project) -> BTreeSet<String> {
 }
 
 fn current_ruleset_action_ids(project: &Project) -> BTreeSet<String> {
-    shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+    project
+        .rules_source()
         .ok()
         .and_then(|rules| shared::rulesets::ruleset_section_ids_from_source(&rules, "actions").ok())
         .map(|actions| actions.into_iter().collect())
@@ -1071,7 +1071,8 @@ fn current_ruleset_action_ids(project: &Project) -> BTreeSet<String> {
 }
 
 fn current_ruleset_recipe_ids(project: &Project) -> BTreeSet<String> {
-    shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+    project
+        .rules_source()
         .ok()
         .and_then(|rules| shared::rulesets::ruleset_section_ids_from_source(&rules, "recipes").ok())
         .map(|recipes| recipes.into_iter().collect())
@@ -1079,7 +1080,7 @@ fn current_ruleset_recipe_ids(project: &Project) -> BTreeSet<String> {
 }
 
 fn ruleset_spell_kind(project: &Project, spell_id: &str) -> String {
-    let Ok(rules) = shared::rulesets::resolve_project_rules(&project.config, &project.rules) else {
+    let Ok(rules) = project.rules_source() else {
         return String::new();
     };
     let Ok(table) = rules.parse::<Table>() else {

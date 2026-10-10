@@ -99,7 +99,7 @@ Controls:
 * Release right mouse button: stop mouse look; `WASD` remains available.
 * `Space`: toggle touchpad look; press again or press `Escape` to stop looking.
 * Mouse wheel: zoom.
-* macOS trackpad pinch, or `Command` + two-finger scroll: zoom.
+* macOS trackpad pinch, or `Ctrl/Command` + two-finger scroll: zoom.
 
 Normal pan gestures are intentionally ignored in First Person because `WASD` owns camera translation.
 
@@ -117,7 +117,7 @@ Controls:
 * Right-drag, `Alt`-drag, or `Ctrl/Cmd`-drag: pan.
 * `Shift` + mouse wheel: pan.
 * Arrow keys: move the target position.
-* macOS trackpad two-finger scroll: pan.
+* Touchpad two-finger scroll: pan; `Ctrl/Command` + two-finger scroll: zoom.
 * macOS trackpad pinch: zoom.
 
 Options:
@@ -141,8 +141,8 @@ Controls:
 * Arrow keys: move the target position.
 * `B`: arm one-shot Box Select in the active Object, Face, Edge, or Vertex mode. `Shift` adds and `Alt/Option` removes.
 * Click a visible **ViewCube** face: align the camera to that axis.
-* macOS trackpad two-finger scroll: pan.
-* macOS trackpad pinch, or `Command` + two-finger scroll: zoom.
+* Touchpad two-finger scroll: pan; `Ctrl/Command` + two-finger scroll: zoom.
+* macOS trackpad pinch, or `Ctrl/Command` + two-finger scroll: zoom.
 * macOS primary click-drag on empty space or the ViewCube: orbit.
 
 Right-drag uses captured raw mouse motion in the desktop and Xcode/macOS builds so the pointer cannot hit the screen edge while orbiting. The ViewCube follows the camera and is shared by the region and isolated Prefab editors.

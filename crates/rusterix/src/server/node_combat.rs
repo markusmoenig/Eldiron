@@ -353,6 +353,35 @@ mod tests {
         ctx
     }
     #[test]
+    fn engagement_hit_fx_survive_client_updates_and_emit_particles() {
+        let mut ctx = arena();
+        ctx.map.entities[1].set_pos_xz(Vec2::new(1.0, 0.0));
+        ctx.set_entity_target(1, Some(2));
+        node_engage_start(&mut ctx, 1, "default").unwrap();
+        assert_eq!(node_engage_tick(&mut ctx, 1, "default").unwrap(), None);
+
+        let fx = ctx
+            .map
+            .items
+            .iter_mut()
+            .find(|item| item.attributes.get_str("fx_preset") == Some("hit_burst"))
+            .expect("an engagement hit must publish its impact preset");
+        let update = crate::ItemUpdate::unpack(&fx.get_update().pack());
+        let mut client_items = Vec::new();
+        crate::server::Server::process_item_updates(&mut client_items, vec![update]);
+        let Some(Value::ParticleEmitter(emitter)) =
+            client_items[0].attributes.get_mut("particle_emitter")
+        else {
+            panic!("client update must retain the particle emitter");
+        };
+        emitter.update(0.1);
+        assert!(
+            !emitter.particles.is_empty(),
+            "hit emitter must produce particles"
+        );
+    }
+
+    #[test]
     fn lookout_uses_relationships_and_shared_target_attributes() {
         let mut ctx = arena();
         assert!(!node_lookout(&mut ctx, 1, "friendly", None, None).unwrap());

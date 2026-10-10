@@ -404,6 +404,7 @@ fn list_row(rows: Vec<Vec<GraphControlValue>>) -> GraphRow {
     GraphRow::new(
         "Attributes",
         GraphControlValue::List {
+            row_ids: vec![],
             columns: vec![
                 GraphListColumn {
                     id: "attribute".into(),
@@ -426,6 +427,7 @@ fn list_rows_grow_the_node_and_round_trip() {
     doc.nodes[0].rows.push(list_row(vec![]));
     let empty = doc.nodes[0].height(&m());
     doc.nodes[0].rows[0].value = GraphControlValue::List {
+        row_ids: vec![],
         columns: match &doc.nodes[0].rows[0].value {
             GraphControlValue::List { columns, .. } => columns.clone(),
             _ => unreachable!(),
@@ -848,6 +850,7 @@ fn dialogue_node() -> GraphNode {
     node.rows.push(GraphRow::new(
         "choices",
         GraphControlValue::List {
+            row_ids: vec![],
             columns: vec![list_column("Choice"), list_column("Condition")],
             rows: (0..6)
                 .map(|i| {
@@ -957,6 +960,7 @@ fn searchable_choice_targets_use_list_geometry_at_every_zoom() {
     node.rows.push(GraphRow::new(
         "Bindings",
         GraphControlValue::List {
+            row_ids: vec![],
             columns: vec![GraphListColumn {
                 id: "command".into(),
                 label: "Command".into(),
@@ -1017,4 +1021,64 @@ fn cut_stroke_removes_crossed_wires_and_can_be_cancelled() {
     assert_eq!(edits.len(), 1);
     edits[0].apply(&mut doc, false);
     assert_eq!(doc.connections[0], wire);
+}
+
+#[test]
+fn list_item_terminals_follow_entries_and_deletion_preserves_other_identities() {
+    let mut node = GraphNode::new("Keys", [10., 20.], [0; 4]);
+    let mut row = list_row(vec![
+        vec![
+            GraphControlValue::Text("a".into()),
+            GraphControlValue::Toggle(true),
+        ],
+        vec![
+            GraphControlValue::Text("b".into()),
+            GraphControlValue::Toggle(false),
+        ],
+    ]);
+    let ids = vec![uuid::Uuid::new_v4(), uuid::Uuid::new_v4()];
+    let GraphControlValue::List { row_ids, .. } = &mut row.value else {
+        panic!()
+    };
+    *row_ids = ids.clone();
+    let mut port = GraphPort::new("", PortDirection::Output, PortSide::Right, 0.5);
+    port.row = Some(row.id);
+    port.list_item = Some(ids[1]);
+    node.rows.push(row);
+    for metrics in [
+        GraphMetrics::STANDARD,
+        GraphMetrics {
+            list_row: 24.,
+            list_header: 20.,
+            ..GraphMetrics::STANDARD
+        },
+    ] {
+        let rect = node.row_rect(0, &metrics);
+        assert_eq!(
+            node.port_position(&port, &metrics)[1],
+            rect.origin[1] + metrics.list_header + metrics.list_row * 1.5
+        );
+    }
+    let metrics = m();
+    let total = metrics.list_header + metrics.list_row * 3.;
+    node.rows[0].value = BasicGraphControls
+        .interact(
+            &node.rows[0].value,
+            GraphControlInput::Press {
+                fraction: 1.,
+                point: [0.99, (metrics.list_header + metrics.list_row * 0.5) / total],
+                metrics,
+            },
+        )
+        .unwrap();
+    let GraphControlValue::List { row_ids, rows, .. } = &node.rows[0].value else {
+        panic!()
+    };
+    assert_eq!(row_ids, &vec![ids[1]]);
+    assert_eq!(rows[0][0], GraphControlValue::Text("b".into()));
+    let rect = node.row_rect(0, &metrics);
+    assert_eq!(
+        node.port_position(&port, &metrics)[1],
+        rect.origin[1] + metrics.list_header + metrics.list_row * 0.5
+    );
 }

@@ -23,6 +23,19 @@ use winit::{
     window::{CursorGrabMode, Icon, Window, WindowAttributes, WindowId},
 };
 
+/// Keep smooth device deltas as floats until the render view accumulates them.
+/// Wayland touchpads report PixelDelta; discrete wheel input keeps its existing
+/// routing and line-to-pixel scale.
+fn scroll_to_local(delta: MouseScrollDelta, scale: f32) -> ((f32, f32), bool) {
+    match delta {
+        MouseScrollDelta::LineDelta(x, y) => ((x * 20.0, y * 20.0), false),
+        MouseScrollDelta::PixelDelta(delta) => (
+            translate_coord_to_local(delta.x as f32, delta.y as f32, scale),
+            true,
+        ),
+    }
+}
+
 // Platform-aware accelerator modifiers (AltGr-safe)
 #[inline]
 fn is_accel_mods(m: &ModifiersState) -> bool {
@@ -1027,31 +1040,16 @@ impl ApplicationHandler for TheWinitApp {
                         }
                     }
                     WindowEvent::MouseWheel { delta, .. } => {
-                        #[cfg(target_os = "macos")]
-                        let is_precise = matches!(&delta, MouseScrollDelta::PixelDelta(_));
-                        let (x, y) = match delta {
-                            MouseScrollDelta::LineDelta(x, y) => {
-                                const LINE_HEIGHT_PX: f32 = 20.0;
-                                (x as f32 * LINE_HEIGHT_PX, y as f32 * LINE_HEIGHT_PX)
-                            }
-                            MouseScrollDelta::PixelDelta(delta) => translate_coord_to_local(
-                                delta.x as f32,
-                                delta.y as f32,
-                                ctx.ctx.scale_factor,
-                            ),
-                        };
+                        let ((x, y), is_precise) = scroll_to_local(delta, ctx.ctx.scale_factor);
 
                         let mut redraw = false;
                         #[cfg(feature = "ui")]
                         {
-                            #[cfg(target_os = "macos")]
                             let ui_redraw = if is_precise {
                                 self.ui.precise_scroll((x, y), &mut ctx.ctx)
                             } else {
                                 self.ui.mouse_wheel((x as i32, y as i32), &mut ctx.ctx)
                             };
-                            #[cfg(not(target_os = "macos"))]
-                            let ui_redraw = self.ui.mouse_wheel((x as i32, y as i32), &mut ctx.ctx);
 
                             if ui_redraw {
                                 redraw = true;
@@ -1066,7 +1064,6 @@ impl ApplicationHandler for TheWinitApp {
                             ctx.window.request_redraw();
                         }
                     }
-                    #[cfg(target_os = "macos")]
                     WindowEvent::PinchGesture { delta, .. } => {
                         if delta.is_finite() {
                             let mut redraw = false;
@@ -1191,6 +1188,20 @@ pub fn run_winit_app(args: Option<Vec<String>>, app: Box<dyn TheTrait>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn smooth_scroll_preserves_subpixel_motion_on_every_platform() {
+        let (delta, precise) = scroll_to_local(
+            MouseScrollDelta::PixelDelta(PhysicalPosition::new(0.5, -0.5)),
+            2.0,
+        );
+        assert_eq!(delta, (0.25, -0.25));
+        assert!(precise);
+        assert_eq!(
+            scroll_to_local(MouseScrollDelta::LineDelta(0., -1.), 2.),
+            ((0., -20.), false)
+        );
+    }
 
     #[test]
     fn ui_dimensions_follow_system_display_scaling() {

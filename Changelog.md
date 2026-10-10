@@ -6,10 +6,21 @@
 
 - Started **Prefab Nodes** with independent part branches, geometry links, pivot transforms and door settings; added reusable particle authoring modules.
 
+### Rules
+
+- Replaced **Game / Rules** TOML editing with a dedicated node dock. Search and select individual definition branches instead of displaying the entire ruleset at once.
+- Added typed **Definition**, **Table**, **List**, and **Set Attribute** nodes with a separate connection terminal for each key. Add, remove, or disable races, classes, professions, actions, items, and other definitions, or **Start Empty** for a standalone ruleset.
+- Added project-owned rules with a preserved original, **Checkpoint**, **Restore Branch**, **Restore All**, and **Recover**, alongside Undo/Redo.
+- Made valid rules edits refresh running and paused Creator games and interactive Help. Invalid drafts remain editable and savable while running games retain their last valid rules.
+- Added visible, replaceable ruleset icons through the tile picker.
+- Converted ruleset particle presets to reusable particle nodes with emission, motion, lifetime, size, color, direction, spawn area, and lifetime curves, plus an animated preview.
+- Added conversion and recovery tests against the previous rules, including particle preset equivalence.
+
 ## Bug Fixes
 
 ### Game
 
+- Fixed 2D hit particles being hidden beneath character sprites; raster particles now use their authored tint and opacity.
 - Fixed first-person mouse look in the Mac Xcode client and Creator C ABI views.
 - Fixed surface paint missing in web games because browser and desktop computed different surface IDs.
 

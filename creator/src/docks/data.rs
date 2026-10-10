@@ -567,9 +567,6 @@ impl Dock for DataDock {
             );
             // Switch to this entity's undo stack
             self.switch_to_entity(EntityKey::ProjectSettings, ctx);
-        } else if server_ctx.pc.is_game_rules() {
-            ui.set_widget_value("DockDataEditor", ctx, TheValue::Text(project.rules.clone()));
-            self.switch_to_entity(EntityKey::GameRules, ctx);
         } else if server_ctx.pc.is_game_locales() {
             ui.set_widget_value(
                 "DockDataEditor",
@@ -729,11 +726,6 @@ impl Dock for DataDock {
                             rusterix
                                 .scene_handler
                                 .sync_base_render_settings(&project.config);
-                            redraw = true;
-                        }
-                    } else if server_ctx.pc.is_game_rules() {
-                        if let Some(code) = value.to_string() {
-                            project.rules = code;
                             redraw = true;
                         }
                     } else if server_ctx.pc.is_game_locales() {
@@ -1483,13 +1475,11 @@ impl DataDock {
             .map(|asset| asset.name.clone())
             .collect::<FxHashSet<_>>();
 
-        match shared::rulesets::resolve_project_rules(&project.config, &project.rules).and_then(
-            |rules| {
-                rules
-                    .parse::<Table>()
-                    .map_err(|err| format!("Effective ruleset TOML parse error: {}", err))
-            },
-        ) {
+        match project.rules_source().and_then(|rules| {
+            rules
+                .parse::<Table>()
+                .map_err(|err| format!("Effective ruleset TOML parse error: {}", err))
+        }) {
             Ok(rules) => {
                 let referenced_locale_keys = Self::rules_locale_keys(&rules);
                 let referenced_audio_fx = Self::rules_audio_fx_refs(&rules);
@@ -1786,12 +1776,6 @@ impl DataDock {
                 rusterix
                     .scene_handler
                     .sync_base_render_settings(&project.config);
-            }
-        } else if server_ctx.pc.is_game_rules() {
-            if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
-                let state = edit.get_state();
-                let text = state.rows.join("\n");
-                project.rules = text;
             }
         } else if server_ctx.pc.is_game_locales() {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {

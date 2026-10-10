@@ -122,9 +122,13 @@ impl GraphControls for BasicGraphControls {
                 Some(GraphControlValue::Toggle(!v))
             }
             (
-                GraphControlValue::List { columns, rows },
+                GraphControlValue::List {
+                    columns,
+                    rows,
+                    row_ids,
+                },
                 GraphControlInput::Press { point, metrics, .. },
-            ) => edit_list(columns, rows, point, metrics),
+            ) => edit_list(columns, rows, row_ids, point, metrics),
             _ => None,
         }
     }
@@ -134,6 +138,7 @@ impl GraphControls for BasicGraphControls {
 fn edit_list(
     columns: &[GraphListColumn],
     rows: &[Vec<GraphControlValue>],
+    row_ids: &[super::GraphId],
     point: [f32; 2],
     metrics: GraphMetrics,
 ) -> Option<GraphControlValue> {
@@ -144,22 +149,31 @@ fn edit_list(
     }
     let index = ((y - metrics.list_header) / metrics.list_row).floor() as usize;
     let mut rows = rows.to_vec();
+    let mut row_ids = row_ids.to_vec();
     if index >= rows.len() {
         // The trailing row appends a new entry seeded from the prototypes.
         if index > rows.len() || columns.is_empty() {
             return None;
         }
         rows.push(columns.iter().map(|c| c.control.clone()).collect());
+        if !row_ids.is_empty() {
+            row_ids.push(uuid::Uuid::new_v4());
+        }
         return Some(GraphControlValue::List {
             columns: columns.to_vec(),
             rows,
+            row_ids,
         });
     }
     if point[0] >= LIST_DELETE_FRACTION {
         rows.remove(index);
+        if index < row_ids.len() {
+            row_ids.remove(index);
+        }
         return Some(GraphControlValue::List {
             columns: columns.to_vec(),
             rows,
+            row_ids,
         });
     }
     let count = columns.len();
@@ -182,5 +196,6 @@ fn edit_list(
     Some(GraphControlValue::List {
         columns: columns.to_vec(),
         rows,
+        row_ids,
     })
 }

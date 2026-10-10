@@ -3,8 +3,10 @@ mod entity;
 mod list;
 mod live;
 mod overlay;
+mod rules;
 mod tiles;
 mod workspace;
+use crate::editor::RUSTERIX;
 use crate::prelude::*;
 pub use list::{
     branch_list_canvas, has_catalog, node_available, node_list_canvas, sync_branch_list,
@@ -17,6 +19,16 @@ use rusterix::server::nodes::Conversation;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use theframework::thegraph::*;
+
+/// Editing rules does not initialize a renderer in headless tooling.
+pub(crate) fn sync_live_rules(project: &Project) -> Result<(), String> {
+    if let Some(runtime) = std::sync::LazyLock::get(&RUSTERIX) {
+        shared::rusterix_utils::sync_live_rules(&mut runtime.write().unwrap(), project)?;
+    } else {
+        project.rules_source()?;
+    }
+    Ok(())
+}
 
 const VIEW: &str = "Behavior Nodes View";
 /// Offset applied to a pasted graph so it is visible next to its original.
@@ -66,6 +78,10 @@ pub struct NodesDock {
     /// The branch list has to be rebuilt after the graph changed.
     branches_dirty: bool,
     initial_layouts: HashMap<(String, GraphId), (GraphDocument, GraphDocument)>,
+    rules_error: Option<String>,
+    branch_filter: String,
+    particle_preview_started: Instant,
+    particle_preview_updated: Option<Instant>,
 }
 /// Appends a copied graph to a document. Node, row, port and connection ids are
 /// regenerated, connections follow their ports, and the pasted copy is nudged so
@@ -81,11 +97,23 @@ fn paste_graph(document: &mut GraphDocument, clipboard: &GraphDocument) -> HashM
             let row_id = Uuid::new_v4();
             moved.insert(row.id, row_id);
             row.id = row_id;
+            if let GraphControlValue::List { row_ids, .. } = &mut row.value {
+                for item in row_ids {
+                    let fresh = Uuid::new_v4();
+                    moved.insert(*item, fresh);
+                    *item = fresh;
+                }
+            }
         }
         for port in &mut node.ports {
             let port_id = Uuid::new_v4();
             moved.insert(port.id, port_id);
             port.id = port_id;
+            port.row = port.row.and_then(|id| moved.get(&id).copied());
+            port.list_item = port.list_item.and_then(|id| moved.get(&id).copied());
+            if let Some(item) = port.list_item {
+                port.key = Some(format!("field:{item}"));
+            }
         }
         node.position[0] += PASTE_OFFSET;
         node.position[1] += PASTE_OFFSET;
@@ -160,6 +188,12 @@ impl GraphConnectionPolicy for NodeConnectionPolicy {
     fn validate(&self, doc: &GraphDocument, from: GraphId, to: GraphId) -> Result<(), String> {
         let (source, _) = doc.port(from).ok_or_else(|| fl!("node_guard_connection"))?;
         let (_, target) = doc.port(to).ok_or_else(|| fl!("node_guard_connection"))?;
+        if doc
+            .port(from)
+            .is_some_and(|(_, port)| port.kind == "rules-data")
+        {
+            return shared::rulesets::graph::validate_connection(doc, from, to);
+        }
         let is_guard = matches!(
             source.definition.as_deref(),
             Some("quest_guard" | "item_guard" | "player_attribute_guard")
@@ -184,6 +218,7 @@ impl GraphConnectionPolicy for NodeConnectionPolicy {
 impl NodesDock {
     fn owner(pc: ProjectContext) -> Option<String> {
         Some(match pc {
+            ProjectContext::GameRules => shared::rulesets::graph::OWNER.into(),
             ProjectContext::CharacterData(id) => shared::entity_graph::character_key(id),
             ProjectContext::ItemData(id) => shared::entity_graph::item_key(id),
             ProjectContext::CharacterCode(id) | ProjectContext::Character(id) => {
@@ -208,6 +243,7 @@ impl NodesDock {
     }
     fn render(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.apply_branch_filter();
+        self.update_particle_preview();
         let Some(view) = ui.get_render_view(VIEW) else {
             return;
         };
@@ -231,6 +267,7 @@ impl NodesDock {
             buffer.render_scale(),
         );
         let configuration = self.is_configuration();
+        let rules_error = self.rules_error.clone();
         let mut painter = RasterGraphPainter::new(
             buffer.pixels_mut(),
             width,
@@ -267,6 +304,17 @@ impl NodesDock {
                 label,
                 14.,
                 [210, 210, 210, 255],
+            );
+        }
+        if let Some(error) = rules_error {
+            painter.text(
+                GraphRect {
+                    origin: [16., 8.],
+                    size: [d.width as f32 - 32., 24.],
+                },
+                &error.lines().next().unwrap_or("Invalid rules").to_string(),
+                12.,
+                [255, 150, 120, 255],
             );
         }
         if let Some((picker, _)) = &mut self.popup {
@@ -312,6 +360,7 @@ impl NodesDock {
             return;
         }
         if !project.node_graphs.contains_key(&owner)
+            && !self.is_rules()
             && self.doc == self.committed
             && self.doc.nodes.is_empty()
         {
@@ -328,11 +377,24 @@ impl NodesDock {
             h.redo.clear();
             self.committed = self.doc.clone();
         }
+        if self.is_rules() {
+            let graph = shared::rulesets::graph::RulesGraph {
+                version: 1,
+                branches: self.branch_documents(),
+            };
+            if project.rules.current != graph {
+                project.rules.current = graph;
+                self.dirty = true;
+                self.branches_dirty = true;
+                self.rules_error = sync_live_rules(project).err();
+                self.tiles.refresh(project);
+            }
+            return;
+        }
         let value = self.branch_value();
         if project.node_graphs.get(&owner) != Some(&value) {
             project.node_graphs.insert(owner.clone(), value.clone());
             if owner.starts_with(shared::entity_graph::PREFIX) {
-                // Invalid drafts remain editable; keep the last valid projection.
                 let _ = shared::entity_graph::update_owner(project, &owner, &self.doc);
             } else {
                 rusterix::server::publish_node_graph(owner.clone(), value);
@@ -341,6 +403,7 @@ impl NodesDock {
             self.branches_dirty = true;
         }
     }
+
     fn finish(&mut self, project: &mut Project) {
         self.editor.finish_text(&mut self.doc, false);
         self.editor.take_edits();
@@ -453,6 +516,21 @@ impl NodesDock {
         let Some(node) = graph.nodes.iter().find(|n| n.id == root) else {
             return fl!("node_branch_empty");
         };
+        if self.is_rules() {
+            return node
+                .rows
+                .iter()
+                .find(|r| r.key.as_deref() == Some("path"))
+                .and_then(|r| {
+                    if let GraphControlValue::Text(path) = &r.value {
+                        Some(path.trim_start_matches('/').replace('/', " / "))
+                    } else {
+                        None
+                    }
+                })
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| "New definition".into());
+        }
         let kind = node
             .definition
             .as_deref()
@@ -586,6 +664,11 @@ impl NodesDock {
             }
         }
         self.active_branch = root;
+        if self.is_rules() {
+            // Normalize presentation before taking an undo baseline. Otherwise
+            // replaying an imported branch can look like a new edit and erase redo.
+            catalog::sync_fields(&mut self.doc, &self.definitions);
+        }
         self.apply_branch_filter();
         self.tidy_branch_once();
         self.committed = self.doc.clone();
@@ -652,7 +735,18 @@ impl NodesDock {
     fn sync_branches(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.branches_dirty = false;
         let items = self.branch_items();
+        let items: Vec<_> = items
+            .into_iter()
+            .filter(|(_, label, _)| {
+                label
+                    .to_lowercase()
+                    .contains(&self.branch_filter.to_lowercase())
+            })
+            .collect();
         sync_branch_list(ui, ctx, &items);
+        for id in rules::BUTTONS {
+            ui.set_widget_disabled_state(id, ctx, !self.is_rules());
+        }
         let root = self
             .active_branch
             .and_then(|id| self.doc.nodes.iter().find(|n| n.id == id));
@@ -822,9 +916,15 @@ impl NodesDock {
             return false;
         };
         if clipboard.nodes.iter().any(|n| {
-            n.definition
-                .as_deref()
-                .is_some_and(|id| id.starts_with("entity") != self.is_configuration())
+            n.definition.as_deref().is_some_and(|id| {
+                if self.is_rules() {
+                    !id.starts_with("rules_") && !id.starts_with("particle_")
+                } else {
+                    id.starts_with("rules_")
+                        || id.starts_with("particle_")
+                        || id.starts_with("entity") != self.is_configuration()
+                }
+            })
         }) {
             return false;
         }
@@ -928,7 +1028,7 @@ impl NodesDock {
                     Some(&mut row.value)
                 };
                 if let Some(GraphControlValue::Custom { kind, data }) = value.as_deref_mut() {
-                    if kind == "tile" {
+                    if matches!(kind.as_str(), "tile" | "rules_icon") {
                         *data = item.id.clone().into();
                     }
                 }
@@ -939,6 +1039,9 @@ impl NodesDock {
                         }
                     }
                 }
+            }
+            if self.is_rules() {
+                rules::apply_icon_selection(&mut self.doc, &choice, &item.id);
             }
         } else if let Some(id) = target {
             if let Some(n) = self.doc.nodes.iter_mut().find(|n| n.id == id) {
@@ -989,6 +1092,12 @@ impl NodesDock {
         layout.set_background_color(None);
         layout.set_margin(Vec4::new(6, 2, 6, 2));
         layout.set_padding(5);
+        Self::populate_toolbar(&mut layout, false);
+        canvas.set_layout(layout);
+        canvas
+    }
+    fn populate_toolbar(layout: &mut dyn TheHLayoutTrait, rules: bool) {
+        layout.clear();
         for (id, text, status) in [
             (
                 BRANCH_TOGGLE,
@@ -1017,14 +1126,18 @@ impl NodesDock {
                 fl!("status_node_branch_tidy"),
             ),
         ] {
+            if rules && matches!(id, CLEAR_NODES | COPY_BRANCH | PASTE_BRANCH) {
+                continue;
+            }
             let mut button = TheTraybarButton::new(TheId::named(id));
             button.set_text(text);
             button.set_status_text(&status);
             button.set_fixed_size(false);
             layout.add_widget(Box::new(button));
         }
-        canvas.set_layout(layout);
-        canvas
+        if rules {
+            rules::add_toolbar(layout);
+        }
     }
     /// Replaces the graph with an empty one.
     fn clear_nodes(&mut self, ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) {
@@ -1075,6 +1188,10 @@ impl Dock for NodesDock {
             branch_order: Vec::new(),
             branches_dirty: true,
             initial_layouts: HashMap::new(),
+            rules_error: None,
+            branch_filter: String::new(),
+            particle_preview_started: Instant::now(),
+            particle_preview_updated: None,
         }
     }
     fn setup(&mut self, _: &mut TheContext) -> TheCanvas {
@@ -1099,9 +1216,15 @@ impl Dock for NodesDock {
         server: &mut ServerContext,
     ) {
         sync_node_list(ui, ctx, server.pc);
+        if let Some(layout) = ui.get_hlayout("Node Graph Actions") {
+            Self::populate_toolbar(layout, server.pc == ProjectContext::GameRules);
+            ctx.ui.relayout = true;
+        }
         self.tiles.refresh(project);
         let owner = Self::owner(server.pc);
-        self.definitions = if entity::is_configuration(server.pc) {
+        self.definitions = if server.pc == ProjectContext::GameRules {
+            shared::rulesets::graph::definitions()
+        } else if entity::is_configuration(server.pc) {
             entity::definitions(project)
         } else {
             catalog::definitions_for_project(project)
@@ -1123,6 +1246,8 @@ impl Dock for NodesDock {
         if self.owner != owner {
             self.branch_graphs.clear();
             self.branch_order.clear();
+            self.branch_filter.clear();
+            ui.set_widget_value("Node Branch Search", ctx, TheValue::Text(String::new()));
             self.active_branch = None;
             self.owner = owner;
             self.live = Default::default();
@@ -1131,11 +1256,19 @@ impl Dock for NodesDock {
             self.choice_target = None;
         }
         self.load_error = None;
-        let saved = self
-            .owner
-            .as_ref()
-            .and_then(|k| project.node_graphs.get(k))
-            .cloned();
+        self.rules_error = if self.is_rules() {
+            project.rules_source().err()
+        } else {
+            None
+        };
+        let saved = if self.is_rules() {
+            Some(serde_json::to_value(&project.rules.current).unwrap())
+        } else {
+            self.owner
+                .as_ref()
+                .and_then(|k| project.node_graphs.get(k))
+                .cloned()
+        };
         self.doc = if let Some(value) = saved {
             let loaded = if self.is_configuration() {
                 serde_json::from_value::<GraphDocument>(value).map_err(|e| e.to_string())
@@ -1150,7 +1283,8 @@ impl Dock for NodesDock {
                 }
             }
         } else if self.is_configuration() {
-            let rules = shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+            let rules = project
+                .rules_source()
                 .unwrap_or_default()
                 .parse::<shared::entity_graph::RulesTable>()
                 .unwrap_or_default();
@@ -1206,6 +1340,21 @@ impl Dock for NodesDock {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        if self.is_rules() {
+            if self
+                .doc
+                .nodes
+                .iter()
+                .any(|n| n.definition.as_deref() == Some("rules_fx") && !n.disabled)
+                && self
+                    .particle_preview_updated
+                    .is_none_or(|last| last.elapsed() >= Duration::from_millis(67))
+            {
+                self.render(ui, ctx);
+                return true;
+            }
+            return false;
+        }
         if self.is_configuration() {
             return false;
         }
@@ -1229,6 +1378,8 @@ impl Dock for NodesDock {
         self.dirty = false;
     }
     fn reset_for_project_switch(&mut self) {
+        self.rules_error = None;
+        self.branch_filter.clear();
         self.histories.clear();
         self.branch_graphs.clear();
         self.branch_order.clear();
@@ -1322,6 +1473,16 @@ impl Dock for NodesDock {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        if let TheEvent::ValueChanged(id, TheValue::Text(text)) = event {
+            if id.name == "Node Branch Search" {
+                self.branch_filter = text.clone();
+                self.sync_branches(ui, ctx);
+                return true;
+            }
+        }
+        if self.handle_rules_event(event, ui, ctx, project, server) {
+            return true;
+        }
         if let TheEvent::WidgetResized(id, _) = event {
             if id.name == VIEW {
                 self.render(ui, ctx);

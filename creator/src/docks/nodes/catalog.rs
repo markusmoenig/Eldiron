@@ -5,8 +5,7 @@ pub fn definitions() -> GraphDefinitions {
     definitions_with_rules(shared::rulesets::latest_official_ruleset())
 }
 pub fn definitions_for_project(project: &shared::project::Project) -> GraphDefinitions {
-    let rules = shared::rulesets::resolve_project_rules(&project.config, &project.rules)
-        .unwrap_or_default();
+    let rules = project.rules_source().unwrap_or_default();
     definitions_with_rules(&rules)
 }
 fn definitions_with_rules(rules: &str) -> GraphDefinitions {
@@ -332,6 +331,7 @@ fn definitions_with_rules(rules: &str) -> GraphDefinitions {
         "choices",
         &fl!("node_dialogue_choices"),
         GraphControlValue::List {
+            row_ids: vec![],
             columns: vec![
                 GraphListColumn {
                     id: "label".into(),
@@ -1303,8 +1303,7 @@ fn add_lookout_distances(node: &mut GraphNode, source: &str, profile: &str) {
 }
 /// Upgrade old Lookout nodes once, preserving all authored distances thereafter.
 pub fn hydrate_lookout_distances(doc: &mut GraphDocument, project: &shared::project::Project) {
-    let Ok(source) = shared::rulesets::resolve_project_rules(&project.config, &project.rules)
-    else {
+    let Ok(source) = project.rules_source() else {
         return;
     };
     for node in &mut doc.nodes {
@@ -1342,6 +1341,8 @@ fn port(node: &mut GraphNode, key: &str, label: &str, direction: PortDirection, 
 /// Read-only schema rows are derived from the event definition. They are not inputs.
 /// Preserve their IDs when the schema stays the same so redraws never alter documents.
 pub fn sync_fields(doc: &mut GraphDocument, defs: &GraphDefinitions) {
+    super::rules::sync_icon_controls(doc);
+    shared::rulesets::graph::sync_ports(doc);
     let mut removed_prompt_ports = std::collections::HashSet::new();
     for node in &mut doc.nodes {
         // Labels are presentation metadata; authored parameter values keep their meaning.

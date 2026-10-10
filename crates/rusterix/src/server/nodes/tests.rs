@@ -2638,6 +2638,7 @@ fn party_nodes_route_subject_and_health_without_scripts() {
         messages: Vec<u32>,
     }
     impl WorldServices for PartyProbe {
+        fn say(&mut self, _: &Actor, _: String) {}
         fn time(&self, _: &Actor) -> theframework::prelude::TheTime {
             Default::default()
         }

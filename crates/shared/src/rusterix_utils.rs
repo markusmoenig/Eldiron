@@ -113,8 +113,7 @@ pub fn sync_item_icon_assets(rusterix: &mut Rusterix, project: &Project) {
 /// This deliberately does not start or mutate the game server.
 pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
     rusterix.assets.config = project.config.clone();
-    rusterix.assets.rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
-        .unwrap_or_else(|_| project.rules.clone());
+    rusterix.assets.rules = project.rules_source().unwrap_or_else(|_| String::new());
     rusterix.assets.ruleset_palette = project.palette.clone();
     rusterix.assets.palette = project.art_palette.clone();
     rusterix.assets.read_rules_metadata();
@@ -133,11 +132,57 @@ pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
     sync_item_icon_assets(rusterix, project);
 }
 
-/// Start the server
-pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool) {
-    if let Err(error) = crate::entity_graph::synchronize(project) {
-        eprintln!("Entity configuration: {error}");
+/// Publish only valid, semantically changed rules. Invalid drafts leave the
+/// running regions and preview assets on their last accepted ruleset.
+pub fn sync_live_rules(rusterix: &mut Rusterix, project: &Project) -> Result<bool, String> {
+    let Some(table) = prepare_live_rules(&mut rusterix.assets, project)? else {
+        return Ok(false);
+    };
+    rusterix::server::publish_rules(table);
+    // Creator stops regular region redraws while paused. Drain the edit now;
+    // the paused region path handles messages without advancing gameplay.
+    if rusterix.server.state == rusterix::ServerState::Paused {
+        rusterix.server.redraw_tick();
     }
+    rusterix.set_overlay_dirty();
+    Ok(true)
+}
+
+/// Update rules and icon caches independently of the GPU renderer. Validation
+/// finishes before touching the last accepted asset snapshot.
+pub fn prepare_live_rules(
+    assets: &mut rusterix::server::assets::Assets,
+    project: &Project,
+) -> Result<Option<toml::Table>, String> {
+    let source = project.rules_source()?;
+    if assets.rules == source {
+        return Ok(None);
+    }
+    let table = source
+        .parse()
+        .map_err(|error| format!("Rules compilation: {error}"))?;
+    assets.rules = source;
+    assets.config = project.config.clone();
+    assets.read_rules_metadata();
+    insert_bundled_ruleset_textures(assets, project);
+    insert_bundled_ruleset_avatars(assets, project);
+    insert_bundled_ruleset_item_icons(assets, project);
+    insert_project_item_icons(assets, project);
+    for (id, tile) in &project.tiles {
+        assets.tiles.insert(*id, tile.clone());
+    }
+    Ok(Some(table))
+}
+
+/// Start the server
+pub fn start_server(
+    rusterix: &mut Rusterix,
+    project: &mut Project,
+    debug: bool,
+) -> Result<(), String> {
+    let rules_source = project.rules_source()?;
+    crate::entity_graph::synchronize(project)
+        .map_err(|error| format!("Entity configuration: {error}"))?;
     rusterix.server.clear();
     rusterix.server.debug_mode = debug;
     rusterix.server.log_changed = true;
@@ -163,11 +208,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     });
 
     insert_content_into_maps_mode(project, debug);
-    rusterix.assets.rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
-        .unwrap_or_else(|err| {
-            eprintln!("Ruleset resolution error: {}", err);
-            project.rules.clone()
-        });
+    rusterix.assets.rules = rules_source;
     rusterix.assets.read_rules_metadata();
     rusterix.assets.locales_src =
         crate::rulesets::resolve_project_locales(&project.config, &project.locales).unwrap_or_else(
@@ -288,6 +329,7 @@ pub fn start_server(rusterix: &mut Rusterix, project: &mut Project, debug: bool)
     rusterix.server.set_state(rusterix::ServerState::Running);
     // Force dynamic overlays (lights/billboards/avatars) to rebuild after restarts.
     rusterix.scene_handler.mark_dynamics_dirty();
+    Ok(())
 }
 
 /// Let freshly queued startup work settle after client commands create the local player.
@@ -314,11 +356,10 @@ pub fn warmup_runtime(rusterix: &mut Rusterix, project: &mut Project, ticks: usi
 pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Command> {
     rusterix.assets.config = project.config.clone();
     rusterix.assets.world_source = project.world_source.clone();
-    rusterix.assets.rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
-        .unwrap_or_else(|err| {
-            eprintln!("Ruleset resolution error: {}", err);
-            project.rules.clone()
-        });
+    rusterix.assets.rules = project.rules_source().unwrap_or_else(|err| {
+        eprintln!("Ruleset resolution error: {}", err);
+        String::new()
+    });
     rusterix.assets.read_rules_metadata();
     rusterix.assets.locales_src =
         crate::rulesets::resolve_project_locales(&project.config, &project.locales).unwrap_or_else(
@@ -513,5 +554,91 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
             &mut region.map.items,
             block_props,
         );
+    }
+}
+
+#[cfg(test)]
+mod live_rules_tests {
+    use super::*;
+
+    #[test]
+    fn valid_edits_sync_assets_invalid_drafts_keep_last_valid_and_restore_syncs() {
+        let mut assets = rusterix::server::assets::Assets::default();
+        let mut project = Project::new();
+        assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
+        let original = assets.rules.clone();
+        assert!(!prepare_live_rules(&mut assets, &project).unwrap().is_some());
+        let branch = project
+            .rules
+            .current
+            .branches
+            .iter_mut()
+            .find(|b| crate::rulesets::graph::branch_path(b) == Some("/actions/basic_attack"))
+            .unwrap();
+        let node = branch
+            .nodes
+            .iter_mut()
+            .find(|n| n.definition.as_deref() == Some("rules_definition"))
+            .unwrap();
+        let theframework::thegraph::GraphControlValue::List { rows, .. } = &mut node.rows[1].value
+        else {
+            panic!()
+        };
+        let field = rows
+            .iter_mut()
+            .find(|r| r[0] == theframework::thegraph::GraphControlValue::Text("name".into()))
+            .unwrap();
+        field[2] = theframework::thegraph::GraphControlValue::Text("Live Robot Strike".into());
+        assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
+        let accepted = assets.rules.clone();
+        assert!(accepted.contains("Live Robot Strike"));
+        assert!(assets.textures.contains_key("basic_attack"));
+        let tile =
+            rusterix::Tile::from_texture(rusterix::Texture::new(vec![20, 80, 140, 255], 1, 1));
+        let tile_id = tile.id;
+        project.tiles.insert(tile_id, tile);
+        let branch = project
+            .rules
+            .current
+            .branches
+            .iter_mut()
+            .find(|b| crate::rulesets::graph::branch_path(b) == Some("/icons/basic_attack"))
+            .unwrap();
+        let node = branch
+            .nodes
+            .iter_mut()
+            .find(|n| n.definition.as_deref() == Some("rules_definition"))
+            .unwrap();
+        let theframework::thegraph::GraphControlValue::List { columns, rows, .. } =
+            &mut node.rows[1].value
+        else {
+            panic!()
+        };
+        let mut cells: Vec<_> = columns.iter().map(|c| c.control.clone()).collect();
+        cells[0] = theframework::thegraph::GraphControlValue::Text("texture".into());
+        cells[2] = theframework::thegraph::GraphControlValue::Text(tile_id.to_string());
+        rows.push(cells);
+        crate::rulesets::graph::sync_ports(branch);
+        assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
+        let mut item = rusterix::Item::default();
+        item.attributes
+            .set("icon", Value::Str("basic_attack".into()));
+        assert_eq!(
+            rusterix::client::widget::Widget::item_generated_icon_square(&assets, &item)
+                .unwrap()
+                .1,
+            vec![20, 80, 140, 255]
+        );
+        let accepted = assets.rules.clone();
+        project
+            .rules
+            .current
+            .branches
+            .push(project.rules.current.branches[0].clone());
+        assert!(prepare_live_rules(&mut assets, &project).is_err());
+        assert_eq!(assets.rules, accepted);
+        project.rules.restore_original();
+        assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
+        assert_eq!(assets.rules, original);
     }
 }

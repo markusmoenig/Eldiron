@@ -72,24 +72,29 @@ impl SelfUpdater {
         self.locked = false;
 
         if let Ok(release_list) = release_list {
-            self.release_list = release_list;
-
-            self.latest_release = self
-                .release_list
-                .iter()
-                .reduce(|acc, release| {
-                    if bump_is_greater(&release.version, &acc.version).unwrap_or_default() {
-                        return release;
-                    }
-
-                    acc
-                })
-                .cloned();
+            self.set_release_list(release_list);
 
             return Ok(());
         }
 
         release_list.and(Ok(()))
+    }
+
+    fn set_release_list(&mut self, releases: Vec<Release>) {
+        self.release_list = releases;
+        self.latest_release = self
+            .release_list
+            .iter()
+            .filter(|release| bump_is_greater(&release.version, &release.version).is_ok())
+            .reduce(|latest, candidate| {
+                // self_update compares (current, candidate), in that order.
+                if bump_is_greater(&latest.version, &candidate.version).unwrap_or_default() {
+                    candidate
+                } else {
+                    latest
+                }
+            })
+            .cloned();
     }
 
     pub fn get_release_by_version(&self, version_tag: &str) -> Option<&Release> {
@@ -101,7 +106,7 @@ impl SelfUpdater {
     pub fn has_newer_release(&self) -> bool {
         self.latest_release()
             .map(|latest_release| {
-                bump_is_greater(&latest_release.version, &self.current_version).unwrap_or_default()
+                bump_is_greater(&self.current_version, &latest_release.version).unwrap_or_default()
             })
             .unwrap_or_default()
     }
@@ -118,6 +123,17 @@ impl SelfUpdater {
         &self.release_list
     }
 
+    #[cfg(any(target_os = "windows", target_os = "linux", test))]
+    fn ensure_newer_release(&self, release: &Release) -> Result<(), Error> {
+        if !bump_is_greater(&self.current_version, &release.version)? {
+            return Err(Error::Update(format!(
+                "Release {} is not newer than installed version {}.",
+                release.version, self.current_version
+            )));
+        }
+        Ok(())
+    }
+
     #[cfg(any(target_os = "windows", target_os = "linux"))]
     pub fn update(&mut self, release: &Release) -> Result<Status, Error> {
         if self.is_locked() {
@@ -125,6 +141,8 @@ impl SelfUpdater {
                 "Another operation is already executing.".to_string(),
             ));
         }
+
+        self.ensure_newer_release(release)?;
 
         self.locked = true;
 
@@ -175,5 +193,79 @@ impl SelfUpdater {
         {
             "x86_64-unknown-linux-gnu"
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn release(version: &str) -> Release {
+        Release {
+            name: format!("v{version}"),
+            version: version.into(),
+            date: String::new(),
+            body: None,
+            assets: vec![],
+        }
+    }
+
+    #[test]
+    fn current_release_does_not_offer_old_versions() {
+        let mut updater = SelfUpdater::github_creator();
+        updater.current_version = "0.95.0".into();
+        for versions in [
+            vec!["0.95.0", "0.94.0", "0.6.5"],
+            vec!["0.6.5", "0.95.0", "0.94.0"],
+        ] {
+            updater.set_release_list(versions.into_iter().map(release).collect());
+            assert_eq!(updater.latest_release().unwrap().version, "0.95.0");
+            assert!(!updater.has_newer_release());
+        }
+        updater.set_release_list(vec![release("0.6.5")]);
+        assert!(!updater.has_newer_release());
+    }
+
+    #[test]
+    fn chooses_greatest_version_and_offers_real_updates() {
+        let mut updater = SelfUpdater::github_creator();
+        updater.current_version = "0.95.0".into();
+        updater.set_release_list(
+            [
+                "not-a-version",
+                "0.6.5",
+                "0.96.0-beta.1",
+                "0.95.1",
+                "0.96.0",
+            ]
+            .into_iter()
+            .map(release)
+            .collect(),
+        );
+        assert_eq!(updater.latest_release().unwrap().version, "0.96.0");
+        assert!(updater.has_newer_release());
+        updater.set_release_list(vec![release("0.95.1")]);
+        assert!(updater.has_newer_release());
+        updater.set_release_list(vec![]);
+        assert!(updater.latest_release().is_none());
+        assert!(!updater.has_newer_release());
+    }
+
+    #[test]
+    fn rejects_downgrades_before_any_download() {
+        let mut updater = SelfUpdater::github_creator();
+        updater.current_version = "0.95.0".into();
+        assert!(updater.ensure_newer_release(&release("0.6.5")).is_err());
+        assert!(updater.ensure_newer_release(&release("0.95.0")).is_err());
+        assert!(
+            updater
+                .ensure_newer_release(&release("not-a-version"))
+                .is_err()
+        );
+        assert!(updater.ensure_newer_release(&release("0.95.1")).is_ok());
+        #[cfg(any(target_os = "windows", target_os = "linux"))]
+        assert!(updater.update(&release("0.6.5")).is_err());
+        assert!(!updater.is_locked());
+        assert_eq!(updater.current_version(), "0.95.0");
     }
 }

@@ -148,6 +148,8 @@ pub enum RegionMessage {
     NodeTraces(Vec<super::nodes::Trace>),
     NodeHighlights(Vec<super::nodes::Highlights>),
     UpdateNodeGraph(String, serde_json::Value),
+    /// Replace validated rules at the next region update boundary.
+    UpdateRules(toml::Table),
     /// Pause the server.
     Pause,
     /// Continue after pause

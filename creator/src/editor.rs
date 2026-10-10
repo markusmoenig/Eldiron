@@ -4448,11 +4448,6 @@ impl Editor {
         {
             project.config = source.to_string();
         }
-        if let Some(bytes) = crate::Embedded::get("toml/rules.toml")
-            && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
-        {
-            project.rules = source.to_string();
-        }
         if let Some(bytes) = crate::Embedded::get("toml/locales.toml")
             && let Ok(source) = std::str::from_utf8(bytes.data.as_ref())
         {
@@ -7786,11 +7781,6 @@ impl TheTrait for Editor {
                 project.config = source.to_string();
             }
         }
-        if let Some(bytes) = crate::Embedded::get("toml/rules.toml") {
-            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                project.rules = source.to_string();
-            }
-        }
         if let Some(bytes) = crate::Embedded::get("toml/locales.toml") {
             if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
                 project.locales = source.to_string();
@@ -11020,11 +11010,22 @@ impl TheTrait for Editor {
                                 if self.server_ctx.text_game_mode {
                                     TEXTGAME.write().unwrap().sync_output(ui, ctx);
                                 }
-                                start_server(
+                                if let Err(error) = start_server(
                                     &mut RUSTERIX.write().unwrap(),
                                     &mut self.project,
                                     true,
-                                );
+                                ) {
+                                    crate::docks::log::LogDock::set_output(
+                                        &format!("Rules: {error}"),
+                                        ui,
+                                        ctx,
+                                    );
+                                    ctx.ui.send(TheEvent::SetStatusText(
+                                        TheId::empty(),
+                                        "Fix the rules graph before starting the game.".into(),
+                                    ));
+                                    return true;
+                                }
                                 RUSTERIX.write().unwrap().clear_say_messages();
                                 let mut commands =
                                     setup_client(&mut RUSTERIX.write().unwrap(), &mut self.project);

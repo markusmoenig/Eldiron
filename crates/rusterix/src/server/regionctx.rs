@@ -351,6 +351,26 @@ impl RegionCtx {
         cache.error.clone().map_or(Ok(()), Err)
     }
 
+    /// Validate before replacing anything; invalid live drafts retain all active caches.
+    pub fn replace_live_rules(&mut self, rules: Table) -> Result<(), String> {
+        let report = eldiron_ruleset::validate_ruleset(&rules);
+        if report.error_count() > 0 {
+            return Err(format!(
+                "Rules edit has {} validation errors",
+                report.error_count()
+            ));
+        }
+        resolve_rules_state(&rules)?;
+        self.resolved_rules
+            .get_mut()
+            .map_err(|_| "Resolved action cache is unavailable.".to_string())?;
+        let source = toml::to_string(&rules).map_err(|error| error.to_string())?;
+        self.set_rules(rules)?;
+        self.assets.rules = source;
+        self.assets.read_rules_metadata();
+        Ok(())
+    }
+
     pub fn invalidate_resolved_rules(&mut self) {
         if let Ok(cache) = self.resolved_rules.get_mut() {
             *cache = ResolvedRulesCache::default();

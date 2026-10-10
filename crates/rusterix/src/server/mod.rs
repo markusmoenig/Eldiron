@@ -39,6 +39,15 @@ pub fn publish_node_graph(owner: String, graph: serde_json::Value) {
     }
 }
 
+/// Deliver a rules edit to every active region without restarting gameplay.
+pub fn publish_rules(rules: Table) {
+    if let Ok(pipes) = REGIONPIPE.read() {
+        for sender in pipes.values() {
+            let _ = sender.send(RegionMessage::UpdateRules(rules.clone()));
+        }
+    }
+}
+
 // List of currently active local players
 type Player = Arc<RwLock<Vec<(u32, u32)>>>;
 static LOCAL_PLAYERS: LazyLock<Player> = LazyLock::new(|| Arc::new(RwLock::new(Vec::new())));

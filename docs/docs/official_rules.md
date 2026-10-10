@@ -43,11 +43,15 @@ encounter tools, localization, and balancing support.
 
 ## How To Read The Rules
 
-The official ruleset is a tabletop-style rulebook backed by TOML. The guide
-explains how the rules play. The TOML is the source of truth that Creator,
-clients, runtime systems, and tools read.
+The official ruleset is a tabletop-style rulebook backed by nodes. The guide
+explains how the rules play. Edit the definitions through **Game / Rules**;
+see [Ruleset Nodes](./creator/docks/ruleset_nodes) for the authoring workflow.
+Creator, clients, runtime systems, and tools share the compiled rules.
 
-| Rulebook term | In Eldiron TOML | Used by |
+TOML examples on this page describe the compiled fields for reference. Author
+these fields as typed rows and connected nodes in Creator.
+
+| Rulebook term | Compiled field | Used by |
 | --- | --- | --- |
 | Race | `[races.Human]`, `[races.Orc]` | identity, relations, visual defaults |
 | Class | `[classes.Warrior]` | stats, equipment, abilities, loadouts |
@@ -57,8 +61,8 @@ clients, runtime systems, and tools read.
 | Icon | `[icons.basic_attack]` | bundled artist-editable RGBA artwork and attribution |
 | Combat kind | `[combat.kinds.fire]` | damage bonuses and reductions |
 
-The current bundled ruleset is assembled from split TOML files under the
-`eldiron.official` id.
+The bundled `eldiron.official` ruleset is authored in `rules.graph.json`.
+Each project owns a complete editable copy and preserves its original for recovery.
 
 Ruleset timing values are measured in seconds. Cooldowns, spell durations, FX
 durations, resource respawns, corpse lifetimes, and NPC respawn delays all use
@@ -115,7 +119,7 @@ Read it as:
 So a Warrior with `STR = 12` using a training sword rolls `1d6`, adds `1`, and
 then gains `3` more from Strength.
 
-The TOML stays explicit. Tools can explain it, calculate it, and test it without
+The fields stay explicit. Tools can explain it, calculate it, and test it without
 requiring hidden formulas in character data.
 
 ## Character Sheet
@@ -911,8 +915,8 @@ as `open small bag`, `put wild herb in bag`, and `take wild herb from bag`.
 | `sanctuary` | `SAR VI` | restoration | support | `9 MP` | `12.0` | `5` | `ARMOR +3`, `RESIST +4` for `8.0s` |
 | `fire_spark` | `FUL` | fire | damage | `2 MP` | `3.0` | `6` | `1d6`, bonus `0`, `INT` every 4 |
 
-Spell FX use semantic presets from `fx.toml`. The ruleset describes the visual
-intent, and the engine maps that to procedural particles and lighting.
+Spell FX reference particle preset branches under `/fx/presets`. Their particle
+nodes describe the emitter directly, with an animated preview in Creator.
 Explicit action stages override the official semantic fallbacks. Attacks use
 `hit_burst` for an otherwise unspecified impact; healing uses `rising_motes`;
 condition actions use `holy_glow` while casting; and conditions share
@@ -991,8 +995,8 @@ questions without guessing:
 - How long until this character can attack again?
 - What happens if this Orc fights this Warrior 100 times?
 
-The same TOML should serve gameplay, Creator UI, terminal tools, console tools,
-validation, and automated arena tests.
+The same node-compiled rules serve gameplay, Creator UI, terminal tools, console
+tools, validation, and automated arena tests.
 
 ## Work In Progress Roadmap
 

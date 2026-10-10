@@ -3,7 +3,8 @@
 use super::*;
 
 pub(super) fn definitions(project: &Project) -> GraphDefinitions {
-    let rules = shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+    let rules = project
+        .rules_source()
         .unwrap_or_default()
         .parse::<shared::entity_graph::RulesTable>()
         .unwrap_or_default();
@@ -124,7 +125,8 @@ impl NodesDock {
         };
         sync_attribute_types(&mut self.doc);
         sync_input_choices(&mut self.doc, &self.definitions);
-        let rules = shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+        let rules = project
+            .rules_source()
             .unwrap_or_default()
             .parse::<shared::entity_graph::RulesTable>()
             .unwrap_or_default();
@@ -214,6 +216,7 @@ fn sync_attribute_types(doc: &mut GraphDocument) {
             },
             3 => GraphControlValue::Toggle(false),
             4 => GraphControlValue::List {
+                row_ids: vec![],
                 columns: vec![GraphListColumn {
                     id: "value".into(),
                     label: fl!("entity_value"),

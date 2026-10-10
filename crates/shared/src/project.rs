@@ -51,8 +51,8 @@ fn default_tick_ms() -> u32 {
     250
 }
 
-fn default_rules() -> String {
-    String::new()
+fn default_rules() -> crate::rulesets::graph::RulesetState {
+    Default::default()
 }
 
 fn default_locales() -> String {
@@ -625,8 +625,8 @@ pub struct Project {
     #[serde(default)]
     pub world_source_debug: String,
 
-    #[serde(default = "default_rules")]
-    pub rules: String,
+    #[serde(default = "default_rules", rename = "rules_graph")]
+    pub rules: crate::rulesets::graph::RulesetState,
 
     #[serde(default = "default_locales")]
     pub locales: String,
@@ -722,7 +722,7 @@ impl Project {
         }
 
         crate::rulesets::prefix_default_ruleset_config(&mut self.config);
-        self.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
+
         true
     }
 
@@ -760,7 +760,7 @@ impl Project {
     }
 
     pub fn sync_ruleset_palette(&mut self) -> Result<bool, String> {
-        let rules = crate::rulesets::resolve_project_rules(&self.config, &self.rules)?;
+        let rules = self.rules_source()?;
         let mut palette = crate::rulesets::ruleset_palette_from_source(&rules)?;
         if palette.is_empty() {
             return Ok(false);
@@ -783,16 +783,29 @@ impl Project {
         Ok(prev_palette != self.palette || prev_materials != self.palette_materials)
     }
 
-    pub fn ruleset_palette_is_active(&self) -> bool {
-        let (id, version, source) = crate::rulesets::selected_ruleset(&self.config);
-        if source != "project" {
-            return crate::rulesets::official_ruleset(&id, &version)
-                .and_then(|rules| crate::rulesets::ruleset_palette_from_source(rules).ok())
-                .is_some_and(|palette| !palette.is_empty());
+    /// Serialize only the compiled value tree for runtime consumers still using
+    /// the source-based boundary. Nodes are the sole project authoring source.
+    pub fn rules_source(&self) -> Result<String, String> {
+        let resolved = self.rules.current.resolve()?;
+        if !resolved.validation().is_ok() {
+            let errors = resolved
+                .validation()
+                .issues
+                .iter()
+                .filter(|issue| issue.severity == crate::rulesets::RulesetValidationSeverity::Error)
+                .map(|issue| format!("{}: {}", issue.path, issue.message))
+                .collect::<Vec<_>>()
+                .join("\n");
+            return Err(errors);
         }
+        resolved.to_toml_string()
+    }
 
-        crate::rulesets::ruleset_palette_from_source(&self.rules)
-            .is_ok_and(|palette| !palette.is_empty())
+    pub fn ruleset_palette_is_active(&self) -> bool {
+        self.rules_source()
+            .ok()
+            .and_then(|source| crate::rulesets::ruleset_palette_from_source(&source).ok())
+            .is_some_and(|palette| !palette.is_empty())
     }
 
     pub fn palette_visible_color_count(&self) -> usize {
@@ -816,7 +829,7 @@ impl Project {
     pub fn sync_ruleset_items(&mut self) -> Result<usize, String> {
         self.sync_ruleset_palette()?;
         let bundled_tiles = crate::rulesets::bundled_tiles_for_project(&self.config)?;
-        let rules = crate::rulesets::resolve_project_rules(&self.config, &self.rules)?;
+        let rules = self.rules_source()?;
         let templates = crate::rulesets::ruleset_item_templates_from_source(&rules)?;
         let mut changed = 0;
 
@@ -2004,7 +2017,10 @@ mod tests {
         );
         assert_eq!(selection.source, "official");
 
-        let resolved = crate::rulesets::resolve_project_ruleset(&project.config, &project.rules)
+        let resolved = project
+            .rules
+            .current
+            .resolve()
             .unwrap_or_else(|err| panic!("Hideout2D resolves its ruleset: {err}"));
         assert_eq!(resolved.metadata().id, crate::rulesets::OFFICIAL_RULESET_ID);
         assert_eq!(
@@ -2167,26 +2183,33 @@ mod tests {
     }
 
     #[test]
-    fn old_project_gets_default_ruleset_and_empty_rules_override() {
+    fn settings_migration_preserves_node_rules() {
         let mut project = Project::new();
-        project.config = "[game]\nname = \"Old Project\"\n".to_string();
-        project.rules = "[combat]\nincoming_damage = \"old\"\n".to_string();
-
+        project.config = "[game]\nname = \"Old Project\"\n".into();
+        project
+            .rules
+            .current
+            .branches
+            .retain(|b| crate::rulesets::graph::branch_path(b) != Some("/classes/Warrior"));
+        let before = project.rules.clone();
         assert!(project.migrate_default_ruleset());
-
         assert!(crate::rulesets::has_top_level_ruleset(&project.config));
-        assert_eq!(project.rules, crate::rulesets::DEFAULT_RULES_OVERRIDE);
+        assert_eq!(project.rules, before);
+        assert!(!project.migrate_default_ruleset());
     }
 
     #[test]
-    fn project_with_ruleset_keeps_rules_override() {
-        let mut project = Project::new();
-        project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
-        project.rules = "[actions.minor_heal]\ncost = { MP = 3 }\n".to_string();
-
-        assert!(!project.migrate_default_ruleset());
-
-        assert_eq!(project.rules, "[actions.minor_heal]\ncost = { MP = 3 }\n");
+    fn projects_persist_nodes_without_a_toml_rules_source() {
+        let project = Project::new();
+        let json = serde_json::to_value(&project).unwrap();
+        assert!(json.get("rules").is_none());
+        assert!(json.get("rules_graph").is_some());
+        let loaded: Project = serde_json::from_value(json).unwrap();
+        assert_eq!(loaded.rules, project.rules);
+        assert_eq!(
+            loaded.rules_source().unwrap(),
+            project.rules_source().unwrap()
+        );
     }
 
     #[test]
@@ -2248,7 +2271,7 @@ mod tests {
     fn project_creates_missing_ruleset_items_once() {
         let mut project = Project::new();
         project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
-        project.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
+        project.rules = Default::default();
 
         assert_eq!(
             project.sync_ruleset_items().unwrap(),
@@ -2304,7 +2327,7 @@ mod tests {
         let custom_id = custom.id;
         project.add_item(custom);
         project.config = crate::rulesets::DEFAULT_RULESET_CONFIG.to_string();
-        project.rules = crate::rulesets::DEFAULT_RULES_OVERRIDE.to_string();
+        project.rules = Default::default();
 
         assert_eq!(
             project.sync_ruleset_items().unwrap(),

@@ -46,6 +46,15 @@ Default** can replace those frames from their current source on the next save.
 
 The internal layout is an interchange format, not a second project-authoring workflow. Normally, edit projects in Creator rather than changing `project.json` by hand.
 
+## Ruleset Storage
+
+Projects save their complete current ruleset node graph, preserved original, and
+recovery checkpoints in `project.json` under `rules_graph`. These snapshots travel
+with the project. **Restore All** therefore restores the project's original,
+even after the bundled ruleset changes in a later Eldiron release. Existing
+projects without a rules graph receive the bundled rules when opened; saving
+stores their node ruleset. See [Ruleset Nodes](docks/ruleset_nodes).
+
 ## Compatibility
 
 Legacy **.eldiron** files consisting of raw JSON are still accepted by Creator and all clients. Saving a legacy project in Creator writes it back in the current ZIP format. This is a one-way storage upgrade, so use version control or keep a copy if an older Eldiron build must still open the file.

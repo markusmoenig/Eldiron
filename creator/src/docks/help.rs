@@ -15,15 +15,77 @@ pub struct HelpDock {
     visible_item_ids: Vec<String>,
     history: Vec<Option<String>>,
     history_index: usize,
+    observed_rules: Option<shared::rulesets::graph::RulesGraph>,
+    draft_error: bool,
 }
 
 impl HelpDock {
+    /// Re-run the current Help query without discarding its navigation history.
+    fn refresh_rules(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &Project,
+        force: bool,
+    ) -> bool {
+        if !force && self.observed_rules.as_ref() == Some(&project.rules.current) {
+            return false;
+        }
+        self.observed_rules = Some(project.rules.current.clone());
+        match Self::effective_rules(project) {
+            Ok(source) => {
+                if self.document.is_empty() || self.rules_source != source || self.draft_error {
+                    let command = self.history.get(self.history_index).cloned().flatten();
+                    let response = if let Some(command) = &command {
+                        shared::rulesets::execute_ruleset_help(&source, command)
+                    } else {
+                        shared::rulesets::ruleset_help_intro(&source)
+                    };
+                    match response {
+                        Ok(response) => {
+                            self.install_response(response, command.as_deref(), source, ui, ctx)
+                        }
+                        Err(error) => {
+                            self.rules_source = source;
+                            self.document = Self::error_document(command.as_deref(), error);
+                            self.visible_item_ids.clear();
+                            self.sync_output(ui);
+                            self.sync_item_gallery(ui, ctx, "");
+                        }
+                    }
+                } else {
+                    self.sync_output(ui);
+                    self.sync_item_gallery(ui, ctx, &source);
+                }
+                self.draft_error = false;
+            }
+            Err(error) => {
+                self.draft_error = true;
+                self.document = Self::error_document(
+                    None,
+                    format!(
+                        "Rules draft is invalid; the running game keeps its last valid rules. {error}"
+                    ),
+                );
+                self.visible_item_ids.clear();
+                self.sync_output(ui);
+                self.sync_item_gallery(ui, ctx, "");
+            }
+        }
+        if self.history.is_empty() {
+            self.reset_history(ui, ctx);
+        }
+        self.sync_history_controls(ui, ctx);
+        true
+    }
+
     fn input_id(ui: &mut TheUI) -> Option<TheId> {
         ui.get_widget(HELP_INPUT).map(|widget| widget.id().clone())
     }
 
     fn effective_rules(project: &Project) -> Result<String, String> {
-        shared::rulesets::resolve_project_rules(&project.config, &project.rules)
+        crate::docks::nodes::sync_live_rules(project)?;
+        project.rules_source()
     }
 
     fn clear_input(ui: &mut TheUI) {
@@ -442,7 +504,18 @@ impl HelpDock {
             .into_iter()
             .map(|template| (template.id.clone(), template))
             .collect::<std::collections::BTreeMap<_, _>>();
-        let runtime = RUSTERIX.read().unwrap();
+        let mut fallback_assets = rusterix::server::assets::Assets::default();
+        fallback_assets.rules = rules_source.into();
+        for asset in shared::rulesets::bundled_texture_assets() {
+            if let Some(texture) = rusterix::Texture::from_image_safe(asset.source) {
+                fallback_assets.textures.insert(asset.id.into(), texture);
+            }
+        }
+        let runtime = std::sync::LazyLock::get(&RUSTERIX).map(|runtime| runtime.read().unwrap());
+        let assets = runtime
+            .as_ref()
+            .map(|r| &r.assets)
+            .unwrap_or(&fallback_assets);
         let mut items = Vec::new();
         for item_id in item_ids {
             let Some(template) = templates.get(item_id) else {
@@ -450,12 +523,10 @@ impl HelpDock {
             };
             let mut runtime_item = rusterix::Item::default();
             rusterix::server::data::apply_item_data(&mut runtime_item, &template.data);
-            let icon = rusterix::client::widget::Widget::item_generated_icon_square(
-                &runtime.assets,
-                &runtime_item,
-            )
-            .map(|(size, pixels)| TheRGBABuffer::from(pixels, size, size))
-            .or_else(|| Self::bundled_item_icon(&runtime_item));
+            let icon =
+                rusterix::client::widget::Widget::item_generated_icon_square(assets, &runtime_item)
+                    .map(|(size, pixels)| TheRGBABuffer::from(pixels, size, size))
+                    .or_else(|| Self::bundled_item_icon(&runtime_item));
             items.push(TheIconGridItem {
                 label: template.name.clone(),
                 status: format!("{} ({})", template.name, template.id),
@@ -635,6 +706,8 @@ impl Dock for HelpDock {
             visible_item_ids: Vec::new(),
             history: Vec::new(),
             history_index: 0,
+            observed_rules: None,
+            draft_error: false,
         }
     }
 
@@ -711,37 +784,19 @@ impl Dock for HelpDock {
         project: &Project,
         _server_ctx: &mut ServerContext,
     ) {
-        match Self::effective_rules(project) {
-            Ok(rules_source) => {
-                if self.document.is_empty() || self.rules_source != rules_source {
-                    match shared::rulesets::ruleset_help_intro(&rules_source) {
-                        Ok(response) => {
-                            self.install_response(response, None, rules_source, ui, ctx)
-                        }
-                        Err(error) => {
-                            self.document = Self::error_document(None, error);
-                            self.visible_item_ids.clear();
-                            self.sync_output(ui);
-                            self.sync_item_gallery(ui, ctx, "");
-                        }
-                    }
-                    self.reset_history(ui, ctx);
-                } else {
-                    self.sync_output(ui);
-                    self.sync_item_gallery(ui, ctx, &rules_source);
-                }
-            }
-            Err(error) => {
-                self.document = Self::error_document(None, error);
-                self.visible_item_ids.clear();
-                self.sync_output(ui);
-                self.sync_item_gallery(ui, ctx, "");
-                self.reset_history(ui, ctx);
-            }
-        }
-        self.sync_history_controls(ui, ctx);
+        self.refresh_rules(ui, ctx, project, true);
         Self::clear_input(ui);
         Self::focus_input(ui, ctx);
+    }
+
+    fn poll_background(
+        &mut self,
+        ui: &mut TheUI,
+        ctx: &mut TheContext,
+        project: &mut Project,
+        _server: &mut ServerContext,
+    ) -> bool {
+        self.refresh_rules(ui, ctx, project, false)
     }
 
     fn handle_event(
@@ -811,6 +866,61 @@ impl Dock for HelpDock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn live_rules_refresh_current_help_query_and_recover_from_invalid_draft() {
+        let mut project = Project::new();
+        let mut dock = HelpDock::new();
+        let mut ctx = TheContext::new(900, 650, 1.);
+        let mut ui = TheUI::new();
+        ui.canvas = dock.setup(&mut ctx);
+        let mut server = ServerContext::default();
+        dock.activate(&mut ui, &mut ctx, &project, &mut server);
+        dock.navigate_to_command("action basic_attack", &mut ui, &mut ctx, &project);
+        let history = dock.history.clone();
+        let original = project.rules.current.clone();
+        let branch = project
+            .rules
+            .current
+            .branches
+            .iter_mut()
+            .find(|b| shared::rulesets::graph::branch_path(b) == Some("/actions/basic_attack"))
+            .unwrap();
+        let node = branch
+            .nodes
+            .iter_mut()
+            .find(|n| n.definition.as_deref() == Some("rules_definition"))
+            .unwrap();
+        let theframework::thegraph::GraphControlValue::List { rows, .. } = &mut node.rows[1].value
+        else {
+            panic!()
+        };
+        let field = rows
+            .iter_mut()
+            .find(|r| r[0] == theframework::thegraph::GraphControlValue::Text("name".into()))
+            .unwrap();
+        field[2] = theframework::thegraph::GraphControlValue::Text("Live Robot Strike".into());
+        assert!(dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server));
+        assert!(dock.document.plain_text().contains("Live Robot Strike"));
+        assert_eq!(dock.history, history);
+        assert!(!dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server));
+        let valid = project.rules.current.clone();
+        project
+            .rules
+            .current
+            .branches
+            .push(project.rules.current.branches[0].clone());
+        assert!(dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server));
+        assert!(dock.document.plain_text().contains("last valid rules"));
+        assert_eq!(dock.history, history);
+        project.rules.current = valid;
+        assert!(dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server));
+        assert!(dock.document.plain_text().contains("Live Robot Strike"));
+        project.rules.current = original;
+        dock.activate(&mut ui, &mut ctx, &project, &mut server);
+        assert!(!dock.document.plain_text().contains("Live Robot Strike"));
+        assert_eq!(dock.history, history);
+    }
 
     #[test]
     fn ruleset_response_becomes_structured_feedback_with_commands() {

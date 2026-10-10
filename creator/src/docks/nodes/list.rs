@@ -8,6 +8,9 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
     if !has_catalog(pc) {
         return false;
     }
+    if pc == ProjectContext::GameRules {
+        return key.starts_with("rules_") || key.starts_with("particle_");
+    }
     if entity::is_configuration(pc) {
         return matches!(
             key,
@@ -54,6 +57,12 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
     }
 }
 pub fn node_help(key: &str) -> String {
+    if key.starts_with("particle_") {
+        return "Connect particle settings in a chain from a Particle FX Preset. Changes update the preview and live rules. Disable a module to use its default settings.".into();
+    }
+    if key.starts_with("rules_") {
+        return rules::help(key).into();
+    }
     if key.starts_with("entity") {
         return entity::help(key);
     }
@@ -124,12 +133,16 @@ pub fn sync_node_list(ui: &mut TheUI, ctx: &mut TheContext, pc: ProjectContext) 
         return;
     };
     list.clear();
-    let defs = if entity::is_configuration(pc) {
+    let defs = if pc == ProjectContext::GameRules {
+        shared::rulesets::graph::definitions()
+    } else if entity::is_configuration(pc) {
         entity::definitions(&Project::default())
     } else {
         catalog::definitions()
     };
     for (_key, title, color) in [
+        ("rules_definition", "Rules".into(), [91, 86, 151, 255]),
+        ("rules_fx", "Particles".into(), [168, 112, 52, 255]),
         ("event", fl!("node_group_events"), [16, 112, 98, 255]),
         ("filter", fl!("node_group_logic"), [164, 98, 35, 255]),
         ("say", fl!("node_group_actions"), [35, 87, 134, 255]),
@@ -190,7 +203,14 @@ pub fn branch_list_canvas() -> TheCanvas {
     let mut text = TheText::new(TheId::named("Node Branches Heading"));
     text.set_text(fl!("node_branches"));
     text.set_status_text(&fl!("node_branches_help"));
+    text.limiter_mut().set_min_width(65);
+    text.limiter_mut().set_max_width(65);
     layout.add_widget(Box::new(text));
+    let mut search = TheTextLineEdit::new(TheId::named("Node Branch Search"));
+    search.set_status_text("Filter branches by name");
+    search.limiter_mut().set_max_width(90);
+    search.limiter_mut().set_min_width(80);
+    layout.add_widget(Box::new(search));
     top.set_layout(layout);
     canvas.set_top(top);
     canvas.top_is_expanding = false;

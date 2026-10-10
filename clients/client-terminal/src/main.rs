@@ -119,6 +119,9 @@ impl TerminalApp {
     }
 
     fn start_server(&mut self, debug: bool) -> Result<(), String> {
+        let rules_source = self.project.rules_source()?;
+        shared::entity_graph::synchronize(&mut self.project)
+            .map_err(|error| format!("Entity configuration: {error}"))?;
         self.server.clear();
         self.server.debug_mode = debug;
         self.server.log_changed = true;
@@ -140,12 +143,7 @@ impl TerminalApp {
             }
         }
 
-        self.assets.rules =
-            shared::rulesets::resolve_project_rules(&self.project.config, &self.project.rules)
-                .unwrap_or_else(|err| {
-                    eprintln!("Ruleset resolution error: {}", err);
-                    self.project.rules.clone()
-                });
+        self.assets.rules = rules_source;
         self.assets.read_rules_metadata();
         self.assets.locales_src = self.project.locales.clone();
         self.assets.audio_fx_src = self.project.audio_fx.clone();
@@ -1137,7 +1135,7 @@ fn project_rules_table(path: &Path) -> Result<toml::Table, String> {
     let mut project: Project = shared::project_io::decode_project(&bytes)
         .map_err(|err| format!("Failed to parse {}: {}", path.display(), err))?;
     project.migrate_default_ruleset();
-    let rules = shared::rulesets::resolve_project_rules(&project.config, &project.rules)?;
+    let rules = project.rules_source()?;
     rules
         .parse::<toml::Table>()
         .map_err(|err| format!("Resolved ruleset TOML parse error: {}", err))

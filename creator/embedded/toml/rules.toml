@@ -1,6 +1,0 @@
-# Game / Rules is the project-level override layer for the official ruleset
-# selected in Game / Settings.
-#
-# New projects use the bundled Eldiron Official Ruleset by default, so this file
-# starts empty. Add changes here when this project intentionally changes the
-# default rules.

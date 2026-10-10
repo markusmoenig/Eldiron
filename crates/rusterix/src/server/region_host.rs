@@ -5470,6 +5470,170 @@ mod tests {
     }
 
     #[test]
+    fn node_ruleset_runs_robot_resource_action_without_rpg_modules() {
+        use eldiron_ruleset::graph::{RulesGraph, definitions};
+        use theframework::prelude::Uuid;
+        use theframework::thegraph::*;
+        fn node(kind: &str, path: &str, fields: &[(&str, &str, &str)]) -> GraphNode {
+            let mut node = definitions().instantiate(kind, [0., 0.]).unwrap();
+            if kind == "rules_definition" {
+                node.rows[0].value = GraphControlValue::Text(path.into());
+            }
+            let GraphControlValue::List { columns, rows, .. } = &mut node
+                .rows
+                .iter_mut()
+                .find(|r| r.key.as_deref() == Some("entries"))
+                .unwrap()
+                .value
+            else {
+                panic!()
+            };
+            let GraphControlValue::Choice { options, .. } = &columns[1].control else {
+                panic!()
+            };
+            for (key, kind, value) in fields {
+                rows.push(vec![
+                    GraphControlValue::Text((*key).into()),
+                    GraphControlValue::Choice {
+                        options: options.clone(),
+                        selected: options.iter().position(|s| s == kind).unwrap(),
+                    },
+                    GraphControlValue::Text((*value).into()),
+                ]);
+            }
+            node
+        }
+        fn branch(nodes: Vec<GraphNode>) -> GraphDocument {
+            let mut doc = GraphDocument {
+                nodes,
+                ..Default::default()
+            };
+            eldiron_ruleset::graph::sync_ports(&mut doc);
+            for pair in doc.nodes.windows(2) {
+                doc.connections.push(GraphConnection {
+                    id: Uuid::new_v4(),
+                    from: pair[0]
+                        .ports
+                        .iter()
+                        .find(|p| {
+                            p.list_item.is_some_and(|item| {
+                                pair[0].rows.iter().any(|r| match &r.value {
+                                    GraphControlValue::List { rows, row_ids, .. } => row_ids
+                                        .iter()
+                                        .position(|id| *id == item)
+                                        .is_some_and(|i| match &rows[i][1] {
+                                            GraphControlValue::Choice { options, selected } => {
+                                                matches!(
+                                                    options[*selected].as_str(),
+                                                    "Table" | "List"
+                                                )
+                                            }
+                                            _ => false,
+                                        }),
+                                    _ => false,
+                                })
+                            })
+                        })
+                        .unwrap()
+                        .id,
+                    to: pair[1]
+                        .ports
+                        .iter()
+                        .find(|p| p.direction == PortDirection::Input)
+                        .unwrap()
+                        .id,
+                });
+            }
+            doc
+        }
+        let graph = RulesGraph {
+            version: 1,
+            branches: vec![
+                branch(vec![node(
+                    "rules_definition",
+                    "/attributes/defaults",
+                    &[
+                        ("HULL", "Integer", "40"),
+                        ("MAX_HULL", "Integer", "40"),
+                        ("BATTERY", "Integer", "3"),
+                        ("MAX_BATTERY", "Integer", "10"),
+                        ("chassis", "Text", "scout"),
+                    ],
+                )]),
+                branch(vec![node(
+                    "rules_definition",
+                    "/attributes/roles",
+                    &[
+                        ("health", "Text", "HULL"),
+                        ("max_health", "Text", "MAX_HULL"),
+                    ],
+                )]),
+                branch(vec![node(
+                    "rules_definition",
+                    "/chassis/scout",
+                    &[("speed", "Number", "2.5")],
+                )]),
+                branch(vec![
+                    node(
+                        "rules_definition",
+                        "/actions/recharge",
+                        &[
+                            ("name", "Text", "Recharge"),
+                            ("kind", "Text", "interaction"),
+                            ("target", "Text", "self"),
+                            ("cooldown", "Number", "2"),
+                            ("result", "Table", ""),
+                        ],
+                    ),
+                    node("rules_table", "/result", &[("modify", "List", "")]),
+                    node("rules_list", "/result/modify", &[("0", "Table", "")]),
+                    node(
+                        "rules_table",
+                        "/result/modify/0",
+                        &[
+                            ("resource", "Text", "BATTERY"),
+                            ("add", "Integer", "4"),
+                            ("maximum_attribute", "Text", "MAX_BATTERY"),
+                        ],
+                    ),
+                ]),
+            ],
+        };
+        let resolved = graph.resolve().unwrap();
+        assert!(
+            resolved.validation().is_ok(),
+            "{:?}",
+            resolved.validation().issues
+        );
+        let mut arena = HeadlessRulesArena::with_rules(&resolved.to_toml_string().unwrap());
+        for domain in ["races", "classes", "professions", "spells", "progression"] {
+            assert!(arena.ctx.rules.get(domain).is_none());
+        }
+        let mut robot = Entity::new();
+        robot.id = 1;
+        apply_ruleset_character_defaults(&arena.ctx.rules, &mut robot);
+        assert_eq!(robot.attributes.get_int_default("HULL", -1), 40);
+        assert_eq!(robot.attributes.get_str("chassis"), Some("scout"));
+        assert!(robot.attributes.get("class").is_none());
+        assert!(robot.attributes.get("race").is_none());
+        arena.ctx.map.entities.push(robot);
+        assert!(execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "recharge",
+            None
+        ));
+        assert_eq!(arena.entity(1).attributes.get_int_default("BATTERY", -1), 7);
+        assert!(!execute_ruleset_action_with_target(
+            &mut arena.ctx,
+            1,
+            "recharge",
+            None
+        ));
+        assert_eq!(arena.entity(1).attributes.get_int_default("BATTERY", -1), 7);
+    }
+
+    #[test]
     fn standalone_sandbox_ruleset_gathers_by_skill_without_classes_or_levels() {
         let mut arena = HeadlessRulesArena::with_rules(
             r#"

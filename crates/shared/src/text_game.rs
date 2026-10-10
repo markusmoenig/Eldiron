@@ -1103,7 +1103,8 @@ pub fn current_player_supported_intents(project: &Project, map: &Map) -> BTreeSe
     let Some(character) = project.characters.values().find(|c| c.name == class_name) else {
         return intents;
     };
-    let rules = crate::rulesets::resolve_project_rules(&project.config, &project.rules)
+    let rules = project
+        .rules_source()
         .ok()
         .and_then(|source| source.parse::<Table>().ok())
         .unwrap_or_default();

@@ -94,8 +94,10 @@ fn project_storage_roundtrips_and_old_projects_default_to_empty() {
     dock.store(&mut project, true);
     let json = serde_json::to_value(&project).unwrap();
     let restored: Project = serde_json::from_value(json.clone()).unwrap();
-    let graph: GraphDocument =
-        serde_json::from_value(restored.node_graphs["behavior/character/test"].clone()).unwrap();
+    let graph: GraphDocument = serde_json::from_value(
+        restored.node_graphs["behavior/character/test"]["branches"][0].clone(),
+    )
+    .unwrap();
     assert_eq!(graph, dock.doc);
     let mut old = json;
     old.as_object_mut().unwrap().remove("node_graphs");
@@ -1794,4 +1796,447 @@ fn first_branch_layout_does_not_repeat_after_connection_edits() {
     let manual = dock.doc.clone();
     dock.tidy_branch_once();
     assert_eq!(dock.doc, manual);
+}
+
+#[test]
+fn rules_branches_edit_compile_undo_and_restore_without_behavior_storage() {
+    let mut dock = NodesDock::new();
+    let mut ctx = TheContext::new(1200, 650, 1.);
+    let mut ui = TheUI::new();
+    ui.canvas = dock.setup(&mut ctx);
+    ui.get_render_view(VIEW)
+        .unwrap()
+        .set_dim(TheDim::new(0, 0, 1200, 650), &mut ctx);
+    let mut server = ServerContext::default();
+    server.pc = ProjectContext::GameRules;
+    let mut project = Project::new();
+    let original = project.rules.current.compile().unwrap();
+    dock.activate(&mut ui, &mut ctx, &project, &mut server);
+    assert!(dock.is_rules());
+    assert!(node_available(server.pc, "rules_definition"));
+    assert!(!node_available(server.pc, "use_action"));
+    assert_eq!(
+        dock.branch_order.len(),
+        project.rules.current.branches.len()
+    );
+    let root = dock
+        .branch_order
+        .iter()
+        .copied()
+        .find(|id| {
+            shared::rulesets::graph::branch_path(&dock.branch_graphs[id])
+                == Some("/actions/basic_attack")
+        })
+        .unwrap();
+    dock.set_branch(Some(root));
+    if let Ok(path) = std::env::var("ELDIRON_RULES_SNAPSHOT") {
+        dock.fit_branch(&mut ui);
+        dock.render(&mut ui, &mut ctx);
+        let png = ui
+            .get_render_view(VIEW)
+            .unwrap()
+            .render_buffer_mut()
+            .to_png()
+            .unwrap();
+        std::fs::write(path, png).unwrap();
+    }
+    let definition = dock.doc.nodes.iter_mut().find(|n| n.id == root).unwrap();
+    let GraphControlValue::List { rows, .. } = &mut definition.rows[1].value else {
+        panic!()
+    };
+    let cooldown = rows
+        .iter_mut()
+        .find(|cells| cells[0] == GraphControlValue::Text("cooldown".into()))
+        .unwrap();
+    cooldown[2] = GraphControlValue::Text("0.75".into());
+    dock.finish(&mut project);
+    assert_eq!(
+        project
+            .rules
+            .current
+            .resolve()
+            .unwrap()
+            .action("basic_attack")
+            .unwrap()
+            .unwrap()
+            .cooldown_seconds,
+        0.75
+    );
+    assert!(project.node_graphs.is_empty());
+    dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(project.rules.current.compile().unwrap(), original);
+    dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(
+        project
+            .rules
+            .current
+            .resolve()
+            .unwrap()
+            .action("basic_attack")
+            .unwrap()
+            .unwrap()
+            .cooldown_seconds,
+        0.75
+    );
+    let restore = TheEvent::StateChanged(
+        TheId::named("Rules Restore Original"),
+        TheWidgetState::Clicked,
+    );
+    assert!(dock.handle_event(&restore, &mut ui, &mut ctx, &mut project, &mut server));
+    assert_eq!(project.rules.current.compile().unwrap(), original);
+    let recover = TheEvent::StateChanged(
+        TheId::named("Rules Recover Checkpoint"),
+        TheWidgetState::Clicked,
+    );
+    dock.handle_event(&recover, &mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(
+        project
+            .rules
+            .current
+            .resolve()
+            .unwrap()
+            .action("basic_attack")
+            .unwrap()
+            .unwrap()
+            .cooldown_seconds,
+        0.75
+    );
+}
+
+#[test]
+fn invalid_rules_drafts_survive_reopening_and_remain_recoverable() {
+    let mut dock = NodesDock::new();
+    let mut ctx = TheContext::new(1200, 650, 1.);
+    let mut ui = TheUI::new();
+    ui.canvas = dock.setup(&mut ctx);
+    let mut server = ServerContext::default();
+    server.pc = ProjectContext::GameRules;
+    let mut project = Project::new();
+    dock.activate(&mut ui, &mut ctx, &project, &mut server);
+    let root = dock
+        .branch_order
+        .iter()
+        .copied()
+        .find(|id| {
+            shared::rulesets::graph::branch_path(&dock.branch_graphs[id])
+                == Some("/actions/basic_attack")
+        })
+        .unwrap();
+    dock.set_branch(Some(root));
+    // Removing only the root is an invalid draft, not permission to lose its children.
+    dock.doc.nodes.retain(|n| n.id != root);
+    dock.store(&mut project, true);
+    assert!(project.rules_source().is_err());
+    assert!(dock.rules_error.is_some());
+    let saved = project.rules.current.clone();
+    dock.activate(&mut ui, &mut ctx, &project, &mut server);
+    dock.store(&mut project, false);
+    let normalize = |mut graph: shared::rulesets::graph::RulesGraph| {
+        graph.branches = graph.branches.into_iter().map(without_positions).collect();
+        graph
+    };
+    assert_eq!(normalize(project.rules.current.clone()), normalize(saved));
+    project.rules.restore_original();
+    assert!(project.rules_source().is_ok());
+}
+
+#[test]
+fn rules_can_start_empty_add_a_definition_and_remove_the_last_branch() {
+    let mut dock = NodesDock::new();
+    let mut ctx = TheContext::new(1200, 650, 1.);
+    let mut ui = TheUI::new();
+    ui.canvas = dock.setup(&mut ctx);
+    let mut server = ServerContext::default();
+    server.pc = ProjectContext::GameRules;
+    let mut project = Project::new();
+    dock.activate(&mut ui, &mut ctx, &project, &mut server);
+    dock.handle_event(
+        &TheEvent::StateChanged(TheId::named("Rules Start Empty"), TheWidgetState::Clicked),
+        &mut ui,
+        &mut ctx,
+        &mut project,
+        &mut server,
+    );
+    assert!(project.rules.current.compile().unwrap().is_empty());
+    add(&mut dock, "rules_definition");
+    dock.doc.nodes[0].rows[0].value = GraphControlValue::Text("/chassis/scout".into());
+    dock.finish(&mut project);
+    assert!(
+        project.rules.current.compile().unwrap()["chassis"]
+            .get("scout")
+            .is_some()
+    );
+    assert!(dock.remove_branch());
+    dock.finish(&mut project);
+    assert!(project.rules.current.compile().unwrap().is_empty());
+    assert!(project.rules.restore_checkpoint());
+    assert!(!project.rules.current.compile().unwrap().is_empty());
+}
+
+#[test]
+fn rules_dock_filter_and_layout_keep_definition_branches_separate() {
+    let mut dock = NodesDock::new();
+    let mut ctx = TheContext::new(1450, 650, 1.);
+    let mut ui = TheUI::new();
+    ui.init(&mut ctx);
+    ui.canvas = dock.setup(&mut ctx);
+    let mut catalog = node_list_canvas();
+    catalog
+        .get_layout(Some(&"Node Catalog List".into()), None)
+        .unwrap()
+        .limiter_mut()
+        .set_max_width(220);
+    ui.canvas.set_right(catalog);
+    let mut server = ServerContext::default();
+    server.pc = ProjectContext::GameRules;
+    let mut project = Project::new();
+    let before = project.rules.current.compile().unwrap();
+    dock.activate(&mut ui, &mut ctx, &project, &mut server);
+    dock.handle_event(
+        &TheEvent::ValueChanged(
+            TheId::named("Node Branch Search"),
+            TheValue::Text("actions / basic_attack".into()),
+        ),
+        &mut ui,
+        &mut ctx,
+        &mut project,
+        &mut server,
+    );
+    assert_eq!(
+        ui.get_list_layout("Node Branches List")
+            .unwrap()
+            .widgets()
+            .len(),
+        1
+    );
+    assert_eq!(
+        ui.get_list_layout("Node Catalog List")
+            .unwrap()
+            .widgets()
+            .len(),
+        13
+    );
+    let root = dock
+        .branch_order
+        .iter()
+        .copied()
+        .find(|id| {
+            shared::rulesets::graph::branch_path(&dock.branch_graphs[id])
+                == Some("/actions/basic_attack")
+        })
+        .unwrap();
+    dock.handle_event(
+        &TheEvent::StateChanged(
+            TheId::named(&format!("Branch/{root}")),
+            TheWidgetState::Selected,
+        ),
+        &mut ui,
+        &mut ctx,
+        &mut project,
+        &mut server,
+    );
+    assert_eq!(
+        shared::rulesets::graph::branch_path(&dock.doc),
+        Some("/actions/basic_attack")
+    );
+    assert_eq!(project.rules.current.compile().unwrap(), before);
+    let mut pixels = vec![0; 1450 * 650 * 4];
+    ui.draw(&mut pixels, &mut ctx);
+    dock.fit_branch(&mut ui);
+    dock.render(&mut ui, &mut ctx);
+    ui.draw(&mut pixels, &mut ctx);
+    assert!(ui.get_render_view(VIEW).unwrap().dim().width > 800);
+    assert!(ui.get_widget("Node Branch Search").unwrap().dim().width >= 80);
+    if let Ok(path) = std::env::var("ELDIRON_RULES_DOCK_SNAPSHOT") {
+        std::fs::write(
+            path,
+            TheRGBABuffer::from(pixels, 1450, 650).to_png().unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
+fn rules_key_deletion_and_wire_changes_are_undoable() {
+    let mut dock = NodesDock::new();
+    let mut ctx = TheContext::new(1200, 650, 1.);
+    let mut ui = TheUI::new();
+    ui.canvas = dock.setup(&mut ctx);
+    let mut server = ServerContext::default();
+    server.pc = ProjectContext::GameRules;
+    let mut project = Project::new();
+    dock.activate(&mut ui, &mut ctx, &project, &mut server);
+    let root = dock
+        .branch_order
+        .iter()
+        .copied()
+        .find(|id| {
+            shared::rulesets::graph::branch_path(&dock.branch_graphs[id])
+                == Some("/actions/basic_attack")
+        })
+        .unwrap();
+    dock.set_branch(Some(root));
+    dock.finish(&mut project);
+    let baseline = project.rules.current.compile().unwrap();
+    let node = dock.doc.nodes.iter_mut().find(|n| n.id == root).unwrap();
+    let metrics = GraphMetrics::STANDARD;
+    let GraphControlValue::List { rows, .. } = &node.rows[1].value else {
+        panic!()
+    };
+    let index = rows
+        .iter()
+        .position(|r| r[0] == GraphControlValue::Text("result".into()))
+        .unwrap();
+    let total = metrics.list_header + metrics.list_row * (rows.len() as f32 + 1.);
+    node.rows[1].value = BasicGraphControls
+        .interact(
+            &node.rows[1].value,
+            GraphControlInput::Press {
+                fraction: 1.,
+                point: [
+                    0.99,
+                    (metrics.list_header + metrics.list_row * (index as f32 + 0.5)) / total,
+                ],
+                metrics,
+            },
+        )
+        .unwrap();
+    dock.finish(&mut project);
+    assert!(project.rules.current.compile().is_err());
+    assert!(dock.rules_error.is_some());
+    dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(project.rules.current.compile().unwrap(), baseline);
+    dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert!(project.rules.current.compile().is_err());
+    dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(project.rules.current.compile().unwrap(), baseline);
+}
+
+#[test]
+fn particle_rules_branches_preview_edit_save_undo_and_restore() {
+    let mut dock = NodesDock::new();
+    let mut ctx = TheContext::new(1200, 700, 1.);
+    let mut ui = TheUI::new();
+    ui.canvas = dock.setup(&mut ctx);
+    ui.get_render_view(VIEW)
+        .unwrap()
+        .set_dim(TheDim::new(0, 0, 1200, 700), &mut ctx);
+    let mut server = ServerContext::default();
+    server.pc = ProjectContext::GameRules;
+    let mut project = Project::new();
+    dock.activate(&mut ui, &mut ctx, &project, &mut server);
+    let root = dock
+        .branch_order
+        .iter()
+        .copied()
+        .find(|id| {
+            shared::rulesets::graph::branch_path(&dock.branch_graphs[id])
+                == Some("/fx/presets/fire_burst")
+        })
+        .unwrap();
+    dock.set_branch(Some(root));
+    assert_eq!(dock.doc.nodes.len(), 9);
+    assert!(node_available(server.pc, "particle_color"));
+    dock.update_particle_preview();
+    assert!(GraphAssets::image(&dock.tiles, "rules_particle_preview").is_some());
+    dock.finish(&mut project); // Persist the initial automatic layout first.
+    let unchanged = project.rules.current.clone();
+    dock.rules_error = Some("Unchanged navigation must not republish the rules".into());
+    dock.store(&mut project, false);
+    assert!(project.rules.current == unchanged);
+    assert_eq!(
+        dock.rules_error.as_deref(),
+        Some("Unchanged navigation must not republish the rules")
+    );
+    dock.rules_error = None;
+
+    if let Ok(path) = std::env::var("ELDIRON_PARTICLE_SNAPSHOT") {
+        dock.fit_branch(&mut ui);
+        dock.render(&mut ui, &mut ctx);
+        std::fs::write(
+            path,
+            ui.get_render_view(VIEW)
+                .unwrap()
+                .render_buffer_mut()
+                .to_png()
+                .unwrap(),
+        )
+        .unwrap();
+    }
+    let node = dock
+        .doc
+        .nodes
+        .iter_mut()
+        .find(|n| n.definition.as_deref() == Some("particle_emission"))
+        .unwrap();
+    shared::graph_authoring::set(
+        node,
+        "rate",
+        shared::graph_authoring::number(200., 0., 500., 1.),
+    );
+    dock.finish(&mut project);
+    assert_eq!(
+        project.rules.current.compile().unwrap()["fx"]["presets"]["fire_burst"]["emitter"]["rate"]
+            .as_float(),
+        Some(200.)
+    );
+    assert!(project.rules_source().unwrap().contains("emitter"));
+    dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(
+        project.rules.current.compile().unwrap()["fx"]["presets"]["fire_burst"]["emitter"]["rate"]
+            .as_float(),
+        Some(140.)
+    );
+    project
+        .rules
+        .current
+        .restore_definition(&project.rules.original, "/fx/presets/fire_burst")
+        .unwrap();
+    assert!(dock.copy_branch(&mut project));
+    assert!(dock.paste_branch(&mut ui, &mut ctx, &mut project));
+    assert_ne!(dock.active_branch, Some(root));
+    assert!(dock.rules_error.is_some()); // Rename the copied preset to give it its own identity.
+    let copied_root = dock
+        .doc
+        .nodes
+        .iter_mut()
+        .find(|n| n.definition.as_deref() == Some("rules_fx"))
+        .unwrap();
+    shared::graph_authoring::set(
+        copied_root,
+        "path",
+        GraphControlValue::Text("/fx/presets/custom_burst".into()),
+    );
+    dock.finish(&mut project);
+    assert!(dock.rules_error.is_none());
+    assert_eq!(project.rules.current.compile().unwrap()["fx"]["presets"]["custom_burst"]["emitter"]["rate"].as_float(),Some(140.));
+}
+
+#[test]
+fn control_touchpad_and_wheel_zoom_nodes_around_pointer() {
+    let mut dock = NodesDock::new();
+    let mut ui = TheUI::new();
+    let mut ctx = TheContext::new(700, 400, 1.);
+    ui.canvas = dock.setup(&mut ctx);
+    let mut server = ServerContext::default();
+    server.pc = ProjectContext::CharacterCode(Uuid::new_v4());
+    let mut project = Project::new();
+    dock.activate(&mut ui, &mut ctx, &project, &mut server);
+    ui.modifier_changed(false, true, false, false, &mut ctx);
+    dock.editor.cursor = [300., 200.];
+    for precise in [true, false] {
+        let zoom = dock.editor.viewport.zoom();
+        let anchor = dock.editor.viewport.to_graph(dock.editor.cursor);
+        let event = if precise {
+            TheEvent::RenderViewPreciseScrollBy(TheId::named(VIEW), Vec2::new(0, 10))
+        } else {
+            TheEvent::RenderViewScrollBy(TheId::named(VIEW), Vec2::new(0, 10))
+        };
+        dock.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server);
+        assert!(dock.editor.viewport.zoom() > zoom);
+        let after = dock.editor.viewport.to_graph(dock.editor.cursor);
+        assert!((after[0] - anchor[0]).abs() < 0.001);
+        assert!((after[1] - anchor[1]).abs() < 0.001);
+    }
+    assert!(project.node_graphs.is_empty());
 }

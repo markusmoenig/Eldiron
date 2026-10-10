@@ -326,3 +326,25 @@ impl TheRenderViewTrait for TheRenderView {
         self.auto_focus = auto_focus;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subpixel_touchpad_motion_accumulates_into_canvas_scroll() {
+        let mut ctx = TheContext::new(400, 400, 1.);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        ctx.ui.state_events_sender = Some(sender);
+        let mut view = TheRenderView::new(TheId::named("Canvas"));
+        view.set_dim(TheDim::new(0, 0, 400, 400), &mut ctx);
+        view.set_scroll_behavior(1., false);
+        for _ in 0..12 {
+            view.on_event(&TheEvent::PreciseScroll(Vec2::new(0., 0.25)), &mut ctx);
+        }
+        assert!(receiver.try_iter().any(|event| matches!(
+            event,
+            TheEvent::RenderViewPreciseScrollBy(_, delta) if delta.y >= 2
+        )));
+    }
+}

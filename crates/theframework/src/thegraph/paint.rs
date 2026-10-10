@@ -262,7 +262,7 @@ impl GraphEditor {
                 if controls.paint_scaled(&row.value, screen(rect), z, painter) {
                     continue;
                 }
-                if let GraphControlValue::List { columns, rows } = &row.value {
+                if let GraphControlValue::List { columns, rows, .. } = &row.value {
                     let count = columns.len().max(1);
                     let cell_width = rect.size[0] * LIST_DELETE_FRACTION / count as f32;
                     let cell_size = metrics.cell_size * z;
@@ -300,10 +300,17 @@ impl GraphEditor {
                                 ],
                                 size: [cell_width - 10., 18.],
                             };
+                            let visual_rect = GraphRect {
+                                origin: [cell_rect.origin[0], y + 2.],
+                                size: [cell_rect.size[0], metrics.list_row - 4.],
+                            };
+                            if controls.paint_scaled(cell, screen(visual_rect), z, painter) {
+                                continue;
+                            }
                             painter.text(
                                 screen(cell_rect),
                                 &fit_text(
-                                    &BasicGraphControls.label(cell),
+                                    &controls.label(cell),
                                     (cell_width - 16.) * z,
                                     cell_size,
                                     controls,

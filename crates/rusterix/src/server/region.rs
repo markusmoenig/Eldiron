@@ -2565,6 +2565,105 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn live_rules_messages_refresh_catalogues_and_keep_gameplay_state() {
+        let _guard = REGIONCTX_TEST_LOCK.lock().unwrap();
+        clear_regionctx_store();
+        let mut ctx = RegionCtx::default();
+        let baseline = eldiron_ruleset::graph::RulesGraph::official()
+            .compile()
+            .unwrap();
+        ctx.set_rules(baseline.clone()).unwrap();
+        ctx.paused = true;
+        let mut player = Entity::new();
+        player.id = 42;
+        player.set_attribute("HP", Value::Int(7));
+        player.set_attribute("quest_marker", Value::Str("in_progress".into()));
+        ctx.map.entities.push(player);
+        let ctx = Arc::new(Mutex::new(ctx));
+        register_regionctx(9988, ctx.clone());
+        let mut instance = RegionInstance::new(9988);
+        let mut next = baseline.clone();
+        next["actions"]["basic_attack"]["cooldown"] = toml::Value::Float(0.125);
+        let mut action = next["actions"]["basic_attack"].clone();
+        action["name"] = toml::Value::String("Robot Strike".into());
+        action.as_table_mut().unwrap().remove("intent");
+        next["actions"]
+            .as_table_mut()
+            .unwrap()
+            .insert("robot_strike".into(), action);
+        let report = eldiron_ruleset::validate_ruleset(&next);
+        assert_eq!(report.error_count(), 0, "{:?}", report.issues);
+        instance
+            .to_sender
+            .send(RegionMessage::UpdateRules(next.clone()))
+            .unwrap();
+        instance.redraw_tick();
+        {
+            let ctx = ctx.lock().unwrap();
+            assert_eq!(
+                ctx.resolved_action("basic_attack")
+                    .unwrap()
+                    .unwrap()
+                    .cooldown_seconds,
+                0.125
+            );
+            assert_eq!(
+                ctx.resolved_action("robot_strike").unwrap().unwrap().name,
+                "Robot Strike"
+            );
+            assert_eq!(ctx.map.entities[0].attributes.get_int("HP"), Some(7));
+            assert_eq!(
+                ctx.map.entities[0].attributes.get_str("quest_marker"),
+                Some("in_progress")
+            );
+        }
+        let mut invalid = next.clone();
+        invalid["actions"]["robot_strike"]["result"]
+            .as_table_mut()
+            .unwrap()
+            .insert(
+                "apply_condition".into(),
+                toml::Value::String("missing_condition".into()),
+            );
+        assert!(eldiron_ruleset::validate_ruleset(&invalid).error_count() > 0);
+        instance
+            .to_sender
+            .send(RegionMessage::UpdateRules(invalid))
+            .unwrap();
+        instance.redraw_tick();
+        assert!(
+            ctx.lock().unwrap().rules == next,
+            "Invalid draft replaced active rules"
+        );
+        next["actions"]
+            .as_table_mut()
+            .unwrap()
+            .remove("robot_strike");
+        instance
+            .to_sender
+            .send(RegionMessage::UpdateRules(next))
+            .unwrap();
+        instance.redraw_tick();
+        assert!(
+            ctx.lock()
+                .unwrap()
+                .resolved_action("robot_strike")
+                .unwrap()
+                .is_none()
+        );
+        instance
+            .to_sender
+            .send(RegionMessage::UpdateRules(baseline.clone()))
+            .unwrap();
+        instance.redraw_tick();
+        assert!(
+            ctx.lock().unwrap().rules == baseline,
+            "Original rules did not restore"
+        );
+        clear_regionctx_store();
+    }
+
+    #[test]
     fn resolved_action_cache_refreshes_when_region_rules_change() {
         let mut ctx = RegionCtx::default();
         let first = r#"
@@ -3758,6 +3857,44 @@ mod ruleset_progression_tests {
         ctx.map.entities[0].set_attribute("MP", Value::Int(2));
         assert!(!execute_ruleset_action(&mut ctx, 1, "blessing", None));
         assert_eq!(active_condition_stacks(&ctx, 1, "blessed"), 0);
+    }
+
+    #[test]
+    fn particle_fx_nodes_match_every_original_recipe_and_stage_override() {
+        let old: toml::Table = include_str!("../../../ruleset/rulesets/eldiron/v1/fx.toml")
+            .parse()
+            .unwrap();
+        let graph = eldiron_ruleset::graph::RulesGraph::official();
+        let current = graph.compile().unwrap();
+        let compiled: toml::Table = toml::from_str(&toml::to_string(&current).unwrap()).unwrap();
+        let original = old["fx"]["presets"].as_table().unwrap();
+        assert_eq!(
+            original.len(),
+            compiled["fx"]["presets"].as_table().unwrap().len()
+        );
+        for (id, recipe) in original {
+            let source = recipe.as_table().unwrap();
+            let actual = compiled["fx"]["presets"][id].as_table().unwrap();
+            assert!(actual.contains_key("emitter"), "{id}");
+            for override_fields in [
+                "",
+                "colors=['blue','green']\nsize='large'\ndensity='light'\nduration='long'",
+            ] {
+                let fields: toml::Table = override_fields.parse().unwrap();
+                let mut expected = source.clone();
+                expected.extend(fields.clone());
+                let mut target = actual.clone();
+                target.extend(fields);
+                let (expected, duration, scale) = ruleset_fx_emitter(&expected);
+                let (result, actual_duration, actual_scale) = ruleset_fx_emitter(&target);
+                assert_eq!(
+                    crate::ParticleEmitterDef::from(&result),
+                    crate::ParticleEmitterDef::from(&expected),
+                    "{id}"
+                );
+                assert_eq!((actual_duration, actual_scale), (duration, scale), "{id}");
+            }
+        }
     }
 
     #[test]
@@ -8900,6 +9037,17 @@ impl RegionInstance {
         // Catch up with the server messages
         while let Ok(msg) = self.to_receiver.try_recv() {
             match msg {
+                UpdateRules(rules) => {
+                    with_regionctx(self.id, |ctx| {
+                        if let Err(error) = ctx.replace_live_rules(rules) {
+                            let _ = ctx.from_sender.get().map(|sender| {
+                                sender.send(RegionMessage::LogMessage(format!(
+                                    "Rules edit rejected: {error}"
+                                )))
+                            });
+                        }
+                    });
+                }
                 UpdateNodeGraph(owner, graph) => {
                     with_regionctx(self.id, |ctx| {
                         crate::server::nodes::region::refresh_graph(ctx, owner, graph);
@@ -10347,6 +10495,15 @@ impl RegionInstance {
                 }
                 _ => {}
             }
+        }
+
+        // Consume live edits while paused, but preserve the world snapshot.
+        // Continuing with an empty local entity list would erase paused bodies.
+        let mut paused = false;
+        with_regionctx(self.id, |ctx| paused = ctx.paused);
+        if paused {
+            self.last_redraw_at = Instant::now();
+            return;
         }
 
         // ---
@@ -15662,6 +15819,35 @@ fn ruleset_fx_density_rate(value: Option<&toml::Value>) -> f32 {
 }
 
 fn ruleset_fx_emitter(preset: &toml::value::Table) -> (ParticleEmitter, f32, f32) {
+    if let Some(value) = preset.get("emitter") {
+        if let Ok(def) = value.clone().try_into::<crate::ParticleEmitterDef>() {
+            let mut emitter = def.instantiate(Vec3::zero(), def.direction);
+            // Action and condition stages may still customize a referenced preset.
+            if preset.contains_key("colors") {
+                let colors = ruleset_fx_colors(preset);
+                let mut ramp = [*colors.last().unwrap(); 4];
+                for (i, color) in colors.iter().take(4).enumerate() {
+                    ramp[i] = *color;
+                }
+                emitter.color = ramp[0];
+                emitter.color_ramp = Some(ramp);
+            }
+            if preset.contains_key("density") {
+                emitter.rate = ruleset_fx_density_rate(preset.get("density"));
+            }
+            let scale = if preset.contains_key("size") {
+                ruleset_fx_size_scale(preset.get("size"))
+            } else {
+                ruleset_fx_size_scale(preset.get("size_scale"))
+            };
+            return (
+                emitter,
+                ruleset_fx_duration_seconds(preset.get("duration")),
+                scale,
+            );
+        }
+    }
+
     let colors = ruleset_fx_colors(preset);
     let base_color = colors[0];
     let mut ramp = [base_color; 4];

@@ -249,7 +249,7 @@ impl GraphEditor {
                         selected: *selected,
                     });
                 }
-                if let GraphControlValue::List { columns, rows } = &row.value {
+                if let GraphControlValue::List { columns, rows, .. } = &row.value {
                     if let Some((r, c)) =
                         list_cell_at(rect, columns.len(), rows.len(), point, &metrics)
                     {
@@ -351,7 +351,7 @@ impl GraphEditor {
                     }
                     // A Text cell inside a list is typed like a plain text row;
                     // the surrounding add/delete affordances stay control presses.
-                    if let GraphControlValue::List { columns, rows } = &r.value {
+                    if let GraphControlValue::List { columns, rows, .. } = &r.value {
                         if let Some((row_index, column)) =
                             list_cell_at(rect, columns.len(), rows.len(), p, &metrics)
                             && let Some(GraphControlValue::Text(value)) =

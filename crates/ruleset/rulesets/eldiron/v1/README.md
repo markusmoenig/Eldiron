@@ -8,47 +8,26 @@ weapon and armor categories, starter equipment, cooldowns, abilities, spells,
 actions, procedural FX presets, audio/message hooks, resource gathering,
 multi-stage ritual crafting, and default humanoid visuals.
 
-Project-specific `Game / Rules` content is treated as an override on top of this
-official base.
+`rules.graph.json` is the production official rules source. Creator edits the
+same node format through **Game / Rules**, one definition branch at a time.
+Projects own a full graph and preserve their original plus recovery checkpoints.
+Minimal inherited deltas and upgrade policies are not implemented yet.
 
-The ruleset is authored as several TOML files so it stays readable as the
-simulation grows:
+The split TOML rules files are a conversion-test reference only. The runtime
+loads the embedded graph and compiles it into the existing validated value tree.
+`locales.toml` and bundled artwork retain their own formats.
 
-```text
-ruleset.toml            metadata, schema, bundled assets, visuals, palette, skills, resources
-identity.toml           default identity, dispositions, race relations, intents
-attributes.toml         attributes and derived stats
-progression.toml        XP, leveling, progression messages
-combat.toml             damage kinds, combat timing, combat audio/messages, behavior policies
-economy.toml            copper/silver/gold currency table and base unit
-messages.toml           locale keys for rules-driven runtime feedback
-locales.toml            English defaults for ruleset-owned locale keys
-equipment.toml          equipment slots, categories, weapons, armor, clothing, resource nodes
-fx.toml                 semantic procedural FX presets for spells and actions
-icons.toml              shared action, intent, and item icon catalog
-invocations.toml        optional token-sequence input schemes
-conditions.toml         timed state, stacking, immunities, periodic effects, and FX
-actions.toml            sandbox-facing action definitions
-recipes.toml            skill-gated crafting and preparation recipes
-abilities_spells.toml   abilities and spells
-races_classes.toml      races, classes, unlocks, starting loadouts
-```
+FX presets are dedicated `/fx/presets/name` particle branches with reusable
+emission, motion, lifetime, size, color, direction/gravity, spawn-area, and curve
+modules. They compile directly to emitter settings, with animated Creator
+previews. Runtime tests compare every official preset and stage override against
+the old `fx.toml` recipe translator; the rest of the graph still has exact
+value-tree conversion coverage.
 
-At compile time, shared code embeds these parts and exposes them as one effective
-official ruleset to Creator, clients, tools, and tests.
-
-Node behavior policies live under `[behavior]` in `combat.toml`. Graphs select a
-policy by id and never embed the alignment, distance, or action rules themselves:
-
-```text
-[behavior.lookout.hostile]   disposition, radius, retry_seconds
-[behavior.engage.default]    actions (native attack action ids), pursuit_distance, blocked_seconds
-```
-
-`disposition` must name a `[dispositions]` entry, `actions` must reference
-existing `kind = "attack"` actions, and all distances and delays must be positive
-finite numbers. `eldiron-ruleset check` validates the section, and `list lookout`
-/ `list engage` / `show behavior.lookout.hostile` inspect it.
+Behavior policies are separate definition branches such as
+`/behavior/lookout/hostile` and `/behavior/engage/default`. Entity behavior nodes
+select these policies by stable ID. Dispositions, action references, distances,
+and delays are validated through the same ruleset validator.
 
 The current playable progression ends at level 10. Warrior, Cleric, and Ranger
 gain their core kit at level 1 and one new action at levels 2, 4, 6, 8, and 10.

@@ -108,6 +108,7 @@ pub fn render_particle_emitter_preview(
         width,
         height,
         time,
+        Some(emitter),
     )
 }
 
@@ -127,6 +128,7 @@ fn render_particle_preview_common(
     width: i32,
     height: i32,
     time: f32,
+    source: Option<&ParticleEmitter>,
 ) -> TheRGBABuffer {
     let width = width.max(1);
     let height = height.max(1);
@@ -164,6 +166,11 @@ fn render_particle_preview_common(
     emitter.color_ramp = Some(ramp);
     emitter.color_variation = color_variation;
 
+    if let Some(source) = source {
+        emitter = source.clone();
+        emitter.particles.clear();
+        emitter.time_accum = 0.;
+    }
     let steps = ((time.max(0.0) / (1.0 / PREVIEW_PARTICLE_SIM_FPS)).ceil() as usize).max(1);
     let dt = (time.max(0.0) / steps as f32) * PREVIEW_PARTICLE_TIME_SCALE;
     for _ in 0..steps {
@@ -192,7 +199,7 @@ fn render_particle_preview_common(
         let x = emitter_x + particle.pos.x * width as f32 * 0.28;
         let y = emitter_y - particle.pos.y * height as f32 * 0.36;
         let size = (particle.radius * 34.0).clamp(4.0, 42.0);
-        let alpha = (particle.lifetime / particle.initial_lifetime.max(0.001)).clamp(0.0, 1.0);
+        let alpha = particle.color[3] as f32 / 255.;
         draw_soft_particle(
             &mut preview,
             x,

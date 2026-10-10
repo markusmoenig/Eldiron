@@ -827,7 +827,16 @@ impl Widget {
             .or(resolved_action_icon)?;
         let icon_name = Self::resolve_icon_texture_id(&root, &icon_name);
 
-        assets.textures.get(icon_name.as_str())
+        Self::icon_texture(assets, &icon_name)
+    }
+
+    fn icon_texture<'a>(assets: &'a Assets, id: &str) -> Option<&'a Texture> {
+        assets.textures.get(id).or_else(|| {
+            Uuid::parse_str(id)
+                .ok()
+                .and_then(|id| assets.tiles.get(&id))
+                .and_then(|tile| tile.textures.first())
+        })
     }
 
     fn command_icon_table<'a>(root: &'a Table, command: &str) -> Option<&'a Table> {
@@ -990,6 +999,24 @@ impl Widget {
     }
 
     fn custom_item_icon_frames<'a>(assets: &'a Assets, item: &Item) -> Option<&'a Vec<Texture>> {
+        if let Some(frames) = Self::project_item_icon_frames(assets, item) {
+            return Some(frames);
+        }
+        // Rules picker replacements take precedence over the bundled item artwork.
+        let root = assets.rules_table();
+        let icon = item.attributes.get_str("icon");
+        let texture_id = icon.map(|id| {
+            root.as_ref()
+                .map(|root| Self::resolve_icon_texture_id(root, id))
+                .unwrap_or_else(|| id.to_string())
+        });
+        if let Some(tile) = texture_id
+            .as_deref()
+            .and_then(|id| Uuid::parse_str(id).ok())
+            .and_then(|id| assets.tiles.get(&id))
+        {
+            return Some(&tile.textures);
+        }
         let state = Self::item_icon_state(item);
         for key in Self::item_icon_asset_keys(item) {
             if let Some(frames) = assets.item_icons.get(&format!("{key}:{state}")) {
@@ -1429,22 +1456,26 @@ impl Widget {
             .get_str("icon")
             .or_else(|| item.attributes.get_str("icon_template"));
         let root = assets.rules_table();
-        let icon_id = authored_item_icon.map(str::to_string).or_else(|| {
-            root.as_ref()
-                .and_then(|root| {
-                    eldiron_ruleset::resolve_item_icon(
-                        root,
-                        item.attributes.get_str("ruleset_kind"),
-                        explicit_icon,
-                    )
-                })
-                .or_else(|| explicit_icon.map(str::to_string))
-        })?;
-        let texture = assets.textures.get(&icon_id).or_else(|| {
-            root.as_ref()
-                .map(|root| Self::resolve_icon_texture_id(root, &icon_id))
-                .and_then(|texture_id| assets.textures.get(texture_id.as_str()))
-        })?;
+        let project_icon = explicit_icon.filter(|id| Uuid::parse_str(id).is_ok());
+        let icon_id = project_icon
+            .or(authored_item_icon)
+            .map(str::to_string)
+            .or_else(|| {
+                root.as_ref()
+                    .and_then(|root| {
+                        eldiron_ruleset::resolve_item_icon(
+                            root,
+                            item.attributes.get_str("ruleset_kind"),
+                            explicit_icon,
+                        )
+                    })
+                    .or_else(|| explicit_icon.map(str::to_string))
+            })?;
+        let texture_id = root
+            .as_ref()
+            .map(|root| Self::resolve_icon_texture_id(root, &icon_id))
+            .unwrap_or(icon_id);
+        let texture = Self::icon_texture(assets, &texture_id)?;
         let size = texture.width.max(texture.height).max(1);
         let offset_x = (size - texture.width) / 2;
         let offset_y = (size - texture.height) / 2;
@@ -2041,6 +2072,57 @@ mod tests {
         let (size, pixels) = Widget::item_icon_texture_square(&assets, &item).unwrap();
         assert_eq!(size, 2);
         assert_eq!(&pixels[0..8], &[12, 34, 56, 78, 90, 123, 210, 255]);
+    }
+
+    #[test]
+    fn rules_icon_tile_replacements_reach_commands_and_items() {
+        let mut assets = Assets::default();
+        let tile = crate::Tile::from_texture(Texture::new(vec![21, 43, 65, 255], 1, 1));
+        let id = tile.id;
+        assets.tiles.insert(id, tile);
+        assets.rules = format!(
+            "[ui.commands.spellbook]\nicon = \"{id}\"\n[icons.training_sword]\ntexture = \"{id}\"\n"
+        );
+        let command =
+            Widget::command_icon_texture(&assets, Some("ui.spellbook"), ButtonVisualState::Normal)
+                .unwrap();
+        assert_eq!(command.data, vec![21, 43, 65, 255]);
+        let mut item = Item::default();
+        item.attributes
+            .set("ruleset_id", Value::Str("training_sword".into()));
+        item.attributes
+            .set("icon", Value::Str("training_sword".into()));
+        assets.item_icons.insert(
+            "training_sword".into(),
+            vec![Texture::new(vec![255, 0, 0, 255], 1, 1)],
+        );
+        assets.textures.insert(
+            "training_sword".into(),
+            Texture::new(vec![255, 0, 0, 255], 1, 1),
+        );
+        assert_eq!(
+            Widget::item_generated_icon_square(&assets, &item)
+                .unwrap()
+                .1,
+            vec![21, 43, 65, 255]
+        );
+        item.attributes.set("icon", Value::Str(id.to_string()));
+        assert_eq!(
+            Widget::item_generated_icon_square(&assets, &item)
+                .unwrap()
+                .1,
+            vec![21, 43, 65, 255]
+        );
+        // Explicit Creator item artwork still has priority over rule defaults.
+        assets
+            .project_item_icon_keys
+            .insert("training_sword".into());
+        assert_eq!(
+            Widget::item_generated_icon_square(&assets, &item)
+                .unwrap()
+                .1,
+            vec![255, 0, 0, 255]
+        );
     }
 
     #[test]

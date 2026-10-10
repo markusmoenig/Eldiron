@@ -176,13 +176,16 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
 
 ## Ruleset Selection
 
-Selects the official ruleset used by the project.
+Selects bundled asset and locale lookup information for the project.
 
-By default, Eldiron uses the bundled `eldiron.official` ruleset. **Game / Rules**
-starts empty and can override that official ruleset for this project. Gameplay
-definitions such as formulas, classes, spells, intent ranges, and equipment
-rules should live in the official ruleset or in **Game / Rules**, not in
-individual character or item attributes.
+New projects receive the bundled `eldiron.official` node ruleset. **Game / Rules**
+edits the project's complete owned graph; it does not start as an empty override
+layer. Changing these selection fields does not replace the owned graph or its
+preserved original, and `update_policy` does not automatically upgrade nodes.
+See [Ruleset Nodes](../creator/docks/ruleset_nodes) for editing and recovery.
+Gameplay definitions such as formulas, classes, spells, intent ranges, and
+equipment policies belong in those ruleset nodes. Entity Nodes select definitions
+and configure individual characters or items.
 
 Equipment slot lists are ruleset data under `[equipment]`. They are not game
 settings: server combat, graphical UI, terminal stats, and equip validation all
@@ -198,7 +201,7 @@ entirely; Eldiron will not invent those attributes.
 - `version`: requested ruleset version, for example `1.0.0`
 - `schema_version`: ruleset schema version expected by the project
 - `source`: `official` for bundled rulesets
-- `update_policy`: intended update behavior, such as `compatible` or `pinned`
+- `update_policy`: reserved update preference, such as `compatible` or `pinned`; automatic graph upgrades are not implemented
 
 ### `avatar_shading`
 

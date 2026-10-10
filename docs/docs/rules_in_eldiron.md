@@ -11,168 +11,132 @@ resolution, project-level rule overrides, and rule testing.
 
 ## Source Of Truth
 
-The official ruleset lives in the `eldiron-ruleset` crate:
+The official rules are authored as `crates/ruleset/rulesets/eldiron/v1/rules.graph.json`.
+The `eldiron-ruleset` crate embeds this node document and compiles its branches
+into the same validated runtime value tree used by Creator, clients, inspectors,
+and tests. The previous split TOML rules are retained as a conversion test
+reference, not loaded as the production official rules source. Locales and
+assets retain their existing formats.
 
-```text
-crates/ruleset/rulesets/
-  manifest.toml
-  eldiron/
-    v1/
-      ruleset.toml
-      identity.toml
-      attributes.toml
-      progression.toml
-      combat.toml
-      economy.toml
-      messages.toml
-      locales.toml
-      equipment.toml
-      fx.toml
-      icons.toml
-      invocations.toml
-      conditions.toml
-      actions.toml
-      abilities_spells.toml
-      races_classes.toml
-      README.md
-      assets/
-        icons/
-        humanoid.eldiron_avatar
-        orc.eldiron_avatar
-        skeleton.eldiron_avatar
-```
-
-This location is intentional. The ruleset is not owned by Creator only, and it
-must be publishable with the crate that exposes the official ruleset API. It is
-available to:
-
-- Creator
-- graphical clients
-- terminal clients
-- shared runtime code through `eldiron-ruleset` and `eldiron-shared`
-- calculators
-- automatic arena tools
-- tests
-- documentation generators
-
-The current built-in ruleset is `eldiron.official` version `1.0.0`.
-
-## Compile-Time Embedding
-
-Official rulesets are embedded at compile time by the `eldiron-ruleset` crate.
-
-The ruleset crate includes all official v1 TOML parts with
-`include_str!`, joins them into one effective official TOML source, and also
-embeds the bundled `humanoid`, `orc`, and `skeleton` avatar assets.
-
-This lets every binary built from the repository access the same official
-ruleset through a package-safe crate API without each app carrying its own
-private copy.
-
-## Project Selection
-
-A project selects its ruleset in **Game / Settings** with the top-level
-`[ruleset]` section:
-
-```toml
-[ruleset]
-id = "eldiron.official"
-version = "1.0.0"
-schema_version = "1"
-source = "official"
-update_policy = "compatible"
-```
-
-The section is top level because other main game settings are top level too.
-
-Supported intent:
-
-- `source = "official"` uses a bundled ruleset selected by `id` and `version`
-- **Game / Rules** can override that official ruleset for this project
-- `update_policy` describes how future compatible updates should be handled
-
-Older projects that do not have `[ruleset]` are migrated by adding this default
-section.
+Projects store `rules_graph`: current node branches, a preserved original node
+ruleset, and recovery checkpoints. There is no independently editable TOML rules
+source and no importer for historical project TOML overrides. Existing projects
+without a node ruleset receive the bundled original.
 
 ## Game / Rules
 
-For official-rules projects, **Game / Rules** is the project-level override
-layer. It is empty by default because new projects use the bundled Eldiron
-Official Ruleset unchanged.
+Selecting **Game / Rules** opens the node dock. The left branch list selects one
+definition, such as `actions / basic_attack`, `classes / Warrior`, or
+`items / weapons / training_sword`. The filter searches branch paths. The canvas
+shows only the selected branch; drag new nodes from the sidebar's **Node List**.
 
-The default template explains this:
+The initial generic vocabulary is:
 
-```toml
-# Game / Rules is the project-level override layer for the official ruleset
-# selected in Game / Settings.
-```
+- **Definition**: a global definition at a path such as `/actions/repair`.
+- **Table**: nested named fields connected to a parent key terminal.
+- **List**: an ordered collection connected to a parent key; indices start at zero.
+- **Set Attribute**: a typed scalar value connected to a parent key.
 
-During the v1 cleanup, normal gameplay definitions should move out of character
-and item attributes and into the official ruleset or this project-level
-**Game / Rules** override. Character and item attributes should not redefine
-cooldowns, spell behavior, class permissions, intent distance, or combat math.
+FX presets use **Particle FX Preset** branches at `/fx/presets/name`.
+Connect a single chain of reusable **Particle Emission**, **Motion**, **Lifetime**,
+**Size**, **Color**, **Direction**, **Spawn Area**, and **Lifetime Curves** nodes.
+Each module can be omitted or disabled to use the emitter default for its fields.
+The preset root owns the effect duration and size multiplier. Color controls
+show swatches and accept `#RRGGBB` or `#RRGGBBAA`; four colors describe birth,
+early, late, and end-of-life color. The root shows an animated emitter preview
+using the same simulator as game particles.
 
-Ruleset timing values use seconds. Script scheduling commands such as
-`notify_in`, `block_events`, patrol waits, and random-walk sleeps still use
-in-game minutes because they operate on the world clock. This keeps ruleset
-combat tuning separate from authoring-time world schedules.
+Actions, spells, conditions, and fallback mappings reference the preset name.
+Adding, renaming, or removing presets uses the same branch workflow and reference
+validation as other rules. Valid edits update live rules and help; undo,
+checkpoints, Restore Branch, and Restore All also cover particle branches.
+The shared particle modules compile to the existing emitter format and are
+available to prefab and other graph hosts. The official seven presets are tested
+against the original semantic translator, including stage color, density, size,
+and duration overrides. Descriptive recipe hints that the engine did not execute
+(such as `mood`, `light`, and `secondary`) are replaced by the supported emitter
+controls; these nodes do not add new lighting or secondary-effect execution.
 
-The effective ruleset is resolved like this:
+Definition, Table, and List nodes have editable typed field rows. Text, integer,
+number, boolean, table, and list types preserve their meaning. Every key has its
+own output terminal, aligned with its row. Connect Table/List keys to the
+corresponding child node; the wire defines the child's location, with no child
+path to type. Scalar keys use their inline Value unless connected to a matching
+Set Attribute node. Renaming or reordering entries preserves connections.
+Deleting a key removes its wire; an orphaned child remains editable and reports
+a validation error. Definition paths use `~1` for a slash inside a key and `~0`
+for a tilde. No gameplay executes along these connections.
 
-1. Read `[ruleset]` from **Game / Settings**.
-2. Load the matching bundled official ruleset.
-3. Merge **Game / Rules** TOML on top.
-4. Use the merged result for runtime and tools.
+Valid node edits update the running Creator game at the next region update
+boundary, including while paused. Actions, conditions, equipment policies,
+attribute roles, and icon assets refresh without restarting the game. Invalid
+drafts stay editable while runtime regions and assets retain their last valid
+rules. Undo, recovery, and restoration use the same update path.
 
-Ruleset localizations are resolved the same way:
+Existing characters keep their current health, inventory, position, and quest
+state. Changes to spawn defaults affect new entities; live editing does not
+recreate existing characters. Help refreshes the current query when rules
+change and preserves navigation history. Opening Help also reads the current
+rules, and its icon gallery uses the refreshed runtime assets.
 
-1. Load the bundled English locale defaults for the selected official ruleset.
-2. Merge **Game / Locales** TOML on top.
-3. Use project locale entries as overrides, not as a required copy of every
-   ruleset message.
+Icon fields show the resolved artwork. Click an icon to open the existing tile
+picker and choose a replacement from project tiles, or select Inherit to clear
+an optional override. Icon catalog branches also show a clickable artwork
+preview; replacing it writes that icon's texture mapping, so consumers of the
+same semantic icon share the replacement. Replacements persist by tile UUID
+and support undo, checkpoints, and restoration.
 
-## Configuration And Overrides
+Add a Definition branch to introduce an action, race, class, profession, or
+custom data definition. Remove or disable a branch to omit it. Removing a
+referenced definition reports a validation error; dependent definitions must be
+repaired explicitly. Custom data does not automatically introduce new runtime
+mechanics.
 
-Official ruleset projects are configured in layers.
+**Start Empty** checkpoints the current rules and removes all definitions, so a
+standalone game can start without the fantasy RPG content.
 
-Use **Game / Settings** to select which bundled ruleset the project follows.
-Use **Game / Rules** to override ruleset TOML for this project. The override
-should contain only the tables and keys that are intentionally different from
-the bundled official ruleset.
+**Checkpoint** saves a recovery snapshot. **Restore Branch** restores the
+selected definition from the project's original. **Restore All** restores the
+entire preserved original, including deleted definitions, and first checkpoints
+the discarded draft. **Recover** swaps with the latest checkpoint. Original
+rules and checkpoints travel with the project, so restoration does not substitute
+a newer bundled ruleset. Ordinary edits support Undo/Redo.
 
-Use **Game / Locales** the same way for text. Project locale entries replace
-matching bundled ruleset locale keys, while missing keys continue to come from
-the official locale defaults.
+Invalid drafts stay editable and saved, but game startup rejects them. Validation
+feedback appears at the top of the rules canvas; startup errors appear in the log.
 
-Project assets can also override bundled ruleset assets when they use the same
-lookup name. Ruleset avatars are loaded first, then project avatars are inserted
-afterwards by avatar name. This means a project avatar named `humanoid`
-overrides the bundled official `humanoid` avatar automatically.
+## Current Authoring Boundary
 
-This is important for artist-edited avatar atlases. If you export the official
-humanoid avatar as a PNG atlas, edit it externally, and import it back into a
-project avatar named `humanoid`, all characters that use the default ruleset
-avatar will use the project version. A project avatar named `Human` does not
-replace the default `humanoid` avatar by name; it is used only by characters
-that explicitly set `avatar = "Human"` or the matching `avatar_id`.
+This first implementation uses a complete project-owned node ruleset. Minimal
+inherited node deltas, upgrade conflict previews, dedicated domain controls, and
+module-wide operations remain follow-up work. Game / Settings ruleset selection
+still supplies asset and locale lookup information; it does not replace the
+project's owned rules graph or apply `update_policy` to it.
 
-Explicit character and item presentation still wins over default ruleset
-presentation. A character with `avatar`, `avatar_id`, `tile_id`, or `source`
-does not use the fallback ruleset avatar. Setting an empty `avatar = ""` or
-`tile_id = ""` is a deliberate way to prevent inherited default visuals.
+Compiled values are currently serialized internally for existing source-based
+runtime consumers. The examples below describe those compiled runtime fields;
+they are not a second authoring interface.
 
-## No Backwards Compatibility Requirement
+Global definitions own gameplay policy. Character and item configuration graphs
+select those definitions and author entity-specific settings. Ruleset timing
+uses seconds; world scheduling commands still use in-game minutes.
 
-The official ruleset replaces the old ad hoc rules model.
+## Locales And Assets
 
-Old projects are migrated toward the new shape by:
+**Game / Locales** continues to merge project text with bundled locale defaults.
+Project assets can replace bundled assets by lookup name. Project avatars named
+`humanoid`, `orc`, or `skeleton` replace the respective bundled artwork.
+Explicit character/item presentation still takes precedence over default ruleset
+presentation.
 
-- adding the default `[ruleset]` section when missing
-- replacing old project rules with the empty **Game / Rules** override template
+## Conversion Tests
 
-This is allowed because the goal is to create one coherent default ruleset
-instead of preserving every old formula shape forever. The official v1 rules
-should prefer explicit tables and dice-like values.
+The node compiler is compared against the frozen split TOML reference for every
+value, definition, list order, and scalar type. Save/reload and layout changes
+must preserve the compiled result. Rules tests also exercise removal, disabled
+branches, additions, invalid drafts, and recovery. Runtime regressions consume
+the node-compiled official rules; a robot sandbox exercises a custom resource
+action with no races, classes, professions, spells, or progression.
 
 ## Character Defaults
 

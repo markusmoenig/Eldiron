@@ -8,7 +8,10 @@ use toml::{Table, Value};
 pub mod behavior;
 pub mod cli;
 mod formula;
+pub mod graph;
+pub mod graph_authoring;
 mod help;
+pub mod particle_graph;
 pub use formula::{evaluate_formula, formula_identifiers, formula_is_valid};
 pub use help::{RulesetHelpCommand, RulesetHelpResponse, execute_ruleset_help, ruleset_help_intro};
 
@@ -32,24 +35,40 @@ pub const DEFAULT_RULES_OVERRIDE: &str = r#"# Game / Rules is the project-level 
 # default rules.
 "#;
 
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_CORE: &str = include_str!("../rulesets/eldiron/v1/ruleset.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_IDENTITY: &str = include_str!("../rulesets/eldiron/v1/identity.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_ATTRIBUTES: &str = include_str!("../rulesets/eldiron/v1/attributes.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_PROGRESSION: &str =
     include_str!("../rulesets/eldiron/v1/progression.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_COMBAT: &str = include_str!("../rulesets/eldiron/v1/combat.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_ECONOMY: &str = include_str!("../rulesets/eldiron/v1/economy.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_MESSAGES: &str = include_str!("../rulesets/eldiron/v1/messages.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_EQUIPMENT: &str = include_str!("../rulesets/eldiron/v1/equipment.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_FX: &str = include_str!("../rulesets/eldiron/v1/fx.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_ICONS: &str = include_str!("../rulesets/eldiron/v1/icons.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_INVOCATIONS: &str =
     include_str!("../rulesets/eldiron/v1/invocations.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_CONDITIONS: &str = include_str!("../rulesets/eldiron/v1/conditions.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_ACTIONS: &str = include_str!("../rulesets/eldiron/v1/actions.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_RECIPES: &str = include_str!("../rulesets/eldiron/v1/recipes.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_ABILITIES_SPELLS: &str =
     include_str!("../rulesets/eldiron/v1/abilities_spells.toml");
+#[cfg(test)]
 const OFFICIAL_ELDIRON_V1_RACES_CLASSES: &str =
     include_str!("../rulesets/eldiron/v1/races_classes.toml");
 const OFFICIAL_ELDIRON_V1_LOCALES: &str = include_str!("../rulesets/eldiron/v1/locales.toml");
@@ -60,7 +79,8 @@ const OFFICIAL_ELDIRON_V1_ORC_AVATAR: &str =
 const OFFICIAL_ELDIRON_V1_SKELETON_AVATAR: &str =
     include_str!("../rulesets/eldiron/v1/assets/skeleton.eldiron_avatar");
 
-static OFFICIAL_ELDIRON_V1: LazyLock<String> = LazyLock::new(|| {
+#[cfg(test)]
+static OFFICIAL_TOML_REFERENCE: LazyLock<String> = LazyLock::new(|| {
     [
         OFFICIAL_ELDIRON_V1_CORE,
         OFFICIAL_ELDIRON_V1_IDENTITY,
@@ -80,6 +100,13 @@ static OFFICIAL_ELDIRON_V1: LazyLock<String> = LazyLock::new(|| {
         OFFICIAL_ELDIRON_V1_RACES_CLASSES,
     ]
     .join("\n\n")
+});
+
+static OFFICIAL_ELDIRON_V1: LazyLock<String> = LazyLock::new(|| {
+    let table = graph::RulesGraph::official()
+        .compile()
+        .expect("Bundled rules graph must compile");
+    toml::to_string(&table).expect("Compiled rules must serialize")
 });
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3964,6 +3991,10 @@ fn validate_string_reference(
     let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
         return;
     };
+    // Icon fields may directly reference a project tile by stable UUID.
+    if label == "Icon" && theframework::prelude::Uuid::parse_str(value).is_ok() {
+        return;
+    }
     if !known.contains(value) {
         report.error(
             path,
@@ -4339,6 +4370,21 @@ fn validate_ability_and_spell_rules(
     let conditions = table_key_set(root, &["conditions"]);
     let icons = ruleset_icon_ids(root);
     let fx_presets = table_key_set(root, &["fx", "presets"]);
+    if let Some(presets) = ruleset_table_at_path(root, &["fx", "presets"]) {
+        for (id, preset) in presets {
+            if let Some(value) = preset.get("emitter") {
+                let valid = value
+                    .clone()
+                    .try_into::<particle_graph::ParticleEmitterDef>()
+                    .map_err(|e| e.to_string())
+                    .and_then(|e| particle_graph::validate_settings(&e));
+                if let Err(error) = valid {
+                    report.error(format!("fx.presets.{id}.emitter"), error);
+                }
+            }
+        }
+    }
+
     let declared_attributes = declared_attribute_ids(root);
     let mut item_templates = BTreeSet::new();
     for group in ruleset_item_group_names(root) {

@@ -573,17 +573,20 @@ impl EditorDisplaySession {
                 self.hovered_point = None;
                 EditorDisplayResult::Handled
             }
-            TheEvent::RenderViewScrollBy(id, delta) if is_target(id) => {
-                self.pan += Vec2::new(delta.x as f32, delta.y as f32);
-                EditorDisplayResult::Handled
-            }
-            TheEvent::RenderViewPreciseScrollBy(id, delta) if is_target(id) => {
+            TheEvent::RenderViewScrollBy(id, delta)
+            | TheEvent::RenderViewPreciseScrollBy(id, delta)
+                if is_target(id) =>
+            {
                 if command_zoom {
                     self.zoom = (self.zoom * (delta.y as f32 * 0.025).exp()).clamp(0.2, 8.0);
                 } else {
                     let delta = Vec2::new(delta.x as f32, delta.y as f32);
                     #[cfg(target_os = "macos")]
-                    let delta = -delta;
+                    let delta = if matches!(event, TheEvent::RenderViewPreciseScrollBy(_, _)) {
+                        -delta
+                    } else {
+                        delta
+                    };
                     self.pan += delta;
                 }
                 EditorDisplayResult::Handled
@@ -1252,6 +1255,23 @@ mod tests {
         );
 
         assert_eq!(result, EditorDisplayResult::Handled);
+        assert!(session.zoom > 1.0);
+        assert_eq!(session.pan, Vec2::zero());
+    }
+
+    #[test]
+    fn control_wheel_zooms_profile_editor_instead_of_panning() {
+        let display = EditorDisplay::Profile2D(EditorProfile2D::new(
+            "Profile",
+            vec![Vec2::new(0.0, 0.0), Vec2::new(1.0, 1.0)],
+        ));
+        let mut session =
+            EditorDisplaySession::new(Uuid::new_v4(), ProjectContext::Unknown, display);
+        session.handle_event_with_modifiers(
+            &TheEvent::RenderViewScrollBy(TheId::named("PolyView"), Vec2::new(0, 10)),
+            "PolyView",
+            true,
+        );
         assert!(session.zoom > 1.0);
         assert_eq!(session.pan, Vec2::zero());
     }

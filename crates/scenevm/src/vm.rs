@@ -81,6 +81,12 @@ struct TileBinPod {
     pub count: u32,
 }
 
+// Reuse the spare 2D vertex word for linear particle tint without changing stride.
+fn pack_particle_tint_2d(tint: Vec3<f32>) -> u32 {
+    let channels = tint.map(|value| (value.clamp(0.0, 1.0) * 255.0).round() as u8);
+    u32::from_le_bytes([channels.x, channels.y, channels.z, 255])
+}
+
 const RASTER3D_MAX_POINT_LIGHTS: usize = 8;
 const EMISSIVE_SURFACE_LIGHT_BUDGET: usize = 6;
 const EMISSIVE_SURFACE_POINT_LIGHTS_ENABLED: bool = false;
@@ -614,7 +620,7 @@ struct VsOut {
   @location(1) @interpolate(flat) tile_index: u32,
   @location(2) @interpolate(flat) tile_index2: u32,
   @location(3) blend_factor: f32,
-  @location(4) @interpolate(flat) kind: u32,
+  @location(4) @interpolate(flat) tint_rgba: u32,
 };
 
 fn tile_frame(tile_index: u32, phase_start_counter: u32) -> TileFrame {
@@ -950,6 +956,7 @@ fn vs_main(in: VsIn) -> VsOut {
   out.tile_index = in.tile_index;
   out.tile_index2 = in.tile_index2;
   out.blend_factor = in.blend_factor;
+  out.tint_rgba = in._pad0;
   return out;
 }
 
@@ -958,6 +965,17 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
   let Minv = mat3x3<f32>(UBO.mat2d_inv_c0.xyz, UBO.mat2d_inv_c1.xyz, UBO.mat2d_inv_c2.xyz);
   let world2 = Minv * vec3<f32>(in.pos.xy, 1.0);
   let world = vec3<f32>(world2.x, 0.0, world2.y);
+
+  let is_particle = (in.tile_index2 & 0x08000000u) != 0u;
+  if (is_particle) {
+    // Particles carry linear tint and opacity, independent of scene lighting.
+    let tint = unpack4x8unorm(in.tint_rgba).rgb;
+    let delta = in.uv * 2.0 - vec2<f32>(1.0);
+    let radial = pow(clamp(1.0 - length(delta), 0.0, 1.0), 1.7);
+    let alpha = radial * clamp(in.blend_factor, 0.0, 1.0);
+    if (alpha <= 0.001) { discard; }
+    return vec4<f32>(apply_post(tint, in.pos), alpha);
+  }
 
   let is_avatar = (in.tile_index2 & 0x80000000u) != 0u;
   if (is_avatar) {
@@ -9111,8 +9129,16 @@ impl VM {
                         uv: uvs[i],
                         tile_index,
                         tile_index2,
-                        blend_factor: obj.anim_start_counter.map(|v| v as f32).unwrap_or(0.0),
-                        _pad0: 0,
+                        blend_factor: if obj.kind == DynamicKind::ParticleBillboard {
+                            obj.opacity.clamp(0.0, 1.0)
+                        } else {
+                            obj.anim_start_counter.map(|v| v as f32).unwrap_or(0.0)
+                        },
+                        _pad0: if obj.kind == DynamicKind::ParticleBillboard {
+                            pack_particle_tint_2d(obj.tint)
+                        } else {
+                            0
+                        },
                     });
                 }
                 indices_flat.extend_from_slice(&[
@@ -13794,8 +13820,9 @@ fn light_flicker_multipliers(light: &Light, animation_counter: usize) -> (f32, f
 #[cfg(test)]
 mod shader_tests {
     use super::{
-        SCENEVM_3D_ORGANIC_BILLBOARD_WGSL, SCENEVM_3D_RASTER_WGSL, VM, light_flicker_multipliers,
-        resolved_poly_normals, screen_round_paint_brush_transform,
+        SCENEVM_2D_RASTER_WGSL, SCENEVM_3D_ORGANIC_BILLBOARD_WGSL, SCENEVM_3D_RASTER_WGSL, VM,
+        light_flicker_multipliers, pack_particle_tint_2d, resolved_poly_normals,
+        screen_round_paint_brush_transform,
     };
     use crate::{Chunk, GeoId, Light, Poly3D};
     use uuid::Uuid;
@@ -13857,6 +13884,78 @@ mod shader_tests {
         let (shading, geometry) = resolved_poly_normals(&poly, &positions, Mat4::identity());
         assert_eq!(shading, vec![[1.0, 0.0, 0.0]; 3]);
         assert_eq!(geometry, vec![[0.0, 0.0, 1.0]; 3]);
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn raster_2d_hit_particles_overlay_sprites_with_tint_and_opacity() {
+        use crate::{Atom, DynamicObject, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        let mut scene = SceneVM::new(32, 32);
+        scene.execute(Atom::SetRenderMode(RenderMode::Raster2D));
+        scene.execute(Atom::SetBackground(Vec4::new(0.0, 0.0, 0.0, 1.0)));
+        scene.execute(Atom::SetGP3(Vec4::new(1.0, 1.0, 1.0, 1.0)));
+        let tile = Uuid::new_v4();
+        scene.execute(Atom::AddTile {
+            id: tile,
+            width: 1,
+            height: 1,
+            frames: vec![vec![0, 0, 255, 255]],
+            material_frames: None,
+        });
+        scene.execute(Atom::BuildAtlas);
+        scene.execute(Atom::AddDynamic {
+            object: DynamicObject::billboard_tile(
+                GeoId::Unknown(1),
+                tile,
+                Vec3::new(16.0, 16.0, 0.0),
+                Vec3::unit_x(),
+                Vec3::unit_y(),
+                24.0,
+                24.0,
+            )
+            .with_layer(10),
+        });
+        scene.execute(Atom::AddDynamic {
+            object: DynamicObject::particle_tile_2d(
+                GeoId::Unknown(2),
+                tile,
+                Vec2::new(16.0, 16.0),
+                16.0,
+                16.0,
+            )
+            .with_layer(5)
+            .with_tint(Vec3::new(1.0, 0.0, 0.0))
+            .with_opacity(0.5),
+        });
+        let mut pixels = vec![0; 32 * 32 * 4];
+        scene.render_frame(&mut pixels, 32, 32);
+        let center = &pixels[(16 * 32 + 16) * 4..][..4];
+        assert!(
+            center[0] > 60,
+            "red particle must overlay the blue sprite: {center:?}"
+        );
+        assert!(
+            center[2] > 60,
+            "half opacity must retain the sprite underneath: {center:?}"
+        );
+        assert!(
+            center[1] < center[0] / 2,
+            "particle must use authored tint: {center:?}"
+        );
+    }
+
+    #[test]
+    fn raster_2d_particle_shader_validates() {
+        let module = wgpu::naga::front::wgsl::parse_str(SCENEVM_2D_RASTER_WGSL)
+            .expect("2D raster WGSL should parse");
+        wgpu::naga::valid::Validator::new(
+            wgpu::naga::valid::ValidationFlags::all(),
+            wgpu::naga::valid::Capabilities::all(),
+        )
+        .validate(&module)
+        .expect("2D particle shading should validate");
+        assert_eq!(pack_particle_tint_2d(Vec3::new(1.0, 0.0, 0.5)), 0xff8000ff);
     }
 
     #[test]

@@ -799,7 +799,7 @@ impl MapEditor {
                             {
                             } else {
                                 if server_ctx.editor_view_mode != EditorViewMode::D2 {
-                                    if precise_trackpad_scroll && ui.logo {
+                                    if ui.ctrl || ui.logo {
                                         EDITCAMERA
                                             .write()
                                             .unwrap()
@@ -809,7 +809,7 @@ impl MapEditor {
                                     {
                                         // First-person navigation has no orbit
                                         // target to pan. WASD owns translation;
-                                        // pinch or Command-scroll owns FOV.
+                                        // pinch or Ctrl/Command-scroll owns FOV.
                                     } else if precise_trackpad_scroll || ui.shift {
                                         if let Some(render_view) =
                                             crate::utils::map_editor_render_view(ui, server_ctx)

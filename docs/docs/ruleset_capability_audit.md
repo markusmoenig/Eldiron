@@ -52,7 +52,7 @@ The goal is reached when:
 | --- | --- | --- | --- |
 | Bundled official selection | Config selects an embedded id/version; official parts and assets are compiled into `eldiron-ruleset`; rules and shared asset lookup now use typed `RulesetSelection` | Functional | Route selection through the future shared package loader |
 | Project override | Nested TOML tables merge over the selected official source; scalars and arrays replace | Functional | Document deletion and array semantics; add origin inspection |
-| Project-owned standalone rules | `source = "project"` treats **Game / Rules** as the complete ruleset | Functional | Validate required capabilities and improve Creator startup templates |
+| Project-owned standalone rules | Projects own complete node rulesets; custom branches can omit RPG domains | Functional | Improve standalone startup templates and module-wide editing |
 | External ruleset package | Only the bundled official package is registered; official assets use compile-time lists | Missing | Add manifest discovery, package asset loading, import/export, and version checks |
 | Derived distributable ruleset | No public `extends` package contract or explicit removal mechanism | Missing | Define schema-2 inheritance, removal, conflict, and migration rules |
 | Schema and engine compatibility enforcement | Resolution rejects unsupported selected/declared schema versions, selection/source mismatches, invalid minimum versions, and engines older than the declared minimum | Functional | Add explicit schema migration and compatibility-range policies |
@@ -161,7 +161,7 @@ The goal is reached when:
 
 | Capability | Current evidence | Status | Required next step |
 | --- | --- | --- | --- |
-| Raw project rules editing | **Game / Rules** exposes TOML editing and diagnostics | Functional | Add schema-aware completion and structured forms |
+| Node rules authoring | **Game / Rules** edits individual definition branches with generic typed Table/List/Set Attribute nodes and diagnostics; projects persist nodes only | Initial full-ruleset implementation | Add dedicated domain controls, inherited deltas, and module-wide operations |
 | Ruleset selection | **Game / Settings** exposes official/project fields | Functional | Add package browser and derived ruleset selection |
 | Inspectors | Console/terminal list, show, summarize, roll, class, item, recipe, XP, and validate commands exist | Functional | Make all inspectors consume `ResolvedRuleset` |
 | Item synchronization | Creator creates/refreshes ruleset-backed item templates | Functional | Generalize asset/package origin and conflict handling |
