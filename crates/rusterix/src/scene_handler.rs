@@ -133,6 +133,106 @@ mod tests {
     use super::*;
 
     #[test]
+    fn property_fingerprints_track_mutations_and_preserve_saved_data() {
+        fn fingerprint(values: &crate::ValueContainer) -> u64 {
+            let mut hash = rustc_hash::FxHasher::default();
+            SceneHandler::hash_properties(&mut hash, values);
+            hash.finish()
+        }
+        let mut values = crate::ValueContainer::new();
+        values.set("enabled", Value::Bool(false));
+        values.set("slots", Value::StrArray(vec!["floor".into()]));
+        let before_json = serde_json::to_vec(&values).unwrap();
+        let before_cache = values.clone();
+        let original = fingerprint(&values);
+        assert_eq!(values, before_cache);
+        assert_eq!(before_json, serde_json::to_vec(&values).unwrap());
+        let restored: crate::ValueContainer = serde_json::from_slice(&before_json).unwrap();
+        assert_eq!(values, restored);
+        assert_eq!(original, fingerprint(&restored));
+        let cached_clone = values.clone();
+        values.toggle("enabled");
+        assert_ne!(original, fingerprint(&values));
+        assert_eq!(original, fingerprint(&cached_clone));
+        let toggled = fingerprint(&values);
+        if let Some(Value::StrArray(slots)) = values.get_mut("slots") {
+            slots.push("wall".into());
+        }
+        assert_ne!(toggled, fingerprint(&values));
+        let edited = fingerprint(&values);
+        values.set("enabled", Value::Bool(false));
+        assert_ne!(edited, fingerprint(&values));
+        let edited = fingerprint(&values);
+        values.remove("slots");
+        assert_ne!(edited, fingerprint(&values));
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn dynamics_hash_tracks_geometry_sources_and_builder_bindings() {
+        let handler = SceneHandler::default();
+        let assets = Assets::default();
+        let styles = FxHashMap::default();
+        let mut map = Map::new();
+        map.vertices.push(crate::Vertex::new(0, 0., 0.));
+        map.linedefs.push(crate::Linedef::new(0, 0, 0));
+        map.sectors.push(crate::Sector::new(0, vec![0]));
+        for index in 0..3 {
+            for key in [
+                "source",
+                "row1_source",
+                "builder_graph_data",
+                "builder_material_wall",
+            ] {
+                let before = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
+                let properties = match index {
+                    0 => &mut map.sectors[0].properties,
+                    1 => &mut map.linedefs[0].properties,
+                    _ => &mut map.vertices[0].properties,
+                };
+                let previous = properties.get(key).cloned();
+                properties.set(
+                    key,
+                    if key == "builder_graph_data" {
+                        Value::Str("authored graph".into())
+                    } else {
+                        Value::Source(PixelSource::TileId(Uuid::new_v4()))
+                    },
+                );
+                let edited = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
+                assert_ne!(before, edited, "index={index} key={key}");
+                let properties = match index {
+                    0 => &mut map.sectors[0].properties,
+                    1 => &mut map.linedefs[0].properties,
+                    _ => &mut map.vertices[0].properties,
+                };
+                properties.remove(key);
+                assert_ne!(
+                    edited,
+                    handler.dynamics_hash_2d(&map, 0, &styles, &assets),
+                    "removal index={index} key={key}"
+                );
+                if let Some(previous) = previous {
+                    let properties = match index {
+                        0 => &mut map.sectors[0].properties,
+                        1 => &mut map.linedefs[0].properties,
+                        _ => &mut map.vertices[0].properties,
+                    };
+                    properties.set(key, previous);
+                }
+                assert_eq!(
+                    before,
+                    handler.dynamics_hash_2d(&map, 0, &styles, &assets),
+                    "restored index={index} key={key}"
+                );
+            }
+        }
+        let before = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
+        map.vertices[0].x += 1.;
+        assert_ne!(before, handler.dynamics_hash_2d(&map, 0, &styles, &assets));
+    }
+
+    #[test]
     #[ignore = "requires a native GPU adapter"]
     fn dynamics_cache_tracks_effect_edits_without_overlay_invalidation() {
         let mut handler = SceneHandler::default();
@@ -3058,11 +3158,23 @@ impl SceneHandler {
     }
 
     fn hash_properties(hasher: &mut rustc_hash::FxHasher, values: &crate::ValueContainer) {
-        for key in values.keys() {
+        hasher.write_u64(values.cached_fingerprint(|| {
+            let mut fingerprint = rustc_hash::FxHasher::default();
+            Self::hash_properties_uncached(&mut fingerprint, values);
+            fingerprint.finish()
+        }));
+    }
+
+    fn hash_properties_uncached(hasher: &mut rustc_hash::FxHasher, values: &crate::ValueContainer) {
+        // Canonical order keeps fingerprints stable after reinsertion, cloning
+        // and saving/loading. Sorting is paid only when this container changes.
+        let mut entries = values.iter().collect::<Vec<_>>();
+        entries.sort_unstable_by(|(a, _), (b, _)| a.cmp(b));
+        for (key, value) in entries {
             hasher.write_u8(1);
             hasher.write_usize(key.len());
             hasher.write(key.as_bytes());
-            match values.get(key).unwrap() {
+            match value {
                 Value::Bool(value) => {
                     hasher.write_u8(0);
                     hasher.write_u8(u8::from(*value));
@@ -3284,85 +3396,23 @@ impl SceneHandler {
         hasher.write_u64(map.items.len() as u64);
         hasher.write_u64(map.entities.len() as u64);
 
+        // Property hashing already includes sources, builder documents and all
+        // material bindings. Re-reading them (and parsing every document) adds
+        // no invalidation information and is expensive on large tile maps.
         for sector in &map.sectors {
             Self::hash_properties(&mut hasher, &sector.properties);
             hasher.write_u32(sector.id);
-            if let Some(source) = sector.properties.get_default_source() {
-                Self::hash_pixel_source(&mut hasher, source);
-            } else {
-                hasher.write_u8(0);
-            }
-            if let Some(builder_graph_data) = sector.properties.get_str("builder_graph_data") {
-                hasher.write(builder_graph_data.as_bytes());
-                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
-                    for slot in graph.material_slot_names() {
-                        let key = format!(
-                            "builder_material_{}",
-                            Self::normalize_builder_material_key(&slot)
-                        );
-                        if let Some(Value::Source(source)) = sector.properties.get(&key) {
-                            Self::hash_pixel_source(&mut hasher, source);
-                        } else {
-                            hasher.write_u8(0);
-                        }
-                    }
-                }
-            }
         }
-
         for linedef in &map.linedefs {
             Self::hash_properties(&mut hasher, &linedef.properties);
             hasher.write_u32(linedef.id);
-            if let Some(Value::Source(source)) = linedef.properties.get("row1_source") {
-                Self::hash_pixel_source(&mut hasher, source);
-            } else {
-                hasher.write_u8(0);
-            }
-            if let Some(builder_graph_data) = linedef.properties.get_str("builder_graph_data") {
-                hasher.write(builder_graph_data.as_bytes());
-                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
-                    for slot in graph.material_slot_names() {
-                        let key = format!(
-                            "builder_material_{}",
-                            Self::normalize_builder_material_key(&slot)
-                        );
-                        if let Some(Value::Source(source)) = linedef.properties.get(&key) {
-                            Self::hash_pixel_source(&mut hasher, source);
-                        } else {
-                            hasher.write_u8(0);
-                        }
-                    }
-                }
-            }
         }
-
         for vertex in &map.vertices {
             Self::hash_properties(&mut hasher, &vertex.properties);
             hasher.write_u32(vertex.id);
             hasher.write_u32(vertex.x.to_bits());
             hasher.write_u32(vertex.y.to_bits());
             hasher.write_u32(vertex.z.to_bits());
-            if let Some(Value::Source(source)) = vertex.properties.get("source") {
-                Self::hash_pixel_source(&mut hasher, source);
-            } else {
-                hasher.write_u8(0);
-            }
-            if let Some(builder_graph_data) = vertex.properties.get_str("builder_graph_data") {
-                hasher.write(builder_graph_data.as_bytes());
-                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
-                    for slot in graph.material_slot_names() {
-                        let key = format!(
-                            "builder_material_{}",
-                            Self::normalize_builder_material_key(&slot)
-                        );
-                        if let Some(Value::Source(source)) = vertex.properties.get(&key) {
-                            Self::hash_pixel_source(&mut hasher, source);
-                        } else {
-                            hasher.write_u8(0);
-                        }
-                    }
-                }
-            }
         }
 
         for object in &map.geometry_objects {

@@ -958,7 +958,8 @@ impl Sidebar {
                                 TheValue::Empty,
                             ));
 
-                            RUSTERIX.write().unwrap().set_dirty();
+                            // Navigation only changes camera anchors. The render path
+                            // applies those each frame; retain cached geometry and FX.
 
                             /*
                             let region_width = region.width * region.grid_size;

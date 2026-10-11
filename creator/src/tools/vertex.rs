@@ -1027,10 +1027,11 @@ impl Tool for VertexTool {
                     if let Some(render_view) = crate::utils::map_editor_render_view(ui, server_ctx)
                     {
                         let dim = *render_view.dim();
-                        let h = server_ctx.geometry_at(
+                        let h = server_ctx.geometry_at_for_tool(
                             Vec2::new(dim.width as f32, dim.height as f32),
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
+                            MapToolType::Vertex,
                         );
                         server_ctx.hover.0 = h.0;
 

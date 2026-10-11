@@ -2635,10 +2635,11 @@ impl Tool for LinedefTool {
                                 map.subdivisions,
                             ));
                         }
-                        let mut hover = server_ctx.geometry_at(
+                        let mut hover = server_ctx.geometry_at_for_tool(
                             Vec2::new(dim.width as f32, dim.height as f32),
                             Vec2::new(coord.x as f32, coord.y as f32),
                             map,
+                            MapToolType::Linedef,
                         );
 
                         hover.0 = None;

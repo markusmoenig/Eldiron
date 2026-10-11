@@ -1075,54 +1075,103 @@ impl ServerContext {
         screen_pos: Vec2<f32>,
         map: &Map,
     ) -> (Option<u32>, Option<u32>, Option<u32>) {
+        self.geometry_at_filtered(screen_size, screen_pos, map, None)
+    }
+
+    /// Pick only the geometry consumed by the active tool.
+    pub fn geometry_at_for_tool(
+        &self,
+        screen_size: Vec2<f32>,
+        screen_pos: Vec2<f32>,
+        map: &Map,
+        tool: MapToolType,
+    ) -> (Option<u32>, Option<u32>, Option<u32>) {
+        self.geometry_at_filtered(screen_size, screen_pos, map, Some(tool))
+    }
+
+    fn geometry_at_filtered(
+        &self,
+        screen_size: Vec2<f32>,
+        screen_pos: Vec2<f32>,
+        map: &Map,
+        tool: Option<MapToolType>,
+    ) -> (Option<u32>, Option<u32>, Option<u32>) {
+        let (pick_vertices, pick_lines, pick_sectors) = match tool {
+            Some(MapToolType::Vertex) => (true, false, false),
+            Some(MapToolType::Linedef) => (false, true, false),
+            Some(MapToolType::Sector) => (false, false, true),
+            _ => (true, true, true),
+        };
         let mut selection: (Option<u32>, Option<u32>, Option<u32>) = (None, None, None);
         let hover_threshold = 6.0;
 
-        // Check the vertices
-        for vertex in &map.vertices {
-            if vertex.intersects_vertical_slice(self.editing_slice, self.editing_slice_height) {
-                if let Some(vertex_pos) = map.get_vertex(vertex.id) {
-                    let vertex_pos = Self::map_grid_to_local(screen_size, vertex_pos, map);
-                    if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
-                        selection.0 = Some(vertex.id);
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Check the lines
-        for linedef in &map.linedefs {
-            if linedef.intersects_vertical_slice(map, self.editing_slice, self.editing_slice_height)
-            {
-                if self.no_rect_geo_on_map && map.is_linedef_in_rect(linedef.id) {
-                    continue;
-                }
-
-                let start_vertex = map.get_vertex(linedef.start_vertex);
-                let end_vertex = map.get_vertex(linedef.end_vertex);
-
-                if let Some(start_vertex) = start_vertex {
-                    if let Some(end_vertex) = end_vertex {
-                        let start_pos = Self::map_grid_to_local(screen_size, start_vertex, map);
-                        let end_pos = Self::map_grid_to_local(screen_size, end_vertex, map);
-
-                        // Compute the perpendicular distance from the point to the line
-                        let line_vec = end_pos - start_pos;
-                        let mouse_vec = screen_pos - start_pos;
-                        let line_vec_length = line_vec.magnitude();
-                        let projection =
-                            mouse_vec.dot(line_vec) / (line_vec_length * line_vec_length);
-                        let closest_point = start_pos + projection.clamp(0.0, 1.0) * line_vec;
-                        let distance = (screen_pos - closest_point).magnitude();
-
-                        if distance <= hover_threshold {
-                            selection.1 = Some(linedef.id);
+        if pick_vertices {
+            // Check the vertices
+            for vertex in &map.vertices {
+                if vertex.intersects_vertical_slice(self.editing_slice, self.editing_slice_height) {
+                    if let Some(vertex_pos) = map.get_vertex(vertex.id) {
+                        let vertex_pos = Self::map_grid_to_local(screen_size, vertex_pos, map);
+                        if (screen_pos - vertex_pos).magnitude() <= hover_threshold {
+                            selection.0 = Some(vertex.id);
                             break;
                         }
                     }
                 }
             }
+        }
+
+        if pick_lines {
+            // Build rectangle membership once per pick. Scanning every sector for
+            // each line makes hovering large tile maps quadratic. Read live sector
+            // lists so topology edits and unsanitized maps are handled immediately.
+            let rect_linedefs: FxHashSet<u32> = if self.no_rect_geo_on_map {
+                map.sectors
+                    .iter()
+                    .filter(|sector| sector.layer.is_some())
+                    .flat_map(|sector| sector.linedefs.iter().copied())
+                    .collect()
+            } else {
+                FxHashSet::default()
+            };
+
+            // Check the lines
+            for linedef in &map.linedefs {
+                if rect_linedefs.contains(&linedef.id) {
+                    continue;
+                }
+                if linedef.intersects_vertical_slice(
+                    map,
+                    self.editing_slice,
+                    self.editing_slice_height,
+                ) {
+                    let start_vertex = map.get_vertex(linedef.start_vertex);
+                    let end_vertex = map.get_vertex(linedef.end_vertex);
+
+                    if let Some(start_vertex) = start_vertex {
+                        if let Some(end_vertex) = end_vertex {
+                            let start_pos = Self::map_grid_to_local(screen_size, start_vertex, map);
+                            let end_pos = Self::map_grid_to_local(screen_size, end_vertex, map);
+
+                            // Compute the perpendicular distance from the point to the line
+                            let line_vec = end_pos - start_pos;
+                            let mouse_vec = screen_pos - start_pos;
+                            let line_vec_length = line_vec.magnitude();
+                            let projection =
+                                mouse_vec.dot(line_vec) / (line_vec_length * line_vec_length);
+                            let closest_point = start_pos + projection.clamp(0.0, 1.0) * line_vec;
+                            let distance = (screen_pos - closest_point).magnitude();
+
+                            if distance <= hover_threshold {
+                                selection.1 = Some(linedef.id);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !pick_sectors {
+            return selection;
         }
 
         // Check the sectors
@@ -1148,16 +1197,20 @@ impl ServerContext {
         }
 
         // Reverse on sorted sectors by area (to allow to pick small sectors first)
-        let ordered = map.sorted_sectors_by_area();
-        for sector in ordered.iter().rev() {
+        let mut ordered: Vec<_> = map
+            .sectors
+            .iter()
+            .filter(|sector| {
+                !(self.no_rect_geo_on_map
+                    && sector.properties.contains("rect")
+                    && sector.name.is_empty())
+            })
+            .map(|sector| (sector, sector.area(map)))
+            .collect();
+        ordered.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        for (sector, _) in ordered.iter().rev() {
             if sector.intersects_vertical_slice(map, self.editing_slice, self.editing_slice_height)
             {
-                if self.no_rect_geo_on_map
-                    && sector.properties.contains("rect")
-                    && sector.name.is_empty()
-                {
-                    continue;
-                }
                 let mut vertices = Vec::new();
                 for &linedef_id in &sector.linedefs {
                     if let Some(linedef) = map.find_linedef(linedef_id) {
@@ -1173,7 +1226,7 @@ impl ServerContext {
                     }
                 }
 
-                if point_in_polygon(screen_pos, &vertices) {
+                if vertices.len() >= 3 && point_in_polygon(screen_pos, &vertices) {
                     selection.2 = Some(sector.id);
                     return selection;
                 }
@@ -1384,6 +1437,56 @@ impl ServerContext {
 mod tests {
     use super::{ProjectContext, ServerContext};
     use theframework::prelude::{Uuid, Vec2};
+
+    #[test]
+    fn geometry_picking_preserves_live_rectangle_membership_and_named_sectors() {
+        use rusterix::{Linedef, Map, Sector, Value, Vertex};
+        let mut map = Map::default();
+        map.grid_size = 20.0;
+        map.vertices = vec![
+            Vertex::new(10, 0.0, 0.0),
+            Vertex::new(20, 4.0, 0.0),
+            Vertex::new(30, 4.0, 4.0),
+            Vertex::new(40, 0.0, 4.0),
+        ];
+        map.linedefs = vec![
+            Linedef::new(100, 10, 20),
+            Linedef::new(200, 20, 30),
+            Linedef::new(300, 30, 40),
+            Linedef::new(400, 40, 10),
+        ];
+        let mut sector = Sector::new(500, vec![100, 200, 300, 400]);
+        sector.layer = Some(1);
+        sector.properties.set("rect", Value::Bool(true));
+        map.sectors.push(sector);
+        let mut context = ServerContext::new();
+        context.no_rect_geo_on_map = true;
+        let size = Vec2::new(200.0, 200.0);
+        let edge = ServerContext::map_grid_to_local(size, Vec2::new(2.0, 0.0), &map);
+        let center = ServerContext::map_grid_to_local(size, Vec2::new(2.0, 2.0), &map);
+        assert_eq!(context.geometry_at(size, edge, &map).1, None);
+        assert_eq!(context.geometry_at(size, center, &map).2, None);
+        map.sectors[0].name = "Named tile".into();
+        assert_eq!(context.geometry_at(size, center, &map).2, Some(500));
+        map.sectors[0].layer = None;
+        assert_eq!(context.geometry_at(size, edge, &map).1, Some(100));
+        map.sectors[0].layer = Some(1);
+        context.no_rect_geo_on_map = false;
+        assert_eq!(context.geometry_at(size, edge, &map).1, Some(100));
+        for point in [edge, center] {
+            let full = context.geometry_at(size, point, &map);
+            for (tool, expected) in [
+                (rusterix::MapToolType::Vertex, (full.0, None, None)),
+                (rusterix::MapToolType::Linedef, (None, full.1, None)),
+                (rusterix::MapToolType::Sector, (None, None, full.2)),
+            ] {
+                assert_eq!(
+                    context.geometry_at_for_tool(size, point, &map, tool),
+                    expected
+                );
+            }
+        }
+    }
 
     #[test]
     fn edit_grid_step_rounds_and_clamps_subdivisions() {

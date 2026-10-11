@@ -1,3 +1,17 @@
+# Eldiron v0.95.3
+
+## Improvements
+
+### Creator
+
+- Sped up loading very large maps by rebuilding line/sector links in a single pass.
+- Improved 2D canvas responsiveness by caching property fingerprints and avoiding repeated effect checks and graph parsing; property edits and removals still refresh effects immediately.
+- Sped up tile painting by removing discarded full-map copies for each painted cell and temporary sector vertex lists, while preserving undo for each stroke.
+- Minimap navigation now preserves cached effects when moving the camera.
+- Fixed long UI stalls on large tile maps when hovering with geometry tools by checking rectangle membership in one pass, skipping hidden tile sectors before sorting, and picking only the geometry needed by the active tool; these stalls could also delay minimap navigation and closing the app.
+
+---
+
 # Eldiron v0.95.2
 
 ## Improvements

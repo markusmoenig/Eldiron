@@ -11593,7 +11593,22 @@ mod tests {
     #[ignore = "requires a native GPU and ELDIRON_BENCH_PROJECT_PATH"]
     fn benchmark_u5_creator_redraw() {
         let path = std::env::var("ELDIRON_BENCH_PROJECT_PATH").unwrap();
+        let stage = std::time::Instant::now();
         let project = Editor::load_project_from_path(std::path::Path::new(&path)).unwrap();
+        println!(
+            "Creator load decode={:.2}ms",
+            stage.elapsed().as_secs_f64() * 1000.
+        );
+        for region in &project.regions {
+            println!(
+                "Creator map {} vertices={} lines={} sectors={}",
+                region.name,
+                region.map.vertices.len(),
+                region.map.linedefs.len(),
+                region.map.sectors.len()
+            );
+        }
+        let stage = std::time::Instant::now();
         let mut editor = Editor::new();
         let scale = std::env::var("ELDIRON_BENCH_UI_SCALE")
             .ok()
@@ -11608,21 +11623,65 @@ mod tests {
         ui.canvas.root = true;
         ui.canvas.set_dim(TheDim::new(0, 0, 1600, 1000), &mut ctx);
         editor.init_ui(&mut ui, &mut ctx);
+        println!(
+            "Creator load init_ui={:.2}ms",
+            stage.elapsed().as_secs_f64() * 1000.
+        );
+        let stage = std::time::Instant::now();
         editor.open_project_as_session(project, None, &mut ui, &mut ctx, &mut false, &mut false);
+        println!(
+            "Creator load activate={:.2}ms",
+            stage.elapsed().as_secs_f64() * 1000.
+        );
         editor.server_ctx.editor_view_mode = EditorViewMode::D2;
-        editor.server_ctx.curr_map_tool_type = MapToolType::Rect;
+        {
+            let mut tools = TOOLLIST.write().unwrap();
+            let command = if std::env::var_os("ELDIRON_BENCH_SECTOR").is_some() {
+                "tool.sector"
+            } else {
+                "tool.rect"
+            };
+            let id = tools.get_game_tool_uuid_by_command_id(command).unwrap();
+            tools.set_tool(
+                id,
+                &mut ui,
+                &mut ctx,
+                &mut editor.project,
+                &mut editor.server_ctx,
+            );
+        }
         ui.canvas.layout(1600, 1000, &mut ctx);
         let mut frame = vec![0; ctx.framebuffer_width * ctx.framebuffer_height * 4];
+        let stage = std::time::Instant::now();
         for _ in 0..10 {
             editor.update_tracker = crate::misc::UpdateTracker::new();
+            ui.update(&mut ctx);
             editor.update_ui(&mut ui, &mut ctx);
             ui.draw(&mut frame, &mut ctx);
         }
+        println!(
+            "Creator load first_10_frames={:.2}ms",
+            stage.elapsed().as_secs_f64() * 1000.
+        );
         let initial_offset = editor.project.regions[0].map.offset;
-        for mode in ["hover", "pan", "zoom"] {
+        let minimap_cache_key = *crate::minimap::MINIMAPCACHEKEY.read().unwrap();
+        let map_changed = editor.project.regions[0].map.changed;
+        let frames = std::env::var("ELDIRON_BENCH_FRAMES")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(40);
+        let input = std::env::var_os("ELDIRON_BENCH_INPUT").is_some();
+        let view_id = ui.get_render_view("PolyView").unwrap().id().clone();
+        println!("Creator benchmark pid={} input={input}", std::process::id());
+        let modes = if std::env::var_os("ELDIRON_BENCH_MINIMAP").is_some() {
+            vec!["minimap"]
+        } else {
+            vec!["hover", "pan", "zoom"]
+        };
+        for mode in modes {
             let mut update = Vec::new();
             let mut composition = Vec::new();
-            for i in 0..40 {
+            for i in 0..frames {
                 let map = &mut editor.project.regions[0].map;
                 if mode == "pan" {
                     map.offset.x = initial_offset.x + i as f32 * 2.;
@@ -11632,9 +11691,56 @@ mod tests {
                 }
                 editor.server_ctx.hover_cursor = Some(Vec2::new(12. + i as f32 * 0.1, 12.));
                 editor.update_tracker = crate::misc::UpdateTracker::new();
+                if mode == "minimap" {
+                    ctx.ui.send(TheEvent::RenderViewHoverChanged(
+                        view_id.clone(),
+                        Vec2::new(500, 300),
+                    ));
+                    let coord = Vec2::new(40 + i as i32 % 100, 80);
+                    ui.get_widget("MiniMap").unwrap().on_event(
+                        &match i % 3 {
+                            0 => TheEvent::MouseDown(coord),
+                            1 => TheEvent::MouseDragged(coord),
+                            _ => TheEvent::MouseUp(coord),
+                        },
+                        &mut ctx,
+                    );
+                } else if input {
+                    ctx.ui.send(match mode {
+                        "pan" => {
+                            TheEvent::RenderViewPreciseScrollBy(view_id.clone(), Vec2::new(2, 0))
+                        }
+                        "zoom" => TheEvent::RenderViewZoomBy(view_id.clone(), 0.005),
+                        _ => TheEvent::RenderViewHoverChanged(
+                            view_id.clone(),
+                            Vec2::new(500 + i as i32 % 200, 300),
+                        ),
+                    });
+                }
                 let start = std::time::Instant::now();
+                ui.update(&mut ctx);
                 editor.update_ui(&mut ui, &mut ctx);
                 update.push(start.elapsed().as_secs_f64() * 1000.);
+                if mode == "minimap" {
+                    // Include the queued marker refresh in navigation timing.
+                    let marker_start = std::time::Instant::now();
+                    editor.update_tracker = crate::misc::UpdateTracker::new();
+                    ui.update(&mut ctx);
+                    editor.update_ui(&mut ui, &mut ctx);
+                    *update.last_mut().unwrap() += marker_start.elapsed().as_secs_f64() * 1000.;
+                    assert_eq!(
+                        *crate::minimap::MINIMAPCACHEKEY.read().unwrap(),
+                        minimap_cache_key
+                    );
+                    assert_eq!(editor.project.regions[0].map.changed, map_changed);
+                    assert_ne!(editor.project.regions[0].map.offset, initial_offset);
+                    let before_close = std::time::Instant::now();
+                    let _ = editor.has_changes();
+                    println!(
+                        "Creator close check={:.2}ms",
+                        before_close.elapsed().as_secs_f64() * 1000.
+                    );
+                }
                 let start = std::time::Instant::now();
                 ui.draw(&mut frame, &mut ctx);
                 composition.push(start.elapsed().as_secs_f64() * 1000.);

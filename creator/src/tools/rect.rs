@@ -123,157 +123,6 @@ impl Tool for RectTool {
     ) -> Option<ProjectUndoAtom> {
         let mut undo_atom: Option<ProjectUndoAtom> = None;
 
-        /// Add a tile at the current hover position
-        fn add_tile(
-            ui: &mut TheUI,
-            _ctx: &mut TheContext,
-            map: &mut Map,
-            server_ctx: &mut ServerContext,
-            hovered_vertices: Option<[Vec2<f32>; 4]>,
-            mode: i32,
-        ) -> Option<ProjectUndoAtom> {
-            let mut undo_atom: Option<ProjectUndoAtom> = None;
-            // let size = 1.0 / map.subdivisions;
-
-            if let Some(vertices) = hovered_vertices {
-                let mut add_it = true;
-                let mut layer: u8 = 0;
-
-                if ui.shift {
-                    // Delete the top tile at the given position if shift is pressed
-                    if let Some(ev0) = map.find_vertex_at(vertices[0].x, vertices[0].y) {
-                        if let Some(ev1) = map.find_vertex_at(vertices[1].x, vertices[1].y) {
-                            if let Some(ev2) = map.find_vertex_at(vertices[2].x, vertices[2].y) {
-                                if let Some(ev3) = map.find_vertex_at(vertices[3].x, vertices[3].y)
-                                {
-                                    let sectors =
-                                        map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
-
-                                    if let Some(sector_id) = sectors.last() {
-                                        let prev = map.clone();
-                                        let mut lines = vec![];
-                                        if let Some(s) = map.find_sector(*sector_id) {
-                                            lines = s.linedefs.clone();
-                                        }
-                                        map.delete_elements(&[], &lines, &[*sector_id]);
-                                        undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                            server_ctx.pc,
-                                            Box::new(prev),
-                                            Box::new(map.clone()),
-                                        ));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else if let Some(source) = get_source(ui, server_ctx) {
-                    // Add mode
-                    // Check if tile already exists with same source
-                    if let Some(ev0) = map.find_vertex_at(vertices[0].x, vertices[0].y) {
-                        if let Some(ev1) = map.find_vertex_at(vertices[1].x, vertices[1].y) {
-                            if let Some(ev2) = map.find_vertex_at(vertices[2].x, vertices[2].y) {
-                                if let Some(ev3) = map.find_vertex_at(vertices[3].x, vertices[3].y)
-                                {
-                                    let sectors =
-                                        map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
-
-                                    let prev = map.clone();
-                                    for sector_id in sectors {
-                                        if let Some(sector) = map.find_sector_mut(sector_id) {
-                                            if let Some(sector_floor_source) =
-                                                sector.properties.get_default_source()
-                                            {
-                                                // Assign id to the higher current layer id (+1).
-                                                if let Some(l) = &sector.layer {
-                                                    if *l > layer {
-                                                        layer = *l;
-                                                    }
-                                                }
-
-                                                if source == *sector_floor_source {
-                                                    // A tile with the same floor_source exists, do not add.
-                                                    add_it = false;
-                                                } else if mode == 0 {
-                                                    // In overlay mode we just overwrite the source
-                                                    sector.properties.set(
-                                                        "source",
-                                                        Value::Source(source.clone()),
-                                                    );
-
-                                                    undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                                        server_ctx.pc,
-                                                        Box::new(prev),
-                                                        Box::new(map.clone()),
-                                                    ));
-
-                                                    add_it = false;
-                                                    break;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if add_it {
-                        let v0 = map.add_vertex_at(vertices[0].x, vertices[0].y);
-                        let v1 = map.add_vertex_at(vertices[1].x, vertices[1].y);
-                        let v2 = map.add_vertex_at(vertices[2].x, vertices[2].y);
-                        let v3 = map.add_vertex_at(vertices[3].x, vertices[3].y);
-
-                        map.possible_polygon = vec![];
-                        let _ = map.create_linedef_manual(v0, v1);
-                        let _ = map.create_linedef_manual(v1, v2);
-                        let _ = map.create_linedef_manual(v2, v3);
-                        let _ = map.create_linedef_manual(v3, v0);
-                        let sid = map.close_polygon_manual();
-
-                        if let Some(sector_id) = sid {
-                            // Add the info for correct box rendering
-                            // if let Some(l) = map.find_linedef_mut(l0.0) {
-                            //     l.properties.set("row1_source", source.clone());
-                            //     l.properties.set("wall_height", Value::Float(size));
-                            // }
-                            // if let Some(l) = map.find_linedef_mut(l1.0) {
-                            //     l.properties.set("row1_source", source.clone());
-                            //     l.properties.set("wall_height", Value::Float(size));
-                            // }
-                            // if let Some(l) = map.find_linedef_mut(l2.0) {
-                            //     l.properties.set("row1_source", source.clone());
-                            //     l.properties.set("wall_height", Value::Float(size));
-                            // }
-                            // if let Some(l) = map.find_linedef_mut(id.0) {
-                            //     l.properties.set("row1_source", source.clone());
-                            //     l.properties.set("wall_height", Value::Float(size));
-                            // }
-
-                            let prev = map.clone();
-                            if let Some(sector) = map.find_sector_mut(sector_id) {
-                                sector.properties.set("rect", Value::Bool(true));
-
-                                sector.properties.set("source", Value::Source(source));
-                                sector.layer = Some(layer + 1);
-                            }
-
-                            undo_atom = Some(ProjectUndoAtom::MapEdit(
-                                server_ctx.pc,
-                                Box::new(prev),
-                                Box::new(map.clone()),
-                            ));
-
-                            map.selected_vertices.clear();
-                            map.selected_linedefs.clear();
-                            map.selected_sectors = vec![sector_id];
-                        }
-                    }
-                }
-            }
-
-            undo_atom
-        }
-
         fn apply_hover(
             coord: Vec2<i32>,
             ui: &mut TheUI,
@@ -365,7 +214,13 @@ impl Tool for RectTool {
                                     Vec2::new(x + step, y + step),
                                     Vec2::new(x + step, y),
                                 ]);
-                                add_tile(ui, ctx, work_map, server_ctx, verts, self.mode).is_some()
+                                Self::paint_cell(
+                                    work_map,
+                                    verts,
+                                    get_source(ui, server_ctx),
+                                    ui.shift,
+                                    self.mode,
+                                )
                             };
                             if changed {
                                 self.stroke_changed = true;
@@ -469,8 +324,13 @@ impl Tool for RectTool {
                                         Vec2::new(x + step, y + step),
                                         Vec2::new(x + step, y),
                                     ]);
-                                    add_tile(ui, ctx, work_map, server_ctx, verts, self.mode)
-                                        .is_some()
+                                    Self::paint_cell(
+                                        work_map,
+                                        verts,
+                                        get_source(ui, server_ctx),
+                                        ui.shift,
+                                        self.mode,
+                                    )
                                 };
                                 if changed {
                                     self.stroke_changed = true;
@@ -674,6 +534,122 @@ impl Tool for RectTool {
 mod tests {
     use super::*;
 
+    fn cell(x: f32, y: f32) -> Option<[Vec2<f32>; 4]> {
+        Some([
+            Vec2::new(x, y),
+            Vec2::new(x, y + 1.),
+            Vec2::new(x + 1., y + 1.),
+            Vec2::new(x + 1., y),
+        ])
+    }
+
+    #[test]
+    fn stroke_cell_paint_preserves_overwrite_stacking_and_erase() {
+        let mut map = Map::new();
+        let a = PixelSource::TileId(Uuid::new_v4());
+        let b = PixelSource::TileId(Uuid::new_v4());
+        assert!(RectTool::paint_cell(
+            &mut map,
+            cell(0., 0.),
+            Some(a.clone()),
+            false,
+            0
+        ));
+        assert_eq!(map.sectors.len(), 1);
+        let counts = (map.vertices.len(), map.linedefs.len());
+        assert!(!RectTool::paint_cell(
+            &mut map,
+            cell(0., 0.),
+            Some(a.clone()),
+            false,
+            0
+        ));
+        assert!(RectTool::paint_cell(
+            &mut map,
+            cell(0., 0.),
+            Some(b.clone()),
+            false,
+            0
+        ));
+        assert_eq!(map.sectors[0].properties.get_default_source(), Some(&b));
+        assert_eq!(counts, (map.vertices.len(), map.linedefs.len()));
+        assert!(!RectTool::paint_cell(
+            &mut map,
+            cell(0., 0.),
+            Some(a.clone()),
+            false,
+            1
+        ));
+        // Existing stacked tiles have distinct rings; deleting their top layer
+        // must preserve the cell underneath.
+        let base = map.sectors[0].linedefs.clone();
+        let mut ring = Vec::new();
+        for (i, id) in base.iter().enumerate() {
+            let line = map.find_linedef(*id).unwrap();
+            let copy = rusterix::Linedef::new(100 + i as u32, line.start_vertex, line.end_vertex);
+            ring.push(copy.id);
+            map.linedefs.push(copy);
+        }
+        let mut top = rusterix::Sector::new(100, ring);
+        top.layer = Some(2);
+        top.properties.set("source", Value::Source(a.clone()));
+        map.sectors.push(top);
+        map.sanitize();
+        assert_eq!(map.sectors.len(), 2);
+        assert!(RectTool::paint_cell(&mut map, cell(0., 0.), None, true, 0));
+        assert_eq!(map.sectors.len(), 1);
+        assert_eq!(map.sectors[0].properties.get_default_source(), Some(&b));
+        assert!(!RectTool::paint_cell(
+            &mut map,
+            cell(0., 0.),
+            None,
+            false,
+            0
+        ));
+        assert!(RectTool::paint_cell(&mut map, cell(0., 0.), None, true, 0));
+        assert!(map.sectors.is_empty());
+    }
+
+    #[test]
+    #[ignore = "requires ELDIRON_BENCH_PROJECT_PATH"]
+    fn benchmark_large_map_rect_paint() {
+        let path = std::env::var("ELDIRON_BENCH_PROJECT_PATH").unwrap();
+        let project = shared::project_io::decode_project(&std::fs::read(path).unwrap()).unwrap();
+        let mut map = project.regions.into_iter().next().unwrap().map;
+        map.sanitize();
+        let started = Instant::now();
+        let snapshot = map.clone();
+        println!(
+            "Rect stroke snapshot={:.2}ms",
+            started.elapsed().as_secs_f64() * 1000.
+        );
+        let source = PixelSource::TileId(Uuid::new_v4());
+        let started = Instant::now();
+        for x in 0..16 {
+            assert!(RectTool::paint_cell(
+                &mut map,
+                cell(x as f32, 0.),
+                Some(source.clone()),
+                false,
+                0
+            ));
+        }
+        println!(
+            "Rect cell mutation mean={:.2}ms (excludes scene rebuild and stroke snapshots)",
+            started.elapsed().as_secs_f64() * 1000. / 16.
+        );
+        assert_eq!(snapshot.sectors.len(), map.sectors.len());
+        for x in 0..16 {
+            assert!(!RectTool::paint_cell(
+                &mut map,
+                cell(x as f32, 0.),
+                Some(source.clone()),
+                false,
+                0
+            ));
+        }
+    }
+
     #[test]
     fn d2_paint_cells_select_their_scene_chunk_across_boundaries() {
         let mut chunks = FxHashSet::default();
@@ -726,6 +702,139 @@ mod tests {
 }
 
 impl RectTool {
+    /// Add a tile at the current hover position
+    // The stroke owns its undo snapshots; individual cells only report changes.
+    fn paint_cell(
+        map: &mut Map,
+        hovered_vertices: Option<[Vec2<f32>; 4]>,
+        source: Option<PixelSource>,
+        erase: bool,
+        mode: i32,
+    ) -> bool {
+        let mut changed = false;
+        // let size = 1.0 / map.subdivisions;
+
+        if let Some(vertices) = hovered_vertices {
+            let mut add_it = true;
+            let mut layer: u8 = 0;
+
+            if erase {
+                // Delete the top tile at the given position if shift is pressed
+                if let Some(ev0) = map.find_vertex_at(vertices[0].x, vertices[0].y) {
+                    if let Some(ev1) = map.find_vertex_at(vertices[1].x, vertices[1].y) {
+                        if let Some(ev2) = map.find_vertex_at(vertices[2].x, vertices[2].y) {
+                            if let Some(ev3) = map.find_vertex_at(vertices[3].x, vertices[3].y) {
+                                let sectors =
+                                    map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
+
+                                if let Some(sector_id) = sectors.last() {
+                                    let mut lines = vec![];
+                                    if let Some(s) = map.find_sector(*sector_id) {
+                                        lines = s.linedefs.clone();
+                                    }
+                                    map.delete_elements(&[], &lines, &[*sector_id]);
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if let Some(source) = source {
+                // Add mode
+                // Check if tile already exists with same source
+                if let Some(ev0) = map.find_vertex_at(vertices[0].x, vertices[0].y) {
+                    if let Some(ev1) = map.find_vertex_at(vertices[1].x, vertices[1].y) {
+                        if let Some(ev2) = map.find_vertex_at(vertices[2].x, vertices[2].y) {
+                            if let Some(ev3) = map.find_vertex_at(vertices[3].x, vertices[3].y) {
+                                let sectors =
+                                    map.find_sectors_with_vertex_indices(&[ev0, ev1, ev2, ev3]);
+
+                                for sector_id in sectors {
+                                    if let Some(sector) = map.find_sector_mut(sector_id) {
+                                        if let Some(sector_floor_source) =
+                                            sector.properties.get_default_source()
+                                        {
+                                            // Assign id to the higher current layer id (+1).
+                                            if let Some(l) = &sector.layer {
+                                                if *l > layer {
+                                                    layer = *l;
+                                                }
+                                            }
+
+                                            if source == *sector_floor_source {
+                                                // A tile with the same floor_source exists, do not add.
+                                                add_it = false;
+                                            } else if mode == 0 {
+                                                // In overlay mode we just overwrite the source
+                                                sector
+                                                    .properties
+                                                    .set("source", Value::Source(source.clone()));
+
+                                                changed = true;
+
+                                                add_it = false;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if add_it {
+                    let v0 = map.add_vertex_at(vertices[0].x, vertices[0].y);
+                    let v1 = map.add_vertex_at(vertices[1].x, vertices[1].y);
+                    let v2 = map.add_vertex_at(vertices[2].x, vertices[2].y);
+                    let v3 = map.add_vertex_at(vertices[3].x, vertices[3].y);
+
+                    map.possible_polygon = vec![];
+                    let _ = map.create_linedef_manual(v0, v1);
+                    let _ = map.create_linedef_manual(v1, v2);
+                    let _ = map.create_linedef_manual(v2, v3);
+                    let _ = map.create_linedef_manual(v3, v0);
+                    let sid = map.close_polygon_manual();
+
+                    if let Some(sector_id) = sid {
+                        // Add the info for correct box rendering
+                        // if let Some(l) = map.find_linedef_mut(l0.0) {
+                        //     l.properties.set("row1_source", source.clone());
+                        //     l.properties.set("wall_height", Value::Float(size));
+                        // }
+                        // if let Some(l) = map.find_linedef_mut(l1.0) {
+                        //     l.properties.set("row1_source", source.clone());
+                        //     l.properties.set("wall_height", Value::Float(size));
+                        // }
+                        // if let Some(l) = map.find_linedef_mut(l2.0) {
+                        //     l.properties.set("row1_source", source.clone());
+                        //     l.properties.set("wall_height", Value::Float(size));
+                        // }
+                        // if let Some(l) = map.find_linedef_mut(id.0) {
+                        //     l.properties.set("row1_source", source.clone());
+                        //     l.properties.set("wall_height", Value::Float(size));
+                        // }
+
+                        if let Some(sector) = map.find_sector_mut(sector_id) {
+                            sector.properties.set("rect", Value::Bool(true));
+
+                            sector.properties.set("source", Value::Source(source));
+                            sector.layer = Some(layer + 1);
+                        }
+
+                        changed = true;
+
+                        map.selected_vertices.clear();
+                        map.selected_linedefs.clear();
+                        map.selected_sectors = vec![sector_id];
+                    }
+                }
+            }
+        }
+
+        changed
+    }
+
     fn encode_tile_source(source: TileSource) -> TheValue {
         match source {
             TileSource::SingleTile(id) => {

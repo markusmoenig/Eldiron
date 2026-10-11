@@ -318,6 +318,82 @@ mod tests {
     }
 
     #[test]
+    fn cell_matching_preserves_sparse_stacked_sector_order() {
+        let mut map = Map::new();
+        map.vertices = vec![
+            Vertex::new(10, 0., 0.),
+            Vertex::new(20, 0., 1.),
+            Vertex::new(30, 1., 1.),
+            Vertex::new(40, 1., 0.),
+            Vertex::new(50, 2., 0.),
+        ];
+        map.linedefs = vec![
+            Linedef::new(100, 10, 20),
+            Linedef::new(200, 20, 30),
+            Linedef::new(300, 30, 40),
+            Linedef::new(400, 40, 10),
+            Linedef::new(500, 40, 50),
+        ];
+        map.sectors = vec![
+            Sector::new(42, vec![100, 200, 300, 400]),
+            Sector::new(70, vec![100, 200]),
+            Sector::new(80, vec![100, 200, 300, 400, 500]),
+            Sector::new(99, vec![400, 300, 200, 100]),
+        ];
+        assert_eq!(
+            map.find_sectors_with_vertex_indices(&[10, 20, 30, 40]),
+            vec![42, 99]
+        );
+        assert_eq!(
+            map.find_sectors_with_vertex_indices(&[30, 10, 40, 20]),
+            vec![42, 99]
+        );
+        assert!(
+            map.find_sectors_with_vertex_indices(&[10, 20, 30, 30])
+                .is_empty()
+        );
+        assert!(
+            map.find_sectors_with_vertex_indices(&[10, 20, 30, 60])
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn sanitize_rebuilds_sparse_shared_associations_and_clears_stale_links() {
+        let mut map = Map::new();
+        map.vertices = vec![
+            Vertex::new(10, 0., 0.),
+            Vertex::new(30, 1., 0.),
+            Vertex::new(50, 0., 1.),
+        ];
+        map.linedefs = vec![
+            Linedef::new(100, 10, 30),
+            Linedef::new(300, 30, 50),
+            Linedef::new(500, 50, 10),
+            Linedef::new(900, 10, 50),
+        ];
+        for line in &mut map.linedefs {
+            line.sector_ids = vec![999];
+        }
+        map.sectors = vec![
+            Sector::new(42, vec![100, 300, 500]),
+            Sector::new(77, vec![100, 300, 500]),
+        ];
+        map.sanitize();
+        for id in [100, 300, 500] {
+            assert_eq!(map.find_linedef(id).unwrap().sector_ids, vec![42, 77]);
+        }
+        assert!(map.find_linedef(900).unwrap().sector_ids.is_empty());
+        map.sectors.remove(0);
+        map.linedefs.reverse();
+        map.sanitize();
+        for id in [100, 300, 500] {
+            assert_eq!(map.find_linedef(id).unwrap().sector_ids, vec![77]);
+        }
+        assert!(map.find_linedef(900).unwrap().sector_ids.is_empty());
+    }
+
+    #[test]
     fn geometry_floor_height_nearest_can_place_below_roof() {
         let mut map = Map::default();
         map.geometry_objects.push(GeometryObject::box_(
@@ -2136,25 +2212,36 @@ impl Map {
     pub fn find_sectors_with_vertex_indices(&self, vertex_indices: &[u32; 4]) -> Vec<u32> {
         let mut matching_sectors = Vec::new();
 
-        let mut new_vertex_set = vertex_indices.to_vec();
-        new_vertex_set.sort();
-
+        // Compare against the four target IDs without allocating a vector for
+        // every sector. A foreign vertex rejects most cells on the first edge.
+        if vertex_indices
+            .iter()
+            .enumerate()
+            .any(|(i, id)| vertex_indices[..i].contains(id))
+        {
+            return matching_sectors;
+        }
         for sector in &self.sectors {
-            let mut sector_vertex_indices = Vec::new();
-
+            let mut seen = 0_u8;
+            let mut matches = true;
             for &linedef_id in &sector.linedefs {
                 if let Some(linedef) = self.find_linedef(linedef_id) {
-                    sector_vertex_indices.push(linedef.start_vertex);
-                    sector_vertex_indices.push(linedef.end_vertex);
+                    for id in [linedef.start_vertex, linedef.end_vertex] {
+                        if let Some(index) =
+                            vertex_indices.iter().position(|candidate| *candidate == id)
+                        {
+                            seen |= 1 << index;
+                        } else {
+                            matches = false;
+                            break;
+                        }
+                    }
+                }
+                if !matches {
+                    break;
                 }
             }
-
-            // Deduplicate and sort for consistent comparison
-            sector_vertex_indices.sort();
-            sector_vertex_indices.dedup();
-
-            // If the sector contains exactly these 4 vertices, it's a match
-            if sector_vertex_indices == new_vertex_set {
+            if matches && seen == 0b1111 {
                 matching_sectors.push(sector.id);
             }
         }
@@ -2198,10 +2285,9 @@ impl Map {
     /// This should be called after loading a map or when sectors are modified.
     pub fn sanitize(&mut self) {
         // First, sanitize: remove linedefs that reference non-existent vertices
-        let valid_vertex_ids: std::collections::HashSet<u32> =
-            self.vertices.iter().map(|v| v.id).collect();
+        let valid_vertex_ids: FxHashSet<u32> = self.vertices.iter().map(|v| v.id).collect();
 
-        let mut orphaned_linedef_ids = Vec::new();
+        let mut orphaned_linedef_ids = FxHashSet::default();
 
         for linedef in &self.linedefs {
             if !valid_vertex_ids.contains(&linedef.start_vertex)
@@ -2211,7 +2297,7 @@ impl Map {
                     "Sanitizing: removing orphaned linedef {} (references vertices {} -> {})",
                     linedef.id, linedef.start_vertex, linedef.end_vertex
                 );
-                orphaned_linedef_ids.push(linedef.id);
+                orphaned_linedef_ids.insert(linedef.id);
             }
         }
 
@@ -2220,16 +2306,14 @@ impl Map {
                 .retain(|linedef| !orphaned_linedef_ids.contains(&linedef.id));
 
             // Collect sectors before cleanup to remove their surfaces
-            let sectors_before: std::collections::HashSet<u32> =
-                self.sectors.iter().map(|s| s.id).collect();
+            let sectors_before: FxHashSet<u32> = self.sectors.iter().map(|s| s.id).collect();
 
             // Clean up sectors that reference these linedefs (removes invalid refs and empty sectors)
             self.cleanup_sectors();
 
             // Find which sectors were removed
-            let sectors_after: std::collections::HashSet<u32> =
-                self.sectors.iter().map(|s| s.id).collect();
-            let removed_sector_ids: Vec<u32> =
+            let sectors_after: FxHashSet<u32> = self.sectors.iter().map(|s| s.id).collect();
+            let removed_sector_ids: FxHashSet<u32> =
                 sectors_before.difference(&sectors_after).copied().collect();
 
             // Remove surfaces for deleted sectors
@@ -2261,7 +2345,7 @@ impl Map {
         }
 
         // Additional validation: check for sectors with invalid geometry
-        let mut invalid_sectors = Vec::new();
+        let mut invalid_sectors = FxHashSet::default();
         for sector in &self.sectors {
             // Check if sector has enough linedefs to form a polygon
             if sector.linedefs.len() < 3 {
@@ -2270,7 +2354,7 @@ impl Map {
                     sector.id,
                     sector.linedefs.len()
                 );
-                invalid_sectors.push(sector.id);
+                invalid_sectors.insert(sector.id);
                 continue;
             }
 
@@ -2298,7 +2382,7 @@ impl Map {
                 }
             }
             if has_invalid_linedef {
-                invalid_sectors.push(sector.id);
+                invalid_sectors.insert(sector.id);
                 continue;
             }
 
@@ -2312,7 +2396,7 @@ impl Map {
                             "Sanitizing: sector {} does not form a closed loop (last vertex {} != first vertex {})",
                             sector.id, last_linedef.end_vertex, first_linedef.start_vertex
                         );
-                        invalid_sectors.push(sector.id);
+                        invalid_sectors.insert(sector.id);
                         continue;
                     }
                 }
@@ -2333,7 +2417,7 @@ impl Map {
                 }
             }
             if has_zero_length {
-                invalid_sectors.push(sector.id);
+                invalid_sectors.insert(sector.id);
                 continue;
             }
 
@@ -2367,7 +2451,7 @@ impl Map {
                 }
             }
             if has_invalid_coords {
-                invalid_sectors.push(sector.id);
+                invalid_sectors.insert(sector.id);
             }
         }
 
@@ -2399,14 +2483,14 @@ impl Map {
         // Rebuild surfaces for remaining sectors and check for invalid transforms
         self.update_surfaces();
 
-        let mut invalid_surface_sectors = Vec::new();
+        let mut invalid_surface_sectors = FxHashSet::default();
         for (_surface_id, surface) in &self.surfaces {
             if !surface.is_valid() {
                 println!(
                     "Sanitizing: sector {} has surface with invalid transform (NaN/Inf)",
                     surface.sector_id
                 );
-                invalid_surface_sectors.push(surface.sector_id);
+                invalid_surface_sectors.insert(surface.sector_id);
             }
         }
 
@@ -2437,11 +2521,6 @@ impl Map {
             );
         }
 
-        // Now, clear all existing sector_ids
-        for linedef in &mut self.linedefs {
-            linedef.sector_ids.clear();
-        }
-
         // Collect all linedef-to-sector associations
         let mut associations: FxHashMap<u32, Vec<u32>> = FxHashMap::default();
         for sector in &self.sectors {
@@ -2454,11 +2533,10 @@ impl Map {
             }
         }
 
-        // Apply the associations to linedefs
-        for (linedef_id, sector_ids) in associations {
-            if let Some(linedef) = self.linedefs.iter_mut().find(|l| l.id == linedef_id) {
-                linedef.sector_ids = sector_ids;
-            }
+        // Walk the lines once. Searching the vector for every association makes
+        // loading a large tile map quadratic in its line count.
+        for linedef in &mut self.linedefs {
+            linedef.sector_ids = associations.remove(&linedef.id).unwrap_or_default();
         }
 
         // Wall meshes are derived from their persistent connected source graphs. Rebuilding here

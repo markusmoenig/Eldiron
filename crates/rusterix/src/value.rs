@@ -192,9 +192,17 @@ impl fmt::Display for Value {
     }
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ValueContainer {
     values: FxHashMap<String, Value>,
+    #[serde(skip)]
+    fingerprint: std::sync::OnceLock<u64>,
+}
+
+impl PartialEq for ValueContainer {
+    fn eq(&self, other: &Self) -> bool {
+        self.values == other.values
+    }
 }
 
 impl Default for ValueContainer {
@@ -208,11 +216,13 @@ impl ValueContainer {
     pub fn new() -> Self {
         ValueContainer {
             values: FxHashMap::default(),
+            fingerprint: std::sync::OnceLock::new(),
         }
     }
 
     // Add or update a value
     pub fn set(&mut self, key: &str, value: Value) {
+        self.fingerprint.take();
         self.values.insert(key.to_string(), value);
     }
 
@@ -223,6 +233,7 @@ impl ValueContainer {
 
     // Toggle a boolean value
     pub fn toggle(&mut self, key: &str) {
+        self.fingerprint.take();
         if let Some(Value::Bool(current)) = self.values.get_mut(key) {
             *current = !*current;
         }
@@ -230,6 +241,7 @@ impl ValueContainer {
 
     // Get a mutable reference to a value by key
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
+        self.fingerprint.take();
         self.values.get_mut(key)
     }
 
@@ -444,7 +456,19 @@ impl ValueContainer {
 
     // Remove a value by key
     pub fn remove(&mut self, key: &str) -> Option<Value> {
+        self.fingerprint.take();
         self.values.remove(key)
+    }
+
+    /// Cache expensive read-only change detection until any mutable access.
+    /// Runtime metadata is excluded from serialization and semantic equality.
+    pub(crate) fn cached_fingerprint(&self, compute: impl FnOnce() -> u64) -> u64 {
+        *self.fingerprint.get_or_init(compute)
+    }
+
+    /// Borrow each key and value together without performing a second lookup.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (&String, &Value)> {
+        self.values.iter()
     }
 
     // Get all keys
