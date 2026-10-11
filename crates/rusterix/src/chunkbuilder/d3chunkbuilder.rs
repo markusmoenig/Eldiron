@@ -29,6 +29,58 @@ pub const DEFAULT_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
 
 pub struct D3ChunkBuilder {}
 
+impl D3ChunkBuilder {
+    fn has_collision_sources(map: &Map) -> bool {
+        !map.surfaces.is_empty()
+            || !map.geometry_objects.is_empty()
+            || !map.block_prop_instances.is_empty()
+            || map.properties.get_bool_default("terrain_enabled", false)
+            || map.sectors.iter().any(|sector| {
+                sector
+                    .properties
+                    .get_bool_default("stairs_generated", false)
+                    || matches!(sector.properties.get("sector_feature"),
+                        Some(Value::Str(feature)) if feature == "Stairs")
+            })
+            || map.linedefs.iter().any(|line| {
+                matches!(line.properties.get("linedef_feature"),
+                    Some(Value::Str(feature)) if feature == "Palisade" || feature == "Fence")
+            })
+    }
+
+    /// Build the runtime collision world. Pure tile maps have no mesh collision
+    /// sources, so check that once rather than rescanning every line per chunk.
+    pub(crate) fn build_collision_world(map: &Map, assets: &Assets) -> crate::CollisionWorld {
+        let mut world = crate::CollisionWorld::default();
+        if map.vertices.is_empty()
+            && map.geometry_objects.is_empty()
+            && map.block_prop_instances.is_empty()
+        {
+            return world;
+        }
+        let chunk_size = 10;
+        let bbox = map.bbox_with_block_props(&assets.block_props);
+        let min_chunk = (bbox.min / chunk_size as f32).map(|v| v.floor() as i32);
+        let max_chunk = (bbox.max / chunk_size as f32).map(|v| v.floor() as i32);
+        let has_sources = Self::has_collision_sources(map);
+        let mut builder = Self::new();
+        for cy in min_chunk.y..=max_chunk.y {
+            for cx in min_chunk.x..=max_chunk.x {
+                let origin = Vec2::new(cx, cy);
+                let collision = if has_sources {
+                    builder.build_collision(map, assets, origin, chunk_size)
+                } else {
+                    crate::collision_world::ChunkCollision::new()
+                };
+                // Preserve empty chunks too: has_collision_data() distinguishes
+                // an initialized world from an absent one during navigation.
+                world.update_chunk(origin, collision);
+            }
+        }
+        world
+    }
+}
+
 fn vertical_surface_y_range(
     surface: &crate::Surface,
     path: &[Vec2<f32>],
@@ -3055,6 +3107,81 @@ mod tests {
     use super::*;
     use crate::map::surface::{Basis3, EditPlane, ExtrusionSpec, Plane};
     use crate::{Linedef, Surface, Vertex};
+
+    #[test]
+    fn batch_collision_world_preserves_empty_chunks_and_new_mesh_geometry() {
+        let mut map = Map::default();
+        map.vertices = vec![Vertex::new(10, 0., 0.), Vertex::new(20, 20., 20.)];
+        let assets = Assets::default();
+        let empty = D3ChunkBuilder::build_collision_world(&map, &assets);
+        assert!(empty.has_collision_data());
+        assert_eq!(empty.get_floor_height(Vec2::new(5., 5.)), None);
+        assert!(!empty.is_blocked(Vec3::new(5., 0., 5.), 0.1));
+        assert!(!D3ChunkBuilder::has_collision_sources(&map));
+
+        // Rebuild after adding geometry: a previous empty-world result must not
+        // suppress new floors or blocking volumes.
+        map.geometry_objects.push(crate::GeometryObject::box_(
+            "floor",
+            Vec3::new(5., -0.5, 5.),
+            Vec3::new(4., 1., 4.),
+        ));
+        let actual = D3ChunkBuilder::build_collision_world(&map, &assets);
+        let mut expected = crate::CollisionWorld::default();
+        let mut builder = D3ChunkBuilder::new();
+        for y in 0..=2 {
+            for x in 0..=2 {
+                let origin = Vec2::new(x, y);
+                expected.update_chunk(origin, builder.build_collision(&map, &assets, origin, 10));
+            }
+        }
+        assert_eq!(actual.has_collision_data(), expected.has_collision_data());
+        assert_eq!(actual.get_floor_height(Vec2::new(5., 5.)), Some(0.));
+        for point in [
+            Vec2::new(5., 5.),
+            Vec2::new(3., 3.),
+            Vec2::new(7., 7.),
+            Vec2::new(15., 15.),
+        ] {
+            assert_eq!(
+                actual.get_floor_height(point),
+                expected.get_floor_height(point)
+            );
+            assert_eq!(
+                actual.is_blocked(Vec3::new(point.x, 0., point.y), 0.1),
+                expected.is_blocked(Vec3::new(point.x, 0., point.y), 0.1)
+            );
+        }
+    }
+
+    #[test]
+    fn collision_source_detection_includes_authored_features_and_terrain() {
+        let mut map = Map::default();
+        let mut line = Linedef::new(10, 0, 1);
+        for feature in ["Fence", "Palisade"] {
+            line.properties
+                .set("linedef_feature", Value::Str(feature.into()));
+            map.linedefs = vec![line.clone()];
+            assert!(D3ChunkBuilder::has_collision_sources(&map));
+        }
+        map.linedefs.clear();
+        let mut sector = Sector::new(10, vec![]);
+        sector
+            .properties
+            .set("sector_feature", Value::Str("Stairs".into()));
+        map.sectors.push(sector);
+        assert!(D3ChunkBuilder::has_collision_sources(&map));
+        map.sectors[0].properties.remove("sector_feature");
+        map.sectors[0]
+            .properties
+            .set("stairs_generated", Value::Bool(true));
+        assert!(D3ChunkBuilder::has_collision_sources(&map));
+        map.sectors.clear();
+        map.properties.set("terrain_enabled", Value::Bool(true));
+        assert!(D3ChunkBuilder::has_collision_sources(&map));
+        map.properties.remove("terrain_enabled");
+        assert!(!D3ChunkBuilder::has_collision_sources(&map));
+    }
 
     fn make_wall_surface(up_y: f32) -> crate::Surface {
         let right = Vec3::new(1.0, 0.0, 0.0);

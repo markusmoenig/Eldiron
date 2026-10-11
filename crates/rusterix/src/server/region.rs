@@ -8373,47 +8373,11 @@ impl RegionInstance {
         ctx.region_id = self.id;
         ctx.mapmini = ctx.map.as_mini(&ctx.blocking_tiles);
 
-        // Build collision geometry for all chunks (new collision system)
-        use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
-        let mut chunk_builder = D3ChunkBuilder::new();
-        let chunk_size = 10; // Match collision_world chunk size
-
-        // Calculate chunk bounds from full map extents, not only surfaces.
-        // Feature collisions (e.g. palisade/fence on linedefs) can extend beyond sector surfaces.
-        let world_bbox = if ctx.map.vertices.is_empty()
-            && ctx.map.geometry_objects.is_empty()
-            && ctx.map.block_prop_instances.is_empty()
-        {
-            None
-        } else {
-            Some(ctx.map.bbox_with_block_props(&ctx.assets.block_props))
-        };
-        if let Some(bbox) = world_bbox {
-            let min_chunk = vek::Vec2::new(
-                (bbox.min.x / chunk_size as f32).floor() as i32,
-                (bbox.min.y / chunk_size as f32).floor() as i32,
+        ctx.collision_world =
+            crate::chunkbuilder::d3chunkbuilder::D3ChunkBuilder::build_collision_world(
+                &ctx.map,
+                &ctx.assets,
             );
-            let max_chunk = vek::Vec2::new(
-                (bbox.max.x / chunk_size as f32).floor() as i32,
-                (bbox.max.y / chunk_size as f32).floor() as i32,
-            );
-
-            // Build collision for each chunk
-            for cy in min_chunk.y..=max_chunk.y {
-                for cx in min_chunk.x..=max_chunk.x {
-                    let chunk_origin = vek::Vec2::new(cx, cy);
-                    let chunk_collision = chunk_builder.build_collision(
-                        &ctx.map,
-                        &ctx.assets,
-                        chunk_origin,
-                        chunk_size,
-                    );
-
-                    ctx.collision_world
-                        .update_chunk(chunk_origin, chunk_collision);
-                }
-            }
-        }
 
         ctx.ticks = 0;
 
@@ -24985,38 +24949,9 @@ fn set_attr(key: PyObjectRef, value: PyObjectRef, vm: &VirtualMachine) {
                         }
                         if key == "blocking" {
                             ctx.mapmini = ctx.map.as_mini(&ctx.blocking_tiles);
-                            ctx.collision_world = crate::CollisionWorld::default();
-                            use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
-                            let mut chunk_builder = D3ChunkBuilder::new();
-                            let chunk_size = 10;
-                            if !ctx.map.vertices.is_empty()
-                                || !ctx.map.geometry_objects.is_empty()
-                                || !ctx.map.block_prop_instances.is_empty()
-                            {
-                                let bbox =
-                                    ctx.map.bbox_with_block_props(&ctx.assets.block_props);
-                                let min_chunk = vek::Vec2::new(
-                                    (bbox.min.x / chunk_size as f32).floor() as i32,
-                                    (bbox.min.y / chunk_size as f32).floor() as i32,
-                                );
-                                let max_chunk = vek::Vec2::new(
-                                    (bbox.max.x / chunk_size as f32).floor() as i32,
-                                    (bbox.max.y / chunk_size as f32).floor() as i32,
-                                );
-                                for cy in min_chunk.y..=max_chunk.y {
-                                    for cx in min_chunk.x..=max_chunk.x {
-                                        let chunk_origin = vek::Vec2::new(cx, cy);
-                                        let chunk_collision = chunk_builder.build_collision(
-                                            &ctx.map,
-                                            &ctx.assets,
-                                            chunk_origin,
-                                            chunk_size,
-                                        );
-                                        ctx.collision_world
-                                            .update_chunk(chunk_origin, chunk_collision);
-                                    }
-                                }
-                            }
+                            ctx.collision_world = crate::chunkbuilder::d3chunkbuilder::D3ChunkBuilder::build_collision_world(
+                                &ctx.map, &ctx.assets,
+                            );
                         }
                     }
                 } else {

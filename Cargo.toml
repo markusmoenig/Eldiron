@@ -4,16 +4,16 @@ members = ["creator", "run-wasm", "xtask", "crates/ruleset", "crates/shared", "c
 resolver = "2"
 
 [workspace.dependencies]
-theframework = { path = "crates/theframework", version = "0.95.3", features = [
+theframework = { path = "crates/theframework", version = "0.95.4", features = [
     "ui",
 ], default-features = false }
 
-rusterix = { path = "crates/rusterix", version = "0.95.3" }
-scenevm = { path = "crates/scenevm", version = "0.95.3" }
+rusterix = { path = "crates/rusterix", version = "0.95.4" }
+scenevm = { path = "crates/scenevm", version = "0.95.4" }
 
 [workspace.package]
 edition = "2024"
-version = "0.95.3"
+version = "0.95.4"
 license = "MIT"
 authors = ["Markus Moenig"]
 description = "A retro-style RPG game creator."

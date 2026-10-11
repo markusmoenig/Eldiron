@@ -11663,6 +11663,54 @@ mod tests {
             "Creator load first_10_frames={:.2}ms",
             stage.elapsed().as_secs_f64() * 1000.
         );
+        if std::env::var_os("ELDIRON_BENCH_GAME").is_some() {
+            println!("Creator game benchmark pid={}", std::process::id());
+            let start = std::time::Instant::now();
+            {
+                let mut tools = TOOLLIST.write().unwrap();
+                let id = tools.get_game_tool_uuid_by_command_id("tool.game").unwrap();
+                tools.set_tool(
+                    id,
+                    &mut ui,
+                    &mut ctx,
+                    &mut editor.project,
+                    &mut editor.server_ctx,
+                );
+            }
+            ui.update(&mut ctx);
+            editor.update_tracker = crate::misc::UpdateTracker::new();
+            editor.update_ui(&mut ui, &mut ctx);
+            ui.draw(&mut frame, &mut ctx);
+            println!(
+                "Creator game select={:.2}ms",
+                start.elapsed().as_secs_f64() * 1000.
+            );
+            let start = std::time::Instant::now();
+            ctx.ui.send(TheEvent::StateChanged(
+                TheId::named("Play"),
+                TheWidgetState::Clicked,
+            ));
+            ui.update(&mut ctx);
+            editor.update_tracker = crate::misc::UpdateTracker::new();
+            editor.update_ui(&mut ui, &mut ctx);
+            println!(
+                "Creator game Play={:.2}ms",
+                start.elapsed().as_secs_f64() * 1000.
+            );
+            for i in 0..10 {
+                let start = std::time::Instant::now();
+                ui.update(&mut ctx);
+                editor.update_tracker = crate::misc::UpdateTracker::new();
+                editor.update_ui(&mut ui, &mut ctx);
+                ui.draw(&mut frame, &mut ctx);
+                println!(
+                    "Creator game frame {i}={:.2}ms",
+                    start.elapsed().as_secs_f64() * 1000.
+                );
+            }
+            assert!(RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running);
+            return;
+        }
         let initial_offset = editor.project.regions[0].map.offset;
         let minimap_cache_key = *crate::minimap::MINIMAPCACHEKEY.read().unwrap();
         let map_changed = editor.project.regions[0].map.changed;

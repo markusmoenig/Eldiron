@@ -1,3 +1,13 @@
+# Eldiron v0.95.4
+
+## Bug Fixes
+
+### Creator
+
+- Fixed Play freezing on large tile maps by indexing collision edge searches and avoiding repeated mesh collision scans for maps without 3D collision sources.
+
+---
+
 # Eldiron v0.95.3
 
 ## Improvements

@@ -674,3 +674,120 @@ impl MapMini {
         }
     }
 }
+
+#[cfg(test)]
+mod startup_tests {
+    use super::*;
+    use crate::{Linedef, Map, PixelSource, Sector, Value, Vertex};
+    use theframework::prelude::Uuid;
+
+    fn adjacent_blocking_tiles() -> (Map, Uuid) {
+        let tile = Uuid::new_v4();
+        let mut map = Map::default();
+        map.vertices = vec![
+            Vertex::new(10, 0., 0.),
+            Vertex::new(20, 1., 0.),
+            Vertex::new(30, 1., 1.),
+            Vertex::new(40, 0., 1.),
+            Vertex::new(50, 2., 0.),
+            Vertex::new(60, 2., 1.),
+        ];
+        for (id, start, end, sector) in [
+            (100, 10, 20, 1000),
+            (200, 20, 30, 1000),
+            (300, 30, 40, 1000),
+            (400, 40, 10, 1000),
+            (500, 30, 20, 2000),
+            (600, 20, 50, 2000),
+            (700, 50, 60, 2000),
+            (800, 60, 30, 2000),
+        ] {
+            let mut line = Linedef::new(id, start, end);
+            line.sector_ids = vec![sector];
+            map.linedefs.push(line);
+        }
+        for (id, lines) in [
+            (1000, vec![100, 200, 300, 400]),
+            (2000, vec![500, 600, 700, 800]),
+        ] {
+            let mut sector = Sector::new(id, lines);
+            sector.layer = Some(1);
+            sector.properties.set("rect", Value::Bool(true));
+            sector
+                .properties
+                .set("source", Value::Source(PixelSource::TileId(tile)));
+            map.sectors.push(sector);
+        }
+        (map, tile)
+    }
+
+    fn assert_boundary_order(mini: &MapMini, map: &Map, ids: &[u32]) {
+        let actual: Vec<_> = mini
+            .linedefs
+            .iter()
+            .map(|line| (line.start, line.end))
+            .collect();
+        let expected: Vec<_> = ids
+            .iter()
+            .map(|id| {
+                let line = map.find_linedef(*id).unwrap();
+                (
+                    map.get_vertex(line.start_vertex).unwrap(),
+                    map.get_vertex(line.end_vertex).unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn indexed_startup_seams_preserve_boundary_order_and_blocked_cells() {
+        let (mut map, tile) = adjacent_blocking_tiles();
+        let blocking = FxHashSet::from_iter([tile]);
+        // Multiple edges can have the same endpoints. An ineligible candidate
+        // must not mask a later eligible edge in the index.
+        let mut extra = Linedef::new(900, 30, 20);
+        extra.sector_ids = vec![9999];
+        map.linedefs.insert(0, extra);
+        map.linedefs.insert(0, Linedef::new(901, 30, 20));
+        let mini = map.as_mini(&blocking);
+        assert_boundary_order(&mini, &map, &[100, 200, 300, 400, 600, 700, 800]);
+        assert_eq!(
+            mini.blocked_tiles,
+            FxHashSet::from_iter([Vec2::new(0, 0), Vec2::new(1, 0)])
+        );
+        map.sectors.reverse();
+        let mini = map.as_mini(&blocking);
+        assert_boundary_order(&mini, &map, &[500, 600, 700, 800, 100, 300, 400]);
+    }
+
+    #[test]
+    fn indexed_startup_keeps_named_nonblocking_and_shared_edges() {
+        let (mut map, tile) = adjacent_blocking_tiles();
+        let blocking = FxHashSet::from_iter([tile]);
+        map.sectors[1].name = "Named area".into();
+        assert_boundary_order(
+            &map.as_mini(&blocking),
+            &map,
+            &[100, 200, 300, 400, 500, 600, 700, 800],
+        );
+        map.sectors[1]
+            .properties
+            .set("source", Value::Source(PixelSource::Off));
+        let mini = map.as_mini(&blocking);
+        assert_boundary_order(&mini, &map, &[100, 200, 300, 400]);
+        assert_eq!(mini.blocked_tiles, FxHashSet::from_iter([Vec2::new(0, 0)]));
+        map.sectors[1].name.clear();
+        map.sectors[1]
+            .properties
+            .set("source", Value::Source(PixelSource::TileId(tile)));
+        map.sectors[1].linedefs[0] = 200;
+        map.find_linedef_mut(200).unwrap().sector_ids.push(2000);
+        map.linedefs.retain(|line| line.id != 500);
+        assert_boundary_order(
+            &map.as_mini(&blocking),
+            &map,
+            &[100, 200, 300, 400, 600, 700, 800],
+        );
+    }
+}

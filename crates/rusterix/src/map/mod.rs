@@ -1182,6 +1182,10 @@ impl Map {
         let mut blocked_tiles = FxHashSet::default();
         let mut unnamed_blocking_layer_sectors = FxHashSet::default();
 
+        // Build endpoint candidates once, only if blocking rectangles need seam
+        // checks. Repeated full-map reverse-edge searches make startup quadratic.
+        let reversed_edge_candidates = std::cell::OnceCell::new();
+
         for sector in self.sectors.iter() {
             let mut add_it = false;
 
@@ -1233,16 +1237,29 @@ impl Map {
                                 .all(|sid| unnamed_blocking_layer_sectors.contains(sid));
                         let is_reversed_unnamed_blocking_seam = linedef.sector_ids.len() == 1
                             && unnamed_blocking_layer_sectors.contains(&linedef.sector_ids[0])
-                            && self.linedefs.iter().any(|other| {
-                                other.id != linedef.id
-                                    && other.start_vertex == linedef.end_vertex
-                                    && other.end_vertex == linedef.start_vertex
-                                    && !other.sector_ids.is_empty()
-                                    && other
-                                        .sector_ids
-                                        .iter()
-                                        .all(|sid| unnamed_blocking_layer_sectors.contains(sid))
-                            });
+                            && reversed_edge_candidates
+                                .get_or_init(|| {
+                                    let mut index: FxHashMap<(u32, u32), Vec<&Linedef>> =
+                                        FxHashMap::default();
+                                    for edge in &self.linedefs {
+                                        if !edge.sector_ids.is_empty() {
+                                            index
+                                                .entry((edge.start_vertex, edge.end_vertex))
+                                                .or_default()
+                                                .push(edge);
+                                        }
+                                    }
+                                    index
+                                })
+                                .get(&(linedef.end_vertex, linedef.start_vertex))
+                                .is_some_and(|candidates| {
+                                    candidates.iter().any(|other| {
+                                        other.id != linedef.id
+                                            && other.sector_ids.iter().all(|sid| {
+                                                unnamed_blocking_layer_sectors.contains(sid)
+                                            })
+                                    })
+                                });
                         if is_internal_unnamed_blocking_seam || is_reversed_unnamed_blocking_seam {
                             continue;
                         }

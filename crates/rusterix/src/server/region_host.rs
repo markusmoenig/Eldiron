@@ -83,38 +83,11 @@ pub(crate) fn apply_geometry_object_item_attr(
 
 pub(crate) fn rebuild_runtime_navigation(ctx: &mut RegionCtx) {
     ctx.mapmini = ctx.map.as_mini(&ctx.blocking_tiles);
-    ctx.collision_world = crate::CollisionWorld::default();
-
-    use crate::chunkbuilder::{ChunkBuilder, d3chunkbuilder::D3ChunkBuilder};
-    let mut chunk_builder = D3ChunkBuilder::new();
-    let chunk_size = 10;
-
-    if ctx.map.vertices.is_empty()
-        && ctx.map.geometry_objects.is_empty()
-        && ctx.map.block_prop_instances.is_empty()
-    {
-        return;
-    }
-
-    let bbox = ctx.map.bbox_with_block_props(&ctx.assets.block_props);
-    let min_chunk = Vec2::new(
-        (bbox.min.x / chunk_size as f32).floor() as i32,
-        (bbox.min.y / chunk_size as f32).floor() as i32,
-    );
-    let max_chunk = Vec2::new(
-        (bbox.max.x / chunk_size as f32).floor() as i32,
-        (bbox.max.y / chunk_size as f32).floor() as i32,
-    );
-
-    for cy in min_chunk.y..=max_chunk.y {
-        for cx in min_chunk.x..=max_chunk.x {
-            let chunk_origin = Vec2::new(cx, cy);
-            let chunk_collision =
-                chunk_builder.build_collision(&ctx.map, &ctx.assets, chunk_origin, chunk_size);
-            ctx.collision_world
-                .update_chunk(chunk_origin, chunk_collision);
-        }
-    }
+    ctx.collision_world =
+        crate::chunkbuilder::d3chunkbuilder::D3ChunkBuilder::build_collision_world(
+            &ctx.map,
+            &ctx.assets,
+        );
 }
 
 fn rebuild_procedural_region(ctx: &mut RegionCtx, seed_arg: i64) -> bool {
