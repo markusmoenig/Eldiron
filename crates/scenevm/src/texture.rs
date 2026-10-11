@@ -260,7 +260,7 @@ impl Texture {
                 depth_or_array_layers: 1,
             },
         );
-        queue.submit(std::iter::once(encoder.finish()));
+        let _readback_submission = queue.submit(std::iter::once(encoder.finish()));
 
         let slice = g.readback.slice(..);
         #[cfg(not(target_arch = "wasm32"))]
@@ -269,14 +269,17 @@ impl Texture {
             slice.map_async(wgpu::MapMode::Read, move |r| {
                 let _ = tx.send(r);
             });
-            loop {
-                let _ = device.poll(wgpu::PollType::Poll);
-                match rx.try_recv() {
-                    Ok(Ok(())) => break,
-                    Ok(Err(_)) => break,
-                    Err(std::sync::mpsc::TryRecvError::Empty) => continue,
-                    Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
-                }
+            // Sleep on this frame's GPU fence instead of spinning on the UI
+            // thread until map_async completes. Poll also delivers the callback.
+            if device
+                .poll(wgpu::PollType::Wait {
+                    submission_index: Some(_readback_submission),
+                    timeout: None,
+                })
+                .is_err()
+                || !matches!(rx.recv(), Ok(Ok(())))
+            {
+                return;
             }
 
             let data = slice.get_mapped_range();

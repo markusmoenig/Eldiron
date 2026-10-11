@@ -1,3 +1,4 @@
+pub(crate) mod preview_geometry;
 pub mod d2builder;
 pub mod d2material;
 #[cfg(feature = "graphics")]

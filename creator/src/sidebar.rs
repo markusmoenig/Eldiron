@@ -4171,8 +4171,7 @@ impl Sidebar {
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(avatar_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id) {
-                avatar_node.widgets.clear();
-                avatar_node.childs.clear();
+                avatar_node.clear();
 
                 for (_index, avatar) in project.avatars.iter() {
                     let node = gen_avatar_tree_node(avatar);
@@ -4194,8 +4193,7 @@ impl Sidebar {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree")
             && let Some(recipes_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_recipes_id)
         {
-            recipes_node.widgets.clear();
-            recipes_node.childs.clear();
+            recipes_node.clear();
             for recipe in project.procedural_recipes.values() {
                 recipes_node.add_widget(Box::new(gen_procedural_recipe_tree_item(recipe, project)));
             }
@@ -4253,8 +4251,7 @@ impl Sidebar {
 
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(region_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_regions_id) {
-                region_node.widgets.clear();
-                region_node.childs.clear();
+                region_node.clear();
 
                 for (index, region) in project.regions.iter().enumerate() {
                     let mut node = gen_region_tree_node(region);
@@ -4287,8 +4284,7 @@ impl Sidebar {
             if let Some(characters_node) =
                 tree_layout.get_node_by_id_mut(&server_ctx.tree_characters_id)
             {
-                characters_node.widgets.clear();
-                characters_node.childs.clear();
+                characters_node.clear();
 
                 for (_, character) in project.characters.iter() {
                     let node = gen_character_tree_node(character);
@@ -4309,8 +4305,7 @@ impl Sidebar {
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(items_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id) {
-                items_node.widgets.clear();
-                items_node.childs.clear();
+                items_node.clear();
 
                 for (_, item) in project.items.iter() {
                     let node = gen_item_tree_node(item, project);
@@ -4331,8 +4326,7 @@ impl Sidebar {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(tilema_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_tilemaps_id)
             {
-                tilema_node.widgets.clear();
-                tilema_node.childs.clear();
+                tilema_node.clear();
 
                 for tilemap in project.tilemaps.iter() {
                     let node = gen_tilemap_tree_node(tilemap);
@@ -4352,8 +4346,7 @@ impl Sidebar {
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(screen_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_screens_id) {
-                screen_node.widgets.clear();
-                screen_node.childs.clear();
+                screen_node.clear();
 
                 for (_, screen) in project.screens.iter() {
                     let node = gen_screen_tree_node(screen);
@@ -4375,14 +4368,12 @@ impl Sidebar {
             if let Some(font_node) =
                 tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_fonts_id)
             {
-                font_node.widgets.clear();
-                font_node.childs.clear();
+                font_node.clear();
             }
             if let Some(audio_node) =
                 tree_layout.get_node_by_id_mut(&server_ctx.tree_assets_audio_id)
             {
-                audio_node.widgets.clear();
-                audio_node.childs.clear();
+                audio_node.clear();
             }
 
             for (_, asset) in project.assets.iter() {

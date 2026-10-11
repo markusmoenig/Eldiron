@@ -517,9 +517,12 @@ pub struct Raster2DUniforms {
     pub mat2d_inv_c1: [f32; 4],
     pub mat2d_inv_c2: [f32; 4],
     pub palette: [[f32; 4]; 256],
+    pub mat2d_c0: [f32; 4],
+    pub mat2d_c1: [f32; 4],
+    pub mat2d_c2: [f32; 4],
 }
 
-const RASTER2D_UNIFORM_BYTES: usize = (12 * 16) + (256 * 16);
+const RASTER2D_UNIFORM_BYTES: usize = (15 * 16) + (256 * 16);
 const _: [(); RASTER2D_UNIFORM_BYTES] = [(); std::mem::size_of::<Raster2DUniforms>()];
 const _: [(); 0] = [(); std::mem::offset_of!(Raster2DUniforms, misc0)];
 const _: [(); 16] = [(); std::mem::offset_of!(Raster2DUniforms, post_params)];
@@ -573,6 +576,9 @@ struct U2D {
   mat2d_inv_c1: vec4<f32>,
   mat2d_inv_c2: vec4<f32>,
   palette: array<vec4<f32>, 256>,
+  mat2d_c0: vec4<f32>,
+  mat2d_c1: vec4<f32>,
+  mat2d_c2: vec4<f32>,
 };
 @group(0) @binding(0) var<uniform> UBO: U2D;
 @group(0) @binding(1) var atlas_tex: texture_2d<f32>;
@@ -949,8 +955,10 @@ fn vs_main(in: VsIn) -> VsOut {
   var out: VsOut;
   let fb_w = max(UBO.misc0.x, 1.0);
   let fb_h = max(UBO.misc0.y, 1.0);
-  let x = (in.pos.x / fb_w) * 2.0 - 1.0;
-  let y = (in.pos.y / fb_h) * -2.0 + 1.0;
+  let M = mat3x3<f32>(UBO.mat2d_c0.xyz, UBO.mat2d_c1.xyz, UBO.mat2d_c2.xyz);
+  let screen = M * vec3<f32>(in.pos, 1.0);
+  let x = (screen.x / fb_w) * 2.0 - 1.0;
+  let y = (screen.y / fb_h) * -2.0 + 1.0;
   out.pos = vec4<f32>(x, y, 0.0, 1.0);
   out.uv = in.uv;
   out.tile_index = in.tile_index;
@@ -3284,6 +3292,8 @@ pub struct VM {
     geometry2d_dirty: bool,
     cached_v2: Vec<Vert2DPod>,
     cached_i2: Vec<u32>,
+    #[cfg(test)]
+    raster_static_build_count: usize,
     cached_static_v2: Vec<Vert2DPod>,
     cached_static_i2: Vec<u32>,
     cached_static_tile_bins: Vec<TileBinPod>,
@@ -4055,7 +4065,23 @@ impl VM {
         fb_w: u32,
         fb_h: u32,
     ) -> (Vec<Vert2DPod>, Vec<u32>, Vec<TileBinPod>, Vec<u32>) {
+        self.build_2d_geometry(fb_w, fb_h, true, false)
+    }
+
+    fn build_2d_geometry(
+        &self,
+        fb_w: u32,
+        fb_h: u32,
+        build_bins: bool,
+        world_space: bool,
+    ) -> (Vec<Vert2DPod>, Vec<u32>, Vec<TileBinPod>, Vec<u32>) {
         use vek::Vec3;
+        let polygon_transform = if world_space {
+            Mat3::identity()
+        } else {
+            self.transform2d
+        };
+        let inverse = mat3_inverse_f32(&self.transform2d).unwrap_or(Mat3::identity());
 
         // Estimate capacities for better performance
         let total_polys: usize = self.chunks_map.values().map(|ch| ch.polys_map.len()).sum();
@@ -4075,9 +4101,15 @@ impl VM {
         let mut tri_meta: Vec<TriMeta> = Vec::with_capacity(estimated_indices / 3);
         let mut tri_ord: u32 = 0;
 
-        for (_cid, ch) in &self.chunks_map {
+        // Equal-layer primitives need a stable tie order. HashMap iteration
+        // changes when viewport culling changes the number of entries.
+        let mut chunks: Vec<_> = self.chunks_map.iter().collect();
+        chunks.sort_by_key(|(id, ch)| (ch.origin.x, ch.origin.y, **id));
+        for (_, ch) in &chunks {
             let prio = ch.priority;
-            for poly in ch.polys_map.values() {
+            let mut polygons: Vec<_> = ch.polys_map.values().collect();
+            polygons.sort_by_key(|poly| poly.id);
+            for poly in polygons {
                 if !poly.visible {
                     continue;
                 }
@@ -4097,7 +4129,7 @@ impl VM {
 
                 for (i, v) in poly.vertices.iter().enumerate() {
                     let local_p = poly.transform * Vec3::new(v[0], v[1], 1.0);
-                    let world_p = self.transform2d * local_p;
+                    let world_p = polygon_transform * local_p;
 
                     let base_uv = poly.uvs[i];
 
@@ -4133,8 +4165,10 @@ impl VM {
 
         // Screen-space line strips rendered as quads
         {
-            for (_cid, ch) in &self.chunks_map {
-                for ls in ch.lines2d_px.values() {
+            for (_, ch) in &chunks {
+                let mut lines: Vec<_> = ch.lines2d_px.values().collect();
+                lines.sort_by_key(|line| line.id);
+                for ls in lines {
                     if !ls.visible || ls.points.len() < 2 {
                         continue;
                     }
@@ -4186,6 +4220,12 @@ impl VM {
                         verts_flat[n - 3].pos = q1;
                         verts_flat[n - 2].pos = q2;
                         verts_flat[n - 1].pos = q3;
+                        if world_space {
+                            for vertex in &mut verts_flat[n - 4..n] {
+                                let world = inverse * Vec3::new(vertex.pos[0], vertex.pos[1], 1.);
+                                vertex.pos = [world.x, world.y];
+                            }
+                        }
 
                         indices_flat.extend_from_slice(&[
                             base + 0,
@@ -4211,6 +4251,10 @@ impl VM {
                     }
                 }
             }
+        }
+
+        if !build_bins {
+            return (verts_flat, indices_flat, Vec::new(), Vec::new());
         }
 
         let tiles_x = ((fb_w + 7) / 8).max(1);
@@ -5212,6 +5256,8 @@ impl VM {
             geometry2d_dirty: true,
             cached_v2: Vec::new(),
             cached_i2: Vec::new(),
+            #[cfg(test)]
+            raster_static_build_count: 0,
             cached_static_v2: Vec::new(),
             cached_static_i2: Vec::new(),
             cached_static_tile_bins: Vec::new(),
@@ -5696,7 +5742,14 @@ impl VM {
             Atom::SetTransform2D(m) => {
                 if self.transform2d != m {
                     self.transform2d = m;
-                    self.mark_2d_dirty();
+                    if self.render_mode != RenderMode::Raster2D
+                        || self
+                            .chunks_map
+                            .values()
+                            .any(|chunk| !chunk.lines2d_px.is_empty())
+                    {
+                        self.mark_2d_dirty();
+                    }
                 }
             }
             Atom::SetTransform3D(m) => {
@@ -5823,7 +5876,10 @@ impl VM {
                 }
             }
             Atom::SetRenderMode(m) => {
-                self.render_mode = m;
+                if self.render_mode != m {
+                    self.render_mode = m;
+                    self.mark_2d_dirty();
+                }
             }
             Atom::AddLight { id, light } => {
                 self.lights.insert(id, light);
@@ -9031,35 +9087,32 @@ impl VM {
             self.prepare_layer_views(device, queue, fb_w, fb_h);
 
         let fb_dims = (fb_w, fb_h);
-        let has_dynamic_billboards = self
-            .dynamic_objects
-            .iter()
-            .any(|obj| obj.kind != DynamicKind::Mesh)
-            || !self.dynamic_avatar_objects.is_empty();
-        let mut geometry_changed = false;
-        if self.geometry2d_dirty
-            || self.cached_v2.is_empty()
-            || self.cached_fb_size_2d != fb_dims
-            || has_dynamic_billboards
-        {
-            let rebuild_static_2d = self.geometry2d_dirty
-                || self.cached_static_v2.is_empty()
-                || self.cached_static_i2.is_empty()
-                || self.cached_static_fb_size_2d != fb_dims;
-            if rebuild_static_2d {
-                let (verts_flat, indices_flat, tile_bins, tile_tris) =
-                    self.build_2d_batches(fb_w, fb_h);
-                self.cached_static_v2 = verts_flat;
-                self.cached_static_i2 = indices_flat;
-                self.cached_static_tile_bins = tile_bins;
-                self.cached_static_tile_tris = tile_tris;
-                self.cached_static_fb_size_2d = fb_dims;
+        let has_pixel_lines = self
+            .chunks_map
+            .values()
+            .any(|chunk| !chunk.lines2d_px.is_empty());
+        let rebuild_static_2d = self.geometry2d_dirty
+            || self.cached_static_fb_size_2d == (0, 0)
+            || (has_pixel_lines && self.cached_static_fb_size_2d != fb_dims);
+        if rebuild_static_2d {
+            #[cfg(test)]
+            {
+                self.raster_static_build_count += 1;
             }
+            let (vertices, indices, _, _) = self.build_2d_geometry(fb_w, fb_h, false, true);
+            self.cached_static_v2 = vertices;
+            self.cached_static_i2 = indices;
+            self.cached_static_fb_size_2d = fb_dims;
+        }
 
-            let mut verts_flat = self.cached_static_v2.clone();
-            let mut indices_flat = self.cached_static_i2.clone();
-
-            let m = self.transform2d;
+        // These scratch vectors contain only moving objects. Static chunk data
+        // remains resident in the GPU buffer prefix between frames.
+        let mut verts_flat = std::mem::take(&mut self.cached_v2);
+        let mut indices_flat = std::mem::take(&mut self.cached_i2);
+        verts_flat.clear();
+        indices_flat.clear();
+        {
+            let m = Mat3::<f32>::identity();
             let dynamic_objs = self.sorted_dynamic_objects();
             let avatar_meta_indices = self.avatar_meta_indices_for_objects(&dynamic_objs);
 
@@ -9121,7 +9174,7 @@ impl VM {
                     [[0.0f32, 1.0f32], [0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]
                 };
 
-                let base = verts_flat.len() as u32;
+                let base = (self.cached_static_v2.len() + verts_flat.len()) as u32;
                 let pts = [p0, p1, p2, p3];
                 for i in 0..4 {
                     verts_flat.push(Vert2DPod {
@@ -9150,53 +9203,65 @@ impl VM {
                     base + 3,
                 ]);
             }
-
-            self.cached_v2 = verts_flat;
-            self.cached_i2 = indices_flat;
-            self.cached_tile_bins = self.cached_static_tile_bins.clone();
-            self.cached_tile_tris = self.cached_static_tile_tris.clone();
-            self.cached_fb_size_2d = fb_dims;
-            self.geometry2d_dirty = false;
-            geometry_changed = true;
         }
+        self.cached_v2 = verts_flat;
+        self.cached_i2 = indices_flat;
+        self.cached_fb_size_2d = fb_dims;
+        self.geometry2d_dirty = false;
 
-        use wgpu::util::DeviceExt;
         {
             let g = self.gpu.as_mut().unwrap();
-            if geometry_changed || g.v2d_ssbo.is_none() || g.i2d_ssbo.is_none() {
-                let mut v_data = bytemuck::cast_slice(&self.cached_v2).to_vec();
-                if v_data.is_empty() {
-                    v_data = bytemuck::bytes_of(&Vert2DPod {
-                        pos: [0.0, 0.0],
-                        uv: [0.0, 0.0],
-                        tile_index: 0,
-                        tile_index2: 0,
-                        blend_factor: 0.0,
-                        _pad0: 0,
-                    })
-                    .to_vec();
-                }
-                let mut i_data = bytemuck::cast_slice(&self.cached_i2).to_vec();
-                if i_data.is_empty() {
-                    i_data = 0u32.to_ne_bytes().to_vec();
-                }
-                g.v2d_ssbo = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("vm-2d-verts-raster"),
-                        contents: &v_data,
-                        usage: wgpu::BufferUsages::STORAGE
-                            | wgpu::BufferUsages::VERTEX
-                            | wgpu::BufferUsages::COPY_DST,
-                    }),
+            let static_vertices = bytemuck::cast_slice::<_, u8>(&self.cached_static_v2);
+            let dynamic_vertices = bytemuck::cast_slice::<_, u8>(&self.cached_v2);
+            let static_indices = bytemuck::cast_slice::<_, u8>(&self.cached_static_i2);
+            let dynamic_indices = bytemuck::cast_slice::<_, u8>(&self.cached_i2);
+            let vertex_bytes = (static_vertices.len() + dynamic_vertices.len())
+                .max(std::mem::size_of::<Vert2DPod>()) as u64;
+            let index_bytes = (static_indices.len() + dynamic_indices.len()).max(4) as u64;
+            let grow_vertices = g.v2d_ssbo.as_ref().is_none_or(|buffer| {
+                buffer.size() < vertex_bytes || !buffer.usage().contains(wgpu::BufferUsages::VERTEX)
+            });
+            let grow_indices = g.i2d_ssbo.as_ref().is_none_or(|buffer| {
+                buffer.size() < index_bytes || !buffer.usage().contains(wgpu::BufferUsages::INDEX)
+            });
+            if grow_vertices {
+                g.v2d_ssbo = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("vm-2d-verts-raster"),
+                    size: vertex_bytes.next_power_of_two(),
+                    usage: wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::VERTEX
+                        | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                }));
+            }
+            if grow_indices {
+                g.i2d_ssbo = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("vm-2d-indices-raster"),
+                    size: index_bytes.next_power_of_two(),
+                    usage: wgpu::BufferUsages::STORAGE
+                        | wgpu::BufferUsages::INDEX
+                        | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                }));
+            }
+            if (rebuild_static_2d || grow_vertices) && !static_vertices.is_empty() {
+                queue.write_buffer(g.v2d_ssbo.as_ref().unwrap(), 0, static_vertices);
+            }
+            if (rebuild_static_2d || grow_indices) && !static_indices.is_empty() {
+                queue.write_buffer(g.i2d_ssbo.as_ref().unwrap(), 0, static_indices);
+            }
+            if !dynamic_vertices.is_empty() {
+                queue.write_buffer(
+                    g.v2d_ssbo.as_ref().unwrap(),
+                    static_vertices.len() as u64,
+                    dynamic_vertices,
                 );
-                g.i2d_ssbo = Some(
-                    device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("vm-2d-indices-raster"),
-                        contents: &i_data,
-                        usage: wgpu::BufferUsages::STORAGE
-                            | wgpu::BufferUsages::INDEX
-                            | wgpu::BufferUsages::COPY_DST,
-                    }),
+            }
+            if !dynamic_indices.is_empty() {
+                queue.write_buffer(
+                    g.i2d_ssbo.as_ref().unwrap(),
+                    static_indices.len() as u64,
+                    dynamic_indices,
                 );
             }
         }
@@ -9234,6 +9299,9 @@ impl VM {
             mat2d_inv_c1: [m_inv[(0, 1)], m_inv[(1, 1)], m_inv[(2, 1)], 0.0],
             mat2d_inv_c2: [m_inv[(0, 2)], m_inv[(1, 2)], m_inv[(2, 2)], 0.0],
             palette: self.palette,
+            mat2d_c0: [m[(0, 0)], m[(1, 0)], m[(2, 0)], 0.],
+            mat2d_c1: [m[(0, 1)], m[(1, 1)], m[(2, 1)], 0.],
+            mat2d_c2: [m[(0, 2)], m[(1, 2)], m[(2, 2)], 0.],
         };
         let tone_mapper = self.gp9.y.max(0.0) as u32;
         let post_enabled = self.gp9.x > 0.5;
@@ -9412,7 +9480,11 @@ impl VM {
                 g.i2d_ssbo.as_ref().unwrap().slice(..),
                 wgpu::IndexFormat::Uint32,
             );
-            pass.draw_indexed(0..self.cached_i2.len() as u32, 0, 0..1);
+            pass.draw_indexed(
+                0..(self.cached_static_i2.len() + self.cached_i2.len()) as u32,
+                0,
+                0..1,
+            );
         }
         queue.submit(Some(encoder.finish()));
         if self.ping_pong_enabled {
@@ -13942,6 +14014,148 @@ mod shader_tests {
         assert!(
             center[1] < center[0] / 2,
             "particle must use authored tint: {center:?}"
+        );
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn raster_2d_resident_chunks_match_rebuilds_after_camera_and_dynamic_changes() {
+        use crate::{Atom, DynamicObject, Poly2D, RenderMode, SceneVM};
+        use vek::{Mat3, Vec2, Vec4};
+        let mut scene = SceneVM::new(64, 64);
+        scene.execute(Atom::SetRenderMode(RenderMode::Raster2D));
+        scene.execute(Atom::SetBackground(Vec4::new(0., 0., 0., 1.)));
+        scene.execute(Atom::SetGP3(Vec4::one()));
+        let tile = Uuid::new_v4();
+        scene.execute(Atom::AddTile {
+            id: tile,
+            width: 1,
+            height: 1,
+            frames: vec![vec![255, 90, 30, 255]],
+            material_frames: None,
+        });
+        scene.execute(Atom::BuildAtlas);
+        let chunk_id = Uuid::new_v4();
+        let mut chunk = Chunk::new(Vec2::zero(), 32);
+        chunk.add(Poly2D::poly(
+            GeoId::Unknown(0),
+            tile,
+            vec![[4., 4.], [24., 4.], [24., 24.], [4., 24.]],
+            vec![[0., 0.], [1., 0.], [1., 1.], [0., 1.]],
+            vec![(0, 1, 2), (0, 2, 3)],
+        ));
+        scene.execute(Atom::AddChunk {
+            id: chunk_id,
+            chunk,
+        });
+        let mut pixels = vec![0; 64 * 64 * 4];
+        scene.render_frame(&mut pixels, 64, 64);
+        assert!(pixels.chunks_exact(4).any(|p| p[0] > 100));
+        let original = pixels.clone();
+        // Increasing and decreasing dynamic tails exercises buffer growth and stale indices.
+        for (frame, count) in [0, 1, 80, 2, 0].into_iter().enumerate() {
+            scene.execute(Atom::ClearDynamics);
+            for i in 0..count {
+                scene.execute(Atom::AddDynamic {
+                    object: DynamicObject::particle_tile_2d(
+                        GeoId::Unknown(100 + i),
+                        tile,
+                        Vec2::new(30. + i as f32 % 15., 30.),
+                        4.,
+                        4.,
+                    ),
+                });
+            }
+            let builds = scene.vm.raster_static_build_count;
+            let transform = Mat3::<f32>::translation_2d(Vec2::new(frame as f32 * 2., 3.))
+                * Mat3::<f32>::scaling_3d(Vec3::new(
+                    1. + frame as f32 * 0.1,
+                    1. + frame as f32 * 0.1,
+                    1.,
+                ));
+            scene.execute(Atom::SetTransform2D(transform));
+            // The previous renderer applied the camera on the CPU. Verify that
+            // GPU camera inputs reproduce those positions, UVs, and indices.
+            let (screen_vertices, screen_indices, _, _) =
+                scene.vm.build_2d_geometry(64, 64, false, false);
+            assert_eq!(screen_indices, scene.vm.cached_static_i2);
+            for (world, screen) in scene.vm.cached_static_v2.iter().zip(&screen_vertices) {
+                let position = transform * Vec3::new(world.pos[0], world.pos[1], 1.);
+                assert!((position.x - screen.pos[0]).abs() < 0.0001);
+                assert!((position.y - screen.pos[1]).abs() < 0.0001);
+                assert_eq!(world.uv, screen.uv);
+            }
+            scene.render_frame(&mut pixels, 64, 64);
+            assert_eq!(
+                scene.vm.raster_static_build_count, builds,
+                "camera must retain static geometry"
+            );
+            assert_eq!(scene.vm.cached_static_v2[0].pos, [4., 4.]);
+            assert_eq!(scene.vm.cached_v2.len(), count as usize * 4);
+            let cached = pixels.clone();
+            scene.vm.mark_2d_dirty();
+            scene.render_frame(&mut pixels, 64, 64);
+            assert!(
+                cached == pixels,
+                "cached and rebuilt pixels differ at frame {frame}"
+            );
+        }
+        assert!(pixels != original, "camera movement must affect rendering");
+        // Switching to the compute backend and back must restore world-space buffers.
+        let before_switch = pixels.clone();
+        scene.execute(Atom::SetRenderMode(RenderMode::Compute2D));
+        scene.render_frame(&mut pixels, 64, 64);
+        scene.execute(Atom::SetRenderMode(RenderMode::Raster2D));
+        scene.render_frame(&mut pixels, 64, 64);
+        assert!(
+            pixels == before_switch,
+            "backend switch changed raster pixels"
+        );
+        // Newly streamed chunks and constant-pixel-width overlays still invalidate correctly.
+        let line_chunk_id = Uuid::new_v4();
+        let mut line_chunk = Chunk::new(Vec2::new(32, 0), 32);
+        let line_id = GeoId::Unknown(900);
+        line_chunk.lines2d_px.insert(
+            line_id,
+            crate::LineStrip2D {
+                id: line_id,
+                tile_id: tile,
+                points: vec![[5., 40.], [20., 40.]],
+                width_px: 4.,
+                layer: 1,
+                visible: true,
+            },
+        );
+        scene.execute(Atom::AddChunk {
+            id: line_chunk_id,
+            chunk: line_chunk,
+        });
+        for scale in [1., 2.] {
+            scene.execute(Atom::SetTransform2D(Mat3::<f32>::scaling_3d(Vec3::new(
+                scale, scale, 1.,
+            ))));
+            let mut resized = vec![0; 96 * 96 * 4];
+            scene.render_frame(&mut resized, 96, 96);
+            let height = (0..96).filter(|y| resized[(y * 96 + 12) * 4] > 100).count();
+            // The column also intersects the solid square, so measure only near the line.
+            let line_height = (60..90)
+                .filter(|y| resized[(y * 96 + 12) * 4] > 100)
+                .count();
+            if scale == 2. {
+                assert_eq!(line_height, 4);
+            } else {
+                assert_eq!(height, 24);
+            }
+        }
+        scene.execute(Atom::RemoveChunk { id: line_chunk_id });
+        scene.execute(Atom::RemoveChunk { id: chunk_id });
+        scene.render_frame(&mut pixels, 64, 64);
+        assert!(pixels.chunks_exact(4).all(|p| p[..3] == [0, 0, 0]));
+        let builds = scene.vm.raster_static_build_count;
+        scene.render_frame(&mut pixels, 64, 64);
+        assert_eq!(
+            scene.vm.raster_static_build_count, builds,
+            "empty maps must also cache"
         );
     }
 

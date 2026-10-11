@@ -36,6 +36,14 @@ fn scroll_to_local(delta: MouseScrollDelta, scale: f32) -> ((f32, f32), bool) {
     }
 }
 
+/// Opt-in diagnostics for compositor/device input differences. Never logs typed text.
+fn input_debug_enabled() -> bool {
+    static ENABLED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+        std::env::var_os("ELDIRON_INPUT_DEBUG").is_some_and(|value| value == "1")
+    });
+    *ENABLED
+}
+
 // Platform-aware accelerator modifiers (AltGr-safe)
 #[inline]
 fn is_accel_mods(m: &ModifiersState) -> bool {
@@ -748,6 +756,9 @@ impl ApplicationHandler for TheWinitApp {
                     }
                     WindowEvent::ModifiersChanged(modifiers) => {
                         let state = modifiers.state();
+                        if input_debug_enabled() {
+                            eprintln!("[Eldiron input] modifiers={state:?}");
+                        }
                         // keep a copy of current modifiers for accelerator checks
                         self.mods = state;
 
@@ -1041,6 +1052,19 @@ impl ApplicationHandler for TheWinitApp {
                     }
                     WindowEvent::MouseWheel { delta, .. } => {
                         let ((x, y), is_precise) = scroll_to_local(delta, ctx.ctx.scale_factor);
+                        if input_debug_enabled() {
+                            eprintln!(
+                                "[Eldiron input] wheel={delta:?} local=({x},{y}) precise={is_precise} modifiers={:?}",
+                                self.mods
+                            );
+                            #[cfg(feature = "ui")]
+                            eprintln!(
+                                "[Eldiron input] ui_ctrl={} ui_logo={} hover={:?}",
+                                self.ui.ctrl,
+                                self.ui.logo,
+                                ctx.ctx.ui.hover.as_ref().map(|id| &id.name)
+                            );
+                        }
 
                         let mut redraw = false;
                         #[cfg(feature = "ui")]
@@ -1065,6 +1089,9 @@ impl ApplicationHandler for TheWinitApp {
                         }
                     }
                     WindowEvent::PinchGesture { delta, .. } => {
+                        if input_debug_enabled() {
+                            eprintln!("[Eldiron input] pinch={delta}");
+                        }
                         if delta.is_finite() {
                             let mut redraw = false;
                             #[cfg(feature = "ui")]

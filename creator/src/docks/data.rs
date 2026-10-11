@@ -971,8 +971,7 @@ impl DataDock {
         }
 
         let root = tree.get_root();
-        root.widgets.clear();
-        root.childs.clear();
+        root.clear();
 
         if !active {
             return;

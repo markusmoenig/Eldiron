@@ -1,0 +1,26 @@
+[RenderDebug][SceneVM] headless adapter name='Apple M1 Max' backend=Metal device_type=IntegratedGpu vendor=0 device=0
+[RenderDebug][SceneVMDraw] size=1169x639 frames=1 avg_ms base=107.08 overlays=30.70 composite=2.47 rgba_overlay=0.00 submit=0.61 total=140.86 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][SceneVMDraw] size=1169x639 frames=16 avg_ms base=1.62 overlays=2.05 composite=0.15 rgba_overlay=0.00 submit=0.42 total=4.24 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][SceneVMDraw] size=1169x639 frames=17 avg_ms base=1.06 overlays=1.93 composite=0.14 rgba_overlay=0.00 submit=0.38 total=3.50 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][SceneVMDraw] size=1169x639 frames=17 avg_ms base=1.08 overlays=1.98 composite=0.14 rgba_overlay=0.00 submit=0.40 total=3.60 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][SceneVMDraw] size=1169x639 frames=17 avg_ms base=1.03 overlays=1.95 composite=0.15 rgba_overlay=0.00 submit=0.39 total=3.52 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][SceneVMDraw] size=1169x639 frames=16 avg_ms base=1.04 overlays=2.02 composite=0.14 rgba_overlay=0.00 submit=0.42 total=3.62 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][SceneVMDraw] size=1169x639 frames=17 avg_ms base=1.03 overlays=1.92 composite=0.13 rgba_overlay=0.00 submit=0.37 total=3.45 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][SceneVMDraw] size=1169x639 frames=17 avg_ms base=1.02 overlays=1.96 composite=0.13 rgba_overlay=0.00 submit=0.38 total=3.50 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][SceneVM] headless adapter name='Apple M1 Max' backend=Metal device_type=IntegratedGpu vendor=0 device=0
+[RenderDebug][SceneVMDraw] size=1169x639 frames=1 avg_ms base=223.82 overlays=64.85 composite=2.81 rgba_overlay=0.00 submit=0.65 total=292.14 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][CPUFrame] size=1169x639 frames=1 avg_ms render=293.10 readback=11.80 copy=0.30
+[RenderDebug][SceneVMDraw] size=1169x639 frames=15 avg_ms base=1.75 overlays=2.36 composite=0.15 rgba_overlay=0.00 submit=0.54 total=4.80 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][CPUFrame] size=1169x639 frames=15 avg_ms render=4.84 readback=2.23 copy=0.07
+[RenderDebug][SceneVMDraw] size=1169x639 frames=19 avg_ms base=1.06 overlays=2.04 composite=0.14 rgba_overlay=0.00 submit=0.41 total=3.65 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][CPUFrame] size=1169x639 frames=19 avg_ms render=3.67 readback=1.76 copy=0.06
+[RenderDebug][SceneVMDraw] size=1169x639 frames=19 avg_ms base=1.09 overlays=2.08 composite=0.15 rgba_overlay=0.00 submit=0.43 total=3.75 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][CPUFrame] size=1169x639 frames=19 avg_ms render=3.77 readback=1.73 copy=0.06
+[RenderDebug][SceneVMDraw] size=1169x639 frames=18 avg_ms base=1.15 overlays=2.27 composite=0.17 rgba_overlay=0.00 submit=0.50 total=4.08 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][CPUFrame] size=1169x639 frames=18 avg_ms render=4.11 readback=2.21 copy=0.06
+[RenderDebug][SceneVMDraw] size=1169x639 frames=17 avg_ms base=1.09 overlays=2.11 composite=0.15 rgba_overlay=0.00 submit=0.44 total=3.80 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][CPUFrame] size=1169x639 frames=17 avg_ms render=3.84 readback=3.05 copy=0.06
+[RenderDebug][SceneVMDraw] size=1169x639 frames=15 avg_ms base=1.36 overlays=2.31 composite=0.19 rgba_overlay=0.00 submit=0.49 total=4.35 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][CPUFrame] size=1169x639 frames=15 avg_ms render=4.39 readback=2.05 copy=0.06
+[RenderDebug][SceneVMDraw] size=1169x639 frames=17 avg_ms base=1.23 overlays=2.39 composite=0.18 rgba_overlay=0.00 submit=0.51 total=4.31 avg_overlays=3.0 avg_layers=2.0
+[RenderDebug][CPUFrame] size=1169x639 frames=17 avg_ms render=4.34 readback=1.78 copy=0.06

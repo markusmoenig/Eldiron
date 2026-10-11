@@ -295,8 +295,7 @@ impl TheNodeUI {
 
     /// Add the items to the given text layout.
     pub fn apply_to_tree_node(&self, node: &mut TheTreeNode) {
-        node.widgets.clear();
-        node.childs.clear();
+        node.clear();
 
         let mut group: Option<TheTreeNode> = None;
 

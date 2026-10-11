@@ -130,6 +130,13 @@ impl NodesDock {
             .unwrap_or_default()
             .parse::<shared::entity_graph::RulesTable>()
             .unwrap_or_default();
+        if owner
+            .strip_prefix("entity/character/")
+            .and_then(|id| Uuid::parse_str(id).ok())
+            .is_some_and(|id| project.characters.contains_key(&id))
+        {
+            shared::entity_graph::ensure_character_fields(&mut self.doc, &rules);
+        }
         let result = shared::entity_graph::project_data(
             &self.doc,
             shared::entity_graph::owner_data(project, owner).unwrap_or(""),

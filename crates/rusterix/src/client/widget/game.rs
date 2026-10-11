@@ -1734,3 +1734,60 @@ impl GameWidget {
         }
     }
 }
+
+#[cfg(test)]
+mod playback_performance_tests {
+    use super::*;
+
+    #[test]
+    #[ignore = "requires native GPU and ELDIRON_BENCH_PROJECT_JSON"]
+    fn benchmark_large_map_game_widget_playback() {
+        let file = std::env::var("ELDIRON_BENCH_PROJECT_JSON").unwrap();
+        let project: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(file).unwrap()).unwrap();
+        let mut map: Map = serde_json::from_value(project["regions"][0]["map"].clone()).unwrap();
+        let mut assets = Assets::default();
+        assets.set_tiles(serde_json::from_value(project["tiles"].clone()).unwrap());
+        let mut player = crate::Entity::new();
+        player.attributes.set("player", Value::Bool(true));
+        player.position = vek::Vec3::new(32., 0., 32.);
+        map.entities.push(player);
+        let mut handler = SceneHandler::default();
+        handler.build_atlas(&assets.tiles, false);
+        let mut widget = GameWidget::new();
+        widget.camera = PlayerCamera::D2;
+        widget.buffer.resize(960, 540);
+        let time = TheTime::new();
+        for frame in 0..30 {
+            widget.apply_entities(&map, &assets, frame, &mut handler);
+            widget.draw(&map, &time, frame, &assets, &mut handler);
+        }
+        assert!(!widget.loaded_chunks.is_empty());
+        assert!(
+            widget
+                .buffer
+                .pixels()
+                .chunks_exact(4)
+                .any(|p| p[0] != 0 || p[1] != 0 || p[2] != 0)
+        );
+        for moving in [false, true] {
+            let mut samples = Vec::new();
+            for frame in 0..60 {
+                if moving {
+                    map.entities.last_mut().unwrap().position.x = 28. + frame as f32 * 0.1;
+                }
+                let start = std::time::Instant::now();
+                widget.apply_entities(&map, &assets, frame, &mut handler);
+                widget.draw(&map, &time, frame, &assets, &mut handler);
+                samples.push(start.elapsed().as_secs_f64() * 1000.);
+            }
+            let mean = samples.iter().sum::<f64>() / samples.len() as f64;
+            samples.sort_by(f64::total_cmp);
+            println!(
+                "GameWidget 960x540 moving={moving}: mean={mean:.2} ms p95={:.2} ms loaded_chunks={}",
+                samples[57],
+                widget.loaded_chunks.len()
+            );
+        }
+    }
+}

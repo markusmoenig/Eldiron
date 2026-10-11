@@ -947,8 +947,7 @@ pub fn apply_palette(
 
     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
         if let Some(palette_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_palette_id) {
-            palette_node.widgets.clear();
-            palette_node.childs.clear();
+            palette_node.clear();
 
             let mut ruleset_label = TheTreeItem::new(TheId::named("Ruleset Palette Header"));
             ruleset_label.set_text(fl!("ruleset_palette"));

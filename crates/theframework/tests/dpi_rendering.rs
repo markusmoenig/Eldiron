@@ -198,3 +198,18 @@ fn serialized_density_keeps_dimensions_and_pixel_storage_consistent() {
         legacy
     );
 }
+
+#[test]
+fn unscaled_render_view_copy_keeps_alpha_and_placement() {
+    let mut source = TheRGBABuffer::new(TheDim::sized(7, 5));
+    source.fill([91, 31, 171, 83]);
+    let mut actual = TheRGBABuffer::new(TheDim::sized(13, 11));
+    actual.fill([1, 2, 3, 4]);
+    let mut expected = actual.clone();
+    expected.copy_into(3, 2, &source);
+    let mut dim = TheDim::sized(7, 5);
+    dim.buffer_x = 3;
+    dim.buffer_y = 2;
+    source.scaled_into_using_dim(&mut actual, &dim);
+    assert_eq!(actual.pixels(), expected.pixels());
+}

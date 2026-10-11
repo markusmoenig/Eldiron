@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use std::collections::HashMap;
 
 pub fn validate_command_id(command_id: &str) -> Result<(), String> {
     let valid = !command_id.is_empty()
@@ -27,8 +26,8 @@ pub struct ActionDescriptor {
 
 pub struct ActionList {
     pub actions: Vec<Box<dyn Action>>,
-    descriptors: HashMap<Uuid, ActionDescriptor>,
-    command_ids: HashMap<String, Uuid>,
+    descriptors: FxHashMap<Uuid, ActionDescriptor>,
+    command_ids: FxHashMap<String, Uuid>,
 }
 
 impl Default for ActionList {
@@ -43,8 +42,8 @@ impl ActionList {
 
         let mut list = Self {
             actions: Vec::new(),
-            descriptors: HashMap::new(),
-            command_ids: HashMap::new(),
+            descriptors: FxHashMap::default(),
+            command_ids: FxHashMap::default(),
         };
 
         list.register(

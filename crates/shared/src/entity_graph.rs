@@ -626,7 +626,33 @@ pub fn import_character(data: &str, rules: &Table) -> Result<GraphDocument, Stri
                     })
         });
     }
-    import(&toml::to_string(&table).map_err(|e| e.to_string())?, rules)
+    let mut doc = import(&toml::to_string(&table).map_err(|e| e.to_string())?, rules)?;
+    ensure_character_fields(&mut doc, rules);
+    Ok(doc)
+}
+
+/// Expose template identity controls even when their values are inherited.
+/// Do not use for instances: omitted fields there inherit from the template.
+pub fn ensure_character_fields(doc: &mut GraphDocument, rules: &Table) {
+    let Some(root) = doc
+        .nodes
+        .iter_mut()
+        .find(|node| node.definition.as_deref() == Some("entity"))
+    else {
+        return;
+    };
+    for key in ["race", "class", "level"] {
+        if key == "level" && level_attribute(rules).is_none() {
+            continue;
+        }
+        if !root
+            .rows
+            .iter()
+            .any(|existing| existing.key.as_deref() == Some(key))
+        {
+            row(root, key, default_control(key, rules));
+        }
+    }
 }
 
 pub fn import_item(data: &str, rules: &Table) -> Result<GraphDocument, String> {
@@ -1092,6 +1118,9 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
         let mut doc = serde_json::from_value::<GraphDocument>(graphs[&key].clone())
             .map_err(|e| e.to_string())?;
         normalize(&mut doc);
+        if character_template {
+            ensure_character_fields(&mut doc, rules);
+        }
         graphs.insert(
             key.clone(),
             serde_json::to_value(&doc).map_err(|e| e.to_string())?,
@@ -1523,6 +1552,112 @@ flicker = 0.52
             1.0
         );
     }
+    #[test]
+    fn new_character_identity_controls_preserve_inheritance_and_follow_rules() {
+        let mut rules = rules();
+        for source in [
+            "",
+            include_str!("../../../creator/embedded/toml/character.toml"),
+        ] {
+            let mut doc = import_character(source, &rules).unwrap();
+            let root = doc
+                .nodes
+                .iter_mut()
+                .find(|n| n.definition.as_deref() == Some("entity"))
+                .unwrap();
+            for key in ["race", "class", "level"] {
+                assert!(root.rows.iter().any(|r| r.key.as_deref() == Some(key)));
+            }
+            let projected = builtin_registry().compile(&doc, &rules).unwrap();
+            let attrs = projected.get("attributes").and_then(Value::as_table);
+            for key in ["race", "class", "level"] {
+                assert!(attrs.is_none_or(|a| !a.contains_key(key)));
+            }
+            let before = doc.clone();
+            ensure_character_fields(&mut doc, &rules);
+            assert_eq!(
+                serde_json::to_value(before).unwrap(),
+                serde_json::to_value(doc).unwrap()
+            );
+        }
+        // Genre changes must use the current definitions, without RPG assumptions.
+        rules.insert(
+            "races".into(),
+            Value::Table(Table::from_iter([(
+                "Robot".into(),
+                Value::Table(Table::new()),
+            )])),
+        );
+        rules.remove("classes");
+        let doc = import_character("", &rules).unwrap();
+        let root = doc
+            .nodes
+            .iter()
+            .find(|n| n.definition.as_deref() == Some("entity"))
+            .unwrap();
+        for (key, expected) in [("race", vec!["", "Robot"]), ("class", vec![""])] {
+            let control = &root
+                .rows
+                .iter()
+                .find(|r| r.key.as_deref() == Some(key))
+                .unwrap()
+                .value;
+            let GraphControlValue::Choice { options, selected } = control else {
+                panic!("identity must be selectable");
+            };
+            assert_eq!(*options, expected);
+            assert_eq!(*selected, 0);
+        }
+        let mut instance = import("", &rules).unwrap();
+        normalize(&mut instance);
+        assert!(
+            instance
+                .nodes
+                .iter()
+                .all(|n| n.rows.iter().all(|r| r.key.as_deref() != Some("race")))
+        );
+    }
+
+    #[test]
+    fn synchronize_repairs_saved_character_roots_without_replacing_authored_values() {
+        let mut project = Project::default();
+        let character = crate::character::Character::new();
+        let key = character_key(character.id);
+        project.add_character(character);
+        let mut doc = import("[attributes]\nrace = \"Human\"", &rules()).unwrap();
+        let root = doc
+            .nodes
+            .iter_mut()
+            .find(|n| n.definition.as_deref() == Some("entity"))
+            .unwrap();
+        assert!(!root.rows.iter().any(|r| r.key.as_deref() == Some("class")));
+        let root_id = root.id;
+        project
+            .node_graphs
+            .insert(key.clone(), serde_json::to_value(doc).unwrap());
+        synchronize(&mut project).unwrap();
+        doc = serde_json::from_value(project.node_graphs[&key].clone()).unwrap();
+        let root = doc
+            .nodes
+            .iter()
+            .find(|n| n.definition.as_deref() == Some("entity"))
+            .unwrap();
+        assert_eq!(root.id, root_id);
+        assert!(root.rows.iter().any(|r| r.key.as_deref() == Some("class")));
+        assert_eq!(
+            control_value(
+                &root
+                    .rows
+                    .iter()
+                    .find(|r| r.key.as_deref() == Some("race"))
+                    .unwrap()
+                    .value
+            )
+            .unwrap(),
+            Some(Value::String("Human".into()))
+        );
+    }
+
     #[test]
     fn character_import_keeps_overrides_and_inherits_rule_configuration() {
         let source = r#"[attributes]

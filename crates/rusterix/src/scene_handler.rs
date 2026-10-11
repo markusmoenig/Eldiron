@@ -19,6 +19,22 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, Chunk, DynamicObject, GeoId, Light, SceneVM};
 use theframework::prelude::*;
 
+// Stream serialized effect settings into the hash, avoiding a temporary byte
+// vector for every sector/edge on each redraw.
+fn hash_serialized(hasher: &mut rustc_hash::FxHasher, value: &impl serde::Serialize) {
+    struct HashWriter<'a>(&'a mut rustc_hash::FxHasher);
+    impl std::io::Write for HashWriter<'_> {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.write(bytes);
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let _ = serde_json::to_writer(HashWriter(hasher), value);
+}
+
 #[derive(Default)]
 struct ParticleClock {
     last_tick: Option<Instant>,
@@ -115,6 +131,105 @@ impl BillboardAnimState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn dynamics_cache_tracks_effect_edits_without_overlay_invalidation() {
+        let mut handler = SceneHandler::default();
+        let mut map = Map::new();
+        let mut assets = Assets::default();
+        let styles = FxHashMap::default();
+        let original = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
+        let mut tile = Tile::from_texture(Texture::from_color([255; 4]));
+        let id = tile.id;
+        tile.particle_emitter = Some(ParticleEmitter::new(Vec3::zero(), Vec3::unit_y()));
+        assets.tiles.insert(id, tile);
+        let emitter_hash = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
+        assert_ne!(original, emitter_hash);
+        assets.tiles.get_mut(&id).unwrap().particle_emitter = None;
+        assert_eq!(
+            original,
+            handler.dynamics_hash_2d(&map, 0, &styles, &assets)
+        );
+        let mut item = Item::new();
+        item.attributes.set(
+            "particle_emitter",
+            Value::ParticleEmitter(ParticleEmitter::new(Vec3::zero(), Vec3::unit_y())),
+        );
+        map.items.push(item);
+        let fx_hash = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
+        map.items[0].attributes.remove("particle_emitter");
+        assert_ne!(fx_hash, handler.dynamics_hash_2d(&map, 0, &styles, &assets));
+        handler.build_dynamics_2d(&map, 0, &assets, &styles);
+        assert!(handler.dynamics_ready_2d);
+        let accepted = handler.last_dynamics_hash_2d;
+        let preview = crate::scenebuilder::d2preview::D2PreviewBuilder::new();
+        preview.build_entities_items(
+            &map,
+            &assets,
+            &mut crate::Scene::empty(),
+            Vec2::new(100., 100.),
+            &None,
+            &mut handler,
+            true,
+        );
+        assert!(
+            handler.dynamics_ready_2d,
+            "tool overlays preserve runtime dynamics"
+        );
+        assert_eq!(accepted, handler.last_dynamics_hash_2d);
+        handler.build_dynamics_2d(&map, 0, &assets, &styles);
+        assert_eq!(accepted, handler.last_dynamics_hash_2d);
+
+        let mut emitter = ParticleEmitter::new(Vec3::zero(), Vec3::unit_y());
+        emitter.rate = 120.;
+        map.items[0]
+            .attributes
+            .set("is_ruleset_fx", Value::Bool(true));
+        map.items[0]
+            .attributes
+            .set("fx_persistent", Value::Bool(true));
+        map.items[0]
+            .attributes
+            .set("particle_emitter", Value::ParticleEmitter(emitter));
+        handler.pending_particle_steps_2d = 1;
+        handler.build_dynamics_2d(&map, 0, &assets, &styles);
+        let particles = handler.vm.vm.particle_dynamic_stats().0;
+        assert!(particles > 0);
+        preview.build_entities_items(
+            &map,
+            &assets,
+            &mut crate::Scene::empty(),
+            Vec2::new(100., 100.),
+            &None,
+            &mut handler,
+            true,
+        );
+        assert_eq!(
+            particles,
+            handler.vm.vm.particle_dynamic_stats().0,
+            "preview must not erase hit particles"
+        );
+        map.items.clear();
+        handler.build_dynamics_2d(&map, 0, &assets, &styles);
+        assert_eq!(
+            handler.vm.vm.particle_dynamic_stats().0,
+            0,
+            "removed FX clear cached particles"
+        );
+
+        let asset = crate::BlockPropAsset::new("Test Prefab");
+        let id = asset.id;
+        assets.block_props.insert(id, asset);
+        map.block_prop_instances
+            .push(crate::BlockPropInstance::new(id));
+        let before = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
+        map.block_prop_instances[0].world_transform[0][3] += 1.;
+        assert_ne!(before, handler.dynamics_hash_2d(&map, 0, &styles, &assets));
+        let before = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
+        assets.block_props.get_mut(&id).unwrap().name.push('!');
+        assert_ne!(before, handler.dynamics_hash_2d(&map, 0, &styles, &assets));
+    }
 
     #[test]
     fn particle_speed_is_independent_of_update_rate() {
@@ -2159,69 +2274,81 @@ impl SceneHandler {
             }
         };
 
-        for sector in &map.sectors {
-            if let Some(center) = sector.center(map)
-                && let Some(source) = sector.properties.get_default_source()
-                && let Some(tile) = source.tile_from_tile_list(assets)
-            {
-                spawn_2d(
-                    &mut self.tile_emitters_2d,
-                    &mut self.vm,
-                    Self::tile_particle_key(1, sector.id, 0),
-                    &tile,
-                    center,
-                    1.0,
-                    Vec3::new(0.0, -1.0, 0.0),
-                    5,
-                    &mut active_emitters,
-                    &mut has_particles,
-                );
+        // Most tile maps contain no authored emitters at all. Avoid geometry
+        // discovery entirely in that case; transient item FX still run below.
+        let has_tile_emitters = assets
+            .tiles
+            .values()
+            .chain(assets.materials.values())
+            .chain(assets.tile_list.iter())
+            .any(|tile| tile.particle_emitter.is_some());
+        if has_tile_emitters {
+            for sector in &map.sectors {
+                if let Some(source) = sector.properties.get_default_source()
+                    && let Some(tile) = source.tile_ref_from_tile_list(assets)
+                    && tile.particle_emitter.is_some()
+                    && let Some(center) = sector.center(map)
+                {
+                    spawn_2d(
+                        &mut self.tile_emitters_2d,
+                        &mut self.vm,
+                        Self::tile_particle_key(1, sector.id, 0),
+                        tile,
+                        center,
+                        1.0,
+                        Vec3::new(0.0, -1.0, 0.0),
+                        5,
+                        &mut active_emitters,
+                        &mut has_particles,
+                    );
+                }
             }
-        }
 
-        for linedef in &map.linedefs {
-            if let Some(Value::Source(source)) = linedef.properties.get("row1_source")
-                && let Some(tile) = source.tile_from_tile_list(assets)
-                && let (Some(start), Some(end)) = (
-                    map.find_vertex(linedef.start_vertex),
-                    map.find_vertex(linedef.end_vertex),
-                )
-            {
-                spawn_2d(
-                    &mut self.tile_emitters_2d,
-                    &mut self.vm,
-                    Self::tile_particle_key(2, linedef.id, 0),
-                    &tile,
-                    Vec2::new((start.x + end.x) * 0.5, (start.y + end.y) * 0.5),
-                    1.0,
-                    Vec3::new(0.0, -1.0, 0.0),
-                    6,
-                    &mut active_emitters,
-                    &mut has_particles,
-                );
+            for linedef in &map.linedefs {
+                if let Some(Value::Source(source)) = linedef.properties.get("row1_source")
+                    && let Some(tile) = source.tile_ref_from_tile_list(assets)
+                    && tile.particle_emitter.is_some()
+                    && let (Some(start), Some(end)) = (
+                        map.find_vertex(linedef.start_vertex),
+                        map.find_vertex(linedef.end_vertex),
+                    )
+                {
+                    spawn_2d(
+                        &mut self.tile_emitters_2d,
+                        &mut self.vm,
+                        Self::tile_particle_key(2, linedef.id, 0),
+                        tile,
+                        Vec2::new((start.x + end.x) * 0.5, (start.y + end.y) * 0.5),
+                        1.0,
+                        Vec3::new(0.0, -1.0, 0.0),
+                        6,
+                        &mut active_emitters,
+                        &mut has_particles,
+                    );
+                }
             }
-        }
 
-        for vertex in &map.vertices {
-            if let Some(Value::Source(PixelSource::TileId(tile_id))) =
-                vertex.properties.get("source")
-                && let Some(tile) = assets.tiles.get(tile_id)
-            {
-                spawn_2d(
-                    &mut self.tile_emitters_2d,
-                    &mut self.vm,
-                    Self::tile_particle_key(3, vertex.id, 0),
-                    &tile,
-                    Vec2::new(vertex.x, vertex.y),
-                    vertex
-                        .properties
-                        .get_float_default("source_size", 1.0)
-                        .max(0.25),
-                    Vec3::new(0.0, -1.0, 0.0),
-                    15,
-                    &mut active_emitters,
-                    &mut has_particles,
-                );
+            for vertex in &map.vertices {
+                if let Some(Value::Source(PixelSource::TileId(tile_id))) =
+                    vertex.properties.get("source")
+                    && let Some(tile) = assets.tiles.get(tile_id)
+                {
+                    spawn_2d(
+                        &mut self.tile_emitters_2d,
+                        &mut self.vm,
+                        Self::tile_particle_key(3, vertex.id, 0),
+                        tile,
+                        Vec2::new(vertex.x, vertex.y),
+                        vertex
+                            .properties
+                            .get_float_default("source_size", 1.0)
+                            .max(0.25),
+                        Vec3::new(0.0, -1.0, 0.0),
+                        15,
+                        &mut active_emitters,
+                        &mut has_particles,
+                    );
+                }
             }
         }
 
@@ -2249,13 +2376,13 @@ impl SceneHandler {
 
             if item.attributes.get_bool_default("visible", false)
                 && let Some(Value::Source(source)) = item.attributes.get("source")
-                && let Some(tile) = source.tile_from_tile_list(assets)
+                && let Some(tile) = source.tile_ref_from_tile_list(assets)
             {
                 spawn_2d(
                     &mut self.tile_emitters_2d,
                     &mut self.vm,
                     Self::tile_particle_key(4, item.id, 0),
-                    &tile,
+                    tile,
                     Vec2::new(item.position.x, item.position.z),
                     1.0,
                     Vec3::new(0.0, -1.0, 0.0),
@@ -2269,13 +2396,13 @@ impl SceneHandler {
         for entity in &map.entities {
             if entity.attributes.get_bool_default("visible", false)
                 && let Some(Value::Source(source)) = entity.attributes.get("source")
-                && let Some(tile) = source.tile_from_tile_list(assets)
+                && let Some(tile) = source.tile_ref_from_tile_list(assets)
             {
                 spawn_2d(
                     &mut self.tile_emitters_2d,
                     &mut self.vm,
                     Self::tile_particle_key(5, entity.id, 0),
-                    &tile,
+                    tile,
                     Vec2::new(entity.position.x, entity.position.z),
                     entity.attributes.get_float_default("size", 1.0).max(0.25),
                     Vec3::new(0.0, -1.0, 0.0),
@@ -2930,6 +3057,50 @@ impl SceneHandler {
         AvatarDirection::from_front_right(front_dot, right_dot)
     }
 
+    fn hash_properties(hasher: &mut rustc_hash::FxHasher, values: &crate::ValueContainer) {
+        for key in values.keys() {
+            hasher.write_u8(1);
+            hasher.write_usize(key.len());
+            hasher.write(key.as_bytes());
+            match values.get(key).unwrap() {
+                Value::Bool(value) => {
+                    hasher.write_u8(0);
+                    hasher.write_u8(u8::from(*value));
+                }
+                Value::Source(value) => {
+                    hasher.write_u8(1);
+                    Self::hash_pixel_source(hasher, value);
+                }
+                Value::Str(value) => {
+                    hasher.write_u8(2);
+                    hasher.write_usize(value.len());
+                    hasher.write(value.as_bytes());
+                }
+                Value::Int(value) => {
+                    hasher.write_u8(3);
+                    hasher.write_i32(*value);
+                }
+                Value::UInt(value) => {
+                    hasher.write_u8(4);
+                    hasher.write_u32(*value);
+                }
+                Value::Int64(value) => {
+                    hasher.write_u8(5);
+                    hasher.write_i64(*value);
+                }
+                Value::Float(value) => {
+                    hasher.write_u8(6);
+                    hasher.write_u32(value.to_bits());
+                }
+                value => {
+                    hasher.write_u8(7);
+                    hash_serialized(hasher, value);
+                }
+            }
+        }
+        hasher.write_u8(0);
+    }
+
     fn hash_pixel_source(hasher: &mut rustc_hash::FxHasher, source: &PixelSource) {
         match source {
             PixelSource::Off => hasher.write_u8(0),
@@ -3062,10 +3233,47 @@ impl SceneHandler {
         map: &Map,
         animation_frame: usize,
         avatar_frame_styles: &FxHashMap<u32, AvatarFrameStyle>,
+        assets: &Assets,
     ) -> u64 {
         let mut hasher = rustc_hash::FxHasher::default();
         hasher.write(map.id.as_bytes());
         hasher.write_u64(animation_frame as u64);
+        hasher.write_u64(crate::scenebuilder::preview_geometry::geometry_fingerprint(
+            map,
+        ));
+        // The overlay no longer invalidates dynamics every frame. Include effect
+        // settings so authoring edits, including removal, still rebuild immediately.
+        hash_serialized(&mut hasher, &map.lights);
+        for tile in assets
+            .tiles
+            .values()
+            .chain(assets.materials.values())
+            .chain(assets.tile_list.iter())
+        {
+            if tile.particle_emitter.is_some()
+                || !tile.particle_effects.is_empty()
+                || !tile.light_effects.is_empty()
+            {
+                hasher.write(tile.id.as_bytes());
+                hash_serialized(
+                    &mut hasher,
+                    &(
+                        &tile.particle_emitter,
+                        &tile.particle_effects,
+                        &tile.light_effects,
+                        &tile.attachments,
+                    ),
+                );
+            }
+        }
+        Self::hash_properties(&mut hasher, &map.properties);
+        for instance in &map.block_prop_instances {
+            hash_serialized(&mut hasher, instance);
+            hash_serialized(&mut hasher, &assets.block_props.get(&instance.asset_id));
+        }
+        if let Some(id) = map.properties.get_id("prefab_effect_preview_asset_id") {
+            hash_serialized(&mut hasher, &assets.block_props.get(&id));
+        }
         Self::hash_avatar_frame_styles(&mut hasher, avatar_frame_styles);
         hasher.write_u64(map.sectors.len() as u64);
         hasher.write_u64(map.linedefs.len() as u64);
@@ -3077,6 +3285,7 @@ impl SceneHandler {
         hasher.write_u64(map.entities.len() as u64);
 
         for sector in &map.sectors {
+            Self::hash_properties(&mut hasher, &sector.properties);
             hasher.write_u32(sector.id);
             if let Some(source) = sector.properties.get_default_source() {
                 Self::hash_pixel_source(&mut hasher, source);
@@ -3102,6 +3311,7 @@ impl SceneHandler {
         }
 
         for linedef in &map.linedefs {
+            Self::hash_properties(&mut hasher, &linedef.properties);
             hasher.write_u32(linedef.id);
             if let Some(Value::Source(source)) = linedef.properties.get("row1_source") {
                 Self::hash_pixel_source(&mut hasher, source);
@@ -3127,6 +3337,7 @@ impl SceneHandler {
         }
 
         for vertex in &map.vertices {
+            Self::hash_properties(&mut hasher, &vertex.properties);
             hasher.write_u32(vertex.id);
             hasher.write_u32(vertex.x.to_bits());
             hasher.write_u32(vertex.y.to_bits());
@@ -3155,6 +3366,9 @@ impl SceneHandler {
         }
 
         for object in &map.geometry_objects {
+            hasher.write_u8(u8::from(object.visible));
+            Self::hash_properties(&mut hasher, &object.properties);
+            hash_serialized(&mut hasher, &object.vertices);
             hasher.write(object.id.as_bytes());
             hasher.write(
                 object
@@ -3174,6 +3388,9 @@ impl SceneHandler {
                 }
             }
             for face in &object.faces {
+                hasher.write(face.id.as_bytes());
+                hash_serialized(&mut hasher, &face.paint_surface_id);
+                hash_serialized(&mut hasher, &face.indices);
                 if let Some(source) = face.tile.as_ref() {
                     Self::hash_pixel_source(&mut hasher, source);
                 } else {
@@ -3188,6 +3405,7 @@ impl SceneHandler {
         }
 
         for item in &map.items {
+            Self::hash_properties(&mut hasher, &item.attributes);
             hasher.write_u32(item.id);
             hasher.write_u32(item.position.x.to_bits());
             hasher.write_u32(item.position.y.to_bits());
@@ -3208,6 +3426,7 @@ impl SceneHandler {
         }
 
         for entity in &map.entities {
+            Self::hash_properties(&mut hasher, &entity.attributes);
             hasher.write_u32(entity.id);
             hasher.write_u32(entity.position.x.to_bits());
             hasher.write_u32(entity.position.y.to_bits());
@@ -3677,6 +3896,7 @@ impl SceneHandler {
             material_library::material_table_rows(),
         ));
         self.vm.execute(Atom::BuildAtlas);
+        self.mark_dynamics_dirty();
     }
 
     pub fn clear_overlay(&mut self) {
@@ -3814,7 +4034,7 @@ impl SceneHandler {
                 enabled: self.settings.avatar_shading_enabled,
                 skin_enabled: self.settings.avatar_skin_shading_enabled,
             });
-        let current_hash = self.dynamics_hash_2d(map, animation_frame, avatar_frame_styles);
+        let current_hash = self.dynamics_hash_2d(map, animation_frame, avatar_frame_styles, assets);
         let has_active_tile_particles = !self.tile_emitters_2d.is_empty();
         let has_active_builder_particles = !self.builder_emitters_2d.is_empty();
         if self.dynamics_ready_2d

@@ -3,12 +3,17 @@ use crate::{
     Value, ValueContainer, avatar_builder::AvatarRuntimeBuilder,
 };
 use MapToolType::*;
-use scenevm::{Atom, DynamicObject, GeoId, Light};
+use scenevm::GeoId;
 use theframework::prelude::*;
 use toml::*;
 use vek::Vec2;
 
+use super::preview_geometry::{PreviewGeometry, intersects_slice, viewport};
+
 pub struct D2PreviewBuilder {
+    geometry: std::sync::Mutex<PreviewGeometry>,
+    #[cfg(test)]
+    disable_viewport_culling: bool,
     map_tool_type: MapToolType,
     /// Hover geometry info
     pub hover: (Option<u32>, Option<u32>, Option<u32>),
@@ -50,6 +55,9 @@ impl Default for D2PreviewBuilder {
 impl D2PreviewBuilder {
     pub fn new() -> Self {
         Self {
+            geometry: std::sync::Mutex::new(PreviewGeometry::default()),
+            #[cfg(test)]
+            disable_viewport_culling: false,
             map_tool_type: Linedef,
 
             hover: (None, None, None),
@@ -268,6 +276,16 @@ impl D2PreviewBuilder {
         scene_handler: &mut SceneHandler,
         draw_sectors: bool,
     ) {
+        let mut geometry = self.geometry.lock().unwrap();
+        geometry.update(map);
+        let visible = viewport(map, screen_size, 8.0);
+        #[cfg(test)]
+        let visible = if self.disable_viewport_culling {
+            None
+        } else {
+            visible
+        };
+
         // let screen_aspect = screen_size.x / screen_size.y;
         let screen_pixel_size = 4.0;
         let size_x = screen_pixel_size / map.grid_size;
@@ -277,9 +295,6 @@ impl D2PreviewBuilder {
         scene.d2_dynamic = vec![];
 
         scene_handler.clear_overlay();
-        scene_handler.vm.execute(Atom::ClearDynamics);
-        scene_handler.vm.execute(Atom::ClearLights);
-        scene_handler.mark_dynamics_dirty();
 
         // Object mode is a clean scene view in 2D. Surface and screen editing
         // still need their own previews, including textured widget sectors.
@@ -357,19 +372,19 @@ impl D2PreviewBuilder {
         }
 
         if draw_sectors {
-            let sectors = map.sorted_sectors_by_area();
-            for sector in &sectors {
-                if sector.intersects_vertical_slice(
-                    map,
-                    self.editing_slice,
-                    self.editing_slice_height,
-                ) {
-                    let bbox = sector.bounding_box(map);
+            for &index in &geometry.sorted_sectors {
+                let sector = &map.sectors[index];
+                let cached = &geometry.sectors[index];
+                if visible.is_some_and(|view| !view.intersects(&cached.bounds)) {
+                    continue;
+                }
+                if intersects_slice(cached.span, self.editing_slice, self.editing_slice_height) {
+                    let bbox = cached.bounds;
 
                     let is_rect = sector.properties.contains("rect")
                         || sector.properties.contains("rect_rendering");
 
-                    if let Some(geo) = sector.generate_geometry(map) {
+                    if let Some(geo) = &cached.geometry {
                         let mut vertices: Vec<[f32; 2]> = vec![];
                         let mut uvs: Vec<[f32; 2]> = vec![];
 
@@ -424,13 +439,13 @@ impl D2PreviewBuilder {
                         }
 
                         if let Some(pixelsource) = source {
-                            if let Some(tile) = pixelsource.tile_from_tile_list(assets) {
+                            if let Some(tile_id) = pixelsource.tile_id_from_tile_list(assets) {
                                 scene_handler.overlay_2d.add_poly_2d(
                                     GeoId::Sector(sector.id),
-                                    tile.id,
+                                    tile_id,
                                     vertices,
                                     uvs,
-                                    geo.1,
+                                    geo.1.clone(),
                                     if is_rect { 9 + layer } else { 10 + layer },
                                     true,
                                 );
@@ -456,7 +471,11 @@ impl D2PreviewBuilder {
                 {
                     continue;
                 }
-                if let Some(vertex_pos) = map.get_vertex(vertex.id) {
+                let vertex_pos = Vec2::new(vertex.x, vertex.y);
+                if visible.is_some_and(|view| !view.contains(vertex_pos)) {
+                    continue;
+                }
+                {
                     if self.map_tool_type == MapToolType::Linedef {
                         // In linedef mode, only show vertices that are part of selected linedefs
                         let mut found = false;
@@ -549,62 +568,20 @@ impl D2PreviewBuilder {
             let mut non_selected_lines = vec![];
             let mut non_selected_lines_with_selected_graph = vec![];
 
-            for linedef in &map.linedefs {
-                if !linedef.intersects_vertical_slice(
-                    map,
-                    self.editing_slice,
-                    self.editing_slice_height,
-                ) {
+            let hide_rect_edges = self.map_tool_type == MapToolType::MiniMap || self.no_rect_geo;
+            for (index, linedef) in map.linedefs.iter().enumerate() {
+                let cached = &geometry.lines[index];
+                if !intersects_slice(cached.span, self.editing_slice, self.editing_slice_height)
+                    || visible.is_some_and(|view| !view.intersects(&cached.bounds))
+                {
                     continue;
                 }
-
-                let mut draw = true;
-
-                // No outlines for the rect tool based sectors in the minimap or if no_rect_geo is enabled.
-                if self.map_tool_type == MapToolType::MiniMap || self.no_rect_geo {
-                    let mut only_unnamed_rect_sectors = true;
-                    for sector in &map.sectors {
-                        if sector.linedefs.contains(&linedef.id) {
-                            let is_rect = sector.properties.contains("rect")
-                                || sector.properties.contains("rect_rendering");
-                            if !is_rect || !sector.name.is_empty() {
-                                // This linedef belongs to a non-rect sector or a named rect sector
-                                only_unnamed_rect_sectors = false;
-                                break;
-                            }
-                        }
-                    }
-                    if only_unnamed_rect_sectors {
-                        // Only hide if ALL sectors this linedef belongs to are unnamed rect sectors
-                        for sector in &map.sectors {
-                            if sector.linedefs.contains(&linedef.id) {
-                                if (sector.properties.contains("rect")
-                                    || sector.properties.contains("rect_rendering"))
-                                    && sector.name.is_empty()
-                                {
-                                    draw = false;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    // If the linedef is not found in any sector and has a wall width of 0.0, don't draw it.
-                    // Prevents deleted rect tool based sectors to be drawn.
-                    // Problem: Also hides standalone walls
-                    // if draw
-                    //     && !found_in_sector
-                    //     && linedef.properties.get_float_default("wall_width", 0.0) == 0.0
-                    //     && !map.possible_polygon.contains(&linedef.id)
-                    // {
-                    //     draw = false;
-                    // }
-                }
+                let draw = !hide_rect_edges || !geometry.hidden_rect_edges.contains(&linedef.id);
 
                 if draw {
-                    if let Some(start_vertex) = map.get_vertex(linedef.start_vertex) {
+                    if let Some((start_vertex, end_vertex)) = cached.endpoints {
                         let start_pos = self.map_grid_to_local(screen_size, start_vertex, map);
-                        if let Some(end_vertex) = map.get_vertex(linedef.end_vertex) {
+                        {
                             let end_pos = self.map_grid_to_local(screen_size, end_vertex, map);
 
                             // Special color for wall profile
@@ -731,74 +708,12 @@ impl D2PreviewBuilder {
                 } else {
                     GeoId::Item(u32::MAX.saturating_sub(item_index as u32))
                 };
-                let item_light_geo_id = if item.id != 0 {
-                    GeoId::ItemLight(item.id)
-                } else {
-                    GeoId::ItemLight(u32::MAX.saturating_sub(item_index as u32))
-                };
-
-                if let Some(Value::Light(light)) = item.attributes.get("light") {
-                    // if light.active {
-                    //     let mut light = light.clone();
-                    //     light.set_position(item.position);
-                    //     scene.dynamic_lights.push(light.compile());
-                    // }
-
-                    scene_handler.vm.execute(Atom::AddLight {
-                        id: item_light_geo_id,
-                        light: Light::new_pointlight(item.position)
-                            .with_color(Vec3::from(light.get_color()))
-                            .with_intensity(light.get_intensity())
-                            .with_emitting(light.active)
-                            .with_start_distance(light.get_start_distance())
-                            .with_end_distance(light.get_end_distance())
-                            .with_flicker(light.get_flicker()),
-                    });
-                }
-
-                if let Some(Value::Source(source)) = item.attributes.get("source") {
-                    if item.attributes.get_bool_default("visible", false) {
-                        if let Some(tile_id) = source.render_tile_id(assets) {
-                            // scene_handler.overlay.add_square_2d(
-                            //     GeoId::Character(item.id),
-                            //     tile.id,
-                            //     [pos.x, pos.y],
-                            //     size,
-                            //     100,
-                            //     true,
-                            // );
-
-                            let dynamic = DynamicObject::billboard_tile_2d(
-                                item_geo_id,
-                                tile_id,
-                                pos,
-                                size,
-                                size,
-                            );
-                            scene_handler
-                                .vm
-                                .execute(Atom::AddDynamic { object: dynamic });
-
-                            // if let Some(texture_index) = assets.tile_index(&tile.id) {
-                            //     let batch = Batch2D::from_rectangle(
-                            //         pos.x - hsize,
-                            //         pos.y - hsize,
-                            //         size,
-                            //         size,
-                            //     )
-                            //     .source(PixelSource::StaticTileIndex(texture_index));
-                            //     scene.d2_dynamic.push(batch);
-                            // }
-                        }
-                    }
-                } else if item.attributes.get_bool_default("visible", false)
-                    && let Some(tile_id) = AvatarRuntimeBuilder::explicit_item_tile_id(item, assets)
+                // Runtime sprites and lights belong to SceneHandler's cached dynamics.
+                if matches!(item.attributes.get("source"), Some(Value::Source(_)))
+                    || (item.attributes.get_bool_default("visible", false)
+                        && AvatarRuntimeBuilder::explicit_item_tile_id(item, assets).is_some())
                 {
-                    let dynamic =
-                        DynamicObject::billboard_tile_2d(item_geo_id, tile_id, pos, size, size);
-                    scene_handler
-                        .vm
-                        .execute(Atom::AddDynamic { object: dynamic });
+                    continue;
                 } else if let Some(Value::Source(source)) = item.attributes.get("_source_seq") {
                     if item.attributes.get_bool_default("visible", false) {
                         if let Some(entity_tile) = source.item_tile_id(item.id, assets) {
@@ -867,43 +782,8 @@ impl D2PreviewBuilder {
                     }
                 }
 
-                if has_avatar {
+                if has_avatar || matches!(entity.attributes.get("source"), Some(Value::Source(_))) {
                     continue;
-                } else if let Some(Value::Source(source)) = entity.attributes.get("source") {
-                    if entity.attributes.get_bool_default("visible", false) {
-                        if let Some(tile) = source.tile_from_tile_list(assets) {
-                            // scene_handler.overlay.add_square_2d(
-                            //     GeoId::Character(entity.id),
-                            //     tile.id,
-                            //     [pos.x, pos.y],
-                            //     size,
-                            //     100,
-                            //     true,
-                            // );
-
-                            let dynamic = DynamicObject::billboard_tile_2d(
-                                GeoId::Character(entity.id),
-                                tile.id,
-                                pos,
-                                1.0,
-                                1.0,
-                            );
-                            scene_handler
-                                .vm
-                                .execute(Atom::AddDynamic { object: dynamic });
-
-                            // if let Some(texture_index) = assets.tile_index(&tile.id) {
-                            //     let batch = Batch2D::from_rectangle(
-                            //         pos.x - hsize,
-                            //         pos.y - hsize,
-                            //         size,
-                            //         size,
-                            //     )
-                            //     .source(PixelSource::StaticTileIndex(texture_index));
-                            //     scene.d2_dynamic.push(batch);
-                            // }
-                        }
-                    }
                 } else if Some(entity.creator_id) == map.selected_entity_item {
                     // let batch = Batch2D::from_rectangle(pos.x - hsize, pos.y - hsize, size, size)
                     //     .source(PixelSource::DynamicTileIndex(0));
@@ -1165,5 +1045,164 @@ impl D2PreviewBuilder {
         // let grid_space_pos = grid_pos * map.grid_size;
         // grid_space_pos + Vec2::new(map.offset.x, -map.offset.y) + screen_size / 2.0
         grid_pos
+    }
+}
+
+#[cfg(test)]
+mod performance_tests {
+    use super::*;
+    use crate::{Linedef, Sector, Texture, Vertex};
+    use scenevm::Atom;
+
+    #[test]
+    #[ignore = "set ELDIRON_BENCH_PROJECT_JSON to an extracted project.json"]
+    fn benchmark_large_map_editor_preview() {
+        let file = std::env::var("ELDIRON_BENCH_PROJECT_JSON").unwrap();
+        let project: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(file).unwrap()).unwrap();
+        let map: Map = serde_json::from_value(project["regions"][0]["map"].clone()).unwrap();
+        let mut assets = Assets::default();
+        assets.tiles = serde_json::from_value(project["tiles"].clone()).unwrap();
+        let mut handler = SceneHandler::default();
+        let mut scene = Scene::empty();
+        let mut builder = D2PreviewBuilder::new();
+        builder.no_rect_geo = true;
+        for tool in [MapToolType::Rect, MapToolType::Linedef] {
+            builder.set_map_tool_type(tool);
+            let start = std::time::Instant::now();
+            builder.build_entities_items(
+                &map,
+                &assets,
+                &mut scene,
+                Vec2::new(1280., 720.),
+                &None,
+                &mut handler,
+                true,
+            );
+            handler.build_dynamics_2d(&map, 0, &assets, &Default::default());
+            println!("{tool:?} cold preview: {:?}", start.elapsed());
+            let start = std::time::Instant::now();
+            for _ in 0..100 {
+                builder.build_entities_items(
+                    &map,
+                    &assets,
+                    &mut scene,
+                    Vec2::new(1280., 720.),
+                    &None,
+                    &mut handler,
+                    true,
+                );
+                handler.build_dynamics_2d(&map, 0, &assets, &Default::default());
+            }
+            println!(
+                "{tool:?} cached CPU preview: {:?}, sectors {}, edges {}",
+                start.elapsed() / 100,
+                handler.overlay_2d.polys_map.len(),
+                handler.overlay_2d.lines2d_px.len()
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn culled_preview_matches_full_map_pixels_after_pan_zoom_and_edit() {
+        let mut map = Map::new();
+        let mut assets = Assets::default();
+        let tile = Tile::from_texture(Texture::from_color([120, 60, 20, 255]));
+        let tile_id = tile.id;
+        assets.tiles.insert(tile_id, tile);
+        for y in 0..24 {
+            for x in 0..24 {
+                let v = map.vertices.len() as u32;
+                for (dx, dy) in [(0., 0.), (1., 0.), (1., 1.), (0., 1.)] {
+                    map.vertices.push(Vertex::new(
+                        map.vertices.len() as u32,
+                        x as f32 + dx,
+                        y as f32 + dy,
+                    ));
+                }
+                let l = map.linedefs.len() as u32;
+                for i in 0..4 {
+                    map.linedefs
+                        .push(Linedef::new(l + i, v + i, v + (i + 1) % 4));
+                }
+                let mut sector = Sector::new(map.sectors.len() as u32, (l..l + 4).collect());
+                sector
+                    .properties
+                    .set("source", Value::Source(PixelSource::TileId(tile_id)));
+                sector.properties.set("rect", Value::Bool(true));
+                map.sectors.push(sector);
+            }
+        }
+        map.selected_sectors = vec![0, 25];
+        map.selected_vertices = vec![0, 4];
+        let mut handler = SceneHandler::default();
+        handler.build_atlas(&assets.tiles, true);
+        handler.vm.set_active_vm(0);
+        handler.vm.execute(Atom::SetBackground(Vec4::zero()));
+        let mut scene = Scene::empty();
+        let mut builder = D2PreviewBuilder::new();
+        builder.set_map_tool_type(MapToolType::Selection);
+        let size = Vec2::new(256., 192.);
+        for (offset, scale) in [
+            (Vec2::new(-128., 96.), 24.),
+            (Vec2::new(-230., 200.), 15.),
+            (Vec2::new(20., -20.), 12.),
+        ] {
+            map.offset = offset;
+            map.grid_size = scale;
+            // A same-size coordinate edit must invalidate cached geometry.
+            map.vertices[0].x += 0.1;
+            let transform =
+                Mat3::<f32>::translation_2d(Vec2::new(
+                    map.offset.x + size.x / 2.,
+                    -map.offset.y + size.y / 2.,
+                )) * Mat3::new(map.grid_size, 0., 0., 0., map.grid_size, 0., 0., 0., 1.);
+            let mut frames = Vec::new();
+            let mut counts = Vec::new();
+            for full in [false, true] {
+                builder.disable_viewport_culling = full;
+                builder.build_entities_items(
+                    &map,
+                    &assets,
+                    &mut scene,
+                    size,
+                    &None,
+                    &mut handler,
+                    true,
+                );
+                counts.push(handler.overlay_2d.polys_map.len());
+                handler.vm.set_active_vm(1);
+                handler.vm.execute(Atom::SetTransform2D(transform));
+                handler
+                    .vm
+                    .execute(Atom::SetGP0(Vec4::new(scale, 1., offset.x, -offset.y)));
+                handler.vm.execute(Atom::SetGP2(Vec4::one()));
+                handler.vm.set_layer_enabled(2, false);
+                handler.vm.set_layer_enabled(3, false);
+                let mut pixels = vec![0; 256 * 192 * 4];
+                handler.vm.render_frame(&mut pixels, 256, 192);
+                frames.push(pixels);
+            }
+            assert!(
+                frames[0]
+                    .chunks_exact(4)
+                    .any(|p| p[0] > p[1] && p[1] > p[2]),
+                "comparison must include visible textured sectors"
+            );
+            assert!(counts[0] < counts[1], "viewport removes offscreen geometry");
+            let differences: Vec<_> = frames[0]
+                .chunks_exact(4)
+                .zip(frames[1].chunks_exact(4))
+                .enumerate()
+                .filter(|(_, (a, b))| a != b)
+                .take(8)
+                .map(|(i, (a, b))| ((i % 256, i / 256), a, b))
+                .collect();
+            assert!(
+                differences.is_empty(),
+                "visible pixels differ at {offset:?}, scale {scale}: {differences:?}"
+            );
+        }
     }
 }

@@ -138,6 +138,40 @@ impl TheRGBABuffer {
             }
             return;
         }
+        // An enlarged render view repeats source rows. Resolve horizontal
+        // sampling once and reuse each expanded row instead of resampling
+        // every destination pixel (especially at 2x display density).
+        if !blend {
+            let samples: Vec<_> = (clipped.x..clipped.x + clipped.width)
+                .map(|x| src.x as i64 + (x - dst.x) as i64 * src.width as i64 / dst.width as i64)
+                .collect();
+            let Some(first) = samples.iter().position(|x| *x >= 0 && *x < sw as i64) else {
+                return;
+            };
+            let last = samples
+                .iter()
+                .rposition(|x| *x >= 0 && *x < sw as i64)
+                .unwrap()
+                + 1;
+            let mut row = vec![0; (last - first) * 4];
+            let mut previous_y = None;
+            for y in clipped.y..clipped.y + clipped.height {
+                let sy = src.y as i64 + (y - dst.y) as i64 * src.height as i64 / dst.height as i64;
+                if sy < 0 || sy >= sh as i64 {
+                    continue;
+                }
+                if previous_y != Some(sy) {
+                    for (pixel, sx) in row.chunks_exact_mut(4).zip(&samples[first..last]) {
+                        let si = (sy as usize * sw + *sx as usize) * 4;
+                        pixel.copy_from_slice(&other.buffer[si..si + 4]);
+                    }
+                    previous_y = Some(sy);
+                }
+                let di = (y as usize * dw + clipped.x as usize + first) * 4;
+                self.buffer[di..di + row.len()].copy_from_slice(&row);
+            }
+            return;
+        }
         for y in clipped.y..clipped.y + clipped.height {
             let sy = src.y as i64 + (y - dst.y) as i64 * src.height as i64 / dst.height as i64;
             if sy < 0 || sy >= sh as i64 {
@@ -842,6 +876,21 @@ impl TheRGBABuffer {
 
     /// Creates a scaled version of the buffer by writing into the other buffer while respecting the dimensions.
     pub fn scaled_into_using_dim(&self, into: &mut TheRGBABuffer, dim: &TheDim) {
+        if dim.width == self.dim.width
+            && dim.height == self.dim.height
+            && dim.buffer_x >= 0
+            && dim.buffer_y >= 0
+            && dim.buffer_x + dim.width <= into.dim.width
+            && dim.buffer_y + dim.height <= into.dim.height
+        {
+            into.composite(
+                ThePixelRect::new(dim.buffer_x, dim.buffer_y, dim.width, dim.height),
+                self,
+                self.full_rect(),
+                false,
+            );
+            return;
+        }
         if self.render_scale != 1.0 || into.render_scale != 1.0 {
             into.composite(
                 ThePixelRect::new(dim.buffer_x, dim.buffer_y, dim.width, dim.height),
@@ -1670,6 +1719,77 @@ impl TheRGBATile {
             render_mode: 0,
             blocking: false,
             scale: 1.0,
+        }
+    }
+}
+
+#[cfg(test)]
+mod render_copy_tests {
+    use super::*;
+    fn native_buffer(width: i32, height: i32, scale: f32) -> TheRGBABuffer {
+        let mut buffer = TheRGBABuffer::new(TheDim::sized(width, height));
+        buffer.set_render_scale(scale);
+        buffer
+    }
+
+    #[test]
+    fn render_view_row_copies_match_pixel_resampling_with_clipping() {
+        fn rect_at_scale(r: ThePixelRect, scale: f32) -> (i32, i32, i32, i32) {
+            let round = |x: i32| (x as f64 * scale as f64).round() as i32;
+            (
+                round(r.x),
+                round(r.y),
+                round(r.x + r.width) - round(r.x),
+                round(r.y + r.height) - round(r.y),
+            )
+        }
+        for source_scale in [1.0, 1.25, 2.0] {
+            let mut source = native_buffer(7, 5, source_scale);
+            for (i, p) in source.pixels_mut().chunks_exact_mut(4).enumerate() {
+                p.copy_from_slice(&[(i * 31) as u8, (i * 7) as u8, i as u8, (i * 19) as u8]);
+            }
+            for dest_scale in [1.0, 1.25, 1.5, 2.0] {
+                for destination in [
+                    ThePixelRect::new(1, 2, 7, 5),
+                    ThePixelRect::new(-3, -2, 14, 10),
+                    ThePixelRect::new(8, 6, 11, 9),
+                ] {
+                    for source_rect in [
+                        ThePixelRect::new(0, 0, 7, 5),
+                        ThePixelRect::new(-2, -1, 10, 8),
+                    ] {
+                        let mut actual = native_buffer(15, 12, dest_scale);
+                        actual.fill([17, 19, 23, 29]);
+                        let mut expected = actual.clone();
+                        let (dx, dy, dw, dh) = rect_at_scale(destination, dest_scale);
+                        let (sx, sy, sw, sh) = rect_at_scale(source_rect, source_scale);
+                        let width = expected.pixel_width();
+                        for y in dy.max(0)..(dy + dh).min(expected.pixel_height() as i32) {
+                            let py = sy as i64 + (y - dy) as i64 * sh as i64 / dh as i64;
+                            for x in dx.max(0)..(dx + dw).min(width as i32) {
+                                let px = sx as i64 + (x - dx) as i64 * sw as i64 / dw as i64;
+                                if px < 0
+                                    || py < 0
+                                    || px >= source.pixel_width() as i64
+                                    || py >= source.pixel_height() as i64
+                                {
+                                    continue;
+                                }
+                                let si = (py as usize * source.pixel_width() + px as usize) * 4;
+                                let di = (y as usize * width + x as usize) * 4;
+                                expected.pixels_mut()[di..di + 4]
+                                    .copy_from_slice(&source.pixels()[si..si + 4]);
+                            }
+                        }
+                        actual.composite(destination, &source, source_rect, false);
+                        assert_eq!(
+                            actual.pixels(),
+                            expected.pixels(),
+                            "scales {source_scale}/{dest_scale}, rectangles {source_rect:?}/{destination:?}"
+                        );
+                    }
+                }
+            }
         }
     }
 }

@@ -37,9 +37,22 @@ Navigation depends on the active camera:
 - **macOS trackpad in Orbit**: two-finger scroll pans, pinch zooms, and primary click-drag on empty space or the ViewCube orbits. `Command` + two-finger scroll is a zoom fallback.
 - **macOS trackpad in Iso**: two-finger scroll pans and pinch zooms.
 - **Linux Wayland touchpad**: two-finger scroll pans in Orbit and Iso; hold `Ctrl` while scrolling to zoom. `Ctrl` + scroll also zooms the 2D editor, profile editor, and node canvas. Native Linux pinch gestures are not delivered by the current winit 0.30 backend.
+
 - **First Person**: `WASD` moves whenever the viewport is focused; hold right mouse to look or press `Space` to toggle touchpad look. First Person does not pan.
 - **ViewCube in Orbit**: click a visible face to align the camera to that axis.
 - **Mini-map**: click the mini-map in the **Region** section to jump to a location.
+
+For touchpad zoom, click the canvas to focus the window, hold `Ctrl`, and move
+two fingers **up or down** on the touchpad while the pointer stays over the
+canvas. This is a scroll gesture, without holding a mouse button. Horizontal
+scroll alone does not change zoom.
+
+If Ctrl + vertical scrolling still pans or does nothing, builds with input
+diagnostics can be launched from a terminal using
+`ELDIRON_INPUT_DEBUG=1 ./eldiron-creator 2>input.log` (or substitute the AppImage
+filename). Test ordinary scrolling and Ctrl + vertical scrolling in both the
+editor and node canvas. The log records modifier flags, scroll deltas, and the
+hovered widget, without recording typed text. Logging is off by default.
 
 See [Camera Actions](../actions#camera-actions) for the complete per-camera controls.
 

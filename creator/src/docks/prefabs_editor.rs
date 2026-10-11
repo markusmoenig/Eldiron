@@ -826,8 +826,7 @@ impl PrefabsEditorDock {
         }
         if let Some(tree) = ui.get_tree_layout(PART_TREE) {
             let root = tree.get_root();
-            root.childs.clear();
-            root.widgets.clear();
+            root.clear();
 
             let mut asset_node = TheTreeNode::new(TheId::named_with_id(&asset.name, asset.id));
             asset_node.set_open(true);
@@ -1789,8 +1788,7 @@ impl PrefabsEditorDock {
         }
         if let Some(tree) = ui.get_tree_layout(EFFECT_TREE) {
             let root = tree.get_root();
-            root.childs.clear();
-            root.widgets.clear();
+            root.clear();
             let mut asset_node = TheTreeNode::new(TheId::named_with_id(&asset.name, asset.id));
             asset_node.set_open(true);
             for effect in &asset.particle_effects {

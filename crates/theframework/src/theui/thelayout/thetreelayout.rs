@@ -139,6 +139,14 @@ impl TheTreeNode {
         }
     }
 
+    /// Remove all branch contents, including when the replacement is empty.
+    pub fn clear(&mut self) {
+        self.widgets.clear();
+        self.childs.clear();
+        self.selected_widget = None;
+        self.mark_layout_dirty();
+    }
+
     pub fn add_child(&mut self, mut node: TheTreeNode) {
         if let Some(layout_id) = &self.layout_id {
             node.set_layout_id(layout_id.clone());
@@ -296,10 +304,7 @@ impl TheTreeNode {
 
     fn node_state_changed_internal(&mut self, id: &TheId, open: bool) -> bool {
         if self.id.matches(Some(&id.name), Some(&id.uuid)) {
-            self.open = open;
-            if let Some(snapper) = self.widget.as_any().downcast_mut::<TheSnapperbar>() {
-                snapper.set_open(open);
-            }
+            self.set_open(open);
             return true;
         }
 
@@ -500,6 +505,11 @@ impl TheTreeNode {
             return true;
         }
 
+        // Hidden descendants keep their dirty state until the branch is opened.
+        if !self.open {
+            return false;
+        }
+
         for widget in &mut self.widgets {
             if widget.needs_redraw() {
                 return true;
@@ -533,6 +543,7 @@ pub struct TheTreeLayout {
 
     background: Option<TheThemeColors>,
     headerless: bool,
+    paint_dirty: bool,
     layout_dirty_flag: Arc<AtomicBool>,
 }
 
@@ -564,6 +575,7 @@ impl TheLayout for TheTreeLayout {
 
             background: Some(TextLayoutBackground),
             headerless: true,
+            paint_dirty: true,
             layout_dirty_flag,
         }
     }
@@ -573,7 +585,10 @@ impl TheLayout for TheTreeLayout {
     }
 
     fn set_background_color(&mut self, color: Option<TheThemeColors>) {
-        self.background = color;
+        if self.background != color {
+            self.background = color;
+            self.paint_dirty = true;
+        }
     }
 
     fn widgets(&mut self) -> &mut Vec<Box<dyn TheWidget>> {
@@ -586,7 +601,9 @@ impl TheLayout for TheTreeLayout {
 
     fn mouse_wheel_scroll(&mut self, delta: Vec2<i32>) {
         if let Some(scroll_bar) = self.vertical_scrollbar.as_vertical_scrollbar() {
+            let previous = scroll_bar.scroll_offset();
             scroll_bar.scroll_by(-delta.y);
+            self.paint_dirty |= previous != scroll_bar.scroll_offset();
             // Apply the new scroll offset to all widgets
             let offset = scroll_bar.scroll_offset();
             self.root.apply_scroll_offset(offset);
@@ -645,6 +662,9 @@ impl TheLayout for TheTreeLayout {
     }
 
     fn needs_redraw(&mut self) -> bool {
+        if self.paint_dirty || self.layout_dirty_flag.load(Ordering::Relaxed) {
+            return true;
+        }
         if self.vertical_scrollbar_visible && self.vertical_scrollbar.needs_redraw() {
             return true;
         }
@@ -653,7 +673,7 @@ impl TheLayout for TheTreeLayout {
             return true;
         }
 
-        true
+        false
     }
 
     fn dim(&self) -> &TheDim {
@@ -779,6 +799,7 @@ impl TheLayout for TheTreeLayout {
                 style.theme().color(TextLayoutBorder),
             );
         }
+        self.paint_dirty = false;
     }
 
     fn as_tree_layout(&mut self) -> Option<&mut dyn TheTreeLayoutTrait> {
@@ -808,6 +829,10 @@ pub trait TheTreeLayoutTrait: TheLayout {
 
 impl TheTreeLayoutTrait for TheTreeLayout {
     fn set_headerless(&mut self, headerless: bool) {
+        if self.headerless != headerless {
+            self.layout_dirty_flag.store(true, Ordering::Relaxed);
+            self.paint_dirty = true;
+        }
         self.headerless = headerless;
         if self.headerless {
             self.root.open = true;
@@ -835,7 +860,9 @@ impl TheTreeLayoutTrait for TheTreeLayout {
     }
     fn scroll_by(&mut self, delta: Vec2<i32>) {
         if let Some(scroll_bar) = self.vertical_scrollbar.as_vertical_scrollbar() {
+            let previous = scroll_bar.scroll_offset();
             scroll_bar.scroll_by(-delta.y);
+            self.paint_dirty |= previous != scroll_bar.scroll_offset();
             // Apply the new scroll offset to all widgets
             let offset = scroll_bar.scroll_offset();
             self.root.apply_scroll_offset(offset);
@@ -845,6 +872,7 @@ impl TheTreeLayoutTrait for TheTreeLayout {
 
 impl TheTreeLayout {
     fn recalculate_layout(&mut self, ctx: &mut TheContext) {
+        self.paint_dirty = true;
         if self.dim.width <= 0 || self.dim.height <= 0 {
             self.layout_dirty_flag.store(false, Ordering::Relaxed);
             return;

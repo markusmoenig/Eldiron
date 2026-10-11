@@ -30,8 +30,8 @@ use shared::iso_paint_render::{
     IsoPaintRenderCache as SharedIsoPaintRenderCache, IsoPaintRenderer,
 };
 use shared::rusterix_utils::*;
+use std::collections::HashSet;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::{Read, Write};
@@ -186,7 +186,7 @@ struct IsoPaintCachedStrokeRender {
 struct IsoPaintChunkRenderCache {
     revision: u64,
     strokes: Vec<IsoPaintStrokeRenderCache>,
-    stroke_caches: HashMap<Uuid, IsoPaintCachedStrokeRender>,
+    stroke_caches: FxHashMap<Uuid, IsoPaintCachedStrokeRender>,
 }
 
 #[allow(dead_code)]
@@ -200,7 +200,7 @@ enum IsoPaintRenderItem<'a> {
 #[derive(Default)]
 struct IsoPaintRenderCache {
     region_id: Option<Uuid>,
-    chunks: HashMap<String, IsoPaintChunkRenderCache>,
+    chunks: FxHashMap<String, IsoPaintChunkRenderCache>,
 }
 
 #[derive(Deserialize, Clone)]
@@ -258,6 +258,7 @@ pub struct Editor {
     #[cfg(not(target_arch = "wasm32"))]
     scepter_receiver: Option<Receiver<ScepterEvent>>,
     last_3d_hover_redraw_at: Option<std::time::Instant>,
+    last_authoring_input_at: Option<std::time::Instant>,
 
     #[cfg(all(
         feature = "self-update",
@@ -290,7 +291,7 @@ pub struct Editor {
     build_values: ValueContainer,
     window_state: CreatorWindowState,
     starter_projects: Vec<StarterProjectEntry>,
-    starter_project_cache: HashMap<String, Project>,
+    starter_project_cache: FxHashMap<String, Project>,
     starter_manifest_cache: Option<Vec<StarterProjectEntry>>,
     starter_loader_rx: Option<Receiver<Vec<StarterProjectEntry>>>,
     starter_project_loader_rx: Option<Receiver<(String, Option<Project>)>>,
@@ -1008,7 +1009,7 @@ impl Editor {
         let draw_w = ((paint_dim.width as f32) * scale).round().max(1.0) as usize;
         let draw_h = ((paint_dim.height as f32) * scale).round().max(1.0) as usize;
         let paint_pixels = paint.pixels();
-        let mut weights: HashMap<scenevm::GeoId, usize> = HashMap::new();
+        let mut weights: FxHashMap<scenevm::GeoId, usize> = FxHashMap::default();
         for gy in 0..draw_h {
             let sy = ((gy as f32) / scale).floor() as usize;
             if sy >= paint_h {
@@ -4142,7 +4143,7 @@ impl Editor {
         let mut previous_strokes = previous
             .map(|cache| cache.stroke_caches)
             .unwrap_or_default();
-        let mut stroke_caches = HashMap::new();
+        let mut stroke_caches = FxHashMap::default();
         let mut strokes = Vec::new();
 
         for stroke in &chunk.strokes {
@@ -4688,6 +4689,7 @@ impl Editor {
         ctx.ui.clear_focus();
         ctx.ui.clear_hover();
         self.last_3d_hover_redraw_at = None;
+        self.last_authoring_input_at = None;
         self.pending_game_messages.clear();
         self.pending_game_says.clear();
         self.pending_game_choices.clear();
@@ -6372,14 +6374,14 @@ impl Editor {
             Some((min_x, max_x, min_y, max_y))
         };
 
-        let mut layer_counts: HashMap<String, usize> = HashMap::new();
-        let mut sector_source_counts: HashMap<Uuid, usize> = HashMap::new();
-        let mut linedef_source_counts: HashMap<Uuid, usize> = HashMap::new();
-        let mut role_counts: HashMap<String, (usize, usize)> = HashMap::new();
-        let mut kind_counts: HashMap<String, usize> = HashMap::new();
+        let mut layer_counts: FxHashMap<String, usize> = FxHashMap::default();
+        let mut sector_source_counts: FxHashMap<Uuid, usize> = FxHashMap::default();
+        let mut linedef_source_counts: FxHashMap<Uuid, usize> = FxHashMap::default();
+        let mut role_counts: FxHashMap<String, (usize, usize)> = FxHashMap::default();
+        let mut kind_counts: FxHashMap<String, usize> = FxHashMap::default();
         let mut off_sector_count = 0usize;
         let mut named_sectors = Vec::new();
-        let mut procedural_sectors: HashMap<String, usize> = HashMap::new();
+        let mut procedural_sectors: FxHashMap<String, usize> = FxHashMap::default();
 
         for sector in &region.map.sectors {
             *layer_counts
@@ -6460,7 +6462,7 @@ impl Editor {
             }
         }
 
-        let source_usage = |counts: HashMap<Uuid, usize>| {
+        let source_usage = |counts: FxHashMap<Uuid, usize>| {
             let mut usage = counts
                 .into_iter()
                 .map(|(tile_id, count)| {
@@ -7750,11 +7752,25 @@ impl Editor {
 
     fn redraw_interval_ms(&self) -> u64 {
         let config = CONFIGEDITOR.read().unwrap();
-        // UI presentation must stay independent from the simulation tick.
-        // Stonefall deliberately ticks every 100 ms; using that interval for
-        // redraws as soon as the server stopped dropped the Creator to 10 FPS.
-        // `tick_ms` below still controls simulation/animation updates.
-        (1000 / config.target_fps.clamp(1, 60)) as u64
+        (1000
+            / Self::presentation_fps(
+                self.server_ctx.game_mode,
+                self.authoring_is_interacting(),
+                config.target_fps,
+            )) as u64
+    }
+
+    fn authoring_is_interacting(&self) -> bool {
+        self.last_authoring_input_at
+            .is_some_and(|at| at.elapsed() < std::time::Duration::from_millis(250))
+    }
+
+    fn presentation_fps(game_mode: bool, interacting: bool, game_target_fps: i32) -> i32 {
+        if !game_mode && interacting {
+            60
+        } else {
+            game_target_fps.clamp(1, 60)
+        }
     }
 
     #[inline]
@@ -7836,6 +7852,7 @@ impl TheTrait for Editor {
             #[cfg(not(target_arch = "wasm32"))]
             scepter_receiver: None,
             last_3d_hover_redraw_at: None,
+            last_authoring_input_at: None,
 
             #[cfg(all(
                 feature = "self-update",
@@ -7865,7 +7882,7 @@ impl TheTrait for Editor {
             build_values: ValueContainer::default(),
             window_state: Self::load_window_state(),
             starter_projects: Vec::new(),
-            starter_project_cache: HashMap::new(),
+            starter_project_cache: FxHashMap::default(),
             starter_manifest_cache: None,
             starter_loader_rx: None,
             starter_project_loader_rx: None,
@@ -7911,9 +7928,11 @@ impl TheTrait for Editor {
     }
 
     fn target_fps(&self) -> f64 {
-        // Simulation ticks may intentionally be sparse, but they must not
-        // throttle input processing and UI presentation.
-        CONFIGEDITOR.read().unwrap().target_fps.clamp(1, 60) as f64
+        Self::presentation_fps(
+            self.server_ctx.game_mode,
+            self.authoring_is_interacting(),
+            CONFIGEDITOR.read().unwrap().target_fps,
+        ) as f64
     }
 
     fn fonts_to_load(&self) -> Vec<TheFontScript> {
@@ -8932,6 +8951,19 @@ impl TheTrait for Editor {
             while let Ok(event) = receiver.try_recv() {
                 pending_events.push(event);
             }
+        }
+        if pending_events.iter().any(|event| {
+            matches!(
+                event,
+                TheEvent::RenderViewClicked(_, _)
+                    | TheEvent::RenderViewDragged(_, _)
+                    | TheEvent::RenderViewHoverChanged(_, _)
+                    | TheEvent::RenderViewScrollBy(_, _)
+                    | TheEvent::RenderViewPreciseScrollBy(_, _)
+                    | TheEvent::RenderViewZoomBy(_, _)
+            )
+        }) {
+            self.last_authoring_input_at = Some(std::time::Instant::now());
         }
         Self::coalesce_polyview_hover_events(&mut pending_events);
         if !pending_events.is_empty() {
@@ -11516,6 +11548,7 @@ impl TheTrait for Editor {
         }
 
         if handled {
+            self.last_authoring_input_at = Some(std::time::Instant::now());
             RUSTERIX.write().unwrap().set_dirty();
             ctx.ui.redraw_all = true;
         }
@@ -11555,6 +11588,87 @@ impl TheTrait for Editor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "requires a native GPU and ELDIRON_BENCH_PROJECT_PATH"]
+    fn benchmark_u5_creator_redraw() {
+        let path = std::env::var("ELDIRON_BENCH_PROJECT_PATH").unwrap();
+        let project = Editor::load_project_from_path(std::path::Path::new(&path)).unwrap();
+        let mut editor = Editor::new();
+        let scale = std::env::var("ELDIRON_BENCH_UI_SCALE")
+            .ok()
+            .and_then(|v| v.parse::<f32>().ok())
+            .unwrap_or(1.0);
+        let mut ctx = TheContext::new(1600, 1000, scale);
+        ctx.ui_render_scale = scale;
+        ctx.framebuffer_width = (1600. * scale) as usize;
+        ctx.framebuffer_height = (1000. * scale) as usize;
+        let mut ui = TheUI::new();
+        ui.init(&mut ctx);
+        ui.canvas.root = true;
+        ui.canvas.set_dim(TheDim::new(0, 0, 1600, 1000), &mut ctx);
+        editor.init_ui(&mut ui, &mut ctx);
+        editor.open_project_as_session(project, None, &mut ui, &mut ctx, &mut false, &mut false);
+        editor.server_ctx.editor_view_mode = EditorViewMode::D2;
+        editor.server_ctx.curr_map_tool_type = MapToolType::Rect;
+        ui.canvas.layout(1600, 1000, &mut ctx);
+        let mut frame = vec![0; ctx.framebuffer_width * ctx.framebuffer_height * 4];
+        for _ in 0..10 {
+            editor.update_tracker = crate::misc::UpdateTracker::new();
+            editor.update_ui(&mut ui, &mut ctx);
+            ui.draw(&mut frame, &mut ctx);
+        }
+        let initial_offset = editor.project.regions[0].map.offset;
+        for mode in ["hover", "pan", "zoom"] {
+            let mut update = Vec::new();
+            let mut composition = Vec::new();
+            for i in 0..40 {
+                let map = &mut editor.project.regions[0].map;
+                if mode == "pan" {
+                    map.offset.x = initial_offset.x + i as f32 * 2.;
+                }
+                if mode == "zoom" {
+                    map.grid_size = 24. + i as f32 * 0.3;
+                }
+                editor.server_ctx.hover_cursor = Some(Vec2::new(12. + i as f32 * 0.1, 12.));
+                editor.update_tracker = crate::misc::UpdateTracker::new();
+                let start = std::time::Instant::now();
+                editor.update_ui(&mut ui, &mut ctx);
+                update.push(start.elapsed().as_secs_f64() * 1000.);
+                let start = std::time::Instant::now();
+                ui.draw(&mut frame, &mut ctx);
+                composition.push(start.elapsed().as_secs_f64() * 1000.);
+            }
+            let dim = *ui
+                .get_render_view("PolyView")
+                .unwrap()
+                .render_buffer_mut()
+                .dim();
+            let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+            println!(
+                "Creator {mode} viewport={}x{} update={:.2}ms ui={:.2}ms total={:.2}ms",
+                dim.width,
+                dim.height,
+                mean(&update),
+                mean(&composition),
+                mean(&update) + mean(&composition)
+            );
+        }
+        assert!(frame.chunks_exact(4).any(|p| p[0] > 0));
+    }
+
+    #[test]
+    fn authoring_presentation_boosts_only_during_interaction() {
+        for fps in [1, 10, 30, 60, 120] {
+            assert_eq!(Editor::presentation_fps(false, true, fps), 60);
+            assert_eq!(
+                Editor::presentation_fps(false, false, fps),
+                fps.clamp(1, 60)
+            );
+            assert_eq!(Editor::presentation_fps(true, true, fps), fps.clamp(1, 60));
+            assert_eq!(Editor::presentation_fps(true, false, fps), fps.clamp(1, 60));
+        }
+    }
 
     #[test]
     fn starter_previews_decode_to_rgba_for_rendering() {

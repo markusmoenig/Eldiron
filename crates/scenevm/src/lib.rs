@@ -2445,6 +2445,50 @@ impl SceneVM {
         Ok(RenderResult::Presented)
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
+    fn record_cpu_frame_timing(size: (u32, u32), render_ms: f64, readback_ms: f64, copy_ms: f64) {
+        if !render_debug_enabled() {
+            return;
+        }
+        #[derive(Default)]
+        struct Timing {
+            frames: usize,
+            render: f64,
+            readback: f64,
+            copy: f64,
+            last_log: Option<instant::Instant>,
+        }
+        static TIMING: OnceLock<std::sync::Mutex<Timing>> = OnceLock::new();
+        let mut timing = TIMING
+            .get_or_init(|| std::sync::Mutex::new(Timing::default()))
+            .lock()
+            .unwrap();
+        timing.frames += 1;
+        timing.render += render_ms;
+        timing.readback += readback_ms;
+        timing.copy += copy_ms;
+        let now = instant::Instant::now();
+        if timing
+            .last_log
+            .is_none_or(|last| now.duration_since(last) >= std::time::Duration::from_secs(2))
+        {
+            let n = timing.frames as f64;
+            render_debug_log(&format!(
+                "[RenderDebug][CPUFrame] size={}x{} frames={} avg_ms render={:.2} readback={:.2} copy={:.2}",
+                size.0,
+                size.1,
+                timing.frames,
+                timing.render / n,
+                timing.readback / n,
+                timing.copy / n
+            ));
+            *timing = Timing {
+                last_log: Some(now),
+                ..Default::default()
+            };
+        }
+    }
+
     /// Draw: if GPU is present, run the compute path. Returns immediately if GPU is not yet ready (WASM before init).
     #[cfg(not(target_arch = "wasm32"))]
     fn draw(&mut self, out_pixels: &mut [u8], out_w: u32, out_h: u32) {
@@ -2468,6 +2512,7 @@ impl SceneVM {
         let (w, h) = self.size;
 
         // Delegate rendering to all VM layers in order (each overlays the previous result)
+        let render_start = instant::Instant::now();
         SceneVM::draw_all_vms(
             base_vm,
             overlays,
@@ -2482,14 +2527,22 @@ impl SceneVM {
             &mut self.rgba_overlay_pipeline,
             true,
         );
+        let render_ms = render_start.elapsed().as_secs_f64() * 1000.0;
+        let readback_start = instant::Instant::now();
         // Readback into the surface's CPU memory (blocking on native, non-blocking noop on wasm)
         let device = gpu.device.clone();
         let queue = gpu.queue.clone();
         gpu.surface.download_from_gpu_with(&device, &queue);
 
-        // On native, pixels are now in `surface.data`; copy them to the output buffer.
-        // On WASM, if you need the pixels immediately, prefer `draw_async`.
+        let readback_ms = readback_start.elapsed().as_secs_f64() * 1000.0;
+        let copy_start = instant::Instant::now();
         gpu.surface.copy_to_slice(out_pixels, out_w, out_h);
+        Self::record_cpu_frame_timing(
+            (out_w, out_h),
+            render_ms,
+            readback_ms,
+            copy_start.elapsed().as_secs_f64() * 1000.0,
+        );
     }
 
     /// Cross-platform async render: same call on native & WASM.

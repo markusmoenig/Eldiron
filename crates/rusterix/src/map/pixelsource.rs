@@ -279,6 +279,28 @@ impl PixelSource {
     }
 
     /// Generate a tile from the tile_list indices
+    /// Borrow an existing asset without copying its textures. Synthetic color/palette
+    /// tiles have no authored emitters and need not be generated for effect discovery.
+    pub fn tile_ref_from_tile_list<'a>(&self, assets: &'a Assets) -> Option<&'a Tile> {
+        let id = match self {
+            TileId(id) | MaterialId(id) => *id,
+            Noise(noise) => noise.tile_id(),
+            PaletteIndex(index) => Self::palette_tile_uuid(*index),
+            _ => return None,
+        };
+        if let Some(index) = assets.tile_indices.get(&id) {
+            assets.tile_list.get(*index as usize)
+        } else {
+            assets.tiles.get(&id).or_else(|| assets.materials.get(&id))
+        }
+    }
+
+    pub fn tile_id_from_tile_list(&self, assets: &Assets) -> Option<Uuid> {
+        self.tile_ref_from_tile_list(assets)
+            .map(|tile| tile.id)
+            .or_else(|| self.tile_from_tile_list(assets).map(|tile| tile.id))
+    }
+
     pub fn tile_from_tile_list(&self, assets: &Assets) -> Option<Tile> {
         match self {
             Noise(noise) => assets

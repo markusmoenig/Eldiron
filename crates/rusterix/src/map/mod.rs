@@ -124,8 +124,51 @@ pub enum MapToolType {
     Wall,
 }
 
+// Map vectors are public and can be reordered or edited without an invalidation call.
+// Validate cached slots before use, and repair them on demand after topology edits.
+#[derive(Default, Debug)]
+struct GeometryLookup {
+    vertices: std::sync::RwLock<FxHashMap<u32, usize>>,
+    linedefs: std::sync::RwLock<FxHashMap<u32, usize>>,
+    sectors: std::sync::RwLock<FxHashMap<u32, usize>>,
+}
+
+impl Clone for GeometryLookup {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+fn indexed_geometry<T>(
+    values: &[T],
+    id: u32,
+    cache: &std::sync::RwLock<FxHashMap<u32, usize>>,
+    key: impl Fn(&T) -> u32,
+) -> Option<usize> {
+    if values
+        .get(id as usize)
+        .is_some_and(|value| key(value) == id)
+    {
+        return Some(id as usize);
+    }
+    if let Some(index) = cache.read().unwrap().get(&id).copied() {
+        if values.get(index).is_some_and(|value| key(value) == id) {
+            return Some(index);
+        }
+    }
+    // Populate all slots together so sparse maps also take linear time to prepare.
+    let mut indices = cache.write().unwrap();
+    indices.clear();
+    for (index, value) in values.iter().enumerate() {
+        indices.entry(key(value)).or_insert(index);
+    }
+    indices.get(&id).copied()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Map {
+    #[serde(skip)]
+    geometry_lookup: GeometryLookup,
     #[serde(default)]
     pub id: Uuid,
     pub name: String,
@@ -557,6 +600,7 @@ mod tests {
 impl Map {
     pub fn new() -> Self {
         Self {
+            geometry_lookup: GeometryLookup::default(),
             id: Uuid::new_v4(),
             name: "New Map".to_string(),
 
@@ -1393,19 +1437,19 @@ impl Map {
 
     /// Get the current position of a vertex.
     pub fn get_vertex(&self, vertex_id: u32) -> Option<Vec2<f32>> {
-        let base = self.vertices.iter().find(|v| v.id == vertex_id)?;
+        let base = self.find_vertex(vertex_id)?;
         Some(Vec2::new(base.x, base.y))
     }
 
     /// Get the current 3D position of a vertex.
     pub fn get_vertex_3d(&self, vertex_id: u32) -> Option<Vec3<f32>> {
-        let base = self.vertices.iter().find(|v| v.id == vertex_id)?;
+        let base = self.find_vertex(vertex_id)?;
         Some(Vec3::new(base.x, base.z, base.y))
     }
 
     /// Update the vertex position.
     pub fn update_vertex(&mut self, vertex_id: u32, new_position: Vec2<f32>) {
-        if let Some(v) = self.vertices.iter_mut().find(|v| v.id == vertex_id) {
+        if let Some(v) = self.find_vertex_mut(vertex_id) {
             v.x = new_position.x;
             v.y = new_position.y;
         }
@@ -1477,32 +1521,50 @@ impl Map {
 
     /// Finds a reference to a vertex by its ID
     pub fn find_vertex(&self, id: u32) -> Option<&Vertex> {
-        self.vertices.iter().find(|vertex| vertex.id == id)
+        self.vertices.get(indexed_geometry(
+            &self.vertices,
+            id,
+            &self.geometry_lookup.vertices,
+            |v| v.id,
+        )?)
     }
 
     /// Finds a mutable reference to a vertex by its ID
     pub fn find_vertex_mut(&mut self, id: u32) -> Option<&mut Vertex> {
-        self.vertices.iter_mut().find(|vertex| vertex.id == id)
+        let index = indexed_geometry(&self.vertices, id, &self.geometry_lookup.vertices, |v| v.id)?;
+        self.vertices.get_mut(index)
     }
 
     /// Finds a reference to a linedef by its ID
     pub fn find_linedef(&self, id: u32) -> Option<&Linedef> {
-        self.linedefs.iter().find(|linedef| linedef.id == id)
+        self.linedefs.get(indexed_geometry(
+            &self.linedefs,
+            id,
+            &self.geometry_lookup.linedefs,
+            |v| v.id,
+        )?)
     }
 
     /// Finds a reference to a linedef by its ID
     pub fn find_linedef_mut(&mut self, id: u32) -> Option<&mut Linedef> {
-        self.linedefs.iter_mut().find(|linedef| linedef.id == id)
+        let index = indexed_geometry(&self.linedefs, id, &self.geometry_lookup.linedefs, |v| v.id)?;
+        self.linedefs.get_mut(index)
     }
 
     /// Finds a mutable reference to a sector by its ID
     pub fn find_sector(&self, id: u32) -> Option<&Sector> {
-        self.sectors.iter().find(|sector| sector.id == id)
+        self.sectors.get(indexed_geometry(
+            &self.sectors,
+            id,
+            &self.geometry_lookup.sectors,
+            |v| v.id,
+        )?)
     }
 
     /// Finds a mutable reference to a sector by its ID
     pub fn find_sector_mut(&mut self, id: u32) -> Option<&mut Sector> {
-        self.sectors.iter_mut().find(|sector| sector.id == id)
+        let index = indexed_geometry(&self.sectors, id, &self.geometry_lookup.sectors, |v| v.id)?;
+        self.sectors.get_mut(index)
     }
 
     // Create a new (or use an existing) linedef for the given vertices and closes a polygon sector if it detects a loop.
@@ -2737,6 +2799,7 @@ impl Map {
     /// Creates an editable-geometry clone, including connected wall source graphs.
     pub fn geometry_clone(&self) -> Map {
         Map {
+            geometry_lookup: GeometryLookup::default(),
             id: Uuid::new_v4(),
             name: format!("{} (geometry_clone)", self.name),
 

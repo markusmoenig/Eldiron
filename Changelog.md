@@ -1,3 +1,25 @@
+# Eldiron v0.95.2
+
+## Improvements
+
+### Creator
+
+- Improved large-map 2D editing with indexed geometry lookups, cached triangulation and outlines, viewport filtering, and cached runtime effects without copying tile textures every redraw.
+- Boosted Creator refresh to 60 FPS during canvas interaction, returning to the configured frame rate when idle; stopped repainting unchanged project trees, accelerated render-view composition with row copies and reused scaled rows, and replaced editor lookup maps with FxHashMap.
+
+### Game
+
+- Improved 2D game playback by keeping static chunks on the GPU, moving the camera through shader uniforms, and reusing buffers that upload only moving objects between chunk changes.
+- Reduced CPU use in native rendering by waiting for GPU frame readback without busy polling.
+
+## Bug Fixes
+
+### Creator
+
+- Fixed new character Entity nodes missing race, class, and level selectors when those values are inherited; existing character templates also gain the missing controls.
+
+---
+
 # Eldiron v0.95.1
 
 ## Improvements

@@ -209,6 +209,7 @@ impl Rusterix {
     /// Set the assets
     pub fn set_assets(&mut self, assets: Assets) {
         self.assets = assets;
+        self.scene_handler.mark_dynamics_dirty();
         self.load_audio_assets();
     }
 
