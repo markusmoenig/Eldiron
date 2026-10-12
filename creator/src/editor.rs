@@ -11697,7 +11697,41 @@ mod tests {
                 "Creator game Play={:.2}ms",
                 start.elapsed().as_secs_f64() * 1000.
             );
-            for i in 0..10 {
+            if let Ok(restarts) = std::env::var("ELDIRON_BENCH_GAME_RESTART") {
+                for restart in 0..restarts.parse::<usize>().unwrap_or(1) {
+                    for action in ["Stop", "Play"] {
+                        let start = std::time::Instant::now();
+                        ctx.ui.send(TheEvent::StateChanged(
+                            TheId::named(action),
+                            TheWidgetState::Clicked,
+                        ));
+                        ui.update(&mut ctx);
+                        editor.update_tracker = crate::misc::UpdateTracker::new();
+                        editor.update_ui(&mut ui, &mut ctx);
+                        ui.draw(&mut frame, &mut ctx);
+                        println!(
+                            "Creator game restart {} {action}={:.2}ms",
+                            restart + 1,
+                            start.elapsed().as_secs_f64() * 1000.
+                        );
+                    }
+                }
+            }
+            let teleport = std::env::var("ELDIRON_BENCH_GAME_TELEPORT").ok();
+            let game_frames = std::env::var("ELDIRON_BENCH_GAME_FRAMES")
+                .ok()
+                .and_then(|value| value.parse::<usize>().ok())
+                .unwrap_or(if teleport.is_some() { 40 } else { 10 });
+            for i in 0..game_frames {
+                if i == 10 {
+                    if let Some(destination) = &teleport {
+                        let mut rusterix = RUSTERIX.write().unwrap();
+                        rusterix
+                            .server
+                            .local_player_teleport("Entrance".into(), destination.clone());
+                        warmup_runtime(&mut rusterix, &mut editor.project, 3);
+                    }
+                }
                 let start = std::time::Instant::now();
                 ui.update(&mut ctx);
                 editor.update_tracker = crate::misc::UpdateTracker::new();
@@ -11708,7 +11742,20 @@ mod tests {
                     start.elapsed().as_secs_f64() * 1000.
                 );
             }
-            assert!(RUSTERIX.read().unwrap().server.state == rusterix::ServerState::Running);
+            let rusterix = RUSTERIX.read().unwrap();
+            assert!(rusterix.server.state == rusterix::ServerState::Running);
+            if let Some(destination) = teleport {
+                assert_eq!(rusterix.client.current_map, destination);
+            }
+            if !rusterix.client.current_map.is_empty() {
+                assert!(
+                    rusterix
+                        .assets
+                        .maps
+                        .contains_key(&rusterix.client.current_map)
+                );
+                println!("Creator game start_region={}", rusterix.client.current_map);
+            }
             return;
         }
         let initial_offset = editor.project.regions[0].map.offset;

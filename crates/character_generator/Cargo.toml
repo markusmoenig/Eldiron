@@ -26,6 +26,14 @@ scenevm = { path = "../scenevm", default-features = false, optional = true }
 eldiron-ruleset = { path = "../ruleset", optional = true }
 uuid = { version = "1", features = ["v5"], optional = true }
 
+shared = { path = "../shared", package = "eldiron-shared", default-features = false, optional = true }
+
+[[bin]]
+name = "character-scene-demo"
+path = "src/scene_demo.rs"
+required-features = ["scene-demo"]
+
 [features]
 default = []
+scene-demo = ["eldiron", "dep:shared", "shared/graphics", "scenevm/gpu", "scenevm/windowing"]
 eldiron = ["dep:rusterix", "dep:scenevm", "dep:eldiron-ruleset", "dep:uuid"]

@@ -150,6 +150,8 @@ pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
     }
     // Wall assemblies are the source of truth, including maps authored without cached meshes.
     for region in &mut project.regions {
+        // Region names are the public names used by start_region and server routing.
+        region.map.name.clone_from(&region.name);
         if !region.map.wall_assemblies.is_empty() {
             region.map.rebuild_wall_geometry();
         }
@@ -641,6 +643,38 @@ mod tests {
     use super::*;
     use crate::item::Item as ProjectItem;
     use rusterix::map::{OrthographicBakeAsset, OrthographicBakeTile};
+
+    #[test]
+    fn loading_regions_repairs_stale_map_names_without_changing_ids_or_config() {
+        let mut project = Project::new();
+        project.config = "[game]\nstart_region = \"Britannia\"\n".into();
+        project.regions[0].name = "Britannia".into();
+        project.regions[0].map.name = "New Map".into();
+        let mut second = crate::region::Region::new();
+        second.name = "Dungeon".into();
+        second.map.name = "New Map".into();
+        project.regions.push(second);
+        let original_ids: Vec<_> = project.regions.iter().map(|r| (r.id, r.map.id)).collect();
+        for bytes in [
+            serde_json::to_vec(&project).unwrap(),
+            encode_project(&project).unwrap(),
+        ] {
+            let decoded = decode_project(&bytes).unwrap();
+            assert_eq!(decoded.config, project.config);
+            for (region, ids) in decoded.regions.iter().zip(&original_ids) {
+                assert_eq!(region.map.name, region.name);
+                assert_eq!((region.id, region.map.id), *ids);
+            }
+            let maps: std::collections::HashMap<_, _> = decoded
+                .regions
+                .iter()
+                .map(|r| (r.map.name.as_str(), r.map.id))
+                .collect();
+            assert_eq!(maps.len(), 2);
+            assert_eq!(maps.get("Britannia"), Some(&original_ids[0].1));
+            assert_eq!(maps.get("Dungeon"), Some(&original_ids[1].1));
+        }
+    }
 
     #[test]
     fn archive_round_trip_contains_versioned_project_json() {

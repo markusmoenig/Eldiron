@@ -290,9 +290,14 @@ impl Rusterix {
 
     /// Create the server regions.
     pub fn create_regions(&mut self) {
+        let region_assets = crate::server::assets::RegionAssets::for_regions(&mut self.assets);
         for (name, map) in &self.assets.maps {
-            self.server
-                .create_region_instance(name.clone(), map.clone(), &self.assets, "".into());
+            self.server.create_region_instance_with_shared_assets(
+                name.clone(),
+                map.clone(),
+                &region_assets,
+                "".into(),
+            );
         }
         self.server.set_state(crate::ServerState::Running);
     }

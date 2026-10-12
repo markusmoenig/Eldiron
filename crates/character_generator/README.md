@@ -384,3 +384,46 @@ second for this fixed one-second walk when moving it through a scene. Terrain
 contact, stride-speed adaptation and transitions between clips remain future work.
 Shoulder pivots are closer to the chest, with a small outward upper-arm rest
 slope. Skeleton joint names, hierarchy and hand sockets remain compatible.
+
+## Live Eldiron scene demo
+
+The opt-in native harness loads an existing `.eldiron` project and renders it
+through Eldiron's `GameWidget::prepare_frame` and SceneVM Raster3D pipeline. The
+same generated, CPU-skinned mesh is resubmitted after the scene dynamics each
+frame. It shares the scene depth buffer, authored lighting, point lights, fog
+and post processing. No character frames are prerendered.
+
+From the repository root:
+
+```sh
+cargo run -p eldiron-character-generator --features scene-demo --bin character-scene-demo -- jadwick_scene.eldiron
+```
+
+Use **1** for idle, **2** for walking, **3** to replay attack, **A** for automatic
+idle/walk/attack cycling, **D** to toggle dithered mesh lighting, and the wheel to
+zoom. The harness uses an Eldiron isometric camera and the project's saved time
+of day. It places a clothed natural-style character at the active player spawn;
+the original player visual is removed only from the harness's in-memory map
+copy. It does not save or modify the project. An alternative project path can
+be passed, for example `test_projects/3DStarter.eldiron`.
+
+`SceneVmCharacter::new_pixel_art(&asset)` enables the adapter's live style. Small
+cloth, leather and swept hair textures fill unspecified materials; explicitly
+authored recipe textures are preserved. `DynamicObject::pixel_art` opts a mesh
+into four-tone, fixed 3-pixel Bayer lighting ramps in Raster3D. Other meshes,
+sprites and scene geometry retain their existing shading. This flag currently
+has no effect in Compute3D. The lighting ramp includes a small darkest-tone
+floor for readability, so it is a stylistic approximation of scene lighting.
+
+For repeatable GPU validation captures (these are review images of the live
+renderer, not character assets):
+
+```sh
+cargo run -p eldiron-character-generator --features scene-demo --bin character-scene-demo -- jadwick_scene.eldiron --snapshot target/character-generator/live-scene
+```
+
+This writes idle, walk and attack PNGs after waiting for asynchronous scene
+geometry to load. The harness is a visual integration demo: walking plays in
+place, and gameplay movement, collisions, behavior dispatch, terrain foot IK
+and equipment state are not connected yet. The production editor/client does
+not select procedural characters automatically.

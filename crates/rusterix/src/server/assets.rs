@@ -14,6 +14,40 @@ struct ParsedRulesCache {
     table: Option<Arc<Table>>,
 }
 
+/// A startup asset snapshot shared by region runtimes. Region-local edits detach
+/// their copy so live rule/graph updates do not mutate another region's assets.
+#[derive(Clone, Default)]
+pub struct RegionAssets(Arc<Assets>);
+
+impl RegionAssets {
+    pub fn new(assets: &Assets) -> Self {
+        Self(Arc::new(assets.clone()))
+    }
+
+    /// World-map lookup belongs to the server/client registry; each region owns
+    /// its own runtime map. Exclude the registry without first cloning its geometry.
+    pub fn for_regions(assets: &mut Assets) -> Self {
+        let maps = std::mem::take(&mut assets.maps);
+        let snapshot = Self::new(assets);
+        assets.maps = maps;
+        snapshot
+    }
+}
+
+impl std::ops::Deref for RegionAssets {
+    type Target = Assets;
+
+    fn deref(&self) -> &Assets {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for RegionAssets {
+    fn deref_mut(&mut self) -> &mut Assets {
+        Arc::make_mut(&mut self.0)
+    }
+}
+
 #[derive(Clone)]
 pub struct Assets {
     pub node_behaviors: Option<super::nodes::region::BehaviorAssets>,
@@ -633,6 +667,42 @@ mod tests {
     use super::*;
     use crate::{GeometryObject, PixelSource, Value};
     use vek::Vec3;
+
+    #[test]
+    fn region_assets_share_startup_data_and_isolate_live_edits() {
+        let mut assets = Assets::new();
+        assets.rules = "[value]\nnumber = 1\n".into();
+        assets.maps.insert("Britannia".into(), Map::default());
+        let snapshot = RegionAssets::new(&assets);
+        let mut town = snapshot.clone();
+        let world = snapshot.clone();
+        assert!(Arc::ptr_eq(&town.0, &world.0));
+
+        town.rules = "[value]\nnumber = 2\n".into();
+        town.maps.clear();
+        assert!(!Arc::ptr_eq(&town.0, &world.0));
+        assert_eq!(world.rules, assets.rules);
+        assert!(world.maps.contains_key("Britannia"));
+        assert_eq!(
+            town.rules_table().unwrap()["value"]["number"].as_integer(),
+            Some(2)
+        );
+        assert_eq!(
+            world.rules_table().unwrap()["value"]["number"].as_integer(),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn region_snapshot_leaves_world_maps_in_the_client_registry() {
+        let mut assets = Assets::new();
+        let map = Map::default();
+        let map_id = map.id;
+        assets.maps.insert("Britannia".into(), map);
+        let snapshot = RegionAssets::for_regions(&mut assets);
+        assert!(snapshot.maps.is_empty());
+        assert_eq!(assets.maps["Britannia"].id, map_id);
+    }
 
     #[test]
     fn parsed_rules_are_reused_and_invalidated_by_source_changes() {

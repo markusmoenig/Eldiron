@@ -181,6 +181,21 @@ impl Server {
         assets: &Assets,
         config_toml: String,
     ) {
+        self.create_region_instance_with_shared_assets(
+            name,
+            map,
+            &assets::RegionAssets::new(assets),
+            config_toml,
+        );
+    }
+
+    pub fn create_region_instance_with_shared_assets(
+        &mut self,
+        name: String,
+        map: Map,
+        assets: &assets::RegionAssets,
+        config_toml: String,
+    ) {
         let mut region_instance = RegionInstance::new(self.instances.len() as u32);
         // region_instance.id = self.get_next_id();
 
@@ -194,7 +209,7 @@ impl Server {
 
         self.from_region.push(region_instance.from_receiver.clone());
 
-        region_instance.init(name, map, assets, config_toml, self.debug_mode);
+        region_instance.init_with_shared_assets(name, map, assets, config_toml, self.debug_mode);
         self.instances.push(Arc::new(Mutex::new(region_instance)));
     }
 

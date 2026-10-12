@@ -70,7 +70,8 @@ impl PartialEq for Region {
 
 impl Region {
     pub fn new() -> Self {
-        let map = Self::starter_map();
+        let mut map = Self::starter_map();
+        map.name = "New Region".to_string();
 
         Self {
             id: Uuid::new_v4(),

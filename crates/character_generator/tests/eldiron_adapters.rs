@@ -130,3 +130,44 @@ fn avatar_roundtrips_through_eldiron_builder_without_duplicate_weapons() {
     assert!(invalid.is_err());
     std::fs::remove_dir_all(out).unwrap();
 }
+
+#[test]
+fn live_pixel_materials_are_opt_in_and_keep_authored_recipes_and_rig() {
+    let a = Catalog::parse(include_str!("../examples/heads.toml"))
+        .unwrap()
+        .generate_with_options(
+            "angular",
+            &GenerationOptions {
+                style: StylePreset::Natural,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let plain = SceneVmCharacter::new(&a).unwrap();
+    let pixel = SceneVmCharacter::new_pixel_art(&a).unwrap();
+    let repeated = SceneVmCharacter::new_pixel_art(&a).unwrap();
+    for (i, m) in a.materials.iter().enumerate() {
+        assert_eq!(pixel.materials[i].rgba, repeated.materials[i].rgba);
+        if m.texture.is_some() || ![3, 5, 6, 9].contains(&m.channel) {
+            assert_eq!(
+                plain.materials[i].rgba, pixel.materials[i].rgba,
+                "authored recipe changed"
+            );
+        }
+    }
+    for motion in [Motion::Idle, Motion::Walk, Motion::Attack] {
+        let p = plain.objects(GeoId::Unknown(5), [2.0, 1.0, 3.0], 0.4, motion, 0.25);
+        let q = pixel.objects(GeoId::Unknown(5), [2.0, 1.0, 3.0], 0.4, motion, 0.25);
+        assert_eq!(p.len(), q.len());
+        for (p, q) in p.iter().zip(q) {
+            assert!(!p.pixel_art);
+            assert!(q.pixel_art);
+            assert_eq!(p.mesh_indices, q.mesh_indices);
+            for (a, b) in p.mesh_vertices.iter().zip(q.mesh_vertices) {
+                assert_eq!(a.position, b.position);
+                assert_eq!(a.normal, b.normal);
+                assert!(b.uv.x.is_finite() && b.uv.y.is_finite());
+            }
+        }
+    }
+}

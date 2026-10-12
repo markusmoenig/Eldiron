@@ -140,6 +140,7 @@ pub struct SceneVmMaterial {
 pub struct SceneVmCharacter {
     pub asset: CharacterAsset,
     pub materials: Vec<SceneVmMaterial>,
+    pub pixel_art: bool,
 }
 impl SceneVmCharacter {
     pub fn new(asset: &CharacterAsset) -> Result<Self> {
@@ -179,7 +180,66 @@ impl SceneVmCharacter {
         Ok(Self {
             asset: asset.clone(),
             materials,
+            pixel_art: false,
         })
+    }
+    /// Live Raster3D variant with small, deterministic material textures and
+    /// opt-in ordered lighting ramps. Explicit recipe textures remain intact.
+    pub fn new_pixel_art(asset: &CharacterAsset) -> Result<Self> {
+        let mut styled = asset.clone();
+        for m in &mut styled.materials {
+            if m.texture.is_some() || ![3, 5, 6, 9].contains(&m.channel) {
+                continue;
+            }
+            let size = 32;
+            let mut rgba = Vec::new();
+            let mut orm = Vec::new();
+            for y in 0..size {
+                for x in 0..size {
+                    let tone = match m.channel {
+                        6 => {
+                            if (x + y / 8) % 7 < 2 {
+                                255
+                            } else {
+                                205
+                            }
+                        }
+                        9 => {
+                            if y % 11 == 0 {
+                                205
+                            } else {
+                                245
+                            }
+                        }
+                        _ => {
+                            if x % 4 == 0 && y % 4 == 0 {
+                                215
+                            } else {
+                                250
+                            }
+                        }
+                    };
+                    rgba.extend([tone, tone, tone, 255]);
+                    orm.extend([255, 230, 0, 255]);
+                }
+            }
+            m.texture = Some(MaterialTexture { size, rgba, orm });
+        }
+        // Hair has no authored UVs yet. Project from bind coordinates so the
+        // swept stripe texture follows the head, including during animation.
+        for p in &mut styled.primitives {
+            if p.name == "hair" {
+                for v in &mut p.vertices {
+                    v.uv = [
+                        (v.position[0] / asset.height * 4.0 + 0.5).clamp(0.0, 1.0),
+                        ((v.position[1] / asset.height - 0.85) * 6.0).clamp(0.0, 1.0),
+                    ];
+                }
+            }
+        }
+        let mut result = Self::new(&styled)?;
+        result.pixel_art = true;
+        Ok(result)
     }
     pub fn register_materials(&self, atlas: &SharedAtlas) {
         for m in &self.materials {
@@ -228,6 +288,7 @@ impl SceneVmCharacter {
             .map(|(material, (vertices, indices))| {
                 let mut object =
                     DynamicObject::mesh(id, self.materials[material].id, vertices, indices);
+                object.pixel_art = self.pixel_art;
                 object.center = Vec3::new(origin[0], origin[1], origin[2]);
                 object
             })

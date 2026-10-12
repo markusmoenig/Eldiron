@@ -12,10 +12,10 @@ readme = "README.md"
 
 [dependencies]
 theframework.workspace = true
-scenevm = { path = "../scenevm", version = "0.95.4", default-features = false }
-buildergraph = { path = "../buildergraph", version = "0.95.4" }
-eldiron-ruleset = { path = "../ruleset", version = "0.95.4" }
-procedural-recipes = { path = "../procedural_recipes", version = "0.95.4", default-features = false }
+scenevm = { path = "../scenevm", version = "0.95.5", default-features = false }
+buildergraph = { path = "../buildergraph", version = "0.95.5" }
+eldiron-ruleset = { path = "../ruleset", version = "0.95.5" }
+procedural-recipes = { path = "../procedural_recipes", version = "0.95.5", default-features = false }
 
 fontdue = "0.9.3"
 rayon = "1.10"

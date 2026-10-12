@@ -287,8 +287,8 @@ pub fn start_server(
         }
     }
 
-    // Create the regions
-    for region in &mut project.regions {
+    // Publish all region sources before taking the shared startup snapshot.
+    for region in &project.regions {
         let region_source = if debug && !region.source_debug.is_empty() {
             region.source_debug.clone()
         } else {
@@ -298,11 +298,15 @@ pub fn start_server(
             .assets
             .region_sources
             .insert(region.map.id, region_source);
+    }
+    let region_assets = rusterix::server::assets::RegionAssets::for_regions(&mut rusterix.assets);
+    // Create the regions without cloning textures and behavior graphs per map.
+    for region in &project.regions {
         let region_config = crate::project::merge_config_toml(&project.config, &region.config);
-        rusterix.server.create_region_instance(
+        rusterix.server.create_region_instance_with_shared_assets(
             region.name.clone(),
             region.map.clone(),
-            &rusterix.assets,
+            &region_assets,
             region_config,
         );
     }
@@ -398,7 +402,8 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
             .map(|(alias, source)| (alias.as_str(), source.as_str())),
     );
     rusterix.assets.maps.clear();
-    for region in &project.regions {
+    for region in &mut project.regions {
+        region.map.name.clone_from(&region.name);
         rusterix
             .assets
             .maps
@@ -466,6 +471,8 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
     }
     let block_props = &project.block_props;
     for region in &mut project.regions {
+        // Imports can replace the map without updating its internal name.
+        region.map.name.clone_from(&region.name);
         region.map.entities.clear();
         for instance in region.characters.values_mut() {
             if is_legacy_python_instance_setup(&instance.source) {
@@ -560,6 +567,21 @@ pub fn insert_content_into_maps_mode(project: &mut Project, debug: bool) {
 #[cfg(test)]
 mod live_rules_tests {
     use super::*;
+
+    #[test]
+    fn runtime_content_uses_region_name_after_map_replacement() {
+        let mut project = Project::new();
+        assert_eq!(project.regions[0].map.name, project.regions[0].name);
+        project.regions[0].name = "Britannia".into();
+        project.regions[0].map = rusterix::Map::default();
+        let map_id = project.regions[0].map.id;
+        insert_content_into_maps(&mut project);
+        assert_eq!(project.regions[0].map.name, "Britannia");
+        assert_eq!(project.regions[0].map.id, map_id);
+        project.regions[0].name = "Dungeon".into();
+        insert_content_into_maps(&mut project);
+        assert_eq!(project.regions[0].map.name, "Dungeon");
+    }
 
     #[test]
     fn valid_edits_sync_assets_invalid_drafts_keep_last_valid_and_restore_syncs() {

@@ -80,6 +80,8 @@ pub struct DynamicObject {
     pub mesh_vertices: Vec<DynamicMeshVertex>,
     /// Dynamic mesh triangle indices. Used when `kind == Mesh`.
     pub mesh_indices: Vec<u32>,
+    /// Opt-in four-tone ordered dithering in Raster3D. Other objects retain their shading.
+    pub pixel_art: bool,
 }
 
 impl Default for DynamicObject {
@@ -101,6 +103,7 @@ impl Default for DynamicObject {
             anim_start_counter: None,
             mesh_vertices: Vec::new(),
             mesh_indices: Vec::new(),
+            pixel_art: false,
         }
     }
 }
@@ -133,6 +136,7 @@ impl DynamicObject {
             anim_start_counter: None,
             mesh_vertices: Vec::new(),
             mesh_indices: Vec::new(),
+            pixel_art: false,
         }
     }
 
@@ -182,6 +186,7 @@ impl DynamicObject {
             anim_start_counter: None,
             mesh_vertices: Vec::new(),
             mesh_indices: Vec::new(),
+            pixel_art: false,
         }
     }
 
@@ -231,6 +236,7 @@ impl DynamicObject {
             anim_start_counter: None,
             mesh_vertices: Vec::new(),
             mesh_indices: Vec::new(),
+            pixel_art: false,
         }
     }
 
@@ -270,6 +276,7 @@ impl DynamicObject {
             anim_start_counter: None,
             mesh_vertices: vertices,
             mesh_indices: indices,
+            pixel_art: false,
         }
     }
 

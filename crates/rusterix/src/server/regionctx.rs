@@ -211,7 +211,7 @@ pub struct RegionCtx {
     pub config: Table,
     pub rules: Table,
     pub(crate) resolved_rules: RwLock<ResolvedRulesCache>,
-    pub assets: Assets,
+    pub assets: super::assets::RegionAssets,
 
     pub to_receiver: OnceLock<Receiver<RegionMessage>>,
     pub from_sender: OnceLock<Sender<RegionMessage>>,

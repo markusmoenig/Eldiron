@@ -8014,6 +8014,23 @@ impl RegionInstance {
         config_toml: String,
         debug_mode: bool,
     ) {
+        self.init_with_shared_assets(
+            name,
+            map,
+            &super::assets::RegionAssets::new(assets),
+            config_toml,
+            debug_mode,
+        );
+    }
+
+    pub fn init_with_shared_assets(
+        &mut self,
+        name: String,
+        map: Map,
+        assets: &super::assets::RegionAssets,
+        config_toml: String,
+        debug_mode: bool,
+    ) {
         self.name = name.clone();
 
         let mut ctx = RegionCtx::default();

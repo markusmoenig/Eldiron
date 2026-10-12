@@ -2673,6 +2673,22 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
         lit_color = boosted * avatar_scale;
     }
 
+    // Negative blend marks opt-in dynamic meshes; both tile references are identical.
+    // Quantize the actual scene lighting, retaining authored sun, lights and AO.
+    if (in.blend_factor < -0.5) {
+        let weights = vec3<f32>(0.2126, 0.7152, 0.0722);
+        let base_luma = max(dot(albedo, weights), 0.0001);
+        let light_level = clamp(dot(lit_color, weights) / base_luma, 0.0, 1.5);
+        let ramp = clamp((light_level - 0.12) / 1.38, 0.0, 1.0) * 3.0;
+        let cell = vec2<u32>(floor(in.pos.xy / 3.0)) % vec2<u32>(4u);
+        let bayer = array<f32, 16>(0.0,8.0,2.0,10.0,12.0,4.0,14.0,6.0,3.0,11.0,1.0,9.0,15.0,7.0,13.0,5.0);
+        let threshold = (bayer[cell.y * 4u + cell.x] + 0.5) / 16.0;
+        let level = min(3.0, floor(ramp) + select(0.0, 1.0, fract(ramp) > threshold));
+        let shade = 0.12 + 0.46 * level;
+        let hue = mix(vec3<f32>(0.76,0.84,1.02), vec3<f32>(1.09,1.03,0.92), level / 3.0);
+        lit_color = albedo * hue * shade;
+    }
+
     let fog_density = max(UBO.fog_color_density.w, 0.0);
     if (fog_density <= 0.0) {
         return vec4<f32>(apply_post(lit_color, in.pos), out_alpha);
@@ -10588,7 +10604,7 @@ impl VM {
                         _pad1: [0.0, 0.0],
                         tile_index,
                         tile_index2,
-                        blend_factor: 0.0,
+                        blend_factor: if obj.pixel_art { -1.0 } else { 0.0 },
                         opacity,
                         normal: [nn.x, nn.y, nn.z],
                         _pad2: 0.0,

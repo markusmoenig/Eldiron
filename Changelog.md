@@ -1,9 +1,20 @@
+# Eldiron v0.95.5
+
+## Bug Fixes
+
+### Creator
+
+- Reduced Game tool startup and restart memory for projects with many regions by sharing runtime assets and excluding unrelated world maps from region snapshots; repeated Play runs no longer copy the entire world into every region.
+
+---
+
 # Eldiron v0.95.4
 
 ## Bug Fixes
 
 ### Creator
 
+- Fixed Game tool startup failing when an imported region’s internal map name differs from its visible region name; loading and playback now use the visible region name consistently.
 - Fixed Play freezing on large tile maps by indexing collision edge searches and avoiding repeated mesh collision scans for maps without 3D collision sources.
 
 ---
