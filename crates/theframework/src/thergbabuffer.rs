@@ -562,6 +562,16 @@ impl TheRGBABuffer {
                 let src_pixel = &other.buffer[src_idx..src_idx + 4];
                 let dst_pixel = &mut self.buffer[dst_idx..dst_idx + 4];
 
+                // Screen overlays are mostly transparent holes and opaque panels.
+                // Neither case needs per-channel floating-point alpha arithmetic.
+                if src_pixel[3] == 0 {
+                    continue;
+                }
+                if src_pixel[3] == 255 {
+                    dst_pixel.copy_from_slice(src_pixel);
+                    continue;
+                }
+
                 let src_alpha = src_pixel[3] as f32 / 255.0;
                 let inv_alpha = 1.0 - src_alpha;
 
@@ -1730,6 +1740,36 @@ mod render_copy_tests {
         let mut buffer = TheRGBABuffer::new(TheDim::sized(width, height));
         buffer.set_render_scale(scale);
         buffer
+    }
+
+    #[test]
+    fn clipped_native_blending_preserves_all_alpha_values() {
+        for alpha in 0..=255_u8 {
+            let mut source = native_buffer(7, 5, 1.0);
+            source.fill([173, 91, 37, alpha]);
+            for (x, y) in [(-2, -1), (1, 2), (6, 6)] {
+                let mut actual = native_buffer(9, 8, 1.0);
+                actual.fill([41, 79, 139, 113]);
+                let mut expected = actual.clone();
+                let a = alpha as f32 / 255.0;
+                for sy in 0..5 {
+                    for sx in 0..7 {
+                        let (dx, dy) = (sx + x, sy + y);
+                        if !(0..9).contains(&dx) || !(0..8).contains(&dy) {
+                            continue;
+                        }
+                        let i = ((dy * 9 + dx) * 4) as usize;
+                        for (channel, value) in [173, 91, 37, alpha].iter().enumerate() {
+                            expected.pixels_mut()[i + channel] = (*value as f32 * a
+                                + expected.pixels()[i + channel] as f32 * (1.0 - a))
+                                as u8;
+                        }
+                    }
+                }
+                actual.blend_into(x, y, &source);
+                assert_eq!(actual.pixels(), expected.pixels(), "alpha={alpha}, at {x},{y}");
+            }
+        }
     }
 
     #[test]

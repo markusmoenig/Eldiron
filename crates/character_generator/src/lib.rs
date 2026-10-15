@@ -35,6 +35,8 @@ pub struct Catalog {
 #[serde(deny_unknown_fields)]
 pub struct CharacterDefinition {
     pub body: String,
+    #[serde(default)]
+    pub species: Species,
     pub height: f32,
     pub build: f32,
     pub skin: String,
@@ -47,7 +49,7 @@ pub struct CharacterDefinition {
     pub equipment: Vec<String>,
 }
 /// Physical appearance traits; art style remains a caller-owned GenerationOptions setting.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct HeadDefinition {
     pub jaw: f32,
@@ -57,6 +59,15 @@ pub struct HeadDefinition {
     pub eye_spacing: f32,
     pub ear_size: f32,
     pub eye_color: String,
+}
+/// Anatomical family, independent of the caller's rendering style.
+#[derive(Debug, Default, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Species {
+    #[default]
+    Human,
+    Orc,
+    Skeleton,
 }
 impl Default for HeadDefinition {
     fn default() -> Self {

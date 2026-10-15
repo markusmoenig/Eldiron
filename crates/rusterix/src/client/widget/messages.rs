@@ -435,7 +435,7 @@ impl MessagesWidget {
     ) -> Option<FxHashMap<char, Choice>> {
         self.deactivate_inactive_choices(assets, map, time);
         self.advance_pause_timer();
-        let currencies = Currencies::from_rules_source(&assets.rules);
+        let mut currencies = None;
         let starts_new_reveal_batch = !self.paused && self.pending_messages.is_empty();
         let new_batch_start_index = self.messages.len();
 
@@ -595,7 +595,9 @@ impl MessagesWidget {
                 }
                 let text = if matches!(choice, Choice::ItemToSell(_, _, _, _, _)) {
                     let label = format!("{}) {}", index + 1, item_name);
-                    let price = currencies.format_base_amount(item_price);
+                    let price = currencies
+                        .get_or_insert_with(|| Currencies::from_rules_source(&assets.rules))
+                        .format_base_amount(item_price);
                     format!("{}{}{}", label, Self::CHOICE_COLUMN_SEPARATOR, price)
                 } else {
                     format!("{}) {}", index + 1, item_name)
@@ -1467,6 +1469,10 @@ impl MessagesWidget {
     }
 
     fn deactivate_inactive_choices(&mut self, assets: &Assets, map: &Map, time: &TheTime) {
+        if self.active_choices.is_empty() {
+            self.remove_inactive_choice_rows();
+            return;
+        }
         let ticks_per_minute = assets
             .config
             .parse::<toml::Table>()

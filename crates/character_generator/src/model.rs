@@ -656,7 +656,7 @@ pub(crate) fn generate(
     style: ResolvedStyle,
 ) -> Result<CharacterAsset> {
     let h = c.height;
-    let bulk = 0.85 + 0.35 * c.build;
+    let bulk = (0.85 + 0.35 * c.build) * if c.species == Species::Orc { 1.14 } else { 1.0 };
     let shoulder = h * 0.115 * bulk;
     let arm_spread = h * 0.025 * bulk;
     let hip = h * 0.065 * bulk;
@@ -795,7 +795,12 @@ pub(crate) fn generate(
         head,
         skin,
     );
-    shape_head(&mut a, &c.head);
+    let mut head_traits = c.head.clone();
+    if c.species == Species::Orc {
+        head_traits.jaw = (head_traits.jaw * 1.12).min(1.3);
+        head_traits.cheekbones = (head_traits.cheekbones * 1.08).min(1.2);
+    }
+    shape_head(&mut a, &head_traits);
     ears(&mut a, head, skin, c.head.ear_size);
     if !clothing.contains_key(&ItemKind::Helmet) {
         hair_cap(&mut a, head, hair);
@@ -953,6 +958,22 @@ pub(crate) fn generate(
             j,
             metal,
         );
+    }
+    if c.species == Species::Orc {
+        let ivory = mat(&mut a, "tusks", color("#e8dcc0")?, 1);
+        for sign in [-1.0, 1.0] {
+            bone_segment(
+                &mut a,
+                "tusk",
+                [sign * h * 0.023, h * 0.862, h * 0.073],
+                [sign * h * 0.027, h * 0.904, h * 0.082],
+                [h * 0.009, 0.001],
+                head,
+                ivory,
+            );
+        }
+    } else if c.species == Species::Skeleton {
+        skeleton_body(&mut a, skin, shirt != skin, trousers != skin, boots != skin);
     }
     if style.shading == Shading::Smooth {
         smooth_body_normals(&mut a);
@@ -2220,4 +2241,259 @@ fn hair_cap(asset: &mut CharacterAsset, joint: usize, material: usize) {
         }
     }
     asset.primitives.push(cap);
+}
+
+// Rigid bone spans share the humanoid joints; equipment keeps the same sockets.
+fn bone_segment(
+    a: &mut CharacterAsset,
+    name: &str,
+    start: V3,
+    end: V3,
+    radii: [f32; 2],
+    j: usize,
+    material: usize,
+) {
+    let [r0, r1] = radii;
+    let axis = unit(sub(end, start));
+    let tangent = unit(cross(
+        axis,
+        if axis[1].abs() > 0.9 {
+            [1.0, 0.0, 0.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        },
+    ));
+    let bitangent = cross(axis, tangent);
+    let count = a.style.segments as usize;
+    let mut m = mesh(name, material);
+    for i in 0..count {
+        let ring = |k: usize, center: V3, radius: f32| {
+            let (sin, cos) = (k as f32 / count as f32 * std::f32::consts::TAU).sin_cos();
+            point(
+                add(
+                    center,
+                    add(mul(tangent, cos * radius), mul(bitangent, sin * radius)),
+                ),
+                j,
+            )
+        };
+        quad(
+            &mut m,
+            ring(i, start, r0),
+            ring(i + 1, start, r0),
+            ring(i + 1, end, r1),
+            ring(i, end, r1),
+        );
+        triangle(
+            &mut m,
+            point(start, j),
+            ring(i + 1, start, r0),
+            ring(i, start, r0),
+        );
+        triangle(
+            &mut m,
+            point(end, j),
+            ring(i, end, r1),
+            ring(i + 1, end, r1),
+        );
+    }
+    a.primitives.push(m);
+}
+
+fn skeleton_body(a: &mut CharacterAsset, bone: usize, shirt: bool, trousers: bool, boots: bool) {
+    // Remove flesh, hair and facial marks. Keep authored clothing, helmet and held items.
+    a.primitives
+        .retain(|p| !matches!(a.materials[p.material].channel, 1 | 6 | 7 | 8));
+    a.materials[bone].name = "bone".into();
+    let h = a.height;
+    let bind = a.bind_pose();
+    let index = |name: &str| a.joints.iter().position(|j| j.name == name).unwrap();
+    let root = index("root");
+    let torso = index("torso");
+    let head = index("head");
+    if !shirt {
+        bone_segment(
+            a,
+            "spine",
+            [0.0, h * 0.51, 0.0],
+            [0.0, h * 0.79, 0.0],
+            [h * 0.012, h * 0.014],
+            torso,
+            bone,
+        );
+        bone_segment(
+            a,
+            "sternum",
+            [0.0, h * 0.61, h * 0.05],
+            [0.0, h * 0.75, h * 0.05],
+            [h * 0.01, h * 0.01],
+            torso,
+            bone,
+        );
+        for side in [-1.0, 1.0] {
+            for r in 0..6 {
+                let y = h * (0.60 + r as f32 * 0.025);
+                let width = h * (0.085 + (r as f32 * 0.5).sin() * 0.023);
+                let points = [
+                    [0.0, y, 0.0],
+                    [side * width * 0.8, y + h * 0.008, -h * 0.045],
+                    [side * width, y, 0.0],
+                    [side * width * 0.8, y - h * 0.008, h * 0.065],
+                    [0.0, y - h * 0.015, h * 0.05],
+                ];
+                for pair in points.windows(2) {
+                    bone_segment(
+                        a,
+                        "rib",
+                        pair[0],
+                        pair[1],
+                        [h * 0.006, h * 0.006],
+                        torso,
+                        bone,
+                    );
+                }
+            }
+            bone_segment(
+                a,
+                "clavicle",
+                [0.0, h * 0.77, 0.0],
+                [side * h * 0.11, h * 0.78, 0.0],
+                [h * 0.01, h * 0.014],
+                torso,
+                bone,
+            );
+        }
+    }
+    bone_segment(
+        a,
+        "cervical_spine",
+        [0.0, h * 0.78, 0.0],
+        [0.0, h * 0.86, 0.0],
+        [h * 0.015, h * 0.015],
+        head,
+        bone,
+    );
+    if !trousers {
+        for side in [-1.0, 1.0] {
+            let pts = [
+                [0.0, h * 0.51, 0.0],
+                [side * h * 0.07, h * 0.53, -h * 0.025],
+                [side * h * 0.09, h * 0.47, 0.0],
+                [side * h * 0.055, h * 0.445, h * 0.035],
+                [0.0, h * 0.46, h * 0.02],
+            ];
+            for pair in pts.windows(2) {
+                bone_segment(
+                    a,
+                    "pelvic_arch",
+                    pair[0],
+                    pair[1],
+                    [h * 0.017, h * 0.015],
+                    root,
+                    bone,
+                );
+            }
+        }
+    }
+    for side in ["left", "right"] {
+        let ids: Vec<_> = ["upper_arm", "forearm", "hand", "thigh", "shin", "foot"]
+            .map(|part| {
+                a.joints
+                    .iter()
+                    .position(|j| j.name == format!("{side}_{part}"))
+                    .unwrap()
+            })
+            .into();
+        for (k, name, visible) in [
+            (0, "humerus", !shirt),
+            (1, "radius", !shirt),
+            (3, "femur", !trousers),
+            (4, "tibia", !trousers),
+        ] {
+            if !visible {
+                continue;
+            }
+            let start = bind[ids[k]].translation;
+            let end = bind[ids[k + 1]].translation;
+            bone_segment(a, name, start, end, [h * 0.015, h * 0.012], ids[k], bone);
+            if k == 1 || k == 4 {
+                let offset = [h * 0.018, 0.0, -h * 0.008];
+                bone_segment(
+                    a,
+                    "paired_bone",
+                    add(start, offset),
+                    add(end, offset),
+                    [h * 0.006, h * 0.006],
+                    ids[k],
+                    bone,
+                );
+            }
+        }
+        let hand = bind[ids[2]].translation;
+        for finger in 0..4 {
+            let x = (finger as f32 - 1.5) * h * 0.01;
+            bone_segment(
+                a,
+                "finger",
+                add(hand, [x, 0.0, 0.0]),
+                add(hand, [x, -h * 0.06, h * 0.012]),
+                [h * 0.004, h * 0.003],
+                ids[2],
+                bone,
+            );
+        }
+        if !boots {
+            let foot = bind[ids[5]].translation;
+            for toe in 0..4 {
+                let x = (toe as f32 - 1.5) * h * 0.012;
+                bone_segment(
+                    a,
+                    "toe",
+                    add(foot, [x, -h * 0.02, 0.0]),
+                    add(foot, [x, -h * 0.02, h * 0.09]),
+                    [h * 0.005, h * 0.004],
+                    ids[5],
+                    bone,
+                );
+            }
+        }
+    }
+    // Open front orbital/nasal gaps are actual geometry, not painted eyes.
+    let scale = a.style.head_scale;
+    for (name, center, size) in [
+        ("cranium", [0.0, 0.95, -0.005], [0.125, 0.09, 0.115]),
+        ("occiput", [0.0, 0.90, -0.035], [0.11, 0.09, 0.05]),
+        ("brow", [0.0, 0.922, 0.052], [0.13, 0.016, 0.022]),
+        ("nasal_bridge", [0.0, 0.904, 0.052], [0.014, 0.026, 0.025]),
+        ("left_cheek", [0.05, 0.888, 0.046], [0.026, 0.02, 0.033]),
+        ("right_cheek", [-0.05, 0.888, 0.046], [0.026, 0.02, 0.033]),
+        ("jaw", [0.0, 0.865, 0.025], [0.09, 0.014, 0.075]),
+    ] {
+        box_part(
+            a,
+            name,
+            [
+                center[0] * h * scale,
+                h * (0.91 + (center[1] - 0.91) * scale),
+                center[2] * h * scale,
+            ],
+            mul(size, h * scale),
+            head,
+            bone,
+        );
+    }
+    for tooth in 0..6 {
+        box_part(
+            a,
+            "tooth",
+            [
+                (tooth as f32 - 2.5) * h * 0.011 * scale,
+                h * 0.876,
+                h * 0.061 * scale,
+            ],
+            [h * 0.008, h * 0.016, h * 0.012],
+            head,
+            bone,
+        );
+    }
 }

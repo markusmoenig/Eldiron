@@ -494,6 +494,35 @@ fn fs_main(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
 struct RgbaOverlayState {
     texture: Texture,
     rect: [f32; 4],
+    dirty: bool,
+}
+
+#[cfg(feature = "gpu")]
+impl RgbaOverlayState {
+    fn update_pixels(&mut self, rgba: &[u8]) {
+        let needed = self.texture.width as usize * self.texture.height as usize * 4;
+        let copy_len = rgba.len().min(needed);
+        let changed = self.texture.data.len() != needed
+            || self.texture.data.get(..copy_len) != Some(&rgba[..copy_len])
+            || self
+                .texture
+                .data
+                .get(copy_len..)
+                .is_some_and(|tail| tail.iter().any(|v| *v != 0));
+        self.dirty |= changed;
+        if changed {
+            self.texture.data.resize(needed, 0);
+            self.texture.data[..copy_len].copy_from_slice(&rgba[..copy_len]);
+            self.texture.data[copy_len..].fill(0);
+        }
+    }
+
+    fn upload_if_needed(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+        if self.dirty || self.texture.gpu.is_none() {
+            self.texture.upload_to_gpu_with(device, queue);
+            self.dirty = false;
+        }
+    }
 }
 
 /// Optional window surface (swapchain) managed by SceneVM for direct presentation.
@@ -1304,8 +1333,7 @@ impl SceneVM {
 
         let debug_rgba_start = instant::Instant::now();
         if composite_rgba_overlay_in_scene && let Some(overlay) = rgba_overlay.as_mut() {
-            overlay.texture.ensure_gpu_with(device);
-            overlay.texture.upload_to_gpu_with(device, queue);
+            overlay.upload_if_needed(device, queue);
             if let Some(overlay_gpu) = overlay.texture.gpu.as_ref() {
                 if rgba_overlay_pipeline
                     .as_ref()
@@ -1393,13 +1421,18 @@ impl SceneVM {
 
         match self.rgba_overlay.as_mut() {
             Some(existing) if existing.texture.width == w && existing.texture.height == h => {
+                existing.dirty |= existing.texture.data != data;
                 existing.texture.data = data;
                 existing.rect = rect;
             }
             _ => {
                 let mut texture = Texture::new(w, h);
                 texture.data = data;
-                self.rgba_overlay = Some(RgbaOverlayState { texture, rect });
+                self.rgba_overlay = Some(RgbaOverlayState {
+                    texture,
+                    rect,
+                    dirty: true,
+                });
             }
         }
     }
@@ -1411,12 +1444,7 @@ impl SceneVM {
 
         match self.rgba_overlay.as_mut() {
             Some(existing) if existing.texture.width == w && existing.texture.height == h => {
-                existing.texture.data.resize(needed, 0);
-                let copy_len = rgba.len().min(needed);
-                existing.texture.data[..copy_len].copy_from_slice(&rgba[..copy_len]);
-                if copy_len < needed {
-                    existing.texture.data[copy_len..].fill(0);
-                }
+                existing.update_pixels(rgba);
                 existing.rect = rect;
             }
             _ => {
@@ -1424,7 +1452,11 @@ impl SceneVM {
                 texture.data.resize(needed, 0);
                 let copy_len = rgba.len().min(needed);
                 texture.data[..copy_len].copy_from_slice(&rgba[..copy_len]);
-                self.rgba_overlay = Some(RgbaOverlayState { texture, rect });
+                self.rgba_overlay = Some(RgbaOverlayState {
+                    texture,
+                    rect,
+                    dirty: true,
+                });
             }
         }
     }
@@ -1943,7 +1975,7 @@ impl SceneVM {
         let instance = wgpu::Instance::new(scenevm_instance_descriptor(selected_wgpu_backends()));
         let surface = unsafe {
             instance.create_surface_unsafe(
-                wgpu::SurfaceTargetUnsafe::from_window(window)
+                wgpu::SurfaceTargetUnsafe::from_display_and_window(window, window)
                     .expect("Failed to access raw window handle"),
             )
         }
@@ -2342,8 +2374,7 @@ impl SceneVM {
         let debug_overlay_start = debug_enabled.then(instant::Instant::now);
         let (overlay_view, overlay_rect_px): (wgpu::TextureView, [f32; 4]) =
             if let Some(overlay) = self.rgba_overlay.as_mut() {
-                overlay.texture.ensure_gpu_with(&gpu.device);
-                overlay.texture.upload_to_gpu_with(&gpu.device, &gpu.queue);
+                overlay.upload_if_needed(&gpu.device, &gpu.queue);
                 if let Some(overlay_gpu) = overlay.texture.gpu.as_ref() {
                     (overlay_gpu.view.clone(), overlay.rect)
                 } else {
@@ -2993,13 +3024,7 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
     use winit::event_loop::{ControlFlow, EventLoop};
     use winit::window::WindowAttributes;
 
-    let frame_interval = app.target_fps().and_then(|fps| {
-        if fps > 0.0 {
-            Some(std::time::Duration::from_secs_f32(1.0 / fps))
-        } else {
-            None
-        }
-    });
+    let mut frame_interval = None;
 
     let event_loop = EventLoop::new()?;
     let mut window: Option<winit::window::Window> = None;
@@ -3037,6 +3062,14 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
             app.set_scale(scale as f32);
             app.set_native_mode(true); // Native wgpu runner
             app.init(&mut new_vm, logical_size);
+            // Initialization can load the project's frame-rate setting.
+            frame_interval = app.target_fps().and_then(|fps| {
+                if fps > 0.0 {
+                    Some(std::time::Duration::from_secs_f32(1.0 / fps))
+                } else {
+                    None
+                }
+            });
             window = Some(win);
             vm = Some(new_vm);
             ctx = Some(new_ctx);
@@ -3126,7 +3159,12 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
                                 if now.duration_since(last_frame_at) < dt {
                                     return;
                                 }
-                                last_frame_at = now;
+                                // Keep the cadence anchored instead of adding timer wake-up
+                                // latency to every frame. Skip missed frames after a long stall.
+                                last_frame_at += dt;
+                                if now.duration_since(last_frame_at) >= dt {
+                                    last_frame_at = now;
+                                }
                             }
                             if app.needs_update(vm_ref) {
                                 ctx_ref.begin_frame();
@@ -3275,10 +3313,16 @@ pub fn run_scenevm_app<A: SceneVMApp + 'static>(
             if let (Some(win), Some(vm_ref)) = (window.as_ref(), vm.as_mut()) {
                 let wants_frame = app.needs_update(vm_ref);
                 if let Some(dt) = frame_interval {
-                    let next = instant::Instant::now() + dt;
-                    target.set_control_flow(ControlFlow::WaitUntil(next));
-                    if wants_frame {
+                    let next = last_frame_at + dt;
+                    if !wants_frame {
+                        target.set_control_flow(ControlFlow::Wait);
+                    } else if instant::Instant::now() >= next {
                         win.request_redraw();
+                        target.set_control_flow(ControlFlow::Wait);
+                    } else {
+                        // Do not request an early redraw: it would be rejected above and
+                        // immediately requested again, spinning until the frame is due.
+                        target.set_control_flow(ControlFlow::WaitUntil(next));
                     }
                 } else if wants_frame {
                     target.set_control_flow(ControlFlow::Poll);
@@ -3556,5 +3600,33 @@ pub unsafe extern "C" fn scenevm_ca_render(ptr: *mut SceneVM) -> i32 {
         }
     } else {
         -1
+    }
+}
+
+#[cfg(all(test, feature = "gpu"))]
+mod overlay_upload_tests {
+    use super::*;
+
+    #[test]
+    fn overlay_uploads_only_when_normalized_pixels_change() {
+        let mut overlay = RgbaOverlayState {
+            texture: Texture::new(2, 1),
+            rect: [0.0, 0.0, 2.0, 1.0],
+            dirty: true,
+        };
+        let pixels = [31, 47, 59, 255, 71, 83, 97, 255];
+        overlay.update_pixels(&pixels);
+        overlay.dirty = false; // Simulate a completed upload.
+        overlay.update_pixels(&pixels);
+        assert!(!overlay.dirty);
+        overlay.update_pixels(&[31, 47, 59, 255]);
+        assert!(overlay.dirty);
+        assert_eq!(overlay.texture.data, [31, 47, 59, 255, 0, 0, 0, 0]);
+        overlay.dirty = false;
+        overlay.update_pixels(&[31, 47, 59, 255, 0, 0, 0, 0, 123]);
+        assert!(!overlay.dirty, "ignored extra bytes cannot invalidate the GPU texture");
+        overlay.update_pixels(&pixels);
+        overlay.update_pixels(&pixels);
+        assert!(overlay.dirty, "an unchanged setter must retain a pending upload");
     }
 }

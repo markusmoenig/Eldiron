@@ -331,8 +331,7 @@ impl SceneVMApp for EldironPlayerApp {
     }
 
     fn target_fps(&self) -> Option<f32> {
-        // Keep GPU load close to the classic client behavior.
-        Some(30.0)
+        Some(self.rusterix.client.target_fps.clamp(1, 60) as f32)
     }
 
     fn init(&mut self, _vm: &mut SceneVM, _size: (u32, u32)) {
@@ -587,8 +586,9 @@ impl SceneVMApp for EldironPlayerApp {
             if elapsed >= StdDuration::from_secs(2) {
                 let n = self.render_debug_frames.max(1) as f64;
                 render_debug_log(&format!(
-                    "[RenderDebug][client-wgpu] frames={} avg_ms update={:.2} prepare={:.2} overlay={:.2} present={:.2} render_total={:.2}",
+                    "[RenderDebug][client-wgpu] frames={} fps={:.1} avg_ms update={:.2} prepare={:.2} overlay={:.2} present={:.2} render_total={:.2}",
                     self.render_debug_frames,
+                    n / elapsed.as_secs_f64(),
                     self.render_debug_update_accum_ms / n,
                     self.render_debug_prepare_accum_ms / n,
                     self.render_debug_overlay_accum_ms / n,

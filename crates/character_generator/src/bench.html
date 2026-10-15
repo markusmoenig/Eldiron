@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Eldiron 3D test bench</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#161b24;color:#e4e9f2;font:14px system-ui}header{padding:20px 24px;border-bottom:1px solid #364152}h1{font-size:23px;margin:0 0 7px}p{color:#b8c5d6;line-height:1.5}label{display:inline-block;margin:8px 14px 8px 0}button,select,input{accent-color:#8cc9a0}button,select{background:#293444;color:inherit;border:1px solid #596a80;border-radius:5px;padding:7px}button{cursor:pointer}a{color:#a5d0ff}.controls{padding:12px 24px}.views{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 24px}.views.single{grid-template-columns:1fr}.panel{border:1px solid #364152;border-radius:7px;overflow:hidden}.caption{padding:10px 14px;background:#232c39}iframe{display:block;width:100%;height:62vh;min-height:380px;border:0}#referencePanel[hidden]{display:none}details{margin:16px 24px;padding:14px;background:#232c39;border-radius:6px}pre{white-space:pre-wrap;max-height:350px;overflow:auto;color:#c6d4e5}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px;border-bottom:1px solid #364152}#error{color:#ffab9c}@media(max-width:900px){.views{grid-template-columns:1fr}iframe{height:55vh}}
+</style>
+<header><h1>Eldiron · 3D test bench</h1><p>Ruleset characters and items · procedural meshes · live rig animation · no sprite baking</p></header>
+<div class="controls">
+<label>Character <select id="character"></select></label>
+<label>Style <select id="style"><option>natural</option><option>stylized</option><option>blocky</option></select></label>
+<label>Loadout <select id="loadout"><option value="anatomy">Bare anatomy</option><option value="clothing">Clothing</option><option value="equipped" selected>Clothing + weapons</option><option value="helmet">Full outfit + helmet</option></select></label>
+<label>Compare with <select id="reference"><option value="">None</option></select></label>
+<label>Reference style <select id="referenceStyle"><option value="same">Same style</option><option>blocky</option><option>stylized</option><option>natural</option></select></label><br>
+<label>Animation <select id="motion"></select></label><button id="play">Pause</button><button id="restart">Restart</button>
+<label>Phase <input id="phase" type="range" min="0" max="1000" value="0"></label>
+<label>Rendering <select id="render"><option value="1">Dithered</option><option value="0">Smooth</option><option value="2">Grainy</option></select></label>
+<label>Pixel size <select id="pixels"><option>1</option><option>2</option><option selected>3</option><option>4</option><option>6</option></select></label>
+<label><input id="rig" type="checkbox"> Show rig</label>
+<label>Light <input id="light" type="range" min="-180" max="180" value="35"></label><br>
+<button data-camera="iso">Isometric</button><button data-camera="front">Front</button><button data-camera="side">Side</button><button data-camera="head">Head</button><button data-camera="body">Full body</button>
+<p id="status"></p><p id="error" role="alert"></p>
+</div>
+<div class="views single" id="views"><section class="panel"><div class="caption" id="primaryLabel"></div><iframe id="primary" title="Selected character 3D preview"></iframe></section><section class="panel" id="referencePanel" hidden><div class="caption" id="referenceLabel"></div><iframe id="secondary" title="Reference character 3D preview"></iframe></section></div>
+<details><summary>Ruleset source and regeneration</summary><p>Edit <code id="sourcePath"></code>, run the command below, and reload this page. Style stays in the bench settings. Both panes use the same animation phase. Drag each mesh to orbit; scroll to zoom.</p><pre>cargo run -p eldiron-character-generator --features eldiron --bin character-bench</pre><pre id="source"></pre></details>
+<details><summary>Procedural item definitions</summary><table><thead><tr><th>Item</th><th>Generator</th><th>Attachment</th><th>Color</th></tr></thead><tbody id="items"></tbody></table></details>
+<details><summary>What this bench verifies</summary><p>Silhouette, joint motion, facial proportions, equipment attachment, garment coverage and pixel shading at different scales. Orc tusks and the separate-bone skeleton are initial anatomy prototypes. The WebGL inspection shader is approximate; Eldiron scene depth, terrain, lighting and gameplay still require the SceneVM scene demo. Locomotion here runs in place. All poses repeat endlessly.</p></details>
+<script>
+const bench=__BENCH__,get=id=>document.getElementById(id),frames=[get('primary'),get('secondary')];
+let running=true,phase=0,last=null,camera='iso';
+const durations=bench.motions;
+for(const name of Object.keys(durations)){const o=new Option(name,name);get('motion').add(o);}
+for(const id of [...new Set(bench.cases.map(c=>c.id))]){get('character').add(new Option(id,id));get('reference').add(new Option(id,id));}
+get('motion').value='idle';
+get('source').textContent=bench.source;get('sourcePath').textContent=bench.input;
+for(const item of bench.items){const tr=document.createElement('tr');for(const key of ['id','generator','attachment','color']){const td=document.createElement('td');td.textContent=item[key];tr.append(td);}get('items').append(tr);}
+function apply(frame){const doc=frame.contentDocument;if(!doc||typeof doc.getElementById('time')?.oninput!=='function')return;
+for(const id of ['motion','render','pixels','light'])doc.getElementById(id).value=get(id).value;
+doc.getElementById('rig').checked=get('rig').checked;
+doc.getElementById('time').value=Math.round(phase*1000);doc.getElementById('time').oninput();}
+function load(frame,id,label){if(!id){frame.removeAttribute('src');return;}const c=bench.cases.find(c=>c.id===id&&c.style===(frame===frames[1]&&get('referenceStyle').value!=='same'?get('referenceStyle').value:get('style').value)&&c.loadout===get('loadout').value);
+get(label).replaceChildren(document.createTextNode(`${c.id} · ${c.species} · ${c.style} · ${c.triangles} triangles · ${c.joints} joints · `));const link=document.createElement('a');link.href=c.path+'/character.glb';link.textContent='Rigged GLB';link.download='';get(label).append(link);
+frame.src=c.path+'/viewer3d.html';}
+for(const frame of frames)frame.onload=()=>{try{const doc=frame.contentDocument;if(!doc?.getElementById('motion'))return;const style=doc.createElement('style');style.textContent='header{display:none}canvas{height:100vh;min-height:0}';doc.head.append(style);doc.getElementById('body').click();doc.getElementById(camera).click();apply(frame);const err=doc.getElementById('error').textContent;if(err)get('error').textContent=err;}catch(e){get('error').textContent='Serve this folder over localhost to enable bench controls: '+e.message;}};
+function reload(){get('error').textContent='';load(frames[0],get('character').value,'primaryLabel');const comparison=get('reference').value;get('referencePanel').hidden=!comparison;get('views').classList.toggle('single',!comparison);load(frames[1],comparison,'referenceLabel');}
+for(const id of ['character','style','loadout','reference','referenceStyle'])get(id).onchange=reload;
+get('motion').onchange=()=>{phase=0;frames.forEach(apply);};
+for(const id of ['render','pixels','light','rig'])get(id).oninput=()=>frames.forEach(apply);
+get('play').onclick=()=>{running=!running;get('play').textContent=running?'Pause':'Play';};
+get('restart').onclick=()=>{phase=0;running=true;get('play').textContent='Pause';};
+get('phase').oninput=()=>{phase=Number(get('phase').value)/1000;running=false;get('play').textContent='Play';frames.forEach(apply);};
+for(const button of document.querySelectorAll('[data-camera]'))button.onclick=()=>{camera=button.dataset.camera;for(const frame of frames){const doc=frame.contentDocument;doc?.getElementById('body')?.click();doc?.getElementById(camera)?.click();}};
+function tick(now){if(last!==null&&running)phase=(phase+Math.min((now-last)/1000,.1)/durations[get('motion').value])%1;last=now;get('phase').value=Math.round(phase*1000);frames.forEach(apply);get('status').textContent=`${get('motion').value} · phase ${Math.round(phase*100)}% · ${running?'repeating':'paused'} · ${bench.cases.length} generated cases`;requestAnimationFrame(tick);}
+reload();requestAnimationFrame(tick);
+</script></html>

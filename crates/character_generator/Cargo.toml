@@ -37,3 +37,8 @@ required-features = ["scene-demo"]
 default = []
 scene-demo = ["eldiron", "dep:shared", "shared/graphics", "scenevm/gpu", "scenevm/windowing"]
 eldiron = ["dep:rusterix", "dep:scenevm", "dep:eldiron-ruleset", "dep:uuid"]
+
+[[bin]]
+name = "character-bench"
+path = "src/bench.rs"
+required-features = ["eldiron"]

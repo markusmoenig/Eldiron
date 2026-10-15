@@ -427,3 +427,38 @@ geometry to load. The harness is a visual integration demo: walking plays in
 place, and gameplay movement, collisions, behavior dispatch, terrain foot IK
 and equipment state are not connected yet. The production editor/client does
 not select procedural characters automatically.
+
+## Ruleset 3D test bench
+
+Keep asset experimentation in this crate before integrating it into Eldiron gameplay:
+
+```sh
+cargo run -p eldiron-character-generator --features eldiron --bin character-bench
+python3 -m http.server 8876 --bind 127.0.0.1 --directory target/character-generator/bench
+```
+
+Open `http://127.0.0.1:8876/`. The bench resolves the official ruleset plus
+`examples/bench-ruleset.toml`, validates the result, and generates 36 cases:
+human/orc/skeleton × blocky/stylized/natural × bare/clothed/equipped/helmet.
+Custom inputs: `character-bench <overlay.toml> <output-directory>`.
+Edit the source overlay and rerun, then reload the bench. Definitions are not
+edited or compiled in the browser. Serve it locally for cross-frame controls.
+
+Select two characters or two styles, repeat any of the eight motions, pause and
+scrub their shared phase, inspect front/side/head/isometric views, show the rig,
+and change lighting, pixel size and dithering. Each case includes a rigged GLB.
+The page shows the input ruleset and procedural item inventory. The generator
+exports live meshes and sampled joint transforms; it does not bake sprites.
+The WebGL shader is an inspection approximation, so use `character-scene-demo`
+for final SceneVM scene-lighting/depth checks. There is no automatic gameplay
+character selection, collision, terrain locomotion or ruleset hot reload yet.
+
+Optional `species = "human" | "orc" | "skeleton"` selects anatomy in the
+character appearance definition. Omission preserves existing human output.
+Style continues to be supplied independently through `GenerationOptions`.
+Orcs have broader proportions, a wider jaw and head-rigged tusks. Skeletons
+replace flesh/hair/facial marks with separate rigid bone spans, ribs, pelvis,
+hand/foot bones and a skull with open orbital gaps. Clothes cover their
+respective bones and held equipment uses the same hand sockets. These are
+first anatomy prototypes; skull detail, bone joints, pointed orc ears and
+species-specific animation remain areas for visual iteration in the bench.
