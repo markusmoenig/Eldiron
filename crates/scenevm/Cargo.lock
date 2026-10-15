@@ -481,7 +481,7 @@ dependencies = [
 
 [[package]]
 name = "cornell"
-version = "0.1.0"
+version = "0.95.6"
 dependencies = [
  "rust-embed",
  "scenevm",
@@ -2258,7 +2258,7 @@ dependencies = [
 
 [[package]]
 name = "run-wasm"
-version = "0.1.0"
+version = "0.95.6"
 dependencies = [
  "cargo-run-wasm",
 ]
@@ -2368,7 +2368,7 @@ dependencies = [
 
 [[package]]
 name = "scenegen"
-version = "0.1.0"
+version = "0.95.6"
 dependencies = [
  "scenevm",
  "theframework",
@@ -2378,7 +2378,7 @@ dependencies = [
 
 [[package]]
 name = "scenevm"
-version = "0.1.0"
+version = "0.95.6"
 dependencies = [
  "bytemuck",
  "fontdue",
@@ -2655,7 +2655,7 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.1.40"
+version = "0.95.6"
 dependencies = [
  "arboard",
  "console_error_panic_hook",
@@ -2882,7 +2882,7 @@ checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
 
 [[package]]
 name = "ui-demo"
-version = "0.1.0"
+version = "0.95.6"
 dependencies = [
  "scenevm",
  "serde",
@@ -2917,7 +2917,7 @@ checksum = "b4ac048d71ede7ee76d585517add45da530660ef4390e49b098733c6e897f254"
 
 [[package]]
 name = "unified-app"
-version = "0.1.0"
+version = "0.95.6"
 dependencies = [
  "js-sys",
  "scenevm",

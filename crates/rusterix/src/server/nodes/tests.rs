@@ -2878,3 +2878,159 @@ fn separate_branch_documents_execute_in_saved_order() {
     runtime.update(&mut output);
     assert_eq!(output.0, ["first", "second"]);
 }
+
+#[test]
+fn stonefall_beacon_records_player_completion_only_with_the_wardens_key() {
+    use crate::server::{message::RegionMessage, regionctx::RegionCtx};
+    let project = read_project_json("test_projects/StonefallDungeon.eldiron").unwrap();
+    let graphs: HashMap<String, Value> =
+        serde_json::from_value(project["node_graphs"].clone()).unwrap();
+    for (key, graph) in &graphs {
+        if key.starts_with("behavior/") {
+            Registry::builtin()
+                .compile(graph)
+                .unwrap_or_else(|error| panic!("{key}: {error}"));
+        }
+    }
+    let player_template = Uuid::parse_str("9a6bec05-56ed-44d2-a20a-011b79c8cb68").unwrap();
+    let beacon_template = Uuid::parse_str("ccc26413-a568-4d5b-b331-30ce7e1b2d6b").unwrap();
+    let mut ctx = RegionCtx::default();
+    let (sender, receiver) = crossbeam_channel::unbounded();
+    ctx.from_sender.set(sender).unwrap();
+    ctx.assets.node_behaviors = Some(region::BehaviorAssets {
+        graphs,
+        characters: HashMap::from([("Player".into(), player_template)]),
+        items: HashMap::from([("Exit Marker".into(), beacon_template)]),
+        ..Default::default()
+    });
+    let mut player = crate::Entity::new();
+    player.id = 1;
+    player.creator_id = Uuid::new_v4();
+    player.set_attribute("player", crate::Value::Bool(true));
+    player.set_attribute("class_name", crate::Value::Str("Player".into()));
+    let player_id = player.creator_id;
+    ctx.map.entities.push(player);
+    let mut beacon = crate::Item::default();
+    beacon.id = 9;
+    beacon.creator_id = Uuid::new_v4();
+    beacon.set_attribute("class_name", crate::Value::Str("Exit Marker".into()));
+    beacon.set_attribute(
+        "light",
+        crate::Value::Light(crate::Light::new(crate::LightType::Point)),
+    );
+    let beacon_id = beacon.creator_id;
+    ctx.map.items.push(beacon);
+    let dispatch = |ctx: &mut RegionCtx, owner, name: &str, fields| {
+        region::dispatch(
+            ctx,
+            EventObservation {
+                map: ctx.map.id,
+                owner,
+                name: name.into(),
+                tick: 1,
+                fields,
+            },
+        );
+    };
+    dispatch(
+        &mut ctx,
+        EventOwner::Entity(player_id),
+        "startup",
+        BTreeMap::new(),
+    );
+    assert_eq!(
+        ctx.map.entities[0].attributes.get_str("quest.stonefall"),
+        Some("active")
+    );
+    dispatch(
+        &mut ctx,
+        EventOwner::Item(beacon_id),
+        "startup",
+        BTreeMap::new(),
+    );
+    assert!(
+        matches!(ctx.map.items[0].attributes.get("light"), Some(crate::Value::Light(light)) if !light.active)
+    );
+    let use_fields = BTreeMap::from([
+        ("intent".into(), EventField::Text("use".into())),
+        ("subject".into(), EventField::Entity(1)),
+    ]);
+    dispatch(
+        &mut ctx,
+        EventOwner::Item(beacon_id),
+        "intent",
+        use_fields.clone(),
+    );
+    assert_eq!(
+        ctx.map.entities[0].attributes.get_str("quest.stonefall"),
+        Some("active")
+    );
+    let mut key = crate::Item::default();
+    key.set_attribute("name", crate::Value::Str("Bone Key".into()));
+    ctx.map.entities[0].inventory.push(Some(key));
+    dispatch(
+        &mut ctx,
+        EventOwner::Item(beacon_id),
+        "intent",
+        use_fields.clone(),
+    );
+    assert_eq!(
+        ctx.map.entities[0].attributes.get_str("quest.stonefall"),
+        Some("completed")
+    );
+    assert!(!ctx.map.items[0].attributes.contains("quest.stonefall"));
+    assert!(
+        matches!(ctx.map.items[0].attributes.get("light"), Some(crate::Value::Light(light)) if light.active)
+    );
+    dispatch(&mut ctx, EventOwner::Item(beacon_id), "intent", use_fields);
+    let messages: Vec<_> = receiver.try_iter().collect();
+    assert_eq!(messages.iter().filter(|m| matches!(m, RegionMessage::Message(_, _, _, 1, text, _) if text.starts_with("BEACON RESTORED"))).count(), 1);
+    assert!(messages.iter().any(|m| matches!(m, RegionMessage::Message(_, _, _, 1, text, _) if text.contains("beacon needs"))));
+    assert!(messages.iter().any(|m| matches!(m, RegionMessage::Message(_, _, _, 1, text, _) if text.contains("beacon shines again"))));
+}
+
+#[test]
+fn stonefall_ramps_are_continuous_and_the_prefab_gate_controls_passage() {
+    use crate::chunkbuilder::d3chunkbuilder::D3ChunkBuilder;
+    use vek::Vec2;
+    let project = read_project_json("test_projects/StonefallDungeon.eldiron").unwrap();
+    let mut map: crate::Map = serde_json::from_value(project["regions"][0]["map"].clone()).unwrap();
+    let mut assets = crate::Assets::default();
+    assets.block_props = serde_json::from_value(project["block_props"].clone()).unwrap();
+    let world = D3ChunkBuilder::build_collision_world(&map, &assets);
+    for (position, expected) in [
+        (Vec2::new(5.5, 5.5), 0.),
+        (Vec2::new(13., 5.5), 0.3),
+        (Vec2::new(21.5, 6.5), 0.6),
+        (Vec2::new(21.5, 13.), 0.1),
+        (Vec2::new(21.5, 18.5), -0.4),
+        (Vec2::new(21.5, 24.), 0.05),
+        (Vec2::new(21.5, 30.), 0.5),
+    ] {
+        let height = world
+            .get_floor_height_nearest(position, expected)
+            .expect("continuous walkable floor");
+        assert!(
+            (height - expected).abs() < 0.02,
+            "{position:?}: expected {expected}, got {height}"
+        );
+    }
+    let start = Vec2::new(21.5, 27.);
+    let end = Vec2::new(21.5, 29.);
+    let (closed, _) = world
+        .move_towards_on_floors_direct(start, end, 3., 0.35, 1., 0.5)
+        .unwrap();
+    assert!(closed.z < 28., "closed gate blocks passage: {closed:?}");
+    let instance = map
+        .block_prop_instances
+        .iter_mut()
+        .find(|i| assets.block_props[&i.asset_id].name == "Stonefall Bone Gate")
+        .unwrap();
+    let component = assets.block_props[&instance.asset_id].components[0].id;
+    crate::set_block_prop_door_open(instance, component, true);
+    let open_world = D3ChunkBuilder::build_collision_world(&map, &assets);
+    let (opened, _) = open_world
+        .move_towards_on_floors_direct(start, end, 3., 0.35, 1., 0.5)
+        .unwrap();
+    assert!(opened.z > 28.8, "open leaves clear the passage: {opened:?}");
+}

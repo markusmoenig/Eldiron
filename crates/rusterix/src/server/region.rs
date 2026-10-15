@@ -4158,6 +4158,82 @@ mod ruleset_progression_tests {
     }
 
     #[test]
+    fn keyed_prefab_gate_unlocks_authoritatively_and_preserves_its_key() {
+        let mut ctx = RegionCtx::default();
+        let (sender, receiver) = unbounded();
+        ctx.from_sender.set(sender).unwrap();
+        let mut player = Entity::new();
+        player.id = 1;
+        player.set_attribute("player", Value::Bool(true));
+        ctx.map.entities.push(player);
+        let object = crate::GeometryObject::box_("Leaf", Vec3::zero(), Vec3::one());
+        let mut asset = crate::BlockPropAsset::new_authored("Keyed gate", vec![object]);
+        let part_id = asset.parts[0].id;
+        let mut door = crate::BlockPropComponent::new("Door");
+        door.properties.set("part_id", Value::Id(part_id));
+        door.properties
+            .set("required_item", Value::Str("Bone Key".into()));
+        door.properties.set(
+            "locked_message",
+            Value::Str("Find the Warden's key.".into()),
+        );
+        let component_id = door.id;
+        asset.components.push(door);
+        let target_id = Uuid::new_v4();
+        asset
+            .interaction_targets
+            .push(crate::BlockPropInteractionTarget {
+                id: target_id,
+                name: "Seal".into(),
+                part_id,
+                shape: crate::BlockPropSemanticShape::Part,
+                interaction_anchor: [0.0; 3],
+                facing_direction: [0.0, 0.0, 1.0],
+                component_id: Some(component_id),
+            });
+        let first = crate::BlockPropInstance::new(asset.id);
+        let first_id = first.id;
+        let second = crate::BlockPropInstance::new(asset.id);
+        ctx.map.block_prop_instances.extend([first, second]);
+        ctx.assets.block_props.insert(asset.id, asset.clone());
+        assert!(!RegionInstance::apply_block_prop_interaction(
+            &mut ctx, 1, first_id, target_id, "open"
+        ));
+        assert!(
+            matches!(receiver.try_recv(), Ok(RegionMessage::Message(_, _, _, 1, text, _)) if text == "Find the Warden's key.")
+        );
+        let mut wrong_key = crate::Item::default();
+        wrong_key.set_attribute("name", Value::Str("Rusty Key".into()));
+        ctx.map.entities[0].inventory.push(Some(wrong_key));
+        assert!(!RegionInstance::apply_block_prop_interaction(
+            &mut ctx, 1, first_id, target_id, "open"
+        ));
+        ctx.map.entities[0].inventory[0]
+            .as_mut()
+            .unwrap()
+            .set_attribute("name", Value::Str("Bone Key".into()));
+        assert!(RegionInstance::apply_block_prop_interaction(
+            &mut ctx, 1, first_id, target_id, "open"
+        ));
+        assert_eq!(ctx.map.entities[0].iter_inventory().count(), 1);
+        assert_eq!(
+            crate::block_prop_door_is_open(&asset, &ctx.map.block_prop_instances[0], component_id),
+            Some(true)
+        );
+        assert_eq!(
+            crate::block_prop_door_is_open(&asset, &ctx.map.block_prop_instances[1], component_id),
+            Some(false)
+        );
+        assert!(RegionInstance::apply_block_prop_interaction(
+            &mut ctx, 1, first_id, target_id, "close"
+        ));
+        ctx.map.entities[0].inventory.clear();
+        assert!(RegionInstance::apply_block_prop_interaction(
+            &mut ctx, 1, first_id, target_id, "open"
+        ));
+    }
+
+    #[test]
     fn look_intent_uses_authoring_for_prefab_without_components() {
         let (from_sender, from_receiver) = unbounded();
         let mut ctx = RegionCtx::default();
@@ -4676,7 +4752,46 @@ impl RegionInstance {
             return false;
         }
 
+        // A keyed Door remains unlocked once its key has been used. The key stays
+        // in inventory, so several authored gates can deliberately share it.
+        let required_item = component
+            .properties
+            .get_str("required_item")
+            .unwrap_or("")
+            .trim();
+        let unlocked_key = format!("door_{component_id}_unlocked");
+        let unlock = requested_open
+            && !required_item.is_empty()
+            && !instance_before
+                .runtime_state
+                .get_bool_default(&unlocked_key, false);
+        if unlock {
+            let has_key = actor.iter_inventory().any(|(_, item)| {
+                ["name", "class_name", "source_id", "ruleset_id"]
+                    .iter()
+                    .any(|key| {
+                        item.attributes
+                            .get_str(key)
+                            .is_some_and(|value| value.eq_ignore_ascii_case(required_item))
+                    })
+            });
+            if !has_key {
+                let message = component
+                    .properties
+                    .get_str("locked_message")
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| format!("Locked. Requires {required_item}."));
+                send_message(ctx, actor_id, message, "warning");
+                return false;
+            }
+        }
+
         let mut affected_chunks = Self::block_prop_collision_chunks(&instance_before, &ctx.assets);
+        if unlock {
+            ctx.map.block_prop_instances[instance_index]
+                .runtime_state
+                .set(&unlocked_key, Value::Bool(true));
+        }
         crate::set_block_prop_door_open(
             &mut ctx.map.block_prop_instances[instance_index],
             component_id,

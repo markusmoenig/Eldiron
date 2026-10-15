@@ -6428,6 +6428,9 @@ impl Client {
                 self.hovered_item_id = Some(item_id);
             }
             GeoId::GeometryObject(object_id) => {
+                if let Some(item) = SceneHandler::find_item_by_geometry_object_id(map, object_id) {
+                    self.hovered_item_id = Some(item.id);
+                }
                 let paint_surface_id = scene_handler
                     .vm
                     .pick_paint_surface_at_uv(
@@ -6708,6 +6711,11 @@ impl Client {
                                 pending_cursor_target = Some((false, true));
                             }
                             GeoId::GeometryObject(object_id) => {
+                                if let Some(item) =
+                                    SceneHandler::find_item_by_geometry_object_id(map, object_id)
+                                {
+                                    self.hovered_item_id = Some(item.id);
+                                }
                                 let paint_surface_id = scene_handler
                                     .vm
                                     .pick_paint_surface_at_uv(
@@ -6723,7 +6731,9 @@ impl Client {
                                     object_id,
                                     paint_surface_id,
                                 );
-                                if self.hovered_block_prop_target.is_some() {
+                                if self.hovered_block_prop_target.is_some()
+                                    || self.hovered_item_id.is_some()
+                                {
                                     self.hover_distance = distance;
                                     pending_cursor_target = Some((false, true));
                                 }

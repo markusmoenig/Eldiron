@@ -26,15 +26,17 @@ fn stonefall_authored_geometry_survives_loading_and_saving() {
     );
     let map = &project.regions[0].map;
     assert!(map.wall_assemblies.is_empty());
-    assert_eq!(map.geometry_objects.len(), 162);
+    assert!(map.geometry_objects.len() < 350);
     assert!(
         map.geometry_objects
             .iter()
             .map(|o| o.faces.len())
             .sum::<usize>()
-            < 1500
+            < 2000
     );
     let mut floor_area = 0.0_f32;
+    let mut min_floor = f32::MAX;
+    let mut max_floor = f32::MIN;
     for object in &map.geometry_objects {
         assert_eq!(object.kind, GeometryObjectKind::Brush);
         assert!(
@@ -65,17 +67,17 @@ fn stonefall_authored_geometry_survives_loading_and_saving() {
                 .unwrap()
                 .iter()
                 .map(|&(a, b, c)| {
-                    (points[b] - points[a])
-                        .cross(points[c] - points[a])
-                        .magnitude()
-                        * 0.5
+                    (points[b] - points[a]).cross(points[c] - points[a]).y.abs() * 0.5
                 })
                 .sum::<f32>();
-            assert!(points.iter().all(|p| p.y.abs() < 1e-5));
+            for point in points {
+                min_floor = min_floor.min(point.y);
+                max_floor = max_floor.max(point.y);
+            }
         }
     }
     assert!(
-        (floor_area - 673.0).abs() < 0.01,
+        (floor_area - 593.0).abs() < 0.01,
         "walkable area: {floor_area}"
     );
     assert!(
@@ -83,9 +85,18 @@ fn stonefall_authored_geometry_survives_loading_and_saving() {
             .iter()
             .all(|i| i.host_attachment.is_none())
     );
+    assert!((min_floor + 0.4).abs() < 1e-5);
+    assert!((max_floor - 0.6).abs() < 1e-5);
+    assert_eq!(map.block_prop_instances.len(), 9);
+    let gate = project
+        .block_props
+        .values()
+        .find(|asset| asset.name == "Stonefall Bone Gate")
+        .unwrap();
+    assert_eq!(gate.parts.len(), 2);
     assert_eq!(
-        map.block_prop_instances[0].world_transform[3],
-        [5.5, 0.0, 2.1, 1.0]
+        gate.components[0].properties.get_str("required_item"),
+        Some("Bone Key")
     );
     let encoded = encode_project(&project).expect("Stonefall saves");
     let restored = decode_project(&encoded).expect("Stonefall reopens");

@@ -98,7 +98,7 @@ impl Draw2D {
         }
     }
 
-    /// Blend the given rectangle
+    /// Blend a constant color, reusing its byte-exact channel lookup tables.
     pub fn blend_rect(
         &self,
         frame: &mut [u8],
@@ -106,21 +106,47 @@ impl Draw2D {
         stride: usize,
         color: &[u8; 4],
     ) {
+        if color[3] == 0 || rect.2 == 0 || rect.3 == 0 {
+            return;
+        }
+        if color[3] == 255 {
+            self.rect(frame, rect, stride, color);
+            return;
+        }
+        // Avoid building a table for small indicators and thin border segments.
+        if rect.2.saturating_mul(rect.3) < 256 {
+            let alpha = color[3] as f32 / 255.0;
+            for y in rect.1..rect.1 + rect.3 {
+                let start = (y * stride + rect.0) * 4;
+                for pixel in frame[start..start + rect.2 * 4].chunks_exact_mut(4) {
+                    let background = [pixel[0], pixel[1], pixel[2], pixel[3]];
+                    pixel.copy_from_slice(&self.mix_color(&background, color, alpha));
+                }
+            }
+            return;
+        }
+        // Preserve mix_color's existing rounding and alpha semantics. Large HUD
+        // panels otherwise repeat these float operations for every pixel.
+        let mut channels = [[0u8; 256]; 4];
+        let alpha = color[3] as f32 / 255.0;
+        for background in 0..256 {
+            let mixed = self.mix_color(&[background as u8; 4], color, alpha);
+            for channel in 0..4 {
+                channels[channel][background] = mixed[channel];
+            }
+        }
         for y in rect.1..rect.1 + rect.3 {
-            for x in rect.0..rect.0 + rect.2 {
-                let i = x * 4 + y * stride * 4;
-
-                let background = &[frame[i], frame[i + 1], frame[i + 2], frame[i + 3]];
-                frame[i..i + 4].copy_from_slice(&self.mix_color(
-                    background,
-                    color,
-                    color[3] as f32 / 255.0,
-                ));
+            let start = (y * stride + rect.0) * 4;
+            for pixel in frame[start..start + rect.2 * 4].chunks_exact_mut(4) {
+                pixel[0] = channels[0][pixel[0] as usize];
+                pixel[1] = channels[1][pixel[1] as usize];
+                pixel[2] = channels[2][pixel[2] as usize];
+                pixel[3] = channels[3][pixel[3] as usize];
             }
         }
     }
 
-    /// Blend the given rectangle
+    /// Blend the intersection of a rectangle and its clipping bounds.
     pub fn blend_rect_safe(
         &self,
         frame: &mut [u8],
@@ -129,21 +155,22 @@ impl Draw2D {
         color: &[u8; 4],
         safe_rect: &(isize, isize, isize, isize),
     ) {
-        for y in rect.1..rect.1 + rect.3 {
-            if y >= safe_rect.1 && y < (safe_rect.1 + safe_rect.3) {
-                for x in rect.0..rect.0 + rect.2 {
-                    if x >= safe_rect.0 && x < (safe_rect.0 + safe_rect.2) {
-                        let i = x as usize * 4 + y as usize * stride * 4;
-
-                        let background = &[frame[i], frame[i + 1], frame[i + 2], frame[i + 3]];
-                        frame[i..i + 4].copy_from_slice(&self.mix_color(
-                            background,
-                            color,
-                            color[3] as f32 / 255.0,
-                        ));
-                    }
-                }
-            }
+        let x0 = rect.0.max(safe_rect.0);
+        let y0 = rect.1.max(safe_rect.1);
+        let x1 = (rect.0 + rect.2).min(safe_rect.0 + safe_rect.2);
+        let y1 = (rect.1 + rect.3).min(safe_rect.1 + safe_rect.3);
+        if x1 > x0 && y1 > y0 {
+            self.blend_rect(
+                frame,
+                &(
+                    x0 as usize,
+                    y0 as usize,
+                    (x1 - x0) as usize,
+                    (y1 - y0) as usize,
+                ),
+                stride,
+                color,
+            );
         }
     }
 
@@ -1466,5 +1493,48 @@ impl Draw2D {
     // Length of a 2d vector
     pub fn length(&self, v: (f32, f32)) -> f32 {
         ((v.0).powf(2.0) + (v.1).powf(2.0)).sqrt()
+    }
+}
+
+#[cfg(test)]
+mod constant_blend_tests {
+    use super::Draw2D;
+
+    #[test]
+    fn rectangle_blending_preserves_all_alpha_and_background_values() {
+        let draw = Draw2D::new();
+        for alpha in 0..=255 {
+            let color = [17, 132, 241, alpha];
+            let mut pixels: Vec<u8> = (0..=255u8)
+                .flat_map(|v| [v, v.wrapping_add(71), 255 - v, v])
+                .collect();
+            let original = pixels.clone();
+            draw.blend_rect(&mut pixels, &(0, 0, 256, 1), 256, &color);
+            for (actual, background) in pixels.chunks_exact(4).zip(original.chunks_exact(4)) {
+                let background: [u8; 4] = background.try_into().unwrap();
+                assert_eq!(
+                    actual,
+                    draw.mix_color(&background, &color, alpha as f32 / 255.0)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn clipped_rectangle_only_blends_the_intersection() {
+        let draw = Draw2D::new();
+        let mut pixels = vec![83; 6 * 4 * 4];
+        let color = [19, 99, 203, 144];
+        draw.blend_rect_safe(&mut pixels, &(-2, 1, 6, 4), 6, &color, &(1, 0, 4, 3));
+        for y in 0..4 {
+            for x in 0..6 {
+                let expected = if (1..4).contains(&x) && (1..3).contains(&y) {
+                    draw.mix_color(&[83; 4], &color, 144.0 / 255.0)
+                } else {
+                    [83; 4]
+                };
+                assert_eq!(&pixels[(y * 6 + x) * 4..(y * 6 + x + 1) * 4], &expected);
+            }
+        }
     }
 }

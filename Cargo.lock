@@ -341,7 +341,7 @@ dependencies = [
 
 [[package]]
 name = "buildergraph"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "serde",
  "serde_json",
@@ -1226,7 +1226,7 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "eldiron-character-generator"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "eldiron-ruleset",
  "eldiron-shared",
@@ -1243,7 +1243,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-client"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "console_error_panic_hook",
  "eldiron-shared",
@@ -1262,7 +1262,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-client-terminal"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "crossterm 0.29.0",
  "eldiron-shared",
@@ -1277,7 +1277,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-client-wgpu"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "eldiron-shared",
  "instant",
@@ -1292,7 +1292,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-creator"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "arboard",
  "earcutr",
@@ -1325,7 +1325,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-icon-builder"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "image",
  "serde",
@@ -1335,7 +1335,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-ruleset"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "serde",
  "serde_json",
@@ -1346,7 +1346,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron-shared"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "base64",
  "buildergraph",
@@ -1378,7 +1378,7 @@ dependencies = [
 
 [[package]]
 name = "eldiron_scepter"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "serde",
  "serde_json",
@@ -3507,7 +3507,7 @@ dependencies = [
 
 [[package]]
 name = "organicgraph"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "image",
  "serde",
@@ -3814,7 +3814,7 @@ dependencies = [
 
 [[package]]
 name = "procedural-recipes"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "image",
  "serde",
@@ -4214,7 +4214,7 @@ dependencies = [
 
 [[package]]
 name = "run-wasm"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "cargo-run-wasm",
 ]
@@ -4283,7 +4283,7 @@ dependencies = [
 
 [[package]]
 name = "rusterix"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "base64",
  "bincode",
@@ -4484,7 +4484,7 @@ dependencies = [
 
 [[package]]
 name = "scenevm"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "bytemuck",
  "fontdue",
@@ -5043,7 +5043,7 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "arboard",
  "console_error_panic_hook",
@@ -6772,7 +6772,7 @@ checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
 
 [[package]]
 name = "xtask"
-version = "0.95.5"
+version = "0.95.6"
 dependencies = [
  "serde",
  "serde_json",

@@ -7,13 +7,19 @@ use crate::{
 };
 use draw2d::Draw2D;
 use regex::Regex;
+use std::sync::LazyLock;
 use theframework::prelude::*;
 
 fn substitute_placeholders<F>(input: &str, mut resolver: F) -> String
 where
     F: FnMut(&str, &str) -> Option<String>,
 {
-    let re = Regex::new(r"\{([A-Za-z_]+)\.([A-Za-z0-9_\.]+)\}").unwrap();
+    static PLACEHOLDERS: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"\{([A-Za-z_]+)\.([A-Za-z0-9_\.]+)\}").unwrap());
+    if !input.contains('{') {
+        return input.to_owned();
+    }
+    let re = &*PLACEHOLDERS;
 
     re.replace_all(input, |caps: &regex::Captures| {
         let category = &caps[1];

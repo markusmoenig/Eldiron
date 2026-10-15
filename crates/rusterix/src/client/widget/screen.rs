@@ -80,6 +80,20 @@ impl ScreenWidget {
         let width = self.buffer.dim().width as usize;
         let height = self.buffer.dim().height as usize;
 
+        // Widget-only screens have no base geometry. Rasterizing their blank
+        // background otherwise allocates color/depth buffers and wakes Rayon
+        // workers for every tile on every frame.
+        if self.scene.d2_static.is_empty()
+            && self.scene.d2_dynamic.is_empty()
+            && self.scene.d3_static.is_empty()
+            && self.scene.d3_dynamic.is_empty()
+            && self.scene.d3_overlay.is_empty()
+            && self.scene.chunks.is_empty()
+        {
+            self.buffer.fill(background_color);
+            return;
+        }
+
         // Offset is in grid units; translate so the grid cell at offset lands on pixel (0,0)
         let translation_matrix =
             Mat3::<f32>::translation_2d(Vec2::new(-self.offset.x, -self.offset.y) * self.grid_size);
@@ -111,5 +125,33 @@ impl ScreenWidget {
             40,
             assets,
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_screen_clears_old_pixels_with_exact_background_alpha() {
+        let mut widget = ScreenWidget::new();
+        widget.buffer.resize(12, 8);
+        let map = Map::default();
+        let assets = Assets::default();
+        for color in [[13, 27, 51, 255], [70, 20, 90, 127], [0, 0, 0, 0]] {
+            widget.buffer.fill([255; 4]);
+            widget.background_color = color;
+            widget.draw(&map, &TheTime::new(), &assets);
+            assert!(
+                widget
+                    .buffer
+                    .pixels()
+                    .chunks_exact(4)
+                    .all(|pixel| pixel == color)
+            );
+        }
+        widget.buffer.fill([255; 4]);
+        widget.draw_transparent(&map, &TheTime::new(), &assets);
+        assert!(widget.buffer.pixels().iter().all(|value| *value == 0));
     }
 }

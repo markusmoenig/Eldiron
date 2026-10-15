@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 /// Tokens produced by the parser.
 #[derive(Debug, Clone, PartialEq)]
@@ -31,14 +31,14 @@ pub enum Tok {
 
 /// Parser struct (keeps compiled regex for speed).
 pub struct MsgParser {
-    brace_re: Regex,
+    brace_re: &'static Regex,
 }
 
 impl MsgParser {
     /// Create a new parser. Compile the `{...}` matcher once.
     pub fn new() -> Self {
-        let brace_re = Regex::new(r"\{([^{}]+)\}").unwrap();
-        Self { brace_re }
+        static BRACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{([^{}]+)\}").unwrap());
+        Self { brace_re: &BRACES }
     }
 
     /// Parse an input message into tokens.

@@ -1,3 +1,28 @@
+# Eldiron v0.95.6
+
+## Improvements
+
+### Game and Rendering
+
+- Reduced CPU use while standing still by reusing indirect lighting when lights and opaque geometry are unchanged; particle animation no longer triggers a full lighting solve or redundant grid upload.
+- Reduced CPU use while moving by caching occlusion geometry and individual light contributions, recalculating only changed lights. Opening gates and editing geometry still refresh lighting immediately.
+- Reduced HUD rendering overhead with faster panel blending, a direct clear for empty screen backgrounds, and cached placeholder parsing, preserving existing pixel and alpha behavior.
+
+### Stonefall Starter
+
+- Rebuilt the dungeon with editable brush geometry: raised and lowered rooms, connecting ramps, a ribbed vaulted hall, timber beams, an ossuary, and a gated sanctum.
+- Preserved the dark atmosphere with existing project textures, warm torches, sparse cool lighting, and distinct stone ceilings and wooden beams in the entry and armory. Set the project to 60 FPS and refreshed its starter preview.
+- Completed the beacon quest: Alden explains the route, the Warden drops the Bone Key, the prefab gate requires that key, and restoring the beacon updates quest status, feedback, and lighting. Added the missing Use control.
+
+## Bug Fixes
+
+### Game
+
+- Fixed picking geometry-bound items so their meshes can receive interaction intents directly.
+- Added authoritative key checks for prefab Door components, with authored locked feedback and persistent unlock state per instance/component; unlocking preserves the key and opening updates collision.
+
+---
+
 # Eldiron v0.95.5
 
 ## Bug Fixes

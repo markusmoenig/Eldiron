@@ -3034,6 +3034,13 @@ impl SceneHandler {
         })
     }
 
+    /// Geometry-bound items use the same authored mesh for rendering and picking.
+    pub fn find_item_by_geometry_object_id(map: &Map, object_id: Uuid) -> Option<&Item> {
+        map.items
+            .iter()
+            .find(|item| item.attributes.get_id("geometry_object_id") == Some(object_id))
+    }
+
     pub fn find_item_by_sector_id(map: &Map, sector_id: u32) -> Option<&Item> {
         if let Some(item) = map
             .items
@@ -4895,5 +4902,30 @@ impl SceneHandler {
         self.impact_anim_starts
             .retain(|geo_id, _| active_impact_geo.contains(geo_id));
         self.dynamics_ready_3d = true;
+    }
+}
+
+#[cfg(test)]
+mod geometry_item_pick_tests {
+    use super::*;
+
+    #[test]
+    fn authored_geometry_resolves_to_its_runtime_item_target() {
+        let mut map = Map::default();
+        let first_id = Uuid::new_v4();
+        let second_id = Uuid::new_v4();
+        for (id, object_id) in [(1, first_id), (2, second_id)] {
+            let mut item = Item::default();
+            item.id = id;
+            item.set_attribute("geometry_object_id", Value::Id(object_id));
+            map.items.push(item);
+        }
+        assert_eq!(
+            SceneHandler::find_item_by_geometry_object_id(&map, second_id)
+                .unwrap()
+                .id,
+            2
+        );
+        assert!(SceneHandler::find_item_by_geometry_object_id(&map, Uuid::new_v4()).is_none());
     }
 }

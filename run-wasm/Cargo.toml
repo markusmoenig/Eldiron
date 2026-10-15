@@ -1,6 +1,6 @@
 [package]
 name = "run-wasm"
-version = "0.95.5"
+version = "0.95.6"
 edition = "2021"
 
 [dependencies]

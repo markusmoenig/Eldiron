@@ -123,6 +123,21 @@ struct IrradianceOccluder {
     max: Vec3<f32>,
 }
 
+// Keep only the current grid's lights; moving a carried light must not redo
+// occlusion tests for every stationary torch. Memory is bounded by the grid and
+// IRRADIANCE_GRID_MAX_SOURCES, and geometry changes discard all contributions.
+struct IrradianceSourceContribution {
+    key: u64,
+    values: Vec<Vec3<f32>>,
+}
+struct IrradianceGeometryCache {
+    key: u64,
+    occluders: IrradianceOcclusionTree,
+    sources: Vec<IrradianceSourceContribution>,
+    #[cfg(test)]
+    recomputed_sources: usize,
+}
+
 // Bounds hierarchy avoids testing every dungeon triangle for every lighting probe.
 struct IrradianceOcclusionTree {
     min: Vec3<f32>,
@@ -3327,6 +3342,8 @@ pub struct VM {
     cached_scene_data_hash: u64,
     irradiance_grid_dirty: bool,
     cached_irradiance_grid_data: Vec<[f32; 4]>,
+    cached_irradiance_input_hash: Option<u64>,
+    cached_irradiance_geometry: Option<IrradianceGeometryCache>,
     raster_had_dynamics_last_frame: bool,
     organic_visible: bool,
     raster3d_static_geometry_enabled: bool,
@@ -5291,6 +5308,8 @@ impl VM {
             cached_scene_data_hash: 0,
             irradiance_grid_dirty: true,
             cached_irradiance_grid_data: Self::disabled_irradiance_grid_data(),
+            cached_irradiance_input_hash: None,
+            cached_irradiance_geometry: None,
             raster_had_dynamics_last_frame: false,
             organic_visible: true,
             raster3d_static_geometry_enabled: true,
@@ -8886,9 +8905,11 @@ impl VM {
         1.0
     }
 
-    fn build_irradiance_grid_data(&mut self) -> Vec<[f32; 4]> {
+    fn build_irradiance_grid_data(&mut self) -> Option<Vec<[f32; 4]>> {
         if self.cached_v3.is_empty() {
-            return Self::disabled_irradiance_grid_data();
+            self.cached_irradiance_input_hash = None;
+            self.cached_irradiance_geometry = None;
+            return Some(Self::disabled_irradiance_grid_data());
         }
 
         let mut sources: Vec<RasterPointLight> = self
@@ -8910,9 +8931,11 @@ impl VM {
         sources.sort_by(|a, b| b.score.total_cmp(&a.score));
         sources.truncate(IRRADIANCE_GRID_MAX_SOURCES);
         if sources.is_empty() {
-            return Self::disabled_irradiance_grid_data();
+            self.cached_irradiance_input_hash = None;
+            self.cached_irradiance_geometry = None;
+            return Some(Self::disabled_irradiance_grid_data());
         }
-        let occluders = IrradianceOcclusionTree::new(self.collect_irradiance_occluders());
+        let occluders = self.collect_irradiance_occluders();
 
         let mut bmin = Vec3::broadcast(f32::INFINITY);
         let mut bmax = Vec3::broadcast(f32::NEG_INFINITY);
@@ -8926,7 +8949,65 @@ impl VM {
             bmax.z = bmax.z.max(p.z);
         }
         if !bmin.x.is_finite() || !bmax.x.is_finite() {
-            return Self::disabled_irradiance_grid_data();
+            self.cached_irradiance_input_hash = None;
+            self.cached_irradiance_geometry = None;
+            return Some(Self::disabled_irradiance_grid_data());
+        }
+
+        // Dynamics and ClearLights/AddLight can dirty this grid every frame even
+        // when only particles or translucent sprites changed. Fingerprint the
+        // inputs the solver actually uses before rebuilding its occlusion tree.
+        let mut hasher = rustc_hash::FxHasher::default();
+        for value in [bmin.x, bmin.y, bmin.z, bmax.x, bmax.y, bmax.z] {
+            value.to_bits().hash(&mut hasher);
+        }
+        occluders.len().hash(&mut hasher);
+        for occluder in &occluders {
+            for value in occluder.a.into_iter().chain(occluder.b).chain(occluder.c) {
+                value.to_bits().hash(&mut hasher);
+            }
+        }
+        let geometry_hash = hasher.finish();
+        let source_keys: Vec<_> = sources
+            .iter()
+            .map(|source| {
+                let mut hash = rustc_hash::FxHasher::default();
+                for value in [
+                    source.position.x,
+                    source.position.y,
+                    source.position.z,
+                    source.color.x,
+                    source.color.y,
+                    source.color.z,
+                    source.intensity,
+                    source.range,
+                ] {
+                    value.to_bits().hash(&mut hash);
+                }
+                hash.finish()
+            })
+            .collect();
+        source_keys.hash(&mut hasher);
+        let input_hash = hasher.finish();
+        if self.cached_irradiance_input_hash == Some(input_hash) {
+            return None;
+        }
+        self.cached_irradiance_input_hash = Some(input_hash);
+        let mut geometry_cache = self
+            .cached_irradiance_geometry
+            .take()
+            .filter(|cache| cache.key == geometry_hash)
+            .unwrap_or_else(|| IrradianceGeometryCache {
+                key: geometry_hash,
+                occluders: IrradianceOcclusionTree::new(occluders),
+                sources: Vec::new(),
+                #[cfg(test)]
+                recomputed_sources: 0,
+            });
+        let mut previous_sources = std::mem::take(&mut geometry_cache.sources);
+        #[cfg(test)]
+        {
+            geometry_cache.recomputed_sources = 0;
         }
 
         let margin = IRRADIANCE_GRID_TARGET_CELL_SIZE * 1.25;
@@ -8961,31 +9042,50 @@ impl VM {
             t * t * (3.0 - 2.0 * t)
         };
 
-        for z in 0..dims[2] {
-            for y in 0..dims[1] {
-                for x in 0..dims[0] {
-                    let p = Vec3::new(
-                        bmin.x + cell.x * x as f32,
-                        bmin.y + cell.y * y as f32,
-                        bmin.z + cell.z * z as f32,
-                    );
-                    let mut irradiance = Vec3::zero();
-                    for source in &sources {
-                        let to_probe = p - source.position;
-                        let dist2 = to_probe.magnitude_squared().max(0.45);
-                        let dist = dist2.sqrt();
-                        if dist > source.range {
-                            continue;
-                        }
-                        let visibility =
-                            Self::irradiance_segment_visibility(p, source.position, &occluders);
-                        let range_factor = smooth_range(source.range, dist);
-                        let atten = source.intensity * range_factor / dist2;
-                        irradiance += source.color * (atten * 0.24 * visibility);
+        for (source, key) in sources.iter().zip(source_keys) {
+            let contribution =
+                if let Some(index) = previous_sources.iter().position(|entry| entry.key == key) {
+                    previous_sources.swap_remove(index)
+                } else {
+                    #[cfg(test)]
+                    {
+                        geometry_cache.recomputed_sources += 1;
                     }
-                    direct[idx(x, y, z)] = irradiance.map(|v: f32| v.clamp(0.0, 1.25));
-                }
+                    let mut values = vec![Vec3::zero(); probe_count];
+                    for z in 0..dims[2] {
+                        for y in 0..dims[1] {
+                            for x in 0..dims[0] {
+                                let p = Vec3::new(
+                                    bmin.x + cell.x * x as f32,
+                                    bmin.y + cell.y * y as f32,
+                                    bmin.z + cell.z * z as f32,
+                                );
+                                let dist2 = (p - source.position).magnitude_squared().max(0.45);
+                                let dist = dist2.sqrt();
+                                if dist > source.range {
+                                    continue;
+                                }
+                                let visibility = Self::irradiance_segment_visibility(
+                                    p,
+                                    source.position,
+                                    &geometry_cache.occluders,
+                                );
+                                let range_factor = smooth_range(source.range, dist);
+                                let atten = source.intensity * range_factor / dist2;
+                                values[idx(x, y, z)] = source.color * (atten * 0.24 * visibility);
+                            }
+                        }
+                    }
+                    IrradianceSourceContribution { key, values }
+                };
+            for (total, value) in direct.iter_mut().zip(&contribution.values) {
+                *total += *value;
             }
+            geometry_cache.sources.push(contribution);
+        }
+        self.cached_irradiance_geometry = Some(geometry_cache);
+        for value in &mut direct {
+            *value = value.map(|v: f32| v.clamp(0.0, 1.25));
         }
 
         let mut propagated = direct.clone();
@@ -9039,7 +9139,7 @@ impl VM {
         for c in propagated {
             out.push([c.x, c.y, c.z, 0.0]);
         }
-        out
+        Some(out)
     }
 
     fn upload_irradiance_grid_ssbo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
@@ -9051,9 +9151,12 @@ impl VM {
         {
             self.mark_irradiance_grid_dirty();
         }
-        let rebuilt = self.irradiance_grid_dirty || self.cached_irradiance_grid_data.is_empty();
-        if rebuilt {
-            self.cached_irradiance_grid_data = self.build_irradiance_grid_data();
+        let mut rebuilt = false;
+        if self.irradiance_grid_dirty || self.cached_irradiance_grid_data.is_empty() {
+            if let Some(data) = self.build_irradiance_grid_data() {
+                self.cached_irradiance_grid_data = data;
+                rebuilt = true;
+            }
             self.irradiance_grid_dirty = false;
         }
         let byte_len = (self.cached_irradiance_grid_data.len() * std::mem::size_of::<[f32; 4]>())
@@ -13915,6 +14018,135 @@ mod shader_tests {
     use crate::{Chunk, GeoId, Light, Poly3D};
     use uuid::Uuid;
     use vek::{Mat4, Vec3};
+
+    #[test]
+    fn irradiance_cache_ignores_particles_but_refreshes_light_and_gate_changes() {
+        use super::Vert3DPod;
+        use bytemuck::Zeroable;
+        let mut vm = VM::new(16, 16);
+        let vertex = |pos, particle| {
+            let mut v = Vert3DPod::zeroed();
+            v.pos = pos;
+            v.opacity = 1.0;
+            v.tile_index2 = if particle { 0x0800_0000 } else { 0 };
+            v
+        };
+        vm.cached_v3 = vec![
+            vertex([0., 0., 0.], false),
+            vertex([10., 0., 0.], false),
+            vertex([0., 3., 10.], false),
+            vertex([1., 1., 1.], true),
+            vertex([2., 1., 1.], true),
+            vertex([1., 2., 1.], true),
+        ];
+        vm.cached_i3 = vec![0, 1, 2, 3, 4, 5];
+        vm.cached_tri_visibility = vec![3];
+        let id = GeoId::Unknown(41);
+        let light = Light::new_pointlight(Vec3::new(3., 2., 3.))
+            .with_intensity(2.)
+            .with_end_distance(8.);
+        vm.execute(crate::Atom::AddLight {
+            id,
+            light: light.clone(),
+        });
+        let initial = vm.build_irradiance_grid_data().expect("initial solve");
+        // The scene handler resubmits lights and particles on animated frames.
+        vm.execute(crate::Atom::ClearLights);
+        vm.execute(crate::Atom::AddLight {
+            id,
+            light: light.clone(),
+        });
+        vm.cached_v3[3].pos = [4., 2., 4.];
+        assert!(vm.build_irradiance_grid_data().is_none());
+        // Opening gates, hiding geometry, and moving/enabling lights must still solve.
+        vm.cached_v3[0].pos[0] = 1.;
+        assert!(vm.build_irradiance_grid_data().is_some());
+        vm.cached_tri_visibility[0] = 2;
+        assert!(vm.build_irradiance_grid_data().is_some());
+        vm.lights.get_mut(&id).unwrap().position.x += 1.;
+        assert!(vm.build_irradiance_grid_data().is_some());
+        vm.lights.get_mut(&id).unwrap().intensity = 3.;
+        assert!(vm.build_irradiance_grid_data().is_some());
+        vm.lights.get_mut(&id).unwrap().color = Vec3::new(0.2, 0.5, 1.);
+        assert!(vm.build_irradiance_grid_data().is_some());
+        vm.lights.get_mut(&id).unwrap().end_distance = 12.;
+        assert!(vm.build_irradiance_grid_data().is_some());
+        vm.execute(crate::Atom::ClearLights);
+        assert_eq!(
+            vm.build_irradiance_grid_data().unwrap(),
+            VM::disabled_irradiance_grid_data()
+        );
+        vm.execute(crate::Atom::AddLight { id, light });
+        vm.cached_v3[0].pos[0] = 0.;
+        vm.cached_tri_visibility[0] = 3;
+        assert_eq!(vm.build_irradiance_grid_data().unwrap(), initial);
+    }
+
+    #[test]
+    fn moving_one_light_reuses_fixed_lights_and_matches_a_full_solve() {
+        use super::Vert3DPod;
+        use bytemuck::Zeroable;
+        let mut vm = VM::new(16, 16);
+        for pos in [[0., 0., 0.], [12., 0., 0.], [0., 4., 12.]] {
+            let mut vertex = Vert3DPod::zeroed();
+            vertex.pos = pos;
+            vertex.opacity = 1.;
+            vm.cached_v3.push(vertex);
+        }
+        vm.cached_i3 = vec![0, 1, 2];
+        vm.cached_tri_visibility = vec![1];
+        for i in 0..8 {
+            vm.execute(crate::Atom::AddLight {
+                id: GeoId::Unknown(i),
+                light: Light::new_pointlight(Vec3::new(1. + i as f32, 2., 4.))
+                    .with_intensity(2.)
+                    .with_end_distance(8.),
+            });
+        }
+        vm.build_irradiance_grid_data().unwrap();
+        for step in 1..10 {
+            vm.lights.get_mut(&GeoId::Unknown(0)).unwrap().position.x = 1. + step as f32 * 0.1;
+            let incremental = vm.build_irradiance_grid_data().unwrap();
+            let cache = vm.cached_irradiance_geometry.as_ref().unwrap();
+            assert_eq!(
+                cache.recomputed_sources, 1,
+                "only the carried light needs new rays"
+            );
+            assert_eq!(
+                cache.sources.len(),
+                8,
+                "cache stays bounded to the current sources"
+            );
+            vm.cached_irradiance_geometry = None;
+            vm.cached_irradiance_input_hash = None;
+            let full = vm.build_irradiance_grid_data().unwrap();
+            assert_eq!(
+                incremental, full,
+                "moving light output must match a full solve exactly"
+            );
+        }
+        vm.execute(crate::Atom::RemoveLight {
+            id: GeoId::Unknown(0),
+        });
+        vm.build_irradiance_grid_data().unwrap();
+        let cache = vm.cached_irradiance_geometry.as_ref().unwrap();
+        assert_eq!(cache.recomputed_sources, 0);
+        assert_eq!(
+            cache.sources.len(),
+            7,
+            "removed lights leave no stale contribution"
+        );
+        vm.cached_v3[0].pos[2] += 0.5;
+        vm.build_irradiance_grid_data().unwrap();
+        assert_eq!(
+            vm.cached_irradiance_geometry
+                .as_ref()
+                .unwrap()
+                .recomputed_sources,
+            7,
+            "changed occluders refresh every light"
+        );
+    }
 
     #[test]
     fn irradiance_hierarchy_matches_flat_triangle_tests() {
