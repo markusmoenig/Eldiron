@@ -3498,18 +3498,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "organicgraph"
-version = "0.95.6"
-dependencies = [
- "image",
- "serde",
- "serde_json",
- "toml 0.9.11+spec-1.1.0",
- "uuid",
- "vek",
-]
-
-[[package]]
 name = "owned_ttf_parser"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
