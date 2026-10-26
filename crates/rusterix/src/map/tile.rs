@@ -2,7 +2,6 @@ use crate::{
     ParticleEmitter, Texture,
     material_library::{MaterialDefinition, MaterialFamily},
 };
-use procedural_recipes::{GeometryFeature, GeometryOperation, Recipe, RecipePlacement};
 use theframework::prelude::*;
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug, Default)]
@@ -125,7 +124,7 @@ pub struct TileProceduralMeta {
     pub weight: u32,
     /// Number of map cells covered by one coordinated procedural texture.
     ///
-    /// Ordinary tiles use `[1, 1]`. Recipe-backed surfaces may cover several
+    /// Ordinary tiles use `[1, 1]`. Larger surfaces may cover several
     /// cells so their UVs remain continuous instead of restarting per cell.
     #[serde(default = "default_proc_coverage")]
     pub coverage: [u32; 2],
@@ -153,7 +152,7 @@ fn default_proc_coverage() -> [u32; 2] {
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
 pub enum TileGeometryFeature {
     Box(TileBoxGeometry),
-    /// Legacy serialized form. New recipes compile to generic Box nodes.
+    /// Legacy serialized geometry; equivalent to a recessed box.
     Niche(TileNicheGeometry),
 }
 
@@ -162,16 +161,6 @@ pub enum TileGeometryOperation {
     #[default]
     Add,
     Subtract,
-}
-
-/// How procedural geometry/effects compose with the placement host.
-#[derive(Serialize, Deserialize, PartialEq, Clone, Copy, Debug, Default)]
-pub enum TileRecipePlacement {
-    /// The baked Tile owns and replaces the host surface.
-    #[default]
-    Surface,
-    /// Geometry/effects overlay the existing host surface.
-    Fixture,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
@@ -410,27 +399,21 @@ pub struct Tile {
     /// Optional procedural generation hints used by region generators.
     #[serde(default)]
     pub procedural: TileProceduralMeta,
-    /// Shared Recipe composition semantics used by Creator, Source, and clients.
-    #[serde(default)]
-    pub recipe_placement: TileRecipePlacement,
     /// Optional architectural geometry instantiated whenever this tile is placed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub geometry: Vec<TileGeometryFeature>,
-    /// Named placement-local points shared by procedural geometry and effects.
+    /// Named placement-local points shared by tile geometry and effects.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub attachments: Vec<TileAttachment>,
-    /// Placement-local lights authored by a procedural recipe.
+    /// Placement-local lights stored with this tile.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub light_effects: Vec<TileLightEffect>,
-    /// Placement-local particle emitters authored by a procedural recipe.
+    /// Placement-local particle emitters stored with this tile.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub particle_effects: Vec<TileParticleEffect>,
     /// Optional high-level material metadata used to derive render material values.
     #[serde(default, skip_serializing_if = "TileMaterialMeta::is_default")]
     pub material: TileMaterialMeta,
-    /// Source-level procedural material alias, retained for editor/source introspection.
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub material_alias: String,
     /// Packed per-pixel R/M/O/E bytes for every texture frame. Texture serialization
     /// intentionally strips these bytes, so generated tiles persist them here.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -494,88 +477,6 @@ impl Tile {
         }
     }
 
-    /// Apply the host-facing geometry/effect metadata shared by Source,
-    /// Creator, and runtime clients for a procedural Tile recipe.
-    pub fn apply_procedural_recipe_metadata(&mut self, recipe: &Recipe) {
-        self.blocking = recipe.blocking;
-        self.procedural.coverage = recipe.coverage;
-        self.recipe_placement = match recipe.placement {
-            RecipePlacement::Surface => TileRecipePlacement::Surface,
-            RecipePlacement::Fixture => TileRecipePlacement::Fixture,
-        };
-        self.geometry = recipe
-            .geometry
-            .iter()
-            .map(|feature| match feature {
-                GeometryFeature::Box(geometry_box) => TileGeometryFeature::Box(TileBoxGeometry {
-                    name: geometry_box.name.clone(),
-                    operation: match geometry_box.operation {
-                        GeometryOperation::Add => TileGeometryOperation::Add,
-                        GeometryOperation::Subtract => TileGeometryOperation::Subtract,
-                    },
-                    surface: geometry_box.surface.clone(),
-                    position: geometry_box.position,
-                    size: geometry_box.size,
-                    repeat: geometry_box.repeat,
-                    spacing: geometry_box.spacing,
-                }),
-            })
-            .collect();
-        self.attachments = recipe
-            .attachments
-            .iter()
-            .map(|attachment| TileAttachment {
-                name: attachment.name.clone(),
-                position: attachment.position,
-                direction: attachment.direction,
-            })
-            .collect();
-        self.light_effects = recipe
-            .lights
-            .iter()
-            .map(|light| TileLightEffect {
-                name: light.name.clone(),
-                attachment: light.attachment.clone(),
-                emitter: TileLightEmitter {
-                    color: light.color,
-                    intensity: light.intensity,
-                    range: light.range,
-                    flicker: light.flicker,
-                    lift: light.lift,
-                },
-            })
-            .collect();
-        self.particle_effects = recipe
-            .particles
-            .iter()
-            .map(|particles| {
-                let mut emitter = ParticleEmitter::new(
-                    vek::Vec3::zero(),
-                    vek::Vec3::new(
-                        particles.direction[0],
-                        particles.direction[1],
-                        particles.direction[2],
-                    ),
-                );
-                emitter.spread = particles.spread;
-                emitter.rate = particles.rate;
-                emitter.color = particles.color;
-                emitter.color_ramp = particles.color_ramp;
-                emitter.color_variation = particles.color_variation;
-                emitter.lifetime_range = (particles.lifetime[0], particles.lifetime[1]);
-                emitter.radius_range = (particles.radius[0], particles.radius[1]);
-                emitter.speed_range = (particles.speed[0], particles.speed[1]);
-                emitter.spawn_area = particles.spawn_area;
-                emitter.flame_base = particles.flame_base;
-                TileParticleEffect {
-                    name: particles.name.clone(),
-                    attachment: particles.attachment.clone(),
-                    emitter,
-                }
-            })
-            .collect();
-    }
-
     /// Create a tile from a single texture.
     pub fn from_texture(texture: Texture) -> Self {
         Self {
@@ -588,13 +489,13 @@ impl Tile {
             alias: String::new(),
             gameplay_tags: Vec::new(),
             procedural: TileProceduralMeta::default(),
-            recipe_placement: TileRecipePlacement::Surface,
+
             geometry: Vec::new(),
             attachments: Vec::new(),
             light_effects: Vec::new(),
             particle_effects: Vec::new(),
             material: TileMaterialMeta::default(),
-            material_alias: String::new(),
+
             baked_material_data: Vec::new(),
             particle_emitter: None,
             light_emitter: None,
@@ -705,13 +606,13 @@ impl Tile {
             alias: self.alias.clone(),
             gameplay_tags: self.gameplay_tags.clone(),
             procedural: self.procedural.clone(),
-            recipe_placement: self.recipe_placement,
+
             geometry: self.geometry.clone(),
             attachments: self.attachments.clone(),
             light_effects: self.light_effects.clone(),
             particle_effects: self.particle_effects.clone(),
             material: self.material.clone(),
-            material_alias: self.material_alias.clone(),
+
             baked_material_data: self
                 .textures
                 .iter()
@@ -829,14 +730,13 @@ mod tests {
     }
 
     #[test]
-    fn baked_procedural_materials_survive_tile_serialization() {
+    fn baked_materials_survive_tile_serialization() {
         let mut texture = Texture::from_color([80, 70, 60, 255]);
         texture.set_materials_all(0.2, 0.4, 0.8, 0.6);
         texture.set_normal(0, 0, 0.25, -0.25);
         let baked = texture.material_bytes();
         let mut tile = Tile::from_texture(texture);
-        tile.recipe_placement = TileRecipePlacement::Fixture;
-        tile.material_alias = "dungeon/test".to_string();
+
         tile.baked_material_data = vec![baked];
 
         let serialized = serde_json::to_string(&tile).unwrap();
@@ -846,8 +746,6 @@ mod tests {
         reconstructed.data_ext = Some(frames[0].clone());
         let (roughness, metallic, opacity, emissive) = reconstructed.get_materials(0, 0);
 
-        assert_eq!(decoded.material_alias, "dungeon/test");
-        assert_eq!(decoded.recipe_placement, TileRecipePlacement::Fixture);
         assert!((roughness - 0.2).abs() < 0.07);
         assert!((metallic - 0.4).abs() < 0.07);
         assert!((opacity - 0.8).abs() < 0.07);

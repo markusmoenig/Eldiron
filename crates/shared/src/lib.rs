@@ -1,17 +1,17 @@
 pub mod asset;
 pub mod character;
 pub mod construction_graph;
-pub mod graph_authoring;
-pub mod particle_graph;
-pub mod prefab_graph;
 pub mod context;
 pub mod entity_graph;
+pub mod graph_authoring;
 pub mod interaction;
 pub mod iso_paint;
 pub mod iso_paint_brush;
 #[cfg(feature = "graphics")]
 pub mod iso_paint_render;
 pub mod item;
+pub mod particle_graph;
+pub mod prefab_graph;
 pub mod project;
 pub mod project_io;
 pub mod region;
@@ -24,25 +24,18 @@ pub mod text_game;
 pub mod text_session;
 pub mod tilemap;
 pub mod treasury;
-pub use buildergraph;
 
 pub mod prelude {
     pub use serde::{Deserialize, Serialize};
 
     pub use crate::asset::*;
-    pub use crate::buildergraph::{
-        BuilderAnchor, BuilderAssembly, BuilderGraph, BuilderNode, BuilderNodeKind,
-        BuilderOutputTarget, BuilderPrimitive, BuilderTransform,
-    };
     pub use crate::character::Character;
     pub use crate::construction_graph::ConstructionPatternAsset;
     pub use crate::context::*;
     pub use crate::interaction::*;
     pub use crate::iso_paint::*;
     pub use crate::item::Item;
-    pub use crate::project::{
-        BuilderGraphAsset, ProceduralRecipeAsset, Project, TileCollectionAsset, TileCollectionEntry,
-    };
+    pub use crate::project::{Project, TileCollectionAsset, TileCollectionEntry};
     pub use crate::project_io::*;
     pub use crate::region::Region;
     pub use crate::rulesets::*;
@@ -52,9 +45,8 @@ pub mod prelude {
     pub use crate::text_session::*;
     pub use crate::tilemap::{Tile, Tilemap};
     pub use crate::treasury::{
-        TreasuryBuilderGraphSummary, TreasuryIndex, TreasuryIndexCategories,
-        TreasuryPackageManifest, TreasuryPackageMetadata, TreasuryPackageSummary,
-        TreasuryTileCollectionPackage,
+        TreasuryIndex, TreasuryIndexCategories, TreasuryPackageManifest, TreasuryPackageMetadata,
+        TreasuryPackageSummary, TreasuryTileCollectionPackage,
     };
     pub use indexmap::IndexMap;
     pub use rusterix::{

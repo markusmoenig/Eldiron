@@ -23,11 +23,6 @@ impl TileControls {
             id: String::new(),
             label: fl!("entity_inherit"),
         }];
-        let generated: std::collections::HashSet<_> = project
-            .procedural_recipes
-            .values()
-            .filter_map(|recipe| recipe.tile_id)
-            .collect();
         // Embedded artwork supplies previews for semantic rules icon IDs.
         if let Ok(textures) = shared::rulesets::bundled_textures_for_project(&project.config) {
             for (id, texture) in textures {
@@ -39,7 +34,7 @@ impl TileControls {
             }
         }
         for (id, tile) in &project.tiles {
-            if generated.contains(id) || tile.module.is_some() || tile.textures.is_empty() {
+            if tile.module.is_some() || tile.textures.is_empty() {
                 continue;
             }
             let id = id.to_string();

@@ -21,7 +21,6 @@ pub mod i18n;
 pub mod mapeditor;
 pub mod minimap;
 pub mod misc;
-pub mod recipe_utils;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod scepter;
 #[cfg(all(

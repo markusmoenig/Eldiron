@@ -730,12 +730,5 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
         .capabilities(vec![RegionWrite, TileRead])
         .previewable()
         .undoable(),
-        ScepterCommandMeta::new(
-            "geometry.place_builder_asset",
-            "Place a reusable builder asset or prop in a 3D region.",
-        )
-        .capabilities(vec![RegionWrite, ProjectRead])
-        .previewable()
-        .undoable(),
     ]
 }

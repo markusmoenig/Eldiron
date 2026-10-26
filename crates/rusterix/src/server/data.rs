@@ -250,7 +250,7 @@ pub fn apply_item_data(item: &mut Item, toml: &str) {
                 if attr == "attributes" {
                     if let Some(values) = v.as_table() {
                         for (key, value) in values {
-                            if matches!(key.as_str(), "rig_pivot" | "appearance_tiling")
+                            if matches!(key.as_str(), "rig_pivot" | "decal_scale")
                                 && let Some(value) = value.as_array()
                                 && value.len() == 2
                                 && let (Some(x), Some(y)) =
@@ -534,25 +534,19 @@ lift = 1.15
     }
 
     #[test]
-    fn item_data_preserves_avatar_appearance_tiling_as_a_vector() {
+    fn item_data_preserves_avatar_decal_scale_as_a_vector() {
         let mut item = Item::new();
 
         apply_item_data(
             &mut item,
             r#"
 [attributes]
-appearance_recipe = "orc-vest"
-appearance_tiling = [2.0, 3.0]
+dye_color = "linen"
+decal_scale = [2.0, 3.0]
 "#,
         );
 
-        assert_eq!(
-            item.attributes.get_str("appearance_recipe"),
-            Some("orc-vest")
-        );
-        assert_eq!(
-            item.attributes.get_vec2("appearance_tiling"),
-            Some([2.0, 3.0])
-        );
+        assert_eq!(item.attributes.get_str("dye_color"), Some("linen"));
+        assert_eq!(item.attributes.get_vec2("decal_scale"), Some([2.0, 3.0]));
     }
 }

@@ -2,7 +2,6 @@
 // Runs on server and client so custom highlighting works in static render.
 
 import loadEldrin from "../prism-eldrin.js";
-import loadRecipe from "../prism-recipe.js";
 
 function loadToml(Prism) {
   const key = /(?:[\w-]+|'[^'\n\r]*'|"(?:\\.|[^\\"\r\n])*")/.source;
@@ -60,5 +59,4 @@ function loadToml(Prism) {
 export default function prismIncludeLanguages(Prism) {
   loadToml(Prism);
   loadEldrin(Prism);
-  loadRecipe(Prism);
 }

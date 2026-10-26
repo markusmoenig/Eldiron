@@ -622,7 +622,7 @@ impl PaletteDock {
             && let Some(map) = project.get_map_mut(server_ctx)
         {
             let prev = map.clone();
-            if crate::actions::apply_builder_hud_material_to_selection(
+            if crate::actions::apply_wall_hud_material_to_selection(
                 map,
                 server_ctx,
                 server_ctx.selected_hud_icon_index,
@@ -747,7 +747,7 @@ impl PaletteDock {
 
         if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
             let prev = map.clone();
-            if crate::actions::apply_builder_hud_material_to_selection(
+            if crate::actions::apply_wall_hud_material_to_selection(
                 map,
                 server_ctx,
                 server_ctx.selected_hud_icon_index,

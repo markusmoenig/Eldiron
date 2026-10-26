@@ -220,13 +220,8 @@ impl MaterialControls {
         self.tiles.clear();
         self.palette.clear();
         self.patterns.clear();
-        let generated: std::collections::HashSet<_> = project
-            .procedural_recipes
-            .values()
-            .filter_map(|recipe| recipe.tile_id)
-            .collect();
         for (id, tile) in &project.tiles {
-            if generated.contains(id) || tile.module.is_some() || tile.textures.is_empty() {
+            if tile.module.is_some() || tile.textures.is_empty() {
                 continue;
             }
             let id = id.to_string();

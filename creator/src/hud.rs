@@ -118,25 +118,6 @@ impl Hud {
         None
     }
 
-    fn active_builder_item_slots(
-        &self,
-        map: &Map,
-        _ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
-    ) -> Option<Vec<ActionItemSlot>> {
-        if !server_ctx.builder_tool_active {
-            return None;
-        }
-        match server_ctx.curr_map_tool_type {
-            MapToolType::Sector => crate::actions::builder_hud_item_slots_for_selected_sector(map),
-            MapToolType::Linedef => {
-                crate::actions::builder_hud_item_slots_for_selected_linedef(map)
-            }
-            MapToolType::Vertex => crate::actions::builder_hud_item_slots_for_selected_vertex(map),
-            _ => None,
-        }
-    }
-
     fn active_palette_material_slots(
         &self,
         map: &Map,
@@ -146,24 +127,7 @@ impl Hud {
         if !server_ctx.palette_tool_active {
             return None;
         }
-        if let Some(slots) = crate::actions::builder_hud_material_slots_for_selected_geometry(map) {
-            return Some(slots);
-        }
-        if let Some(slots) = crate::actions::named_geometry_hud_material_slots_for_selection(map) {
-            return Some(slots);
-        }
-        match server_ctx.curr_map_tool_type {
-            MapToolType::Sector => {
-                crate::actions::builder_hud_material_slots_for_selected_sector(map)
-            }
-            MapToolType::Linedef => {
-                crate::actions::builder_hud_material_slots_for_selected_linedef(map)
-            }
-            MapToolType::Vertex => {
-                crate::actions::builder_hud_material_slots_for_selected_vertex(map)
-            }
-            _ => None,
-        }
+        crate::actions::named_geometry_hud_material_slots_for_selection(map)
     }
 
     fn clean_coord(v: f32) -> f32 {
@@ -451,10 +415,8 @@ impl Hud {
         self.subdiv_rects = vec![];
 
         let icon_size = 40;
-        let action_item_slots = self.active_builder_item_slots(map, ctx, server_ctx);
-        let action_material_slots = if action_item_slots.is_none() {
-            crate::actions::builder_hud_material_slots_for_selected_geometry(map)
-                .or_else(|| crate::actions::named_geometry_hud_material_slots_for_selection(map))
+        let action_material_slots =
+            crate::actions::named_geometry_hud_material_slots_for_selection(map)
                 .or_else(|| crate::actions::prefab_hud_material_slots_for_selected_instances(map))
                 .or_else(|| {
                     (self.mode == HudMode::Wall)
@@ -462,10 +424,7 @@ impl Hud {
                         .flatten()
                 })
                 .or_else(|| self.active_action_material_slots(map, ctx, server_ctx))
-                .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx))
-        } else {
-            None
-        };
+                .or_else(|| self.active_palette_material_slots(map, ctx, server_ctx));
         let mut icons = 0;
 
         if server_ctx.get_map_context() == MapContext::Region
@@ -475,9 +434,7 @@ impl Hud {
                     MapContext::Item | MapContext::Character
                 ))
         {
-            icons = if let Some(slots) = &action_item_slots {
-                slots.len() as i32
-            } else if let Some(slots) = &action_material_slots {
+            icons = if let Some(slots) = &action_material_slots {
                 slots.len() as i32
             } else if self.mode == HudMode::Vertex {
                 0
@@ -640,13 +597,7 @@ impl Hud {
                 buffer.pixels_mut(),
                 &(r.0, 1, r.2, 19),
                 stride,
-                &self.get_icon_text(
-                    i,
-                    map,
-                    server_ctx,
-                    action_item_slots.as_deref(),
-                    action_material_slots.as_deref(),
-                ),
+                &self.get_icon_text(i, map, server_ctx, action_material_slots.as_deref()),
                 TheFontSettings {
                     size: 10.0,
                     ..Default::default()
@@ -670,7 +621,6 @@ impl Hud {
                 map,
                 id,
                 icon_size as usize,
-                action_item_slots.as_deref(),
                 action_material_slots.as_deref(),
             );
             if let Some(tile) = tile {
@@ -1157,15 +1107,10 @@ impl Hud {
         index: i32,
         map: &Map,
         server_ctx: &mut ServerContext,
-        action_item_slots: Option<&[ActionItemSlot]>,
         action_material_slots: Option<&[ActionMaterialSlot]>,
     ) -> String {
         let mut text: String = "".into();
-        if let Some(slots) = action_item_slots
-            && let Some(slot) = slots.get(index as usize)
-        {
-            return slot.label.clone();
-        }
+
         if let Some(slots) = action_material_slots {
             if let Some(slot) = slots.get(index as usize) {
                 return slot.label.clone();
@@ -1195,14 +1140,8 @@ impl Hud {
         map: &Map,
         id: Option<u32>,
         icon_size: usize,
-        action_item_slots: Option<&[ActionItemSlot]>,
         action_material_slots: Option<&[ActionMaterialSlot]>,
     ) -> (Option<rusterix::Tile>, bool) {
-        if let Some(slots) = action_item_slots
-            && slots.get(index as usize).is_some()
-        {
-            return (None, false);
-        }
         if let Some(slots) = action_material_slots
             && let Some(slot) = slots.get(index as usize)
         {

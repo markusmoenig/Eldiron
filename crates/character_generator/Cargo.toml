@@ -20,7 +20,6 @@ toml = "0.9"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 
 theframework = { path = "../theframework", default-features = false }
-procedural-recipes = { path = "../procedural_recipes", default-features = false }
 rusterix = { path = "../rusterix", default-features = false, features = ["graphics"], optional = true }
 scenevm = { path = "../scenevm", default-features = false, optional = true }
 eldiron-ruleset = { path = "../ruleset", optional = true }

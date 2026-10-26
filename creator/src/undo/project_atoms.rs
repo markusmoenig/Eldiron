@@ -50,9 +50,6 @@ pub enum ProjectUndoAtom {
     AddAsset(Asset),
     RemoveAsset(usize, Asset),
     RenameAsset(Uuid, String, String),
-    AddProceduralRecipe(ProceduralRecipeAsset),
-    RemoveProceduralRecipe(usize, ProceduralRecipeAsset),
-    EditProceduralRecipe(Uuid, String, String),
     AddAvatar(Avatar),
     RemoveAvatar(usize, Avatar),
     EditAvatar(Uuid, Avatar, Avatar),
@@ -261,7 +258,7 @@ impl ProjectUndoAtom {
         {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.set_block_props(prefabs.clone());
-            rusterix.scene_handler.reset_builder_particle_emitters();
+            rusterix.scene_handler.reset_geometry_particle_emitters();
         }
         SCENEMANAGER.write().unwrap().set_block_props(prefabs);
         ctx.ui.send(TheEvent::Custom(
@@ -328,15 +325,7 @@ impl ProjectUndoAtom {
             AddAsset(asset) => format!("Add Asset: {}", asset.name),
             RemoveAsset(_, asset) => format!("Remove Asset: {}", asset.name),
             RenameAsset(_, old, new) => format!("Rename Asset: {} -> {}", old, new),
-            AddProceduralRecipe(recipe) => format!(
-                "Add Recipe: {}",
-                crate::recipe_utils::recipe_name(&recipe.source)
-            ),
-            RemoveProceduralRecipe(_, recipe) => format!(
-                "Remove Recipe: {}",
-                crate::recipe_utils::recipe_name(&recipe.source)
-            ),
-            EditProceduralRecipe(_, _, _) => "Edit Recipe".to_string(),
+
             AddAvatar(avatar) => format!("Add Avatar: {}", avatar.name),
             RemoveAvatar(_, avatar) => format!("Remove Avatar: {}", avatar.name),
             EditAvatar(_, old, _new) => format!("Edit Avatar: {}", old.name),
@@ -854,56 +843,7 @@ impl ProjectUndoAtom {
                     }
                 }
             }
-            AddProceduralRecipe(recipe) => {
-                if let Some(tile_id) = project
-                    .procedural_recipes
-                    .get(&recipe.id)
-                    .and_then(|asset| asset.tile_id)
-                {
-                    project.tiles.shift_remove(&tile_id);
-                }
-                project.procedural_recipes.shift_remove(&recipe.id);
-                crate::recipe_utils::sync_recipe_compatibility_catalogs(project);
-                if let Some(tree) = ui.get_tree_layout("Project Tree")
-                    && let Some(node) = tree.get_node_by_id_mut(&server_ctx.tree_recipes_id)
-                {
-                    node.remove_widget_by_uuid(&recipe.id);
-                }
-            }
-            RemoveProceduralRecipe(index, recipe) => {
-                project
-                    .procedural_recipes
-                    .insert_before(*index, recipe.id, recipe.clone());
-                crate::recipe_utils::sync_recipe_compatibility_catalogs(project);
-                let _ = crate::recipe_utils::rebake_tile_recipe(project, recipe.id);
-                if let Some(tree) = ui.get_tree_layout("Project Tree")
-                    && let Some(node) = tree.get_node_by_id_mut(&server_ctx.tree_recipes_id)
-                {
-                    node.add_widget(Box::new(gen_procedural_recipe_tree_item(recipe, project)));
-                    if let Some(widget) = node.widgets.pop() {
-                        node.widgets
-                            .insert((*index).min(node.widgets.len()), widget);
-                    }
-                }
-                set_project_context(
-                    ctx,
-                    ui,
-                    project,
-                    server_ctx,
-                    ProjectContext::ProceduralRecipe(recipe.id),
-                );
-            }
-            EditProceduralRecipe(id, old, _new) => {
-                if let Some(recipe) = project.procedural_recipes.get_mut(id) {
-                    recipe.source = old.clone();
-                }
-                crate::recipe_utils::sync_recipe_compatibility_catalogs(project);
-                ui.set_widget_value("Procedural Recipe Source", ctx, TheValue::Text(old.clone()));
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named_with_id(crate::docks::recipes::RECIPE_SOURCE_CHANGED, *id),
-                    TheValue::Empty,
-                ));
-            }
+
             AddAvatar(avatar) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(avatar_node) =
@@ -1653,51 +1593,7 @@ impl ProjectUndoAtom {
                     }
                 }
             }
-            AddProceduralRecipe(recipe) => {
-                project.procedural_recipes.insert(recipe.id, recipe.clone());
-                crate::recipe_utils::sync_recipe_compatibility_catalogs(project);
-                let _ = crate::recipe_utils::rebake_tile_recipe(project, recipe.id);
-                if let Some(tree) = ui.get_tree_layout("Project Tree")
-                    && let Some(node) = tree.get_node_by_id_mut(&server_ctx.tree_recipes_id)
-                {
-                    node.add_widget(Box::new(gen_procedural_recipe_tree_item(recipe, project)));
-                }
-                set_project_context(
-                    ctx,
-                    ui,
-                    project,
-                    server_ctx,
-                    ProjectContext::ProceduralRecipe(recipe.id),
-                );
-            }
-            RemoveProceduralRecipe(_, recipe) => {
-                if let Some(tile_id) = project
-                    .procedural_recipes
-                    .get(&recipe.id)
-                    .and_then(|asset| asset.tile_id)
-                {
-                    project.tiles.shift_remove(&tile_id);
-                }
-                project.procedural_recipes.shift_remove(&recipe.id);
-                crate::recipe_utils::sync_recipe_compatibility_catalogs(project);
-                if let Some(tree) = ui.get_tree_layout("Project Tree")
-                    && let Some(node) = tree.get_node_by_id_mut(&server_ctx.tree_recipes_id)
-                {
-                    node.remove_widget_by_uuid(&recipe.id);
-                }
-                server_ctx.pc = ProjectContext::Unknown;
-            }
-            EditProceduralRecipe(id, _old, new) => {
-                if let Some(recipe) = project.procedural_recipes.get_mut(id) {
-                    recipe.source = new.clone();
-                }
-                crate::recipe_utils::sync_recipe_compatibility_catalogs(project);
-                ui.set_widget_value("Procedural Recipe Source", ctx, TheValue::Text(new.clone()));
-                ctx.ui.send(TheEvent::Custom(
-                    TheId::named_with_id(crate::docks::recipes::RECIPE_SOURCE_CHANGED, *id),
-                    TheValue::Empty,
-                ));
-            }
+
             AddAvatar(avatar) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     if let Some(node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_avatars_id)

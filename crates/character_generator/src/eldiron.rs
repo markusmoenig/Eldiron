@@ -184,7 +184,7 @@ impl SceneVmCharacter {
         })
     }
     /// Live Raster3D variant with small, deterministic material textures and
-    /// opt-in ordered lighting ramps. Explicit recipe textures remain intact.
+    /// opt-in ordered lighting ramps. Authored textures remain intact.
     pub fn new_pixel_art(asset: &CharacterAsset) -> Result<Self> {
         let mut styled = asset.clone();
         for m in &mut styled.materials {

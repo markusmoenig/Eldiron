@@ -2677,7 +2677,7 @@ impl Dock for PrefabsEditorDock {
                             .write()
                             .unwrap()
                             .scene_handler
-                            .reset_builder_particle_emitters();
+                            .reset_geometry_particle_emitters();
                         self.sync_effect_editor(ui, ctx, project, asset_id);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
@@ -2936,7 +2936,7 @@ impl Dock for PrefabsEditorDock {
                         .write()
                         .unwrap()
                         .scene_handler
-                        .reset_builder_particle_emitters();
+                        .reset_geometry_particle_emitters();
                     self.sync_effect_editor(ui, ctx, project, asset_id);
                     ctx.ui.redraw_all = true;
                 }
@@ -3000,7 +3000,7 @@ impl Dock for PrefabsEditorDock {
                         .write()
                         .unwrap()
                         .scene_handler
-                        .reset_builder_particle_emitters();
+                        .reset_geometry_particle_emitters();
                     self.sync_effect_editor(ui, ctx, project, asset_id);
                     ctx.ui.send(TheEvent::SetStatusText(
                         TheId::empty(),
@@ -3066,7 +3066,7 @@ impl Dock for PrefabsEditorDock {
                             .write()
                             .unwrap()
                             .scene_handler
-                            .reset_builder_particle_emitters();
+                            .reset_geometry_particle_emitters();
                     }
                     self.sync_effect_editor(ui, ctx, project, asset_id);
                     ctx.ui.redraw_all = true;

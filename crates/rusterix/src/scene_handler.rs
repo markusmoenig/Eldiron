@@ -11,7 +11,6 @@ use crate::{
     material_library,
     scene_build_index::SceneBuildIndex,
 };
-use buildergraph::{BuilderDocument, BuilderOutputTarget, BuilderPrimitive};
 use indexmap::IndexMap;
 use instant::Instant;
 use rust_embed::EmbeddedFile;
@@ -76,7 +75,7 @@ enum AnimationClock {
 }
 
 #[derive(Clone)]
-struct BuilderParticleSource {
+struct GeometryParticleSource {
     key: u32,
     light_id: GeoId,
     sprite_tile_id: Uuid,
@@ -169,7 +168,7 @@ mod tests {
 
     #[test]
     #[ignore = "requires a native GPU adapter"]
-    fn dynamics_hash_tracks_geometry_sources_and_builder_bindings() {
+    fn dynamics_hash_tracks_geometry_sources() {
         let handler = SceneHandler::default();
         let assets = Assets::default();
         let styles = FxHashMap::default();
@@ -178,12 +177,7 @@ mod tests {
         map.linedefs.push(crate::Linedef::new(0, 0, 0));
         map.sectors.push(crate::Sector::new(0, vec![0]));
         for index in 0..3 {
-            for key in [
-                "source",
-                "row1_source",
-                "builder_graph_data",
-                "builder_material_wall",
-            ] {
+            for key in ["source", "row1_source"] {
                 let before = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
                 let properties = match index {
                     0 => &mut map.sectors[0].properties,
@@ -191,14 +185,7 @@ mod tests {
                     _ => &mut map.vertices[0].properties,
                 };
                 let previous = properties.get(key).cloned();
-                properties.set(
-                    key,
-                    if key == "builder_graph_data" {
-                        Value::Str("authored graph".into())
-                    } else {
-                        Value::Source(PixelSource::TileId(Uuid::new_v4()))
-                    },
-                );
+                properties.set(key, Value::Source(PixelSource::TileId(Uuid::new_v4())));
                 let edited = handler.dynamics_hash_2d(&map, 0, &styles, &assets);
                 assert_ne!(before, edited, "index={index} key={key}");
                 let properties = match index {
@@ -574,8 +561,8 @@ pub struct SceneHandler {
     campfire_emitters: FxHashMap<u32, ParticleEmitter>,
     tile_emitters_2d: FxHashMap<u32, ParticleEmitter>,
     tile_emitters_3d: FxHashMap<u32, ParticleEmitter>,
-    builder_emitters_2d: FxHashMap<u32, ParticleEmitter>,
-    builder_emitters_3d: FxHashMap<u32, ParticleEmitter>,
+    geometry_emitters_2d: FxHashMap<u32, ParticleEmitter>,
+    geometry_emitters_3d: FxHashMap<u32, ParticleEmitter>,
     ruleset_fx_first_seen: FxHashMap<u32, usize>,
 
     // Local render-frame counter for timing animations at fixed FPS
@@ -675,11 +662,11 @@ impl SceneHandler {
         let (rendered_billboards, dropped_billboards, billboard_budget) =
             self.vm.vm.particle_dynamic_stats();
         self.particle_debug_stats.d2 = ParticlePipelineStats {
-            active_emitters: self.tile_emitters_2d.len() + self.builder_emitters_2d.len(),
+            active_emitters: self.tile_emitters_2d.len() + self.geometry_emitters_2d.len(),
             active_particles: self
                 .tile_emitters_2d
                 .values()
-                .chain(self.builder_emitters_2d.values())
+                .chain(self.geometry_emitters_2d.values())
                 .map(|emitter| emitter.particles.len())
                 .sum(),
             rendered_billboards,
@@ -697,12 +684,12 @@ impl SceneHandler {
         self.particle_debug_stats.d3 = ParticlePipelineStats {
             active_emitters: self.campfire_emitters.len()
                 + self.tile_emitters_3d.len()
-                + self.builder_emitters_3d.len(),
+                + self.geometry_emitters_3d.len(),
             active_particles: self
                 .campfire_emitters
                 .values()
                 .chain(self.tile_emitters_3d.values())
-                .chain(self.builder_emitters_3d.values())
+                .chain(self.geometry_emitters_3d.values())
                 .map(|emitter| emitter.particles.len())
                 .sum(),
             rendered_billboards,
@@ -1346,524 +1333,7 @@ impl SceneHandler {
         elapsed <= lifetime
     }
 
-    fn normalize_builder_material_key(name: &str) -> String {
-        let mut out = String::new();
-        let mut prev_is_sep = false;
-        for (i, ch) in name.chars().enumerate() {
-            if ch.is_ascii_alphanumeric() {
-                if ch.is_ascii_uppercase() {
-                    if i > 0 && !prev_is_sep {
-                        out.push('_');
-                    }
-                    out.push(ch.to_ascii_lowercase());
-                } else {
-                    out.push(ch.to_ascii_lowercase());
-                }
-                prev_is_sep = false;
-            } else if !prev_is_sep && !out.is_empty() {
-                out.push('_');
-                prev_is_sep = true;
-            }
-        }
-        out.trim_matches('_').to_string()
-    }
-
-    fn builder_material_tile(
-        properties: &crate::ValueContainer,
-        material_slot: &str,
-        assets: &Assets,
-    ) -> Option<Tile> {
-        let key = format!(
-            "builder_material_{}",
-            Self::normalize_builder_material_key(material_slot)
-        );
-        if let Some(Value::Source(ps)) = properties.get(&key) {
-            return ps.tile_from_tile_list(assets);
-        }
-        match properties.get("source") {
-            Some(Value::Source(ps)) => ps.tile_from_tile_list(assets),
-            _ => None,
-        }
-    }
-
-    fn builder_linedef_particle_sources(map: &Map, assets: &Assets) -> Vec<BuilderParticleSource> {
-        fn rotate_vec3_x(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
-            let (s, c) = angle.sin_cos();
-            Vec3::new(v.x, v.y * c - v.z * s, v.y * s + v.z * c)
-        }
-
-        fn rotate_vec3_y(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
-            let (s, c) = angle.sin_cos();
-            Vec3::new(v.x * c - v.z * s, v.y, v.x * s + v.z * c)
-        }
-
-        fn builder_linedef_outward(
-            map: &Map,
-            linedef: &crate::Linedef,
-            along: Vec3<f32>,
-        ) -> Vec3<f32> {
-            let explicit = Vec3::new(
-                linedef
-                    .properties
-                    .get_float_default("builder_graph_outward_x", 0.0),
-                linedef
-                    .properties
-                    .get_float_default("builder_graph_outward_y", 0.0),
-                linedef
-                    .properties
-                    .get_float_default("builder_graph_outward_z", 0.0),
-            );
-            if let Some(outward) = explicit.try_normalized() {
-                return outward;
-            }
-            let mut outward = Vec3::new(-along.z, 0.0, along.x);
-            let side = linedef
-                .properties
-                .get_float_default("builder_graph_wall_side", 0.0);
-            if side.abs() <= 1e-5 {
-                let preferred_sector = linedef.sector_ids.first().copied();
-                if let Some(sector_id) = preferred_sector
-                    && let Some(sector) = map.find_sector(sector_id)
-                    && let Some(center) = sector.center(map)
-                    && let Some(dist) = linedef.signed_distance(map, center)
-                    && dist.abs() > 1e-5
-                {
-                    outward *= if dist >= 0.0 { -1.0 } else { 1.0 };
-                    return outward;
-                }
-            }
-            if side < 0.0 {
-                outward = -outward;
-            }
-            outward
-        }
-
-        fn builder_linedef_along(linedef: &crate::Linedef, fallback_along: Vec3<f32>) -> Vec3<f32> {
-            let explicit = Vec3::new(
-                linedef.properties.get_float_default("host_along_x", 0.0),
-                linedef.properties.get_float_default("host_along_y", 0.0),
-                linedef.properties.get_float_default("host_along_z", 0.0),
-            );
-            if let Some(along) = explicit.try_normalized() {
-                return along;
-            }
-            fallback_along
-        }
-
-        let mut out = Vec::new();
-
-        for linedef in &map.linedefs {
-            let builder_graph_data = linedef
-                .properties
-                .get_str_default("builder_graph_data", String::new());
-            if builder_graph_data.trim().is_empty() {
-                continue;
-            }
-            let Ok(graph) = BuilderDocument::from_text(&builder_graph_data) else {
-                continue;
-            };
-            let spec = graph.output_spec();
-            if spec.target != BuilderOutputTarget::Linedef || spec.host_refs != 1 {
-                continue;
-            }
-
-            let Some(v0) = map.get_vertex_3d(linedef.start_vertex) else {
-                continue;
-            };
-            let Some(v1) = map.get_vertex_3d(linedef.end_vertex) else {
-                continue;
-            };
-
-            let origin = (v0 + v1) * 0.5;
-            let mut along = Vec3::new(v1.x - v0.x, 0.0, v1.z - v0.z);
-            let span_length = along.magnitude().max(1e-5);
-            if along.magnitude() <= 1e-5 {
-                along = Vec3::new(1.0, 0.0, 0.0);
-            } else {
-                along = along.normalized();
-            }
-            along = builder_linedef_along(linedef, along);
-            let outward = builder_linedef_outward(map, linedef, along);
-            let up = Vec3::new(0.0, 1.0, 0.0);
-            let wall_height = linedef
-                .properties
-                .get_float_default("wall_height", 2.0)
-                .max(0.01);
-            let wall_epsilon = linedef
-                .properties
-                .get_float_default("profile_wall_epsilon", 0.001)
-                .max(0.0);
-            let surface_origin = match (
-                linedef
-                    .properties
-                    .get_float("builder_graph_surface_origin_x"),
-                linedef
-                    .properties
-                    .get_float("builder_graph_surface_origin_y"),
-                linedef
-                    .properties
-                    .get_float("builder_graph_surface_origin_z"),
-            ) {
-                (Some(x), Some(y), Some(z)) => Some(Vec3::new(x, y, z)),
-                _ => None,
-            };
-            let face_offset = linedef.properties.get_float("builder_graph_face_offset");
-            let face_origin = if let Some(face_offset) = face_offset {
-                origin + outward * face_offset.max(wall_epsilon)
-            } else if let Some(surface_origin) = surface_origin {
-                surface_origin
-            } else {
-                let wall_offset = linedef
-                    .properties
-                    .get_float_default("wall_width", 0.0)
-                    .max(0.0)
-                    * 0.5
-                    + wall_epsilon;
-                origin + outward * wall_offset
-            };
-            let host_origin = face_origin - up * (wall_height * 0.5) + outward * wall_epsilon;
-
-            let Ok(assembly) = graph.evaluate() else {
-                continue;
-            };
-
-            for (primitive_index, primitive) in assembly.primitives.iter().enumerate() {
-                let (material_slot, emitter_origin, direction) = match primitive {
-                    BuilderPrimitive::Box {
-                        size,
-                        transform,
-                        material_slot,
-                        host_position_normalized,
-                        host_position_y_normalized,
-                        host_scale_y_normalized,
-                        host_scale_x_normalized,
-                        ..
-                    } => {
-                        let sx = if *host_scale_x_normalized {
-                            transform.scale.x * span_length
-                        } else {
-                            transform.scale.x
-                        };
-                        let scaled = Vec3::new(
-                            size.x * sx,
-                            size.y
-                                * if *host_scale_y_normalized {
-                                    transform.scale.y * wall_height
-                                } else {
-                                    transform.scale.y
-                                },
-                            size.z * transform.scale.z,
-                        );
-                        let tx = if *host_position_normalized {
-                            transform.translation.x * span_length
-                        } else {
-                            transform.translation.x
-                        };
-                        let ty = if *host_position_y_normalized {
-                            transform.translation.y * wall_height
-                        } else {
-                            transform.translation.y
-                        };
-                        let center = host_origin
-                            + along * tx
-                            + up * (ty + scaled.y * 0.5)
-                            + outward * transform.translation.z;
-                        let tip_local = rotate_vec3_y(
-                            rotate_vec3_x(
-                                Vec3::new(0.0, scaled.y * 0.5 + 0.02, 0.02),
-                                transform.rotation_x,
-                            ),
-                            transform.rotation_y,
-                        );
-                        let emitter_origin =
-                            center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
-                        let dir_local = rotate_vec3_y(
-                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.0), transform.rotation_x),
-                            transform.rotation_y,
-                        );
-                        let direction =
-                            (along * dir_local.x + up * dir_local.y + outward * dir_local.z)
-                                .try_normalized()
-                                .unwrap_or(up);
-                        (material_slot.as_deref(), emitter_origin, direction)
-                    }
-                    BuilderPrimitive::Cylinder {
-                        length,
-                        radius: _,
-                        transform,
-                        material_slot,
-                        host_position_normalized,
-                        host_position_y_normalized,
-                        host_scale_y_normalized,
-                        host_scale_x_normalized: _,
-                        host_scale_z_normalized: _,
-                    } => {
-                        let scaled_length = if *host_scale_y_normalized {
-                            *length * transform.scale.y * wall_height
-                        } else {
-                            *length * transform.scale.y
-                        };
-                        let tx = if *host_position_normalized {
-                            transform.translation.x * span_length
-                        } else {
-                            transform.translation.x
-                        };
-                        let ty = if *host_position_y_normalized {
-                            transform.translation.y * wall_height
-                        } else {
-                            transform.translation.y
-                        };
-                        let center = host_origin
-                            + along * tx
-                            + up * (ty + scaled_length * 0.5)
-                            + outward * transform.translation.z;
-                        let tip_local = rotate_vec3_y(
-                            rotate_vec3_x(
-                                Vec3::new(0.0, scaled_length * 0.5 + 0.02, 0.0),
-                                transform.rotation_x,
-                            ),
-                            transform.rotation_y,
-                        );
-                        let emitter_origin =
-                            center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
-                        let dir_local = rotate_vec3_y(
-                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.0), transform.rotation_x),
-                            transform.rotation_y,
-                        );
-                        let direction =
-                            (along * dir_local.x + up * dir_local.y + outward * dir_local.z)
-                                .try_normalized()
-                                .unwrap_or(up);
-                        (material_slot.as_deref(), emitter_origin, direction)
-                    }
-                };
-                let Some(material_slot) = material_slot else {
-                    continue;
-                };
-                let Some(tile) =
-                    Self::builder_material_tile(&linedef.properties, material_slot, assets)
-                else {
-                    continue;
-                };
-                let Some(emitter) = tile.particle_emitter.clone() else {
-                    continue;
-                };
-
-                let slot_hash =
-                    Self::hash_u32_label(material_slot).wrapping_add(primitive_index as u32);
-                let key = Self::tile_particle_key(6, linedef.id, slot_hash);
-
-                out.push(BuilderParticleSource {
-                    key,
-                    light_id: GeoId::Unknown(0xB17D_0000 ^ key),
-                    sprite_tile_id: Self::particle_sprite_tile_id(tile.id),
-                    emitter,
-                    light_override: tile.light_emitter.clone(),
-                    emit_implicit_light: true,
-                    origin: emitter_origin,
-                    direction,
-                    size_scale: 1.0,
-                });
-            }
-        }
-
-        out
-    }
-
-    fn builder_vertex_particle_sources(map: &Map, assets: &Assets) -> Vec<BuilderParticleSource> {
-        fn rotate_vec3_x(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
-            let (s, c) = angle.sin_cos();
-            Vec3::new(v.x, v.y * c - v.z * s, v.y * s + v.z * c)
-        }
-
-        fn rotate_vec3_y(v: Vec3<f32>, angle: f32) -> Vec3<f32> {
-            let (s, c) = angle.sin_cos();
-            Vec3::new(v.x * c - v.z * s, v.y, v.x * s + v.z * c)
-        }
-
-        let mut out = Vec::new();
-
-        for vertex in &map.vertices {
-            let builder_graph_data = vertex
-                .properties
-                .get_str_default("builder_graph_data", String::new());
-            if builder_graph_data.trim().is_empty() {
-                continue;
-            }
-            let Ok(graph) = BuilderDocument::from_text(&builder_graph_data) else {
-                continue;
-            };
-            let spec = graph.output_spec();
-            if spec.target != BuilderOutputTarget::VertexPair || spec.host_refs != 1 {
-                continue;
-            }
-
-            let origin = match (
-                vertex.properties.get_float("host_surface_origin_x"),
-                vertex.properties.get_float("host_surface_origin_y"),
-                vertex.properties.get_float("host_surface_origin_z"),
-            ) {
-                (Some(x), Some(y), Some(z)) => Vec3::new(x, y, z),
-                _ => vertex.as_vec3_world(),
-            };
-            let along = Vec3::new(
-                vertex.properties.get_float_default("host_along_x", 1.0),
-                vertex.properties.get_float_default("host_along_y", 0.0),
-                vertex.properties.get_float_default("host_along_z", 0.0),
-            )
-            .try_normalized()
-            .unwrap_or(Vec3::new(1.0, 0.0, 0.0));
-            let outward = Vec3::new(
-                vertex.properties.get_float_default("host_outward_x", 0.0),
-                vertex.properties.get_float_default("host_outward_y", 0.0),
-                vertex.properties.get_float_default("host_outward_z", 1.0),
-            )
-            .try_normalized()
-            .unwrap_or(Vec3::new(0.0, 0.0, 1.0));
-            let up = Vec3::new(0.0, 1.0, 0.0);
-
-            let Ok(assembly) = graph.evaluate() else {
-                continue;
-            };
-
-            for (primitive_index, primitive) in assembly.primitives.iter().enumerate() {
-                let (material_slot, emitter_origin, direction) = match primitive {
-                    BuilderPrimitive::Box {
-                        size,
-                        transform,
-                        material_slot,
-                        ..
-                    } => {
-                        let scaled = Vec3::new(
-                            size.x * transform.scale.x,
-                            size.y * transform.scale.y,
-                            size.z * transform.scale.z,
-                        );
-                        let center = origin
-                            + along * transform.translation.x
-                            + up * (transform.translation.y + scaled.y * 0.5)
-                            + outward * transform.translation.z;
-                        let tip_local = rotate_vec3_y(
-                            rotate_vec3_x(
-                                Vec3::new(0.0, scaled.y * 0.5 + 0.02, 0.02),
-                                transform.rotation_x,
-                            ),
-                            transform.rotation_y,
-                        );
-                        let emitter_origin =
-                            center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
-                        let dir_local = rotate_vec3_y(
-                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.0), transform.rotation_x),
-                            transform.rotation_y,
-                        );
-                        let direction =
-                            (along * dir_local.x + up * dir_local.y + outward * dir_local.z)
-                                .try_normalized()
-                                .unwrap_or(up);
-                        (material_slot.as_deref(), emitter_origin, direction)
-                    }
-                    BuilderPrimitive::Cylinder {
-                        length,
-                        transform,
-                        material_slot,
-                        ..
-                    } => {
-                        let scaled_length = *length * transform.scale.y;
-                        let center = origin
-                            + along * transform.translation.x
-                            + up * (transform.translation.y + scaled_length * 0.5)
-                            + outward * transform.translation.z;
-                        let tip_local = rotate_vec3_y(
-                            rotate_vec3_x(
-                                Vec3::new(0.0, scaled_length * 0.5 + 0.02, 0.0),
-                                transform.rotation_x,
-                            ),
-                            transform.rotation_y,
-                        );
-                        let emitter_origin =
-                            center + along * tip_local.x + up * tip_local.y + outward * tip_local.z;
-                        let dir_local = rotate_vec3_y(
-                            rotate_vec3_x(Vec3::new(0.0, 1.0, 0.0), transform.rotation_x),
-                            transform.rotation_y,
-                        );
-                        let direction =
-                            (along * dir_local.x + up * dir_local.y + outward * dir_local.z)
-                                .try_normalized()
-                                .unwrap_or(up);
-                        (material_slot.as_deref(), emitter_origin, direction)
-                    }
-                };
-                let Some(material_slot) = material_slot else {
-                    continue;
-                };
-                let Some(tile) =
-                    Self::builder_material_tile(&vertex.properties, material_slot, assets)
-                else {
-                    continue;
-                };
-                let Some(emitter) = tile.particle_emitter.clone() else {
-                    continue;
-                };
-
-                let slot_hash =
-                    Self::hash_u32_label(material_slot).wrapping_add(primitive_index as u32);
-                let key = Self::tile_particle_key(7, vertex.id, slot_hash);
-
-                out.push(BuilderParticleSource {
-                    key,
-                    light_id: GeoId::Unknown(0xB17E_0000 ^ key),
-                    sprite_tile_id: Self::particle_sprite_tile_id(tile.id),
-                    emitter,
-                    light_override: tile.light_emitter.clone(),
-                    emit_implicit_light: true,
-                    origin: emitter_origin,
-                    direction,
-                    size_scale: 1.0,
-                });
-            }
-        }
-
-        out
-    }
-
-    fn builder_geometry_object_particle_sources(
-        map: &Map,
-        assets: &Assets,
-    ) -> Vec<BuilderParticleSource> {
-        fn object_bounds_3d(object: &crate::GeometryObject) -> Option<(Vec3<f32>, Vec3<f32>)> {
-            let mut min = Vec3::broadcast(f32::INFINITY);
-            let mut max = Vec3::broadcast(f32::NEG_INFINITY);
-            let mut found = false;
-            for vertex in &object.vertices {
-                let world = object.transform_point(*vertex);
-                if !world.x.is_finite() || !world.y.is_finite() || !world.z.is_finite() {
-                    continue;
-                }
-                min.x = min.x.min(world.x);
-                min.y = min.y.min(world.y);
-                min.z = min.z.min(world.z);
-                max.x = max.x.max(world.x);
-                max.y = max.y.max(world.y);
-                max.z = max.z.max(world.z);
-                found = true;
-            }
-            found.then_some((min, max))
-        }
-
-        fn face_particle_tile(face: &crate::GeometryFace, assets: &Assets) -> Option<Tile> {
-            face.tile
-                .as_ref()
-                .and_then(|source| source.tile_from_tile_list(assets))
-                .filter(|tile| tile.particle_emitter.is_some())
-                .or_else(|| {
-                    face.tiles.values().find_map(|source| {
-                        source
-                            .tile_from_tile_list(assets)
-                            .filter(|tile| tile.particle_emitter.is_some())
-                    })
-                })
-        }
-
+    fn geometry_object_particle_sources(map: &Map, assets: &Assets) -> Vec<GeometryParticleSource> {
         let mut out = Vec::new();
         for object in &map.geometry_objects {
             if let (Some(Value::Source(source)), Some(effect_name), Some(origin), Some(direction)) = (
@@ -1879,7 +1349,7 @@ impl SceneHandler {
             {
                 let name_hash = Self::hash_u32_label(effect_name);
                 let key = Self::tile_particle_key(9, Self::hash_u32_uuid(object.id), name_hash);
-                out.push(BuilderParticleSource {
+                out.push(GeometryParticleSource {
                     key,
                     light_id: GeoId::Unknown(0xB180_0000 ^ key),
                     sprite_tile_id: Self::recipe_particle_sprite_tile_id(tile.id, effect_name),
@@ -1895,50 +1365,12 @@ impl SceneHandler {
                 });
                 continue;
             }
-            if object.properties.get_str("builder_baked") != Some("geometry_object") {
-                continue;
-            }
-            let Some(material_slot) = object.properties.get_str("builder_material_slot") else {
-                continue;
-            };
-            let Some(tile) = object
-                .faces
-                .iter()
-                .find_map(|face| face_particle_tile(face, assets))
-            else {
-                continue;
-            };
-            let Some(emitter) = tile.particle_emitter.clone() else {
-                continue;
-            };
-            let Some((min, max)) = object_bounds_3d(object) else {
-                continue;
-            };
-
-            let center = (min + max) * 0.5;
-            let height = (max.y - min.y).max(0.01);
-            let width = (max.x - min.x).max(max.z - min.z).max(0.01);
-            let origin = Vec3::new(center.x, max.y + height.min(0.12) * 0.1, center.z);
-            let slot_hash = Self::hash_u32_label(material_slot);
-            let key = Self::tile_particle_key(8, Self::hash_u32_uuid(object.id), slot_hash);
-
-            out.push(BuilderParticleSource {
-                key,
-                light_id: GeoId::Unknown(0xB17F_0000 ^ key),
-                sprite_tile_id: Self::particle_sprite_tile_id(tile.id),
-                emitter,
-                light_override: tile.light_emitter.clone(),
-                emit_implicit_light: true,
-                origin,
-                direction: Vec3::new(0.0, 1.0, 0.0),
-                size_scale: width.clamp(0.35, 1.5),
-            });
         }
 
         out
     }
 
-    fn face_particle_sources(map: &Map, assets: &Assets) -> Vec<BuilderParticleSource> {
+    fn face_particle_sources(map: &Map, assets: &Assets) -> Vec<GeometryParticleSource> {
         let mut out = Vec::new();
         for object in map.geometry_objects.iter().filter(|object| object.visible) {
             let object_center = if object.vertices.is_empty() {
@@ -2016,7 +1448,7 @@ impl SceneHandler {
                     })
                     .collect();
                 let key = Self::tile_particle_key(12, Self::hash_u32_uuid(surface_id), 0);
-                out.push(BuilderParticleSource {
+                out.push(GeometryParticleSource {
                     key,
                     light_id: GeoId::Unknown(0xB183_0000 ^ key),
                     sprite_tile_id: Self::ruleset_fx_particle_sprite_tile_id(),
@@ -2049,7 +1481,7 @@ impl SceneHandler {
         }
     }
 
-    fn prefab_particle_sources(map: &Map, assets: &Assets) -> Vec<BuilderParticleSource> {
+    fn prefab_particle_sources(map: &Map, assets: &Assets) -> Vec<GeometryParticleSource> {
         Self::prefab_effect_resolution(map, assets)
             .particles
             .into_iter()
@@ -2057,7 +1489,7 @@ impl SceneHandler {
                 let instance_hash = Self::hash_u32_uuid(effect.instance_id);
                 let effect_hash = Self::hash_u32_uuid(effect.effect_id);
                 let key = Self::tile_particle_key(10, instance_hash, effect_hash);
-                BuilderParticleSource {
+                GeometryParticleSource {
                     key,
                     light_id: GeoId::Unknown(0xB181_0000 ^ key),
                     sprite_tile_id: Self::prefab_particle_sprite_tile_id(effect.effect_id),
@@ -2099,7 +1531,7 @@ impl SceneHandler {
         }
     }
 
-    fn rebuild_builder_particles_2d(
+    fn rebuild_geometry_particles_2d(
         &mut self,
         map: &Map,
         assets: &Assets,
@@ -2108,16 +1540,14 @@ impl SceneHandler {
         let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
         let mut has_particles = false;
 
-        for source in Self::builder_linedef_particle_sources(map, assets)
+        for source in Self::geometry_object_particle_sources(map, assets)
             .into_iter()
-            .chain(Self::builder_vertex_particle_sources(map, assets).into_iter())
-            .chain(Self::builder_geometry_object_particle_sources(map, assets).into_iter())
             .chain(Self::face_particle_sources(map, assets).into_iter())
             .chain(Self::prefab_particle_sources(map, assets).into_iter())
         {
             active_emitters.insert(source.key);
             let emitter = self
-                .builder_emitters_2d
+                .geometry_emitters_2d
                 .entry(source.key)
                 .or_insert_with(|| {
                     let mut emitter = source.emitter.clone();
@@ -2156,12 +1586,12 @@ impl SceneHandler {
             }
         }
 
-        self.builder_emitters_2d
+        self.geometry_emitters_2d
             .retain(|key, _| active_emitters.contains(key));
         has_particles
     }
 
-    fn rebuild_builder_particles_3d(
+    fn rebuild_geometry_particles_3d(
         &mut self,
         map: &Map,
         camera: &dyn D3Camera,
@@ -2172,16 +1602,14 @@ impl SceneHandler {
         let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
         let mut has_particles = false;
 
-        for source in Self::builder_linedef_particle_sources(map, assets)
+        for source in Self::geometry_object_particle_sources(map, assets)
             .into_iter()
-            .chain(Self::builder_vertex_particle_sources(map, assets).into_iter())
-            .chain(Self::builder_geometry_object_particle_sources(map, assets).into_iter())
             .chain(Self::face_particle_sources(map, assets).into_iter())
             .chain(Self::prefab_particle_sources(map, assets).into_iter())
         {
             active_emitters.insert(source.key);
             let emitter = self
-                .builder_emitters_3d
+                .geometry_emitters_3d
                 .entry(source.key)
                 .or_insert_with(|| {
                     let mut emitter = source.emitter.clone();
@@ -2310,7 +1738,7 @@ impl SceneHandler {
             }
         }
 
-        self.builder_emitters_3d
+        self.geometry_emitters_3d
             .retain(|key, _| active_emitters.contains(key));
         has_particles
     }
@@ -2883,8 +2311,8 @@ impl SceneHandler {
         self.campfire_emitters.clear();
         self.tile_emitters_2d.clear();
         self.tile_emitters_3d.clear();
-        self.builder_emitters_2d.clear();
-        self.builder_emitters_3d.clear();
+        self.geometry_emitters_2d.clear();
+        self.geometry_emitters_3d.clear();
         self.ruleset_fx_first_seen.clear();
         self.pending_particle_steps_2d = 0;
         self.pending_particle_steps_3d = 0;
@@ -2903,8 +2331,8 @@ impl SceneHandler {
         self.campfire_emitters.clear();
         self.tile_emitters_2d.clear();
         self.tile_emitters_3d.clear();
-        self.builder_emitters_2d.clear();
-        self.builder_emitters_3d.clear();
+        self.geometry_emitters_2d.clear();
+        self.geometry_emitters_3d.clear();
         self.ruleset_fx_first_seen.clear();
         self.pending_particle_steps_2d = 0;
         self.pending_particle_steps_3d = 0;
@@ -2917,9 +2345,9 @@ impl SceneHandler {
     /// geometry, lights, billboards, or other runtime overlays. This is used
     /// when a Prefab emitter is replaced by a different preset so particles
     /// born under the previous definition cannot linger in the new effect.
-    pub fn reset_builder_particle_emitters(&mut self) {
-        self.builder_emitters_2d.clear();
-        self.builder_emitters_3d.clear();
+    pub fn reset_geometry_particle_emitters(&mut self) {
+        self.geometry_emitters_2d.clear();
+        self.geometry_emitters_3d.clear();
         self.pending_particle_steps_2d = 0;
         self.pending_particle_steps_3d = 0;
         self.particle_clock_2d = ParticleClock::default();
@@ -3108,8 +2536,8 @@ impl SceneHandler {
             campfire_emitters: FxHashMap::default(),
             tile_emitters_2d: FxHashMap::default(),
             tile_emitters_3d: FxHashMap::default(),
-            builder_emitters_2d: FxHashMap::default(),
-            builder_emitters_3d: FxHashMap::default(),
+            geometry_emitters_2d: FxHashMap::default(),
+            geometry_emitters_3d: FxHashMap::default(),
             ruleset_fx_first_seen: FxHashMap::default(),
             frame_counter: 0,
             avatar_builder: AvatarRuntimeBuilder::default(),
@@ -3427,18 +2855,7 @@ impl SceneHandler {
             Self::hash_properties(&mut hasher, &object.properties);
             hash_serialized(&mut hasher, &object.vertices);
             hasher.write(object.id.as_bytes());
-            hasher.write(
-                object
-                    .properties
-                    .get_str_default("builder_baked", String::new())
-                    .as_bytes(),
-            );
-            hasher.write(
-                object
-                    .properties
-                    .get_str_default("builder_material_slot", String::new())
-                    .as_bytes(),
-            );
+
             for transform_row in object.transform {
                 for value in transform_row {
                     hasher.write_u32(value.to_bits());
@@ -3577,22 +2994,6 @@ impl SceneHandler {
             } else {
                 hasher.write_u8(0);
             }
-            if let Some(builder_graph_data) = sector.properties.get_str("builder_graph_data") {
-                hasher.write(builder_graph_data.as_bytes());
-                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
-                    for slot in graph.material_slot_names() {
-                        let key = format!(
-                            "builder_material_{}",
-                            Self::normalize_builder_material_key(&slot)
-                        );
-                        if let Some(Value::Source(source)) = sector.properties.get(&key) {
-                            Self::hash_pixel_source(&mut hasher, source);
-                        } else {
-                            hasher.write_u8(0);
-                        }
-                    }
-                }
-            }
         }
 
         for linedef in &map.linedefs {
@@ -3602,22 +3003,6 @@ impl SceneHandler {
                     Self::hash_pixel_source(&mut hasher, source);
                 } else {
                     hasher.write_u8(0);
-                }
-            }
-            if let Some(builder_graph_data) = linedef.properties.get_str("builder_graph_data") {
-                hasher.write(builder_graph_data.as_bytes());
-                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
-                    for slot in graph.material_slot_names() {
-                        let key = format!(
-                            "builder_material_{}",
-                            Self::normalize_builder_material_key(&slot)
-                        );
-                        if let Some(Value::Source(source)) = linedef.properties.get(&key) {
-                            Self::hash_pixel_source(&mut hasher, source);
-                        } else {
-                            hasher.write_u8(0);
-                        }
-                    }
                 }
             }
         }
@@ -3632,38 +3017,11 @@ impl SceneHandler {
             } else {
                 hasher.write_u8(0);
             }
-            if let Some(builder_graph_data) = vertex.properties.get_str("builder_graph_data") {
-                hasher.write(builder_graph_data.as_bytes());
-                if let Ok(graph) = BuilderDocument::from_text(builder_graph_data) {
-                    for slot in graph.material_slot_names() {
-                        let key = format!(
-                            "builder_material_{}",
-                            Self::normalize_builder_material_key(&slot)
-                        );
-                        if let Some(Value::Source(source)) = vertex.properties.get(&key) {
-                            Self::hash_pixel_source(&mut hasher, source);
-                        } else {
-                            hasher.write_u8(0);
-                        }
-                    }
-                }
-            }
         }
 
         for object in &map.geometry_objects {
             hasher.write(object.id.as_bytes());
-            hasher.write(
-                object
-                    .properties
-                    .get_str_default("builder_baked", String::new())
-                    .as_bytes(),
-            );
-            hasher.write(
-                object
-                    .properties
-                    .get_str_default("builder_material_slot", String::new())
-                    .as_bytes(),
-            );
+
             for transform_row in object.transform {
                 for value in transform_row {
                     hasher.write_u32(value.to_bits());
@@ -4093,7 +3451,7 @@ impl SceneHandler {
             });
         let current_hash = self.dynamics_hash_2d(map, animation_frame, avatar_frame_styles, assets);
         let has_active_tile_particles = !self.tile_emitters_2d.is_empty();
-        let has_active_builder_particles = !self.builder_emitters_2d.is_empty();
+        let has_active_builder_particles = !self.geometry_emitters_2d.is_empty();
         if self.dynamics_ready_2d
             && self.last_dynamics_hash_2d == Some(current_hash)
             && !has_active_tile_particles
@@ -4110,7 +3468,8 @@ impl SceneHandler {
         self.add_prefab_lights(map, assets, false);
         let particle_started = Instant::now();
         let _has_tile_particles = self.rebuild_tile_particles_2d(map, assets, particle_steps);
-        let _has_builder_particles = self.rebuild_builder_particles_2d(map, assets, particle_steps);
+        let _has_builder_particles =
+            self.rebuild_geometry_particles_2d(map, assets, particle_steps);
         self.record_particle_stats_2d(particle_started, particle_steps);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_generated_item_geo: FxHashSet<GeoId> = FxHashSet::default();
@@ -4343,7 +3702,7 @@ impl SceneHandler {
         self.frame_counter = self.frame_counter.wrapping_add(1);
         let has_active_campfire_particles = !self.campfire_emitters.is_empty();
         let has_active_tile_particles = !self.tile_emitters_3d.is_empty();
-        let has_active_builder_particles = !self.builder_emitters_3d.is_empty();
+        let has_active_builder_particles = !self.geometry_emitters_3d.is_empty();
         let has_pending_particle_steps = self.pending_particle_steps_3d > 0;
         let has_active_render_billboard_anim = self
             .billboard_anim_states
@@ -4375,7 +3734,7 @@ impl SceneHandler {
         let _has_tile_particles =
             self.rebuild_tile_particles_3d(map, camera, assets, particle_steps);
         let _has_builder_particles =
-            self.rebuild_builder_particles_3d(map, camera, assets, particle_steps);
+            self.rebuild_geometry_particles_3d(map, camera, assets, particle_steps);
         self.record_particle_stats_3d(particle_started, particle_steps);
         let mut active_avatar_geo: FxHashSet<GeoId> = FxHashSet::default();
         let mut active_generated_item_geo: FxHashSet<GeoId> = FxHashSet::default();

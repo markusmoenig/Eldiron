@@ -1,45 +1,7 @@
 use crate::prelude::*;
-use buildergraph::BuilderGraph;
 use indexmap::IndexMap;
 pub use rusterix::map::*;
 use theframework::prelude::*;
-
-/// Canonical procedural Recipe source stored as a first-class project asset.
-///
-/// The user-facing name and document kind deliberately are not duplicated here:
-/// Creator derives both from `source`, keeping the canonical Recipe text as the
-/// single source of truth.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct ProceduralRecipeAsset {
-    pub id: Uuid,
-    /// Stable project/ruleset lookup alias (normally the source-relative path).
-    pub alias: String,
-    /// Canonical `.recipe` source.
-    pub source: String,
-    /// Baked Tile generated from this source, when this is a Tile document.
-    #[serde(default)]
-    pub tile_id: Option<Uuid>,
-}
-
-impl ProceduralRecipeAsset {
-    pub fn new(alias: impl Into<String>, source: impl Into<String>) -> Self {
-        Self {
-            id: Uuid::new_v4(),
-            alias: alias.into(),
-            source: source.into(),
-            tile_id: None,
-        }
-    }
-}
-
-impl Default for ProceduralRecipeAsset {
-    fn default() -> Self {
-        Self::new(
-            "untitled-tile",
-            "Tile\n    name = \"Untitled Tile\"\n    size = I2(64, 64)\n    coverage = I2(1, 1)\n\n    Height Surface\n        source = 0.5\n\n    Output\n        height = Surface\n",
-        )
-    }
-}
 
 /// The default target fps for the game.
 fn default_target_fps() -> u32 {
@@ -338,117 +300,6 @@ impl PaletteMaterial {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct BuilderGraphAsset {
-    pub id: Uuid,
-    pub graph_id: Uuid,
-    #[serde(default)]
-    pub graph_name: String,
-    #[serde(default)]
-    pub graph_data: String,
-}
-
-impl BuilderGraphAsset {
-    fn from_script(name: String, fallback_name: &str, graph_data: String) -> Self {
-        let graph_name = if let Ok(document) = buildergraph::BuilderDocument::from_text(&graph_data)
-        {
-            document.name().to_string()
-        } else if name.is_empty() {
-            fallback_name.to_string()
-        } else {
-            name
-        };
-        Self {
-            id: Uuid::new_v4(),
-            graph_id: Uuid::new_v4(),
-            graph_name,
-            graph_data,
-        }
-    }
-
-    pub fn new_table(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_table_script_named(name.clone());
-        Self::from_script(name, "Table", graph_data)
-    }
-
-    pub fn new_empty(name: String) -> Self {
-        let graph_data = BuilderGraph::empty_script_named(name.clone());
-        Self::from_script(name, "Empty", graph_data)
-    }
-
-    pub fn new_wall_torch(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_wall_torch_script_named(name.clone());
-        Self::from_script(name, "Wall Torch", graph_data)
-    }
-
-    pub fn new_wall_lantern(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_wall_lantern_script_named(name.clone());
-        Self::from_script(name, "Wall Lantern", graph_data)
-    }
-
-    pub fn new_campfire(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_campfire_script_named(name.clone());
-        Self::from_script(name, "Campfire", graph_data)
-    }
-
-    pub fn new_surface_masonry(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_surface_masonry_script_named(name.clone());
-        Self::from_script(name, "Surface Masonry", graph_data)
-    }
-
-    pub fn new_wall_masonry(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_wall_masonry_script_named(name.clone());
-        Self::from_script(name, "Wall Masonry", graph_data)
-    }
-
-    pub fn new_wall_columns_masonry(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_wall_columns_masonry_script_named(name.clone());
-        Self::from_script(name, "Wall Columns Masonry", graph_data)
-    }
-
-    pub fn new_grass(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_grass_script_named(name.clone());
-        Self::from_script(name, "Grass", graph_data)
-    }
-
-    pub fn new_grass_patch(name: String) -> Self {
-        Self::new_grass(name)
-    }
-
-    pub fn new_bush(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_bush_script_named(name.clone());
-        Self::from_script(name, "Bush", graph_data)
-    }
-
-    pub fn new_bush_cluster(name: String) -> Self {
-        Self::new_bush(name)
-    }
-
-    pub fn new_tree(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_tree_script_named(name.clone());
-        Self::from_script(name, "Tree", graph_data)
-    }
-
-    pub fn new_tree_grove(name: String) -> Self {
-        Self::new_tree(name)
-    }
-
-    pub fn new_grass_vertex(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_grass_vertex_script_named(name.clone());
-        Self::from_script(name, "Grass", graph_data)
-    }
-
-    pub fn new_bush_vertex(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_bush_vertex_script_named(name.clone());
-        Self::from_script(name, "Bush", graph_data)
-    }
-
-    pub fn new_tree_vertex(name: String) -> Self {
-        let graph_data = BuilderGraph::preset_tree_vertex_script_named(name.clone());
-        Self::from_script(name, "Tree", graph_data)
-    }
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum TileCollectionEntry {
     SingleTile(Uuid),
@@ -516,10 +367,6 @@ pub struct Project {
     #[serde(default)]
     pub tile_groups: IndexMap<Uuid, rusterix::TileGroup>,
 
-    /// Standalone builder graphs for props and assemblies.
-    #[serde(default)]
-    pub builder_graphs: IndexMap<Uuid, BuilderGraphAsset>,
-
     /// Reusable construction graphs for walls, floors, and ceilings.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub construction_patterns: IndexMap<Uuid, crate::construction_graph::ConstructionPatternAsset>,
@@ -583,18 +430,6 @@ pub struct Project {
 
     #[serde(default)]
     pub assets: IndexMap<Uuid, Asset>,
-
-    /// Editable, shareable procedural Recipe documents.
-    #[serde(default)]
-    pub procedural_recipes: IndexMap<Uuid, ProceduralRecipeAsset>,
-
-    /// Reusable procedural material sources keyed by their project alias.
-    #[serde(default)]
-    pub procedural_materials: IndexMap<String, String>,
-
-    /// Reusable procedural SDF sources keyed by their project alias.
-    #[serde(default)]
-    pub procedural_sdfs: IndexMap<String, String>,
 
     #[serde(default)]
     pub palette: ThePalette,
@@ -668,7 +503,7 @@ impl Project {
 
             tiles: IndexMap::default(),
             tile_groups: IndexMap::default(),
-            builder_graphs: IndexMap::default(),
+
             construction_patterns: IndexMap::default(),
             block_props: IndexMap::default(),
             prefab_graphs: IndexMap::default(),
@@ -689,9 +524,6 @@ impl Project {
 
             screens: IndexMap::default(),
             assets: IndexMap::default(),
-            procedural_recipes: IndexMap::default(),
-            procedural_materials: IndexMap::default(),
-            procedural_sdfs: IndexMap::default(),
 
             palette: ThePalette::default(),
             art_palette: default_art_palette(),
@@ -1018,10 +850,6 @@ impl Project {
 
     pub fn add_tile_group(&mut self, tile_group: rusterix::TileGroup) {
         self.tile_groups.insert(tile_group.id, tile_group);
-    }
-
-    pub fn add_builder_graph(&mut self, builder_graph: BuilderGraphAsset) {
-        self.builder_graphs.insert(builder_graph.id, builder_graph);
     }
 
     pub fn add_tile_collection(&mut self, collection: TileCollectionAsset) {
@@ -2352,5 +2180,44 @@ mod tests {
 
         assert_eq!(green_wood_node, green_wood + 1);
         assert_eq!(wild_herb_node, wild_herb + 1);
+    }
+    #[test]
+    fn retired_visual_sources_are_ignored_without_losing_baked_tiles_or_geometry() {
+        let mut project = Project::new();
+        let tile = rusterix::Tile::from_texture(rusterix::Texture::from_color([70, 80, 90, 255]));
+        let tile_id = tile.id;
+        project.tiles.insert(tile_id, tile.clone());
+        let object = GeometryObject::box_from_bounds(
+            "Baked wall",
+            [0., 0., 0.].into(),
+            [1., 3., 0.2].into(),
+        );
+        let object_id = object.id;
+        project.regions[0].map.geometry_objects.push(object);
+        let mut saved = serde_json::to_value(&project).unwrap();
+        saved["procedural_recipes"] =
+            serde_json::json!({"old": {"source":"invalid retired source"}});
+        saved["builder_graphs"] =
+            serde_json::json!({"old": {"graph_data":"invalid retired source"}});
+        saved["procedural_materials"] = serde_json::json!({"old":"invalid retired source"});
+        saved["procedural_sdfs"] = serde_json::json!({"old":"invalid retired source"});
+        let restored: Project = serde_json::from_value(saved).unwrap();
+        assert_eq!(restored.tiles.get(&tile_id), Some(&tile));
+        assert!(
+            restored.regions[0]
+                .map
+                .geometry_objects
+                .iter()
+                .any(|o| o.id == object_id)
+        );
+        let saved = serde_json::to_value(restored).unwrap();
+        for key in [
+            "procedural_recipes",
+            "builder_graphs",
+            "procedural_materials",
+            "procedural_sdfs",
+        ] {
+            assert!(saved.get(key).is_none());
+        }
     }
 }

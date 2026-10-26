@@ -287,11 +287,9 @@ pub fn sync_prefab_editor(project: &mut Project, asset_id: Uuid) -> Result<(), S
     }
 
     for part in &mut asset.parts {
-        if let rusterix::BlockPropGeometrySource::Authored { geometry_objects } =
-            &mut part.geometry_source
-        {
-            *geometry_objects = objects_by_part.shift_remove(&part.id).unwrap_or_default();
-        }
+        let rusterix::BlockPropGeometrySource::Authored { geometry_objects } =
+            &mut part.geometry_source;
+        *geometry_objects = objects_by_part.shift_remove(&part.id).unwrap_or_default();
     }
     let valid_part_ids = asset
         .parts
@@ -1652,9 +1650,6 @@ fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> AssetI
         }
         let objects = match &mut part.geometry_source {
             rusterix::BlockPropGeometrySource::Authored { geometry_objects } => geometry_objects,
-            rusterix::BlockPropGeometrySource::Recipe {
-                generated_cache, ..
-            } => generated_cache,
         };
         for object in objects {
             let old_object_id = object.id;
@@ -1802,19 +1797,6 @@ fn remap_prefab_paint_layer(layer: &mut IsoPaintLayer, remap: &AssetInternalIdRe
     layer.screen_chunks.clear();
 }
 
-fn detach_prefab_geometry_sources(asset: &mut rusterix::BlockPropAsset) {
-    for part in &mut asset.parts {
-        if let rusterix::BlockPropGeometrySource::Recipe {
-            generated_cache, ..
-        } = &part.geometry_source
-        {
-            part.geometry_source = rusterix::BlockPropGeometrySource::Authored {
-                geometry_objects: generated_cache.clone(),
-            };
-        }
-    }
-}
-
 /// Create an independent project-owned copy of an entire Prefab asset. Every
 /// nested identity is regenerated so geometry, semantics, attachments,
 /// components, particles, and lights can be edited without touching the
@@ -1829,7 +1811,6 @@ pub fn duplicate_block_prop_asset(
     duplicate.id = Uuid::new_v4();
     duplicate.name = name.into();
     duplicate.alias.clear();
-    detach_prefab_geometry_sources(&mut duplicate);
     let remap = regenerate_asset_internal_ids(&mut duplicate);
     let duplicate_id = duplicate.id;
     project.block_props.insert(duplicate_id, duplicate);
@@ -1981,7 +1962,6 @@ pub fn make_selected_block_prop_unique(
         .ok_or_else(|| fl!("error_prefab_unique_project_only"))?;
     unique_asset.id = Uuid::new_v4();
     unique_asset.name = format!("{} Copy", unique_asset.name);
-    detach_prefab_geometry_sources(&mut unique_asset);
     let id_remap = regenerate_asset_internal_ids(&mut unique_asset);
     let unique_asset_id = unique_asset.id;
     project.block_props.insert(unique_asset_id, unique_asset);

@@ -475,10 +475,6 @@ impl ToolList {
         };
 
         let slot_count = if let Some(slots) =
-            crate::actions::builder_hud_material_slots_for_selected_geometry(map)
-        {
-            slots.len()
-        } else if let Some(slots) =
             crate::actions::named_geometry_hud_material_slots_for_selection(map)
         {
             slots.len()
@@ -1741,7 +1737,7 @@ impl ToolList {
         old_map: &Map,
         new_map: &Map,
     ) -> Option<Vec<(i32, i32)>> {
-        // Scene streaming uses world-space chunks; this is unrelated to tile/recipe resolution.
+        // Scene streaming uses world-space chunks; this is unrelated to tile resolution.
         let chunk_size = SCENEMANAGER.read().unwrap().chunk_size();
         Self::changed_d2_rect_paint_chunks_with_size(old_map, new_map, chunk_size)
     }
@@ -2084,7 +2080,7 @@ impl ToolList {
         list.register_game_tool("tool.rect", RectTool::new());
         list.register_game_tool("tool.entity", crate::tools::entity::EntityTool::new());
         list.register_game_tool("tool.blocks", crate::tools::blocks::BlockTool::new());
-        // Builder and collision probe remain hidden while their workflows are being revised.
+        // The collision probe remains hidden while its workflow is being revised.
         list.register_game_tool("tool.game", GameTool::new());
         let default_tool_id = list
             .get_game_tool_uuid_by_command_id(Self::DEFAULT_GAME_TOOL_COMMAND_ID)
@@ -2380,28 +2376,6 @@ impl ToolList {
                 | "tool.tile_picker"
                 | "tool.effects"
         )
-    }
-
-    fn enforce_builder_dock(
-        &self,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-        project: &Project,
-        server_ctx: &mut ServerContext,
-    ) {
-        if self.editor_mode {
-            return;
-        }
-        if self.game_tools[self.curr_game_tool].id().name != "Builder Tool" {
-            return;
-        }
-        let current_dock = DOCKMANAGER.read().unwrap().dock.clone();
-        if current_dock == "Tiles" {
-            DOCKMANAGER
-                .write()
-                .unwrap()
-                .set_dock("Builder".into(), ui, ctx, project, server_ctx);
-        }
     }
 
     fn enforce_palette_dock(
@@ -4417,7 +4391,6 @@ impl ToolList {
                 .handle_event(event, ui, ctx, project, server_ctx);
         }
 
-        self.enforce_builder_dock(ui, ctx, project, server_ctx);
         self.enforce_palette_dock(ui, ctx, project, server_ctx);
 
         redraw
@@ -6350,11 +6323,7 @@ impl ToolList {
                     );
                 };
 
-            let show_builder_selected_vertices =
-                server_ctx.builder_tool_active && !map.selected_vertices.is_empty();
-            if server_ctx.curr_map_tool_type == MapToolType::Vertex
-                || show_builder_selected_vertices
-            {
+            if server_ctx.curr_map_tool_type == MapToolType::Vertex {
                 let detail_surface = server_ctx
                     .active_detail_surface
                     .as_ref()
@@ -6403,11 +6372,7 @@ impl ToolList {
                     && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
                     && detail_surface.is_some();
                 // Linedefs
-                let show_builder_selected_linedefs =
-                    server_ctx.builder_tool_active && !map.selected_linedefs.is_empty();
-                if server_ctx.curr_map_tool_type == MapToolType::Linedef
-                    || show_builder_selected_linedefs
-                {
+                if server_ctx.curr_map_tool_type == MapToolType::Linedef {
                     if server_ctx.curr_map_tool_type == MapToolType::Linedef
                         && server_ctx.geometry_edit_mode == GeometryEditMode::Detail
                     {
@@ -6460,9 +6425,7 @@ impl ToolList {
                         for linedef in &map.linedefs {
                             let is_selected = map.selected_linedefs.contains(&linedef.id);
                             let is_hovered = server_ctx.hover.1 == Some(linedef.id);
-                            let show_in_builder =
-                                server_ctx.builder_tool_active && (is_selected || is_hovered);
-                            if !linedef.sector_ids.is_empty() && !show_in_builder {
+                            if !linedef.sector_ids.is_empty() {
                                 continue;
                             }
 

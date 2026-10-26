@@ -1,17 +1,11 @@
 use crate::editor::RUSTERIX;
 pub use crate::prelude::*;
-use rusterix::{PixelSource, ValueContainer};
+use rusterix::PixelSource;
 
 #[derive(Clone, Debug)]
 pub struct ActionMaterialSlot {
     pub label: String,
     pub source: Option<PixelSource>,
-}
-
-#[derive(Clone, Debug)]
-pub struct ActionItemSlot {
-    pub label: String,
-    pub assigned_builder_name: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -51,31 +45,6 @@ pub fn source_to_text(source: Option<&Value>) -> String {
         Some(Value::Source(PixelSource::PaletteIndex(index))) => index.to_string(),
         _ => String::new(),
     }
-}
-
-pub fn builder_material_property_key(label: &str) -> String {
-    format!("builder_material_{}", normalize_builder_slot_key(label))
-}
-
-pub fn builder_item_graph_data_property_key(label: &str) -> String {
-    format!(
-        "builder_item_{}_graph_data",
-        normalize_builder_slot_key(label)
-    )
-}
-
-pub fn builder_item_graph_id_property_key(label: &str) -> String {
-    format!(
-        "builder_item_{}_graph_id",
-        normalize_builder_slot_key(label)
-    )
-}
-
-pub fn builder_item_graph_name_property_key(label: &str) -> String {
-    format!(
-        "builder_item_{}_graph_name",
-        normalize_builder_slot_key(label)
-    )
 }
 
 pub fn current_selection_tool_type(map: &Map) -> MapToolType {
@@ -169,156 +138,6 @@ pub fn wall_hud_material_slot_locked(map: &Map, slot_index: i32) -> bool {
         })
 }
 
-fn builder_material_slots_from_properties(
-    properties: &ValueContainer,
-) -> Option<Vec<ActionMaterialSlot>> {
-    let graph_text = properties.get_str_default("builder_graph_data", String::new());
-    if graph_text.trim().is_empty() {
-        return None;
-    }
-    if properties
-        .get_str_default("builder_graph_target", "sector".to_string())
-        .is_empty()
-    {
-        return None;
-    }
-    let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&graph_text) else {
-        return None;
-    };
-    let slot_names = graph.material_slot_names();
-    if slot_names.is_empty() {
-        return None;
-    }
-    Some(
-        slot_names
-            .into_iter()
-            .map(|label| {
-                let source = match properties.get(&builder_material_property_key(&label)) {
-                    Some(Value::Source(source)) => Some(source.clone()),
-                    _ => None,
-                };
-                ActionMaterialSlot { label, source }
-            })
-            .collect(),
-    )
-}
-
-fn builder_item_slots_from_properties(properties: &ValueContainer) -> Option<Vec<ActionItemSlot>> {
-    let graph_text = properties.get_str_default("builder_graph_data", String::new());
-    if graph_text.trim().is_empty() {
-        return None;
-    }
-    if properties
-        .get_str_default("builder_graph_target", "sector".to_string())
-        .is_empty()
-    {
-        return None;
-    }
-    let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&graph_text) else {
-        return None;
-    };
-    let slot_names = graph.item_slot_names();
-    if slot_names.is_empty() {
-        return None;
-    }
-    Some(
-        slot_names
-            .into_iter()
-            .map(|label| ActionItemSlot {
-                assigned_builder_name: properties
-                    .get_str(&builder_item_graph_name_property_key(&label))
-                    .map(str::to_string),
-                label,
-            })
-            .collect(),
-    )
-}
-
-pub fn builder_hud_material_slots_for_selected_sector(
-    map: &Map,
-) -> Option<Vec<ActionMaterialSlot>> {
-    let sector_id = *map.selected_sectors.first()?;
-    let sector = map.find_sector(sector_id)?;
-    builder_material_slots_from_properties(&sector.properties)
-}
-
-pub fn builder_hud_material_slots_for_selected_linedef(
-    map: &Map,
-) -> Option<Vec<ActionMaterialSlot>> {
-    let linedef_id = *map.selected_linedefs.first()?;
-    let linedef = map.find_linedef(linedef_id)?;
-    builder_material_slots_from_properties(&linedef.properties)
-}
-
-pub fn builder_hud_material_slots_for_selected_vertex(
-    map: &Map,
-) -> Option<Vec<ActionMaterialSlot>> {
-    let vertex_id = *map.selected_vertices.first()?;
-    let vertex = map.find_vertex(vertex_id)?;
-    builder_material_slots_from_properties(&vertex.properties)
-}
-
-fn is_baked_builder_geometry_object(object: &rusterix::GeometryObject) -> bool {
-    object.properties.get_str("builder_graph_data").is_some()
-        || object
-            .properties
-            .get_str_default("builder_baked", String::new())
-            == "geometry_object"
-}
-
-fn selected_builder_geometry_object_ids(map: &Map) -> Vec<Uuid> {
-    let mut seed_ids = map.selected_geometry_objects.clone();
-    for (object_id, _) in &map.selected_geometry_faces {
-        if !seed_ids.contains(object_id) {
-            seed_ids.push(*object_id);
-        }
-    }
-    if seed_ids.is_empty() {
-        return Vec::new();
-    }
-
-    let mut groups = Vec::new();
-    let mut ungrouped = Vec::new();
-    for object_id in seed_ids {
-        let Some(object) = map
-            .geometry_objects
-            .iter()
-            .find(|object| object.id == object_id)
-        else {
-            continue;
-        };
-        if !is_baked_builder_geometry_object(object) {
-            continue;
-        }
-        if object.group.trim().is_empty() {
-            ungrouped.push(object.id);
-        } else if !groups.iter().any(|group| group == &object.group) {
-            groups.push(object.group.clone());
-        }
-    }
-
-    let mut out = ungrouped;
-    for object in &map.geometry_objects {
-        if is_baked_builder_geometry_object(object)
-            && groups.iter().any(|group| group == &object.group)
-            && !out.contains(&object.id)
-        {
-            out.push(object.id);
-        }
-    }
-    out
-}
-
-fn selected_builder_geometry_graph_data(map: &Map, object_ids: &[Uuid]) -> Option<String> {
-    object_ids.iter().find_map(|object_id| {
-        map.geometry_objects
-            .iter()
-            .find(|object| object.id == *object_id)
-            .and_then(|object| object.properties.get_str("builder_graph_data"))
-            .map(str::to_string)
-    })
-}
-
 fn geometry_face_source(face: &rusterix::GeometryFace) -> Option<PixelSource> {
     face.tile
         .clone()
@@ -385,10 +204,10 @@ pub fn named_geometry_hud_material_slots_for_selection(
         let Some(label) = object.properties.get_str("prefab_material_slot") else {
             continue;
         };
-        let slot_key = normalize_builder_slot_key(label);
+        let slot_key = normalize_material_slot_key(label);
         if slots
             .iter()
-            .any(|slot| normalize_builder_slot_key(&slot.label) == slot_key)
+            .any(|slot| normalize_material_slot_key(&slot.label) == slot_key)
         {
             continue;
         }
@@ -414,7 +233,7 @@ pub fn apply_named_geometry_hud_surface_source_to_selection(
     else {
         return false;
     };
-    let slot_key = normalize_builder_slot_key(&slot.label);
+    let slot_key = normalize_material_slot_key(&slot.label);
     let object_ids = selected_named_geometry_object_ids(map);
     let mut changed = false;
     for object_id in object_ids {
@@ -427,7 +246,7 @@ pub fn apply_named_geometry_hud_surface_source_to_selection(
         else {
             continue;
         };
-        if normalize_builder_slot_key(&object_slot) != slot_key {
+        if normalize_material_slot_key(&object_slot) != slot_key {
             continue;
         }
         if let Some(source) = source {
@@ -451,51 +270,6 @@ pub fn apply_named_geometry_hud_material_to_selection(
 ) -> bool {
     let source = source.map(SurfaceApplySource::Direct);
     apply_named_geometry_hud_surface_source_to_selection(map, slot_index, source.as_ref(), Some(1))
-}
-
-fn selected_builder_geometry_material_source(
-    map: &Map,
-    object_ids: &[Uuid],
-    slot_label: &str,
-) -> Option<PixelSource> {
-    let slot_key = normalize_builder_slot_key(slot_label);
-    object_ids.iter().find_map(|object_id| {
-        let object = map
-            .geometry_objects
-            .iter()
-            .find(|object| object.id == *object_id)?;
-        let object_slot = object.properties.get_str("builder_material_slot")?;
-        if normalize_builder_slot_key(object_slot) != slot_key {
-            return None;
-        }
-        object.faces.iter().find_map(geometry_face_source)
-    })
-}
-
-pub fn builder_hud_material_slots_for_selected_geometry(
-    map: &Map,
-) -> Option<Vec<ActionMaterialSlot>> {
-    let object_ids = selected_builder_geometry_object_ids(map);
-    if object_ids.is_empty() {
-        return None;
-    }
-    let graph_text = selected_builder_geometry_graph_data(map, &object_ids)?;
-    let Ok(graph) = shared::buildergraph::BuilderDocument::from_text(&graph_text) else {
-        return None;
-    };
-    let slot_names = graph.material_slot_names();
-    if slot_names.is_empty() {
-        return None;
-    }
-    Some(
-        slot_names
-            .into_iter()
-            .map(|label| {
-                let source = selected_builder_geometry_material_source(map, &object_ids, &label);
-                ActionMaterialSlot { label, source }
-            })
-            .collect(),
-    )
 }
 
 pub fn prefab_hud_material_slots_for_selected_instances(
@@ -532,25 +306,7 @@ pub fn prefab_hud_material_slots_for_selected_instances(
     })
 }
 
-pub fn builder_hud_item_slots_for_selected_sector(map: &Map) -> Option<Vec<ActionItemSlot>> {
-    let sector_id = *map.selected_sectors.first()?;
-    let sector = map.find_sector(sector_id)?;
-    builder_item_slots_from_properties(&sector.properties)
-}
-
-pub fn builder_hud_item_slots_for_selected_linedef(map: &Map) -> Option<Vec<ActionItemSlot>> {
-    let linedef_id = *map.selected_linedefs.first()?;
-    let linedef = map.find_linedef(linedef_id)?;
-    builder_item_slots_from_properties(&linedef.properties)
-}
-
-pub fn builder_hud_item_slots_for_selected_vertex(map: &Map) -> Option<Vec<ActionItemSlot>> {
-    let vertex_id = *map.selected_vertices.first()?;
-    let vertex = map.find_vertex(vertex_id)?;
-    builder_item_slots_from_properties(&vertex.properties)
-}
-
-pub fn apply_builder_hud_material_to_selection(
+pub fn apply_wall_hud_material_to_selection(
     map: &mut Map,
     server_ctx: &ServerContext,
     slot_index: i32,
@@ -563,38 +319,6 @@ pub fn apply_builder_hud_material_to_selection(
         && wall_hud_material_slot_locked(map, slot_index)
     {
         return false;
-    }
-    if let Some(slot) = builder_hud_material_slots_for_selected_geometry(map)
-        .and_then(|slots| slots.get(slot_index as usize).cloned())
-    {
-        let slot_key = normalize_builder_slot_key(&slot.label);
-        let object_ids = selected_builder_geometry_object_ids(map);
-        let mut changed = false;
-        for object_id in object_ids {
-            let Some(object_slot) = map
-                .geometry_objects
-                .iter()
-                .find(|object| object.id == object_id)
-                .and_then(|object| object.properties.get_str("builder_material_slot"))
-                .map(str::to_string)
-            else {
-                continue;
-            };
-            if normalize_builder_slot_key(&object_slot) != slot_key {
-                continue;
-            }
-            if let Some(source) = &source {
-                changed |= crate::utils::apply_surface_source_to_geometry_object(
-                    map,
-                    object_id,
-                    &SurfaceApplySource::Direct(source.clone()),
-                    Some(1),
-                );
-            } else {
-                changed |= crate::utils::clear_surface_source_on_geometry_object(map, object_id);
-            }
-        }
-        return changed;
     }
     match server_ctx.curr_map_tool_type {
         MapToolType::Wall => {
@@ -708,370 +432,7 @@ pub fn apply_builder_hud_material_to_selection(
             map.rebuild_wall_geometry();
             true
         }
-        MapToolType::Sector => {
-            let Some(slot) = builder_hud_material_slots_for_selected_sector(map)
-                .and_then(|slots| slots.get(slot_index as usize).cloned())
-            else {
-                return false;
-            };
-            let key = builder_material_property_key(&slot.label);
-            let mut changed = false;
-            for sector_id in map.selected_sectors.clone() {
-                if let Some(sector) = map.find_sector_mut(sector_id) {
-                    match &source {
-                        Some(source) => {
-                            let has_changed = match sector.properties.get(&key) {
-                                Some(Value::Source(existing)) => existing != source,
-                                _ => true,
-                            };
-                            if has_changed {
-                                sector.properties.set(&key, Value::Source(source.clone()));
-                                changed = true;
-                            }
-                        }
-                        None => {
-                            if sector.properties.contains(&key) {
-                                sector.properties.remove(&key);
-                                changed = true;
-                            }
-                        }
-                    }
-                }
-            }
-            changed
-        }
-        MapToolType::Linedef => {
-            let Some(slot) = builder_hud_material_slots_for_selected_linedef(map)
-                .and_then(|slots| slots.get(slot_index as usize).cloned())
-            else {
-                return false;
-            };
-            let key = builder_material_property_key(&slot.label);
-            let mut changed = false;
-            for linedef_id in map.selected_linedefs.clone() {
-                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                    match &source {
-                        Some(source) => {
-                            let has_changed = match linedef.properties.get(&key) {
-                                Some(Value::Source(existing)) => existing != source,
-                                _ => true,
-                            };
-                            if has_changed {
-                                linedef.properties.set(&key, Value::Source(source.clone()));
-                                changed = true;
-                            }
-                        }
-                        None => {
-                            if linedef.properties.contains(&key) {
-                                linedef.properties.remove(&key);
-                                changed = true;
-                            }
-                        }
-                    }
-                }
-            }
-            changed
-        }
-        MapToolType::Vertex => {
-            let Some(slot) = builder_hud_material_slots_for_selected_vertex(map)
-                .and_then(|slots| slots.get(slot_index as usize).cloned())
-            else {
-                return false;
-            };
-            let key = builder_material_property_key(&slot.label);
-            let mut changed = false;
-            for vertex_id in map.selected_vertices.clone() {
-                if let Some(vertex) = map.find_vertex_mut(vertex_id) {
-                    match &source {
-                        Some(source) => {
-                            let has_changed = match vertex.properties.get(&key) {
-                                Some(Value::Source(existing)) => existing != source,
-                                _ => true,
-                            };
-                            if has_changed {
-                                vertex.properties.set(&key, Value::Source(source.clone()));
-                                changed = true;
-                            }
-                        }
-                        None => {
-                            if vertex.properties.contains(&key) {
-                                vertex.properties.remove(&key);
-                                changed = true;
-                            }
-                        }
-                    }
-                }
-            }
-            changed
-        }
-        _ => false,
-    }
-}
 
-pub fn apply_builder_hud_surface_source_to_selection(
-    map: &mut Map,
-    _server_ctx: &ServerContext,
-    slot_index: i32,
-    source: Option<&SurfaceApplySource>,
-    tile_mode: Option<i32>,
-) -> bool {
-    if slot_index < 0 {
-        return false;
-    }
-    let Some(slot) = builder_hud_material_slots_for_selected_geometry(map)
-        .and_then(|slots| slots.get(slot_index as usize).cloned())
-    else {
-        return false;
-    };
-
-    let slot_key = normalize_builder_slot_key(&slot.label);
-    let object_ids = selected_builder_geometry_object_ids(map);
-    let mut changed = false;
-    for object_id in object_ids {
-        let Some(object_slot) = map
-            .geometry_objects
-            .iter()
-            .find(|object| object.id == object_id)
-            .and_then(|object| object.properties.get_str("builder_material_slot"))
-            .map(str::to_string)
-        else {
-            continue;
-        };
-        if normalize_builder_slot_key(&object_slot) != slot_key {
-            continue;
-        }
-        if let Some(source) = source {
-            changed |= crate::utils::apply_surface_source_to_geometry_object(
-                map, object_id, source, tile_mode,
-            );
-        } else {
-            changed |= crate::utils::clear_surface_source_on_geometry_object(map, object_id);
-        }
-    }
-    if changed {
-        map.update_surfaces();
-    }
-    changed
-}
-
-pub fn apply_builder_item_to_selection(
-    map: &mut Map,
-    server_ctx: &ServerContext,
-    slot_index: i32,
-    asset: &BuilderGraphAsset,
-) -> bool {
-    if slot_index < 0 {
-        return false;
-    }
-    match server_ctx.curr_map_tool_type {
-        MapToolType::Sector => {
-            let Some(slot) = builder_hud_item_slots_for_selected_sector(map)
-                .and_then(|slots| slots.get(slot_index as usize).cloned())
-            else {
-                return false;
-            };
-            let data_key = builder_item_graph_data_property_key(&slot.label);
-            let id_key = builder_item_graph_id_property_key(&slot.label);
-            let name_key = builder_item_graph_name_property_key(&slot.label);
-            let mut changed = false;
-            for sector_id in map.selected_sectors.clone() {
-                if let Some(sector) = map.find_sector_mut(sector_id) {
-                    let data_changed = sector
-                        .properties
-                        .get_str(&data_key)
-                        .map(|v| v != asset.graph_data)
-                        .unwrap_or(true);
-                    let id_changed = sector
-                        .properties
-                        .get_id(&id_key)
-                        .map(|v| v != asset.id)
-                        .unwrap_or(true);
-                    let name_changed = sector
-                        .properties
-                        .get_str(&name_key)
-                        .map(|v| v != asset.graph_name)
-                        .unwrap_or(true);
-                    if data_changed || id_changed || name_changed {
-                        sector
-                            .properties
-                            .set(&data_key, Value::Str(asset.graph_data.clone()));
-                        sector.properties.set(&id_key, Value::Id(asset.id));
-                        sector
-                            .properties
-                            .set(&name_key, Value::Str(asset.graph_name.clone()));
-                        changed = true;
-                    }
-                }
-            }
-            changed
-        }
-        MapToolType::Linedef => {
-            let Some(slot) = builder_hud_item_slots_for_selected_linedef(map)
-                .and_then(|slots| slots.get(slot_index as usize).cloned())
-            else {
-                return false;
-            };
-            let data_key = builder_item_graph_data_property_key(&slot.label);
-            let id_key = builder_item_graph_id_property_key(&slot.label);
-            let name_key = builder_item_graph_name_property_key(&slot.label);
-            let mut changed = false;
-            for linedef_id in map.selected_linedefs.clone() {
-                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                    let data_changed = linedef
-                        .properties
-                        .get_str(&data_key)
-                        .map(|v| v != asset.graph_data)
-                        .unwrap_or(true);
-                    let id_changed = linedef
-                        .properties
-                        .get_id(&id_key)
-                        .map(|v| v != asset.id)
-                        .unwrap_or(true);
-                    let name_changed = linedef
-                        .properties
-                        .get_str(&name_key)
-                        .map(|v| v != asset.graph_name)
-                        .unwrap_or(true);
-                    if data_changed || id_changed || name_changed {
-                        linedef
-                            .properties
-                            .set(&data_key, Value::Str(asset.graph_data.clone()));
-                        linedef.properties.set(&id_key, Value::Id(asset.id));
-                        linedef
-                            .properties
-                            .set(&name_key, Value::Str(asset.graph_name.clone()));
-                        changed = true;
-                    }
-                }
-            }
-            changed
-        }
-        MapToolType::Vertex => {
-            let Some(slot) = builder_hud_item_slots_for_selected_vertex(map)
-                .and_then(|slots| slots.get(slot_index as usize).cloned())
-            else {
-                return false;
-            };
-            let data_key = builder_item_graph_data_property_key(&slot.label);
-            let id_key = builder_item_graph_id_property_key(&slot.label);
-            let name_key = builder_item_graph_name_property_key(&slot.label);
-            let mut changed = false;
-            for vertex_id in map.selected_vertices.clone() {
-                if let Some(vertex) = map.find_vertex_mut(vertex_id) {
-                    let data_changed = vertex
-                        .properties
-                        .get_str(&data_key)
-                        .map(|v| v != asset.graph_data)
-                        .unwrap_or(true);
-                    let id_changed = vertex
-                        .properties
-                        .get_id(&id_key)
-                        .map(|v| v != asset.id)
-                        .unwrap_or(true);
-                    let name_changed = vertex
-                        .properties
-                        .get_str(&name_key)
-                        .map(|v| v != asset.graph_name)
-                        .unwrap_or(true);
-                    if data_changed || id_changed || name_changed {
-                        vertex
-                            .properties
-                            .set(&data_key, Value::Str(asset.graph_data.clone()));
-                        vertex.properties.set(&id_key, Value::Id(asset.id));
-                        vertex
-                            .properties
-                            .set(&name_key, Value::Str(asset.graph_name.clone()));
-                        changed = true;
-                    }
-                }
-            }
-            changed
-        }
-        _ => false,
-    }
-}
-
-pub fn clear_builder_item_from_selection(
-    map: &mut Map,
-    server_ctx: &ServerContext,
-    slot_index: i32,
-) -> bool {
-    if slot_index < 0 {
-        return false;
-    }
-    match server_ctx.curr_map_tool_type {
-        MapToolType::Sector => {
-            let Some(slot) = builder_hud_item_slots_for_selected_sector(map)
-                .and_then(|slots| slots.get(slot_index as usize).cloned())
-            else {
-                return false;
-            };
-            let keys = [
-                builder_item_graph_data_property_key(&slot.label),
-                builder_item_graph_id_property_key(&slot.label),
-                builder_item_graph_name_property_key(&slot.label),
-            ];
-            let mut changed = false;
-            for sector_id in map.selected_sectors.clone() {
-                if let Some(sector) = map.find_sector_mut(sector_id) {
-                    for key in &keys {
-                        if sector.properties.contains(key) {
-                            sector.properties.remove(key);
-                            changed = true;
-                        }
-                    }
-                }
-            }
-            changed
-        }
-        MapToolType::Linedef => {
-            let Some(slot) = builder_hud_item_slots_for_selected_linedef(map)
-                .and_then(|slots| slots.get(slot_index as usize).cloned())
-            else {
-                return false;
-            };
-            let keys = [
-                builder_item_graph_data_property_key(&slot.label),
-                builder_item_graph_id_property_key(&slot.label),
-                builder_item_graph_name_property_key(&slot.label),
-            ];
-            let mut changed = false;
-            for linedef_id in map.selected_linedefs.clone() {
-                if let Some(linedef) = map.find_linedef_mut(linedef_id) {
-                    for key in &keys {
-                        if linedef.properties.contains(key) {
-                            linedef.properties.remove(key);
-                            changed = true;
-                        }
-                    }
-                }
-            }
-            changed
-        }
-        MapToolType::Vertex => {
-            let Some(slot) = builder_hud_item_slots_for_selected_vertex(map)
-                .and_then(|slots| slots.get(slot_index as usize).cloned())
-            else {
-                return false;
-            };
-            let keys = [
-                builder_item_graph_data_property_key(&slot.label),
-                builder_item_graph_id_property_key(&slot.label),
-                builder_item_graph_name_property_key(&slot.label),
-            ];
-            let mut changed = false;
-            for vertex_id in map.selected_vertices.clone() {
-                if let Some(vertex) = map.find_vertex_mut(vertex_id) {
-                    for key in &keys {
-                        if vertex.properties.contains(key) {
-                            vertex.properties.remove(key);
-                            changed = true;
-                        }
-                    }
-                }
-            }
-            changed
-        }
         _ => false,
     }
 }
@@ -1424,25 +785,6 @@ fn normalize_toml_key(key: &str) -> String {
     }
 
     out.trim_matches('_').to_string()
-}
-
-fn normalize_builder_slot_key(key: &str) -> String {
-    if !key.chars().any(|ch| ch.is_ascii_lowercase()) {
-        let mut out = String::new();
-        let mut prev_is_sep = false;
-        for ch in key.chars() {
-            if ch.is_ascii_alphanumeric() {
-                out.push(ch.to_ascii_lowercase());
-                prev_is_sep = false;
-            } else if !prev_is_sep && !out.is_empty() {
-                out.push('_');
-                prev_is_sep = true;
-            }
-        }
-        return out.trim_matches('_').to_string();
-    }
-
-    normalize_toml_key(key)
 }
 
 fn action_param_key(id: &str) -> String {
@@ -2159,22 +1501,6 @@ mod tests {
     use rusterix::WallOpeningShape;
 
     #[test]
-    fn builder_material_keys_keep_acronym_slots_readable() {
-        assert_eq!(
-            builder_material_property_key("PLANK"),
-            "builder_material_plank"
-        );
-        assert_eq!(
-            builder_material_property_key("ROOF_PLANK"),
-            "builder_material_roof_plank"
-        );
-        assert_eq!(
-            builder_material_property_key("roofMat"),
-            "builder_material_roof_mat"
-        );
-    }
-
-    #[test]
     fn named_geometry_material_slots_target_the_whole_table_instance_by_part() {
         let mut map = Map::default();
         let instance_id = Uuid::new_v4();
@@ -2246,7 +1572,7 @@ mod tests {
         server_ctx.curr_map_tool_type = MapToolType::Wall;
         let source = PixelSource::PaletteIndex(6);
 
-        assert!(apply_builder_hud_material_to_selection(
+        assert!(apply_wall_hud_material_to_selection(
             &mut map,
             &server_ctx,
             0,
@@ -2270,7 +1596,7 @@ mod tests {
         }));
 
         let variant = PixelSource::PaletteIndex(8);
-        assert!(apply_builder_hud_material_to_selection(
+        assert!(apply_wall_hud_material_to_selection(
             &mut map,
             &server_ctx,
             1,
@@ -2287,7 +1613,7 @@ mod tests {
         assert_eq!(style.stone_variants, vec![variant]);
 
         let frame = PixelSource::PaletteIndex(11);
-        assert!(apply_builder_hud_material_to_selection(
+        assert!(apply_wall_hud_material_to_selection(
             &mut map,
             &server_ctx,
             4,
@@ -2306,7 +1632,7 @@ mod tests {
         );
 
         let floor = PixelSource::TileId(Uuid::new_v4());
-        assert!(apply_builder_hud_material_to_selection(
+        assert!(apply_wall_hud_material_to_selection(
             &mut map,
             &server_ctx,
             5,
@@ -2331,7 +1657,7 @@ mod tests {
         server_ctx.curr_map_tool_type = MapToolType::Wall;
         assert!(wall_hud_material_slot_locked(&map, 0));
         assert!(!wall_hud_material_slot_locked(&map, 5));
-        assert!(!apply_builder_hud_material_to_selection(
+        assert!(!apply_wall_hud_material_to_selection(
             &mut map,
             &server_ctx,
             0,
@@ -2363,7 +1689,7 @@ mod tests {
         server_ctx.curr_map_tool_type = MapToolType::Wall;
         let source = PixelSource::PaletteIndex(12);
 
-        assert!(apply_builder_hud_material_to_selection(
+        assert!(apply_wall_hud_material_to_selection(
             &mut map,
             &server_ctx,
             4,
@@ -2379,4 +1705,23 @@ mod tests {
             Some(source)
         );
     }
+}
+
+fn normalize_material_slot_key(key: &str) -> String {
+    if !key.chars().any(|ch| ch.is_ascii_lowercase()) {
+        let mut out = String::new();
+        let mut prev_is_sep = false;
+        for ch in key.chars() {
+            if ch.is_ascii_alphanumeric() {
+                out.push(ch.to_ascii_lowercase());
+                prev_is_sep = false;
+            } else if !prev_is_sep && !out.is_empty() {
+                out.push('_');
+                prev_is_sep = true;
+            }
+        }
+        return out.trim_matches('_').to_string();
+    }
+
+    normalize_toml_key(key)
 }

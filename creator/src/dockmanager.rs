@@ -91,9 +91,6 @@ impl DockManager {
         let dock: Box<dyn Dock> = Box::new(crate::docks::blocks::BlocksDock::new());
         docks.insert("Prefabs".into(), dock);
 
-        let dock: Box<dyn Dock> = Box::new(crate::docks::builder::BuilderDock::new());
-        docks.insert("Builder".into(), dock);
-
         let dock: Box<dyn Dock> = Box::new(crate::docks::palette::PaletteDock::new());
         docks.insert("Palette".into(), dock);
 
@@ -275,18 +272,7 @@ impl DockManager {
                 }
             }
         }
-        if self.dock != "Recipes"
-            && matches!(
-                event,
-                TheEvent::Custom(id, _)
-                    if id.name == "Render Procedural Recipe Preview"
-                        || id.name == crate::docks::recipes::RECIPE_SOURCE_CHANGED
-            )
-            && let Some(recipe_editor) = self.editor_docks.get_mut("Recipes")
-            && recipe_editor.handle_event(event, ui, ctx, project, server_ctx)
-        {
-            redraw = true;
-        }
+
         redraw
     }
 
@@ -303,11 +289,7 @@ impl DockManager {
             .docks
             .get_mut(&self.dock)
             .is_some_and(|dock| dock.poll_background(ui, ctx, project, server_ctx));
-        let background = self
-            .editor_docks
-            .get_mut("Recipes")
-            .is_some_and(|dock| dock.poll_background(ui, ctx, project, server_ctx));
-        active || background
+        active
     }
 
     /// Returns the state of the dock manager.
@@ -323,22 +305,6 @@ impl DockManager {
         let index = stack.add_canvas(tiles_editor_canvas);
         self.editor_canvases.insert("Tiles".to_string(), index);
         self.editor_docks.insert("Tiles".to_string(), tiles_editor);
-
-        let mut recipe_editor: Box<dyn Dock> =
-            Box::new(crate::docks::recipes::RecipeEditorDock::new());
-        let recipe_editor_canvas = recipe_editor.setup(ctx);
-        let index = stack.add_canvas(recipe_editor_canvas);
-        self.editor_canvases.insert("Recipes".to_string(), index);
-        self.editor_docks
-            .insert("Recipes".to_string(), recipe_editor);
-
-        let mut builder_editor: Box<dyn Dock> =
-            Box::new(crate::docks::builder_editor::BuilderEditorDock::new());
-        let builder_editor_canvas = builder_editor.setup(ctx);
-        let index = stack.add_canvas(builder_editor_canvas);
-        self.editor_canvases.insert("Builder".to_string(), index);
-        self.editor_docks
-            .insert("Builder".to_string(), builder_editor);
 
         let mut data_editor: Box<dyn Dock> =
             Box::new(crate::docks::data_editor::DataEditorDock::new());
@@ -539,9 +505,7 @@ impl DockManager {
         self.sync_size_controls(ui, ctx);
     }
 
-    /// Open a dock that exists only as a full-screen editor. Recipes use this
-    /// path deliberately: their tree already provides the catalog, so a second
-    /// regular list dock must never be constructed or exposed.
+    /// Open a full-screen editor whose catalog is supplied by the project tree.
     pub fn set_editor_dock(
         &mut self,
         dock: String,
@@ -907,12 +871,6 @@ impl DockManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn recipes_are_not_registered_as_a_regular_dock() {
-        let manager = DockManager::new();
-        assert!(!manager.docks.contains_key("Recipes"));
-    }
 
     #[test]
     fn prefabs_dock_exposes_the_shared_action_list() {

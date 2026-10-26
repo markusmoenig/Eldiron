@@ -277,31 +277,6 @@ alignment, frame clipping and allocation limits. Style checks cover rig/material
 compatibility, detail/shading/head-scale overrides and invalid options. Generated files belong in
 `target/`, not in source control.
 
-## Material recipes
-
-An item can name a material alias with `material = "linen"`. Define it in
-`[materials.linen]` with an inline `source` string containing exactly one
-existing `Material` recipe, optional `size` (4–256, default 64), `seed` (default
-0), and `tiling` (positive values up to 64, default `[1, 1]`).
-`examples/villager.toml` demonstrates woven cloth. The material multiplies the
-item's authored color in linear space, so neutral cloth can be reused with
-multiple tints. The sword blade/guard uses its material; the grip retains its
-separate leather material.
-
-`palette = ["#909090", "#ffffff"]` can supply recipe palette colors. Without
-an explicit palette, a standalone material uses its authored nearest/exact
-color declarations. The resolved-ruleset adapter instead supplies the ruleset's
-palette when none is explicitly given. Palette-dependent recipes retain their
-usual `nearest` and `Strict` semantics; use `BaseOnly` for continuous shading.
-
-The GLB embeds albedo and glTF metallic/roughness PNGs. The CPU baker samples
-the same albedo with interpolated mesh UVs; metallic/roughness affect GLB and
-SceneVM presentation, not its simple baked lighting. Material recipes are
-sampled once at time zero. Opaque, non-emissive surfaces are required; transparent
-or emissive surfaces produce errors. Recipe normal/height fields are currently
-unused by this adapter; normal-map and animated-material support remain future
-work. Both consumers use nearest texture sampling without mipmaps.
-
 ## Ruleset and Avatar adapters
 
 ```sh
@@ -314,7 +289,6 @@ cargo run -p eldiron-character-generator --features eldiron -- \
 checks its existing validation report, and adapts these extension tables:
 
 - `[procedural_characters.<id>]`: the same fields as `characters.<id>`.
-- `[procedural_materials.<alias>]`: the same fields as `materials.<alias>`.
 - `[items.<group>.<id>.appearance]`: the same fields as `items.<id>`.
 
 The example extends the existing `linen_shirt`, `wool_trousers`, `leather_shoes`
@@ -329,7 +303,7 @@ accepts Eldiron's actual `ResolvedRuleset` with `eldiron` enabled.
 serialized Avatar type, plus a separate body-only atlas and metadata. Generated
 hand-held items (including shields and spikes) are excluded from these frames so Eldiron can draw equipped item visuals
 at the per-frame hand anchors. Clothing and helmets remain baked. These final-color frames
-preserve recipe shading and do not provide runtime marker recoloring; regenerate
+preserve authored shading and do not provide runtime marker recoloring; regenerate
 when appearance changes. Reserved marker RGBs are nudged by one byte to avoid
 accidental recoloring by the existing Avatar builder. Ground points remain in
 `atlas.json` because Avatar has no matching field.
@@ -409,7 +383,7 @@ be passed, for example `test_projects/3DStarter.eldiron`.
 
 `SceneVmCharacter::new_pixel_art(&asset)` enables the adapter's live style. Small
 cloth, leather and swept hair textures fill unspecified materials; explicitly
-authored recipe textures are preserved. `DynamicObject::pixel_art` opts a mesh
+authored textures are preserved. `DynamicObject::pixel_art` opts a mesh
 into four-tone, fixed 3-pixel Bayer lighting ramps in Raster3D. Other meshes,
 sprites and scene geometry retain their existing shading. This flag currently
 has no effect in Compute3D. The lighting ramp includes a small darkest-tone

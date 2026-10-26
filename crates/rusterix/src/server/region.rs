@@ -16348,9 +16348,6 @@ fn ruleset_item_from_table(
         "container_template",
         "visual_template",
         "rig_layer",
-        "appearance_recipe",
-        "headgear_recipe",
-        "appearance_space",
         "currency",
     ] {
         if let Some(value) = rule_string(item_table, key) {
@@ -16414,7 +16411,6 @@ fn ruleset_item_from_table(
         "grip_color_index",
         "accent_color_index",
         "highlight_color_index",
-        "appearance_tiling",
         "appearance_seed",
     ] {
         if let Some(value) = item_table.get(key).and_then(toml_value_to_attr) {

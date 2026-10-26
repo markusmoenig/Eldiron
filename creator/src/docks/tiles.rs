@@ -690,7 +690,7 @@ impl Dock for TilesDock {
                     let selected_source =
                         crate::utils::get_surface_apply_source(project, server_ctx);
                     if let Some(selected_source) = selected_source {
-                        let builder_selected_source = match &selected_source {
+                        let selected_material_source = match &selected_source {
                             crate::utils::SurfaceApplySource::Direct(source) => {
                                 Some(source.clone())
                             }
@@ -730,7 +730,7 @@ impl Dock for TilesDock {
                         {
                             if let Some(map) = project.get_map(server_ctx)
                                 && let Some(action_id) = server_ctx.curr_action_id
-                                && let Some(source) = builder_selected_source.clone()
+                                && let Some(source) = selected_material_source.clone()
                             {
                                 ACTIONLIST
                                     .write()
@@ -774,8 +774,8 @@ impl Dock for TilesDock {
                         if !applied_to_action && let Some(map) = project.get_map_mut(server_ctx) {
                             let prev = map.clone();
                             let applied_to_material_slot =
-                                builder_selected_source.clone().is_some_and(|source| {
-                                    crate::actions::apply_builder_hud_material_to_selection(
+                                selected_material_source.clone().is_some_and(|source| {
+                                    crate::actions::apply_wall_hud_material_to_selection(
                                         map,
                                         server_ctx,
                                         server_ctx.selected_hud_icon_index,
@@ -785,13 +785,6 @@ impl Dock for TilesDock {
                             if applied_to_material_slot
                                 || crate::actions::apply_named_geometry_hud_surface_source_to_selection(
                                     map,
-                                    server_ctx.selected_hud_icon_index,
-                                    Some(&selected_source),
-                                    Some(self.apply_tile_mode),
-                                )
-                                || crate::actions::apply_builder_hud_surface_source_to_selection(
-                                    map,
-                                    server_ctx,
                                     server_ctx.selected_hud_icon_index,
                                     Some(&selected_source),
                                     Some(self.apply_tile_mode),
@@ -927,7 +920,7 @@ impl Dock for TilesDock {
 
                     if !cleared_action_slot && let Some(map) = project.get_map_mut(server_ctx) {
                         let prev = map.clone();
-                        if crate::actions::apply_builder_hud_material_to_selection(
+                        if crate::actions::apply_wall_hud_material_to_selection(
                             map,
                             server_ctx,
                             server_ctx.selected_hud_icon_index,

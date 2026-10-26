@@ -109,14 +109,6 @@ impl Action for EditLinedef {
         self.nodeui.clone()
     }
 
-    fn hud_material_slots(
-        &self,
-        map: &Map,
-        _server_ctx: &ServerContext,
-    ) -> Option<Vec<ActionMaterialSlot>> {
-        crate::actions::builder_hud_material_slots_for_selected_linedef(map)
-    }
-
     fn handle_event(
         &mut self,
         event: &TheEvent,

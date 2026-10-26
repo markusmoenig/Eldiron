@@ -13,7 +13,7 @@ pub use style::{GenerationOptions, ResolvedStyle, Shading, StylePreset};
 pub mod ruleset;
 pub use bake::{AtlasMetadata, BakeOptions, bake_atlas};
 pub use export::export_glb;
-pub use materials::{MaterialDefinition, MaterialTexture};
+pub use materials::MaterialTexture;
 pub use model::*;
 
 use serde::Deserialize;
@@ -28,8 +28,6 @@ pub struct Catalog {
     pub characters: BTreeMap<String, CharacterDefinition>,
     #[serde(default)]
     pub items: BTreeMap<String, ItemDefinition>,
-    #[serde(default)]
-    pub materials: BTreeMap<String, MaterialDefinition>,
 }
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -105,7 +103,6 @@ impl HeadDefinition {
 pub struct ItemDefinition {
     pub generator: ItemKind,
     pub color: String,
-    pub material: Option<String>,
     pub attachment: Option<Attachment>,
     pub blade_length: Option<f32>,
     pub blade_width: Option<f32>,
@@ -165,17 +162,7 @@ impl Catalog {
         if self.characters.is_empty() {
             return Err("catalog needs at least one character".into());
         }
-        for (id, material) in &self.materials {
-            material
-                .validate()
-                .map_err(|e| format!("material {id}: {e}"))?;
-        }
         for (id, item) in &self.items {
-            if let Some(alias) = &item.material
-                && !self.materials.contains_key(alias)
-            {
-                return Err(format!("item {id}: unknown material {alias}").into());
-            }
             color(&item.color).map_err(|e| format!("item {id}: {e}"))?;
             if item.generator.is_held() && item.attachment.is_none() {
                 return Err(format!("item {id}: held item needs attachment").into());
@@ -265,8 +252,7 @@ impl Catalog {
             .characters
             .get(id)
             .ok_or_else(|| format!("unknown character {id}"))?;
-        let mut asset = model::generate(id, definition, &self.items, style)?;
-        materials::apply_materials(&mut asset, &self.items, &self.materials)?;
+        let asset = model::generate(id, definition, &self.items, style)?;
         Ok(asset)
     }
 }

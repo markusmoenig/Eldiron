@@ -94,8 +94,6 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup default stable
 
-      - name: Verify generated Recipe language assets
-        run: cargo xtask recipe-language --check
 
       - name: Test framework rendering safety and snapshots
         run: cargo test -p theframework --features ui

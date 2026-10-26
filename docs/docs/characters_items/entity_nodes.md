@@ -14,7 +14,7 @@ The separate **Input Mapping** branch starts with an Input Mapping node. Connect
 | Node | Settings |
 | --- | --- |
 | Entity | Ruleset race, class, and initial level. Empty race/class and level 0 inherit defaults. |
-| Set Tile | Assign a sprite tile using a scrollable grid of previews. Type to search aliases; no UUID entry is needed. Procedural recipe outputs and legacy module tiles are excluded. |
+| Set Tile | Assign a sprite tile using a scrollable grid of previews. Type to search aliases; no UUID entry is needed. Legacy module tiles are excluded. |
 | Appearance | Avatar, 2D size, and visibility. Visibility is independent of life/activity state. |
 | Collision | Radius and blocking. |
 | Inventory | Slot count and starting wealth. |

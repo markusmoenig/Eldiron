@@ -340,17 +340,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "buildergraph"
-version = "0.95.6"
-dependencies = [
- "serde",
- "serde_json",
- "toml 0.9.11+spec-1.1.0",
- "uuid",
- "vek",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1231,7 +1220,6 @@ dependencies = [
  "eldiron-ruleset",
  "eldiron-shared",
  "image",
- "procedural-recipes",
  "rusterix",
  "scenevm",
  "serde",
@@ -1305,7 +1293,6 @@ dependencies = [
  "lazy_static",
  "open",
  "png 0.18.0",
- "procedural-recipes",
  "rand",
  "rayon",
  "regex",
@@ -1349,7 +1336,6 @@ name = "eldiron-shared"
 version = "0.95.6"
 dependencies = [
  "base64",
- "buildergraph",
  "dirs",
  "earcutr",
  "eldiron-ruleset",
@@ -3819,17 +3805,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "procedural-recipes"
-version = "0.95.6"
-dependencies = [
- "image",
- "serde",
- "serde_json",
- "theframework",
- "ureq 2.12.1",
-]
-
-[[package]]
 name = "profiling"
 version = "1.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4293,7 +4268,6 @@ version = "0.95.6"
 dependencies = [
  "base64",
  "bincode",
- "buildergraph",
  "bvh",
  "console_error_panic_hook",
  "cpal",
@@ -4313,7 +4287,6 @@ dependencies = [
  "noiselib",
  "ordered-float",
  "pathfinding",
- "procedural-recipes",
  "rand",
  "rayon",
  "regex",
@@ -6775,15 +6748,6 @@ name = "xml-rs"
 version = "0.8.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ae8337f8a065cfc972643663ea4279e04e7256de865aa66fe25cec5fb912d3f"
-
-[[package]]
-name = "xtask"
-version = "0.95.6"
-dependencies = [
- "serde",
- "serde_json",
- "toml 0.8.23",
-]
 
 [[package]]
 name = "yaml-rust"

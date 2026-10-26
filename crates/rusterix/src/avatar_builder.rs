@@ -1,13 +1,8 @@
 use crate::{
     Assets, Avatar, AvatarBuildOutput, AvatarBuildRequest, AvatarBuilder, AvatarDirection,
-    AvatarMarkerChannel, AvatarMarkerColors, AvatarShadingOptions, Entity, Item, PixelSource,
-    Value,
-    avatar_recipe::{
-        AvatarAppearanceSpace, AvatarHeadgearRecipeAdapter, AvatarWearableRecipeAdapter,
-    },
+    AvatarMarkerColors, AvatarShadingOptions, Entity, Item, PixelSource, Value,
 };
 use eldiron_ruleset::{ResolvedEquipmentAvatarAnchor, ResolvedEquipmentPolicy};
-use procedural_recipes::RecipeRenderer;
 use rustc_hash::{FxHashMap, FxHashSet};
 use scenevm::{Atom, GeoId, SceneVM};
 use std::hash::{Hash, Hasher};
@@ -124,40 +119,6 @@ impl AvatarRuntimeBuilder {
         for (slot, item) in &entity.equipped {
             slot.hash(&mut hasher);
             item.id.hash(&mut hasher);
-            if let Some(alias) = item.attributes.get_str("appearance_recipe") {
-                let alias = alias.trim().to_ascii_lowercase();
-                alias.hash(&mut hasher);
-                assets
-                    .procedural_material_signatures
-                    .get(&alias)
-                    .copied()
-                    .unwrap_or_default()
-                    .hash(&mut hasher);
-            }
-            if let Some(alias) = item.attributes.get_str("headgear_recipe") {
-                let alias = alias.trim().to_ascii_lowercase();
-                alias.hash(&mut hasher);
-                assets
-                    .procedural_sdf_signatures
-                    .get(&alias)
-                    .copied()
-                    .unwrap_or_default()
-                    .hash(&mut hasher);
-            }
-            item.attributes
-                .get_str("appearance_space")
-                .unwrap_or("channel")
-                .hash(&mut hasher);
-            if let Some(tiling) = item.attributes.get_vec2("appearance_tiling") {
-                tiling[0].to_bits().hash(&mut hasher);
-                tiling[1].to_bits().hash(&mut hasher);
-            }
-            if let Some(seed) = item.attributes.get_int("appearance_seed") {
-                seed.hash(&mut hasher);
-            }
-            if let Some(Value::StrArray(channels)) = item.attributes.get("avatar_channels") {
-                channels.hash(&mut hasher);
-            }
         }
         hasher.finish()
     }
@@ -208,8 +169,7 @@ impl AvatarRuntimeBuilder {
             marker_colors: markers,
             shading,
         })?;
-        Self::apply_wearable_recipes(&mut out, entity, assets, resolved_dir, frame_index);
-        Self::apply_headgear_recipes(&mut out, entity, assets, frame_index);
+
         if !include_weapons {
             return Some(out);
         }
@@ -265,106 +225,6 @@ impl AvatarRuntimeBuilder {
         };
         out.rgba = composed;
         Some(out)
-    }
-
-    fn apply_wearable_recipes(
-        output: &mut AvatarBuildOutput,
-        entity: &Entity,
-        assets: &Assets,
-        direction: AvatarDirection,
-        frame_index: usize,
-    ) {
-        let Ok(renderer) = RecipeRenderer::new(&assets.palette) else {
-            return;
-        };
-        for item in entity.equipped.values() {
-            let Some(alias) = item.attributes.get_str("appearance_recipe") else {
-                continue;
-            };
-            let alias = alias.trim().to_ascii_lowercase();
-            let Some(material) = assets.procedural_materials.get(&alias) else {
-                continue;
-            };
-            let Some(Value::StrArray(channel_names)) = item.attributes.get("avatar_channels")
-            else {
-                continue;
-            };
-            let channels = channel_names
-                .iter()
-                .filter_map(|channel| AvatarMarkerChannel::from_key(channel))
-                .collect::<Vec<_>>();
-            if channels.is_empty() {
-                continue;
-            }
-            let tiling = item
-                .attributes
-                .get_vec2("appearance_tiling")
-                .unwrap_or([1.0, 1.0]);
-            let space = AvatarAppearanceSpace::from_key(
-                item.attributes
-                    .get_str("appearance_space")
-                    .unwrap_or("channel"),
-            );
-            let seed = item
-                .attributes
-                .get_int("appearance_seed")
-                .unwrap_or(item.id as i32) as u64;
-            let time = item
-                .attributes
-                .get_float("appearance_time")
-                .unwrap_or(frame_index as f32);
-            if let Err(error) = AvatarWearableRecipeAdapter::apply(
-                &renderer, material, output, &channels, direction, space, tiling, time, seed,
-            ) && entity
-                .attributes
-                .get_bool_default("avatar_preview_debug", false)
-            {
-                eprintln!("[AVATAR_RECIPE] '{alias}' failed: {error}");
-            }
-        }
-    }
-
-    fn apply_headgear_recipes(
-        output: &mut AvatarBuildOutput,
-        entity: &Entity,
-        assets: &Assets,
-        frame_index: usize,
-    ) {
-        let Ok(renderer) = RecipeRenderer::new(&assets.palette) else {
-            return;
-        };
-        for item in entity.equipped.values() {
-            let Some(sdf_alias) = item.attributes.get_str("headgear_recipe") else {
-                continue;
-            };
-            let Some(material_alias) = item.attributes.get_str("appearance_recipe") else {
-                continue;
-            };
-            let sdf_alias = sdf_alias.trim().to_ascii_lowercase();
-            let material_alias = material_alias.trim().to_ascii_lowercase();
-            let (Some(sdf), Some(material)) = (
-                assets.procedural_sdfs.get(&sdf_alias),
-                assets.procedural_materials.get(&material_alias),
-            ) else {
-                continue;
-            };
-            let seed = item
-                .attributes
-                .get_int("appearance_seed")
-                .unwrap_or(item.id as i32) as u64;
-            let time = item
-                .attributes
-                .get_float("appearance_time")
-                .unwrap_or(frame_index as f32);
-            if let Err(error) =
-                AvatarHeadgearRecipeAdapter::apply(&renderer, sdf, material, output, time, seed)
-                && entity
-                    .attributes
-                    .get_bool_default("avatar_preview_debug", false)
-            {
-                eprintln!("[AVATAR_RECIPE] headgear '{sdf_alias}' failed: {error}");
-            }
-        }
     }
 
     pub(crate) fn explicit_item_tile(item: &Item, assets: &Assets) -> Option<crate::Tile> {
@@ -2026,48 +1886,5 @@ mod tests {
             )
             .is_none()
         );
-    }
-
-    #[test]
-    fn equipped_item_can_apply_a_catalog_material_to_avatar_channels() {
-        let mut avatar = test_avatar_4dir();
-        avatar.animations[0].perspectives[0].frames[0].texture =
-            Texture::new(vec![0, 0, 255, 255], 1, 1);
-        let mut assets = Assets::default();
-        assets.palette = ThePalette::new(vec![Some(TheColor::from_u8(255, 255, 255, 255))]);
-        assets.set_procedural_material_sources([(
-            "wardrobe/cloth",
-            r#"
-Material cloth
-    Surface
-        color = #d04020
-        opacity = 1.0
-"#,
-        )]);
-        let mut entity = Entity::new();
-        let mut armor = Item::new();
-        armor.set_attribute(
-            "appearance_recipe",
-            Value::Str("wardrobe/cloth".to_string()),
-        );
-        armor.set_attribute(
-            "avatar_channels",
-            Value::StrArray(vec!["torso".to_string()]),
-        );
-        entity.equipped.insert("torso".to_string(), armor);
-
-        let output = AvatarRuntimeBuilder::build_preview_for_entity_with_weapons(
-            &entity,
-            &avatar,
-            &assets,
-            Some("Idle"),
-            AvatarDirection::Front,
-            0,
-            AvatarShadingOptions::default(),
-            false,
-        )
-        .expect("recipe-backed avatar frame");
-
-        assert_eq!(output.rgba, vec![208, 64, 32, 255]);
     }
 }

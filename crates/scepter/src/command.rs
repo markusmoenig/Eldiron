@@ -434,15 +434,6 @@ pub struct GeometryCreateRoom {
     pub floor_tile: Option<TileSelector>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct GeometryPlaceBuilderAsset {
-    pub region: RegionRef,
-    pub asset: String,
-    pub at: Point3,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub on: Option<String>,
-}
-
 /// Typed Scepter commands. The serialized command names are the stable protocol names.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "command", content = "params")]
@@ -527,8 +518,6 @@ pub enum ScepterCommand {
     AttributesPatch(AttributesPatch),
     #[serde(rename = "geometry.create_room")]
     GeometryCreateRoom(GeometryCreateRoom),
-    #[serde(rename = "geometry.place_builder_asset")]
-    GeometryPlaceBuilderAsset(GeometryPlaceBuilderAsset),
 }
 
 impl ScepterCommand {
@@ -574,7 +563,6 @@ impl ScepterCommand {
             Self::AttributesGet(_) => "attributes.get",
             Self::AttributesPatch(_) => "attributes.patch",
             Self::GeometryCreateRoom(_) => "geometry.create_room",
-            Self::GeometryPlaceBuilderAsset(_) => "geometry.place_builder_asset",
         }
     }
 }

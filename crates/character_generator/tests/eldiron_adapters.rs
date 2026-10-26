@@ -132,7 +132,7 @@ fn avatar_roundtrips_through_eldiron_builder_without_duplicate_weapons() {
 }
 
 #[test]
-fn live_pixel_materials_are_opt_in_and_keep_authored_recipes_and_rig() {
+fn live_pixel_materials_are_opt_in_and_keep_authored_materials_and_rig() {
     let a = Catalog::parse(include_str!("../examples/heads.toml"))
         .unwrap()
         .generate_with_options(
@@ -151,7 +151,7 @@ fn live_pixel_materials_are_opt_in_and_keep_authored_recipes_and_rig() {
         if m.texture.is_some() || ![3, 5, 6, 9].contains(&m.channel) {
             assert_eq!(
                 plain.materials[i].rgba, pixel.materials[i].rgba,
-                "authored recipe changed"
+                "authored material changed"
             );
         }
     }

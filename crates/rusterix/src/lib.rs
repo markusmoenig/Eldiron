@@ -6,9 +6,7 @@ pub mod avatar;
 #[cfg(feature = "graphics")]
 pub mod avatar_builder;
 #[cfg(feature = "graphics")]
-pub mod avatar_recipe;
 pub mod batch;
-pub mod builderpreview;
 pub mod camera;
 pub mod chunk;
 pub mod chunkbuilder;
@@ -214,8 +212,7 @@ pub use crate::{
         surface::{BillboardAnimation, LoopOp, ProfileLoop, Surface},
         tile::{
             Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature, TileGeometryOperation,
-            TileLightEffect, TileMaterialMeta, TileNicheGeometry, TileParticleEffect,
-            TileRecipePlacement, TileRole,
+            TileLightEffect, TileMaterialMeta, TileNicheGeometry, TileParticleEffect, TileRole,
         },
         tilesource::{TileGroup, TileGroupMemberRef, TileSource},
         topology::MapTopology,

@@ -447,10 +447,10 @@ impl Dock for TilemapDock {
                                             alias: tile_for_runtime.name.clone(),
                                             gameplay_tags: Vec::new(),
                                             procedural: Default::default(),
-                                            recipe_placement: Default::default(),
+
                                             geometry: Default::default(),
                                             material: Default::default(),
-                                            material_alias: String::new(),
+
                                             baked_material_data: Vec::new(),
                                             particle_emitter: None,
                                             light_emitter: None,
@@ -665,10 +665,10 @@ impl TilemapDock {
             alias: rgba_tile.name.clone(),
             gameplay_tags: Vec::new(),
             procedural: Default::default(),
-            recipe_placement: Default::default(),
+
             geometry: Default::default(),
             material: Default::default(),
-            material_alias: String::new(),
+
             baked_material_data: Vec::new(),
             particle_emitter: None,
             light_emitter: None,

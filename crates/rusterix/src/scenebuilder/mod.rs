@@ -1,10 +1,10 @@
-pub(crate) mod preview_geometry;
 pub mod d2builder;
 pub mod d2material;
 #[cfg(feature = "graphics")]
 pub mod d2preview;
 #[cfg(feature = "graphics")]
 pub mod d3builder;
+pub(crate) mod preview_geometry;
 
 use crate::{CompiledLight, Map, ValueContainer};
 use vek::Vec2;

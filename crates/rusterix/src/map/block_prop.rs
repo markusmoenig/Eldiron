@@ -320,7 +320,7 @@ pub struct BlockPropAsset {
     #[serde(default)]
     pub components: Vec<BlockPropComponent>,
     /// Visual effects authored as part of the Prefab. These are independent of
-    /// Tiles and procedural recipes and follow their owning part hierarchy.
+    /// Tile materials follow their owning part hierarchy.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub particle_effects: Vec<BlockPropParticleEffect>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -418,23 +418,35 @@ impl Default for BlockPropPart {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[derive(Serialize, Clone, Debug, PartialEq)]
 pub enum BlockPropGeometrySource {
     Authored {
-        #[serde(default)]
         geometry_objects: Vec<GeometryObject>,
     },
-    Recipe {
-        recipe_id: Uuid,
-        #[serde(default)]
-        parameters: ValueContainer,
-        #[serde(default)]
-        seed: u64,
-        #[serde(default)]
-        generated_cache: Vec<GeometryObject>,
-        #[serde(default)]
-        source_signature: String,
-    },
+}
+
+impl<'de> Deserialize<'de> for BlockPropGeometrySource {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        // Existing generated prefabs keep their baked geometry as editable artwork.
+        // The removed procedural source, parameters and seed are intentionally ignored.
+        #[derive(Deserialize)]
+        enum StoredGeometry {
+            Authored {
+                #[serde(default)]
+                geometry_objects: Vec<GeometryObject>,
+            },
+            #[serde(rename = "Recipe")]
+            Baked {
+                #[serde(default)]
+                generated_cache: Vec<GeometryObject>,
+            },
+        }
+        let geometry_objects = match StoredGeometry::deserialize(deserializer)? {
+            StoredGeometry::Authored { geometry_objects } => geometry_objects,
+            StoredGeometry::Baked { generated_cache } => generated_cache,
+        };
+        Ok(Self::Authored { geometry_objects })
+    }
 }
 
 impl Default for BlockPropGeometrySource {
@@ -449,14 +461,7 @@ impl BlockPropGeometrySource {
     pub fn geometry_objects(&self) -> &[GeometryObject] {
         match self {
             Self::Authored { geometry_objects } => geometry_objects,
-            Self::Recipe {
-                generated_cache, ..
-            } => generated_cache,
         }
-    }
-
-    pub fn is_generated(&self) -> bool {
-        matches!(self, Self::Recipe { .. })
     }
 }
 

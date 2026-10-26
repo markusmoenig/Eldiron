@@ -10150,20 +10150,6 @@ impl TheTrait for Editor {
                                 redraw = true;
                             }
                         }
-                    } else if id.name == "Open Builder Graph Workflow" {
-                        if let TheValue::Id(builder_id) = value {
-                            self.server_ctx.curr_builder_graph_id = Some(builder_id);
-                        }
-                        let mut dm = DOCKMANAGER.write().unwrap();
-                        dm.set_dock(
-                            "Builder".into(),
-                            ui,
-                            ctx,
-                            &self.project,
-                            &mut self.server_ctx,
-                        );
-                        dm.edit_maximize(ui, ctx, &mut self.project, &mut self.server_ctx);
-                        redraw = true;
                     } else if id.name == "Minimize Dock" {
                         DOCKMANAGER.write().unwrap().minimize(
                             ui,

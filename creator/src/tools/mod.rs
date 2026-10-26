@@ -9,7 +9,6 @@ pub mod geometry;
 pub mod iso_paint;
 // pub mod info;
 pub mod blocks;
-pub mod builder;
 pub mod collision_probe;
 pub mod linedef;
 pub mod palette;

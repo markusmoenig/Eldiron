@@ -1001,9 +1001,6 @@ pub fn ensure_prefab_default_surfaces(project: &mut Project, asset_id: Uuid) -> 
     for part in &mut asset.parts {
         let objects = match &mut part.geometry_source {
             rusterix::BlockPropGeometrySource::Authored { geometry_objects } => geometry_objects,
-            rusterix::BlockPropGeometrySource::Recipe {
-                generated_cache, ..
-            } => generated_cache,
         };
         for object in objects {
             let (color, material, finish) = effect_surface_defaults(object);
