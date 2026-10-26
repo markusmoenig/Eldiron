@@ -659,7 +659,7 @@ fallbacks can rely on those indices staying stable. Authored icon PNGs keep
 their own RGBA colors and do not depend on this palette.
 
 The editable **Art Palette** is separate. It is used for artist-authored tiles,
-pixel drawing, tile graphs, palette-index geometry sources, and 3D Paint.
+pixel drawing, palette-index geometry sources, and 3D Paint.
 
 For ruleset-driven projects:
 

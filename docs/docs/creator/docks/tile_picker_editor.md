@@ -7,12 +7,12 @@ sidebar_position: 3
 
 The **Tile Picker** dock is the main asset browser and assignment dock for map work. It is used to:
 
-- browse project tiles, tile groups, and node groups
+- browse project tiles and tile groups
 - organize them in collections
 - preview and select the current tile source
 - copy the selected tile or group UUID from the dock toolbar
 - apply or clear that source on geometry
-- open the pixel editor or node graph editor with the top-right [dock control](/docs/creator/actions/#dock-controls)
+- open the pixel editor with the top-right [dock control](/docs/creator/actions/#dock-controls)
 
 For single tiles, **Edit Tile Meta** can assign an alias and gameplay tags. The alias identifies the visual tile anywhere a `tile_id`-style source is accepted, including `set_tile(...)`; it does not trigger events. Gameplay tags describe behavior and trigger `entered_tile` and `left_tile` character events when a character crosses a painted 2D tile placement.
 
@@ -24,9 +24,8 @@ The tile picker can show several source types:
 
 - **Tile**: a single authored pixel tile
 - **Tile Group**: an authored grouped source made of several tiles
-- **Node Group**: a procedural grouped source generated from a tile graph
 
-All three can be selected from the tile picker. A single tile can be applied directly, while groups can be applied as grouped surface content where supported.
+Both can be selected from the tile picker. A single tile can be applied directly, while groups can be applied as grouped surface content where supported.
 
 ## Tabs And Views
 
@@ -47,10 +46,6 @@ Inside a group:
 - you can select individual member tiles
 - those member selections can be applied as normal single-tile sources
 - pressing `Escape` leaves the group again
-
-Node groups are edited in the node graph editor rather than directly inside the tile picker board.
-
-Node groups can also be used as reusable graph layers inside other node graphs. That layering workflow is described in [Tile Node Graph](/docs/creator/docks/tile_node_graph).
 
 ## Applying Sources
 
@@ -78,17 +73,13 @@ Behavior:
 
 ## Opening The Integrated Editors
 
-The top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) is context-sensitive:
-
-- if a **tile** is selected, Eldiron opens the **pixel tile editor**
-- if a **node group** is selected, Eldiron opens the **tile node graph editor**
+Select a tile and use the top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) to open the **pixel tile editor**.
 
 Use the adjacent **Restore Dock** control (`Cmd/Ctrl + ]`) to return to the normal editor/dock split.
 
 See:
 
 - [Pixel Tile Editor](/docs/creator/docks/pixel_tile_editor)
-- [Tile Node Graph](/docs/creator/docks/tile_node_graph)
 
 ## Authoring Mode
 
@@ -97,5 +88,4 @@ If **Authoring** mode is enabled in the tool strip, the tile picker is replaced 
 ## Related Pages
 
 - [Pixel Tile Editor](/docs/creator/docks/pixel_tile_editor)
-- [Tile Node Graph](/docs/creator/docks/tile_node_graph)
 - [Working With Tiles](/docs/building_maps/working_with_tiles)

@@ -349,7 +349,6 @@ Possible commands:
 tile.create_bitmap
 tile.create_from_rgba
 tile.create_from_palette
-tile.create_from_tilegraph
 tile.set_meta
 tile.set_alias
 tile.set_procedural_meta

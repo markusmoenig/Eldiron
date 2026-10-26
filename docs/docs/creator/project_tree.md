@@ -84,7 +84,6 @@ The tile picker can contain:
 
 - single tiles
 - tile groups
-- node groups
 
 Added tiles are shown with a slight gray overlay in the tileset editor, making it easy to see which files you already added. You can delete a tileset any time, already added tiles will not be affected.
 
@@ -124,7 +123,7 @@ Shows both palette roles used by the project:
 - **Ruleset Palette**: fixed colors used by ruleset avatars, UI color defaults,
   and generated missing-art fallbacks. Authored item icon PNGs keep their own
   RGBA colors.
-- **Art Palette**: editable project art colors used by tiles, drawing, palette-index geometry, tile graphs, and 3D Paint.
+- **Art Palette**: editable project art colors used by tiles, drawing, palette-index geometry and 3D Paint.
 
 Use the [Palette Tool](tools/palette) to edit the Art Palette, load external palette colors, and assign Art Palette entries to geometry. Ruleset Palette changes belong in the project’s ruleset nodes under **Game / Rules**.
 

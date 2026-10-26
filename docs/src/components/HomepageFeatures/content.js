@@ -172,7 +172,7 @@ export const homepageContent = {
         {
           title: "Tile Picker",
           description:
-            "Arrange tiles on the new Tile Picker board, and create, edit, and share collections, tile groups, and tile graphs from one central workflow.",
+            "Arrange tiles on the new Tile Picker board, and create, edit, and share collections and tile groups from one central workflow.",
           image: "/img/screenshots/Eldiron_v0.92_TP.png",
           alt: "Tile Picker screenshot",
           href: "/docs/creator/docks/tile_picker_editor",

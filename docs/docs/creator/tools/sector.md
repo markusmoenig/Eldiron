@@ -31,7 +31,7 @@ In 3D, **F** switches to face selection when there is no selected vertex boundar
 - **Cmd/Ctrl+U**: Run the Face Subdivide action on selected quad faces.
 - **Cmd/Ctrl+I**: Run the Face Inset action. Use the action parameters to set the inset amount.
 - **Cmd/Ctrl+M**: Run the Face Merge action on selected connected faces.
-- **T**: Apply the current tile, color, tilegraph, or nodegraph source.
+- **T**: Apply the current tile or color source.
 - **+ / -**: Push or pull selected faces along their normals.
 - **[ / ]**: Move selected faces vertically by one grid step.
 - **Delete**: Delete selected faces. Boundary vertices remain selected so the opening can be filled with **F** in vertex editing.

@@ -26,7 +26,7 @@ The 3D HUD shows `MOVE` and `SIZE` controls when the Object Tool is active.
 - **S**: Switch the object gizmo to size mode.
 - **R**: Rotate selected objects 90 degrees around the vertical axis.
 - **Shift + R**: Rotate selected objects 90 degrees in the opposite direction.
-- **T**: Apply the current tile, palette color, tilegraph, or nodegraph source to every face on the selected objects.
+- **T**: Apply the current tile or palette color source to every face on the selected objects.
 - **Drag axis handle**: Move or resize along that axis.
 - **+ / -**: Resize selected objects on the horizontal axes.
 - **[ / ]**: Resize selected objects vertically.

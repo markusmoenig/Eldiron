@@ -1593,10 +1593,6 @@ impl TilesDock {
         self.drag_item = None;
         self.drag_drop_cell = None;
         self.drag_hover_coord = None;
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Close Tile Node Editor Skeleton"),
-            TheValue::Empty,
-        ));
         self.render_views(ui, ctx, project);
     }
 
@@ -1611,10 +1607,6 @@ impl TilesDock {
         self.drag_item = None;
         self.drag_drop_cell = None;
         self.drag_hover_coord = None;
-        ctx.ui.send(TheEvent::Custom(
-            TheId::named("Close Tile Node Editor Skeleton"),
-            TheValue::Empty,
-        ));
         self.render_views(ui, ctx, project);
     }
 

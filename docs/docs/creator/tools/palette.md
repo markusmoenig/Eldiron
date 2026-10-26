@@ -11,7 +11,7 @@ Eldiron keeps two palette concepts separate:
   are used by ruleset avatars, UI color defaults, and generated missing-art
   fallbacks. Artist-authored item icon PNGs are full-color RGBA and are not
   recolored through this palette.
-- **Art Palette**: the editable 256-slot project palette used for tiles, pixel drawing, tile graphs, palette-index geometry sources, and 3D Paint.
+- **Art Palette**: the editable 256-slot project palette used for tiles, pixel drawing, palette-index geometry sources, and 3D Paint.
 
 The Palette Tool edits the **Art Palette**. It does not edit the Ruleset Palette.
 

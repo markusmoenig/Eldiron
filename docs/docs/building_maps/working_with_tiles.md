@@ -31,7 +31,6 @@ The tile picker can now contain:
 
 - single tiles
 - tile groups
-- node groups
 
 Added tiles are shown with a slight gray overlay in the tileset editor, making it easy to see which files you already added. You can delete a tileset any time, already added tiles will not be affected.
 
@@ -43,9 +42,7 @@ In the tile picker you can use the [New Tile](/docs/creator/actions/#new-tile) o
 
 Selecting a tile and clicking the top-right **Edit / Maximize Dock** control, or pressing `Cmd/Ctrl + [`, opens the integrated **pixel tile editor**.
 
-Selecting a node group and using the same control opens the **tile node graph editor** instead. Use the adjacent **Restore Dock** control or `Cmd/Ctrl + ]` to return to the normal split layout.
-
-Node graphs can also import other node graphs as reusable layers, which is useful for building modular materials such as stones with soil, moss, or grass overlays.
+Use the adjacent **Restore Dock** control or `Cmd/Ctrl + ]` to return to the normal split layout.
 
 Drawing pixels uses the currently selected color in the Art Palette. Palette actions such as [Clear Palette](/docs/creator/actions/#clear-palette) and [Load Palette](/docs/creator/actions/#load-palette) operate on the editable Art Palette, not the fixed Ruleset Palette.
 
@@ -55,4 +52,3 @@ See:
 
 - [Tile Picker](/docs/creator/docks/tile_picker_editor)
 - [Pixel Tile Editor](/docs/creator/docks/pixel_tile_editor)
-- [Tile Node Graph](/docs/creator/docks/tile_node_graph)

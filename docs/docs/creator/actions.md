@@ -275,7 +275,7 @@ Options:
 
 Convert selected 3D surface lines into persistent raised ridge geometry. Draw surface lines with the Linedef / Edge Tool, click a point or segment to select the connected shape, then set the ridge shape, width, and height in the action parameters.
 
-Ridges are generated as a separate Geometry Object and are selected after creation. By default they inherit the tile, color, tilegraph, or nodegraph source from the host face, which makes small surface details usable without manually painting each tiny face.
+Ridges are generated as a separate Geometry Object and are selected after creation. By default they inherit the tile or color source from the host face, which makes small surface details usable without manually painting each tiny face.
 
 Options:
 
@@ -597,7 +597,7 @@ Options: none.
 
 ### Apply Tile
 
-Apply the current tile, palette color, tilegraph, or nodegraph source to selected 2D sectors, selected 3D faces, or all faces of selected 3D Geometry Objects.
+Apply the current tile or palette color source to selected 2D sectors, selected 3D faces, or all faces of selected 3D Geometry Objects.
 
 Options:
 

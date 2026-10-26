@@ -81,8 +81,6 @@ For authored pixel tiles:
 - drawing uses the selected Art Palette color
 - render material comes from high-level material metadata, such as tile presets, Art Palette entry presets, or object overrides
 
-Procedural node groups use the node graph editor instead and can generate height-driven normals from graph output.
-
 Ruleset icon state directories reserve an optional `material.png` for future
 artist-authored material data: red is roughness, blue metallic, green emission,
 and alpha is unused. The editor does not currently load or edit this file.
@@ -90,4 +88,3 @@ and alpha is unused. The editor does not currently load or edit this file.
 ## Related Pages
 
 - [Tile Picker](/docs/creator/docks/tile_picker_editor)
-- [Tile Node Graph](/docs/creator/docks/tile_node_graph)

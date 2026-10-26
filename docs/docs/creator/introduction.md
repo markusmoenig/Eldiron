@@ -35,10 +35,7 @@ Frequently used camera actions are also available as right-aligned icon shortcut
 
 After the camera shortcuts, a separator marks two dock controls. The frame-corners button opens or maximizes the editor for the current dock (`Cmd/Ctrl + [`), while the down-caret button restores the normal editor/dock split (`Cmd/Ctrl + ]`). These are direct controls and do not appear in the Actions page.
 
-At the bottom of the screen you see the currently active **dock**, in this screenshot the tile picker. The tile picker is now both a source browser and an entry point into Eldiron’s tile authoring workflows:
-
-- single tiles can be edited in the integrated pixel editor
-- node groups can be edited in the tile node graph editor
+At the bottom of the screen you see the currently active **dock**, in this screenshot the tile picker. The tile picker is both a source browser and an entry point into Eldiron’s integrated pixel editor for individual tiles.
 
 The lower dock is reserved for the active content editor or picker. See [Dock Controls](actions#dock-controls) for opening and restoring dock editors, and [Actions](actions/) for details about the contextual action list in the right sidebar.
 

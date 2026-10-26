@@ -56,7 +56,7 @@ With the **Object Tool (`O`)** active:
 - **Drag a handle** to move or resize on that axis.
 - **+ / -** resize selected objects horizontally.
 - **[ / ]** resize selected objects vertically.
-- **T** applies the current tile, palette color, tilegraph, or nodegraph source to every face on the selected objects.
+- **T** applies the current tile or palette color source to every face on the selected objects.
 - **Delete** removes the selected objects.
 
 Movement and resizing snap to the current grid size. When multiple objects are selected, dragging a selected object or its move gizmo moves the selection together. Gizmo handles are sized from the current camera view, so they stay usable on both small details and large objects.
@@ -84,7 +84,7 @@ Useful face shortcuts:
 - **Cmd/Ctrl+I** runs the Face Inset action. Set the inset amount in the action parameters.
 - **Cmd/Ctrl+M** runs the Face Merge action on selected connected faces.
 - **Delete** removes selected faces and leaves the boundary vertices selected.
-- **T** applies the current tile, palette color, tilegraph, or nodegraph source. Explicit face selections take priority over object selections, so painting selected faces on an object affects only those faces.
+- **T** applies the current tile or palette color source. Explicit face selections take priority over object selections, so painting selected faces on an object affects only those faces.
 - **Arrow keys** nudge texture offsets on selected textured faces.
 - **Shift + Left / Right** rotates textures on selected textured faces.
 - **Ctrl/Cmd + Arrow keys** scales textures on selected textured faces.
@@ -131,7 +131,7 @@ Surface lines are the shared workflow for custom relief and holes:
 - **Surface Curve** sets selected guide segments, or the shortest path between two selected guide points, to straight lines or configurable arcs. Positive and negative amounts bend the arc in opposite directions, so the same drawn loop can become a plain cutout, an arched opening, or a decorative curved pattern.
 - **3D Paint** adds persistent surface-space paint to 3D geometry for organic details such as moss, cracks, dirt, grass, puddles, stamps, and generated brick/tile patterns.
 
-Ridges and grooves become persistent Geometry Objects, are selected after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default. This makes small details like mortar lines, brick seams, carved floor patterns, and raised borders immediately visible without selecting and painting each tiny face.
+Ridges and grooves become persistent Geometry Objects, are selected after creation, and inherit the tile or color source from the host face by default. This makes small details like mortar lines, brick seams, carved floor patterns, and raised borders immediately visible without selecting and painting each tiny face.
 
 Create Cutout uses the actual closed loop shapes, including curved arc segments. It rebuilds the front face and the opposite face around the openings, then creates reveal faces through the object thickness. If the guide loop spans a face that has been split into coplanar pieces, the cutout rebuilds the full coplanar surface island instead of only the small host quad. The guide loops remain selected after the cutout, so they can be moved, duplicated, reused, or deleted explicitly. Surface guides can also be reselected on the rebuilt surface ring, which makes repeated custom windows, vents, floor holes, arched openings, and non-rectangular cuts possible without redrawing the original shape.
 
@@ -164,8 +164,6 @@ Use **Edit Vertex** with one selected 3D vertex to enter exact world coordinates
 
 - tiles from the Tile Picker
 - Art Palette colors from the Palette dock
-- tilegraphs
-- nodegraphs
 
 Art Palette colors keep their own material preset and finish metadata, so changing an Art Palette entry's material updates 3D surfaces that use that palette index.
 
@@ -191,7 +189,7 @@ Use **Make Prefab Unique** when one linked instance needs its own source, or **U
 4. Subdivide faces with **Cmd/Ctrl+U** or inset them with **Cmd/Ctrl+I** when you need smaller editable regions.
 5. Use **Linedef / Edge** surface lines for ridges, grooves, custom cutouts, and surface relief.
 6. Use **Vertex** tools for boundary fill, cleanup, and custom shapes.
-7. Paint faces with tiles, Art Palette colors, tilegraphs, or nodegraphs.
+7. Paint faces with tiles or Art Palette colors.
 8. Use **3D Paint** to add organic surface detail that remains attached to the clean 3D structure in every 3D camera.
 
 This workflow is meant to stay realtime while editing.

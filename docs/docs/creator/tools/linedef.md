@@ -62,7 +62,7 @@ Surface lines are editor geometry attached to the face. They do not cut or defor
 - **Clear Surface Detail** removes every editable guide from the host faces identified by the selected guide points or segments, without affecting paint or generated geometry.
 - **Surface Curve** sets selected guide segments, or the shortest path between selected points, to straight lines or configurable arcs.
 
-Create Cutout keeps the guide loops selected after openings are created, so shapes can be reused or duplicated instead of redrawn. The guides remain selectable on the rebuilt ring, which supports several matching cutouts on one object. Curved guide segments are tessellated into the resulting cutout, ridge, or groove geometry. Ridge and Groove can create box-shaped, triangular, or rounded strokes. They generate a separate Geometry Object, select it after creation, and inherit the tile, color, tilegraph, or nodegraph source from the host face by default.
+Create Cutout keeps the guide loops selected after openings are created, so shapes can be reused or duplicated instead of redrawn. The guides remain selectable on the rebuilt ring, which supports several matching cutouts on one object. Curved guide segments are tessellated into the resulting cutout, ridge, or groove geometry. Ridge and Groove can create box-shaped, triangular, or rounded strokes. They generate a separate Geometry Object, select it after creation, and inherit the tile or color source from the host face by default.
 
 The same closed guide-loop concept is intended to support future surface-region actions: cutting through, carving/chipping the inside, raising the inside, splitting the region into new paintable faces, or assigning different tiles/colors to generated interior regions.
 
