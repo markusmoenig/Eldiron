@@ -174,3 +174,9 @@ That configuration controls things like:
 - sector description message policy
 
 See [Authoring Configuration](../configuration/authoring) for the full reference.
+
+## Optional AI Text Input
+
+The terminal client can use the same authored rooms, exits and intents with optional
+AI interpretation. See [AI for Text Play](../clients/text_ai.md) for account setup,
+provider options and cancellation. No extra authoring mode is needed.

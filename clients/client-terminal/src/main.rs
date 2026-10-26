@@ -26,6 +26,9 @@ use std::time::{Duration, Instant};
 use toml::Table;
 use uuid::Uuid;
 
+mod ai;
+mod chatgpt;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum StartupDisplay {
     Description,
@@ -55,6 +58,7 @@ impl TerminalPlayMode {
 struct TerminalCliOptions {
     path: Option<PathBuf>,
     mode: Option<TerminalPlayMode>,
+    ai_provider: Option<String>,
 }
 
 struct TerminalApp {
@@ -66,6 +70,8 @@ struct TerminalApp {
     screen_messages: Vec<String>,
     auto_attack_target: Option<u32>,
     server_log_cursor: usize,
+    ai: shared::ai::Assistant,
+    ai_session: Uuid,
 }
 
 enum InputEvent {
@@ -102,6 +108,8 @@ impl TerminalApp {
             screen_messages: Vec::new(),
             auto_attack_target: None,
             server_log_cursor: 0,
+            ai: shared::ai::Assistant::default(),
+            ai_session: Uuid::new_v4(),
         };
 
         app.start_server(false)?;
@@ -994,11 +1002,25 @@ fn parse_terminal_args(args: &[String]) -> Result<TerminalCliOptions, String> {
     let mut options = TerminalCliOptions {
         path: None,
         mode: None,
+        ai_provider: None,
     };
     let mut index = 1;
     while index < args.len() {
         let arg = &args[index];
-        if arg == "--mode" {
+        if arg == "--ai-provider" || arg.starts_with("--ai-provider=") {
+            let value = if let Some(v) = arg.strip_prefix("--ai-provider=") {
+                v.to_string()
+            } else {
+                index += 1;
+                args.get(index)
+                    .ok_or("Missing value after --ai-provider.")?
+                    .clone()
+            };
+            if !matches!(value.as_str(), "disabled" | "environment" | "chatgpt") {
+                return Err("AI provider must be chatgpt, environment or disabled.".into());
+            }
+            options.ai_provider = Some(value);
+        } else if arg == "--mode" {
             index += 1;
             let Some(value) = args.get(index) else {
                 return Err("Missing value after --mode.".to_string());
@@ -1026,7 +1048,8 @@ fn parse_terminal_args(args: &[String]) -> Result<TerminalCliOptions, String> {
 
 fn terminal_usage() -> &'static str {
     "Usage:\n\
-       eldiron-client-terminal [game.eldiron] [--mode text|roguelike]\n\
+       eldiron-client-terminal [game.eldiron] [--mode text|roguelike] [--ai-provider chatgpt|environment|disabled]\n\
+       eldiron-client-terminal auth login [--new] | logout | status | accounts | use ACCOUNT_UUID | models | model MODEL_SLUG\n\
        eldiron-client-terminal rules <command> ...\n\
      Modes:\n\
        text       Current room/description terminal play.\n\
@@ -2389,6 +2412,13 @@ fn trigger_text_intent(app: &mut TerminalApp, intent: &str, query: &str) -> Vec<
         Err(err) => return vec![err],
     };
 
+    dispatch_text_intent(app, intent, target)
+}
+fn dispatch_text_intent(
+    app: &mut TerminalApp,
+    intent: &str,
+    target: sg::TextTarget,
+) -> Vec<String> {
     match target {
         sg::TextTarget::Entity { id, distance } => {
             app.server.local_player_action(EntityAction::EntityClicked(
@@ -2444,6 +2474,23 @@ fn tick_duration(project: &Project) -> Duration {
     Duration::from_millis(tick_ms)
 }
 
+fn after_text_movement(app: &mut TerminalApp) -> Vec<String> {
+    let mut output = Vec::new();
+    if let Some(map) = app.current_region().map(|region| region.map.clone()) {
+        for entry in app.session.after_movement(&map, &app.project.authoring) {
+            match entry {
+                TextSessionOutput::RenderRoom => output.push(app.render_room_text()),
+                TextSessionOutput::Plain(text) => output.push(text),
+                TextSessionOutput::Message { text, category } => output.push(
+                    colorize_terminal_category(&text, &category, &app.project.authoring),
+                ),
+            }
+        }
+    }
+    output.extend(collect_region_output(app, false));
+    output
+}
+
 fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
     let mut output = Vec::new();
     let lower = input.to_ascii_lowercase();
@@ -2475,22 +2522,7 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
             }
 
             if moved {
-                if let Some(map) = app.current_region().map(|region| region.map.clone()) {
-                    for entry in app.session.after_movement(&map, &app.project.authoring) {
-                        match entry {
-                            TextSessionOutput::RenderRoom => output.push(app.render_room_text()),
-                            TextSessionOutput::Plain(text) => output.push(text),
-                            TextSessionOutput::Message { text, category } => {
-                                output.push(colorize_terminal_category(
-                                    &text,
-                                    &category,
-                                    &app.project.authoring,
-                                ))
-                            }
-                        }
-                    }
-                }
-                output.extend(collect_region_output(app, false));
+                output.extend(after_text_movement(app));
             } else {
                 output.push("You cannot go that way.".into());
             }
@@ -2584,24 +2616,7 @@ fn handle_command(app: &mut TerminalApp, input: &str) -> (bool, Vec<String>) {
                 }
 
                 if moved {
-                    if let Some(map) = app.current_region().map(|region| region.map.clone()) {
-                        for entry in app.session.after_movement(&map, &app.project.authoring) {
-                            match entry {
-                                TextSessionOutput::RenderRoom => {
-                                    output.push(app.render_room_text())
-                                }
-                                TextSessionOutput::Plain(text) => output.push(text),
-                                TextSessionOutput::Message { text, category } => {
-                                    output.push(colorize_terminal_category(
-                                        &text,
-                                        &category,
-                                        &app.project.authoring,
-                                    ))
-                                }
-                            }
-                        }
-                    }
-                    output.extend(collect_region_output(app, false));
+                    output.extend(after_text_movement(app));
                 } else {
                     output.push("No matching exit.".into());
                 }
@@ -2670,11 +2685,21 @@ fn run_blocking_cli(mut app: TerminalApp) {
             }
         };
 
-        let (keep_running, output) = handle_command(&mut app, &input);
+        let (keep_running, output) = ai::input(&mut app, &input);
         for block in output {
             if !block.trim().is_empty() {
                 println!();
                 println!("{}", block);
+            }
+        }
+        while keep_running && app.ai.is_busy() {
+            for block in ai::poll(&mut app) {
+                if !block.trim().is_empty() {
+                    println!("\n{block}");
+                }
+            }
+            if app.ai.is_busy() {
+                thread::sleep(Duration::from_millis(10));
             }
         }
         if !keep_running {
@@ -2740,7 +2765,7 @@ fn run_realtime_cli(mut app: TerminalApp) {
     while keep_running {
         match rx.recv_timeout(Duration::from_millis(25)) {
             Ok(InputEvent::Line(input)) => {
-                let (still_running, output) = handle_command(&mut app, &input);
+                let (still_running, output) = ai::input(&mut app, &input);
                 keep_running = still_running;
                 for block in output {
                     print_with_printer(&mut printer, &block);
@@ -2757,6 +2782,9 @@ fn run_realtime_cli(mut app: TerminalApp) {
             Err(mpsc::RecvTimeoutError::Timeout) => {}
         }
 
+        for block in ai::poll(&mut app) {
+            print_with_printer(&mut printer, &block);
+        }
         let now = Instant::now();
         while keep_running && now >= next_tick {
             app.process_auto_attack();
@@ -3811,6 +3839,13 @@ mod tests {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("auth") {
+        if let Err(error) = chatgpt::run(&args[2..]) {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+        return;
+    }
     if args.get(1).map(String::as_str) == Some("rules") {
         if let Err(err) = run_rules_command(&args[2..]) {
             eprintln!("{}", err);
@@ -3835,7 +3870,7 @@ fn main() {
         }
     };
 
-    let app = match TerminalApp::load(&path) {
+    let mut app = match TerminalApp::load(&path) {
         Ok(app) => app,
         Err(err) => {
             eprintln!("{}", err);
@@ -3855,5 +3890,20 @@ fn main() {
         }
     };
 
+    if mode == TerminalPlayMode::Text {
+        if let Err(error) = ai::configure(&mut app, cli_options.ai_provider.as_deref()) {
+            eprintln!("{error}");
+            app.server.stop();
+            std::process::exit(1);
+        }
+    } else if cli_options
+        .ai_provider
+        .as_deref()
+        .is_some_and(|p| p != "disabled")
+    {
+        eprintln!("AI interpretation is available in text mode only.");
+        app.server.stop();
+        std::process::exit(1);
+    }
     run_terminal_app(app, mode);
 }

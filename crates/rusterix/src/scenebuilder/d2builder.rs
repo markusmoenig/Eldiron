@@ -264,7 +264,11 @@ impl D2Builder {
             }
 
             if item.attributes.get_bool_default("visible", false) {
-                if let Some(frames) = Widget::project_item_icon_frames(assets, item) {
+                #[cfg(feature = "graphics")]
+                let icon_frames = Widget::project_item_icon_frames(assets, item);
+                #[cfg(not(feature = "graphics"))]
+                let icon_frames: Option<&Vec<crate::Texture>> = None;
+                if let Some(frames) = icon_frames {
                     let tile = crate::Tile::from_textures(frames.clone());
                     let Some(texture_index) = u16::try_from(textures.len()).ok() else {
                         continue;

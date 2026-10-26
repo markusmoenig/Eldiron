@@ -396,3 +396,7 @@ impl RenderTile {
         tiles
     }
 }
+
+/// Optional AI interpretation for existing text-game hosts.
+#[cfg(feature = "text-ai")]
+pub mod ai;
