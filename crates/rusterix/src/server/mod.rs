@@ -52,6 +52,20 @@ pub fn publish_rules(rules: Table) {
 type Player = Arc<RwLock<Vec<(u32, u32)>>>;
 static LOCAL_PLAYERS: LazyLock<Player> = LazyLock::new(|| Arc::new(RwLock::new(Vec::new())));
 
+/// Whether a change in `region`, or to `entity`, should move the client's view
+/// there: only when it concerns a local player. NPCs teleport and change
+/// regions too, and following them would make the view jump between maps.
+/// Without a local player the view follows every change, as before.
+fn follows_local_player(region: Option<u32>, entity: Option<u32>) -> bool {
+    let Ok(players) = LOCAL_PLAYERS.read() else {
+        return true;
+    };
+    players.is_empty()
+        || players
+            .iter()
+            .any(|(r, e)| region == Some(*r) || entity == Some(*e))
+}
+
 // SenderEntityId, SenderItemId, ReceiverId, Message
 pub type Message = (Option<u32>, Option<u32>, u32, String, String);
 // SenderEntityId, SenderItemId, Message, Category
@@ -647,7 +661,9 @@ impl Server {
                             } else {
                                 self.entities.insert(dest_id, vec![removed_local]);
                             }
-                            rc = Some(dest_region_name.clone());
+                            if follows_local_player(None, Some(entity.id)) {
+                                rc = Some(dest_region_name.clone());
+                            }
                         }
 
                         // Change the local player reference to the new region
@@ -700,7 +716,7 @@ impl Server {
                             }
                         }
                     }
-                    RegionMessage::MapUpdate(_id, map) => {
+                    RegionMessage::MapUpdate(id, map) => {
                         if let Some(region_id) = self.region_id_map.get(&map.id).copied() {
                             self.entities.insert(region_id, map.entities.clone());
                             self.items.insert(region_id, map.items.clone());
@@ -710,7 +726,9 @@ impl Server {
                             self.runtime_map_position_guards.insert(region_id, 4);
                         }
                         assets.maps.insert(map.name.clone(), map.clone());
-                        rc = Some(map.name.clone());
+                        if follows_local_player(Some(id), None) {
+                            rc = Some(map.name.clone());
+                        }
                     }
                     RegionMessage::BlockPropInstancesUpdate(id, instances) => {
                         self.block_prop_instances.insert(id, instances);
