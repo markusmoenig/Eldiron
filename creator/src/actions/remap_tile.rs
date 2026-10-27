@@ -344,32 +344,6 @@ impl Action for RemapTile {
 
             if let Some(source) = server_ctx.curr_tile_source {
                 match source {
-                    TileSource::TileGroup(group_id) => {
-                        if let Some(group) = project.tile_groups.get(&group_id).cloned() {
-                            for member in &group.members {
-                                if let Some(tile) = project.tiles.get_mut(&member.tile_id) {
-                                    let prev = tile.clone();
-                                    if remap_tile_to_palette(tile, &palette, remap_mode) {
-                                        edits.push((prev, tile.clone()));
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    TileSource::TileGroupMember {
-                        group_id,
-                        member_index,
-                    } => {
-                        if let Some(group) = project.tile_groups.get(&group_id)
-                            && let Some(member) = group.members.get(member_index as usize)
-                            && let Some(tile) = project.tiles.get_mut(&member.tile_id)
-                        {
-                            let prev = tile.clone();
-                            if remap_tile_to_palette(tile, &palette, remap_mode) {
-                                edits.push((prev, tile.clone()));
-                            }
-                        }
-                    }
                     TileSource::SingleTile(tile_id) => {
                         if let Some(tile) = project.tiles.get_mut(&tile_id) {
                             let prev = tile.clone();
@@ -378,7 +352,6 @@ impl Action for RemapTile {
                             }
                         }
                     }
-                    TileSource::Procedural(_) => {}
                 }
             } else if let Some(tile_id) = server_ctx.curr_tile_id
                 && let Some(tile) = project.tiles.get_mut(&tile_id)

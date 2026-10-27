@@ -840,36 +840,13 @@ impl RectTool {
             TileSource::SingleTile(id) => {
                 TheValue::List(vec![TheValue::Text("single".to_string()), TheValue::Id(id)])
             }
-            TileSource::TileGroup(id) => {
-                TheValue::List(vec![TheValue::Text("group".to_string()), TheValue::Id(id)])
-            }
-            TileSource::TileGroupMember {
-                group_id,
-                member_index,
-            } => TheValue::List(vec![
-                TheValue::Text("group_member".to_string()),
-                TheValue::Id(group_id),
-                TheValue::Int(member_index as i32),
-            ]),
-            TileSource::Procedural(id) => TheValue::List(vec![
-                TheValue::Text("procedural".to_string()),
-                TheValue::Id(id),
-            ]),
         }
     }
 
     fn tile_source_from_pixel_source(source: &PixelSource) -> Option<TileSource> {
         match source {
             PixelSource::TileId(id) => Some(TileSource::SingleTile(*id)),
-            PixelSource::TileGroup(id) => Some(TileSource::TileGroup(*id)),
-            PixelSource::TileGroupMember {
-                group_id,
-                member_index,
-            } => Some(TileSource::TileGroupMember {
-                group_id: *group_id,
-                member_index: *member_index,
-            }),
-            PixelSource::ProceduralTile(id) => Some(TileSource::Procedural(*id)),
+            PixelSource::ProceduralTile(id) => Some(TileSource::SingleTile(*id)),
             _ => None,
         }
     }

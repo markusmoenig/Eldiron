@@ -731,7 +731,6 @@ status_avatar_atlas_saved = Avatar-Atlas erfolgreich gespeichert.
 status_avatar_atlas_save_failed = Avatar-Atlas konnte nicht gespeichert werden: {$error}
 status_avatar_atlas_imported = {$count} Avatar-Atlas-Frames importiert.
 status_avatar_atlas_import_failed = Avatar-Atlas konnte nicht importiert werden: {$error}
-status_tiles_new_group = Erstellt eine Kachelgruppe. Prozedurale Inhalte werden als Rezept erstellt.
 prefab_editor_create_part = Teil erstellen
 prefab_editor_set_pivot = Drehpunkt setzen
 prefab_editor_remove_part = Teil entfernen

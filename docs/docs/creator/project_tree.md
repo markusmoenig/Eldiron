@@ -72,18 +72,14 @@ You can use the [Entity Tool](tools/entity) to move or delete item instances aft
 
 Tilesets are PNG images with grid based tiles of pixel art. After importing a tile set and applying the correct **Grid Size** you can select individual or multiple tiles (click and drag horizontally or vertically to select) and add them to the tile picker.
 
-Before adding the tile(s) make sure you selected the role as needed (to be able to filter and sort tiles correctly) and you can select one of three import modes:
+Before adding the tile(s) make sure you selected the role as needed (to be able to filter and sort tiles correctly) and you can select one of two import modes:
 
 - **Single**. Add the selected tiles as individual tiles.
 - **Anim**. Add the selected tiles as one animated tile.
-- **Multi**. Add the selected tiles as one big tile, containing multiple tiles.
 
 In the tile picker you can further edit and organize tile sources. The tile picker toolbar also provides **Apply Tile** and **Clear Tile** for map geometry and action material slots.
 
-The tile picker can contain:
-
-- single tiles
-- tile groups
+The tile picker contains individual tiles, which can be organised in collections.
 
 Added tiles are shown with a slight gray overlay in the tileset editor, making it easy to see which files you already added. You can delete a tileset any time, already added tiles will not be affected.
 

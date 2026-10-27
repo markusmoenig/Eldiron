@@ -387,38 +387,6 @@ impl StatWidget {
             );
             return;
         }
-
-        let Some(group) = assets.tile_groups.get(&source_id) else {
-            return;
-        };
-        let group_w = group.width.max(1) as usize;
-        let group_h = group.height.max(1) as usize;
-        let stride = buffer.stride();
-        for member in &group.members {
-            let Some(tile) = assets.tiles.get(&member.tile_id) else {
-                continue;
-            };
-            if tile.textures.is_empty() {
-                continue;
-            }
-            let texture = &tile.textures[animation_frame % tile.textures.len()];
-            let x0 = member.x as usize * dst_w / group_w;
-            let y0 = member.y as usize * dst_h / group_h;
-            let x1 = ((member.x as usize + 1) * dst_w / group_w).max(x0 + 1);
-            let y1 = ((member.y as usize + 1) * dst_h / group_h).max(y0 + 1);
-            let width = x1.saturating_sub(x0).min(dst_w.saturating_sub(x0));
-            let height = y1.saturating_sub(y0).min(dst_h.saturating_sub(y0));
-            if width == 0 || height == 0 {
-                continue;
-            }
-            draw2d.blend_scale_chunk(
-                buffer.pixels_mut(),
-                &(x0, y0, width, height),
-                stride,
-                &texture.data,
-                &(texture.width, texture.height),
-            );
-        }
     }
 
     fn hex_to_rgba_u8(hex: &str) -> Pixel {

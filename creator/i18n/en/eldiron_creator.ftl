@@ -733,7 +733,6 @@ status_avatar_atlas_saved = Avatar atlas saved successfully.
 status_avatar_atlas_save_failed = Unable to save Avatar Atlas: {$error}
 status_avatar_atlas_imported = Imported {$count} avatar atlas frames.
 status_avatar_atlas_import_failed = Unable to import Avatar Atlas: {$error}
-status_tiles_new_group = Create a new tile group. Procedural content is authored as a Recipe.
 prefab_editor_create_part = Create Part
 prefab_editor_set_pivot = Set Pivot
 prefab_editor_remove_part = Remove Part

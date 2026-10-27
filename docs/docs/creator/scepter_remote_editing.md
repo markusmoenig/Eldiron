@@ -307,7 +307,6 @@ Useful tile authoring command groups planned for Scepter include:
 ```text
 tile.create_from_rgba
 tile.set_meta
-tile_group.create
 tileset.inspect
 tileset.list_unimported
 tileset.import_batch

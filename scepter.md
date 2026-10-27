@@ -180,7 +180,6 @@ tileset.import_anim
 tileset.import_multi
 tileset.import_batch
 tile.set_meta
-tile_group.create
 ```
 
 Example batch:

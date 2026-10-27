@@ -32,12 +32,6 @@ pub fn apply_surface_source_to_selected_prefab_instances(
 ) -> bool {
     let source = match source {
         crate::utils::SurfaceApplySource::Direct(source) => source.clone(),
-        crate::utils::SurfaceApplySource::TileGroup { group, .. } => {
-            let Some(member) = group.members.first() else {
-                return false;
-            };
-            rusterix::PixelSource::TileId(member.tile_id)
-        }
     };
     let Some(map) = project.get_map(server_ctx) else {
         return false;

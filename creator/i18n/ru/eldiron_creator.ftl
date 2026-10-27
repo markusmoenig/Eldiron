@@ -737,7 +737,6 @@ status_avatar_atlas_saved = Атлас аватара успешно сохра�
 status_avatar_atlas_save_failed = Не удалось сохранить атлас аватара: {$error}
 status_avatar_atlas_imported = Импортировано кадров атласа аватара: {$count}.
 status_avatar_atlas_import_failed = Не удалось импортировать атлас аватара: {$error}
-status_tiles_new_group = Создать группу тайлов. Процедурный контент создаётся как рецепт.
 prefab_editor_create_part = Создать часть
 prefab_editor_set_pivot = Задать опору
 prefab_editor_remove_part = Удалить часть

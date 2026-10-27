@@ -374,24 +374,6 @@ pub fn built_in_commands() -> Vec<ScepterCommandMeta> {
                 "blocking": false
             }
         })]),
-        ScepterCommandMeta::new(
-            "tile_group.create",
-            "Create a multi-tile group from existing tiles and optional tags.",
-        )
-        .params(vec![
-            ScepterParamMeta::new("name", "Group name shown in Creator.", true, "string"),
-            ScepterParamMeta::new("size", "Group width and height in cells.", true, "[integer; 2]"),
-            ScepterParamMeta::new(
-                "members",
-                "Tiles and their x, y positions within the group.",
-                false,
-                "TileGroupMember[]",
-            ),
-            ScepterParamMeta::new("tags", "Optional searchable group tags.", false, "string[]"),
-        ])
-        .capabilities(vec![TileRead, TileWrite])
-        .previewable()
-        .undoable(),
         ScepterCommandMeta::new("tileset.list", "List tilesets available to Creator.")
             .capabilities(vec![TileRead]),
         ScepterCommandMeta::new(

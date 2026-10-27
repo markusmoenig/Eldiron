@@ -868,7 +868,6 @@ pub fn refresh_palette_runtime(project: &Project) {
         rusterix.assets.palette_materials = palette_material_values(project);
         rusterix.assets.palette_material_ids = palette_material_ids(project);
         rusterix.set_tiles(project.tiles.clone(), true);
-        rusterix.set_tile_groups(project.tile_groups.clone());
         rusterix.set_dirty();
         (
             rusterix.assets.tile_list.clone(),

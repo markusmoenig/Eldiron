@@ -13,11 +13,10 @@ You can add more tilesets to your project by clicking the **+** button in the bo
 
 Tilesets are PNG images with grid based tiles of pixel art. After importing a tile set and applying the correct **Grid Size** you can select individual or multiple tiles (click and drag horizontally or vertically to select) and add them to the tile picker.
 
-Before adding the tile(s) make sure you selected the role as needed (to be able to filter and sort tiles correctly) and you can select one of three import modes:
+Before adding the tile(s) make sure you selected the role as needed (to be able to filter and sort tiles correctly) and you can select one of two import modes:
 
 - **Single**. Add the selected tiles as individual tiles.
 - **Anim**. Add the selected tiles as one animated tile.
-- **Multi**. Add the selected tiles as one big tile, containing multiple tiles.
 
 In the tile picker you can further edit tile sources and assign them to geometry. The dock toolbar contains **Copy Tile ID** for copying the selected source UUID, plus **Apply Tile** and **Clear Tile** for assigning or removing tile sources on map geometry and action material slots.
 
@@ -27,10 +26,7 @@ Single tiles can also have a human-readable alias. Set it with **Edit Tile Meta*
 
 Single tiles can also have high-level material metadata. Use **Edit Tile Meta** to assign a material preset and finish for tile sources. Art Palette colors carry their own material preset and finish in the **Palette** dock.
 
-The tile picker can now contain:
-
-- single tiles
-- tile groups
+The tile picker contains individual tiles, which can be organised in collections.
 
 Added tiles are shown with a slight gray overlay in the tileset editor, making it easy to see which files you already added. You can delete a tileset any time, already added tiles will not be affected.
 

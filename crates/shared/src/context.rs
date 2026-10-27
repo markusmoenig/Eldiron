@@ -445,6 +445,10 @@ pub struct ServerContext {
     /// The currently selected assignable tile source.
     pub curr_tile_source: Option<TileSource>,
 
+    /// Empty Tilepicker destination: optional collection ID and board cell.
+    /// Selection only; no project asset is created until an authoring action.
+    pub curr_tile_board_cell: Option<(Option<Uuid>, Vec2<i32>)>,
+
     /// The currently selected block asset for the block placement workflow.
     pub curr_block_asset_id: Option<Uuid>,
     /// The selected block asset display name.
@@ -708,6 +712,7 @@ impl ServerContext {
 
             curr_tile_id: None,
             curr_tile_source: None,
+            curr_tile_board_cell: None,
 
             curr_block_asset_id: None,
             curr_block_asset_name: None,

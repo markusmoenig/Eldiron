@@ -228,23 +228,6 @@ pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSo
     if let Some(source) = server_ctx.curr_tile_source {
         return Some(match source {
             TileSource::SingleTile(id) => PixelSource::TileId(id),
-            TileSource::TileGroup(id) => server_ctx
-                .curr_tile_id
-                .map(PixelSource::TileId)
-                .unwrap_or(PixelSource::TileGroup(id)),
-            TileSource::TileGroupMember {
-                group_id,
-                member_index,
-            } => server_ctx.curr_tile_id.map(PixelSource::TileId).unwrap_or(
-                PixelSource::TileGroupMember {
-                    group_id,
-                    member_index,
-                },
-            ),
-            TileSource::Procedural(id) => server_ctx
-                .curr_tile_id
-                .map(PixelSource::TileId)
-                .unwrap_or(PixelSource::ProceduralTile(id)),
         });
     }
 
@@ -254,47 +237,15 @@ pub fn get_source(_ui: &mut TheUI, server_ctx: &ServerContext) -> Option<PixelSo
 #[derive(Clone)]
 pub enum SurfaceApplySource {
     Direct(PixelSource),
-    TileGroup {
-        group: rusterix::TileGroup,
-        flip_y: bool,
-    },
 }
 
 pub fn get_surface_apply_source(
-    project: &Project,
+    _project: &Project,
     server_ctx: &ServerContext,
 ) -> Option<SurfaceApplySource> {
     if let Some(source) = server_ctx.curr_tile_source {
         return match source {
             TileSource::SingleTile(id) => Some(SurfaceApplySource::Direct(PixelSource::TileId(id))),
-            TileSource::TileGroup(id) => {
-                project
-                    .tile_groups
-                    .get(&id)
-                    .cloned()
-                    .map(|group| SurfaceApplySource::TileGroup {
-                        group,
-                        flip_y: false,
-                    })
-            }
-            TileSource::TileGroupMember { .. } => server_ctx
-                .curr_tile_id
-                .map(PixelSource::TileId)
-                .map(SurfaceApplySource::Direct),
-            TileSource::Procedural(id) => project
-                .tile_groups
-                .get(&id)
-                .cloned()
-                .map(|group| SurfaceApplySource::TileGroup {
-                    group,
-                    flip_y: false,
-                })
-                .or_else(|| {
-                    server_ctx
-                        .curr_tile_id
-                        .map(PixelSource::TileId)
-                        .map(SurfaceApplySource::Direct)
-                }),
         };
     }
 
@@ -304,76 +255,11 @@ pub fn get_surface_apply_source(
         .map(SurfaceApplySource::Direct)
 }
 
-fn ensure_sector_surface(map: &mut Map, sector_id: u32) -> Option<rusterix::Surface> {
-    if map.get_surface_for_sector_id(sector_id).is_none() {
-        let mut surface = rusterix::Surface::new(sector_id);
-        surface.calculate_geometry(map);
-        let id = surface.id;
-        map.surfaces.insert(id, surface);
-    }
-    map.get_surface_for_sector_id(sector_id).cloned()
-}
-
 fn clear_sector_tile_overrides(map: &mut Map, sector_id: u32) {
     if let Some(sector) = map.find_sector_mut(sector_id) {
         sector.properties.remove("tiles");
         sector.properties.remove("blend_tiles");
     }
-}
-
-fn point_in_polygon_2d(point: Vec2<f32>, polygon: &[Vec2<f32>]) -> bool {
-    if polygon.len() < 3 {
-        return false;
-    }
-    let mut inside = false;
-    let mut j = polygon.len() - 1;
-    for i in 0..polygon.len() {
-        let pi = polygon[i];
-        let pj = polygon[j];
-        let crosses = (pi.y > point.y) != (pj.y > point.y);
-        if crosses {
-            let denom = (pj.y - pi.y).abs().max(1e-6);
-            let x = (pj.x - pi.x) * (point.y - pi.y) / denom + pi.x;
-            if point.x < x {
-                inside = !inside;
-            }
-        }
-        j = i;
-    }
-    inside
-}
-
-fn sector_local_tile_cells(map: &Map, surface: &rusterix::Surface) -> Vec<(i32, i32)> {
-    let Some(loop_uv) = surface.sector_loop_uv(map) else {
-        return Vec::new();
-    };
-    let local_loop: Vec<Vec2<f32>> = loop_uv
-        .into_iter()
-        .map(|uv| surface.uv_to_tile_local(uv, map))
-        .collect();
-    if local_loop.len() < 3 {
-        return Vec::new();
-    }
-
-    let mut min = Vec2::new(f32::INFINITY, f32::INFINITY);
-    let mut max = Vec2::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
-    for point in &local_loop {
-        min.x = min.x.min(point.x);
-        min.y = min.y.min(point.y);
-        max.x = max.x.max(point.x);
-        max.y = max.y.max(point.y);
-    }
-
-    let mut cells = Vec::new();
-    for y in min.y.floor() as i32..max.y.ceil() as i32 {
-        for x in min.x.floor() as i32..max.x.ceil() as i32 {
-            let center = Vec2::new(x as f32 + 0.5, y as f32 + 0.5);
-            if point_in_polygon_2d(center, &local_loop) {
-                cells.push((x, y));
-            }
-        }
-    }
-    cells
 }
 
 pub fn apply_surface_source_to_sector(
@@ -401,76 +287,6 @@ pub fn apply_surface_source_to_sector(
                 }
             }
             changed
-        }
-        SurfaceApplySource::TileGroup { group, flip_y } => {
-            if group.width == 0 || group.height == 0 || group.members.is_empty() {
-                return false;
-            }
-            if source_key != "source" {
-                let mut changed = false;
-                for sector_id in target_sector_ids {
-                    if let Some(member) = group.members.first()
-                        && let Some(sector) = map.find_sector_mut(sector_id)
-                    {
-                        sector.properties.set(
-                            source_key,
-                            Value::Source(PixelSource::TileId(member.tile_id)),
-                        );
-                        if let Some(tile_mode) = tile_mode {
-                            sector.properties.set("tile_mode", Value::Int(tile_mode));
-                        }
-                        changed = true;
-                    }
-                }
-                return changed;
-            }
-
-            clear_sector_tile_overrides(map, sector_id);
-            let Some(surface) = ensure_sector_surface(map, sector_id) else {
-                return false;
-            };
-            let cells = sector_local_tile_cells(map, &surface);
-            if cells.is_empty() {
-                return false;
-            }
-
-            let member_lookup: FxHashMap<(i32, i32), Uuid> = group
-                .members
-                .iter()
-                .map(|member| ((member.x as i32, member.y as i32), member.tile_id))
-                .collect();
-            let mut tiles: FxHashMap<(i32, i32), PixelSource> = FxHashMap::default();
-
-            for (x, y) in cells {
-                let gx = x.rem_euclid(group.width as i32);
-                let gy = if *flip_y {
-                    (group.height as i32 - 1) - y.rem_euclid(group.height as i32)
-                } else {
-                    y.rem_euclid(group.height as i32)
-                };
-                if let Some(tile_id) = member_lookup.get(&(gx, gy)) {
-                    tiles.insert((x, y), PixelSource::TileId(*tile_id));
-                }
-            }
-
-            if let Some(sector) = map.find_sector_mut(sector_id) {
-                if let Some(first) = group.members.first() {
-                    sector
-                        .properties
-                        .set("source", Value::Source(PixelSource::TileId(first.tile_id)));
-                }
-                if let Some(tile_mode) = tile_mode {
-                    sector.properties.set("tile_mode", Value::Int(tile_mode));
-                }
-                if tiles.is_empty() {
-                    sector.properties.remove("tiles");
-                } else {
-                    sector.properties.set("tiles", Value::TileOverrides(tiles));
-                }
-                sector.properties.remove("blend_tiles");
-                return true;
-            }
-            false
         }
     }
 }
@@ -639,77 +455,6 @@ pub fn apply_surface_source_to_geometry_face(
                 face.tile = Some(pixel_source.clone());
                 face.tiles.clear();
                 face.auto_uv = auto_uv;
-            }
-            changed
-        }
-        SurfaceApplySource::TileGroup { group, flip_y } => {
-            let Some(face) = object.faces.get_mut(face_index) else {
-                return false;
-            };
-            if group.width == 0 || group.height == 0 || group.members.is_empty() {
-                return false;
-            }
-
-            let points = face
-                .indices
-                .iter()
-                .filter_map(|vertex_index| object.vertices.get(*vertex_index).copied())
-                .collect::<Vec<_>>();
-            if points.len() != face.indices.len() || points.len() < 3 {
-                return false;
-            }
-
-            let face_uvs = geometry_face_auto_uvs(&points);
-            let min_uv = face_uvs
-                .iter()
-                .fold(Vec2::broadcast(f32::INFINITY), |acc, uv| {
-                    Vec2::new(acc.x.min(uv.x), acc.y.min(uv.y))
-                });
-            let max_uv = face_uvs
-                .iter()
-                .fold(Vec2::broadcast(f32::NEG_INFINITY), |acc, uv| {
-                    Vec2::new(acc.x.max(uv.x), acc.y.max(uv.y))
-                });
-            if !min_uv.x.is_finite()
-                || !min_uv.y.is_finite()
-                || !max_uv.x.is_finite()
-                || !max_uv.y.is_finite()
-            {
-                return false;
-            }
-
-            let cells_x = (max_uv.x - min_uv.x).ceil().max(1.0) as i32;
-            let cells_y = (max_uv.y - min_uv.y).ceil().max(1.0) as i32;
-            let member_lookup: FxHashMap<(i32, i32), Uuid> = group
-                .members
-                .iter()
-                .map(|member| ((member.x as i32, member.y as i32), member.tile_id))
-                .collect();
-            let mut tiles: FxHashMap<(i32, i32), PixelSource> = FxHashMap::default();
-
-            for y in 0..cells_y {
-                for x in 0..cells_x {
-                    let gx = x.rem_euclid(group.width as i32);
-                    let gy = if *flip_y {
-                        (group.height as i32 - 1) - y.rem_euclid(group.height as i32)
-                    } else {
-                        y.rem_euclid(group.height as i32)
-                    };
-                    if let Some(tile_id) = member_lookup.get(&(gx, gy)) {
-                        tiles.insert((x, y), PixelSource::TileId(*tile_id));
-                    }
-                }
-            }
-
-            let first_source = group
-                .members
-                .first()
-                .map(|member| PixelSource::TileId(member.tile_id));
-            let changed = face.tile != first_source || face.tiles != tiles || !face.auto_uv;
-            if changed {
-                face.tile = first_source;
-                face.tiles = tiles;
-                face.auto_uv = true;
             }
             changed
         }

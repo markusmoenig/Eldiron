@@ -118,7 +118,6 @@ pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
     rusterix.assets.palette = project.art_palette.clone();
     rusterix.assets.read_rules_metadata();
     rusterix.set_tiles(project.tiles.clone(), true);
-    rusterix.set_tile_groups(project.tile_groups.clone());
 
     rusterix.assets.avatars.clear();
     insert_bundled_ruleset_avatars(&mut rusterix.assets, project);

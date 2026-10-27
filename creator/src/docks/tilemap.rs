@@ -7,7 +7,6 @@ use rusterix::TileRole;
 enum AddMode {
     Single,
     Anim,
-    Group,
 }
 
 use AddMode::*;
@@ -86,12 +85,14 @@ impl Dock for TilemapDock {
         toolbar_hlayout.add_widget(Box::new(hdivider));
 
         let mut add_switch = TheGroupButton::new(TheId::named("Tilemap Editor Switch"));
-        add_switch.add_text_status("Single".to_string(), "Show tile picker.".to_string());
+        add_switch.add_text_status(
+            "Single".to_string(),
+            "Add each selected cell as an individual tile.".to_string(),
+        );
         add_switch.add_text_status(
             "Anim".to_string(),
-            "Apply procedural materials.".to_string(),
+            "Add the selected cells as animation frames.".to_string(),
         );
-        add_switch.add_text_status("Group".to_string(), "Create a tile group.".to_string());
 
         add_switch.set_item_width(70);
         add_switch.set_index(0);
@@ -212,8 +213,6 @@ impl Dock for TilemapDock {
                         self.add_mode = Single;
                     } else if *index == 1 {
                         self.add_mode = Anim;
-                    } else {
-                        self.add_mode = Group;
                     }
                     self.compute_preview(project, ui);
                     redraw = true;
@@ -286,7 +285,6 @@ impl Dock for TilemapDock {
                     {
                         if let Some(editor) = editor.as_rgba_layout() {
                             let mut tiles = vec![];
-                            let mut multi_group: Option<rusterix::TileGroup> = None;
 
                             if self.add_mode == Single {
                                 let sequence = editor
@@ -310,44 +308,6 @@ impl Dock for TilemapDock {
                                     .selection_as_sequence();
                                 tile.sequence = sequence;
                                 tiles.push(tile);
-                            } else if self.add_mode == Group {
-                                let dim = editor
-                                    .rgba_view_mut()
-                                    .as_rgba_view()
-                                    .unwrap()
-                                    .selection_as_dim();
-
-                                let mut grid_size = 16;
-
-                                if let Some(t) = project.get_tilemap(self.curr_tilemap_id) {
-                                    grid_size = t.grid_size;
-                                }
-
-                                let mut group =
-                                    rusterix::TileGroup::new(dim.width as u16, dim.height as u16);
-
-                                for y in 0..dim.height {
-                                    for x in 0..dim.width {
-                                        let region = TheRGBARegion::new(
-                                            (dim.x + x) as usize * grid_size as usize,
-                                            (dim.y + y) as usize * grid_size as usize,
-                                            grid_size as usize,
-                                            grid_size as usize,
-                                        );
-
-                                        let mut tile = Tile::default();
-                                        tile.sequence = TheRGBARegionSequence::new();
-                                        tile.sequence.regions.push(region);
-                                        group.members.push(rusterix::TileGroupMemberRef {
-                                            tile_id: tile.id,
-                                            x: x as u16,
-                                            y: y as u16,
-                                        });
-                                        tiles.push(tile);
-                                    }
-                                }
-
-                                multi_group = Some(group);
                             }
 
                             for mut tile in tiles {
@@ -464,7 +424,6 @@ impl Dock for TilemapDock {
 
                                     let mut rusterix = RUSTERIX.write().unwrap();
                                     rusterix.set_tiles(project.tiles.clone(), true);
-                                    rusterix.set_tile_groups(project.tile_groups.clone());
                                     SCENEMANAGER.write().unwrap().set_tile_list(
                                         rusterix.assets.tile_list.clone(),
                                         rusterix.assets.tile_indices.clone(),
@@ -476,16 +435,6 @@ impl Dock for TilemapDock {
                                     ));
                                     //self.update_tiles(ui, ctx, project);
                                 }
-                            }
-
-                            if let Some(group) = multi_group
-                                && !group.members.is_empty()
-                            {
-                                project.add_tile_group(group);
-                                ctx.ui.send(TheEvent::Custom(
-                                    TheId::named("Update Tilepicker"),
-                                    TheValue::Empty,
-                                ));
                             }
                         }
                     }

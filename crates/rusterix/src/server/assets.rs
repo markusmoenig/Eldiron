@@ -63,7 +63,6 @@ pub struct Assets {
     pub project_item_icon_keys: FxHashSet<String>,
 
     pub tiles: IndexMap<Uuid, Tile>,
-    pub tile_groups: IndexMap<Uuid, TileGroup>,
     pub block_props: IndexMap<Uuid, BlockPropAsset>,
     pub materials: FxHashMap<Uuid, Tile>,
     pub textures: FxHashMap<String, Texture>,
@@ -192,7 +191,6 @@ impl Assets {
             item_icons: FxHashMap::default(),
             project_item_icon_keys: FxHashSet::default(),
             tiles: IndexMap::default(),
-            tile_groups: IndexMap::default(),
             block_props: IndexMap::default(),
             textures: FxHashMap::default(),
             tile_list: vec![],
@@ -472,10 +470,6 @@ impl Assets {
         source
             .and_then(|source| source.render_tile_id(self))
             .unwrap_or_else(Self::default_geometry_tile_id)
-    }
-
-    pub fn set_tile_groups(&mut self, tile_groups: IndexMap<Uuid, TileGroup>) {
-        self.tile_groups = tile_groups;
     }
 
     /// Compile the materials.

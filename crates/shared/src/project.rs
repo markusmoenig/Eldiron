@@ -303,15 +303,12 @@ impl PaletteMaterial {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum TileCollectionEntry {
     SingleTile(Uuid),
-    TileGroup(Uuid),
 }
 
 impl TileCollectionEntry {
     pub fn matches_source(&self, source: rusterix::TileSource) -> bool {
         match (self, source) {
             (Self::SingleTile(a), rusterix::TileSource::SingleTile(b)) => *a == b,
-            (Self::TileGroup(a), rusterix::TileSource::TileGroup(b)) => *a == b,
-            _ => false,
         }
     }
 }
@@ -332,8 +329,6 @@ pub struct TileCollectionAsset {
     #[serde(default)]
     pub tile_board_tiles: IndexMap<Uuid, Vec2<i32>>,
     #[serde(default)]
-    pub tile_board_groups: IndexMap<Uuid, Vec2<i32>>,
-    #[serde(default)]
     pub tile_board_empty_slots: Vec<Vec2<i32>>,
 }
 
@@ -347,13 +342,13 @@ impl TileCollectionAsset {
             description: String::new(),
             entries: Vec::new(),
             tile_board_tiles: IndexMap::default(),
-            tile_board_groups: IndexMap::default(),
             tile_board_empty_slots: Vec::new(),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(remote = "Self")]
 pub struct Project {
     pub name: String,
     pub regions: Vec<Region>,
@@ -362,10 +357,6 @@ pub struct Project {
     /// Tiles in the project
     #[serde(default)]
     pub tiles: IndexMap<Uuid, rusterix::Tile>,
-
-    /// Spatial tile groups in the project.
-    #[serde(default)]
-    pub tile_groups: IndexMap<Uuid, rusterix::TileGroup>,
 
     /// Reusable construction graphs for walls, floors, and ceilings.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
@@ -400,10 +391,6 @@ pub struct Project {
     /// Persisted board positions for top-level single tiles in the tile picker.
     #[serde(default)]
     pub tile_board_tiles: IndexMap<Uuid, Vec2<i32>>,
-
-    /// Persisted board positions for top-level tile groups in the tile picker.
-    #[serde(default)]
-    pub tile_board_groups: IndexMap<Uuid, Vec2<i32>>,
 
     /// Persisted empty board cells left behind by deletions in the tile picker.
     #[serde(default)]
@@ -485,6 +472,22 @@ pub struct Project {
     pub art_palette_materials: Vec<PaletteMaterial>,
 }
 
+// A remote derive supplies the field decoder; the trait wrapper converts retired
+// group data before decoding, including sources nested in maps and Prefabs.
+impl<'de> serde::Deserialize<'de> for Project {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let mut value = serde_json::Value::deserialize(deserializer)?;
+        crate::legacy_tiles::migrate(&mut value).map_err(serde::de::Error::custom)?;
+        Project::deserialize(value).map_err(serde::de::Error::custom)
+    }
+}
+
+impl serde::Serialize for Project {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Project::serialize(self, serializer)
+    }
+}
+
 impl Default for Project {
     fn default() -> Self {
         Self::new()
@@ -502,7 +505,6 @@ impl Project {
             tilemaps: vec![],
 
             tiles: IndexMap::default(),
-            tile_groups: IndexMap::default(),
 
             construction_patterns: IndexMap::default(),
             block_props: IndexMap::default(),
@@ -512,7 +514,6 @@ impl Project {
             prefab_editor_part_by_object: IndexMap::default(),
             tile_collections: IndexMap::default(),
             tile_board_tiles: IndexMap::default(),
-            tile_board_groups: IndexMap::default(),
             tile_board_empty_slots: Vec::new(),
             tile_board_cols: default_tile_board_cols(),
             tile_board_rows: default_tile_board_rows(),
@@ -848,10 +849,6 @@ impl Project {
         self.avatars.insert(avatar.id, avatar);
     }
 
-    pub fn add_tile_group(&mut self, tile_group: rusterix::TileGroup) {
-        self.tile_groups.insert(tile_group.id, tile_group);
-    }
-
     pub fn add_tile_collection(&mut self, collection: TileCollectionAsset) {
         self.tile_collections.insert(collection.id, collection);
     }
@@ -878,8 +875,6 @@ impl Project {
         };
         let entry = match source {
             rusterix::TileSource::SingleTile(id) => TileCollectionEntry::SingleTile(id),
-            rusterix::TileSource::TileGroup(id) => TileCollectionEntry::TileGroup(id),
-            _ => return,
         };
         if !collection.entries.contains(&entry) {
             collection.entries.push(entry);
@@ -895,25 +890,13 @@ impl Project {
                 rusterix::TileSource::SingleTile(id) => {
                     collection.tile_board_tiles.shift_remove(&id);
                 }
-                rusterix::TileSource::TileGroup(id) => {
-                    collection.tile_board_groups.shift_remove(&id);
-                }
-                _ => {}
             }
         }
-    }
-
-    pub fn remove_tile_group(&mut self, id: &Uuid) {
-        self.tile_groups.shift_remove(id);
-        self.tile_board_groups.shift_remove(id);
-        self.remove_source_from_collections(rusterix::TileSource::TileGroup(*id));
     }
 
     pub fn tile_board_position(&self, source: rusterix::TileSource) -> Option<Vec2<i32>> {
         match source {
             rusterix::TileSource::SingleTile(id) => self.tile_board_tiles.get(&id).copied(),
-            rusterix::TileSource::TileGroup(id) => self.tile_board_groups.get(&id).copied(),
-            _ => None,
         }
     }
 
@@ -925,8 +908,6 @@ impl Project {
         let collection = self.tile_collections.get(collection_id)?;
         match source {
             rusterix::TileSource::SingleTile(id) => collection.tile_board_tiles.get(&id).copied(),
-            rusterix::TileSource::TileGroup(id) => collection.tile_board_groups.get(&id).copied(),
-            _ => None,
         }
     }
 
@@ -946,10 +927,6 @@ impl Project {
             rusterix::TileSource::SingleTile(id) => {
                 self.tile_board_tiles.insert(id, pos);
             }
-            rusterix::TileSource::TileGroup(id) => {
-                self.tile_board_groups.insert(id, pos);
-            }
-            _ => {}
         }
     }
 
@@ -973,10 +950,28 @@ impl Project {
             rusterix::TileSource::SingleTile(id) => {
                 collection.tile_board_tiles.insert(id, pos);
             }
-            rusterix::TileSource::TileGroup(id) => {
-                collection.tile_board_groups.insert(id, pos);
-            }
-            _ => {}
+        }
+    }
+
+    /// Place a newly created tile at the selected empty picker cell.
+    pub fn place_tile_at_picker_selection(
+        &mut self,
+        id: Uuid,
+        selection: Option<(Option<Uuid>, Vec2<i32>)>,
+    ) {
+        let Some((collection, pos)) = selection else {
+            return;
+        };
+        if pos.x < 0 || pos.y < 0 {
+            return;
+        }
+        let source = rusterix::TileSource::SingleTile(id);
+        self.ensure_tile_board_space(pos);
+        if let Some(collection) = collection {
+            self.add_source_to_collection(&collection, source);
+            self.set_collection_tile_board_position(&collection, source, pos);
+        } else {
+            self.set_tile_board_position(source, pos);
         }
     }
 

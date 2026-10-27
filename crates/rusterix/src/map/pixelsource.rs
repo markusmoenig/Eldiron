@@ -143,11 +143,6 @@ pub enum PixelSource {
     #[default]
     Off,
     TileId(Uuid),
-    TileGroup(Uuid),
-    TileGroupMember {
-        group_id: Uuid,
-        member_index: u16,
-    },
     ProceduralTile(Uuid),
     PaletteIndex(u16),
     MaterialId(Uuid),
@@ -212,7 +207,7 @@ impl PixelSource {
         match self {
             Noise(noise) => Some(noise.to_tile(size)),
             TileId(id) => assets.tiles.get(id).cloned(),
-            TileGroup(_) | TileGroupMember { .. } | ProceduralTile(_) => None,
+            ProceduralTile(_) => None,
             PaletteIndex(index) => {
                 let tile_id = Self::palette_tile_uuid(*index);
                 assets
@@ -319,7 +314,7 @@ impl PixelSource {
                         .or_else(|| assets.materials.get(id).cloned())
                 }
             }
-            TileGroup(_) | TileGroupMember { .. } | ProceduralTile(_) => None,
+            ProceduralTile(_) => None,
             PaletteIndex(index) => {
                 let tile_id = Self::palette_tile_uuid(*index);
                 if let Some(index) = assets.tile_indices.get(&tile_id) {

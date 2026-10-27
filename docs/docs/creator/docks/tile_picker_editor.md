@@ -7,10 +7,10 @@ sidebar_position: 3
 
 The **Tile Picker** dock is the main asset browser and assignment dock for map work. It is used to:
 
-- browse project tiles and tile groups
+- browse project tiles
 - organize them in collections
 - preview and select the current tile source
-- copy the selected tile or group UUID from the dock toolbar
+- copy the selected tile UUID from the dock toolbar
 - apply or clear that source on geometry
 - open the pixel editor with the top-right [dock control](/docs/creator/actions/#dock-controls)
 
@@ -18,34 +18,33 @@ For single tiles, **Edit Tile Meta** can assign an alias and gameplay tags. The 
 
 The currently selected source is used by **Copy Tile ID**, **Apply Tile**, and **Clear Tile** in the dock toolbar, and by tools such as [Rect](/docs/creator/tools/rect). **Copy Tile ID** places the quoted UUID on the system clipboard for use in settings, scripts, and other source fields.
 
-## Sources
+## Tiles And Collections
 
-The tile picker can show several source types:
+The picker shows individual tile assets, including animated and fully transparent
+tiles. Use the **Project** tab to browse all project tiles. Custom **Collections**
+provide curated views with their own board layout. Collections reference shared
+assets; adding a tile to a collection does not copy it.
 
-- **Tile**: a single authored pixel tile
-- **Tile Group**: an authored grouped source made of several tiles
+The **Collections** menu creates collections, manages membership, and imports or
+exports local `.eldiron_tiles` collection files. The legacy Treasury tab and its
+online package workflow have been removed.
 
-Both can be selected from the tile picker. A single tile can be applied directly, while groups can be applied as grouped surface content where supported.
+## Empty Cells And New Tiles
 
-## Tabs And Views
+Click any vacant board cell to select it. The selected cell has a white outline
+and becomes the destination for the **New Tile** action. In a collection, the new
+tile is also added to that collection. Clicking an empty cell does not create a
+tile until you apply the creation action.
 
-The tile picker is not just one flat list anymore. It supports several views:
+Use **New** in the picker toolbar to select the New Tile action and configure its
+size and animation frames. Existing fully transparent tiles remain selectable
+and editable. Click a tile to select an asset, or press Escape while the picker
+has focus to clear selection.
 
-- **Project**: all project tiles and groups
-- **Collections**: curated views of shared assets with their own board layout
-- **Treasury**: installed reusable content
-
-Collections are views, not copies. The same tile or group can appear in several collections, but each collection keeps its own board placement.
-
-## Entering Groups
-
-Double-clicking a tile group opens it inside the tile picker so you can inspect its member tiles.
-
-Inside a group:
-
-- you can select individual member tiles
-- those member selections can be applied as normal single-tile sources
-- pressing `Escape` leaves the group again
+Tile Groups and their nested editing and grouped placement workflows have been
+removed. Older projects convert groups to ordinary image tiles while keeping the
+original member tiles available individually. Existing per-cell surface
+assignments remain in place.
 
 ## Applying Sources
 

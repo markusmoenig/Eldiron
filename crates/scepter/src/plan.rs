@@ -68,7 +68,6 @@ mod tests {
             "region.place_character",
             "tile.contact_sheet",
             "tile.set_meta",
-            "tile_group.create",
             "tileset.import_batch",
             "script.validate",
             "action.list",

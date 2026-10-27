@@ -5104,7 +5104,6 @@ impl Editor {
             rusterix.assets.palette_material_ids =
                 crate::undo::project_helper::palette_material_ids(&self.project);
             rusterix.set_tiles(self.project.tiles.clone(), true);
-            rusterix.set_tile_groups(self.project.tile_groups.clone());
         }
         SCENEMANAGER.write().unwrap().set_palette(
             self.project.art_palette.clone(),
@@ -5340,7 +5339,6 @@ impl Editor {
             "counts": {
                 "regions": self.project.regions.len(),
                 "tiles": self.project.tiles.len(),
-                "tile_groups": self.project.tile_groups.len(),
                 "characters": self.project.characters.len(),
                 "items": self.project.items.len(),
                 "screens": self.project.screens.len(),
@@ -5581,44 +5579,6 @@ impl Editor {
             })
         });
 
-        let mut tile_groups = self
-            .project
-            .tile_groups
-            .values()
-            .map(|group| {
-                let members = group
-                    .members
-                    .iter()
-                    .map(|member| {
-                        serde_json::json!({
-                            "tile_id": member.tile_id.to_string(),
-                            "x": member.x,
-                            "y": member.y,
-                        })
-                    })
-                    .collect::<Vec<_>>();
-
-                serde_json::json!({
-                    "id": group.id.to_string(),
-                    "name": group.name,
-                    "width": group.width,
-                    "height": group.height,
-                    "tags": group.tags,
-                    "members": members,
-                })
-            })
-            .collect::<Vec<_>>();
-        tile_groups.sort_by(|a, b| {
-            let name_a = a["name"].as_str().unwrap_or_default();
-            let name_b = b["name"].as_str().unwrap_or_default();
-            name_a.cmp(name_b).then_with(|| {
-                a["id"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .cmp(b["id"].as_str().unwrap_or_default())
-            })
-        });
-
         let roles = rusterix::TileRole::iterator()
             .map(|role| role.to_string())
             .collect::<Vec<_>>();
@@ -5626,10 +5586,8 @@ impl Editor {
         serde_json::json!({
             "roles": roles,
             "tiles": tiles,
-            "tile_groups": tile_groups,
             "counts": {
                 "tiles": self.project.tiles.len(),
-                "tile_groups": self.project.tile_groups.len(),
             }
         })
     }
@@ -5670,41 +5628,6 @@ impl Editor {
                 "kind": "tile_id",
                 "tile_id": tile_id.to_string(),
             }),
-            PixelSource::TileGroup(group_id) => {
-                let group = self.project.tile_groups.get(group_id);
-                serde_json::json!({
-                    "kind": "tile_group",
-                    "group_id": group_id.to_string(),
-                    "group": group.map(|group| serde_json::json!({
-                        "id": group.id.to_string(),
-                        "name": group.name,
-                        "width": group.width,
-                        "height": group.height,
-                        "member_count": group.members.len(),
-                        "tags": group.tags,
-                    })),
-                })
-            }
-            PixelSource::TileGroupMember {
-                group_id,
-                member_index,
-            } => {
-                let member = self
-                    .project
-                    .tile_groups
-                    .get(group_id)
-                    .and_then(|group| group.members.get(*member_index as usize));
-                serde_json::json!({
-                    "kind": "tile_group_member",
-                    "group_id": group_id.to_string(),
-                    "member_index": member_index,
-                    "tile_id": member.map(|member| member.tile_id.to_string()),
-                    "member": member.map(|member| serde_json::json!({
-                        "x": member.x,
-                        "y": member.y,
-                    })),
-                })
-            }
             PixelSource::ProceduralTile(tile_id) => serde_json::json!({
                 "kind": "procedural_tile",
                 "tile_id": tile_id.to_string(),
@@ -5766,15 +5689,6 @@ impl Editor {
             PixelSource::TileId(tile_id)
             | PixelSource::ProceduralTile(tile_id)
             | PixelSource::MaterialId(tile_id) => Some(*tile_id),
-            PixelSource::TileGroupMember {
-                group_id,
-                member_index,
-            } => self
-                .project
-                .tile_groups
-                .get(group_id)
-                .and_then(|group| group.members.get(*member_index as usize))
-                .map(|member| member.tile_id),
             _ => None,
         };
 
@@ -5796,15 +5710,6 @@ impl Editor {
             PixelSource::TileId(tile_id)
             | PixelSource::ProceduralTile(tile_id)
             | PixelSource::MaterialId(tile_id) => Some(*tile_id),
-            PixelSource::TileGroupMember {
-                group_id,
-                member_index,
-            } => self
-                .project
-                .tile_groups
-                .get(group_id)
-                .and_then(|group| group.members.get(*member_index as usize))
-                .map(|member| member.tile_id),
             _ => None,
         }
     }
@@ -10087,22 +9992,6 @@ impl TheTrait for Editor {
                                 [TheValue::Text(kind), TheValue::Id(id)] if kind == "single" => {
                                     Some(rusterix::TileSource::SingleTile(*id))
                                 }
-                                [TheValue::Text(kind), TheValue::Id(id)] if kind == "group" => {
-                                    Some(rusterix::TileSource::TileGroup(*id))
-                                }
-                                [TheValue::Text(kind), TheValue::Id(id), TheValue::Int(index)]
-                                    if kind == "group_member" =>
-                                {
-                                    Some(rusterix::TileSource::TileGroupMember {
-                                        group_id: *id,
-                                        member_index: (*index).max(0) as u16,
-                                    })
-                                }
-                                [TheValue::Text(kind), TheValue::Id(id)]
-                                    if kind == "procedural" =>
-                                {
-                                    Some(rusterix::TileSource::Procedural(*id))
-                                }
                                 _ => None,
                             };
 
@@ -10110,22 +9999,6 @@ impl TheTrait for Editor {
                                 self.server_ctx.curr_tile_source = Some(source.clone());
                                 self.server_ctx.curr_tile_id = match source {
                                     rusterix::TileSource::SingleTile(tile_id) => Some(tile_id),
-                                    rusterix::TileSource::TileGroupMember {
-                                        group_id,
-                                        member_index,
-                                    } => self
-                                        .project
-                                        .tile_groups
-                                        .get(&group_id)
-                                        .and_then(|group| group.members.get(member_index as usize))
-                                        .map(|member| member.tile_id),
-                                    rusterix::TileSource::TileGroup(group_id) => self
-                                        .project
-                                        .tile_groups
-                                        .get(&group_id)
-                                        .and_then(|group| group.members.first())
-                                        .map(|member| member.tile_id),
-                                    rusterix::TileSource::Procedural(_) => None,
                                 };
 
                                 if let Some(tile_id) = self.server_ctx.curr_tile_id {
@@ -10614,7 +10487,6 @@ impl TheTrait for Editor {
                                         &self.project,
                                     );
                                 rusterix.set_tiles(self.project.tiles.clone(), true);
-                                rusterix.set_tile_groups(self.project.tile_groups.clone());
                             }
 
                             if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {

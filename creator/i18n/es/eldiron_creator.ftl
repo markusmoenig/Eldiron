@@ -736,7 +736,6 @@ status_avatar_atlas_saved = Atlas de avatar guardado correctamente.
 status_avatar_atlas_save_failed = No se pudo guardar el atlas de avatar: {$error}
 status_avatar_atlas_imported = Se importaron {$count} fotogramas del atlas de avatar.
 status_avatar_atlas_import_failed = No se pudo importar el atlas de avatar: {$error}
-status_tiles_new_group = Crea un grupo de mosaicos. El contenido procedural se crea como receta.
 prefab_editor_create_part = Crear parte
 prefab_editor_set_pivot = Fijar pivote
 prefab_editor_remove_part = Quitar parte

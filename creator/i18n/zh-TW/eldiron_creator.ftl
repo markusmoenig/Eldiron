@@ -731,7 +731,6 @@ status_avatar_atlas_saved = 頭像圖集已成功儲存。
 status_avatar_atlas_save_failed = 無法儲存頭像圖集：{$error}
 status_avatar_atlas_imported = 已匯入 {$count} 格頭像圖集。
 status_avatar_atlas_import_failed = 無法匯入頭像圖集：{$error}
-status_tiles_new_group = 建立新的圖塊群組。程序化內容透過配方製作。
 prefab_editor_create_part = 建立部件
 prefab_editor_set_pivot = 設定樞軸
 prefab_editor_remove_part = 移除部件

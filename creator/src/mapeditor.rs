@@ -611,7 +611,6 @@ impl MapEditor {
         {
             let mut rusterix = RUSTERIX.write().unwrap();
             rusterix.set_tiles(project.tiles.clone(), true);
-            rusterix.set_tile_groups(project.tile_groups.clone());
         }
     }
 

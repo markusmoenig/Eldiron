@@ -10,6 +10,7 @@ pub mod iso_paint_brush;
 #[cfg(feature = "graphics")]
 pub mod iso_paint_render;
 pub mod item;
+pub mod legacy_tiles;
 pub mod particle_graph;
 pub mod prefab_graph;
 pub mod project;
@@ -23,7 +24,6 @@ pub mod terminal_screen;
 pub mod text_game;
 pub mod text_session;
 pub mod tilemap;
-pub mod treasury;
 
 pub mod prelude {
     pub use serde::{Deserialize, Serialize};
@@ -44,14 +44,10 @@ pub mod prelude {
     pub use crate::text_game::*;
     pub use crate::text_session::*;
     pub use crate::tilemap::{Tile, Tilemap};
-    pub use crate::treasury::{
-        TreasuryIndex, TreasuryIndexCategories, TreasuryPackageManifest, TreasuryPackageMetadata,
-        TreasuryPackageSummary, TreasuryTileCollectionPackage,
-    };
     pub use indexmap::IndexMap;
     pub use rusterix::{
         Avatar, AvatarAnimation, AvatarAnimationFrame, AvatarDirection, AvatarPerspective,
-        AvatarPerspectiveCount, TileGroup, TileGroupMemberRef, TileSource,
+        AvatarPerspectiveCount, TileSource,
     };
 }
 

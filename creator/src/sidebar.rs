@@ -33,7 +33,6 @@ pub struct Sidebar {
 
     curr_tilemap_uuid: Option<Uuid>,
     curr_tile_collection_uuid: Option<Uuid>,
-    curr_treasury_package_slug: Option<String>,
     pending_palette_drag_undo: Option<(ThePalette, Vec<shared::project::PaletteMaterial>)>,
 
     pub startup: bool,
@@ -151,7 +150,6 @@ impl Sidebar {
     pub fn reset_for_project_switch(&mut self) {
         self.curr_tilemap_uuid = None;
         self.curr_tile_collection_uuid = None;
-        self.curr_treasury_package_slug = None;
         self.pending_palette_drag_undo = None;
         self.startup = true;
     }
@@ -181,7 +179,6 @@ impl Sidebar {
 
             curr_tilemap_uuid: None,
             curr_tile_collection_uuid: None,
-            curr_treasury_package_slug: None,
             pending_palette_drag_undo: None,
 
             startup: true,
@@ -492,14 +489,6 @@ impl Sidebar {
         collection_text_layout.set_text_align(TheHorizontalAlign::Right);
         collection_settings_canvas.set_layout(collection_text_layout);
         action_stack.add_canvas(collection_settings_canvas);
-
-        let mut treasury_settings_canvas = TheCanvas::default();
-        let mut treasury_text_layout = TheTextLayout::new(TheId::named("Treasury Settings"));
-        treasury_text_layout.limiter_mut().set_max_width(self.width);
-        treasury_text_layout.set_text_margin(20);
-        treasury_text_layout.set_text_align(TheHorizontalAlign::Right);
-        treasury_settings_canvas.set_layout(treasury_text_layout);
-        action_stack.add_canvas(treasury_settings_canvas);
 
         action_stack.set_index(0);
         action_params_canvas.set_layout(action_stack);
@@ -1241,33 +1230,6 @@ impl Sidebar {
                     self.curr_tile_collection_uuid = None;
                     if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack")
                         && stack.index() == 2
-                    {
-                        stack.set_index(0);
-                    }
-                    if let Some(tab) = ui.get_layout("Multi Tab")
-                        && let Some(tab) = tab.as_tab_layout()
-                    {
-                        tab.set_index(1);
-                    }
-                } else if id.name == "Show Treasury Settings" {
-                    if let TheValue::List(values) = value
-                        && values.len() >= 5
-                    {
-                        let slug = values[0].to_string().unwrap_or_default();
-                        self.curr_treasury_package_slug = Some(slug);
-                        self.show_treasury_settings(
-                            ui,
-                            ctx,
-                            values[1].to_string().unwrap_or_default(),
-                            values[2].to_string().unwrap_or_default(),
-                            values[3].to_string().unwrap_or_default(),
-                            values[4].to_string().unwrap_or_default(),
-                        );
-                    }
-                } else if id.name == "Hide Treasury Settings" {
-                    self.curr_treasury_package_slug = None;
-                    if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack")
-                        && stack.index() == 3
                     {
                         stack.set_index(0);
                     }
@@ -3834,7 +3796,6 @@ impl Sidebar {
             rusterix.assets.palette = project.art_palette.clone();
             rusterix.assets.palette_material_ids = palette_material_ids(project);
             rusterix.set_tiles(project.tiles.clone(), true);
-            rusterix.set_tile_groups(project.tile_groups.clone());
         }
 
         // ctx.ui.send(TheEvent::Custom(
@@ -4664,68 +4625,6 @@ impl Sidebar {
         }
     }
 
-    fn show_treasury_settings(
-        &self,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-        name: String,
-        author: String,
-        version: String,
-        description: String,
-    ) {
-        if let Some(stack) = ui.get_stack_layout("Sidebar Bottom Stack") {
-            stack.set_index(3);
-        }
-        if let Some(tab) = ui.get_layout("Multi Tab")
-            && let Some(tab) = tab.as_tab_layout()
-        {
-            tab.set_index(1);
-        }
-
-        let mut nodeui = TheNodeUI::default();
-        nodeui.add_item(TheNodeUIItem::Text(
-            "treasuryPackageName".into(),
-            "Name".into(),
-            "Package name.".into(),
-            name,
-            None,
-            false,
-        ));
-        nodeui.add_item(TheNodeUIItem::Text(
-            "treasuryPackageAuthor".into(),
-            "Author".into(),
-            "Package author.".into(),
-            author,
-            None,
-            false,
-        ));
-        nodeui.add_item(TheNodeUIItem::Text(
-            "treasuryPackageVersion".into(),
-            "Version".into(),
-            "Package version.".into(),
-            version,
-            None,
-            false,
-        ));
-        nodeui.add_item(TheNodeUIItem::Text(
-            "treasuryPackageDescription".into(),
-            "Description".into(),
-            "Package description.".into(),
-            description,
-            None,
-            false,
-        ));
-
-        if let Some(layout) = ui.get_text_layout("Treasury Settings") {
-            nodeui.apply_to_text_layout(layout);
-            ctx.ui.set_disabled("treasuryPackageName");
-            ctx.ui.set_disabled("treasuryPackageAuthor");
-            ctx.ui.set_disabled("treasuryPackageVersion");
-            ctx.ui.set_disabled("treasuryPackageDescription");
-            ctx.ui.relayout = true;
-        }
-    }
-
     fn show_action_toml_params(
         &self,
         ui: &mut TheUI,
@@ -5189,7 +5088,6 @@ impl Sidebar {
     pub fn update_tiles(&mut self, _ui: &mut TheUI, ctx: &mut TheContext, project: &mut Project) {
         let mut rusterix = RUSTERIX.write().unwrap();
         rusterix.set_tiles(project.tiles.clone(), true);
-        rusterix.set_tile_groups(project.tile_groups.clone());
         SCENEMANAGER.write().unwrap().set_tile_list(
             rusterix.assets.tile_list.clone(),
             rusterix.assets.tile_indices.clone(),

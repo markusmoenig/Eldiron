@@ -233,22 +233,6 @@ pub struct TileMetadataPatch {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TileGroupMember {
-    pub tile: TileSelector,
-    pub at: GridPoint,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TileGroupCreate {
-    pub name: String,
-    pub size: GridPoint,
-    #[serde(default)]
-    pub members: Vec<TileGroupMember>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tags: Vec<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TilesetInspect {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tileset: Option<String>,
@@ -478,8 +462,6 @@ pub enum ScepterCommand {
     TileCreateFromRgba(TileCreateFromRgba),
     #[serde(rename = "tile.set_meta")]
     TileSetMeta(TileMetadataPatch),
-    #[serde(rename = "tile_group.create")]
-    TileGroupCreate(TileGroupCreate),
     #[serde(rename = "tileset.list")]
     TilesetList,
     #[serde(rename = "tileset.inspect")]
@@ -543,7 +525,6 @@ impl ScepterCommand {
             Self::TileContactSheet(_) => "tile.contact_sheet",
             Self::TileCreateFromRgba(_) => "tile.create_from_rgba",
             Self::TileSetMeta(_) => "tile.set_meta",
-            Self::TileGroupCreate(_) => "tile_group.create",
             Self::TilesetList => "tileset.list",
             Self::TilesetInspect(_) => "tileset.inspect",
             Self::TilesetGridDetect(_) => "tileset.grid_detect",

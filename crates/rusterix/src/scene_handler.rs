@@ -2655,18 +2655,6 @@ impl SceneHandler {
                 hasher.write_u8(1);
                 hasher.write(id.as_bytes());
             }
-            PixelSource::TileGroup(id) => {
-                hasher.write_u8(13);
-                hasher.write(id.as_bytes());
-            }
-            PixelSource::TileGroupMember {
-                group_id,
-                member_index,
-            } => {
-                hasher.write_u8(14);
-                hasher.write(group_id.as_bytes());
-                hasher.write_u16(*member_index);
-            }
             PixelSource::ProceduralTile(id) => {
                 hasher.write_u8(15);
                 hasher.write(id.as_bytes());

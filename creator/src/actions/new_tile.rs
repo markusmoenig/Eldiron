@@ -74,7 +74,7 @@ impl Action for NewTile {
         project: &mut Project,
         _ui: &mut TheUI,
         ctx: &mut TheContext,
-        _server_ctx: &mut ServerContext,
+        server_ctx: &mut ServerContext,
     ) {
         let size = self
             .nodeui
@@ -102,7 +102,11 @@ impl Action for NewTile {
 
         let mut tile = rusterix::Tile::from_textures(textures);
         tile.set_default_materials();
-        project.tiles.insert(tile.id, tile);
+        let id = tile.id;
+        project.tiles.insert(id, tile);
+        project.place_tile_at_picker_selection(id, server_ctx.curr_tile_board_cell.take());
+        server_ctx.curr_tile_id = Some(id);
+        server_ctx.curr_tile_source = Some(rusterix::TileSource::SingleTile(id));
 
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Update Tilepicker"),
