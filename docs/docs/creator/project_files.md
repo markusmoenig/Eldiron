@@ -7,6 +7,21 @@ sidebar_position: 2
 
 Eldiron uses the **.eldiron** extension for Creator projects. The same file can be reopened in Creator and played by the desktop, terminal, or web clients.
 
+## Creating a Project
+
+Startup and **File → New** show a compact chooser. **New 2D Project** and
+**New 3D Project** generate a project locally using the current
+bundled settings and ruleset. Each includes a region with a floor, a player
+character with WASD and arrow-key movement, and a responsive screen with a game
+widget. The 2D region starts with a small patch of painted grass tiles and a
+path, editable with the Rect tool. The 3D project opens in isometric view and
+uses an isometric game camera.
+
+**Browse Examples** opens the downloadable example catalog separately. Examples
+open as unsaved projects; save a copy to keep your changes. Internet access is
+needed only to browse and download examples. **Open Project…** opens an existing
+local project.
+
 ## Container Format
 
 New **.eldiron** files are ZIP containers with this initial layout:
@@ -48,12 +63,11 @@ The internal layout is an interchange format, not a second project-authoring wor
 
 ## Ruleset Storage
 
-Projects save their complete current ruleset node graph, preserved original, and
-recovery checkpoints in `project.json` under `rules_graph`. These snapshots travel
-with the project. **Restore All** therefore restores the project's original,
-even after the bundled ruleset changes in a later Eldiron release. Existing
-projects without a rules graph receive the bundled rules when opened; saving
-stores their node ruleset. See [Ruleset Nodes](docks/ruleset_nodes).
+Projects save their complete current rules document, preserved original, and
+recovery checkpoints in `project.json` under `rules_document`. These snapshots
+travel with the project. **Restore All** restores the project's original rules,
+even if the bundled rules change later. Save the project to persist edits and
+checkpoints. See [Ruleset Editor](docks/ruleset_nodes).
 
 ## Compatibility
 

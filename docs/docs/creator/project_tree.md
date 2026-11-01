@@ -121,7 +121,7 @@ Shows both palette roles used by the project:
   RGBA colors.
 - **Art Palette**: editable project art colors used by tiles, drawing, palette-index geometry and 3D Paint.
 
-Use the [Palette Tool](tools/palette) to edit the Art Palette, load external palette colors, and assign Art Palette entries to geometry. Ruleset Palette changes belong in the project’s ruleset nodes under **Game / Rules**.
+Use the [Palette Tool](tools/palette) to edit the Art Palette, load external palette colors, and assign Art Palette entries to geometry. Ruleset Palette changes belong in the project’s rules document under **Game / Rules**.
 
 ## Game
 
@@ -130,7 +130,7 @@ In the game section you can select:
 - **Settings**. Edit your game settings and see all supported options in [Game Configuration](../configuration/game).
 - **World / Behavior Nodes**. Edit global event-driven behavior.
 - **Authoring**. Edit global text-adventure and authoring behavior like startup text and sector description policies, see [Authoring Configuration](../configuration/authoring).
-- **Rules**. Edit project-wide gameplay definitions, formulas, icons, and particle effects in the node dock, see [Ruleset Nodes](docks/ruleset_nodes).
+- **Rules**. Edit project-wide gameplay definitions, formulas, icons, and particle effects in the rules editor, see [Ruleset Editor](docks/ruleset_nodes).
 - **Locales**. Edit shared localization tables like `[en]` and `[de]` in a TOML-based data editor, see [Localization](../localization).
 - **Audio FX**. Edit generated micro sound effects in a TOML-based data editor with built-in preview, see [Audio](../audio).
 

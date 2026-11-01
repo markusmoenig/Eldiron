@@ -1,0 +1,8 @@
+tile 1
+name "Sign"
+category "Operator"
+description "The output is -1.0 if the input value is negative and 1.0 if it is positive, 0.0 otherwise."
+group "About" true
+
+let v0 = vec3(sign(input.rgb))
+image = vec4(v0, input.a)

@@ -1,0 +1,78 @@
+tile 1
+name "Perlin Noise"
+category "Noise"
+description "Perlin Noise with 2D UV or 3D position sampling. Scale controls feature size. Preserves incoming alpha."
+group "Scale" true
+param float globalScale "Scale" default 1 range 0.001 10
+param vec2 localScale "Stretch XY" default 1 1 range 0.001 1000
+group "Coordinates" false
+param float dimensions "Dimensions" default 0 range 0 1
+choices "2D" "3D"
+param float slice "Z Slice" default 0 range -1000 1000
+param float depthScale "Stretch Z" default 1 range 0.001 1000
+
+state result = vec3(0)
+repeat 1 times less(dimensions, 0.5) while 1
+let P = uv / nonzero(globalScale) / nonzero(localScale) * 10
+let Pi = floor(P)
+let f = P - Pi
+let pt0 = vec4(Pi, Pi + 1)
+let pt1 = pt0 - floor(pt0 * (1 / 71)) * 71
+let pt2 = pt1 + vec2(26, 161).xyxy
+let pt3 = pt2 * pt2
+let pt = pt3.xzxz * pt3.yyww
+let gx = fract(pt * (1 / 951.1357)) - 0.49999
+let gy = fract(pt * (1 / 642.9499)) - 0.49999
+let dx = vec4(f.x, f.x - 1, f.x, f.x - 1)
+let dy = vec4(f.y, f.y, f.y - 1, f.y - 1)
+let gradients = inversesqrt(gx * gx + gy * gy) * (gx * dx + gy * dy) * 1.4142135623730951
+let fade = f * f * f * (f * (f * 6 - 15) + 10)
+let weights = vec4((1 - fade.x) * (1 - fade.y), fade.x * (1 - fade.y), (1 - fade.x) * fade.y, fade.x * fade.y)
+let noise = (dot(gradients, weights) + 1) / 2
+update result = vec3(noise)
+end repeat
+repeat 1 times greater_equal(dimensions, 0.5) while 1
+let v0 = ((((pos + vec3(0, 0, slice)) / nonzero(globalScale)) * 1.) / nonzero(vec3(localScale, depthScale)))
+let v1 = (v0 * 10.)
+let v2 = floor(v1)
+let v3 = (v1 - v2)
+let v4 = (v3 - 1.0)
+let v5 = ((v2).xyz - (floor(((v2).xyz * (1.0 / 69.0))) * 69.0))
+let v6 = vec3((v5).x, (v5).y, (v5).z)
+let v7 = (step(v6, vec3((69.0 - 1.5))) * (v6 + 1.0))
+let v8 = (vec4((v6).xy, (v7).xy) + (vec2(50.0, 161.0)).xyxy)
+let v9 = v8
+let v10 = (v9 * v9)
+let v11 = ((v10).xzxz * (v10).yyww)
+let v12 = vec3(635.298681, 682.357502, 668.926525)
+let v13 = vec3(48.500388, 65.294118, 63.934599)
+let v14 = vec3((1.0 / (v12 + ((v6).zzz * v13))))
+let v15 = vec3((1.0 / (v12 + ((v7).zzz * v13))))
+let v16 = fract((v11 * (v14).xxxx))
+let v17 = fract((v11 * (v15).xxxx))
+let v18 = fract((v11 * (v14).yyyy))
+let v19 = fract((v11 * (v15).yyyy))
+let v20 = fract((v11 * (v14).zzzz))
+let v21 = fract((v11 * (v15).zzzz))
+let v22 = (v16 - 0.49999)
+let v23 = (v18 - 0.49999)
+let v24 = (v20 - 0.49999)
+let v25 = (v17 - 0.49999)
+let v26 = (v19 - 0.49999)
+let v27 = (v21 - 0.49999)
+let v28 = inversesqrt((((v22 * v22) + (v23 * v23)) + (v24 * v24)))
+let v29 = (((vec2((v3).x, (v4).x)).xyxy * v22) + ((vec2((v3).y, (v4).y)).xxyy * v23))
+let v30 = (v28 * (v29 + ((v3).zzzz * v24)))
+let v31 = inversesqrt((((v25 * v25) + (v26 * v26)) + (v27 * v27)))
+let v32 = (((vec2((v3).x, (v4).x)).xyxy * v25) + ((vec2((v3).y, (v4).y)).xxyy * v26))
+let v33 = (v31 * (v32 + ((v4).zzzz * v27)))
+let v34 = (((v3 * v3) * v3) * ((v3 * ((v3 * 6.0) - 15.0)) + 10.0))
+let v35 = v34
+let v36 = mix(v30, v33, (v35).z)
+let v37 = vec4((v35).xy, vec2((1.0 - (v35).xy)))
+let v38 = dot(v36, ((v37).zxzx * (v37).wwyy))
+let v39 = (((v38 * 1.1547005383792515290182975610039) + 1.) / 2.)
+let v40 = vec3(v39)
+update result = v40
+end repeat
+image = vec4(result, input.a)

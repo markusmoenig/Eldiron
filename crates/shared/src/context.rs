@@ -642,6 +642,9 @@ pub struct ServerContext {
     pub rect_geometry_face_3d: Option<(Uuid, usize)>,
     pub rect_terrain_id: Option<(i32, i32)>,
     pub rect_blend_preset: VertexBlendPreset,
+    /// Rect tool authoring mode and the clicked (not hovered) tile being edited.
+    pub rect_compose_mode: bool,
+    pub rect_composition_target: Option<crate::material_composition::MapMaterialBinding>,
 
     /// Active editor collision/path probe overlay.
     pub collision_probe_start: Option<Vec3<f32>>,
@@ -810,6 +813,8 @@ impl ServerContext {
             rect_geometry_face_3d: None,
             rect_terrain_id: None,
             rect_blend_preset: VertexBlendPreset::Solid,
+            rect_compose_mode: false,
+            rect_composition_target: None,
             collision_probe_start: None,
             collision_probe_target: None,
             collision_probe_result: None,

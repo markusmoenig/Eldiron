@@ -13,6 +13,7 @@ pub mod log;
 pub mod palette;
 pub mod particle_preview;
 pub mod prefab_nodes;
+pub mod rules_editor;
 pub mod prefabs_editor;
 pub mod text_play;
 pub mod tilemap;

@@ -954,6 +954,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c87e182de0887fd5361989c677c4e8f5000cd9491d6d563161a8f3a5519fc7f"
 
 [[package]]
+name = "denrim-materials"
+version = "0.1.0"
+dependencies = [
+ "half",
+ "naga",
+ "pollster",
+ "serde",
+ "serde_json",
+ "wgpu",
+]
+
+[[package]]
 name = "deprecate-until"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1283,16 +1295,19 @@ name = "eldiron-creator"
 version = "0.95.6"
 dependencies = [
  "arboard",
+ "denrim-materials",
  "earcutr",
  "eldiron-shared",
  "eldiron_scepter",
  "fontdue",
+ "half",
  "i18n-embed",
  "i18n-embed-fl",
  "indexmap",
  "lazy_static",
  "open",
  "png 0.18.0",
+ "pollster",
  "rand",
  "rayon",
  "regex",
@@ -1305,9 +1320,11 @@ dependencies = [
  "tempfile",
  "theframework",
  "toml 0.8.23",
+ "toml_edit 0.22.27",
  "ureq 2.12.1",
  "vectorize",
  "vek",
+ "wgpu",
 ]
 
 [[package]]
@@ -2855,6 +2872,7 @@ dependencies = [
  "log",
  "num-traits",
  "once_cell",
+ "pp-rs",
  "rustc-hash 1.1.0",
  "spirv",
  "thiserror 2.0.17",
@@ -3736,6 +3754,15 @@ name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
+
+[[package]]
+name = "pp-rs"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb458bb7f6e250e6eb79d5026badc10a3ebb8f9a15d1fff0f13d17c71f4d6dee"
+dependencies = [
+ "unicode-xid",
+]
 
 [[package]]
 name = "ppv-lite86"

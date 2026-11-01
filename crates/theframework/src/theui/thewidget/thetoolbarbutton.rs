@@ -229,7 +229,7 @@ impl TheWidget for TheToolbarButton {
                     size: self.text_size,
                     ..Default::default()
                 },
-                &WHITE,
+                style.theme().color(SectionbarNormalTextColor),
                 TheHorizontalAlign::Center,
                 TheVerticalAlign::Center,
             );

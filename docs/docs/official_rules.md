@@ -43,13 +43,13 @@ encounter tools, localization, and balancing support.
 
 ## How To Read The Rules
 
-The official ruleset is a tabletop-style rulebook backed by nodes. The guide
-explains how the rules play. Edit the definitions through **Game / Rules**;
-see [Ruleset Nodes](./creator/docks/ruleset_nodes) for the authoring workflow.
-Creator, clients, runtime systems, and tools share the compiled rules.
+The official ruleset is a tabletop-style rulebook. This guide explains how the
+rules play. Edit project definitions through **Game / Rules**; see the
+[Ruleset Editor](./creator/docks/ruleset_nodes) for the authoring workflow.
+Creator, clients, runtime systems, and tools use the resolved project rules.
 
-TOML examples on this page describe the compiled fields for reference. Author
-these fields as typed rows and connected nodes in Creator.
+TOML examples on this page describe fields for reference. In Creator, edit them
+through the catalogue and forms.
 
 | Rulebook term | Compiled field | Used by |
 | --- | --- | --- |
@@ -61,8 +61,9 @@ these fields as typed rows and connected nodes in Creator.
 | Icon | `[icons.basic_attack]` | bundled artist-editable RGBA artwork and attribution |
 | Combat kind | `[combat.kinds.fire]` | damage bonuses and reductions |
 
-The bundled `eldiron.official` ruleset is authored in `rules.graph.json`.
-Each project owns a complete editable copy and preserves its original for recovery.
+The bundled `eldiron.official` defaults are compiled from `rules.graph.json`.
+Each project owns a complete editable rules document and preserves its original
+for recovery.
 
 Ruleset timing values are measured in seconds. Cooldowns, spell durations, FX
 durations, resource respawns, corpse lifetimes, and NPC respawn delays all use
@@ -995,7 +996,7 @@ questions without guessing:
 - How long until this character can attack again?
 - What happens if this Orc fights this Warrior 100 times?
 
-The same node-compiled rules serve gameplay, Creator UI, terminal tools, console
+The same resolved rules serve gameplay, Creator UI, terminal tools, console
 tools, validation, and automated arena tests.
 
 ## Work In Progress Roadmap

@@ -17,6 +17,17 @@ fn default_rules() -> crate::rulesets::graph::RulesetState {
     Default::default()
 }
 
+// Older projects used names for retired procedural recipes. Current editable
+// materials are keyed by tile UUID; leave legacy sources in their archive and
+// load the baked tiles instead of treating their names as UUIDs.
+fn deserialize_tile_materials<'de, D>(deserializer: D) -> Result<IndexMap<Uuid, String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let entries = <IndexMap<String, String> as serde::Deserialize>::deserialize(deserializer)?;
+    Ok(entries.into_iter().filter_map(|(key, value)| Uuid::parse_str(&key).ok().map(|id| (id, value))).collect())
+}
+
 fn default_locales() -> String {
     String::new()
 }
@@ -358,6 +369,24 @@ pub struct Project {
     #[serde(default)]
     pub tiles: IndexMap<Uuid, rusterix::Tile>,
 
+    /// Versioned MaterialZ editable bundles, keyed by the normal tile UUID.
+    /// The tile textures remain the baked runtime representation.
+    #[serde(default, deserialize_with = "deserialize_tile_materials", skip_serializing_if = "IndexMap::is_empty")]
+    pub procedural_materials: IndexMap<Uuid, String>,
+
+    /// Ordered shape/blend layers referencing shared procedural picker tiles.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub material_compositions: IndexMap<Uuid, crate::material_composition::MaterialComposition>,
+
+    /// Map-local compositions use internal bake tiles, excluded from the picker.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub map_material_bindings: IndexMap<Uuid, crate::material_composition::MapMaterialBinding>,
+
+    /// Fingerprint of the recipe used for each baked tile. A missing/stale key
+    /// schedules a rebuild in Creator, including after undo or an interrupted bake.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub procedural_material_cache_keys: IndexMap<Uuid, u64>,
+
     /// Reusable construction graphs for walls, floors, and ceilings.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub construction_patterns: IndexMap<Uuid, crate::construction_graph::ConstructionPatternAsset>,
@@ -447,8 +476,12 @@ pub struct Project {
     #[serde(default)]
     pub world_source_debug: String,
 
-    #[serde(default = "default_rules", rename = "rules_graph")]
+    #[serde(skip, default = "default_rules")]
     pub rules: crate::rulesets::graph::RulesetState,
+
+    /// Rules authoring data used by the catalogue editor and the runtime.
+    #[serde(default)]
+    pub rules_document: crate::rulesets::document::RulesState,
 
     #[serde(default = "default_locales")]
     pub locales: String,
@@ -505,6 +538,10 @@ impl Project {
             tilemaps: vec![],
 
             tiles: IndexMap::default(),
+            procedural_materials: IndexMap::default(),
+            material_compositions: IndexMap::default(),
+            map_material_bindings: IndexMap::default(),
+            procedural_material_cache_keys: IndexMap::default(),
 
             construction_patterns: IndexMap::default(),
             block_props: IndexMap::default(),
@@ -542,6 +579,7 @@ impl Project {
             node_graphs: IndexMap::new(),
             world_source_debug: String::new(),
             rules: default_rules(),
+            rules_document: Default::default(),
             locales: default_locales(),
             audio_fx: default_audio_fx(),
             authoring: default_authoring(),
@@ -616,10 +654,9 @@ impl Project {
         Ok(prev_palette != self.palette || prev_materials != self.palette_materials)
     }
 
-    /// Serialize only the compiled value tree for runtime consumers still using
-    /// the source-based boundary. Nodes are the sole project authoring source.
+    /// Resolve the project-owned rules document for runtime consumers.
     pub fn rules_source(&self) -> Result<String, String> {
-        let resolved = self.rules.current.resolve()?;
+        let resolved = self.rules_document.document()?.resolve()?;
         if !resolved.validation().is_ok() {
             let errors = resolved
                 .validation()
@@ -1383,6 +1420,10 @@ impl Project {
     /// Removes the given tile from the project.
     pub fn remove_tile(&mut self, id: &Uuid) {
         self.tiles.shift_remove(id);
+        self.procedural_materials.shift_remove(id);
+        self.material_compositions.shift_remove(id);
+        self.map_material_bindings.shift_remove(id);
+        self.procedural_material_cache_keys.shift_remove(id);
     }
 
     /// Gets the given tile from the project.
@@ -1894,12 +1935,12 @@ mod tests {
         assert!(
             project.characters.values().any(|character| {
                 character.name == "Skeleton"
-                    && character.data.contains("avatar = \"skeleton\"")
                     && character.data.contains("race = \"Skeleton\"")
                     && character.data.contains("class = \"Warrior\"")
             }),
             "Hideout2D should contain its ruleset-backed Skeleton"
         );
+        assert_eq!(resolved.table()["races"]["Skeleton"]["default_avatar"].as_str(), Some("skeleton"));
         for character_name in [
             "Bone Warden",
             "Bone Archer",
@@ -1931,7 +1972,9 @@ mod tests {
                 .characters
                 .values()
                 .find(|character| character.name == "Brother Corvin")
-                .is_some_and(|character| character.data.contains("SAR IR")),
+                .is_some_and(|character| project.node_graphs
+                    .get(&format!("behavior/character/{}", character.id))
+                    .is_some_and(|graph| graph.to_string().contains("SAR IR"))),
             "Hideout2D should connect Words of Power to the dungeon quest"
         );
         let player_data = project
@@ -2022,18 +2065,26 @@ mod tests {
     }
 
     #[test]
-    fn projects_persist_nodes_without_a_toml_rules_source() {
-        let project = Project::new();
+    fn projects_persist_rules_document() {
+        let mut project = Project::new();
+        project.rules_document.edit(|table| {
+            table["actions"]["basic_attack"].as_table_mut().unwrap().insert(
+                "name".into(), crate::rulesets::document::RulesValue::String("Custom Strike".into()));
+            Ok(())
+        }).unwrap();
         let json = serde_json::to_value(&project).unwrap();
         assert!(json.get("rules").is_none());
-        assert!(json.get("rules_graph").is_some());
+        assert!(json.get("rules_graph").is_none());
+        assert!(json.get("rules_document").is_some());
         let loaded: Project = serde_json::from_value(json).unwrap();
-        assert_eq!(loaded.rules, project.rules);
+        assert_eq!(loaded.rules_document, project.rules_document);
+        assert!(loaded.rules_source().unwrap().contains("Custom Strike"));
         assert_eq!(
             loaded.rules_source().unwrap(),
             project.rules_source().unwrap()
         );
     }
+
 
     #[test]
     fn project_migrates_legacy_button_fields_to_commands() {

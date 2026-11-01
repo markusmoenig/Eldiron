@@ -90,6 +90,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         ensureFileSeparatorBetweenCloseAndSave()
         trimEditMenuAfterPaste()
         removeTopLevelMenus(["Format", "View"])
+        configureViewMenu()
         configureGameMenu()
 
         guard let mainMenu = NSApp.mainMenu else {
@@ -108,6 +109,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         helpMenu.addItem(docsItem)
         mainMenu.insertItem(helpRoot, at: oldHelpIndex)
         mainMenu.setSubmenu(helpMenu, for: helpRoot)
+    }
+
+    private func configureViewMenu() {
+        guard let mainMenu = NSApp.mainMenu else { return }
+        let root = NSMenuItem(title: "View", action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: "View")
+        for (index, title) in ["Brown", "Black", "Light"].enumerated() {
+            let item = NSMenuItem(title: title, action: #selector(selectCreatorTheme(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = index
+            menu.addItem(item)
+        }
+        menu.autoenablesItems = false
+        root.submenu = menu
+        mainMenu.addItem(root)
+        updateThemeMenu(menu, selected: Int(rust_get_creator_theme()))
+    }
+
+    private func updateThemeMenu(_ menu: NSMenu, selected: Int) {
+        for item in menu.items { item.state = item.tag == selected ? .on : .off }
+    }
+
+    @objc private func selectCreatorTheme(_ sender: NSMenuItem) {
+        rust_set_creator_theme(UInt32(sender.tag))
+        if let menu = sender.menu { updateThemeMenu(menu, selected: sender.tag) }
     }
 
     private func configureGameMenu() {

@@ -25,6 +25,29 @@ pub fn bundled_avatars_for_project(
         .collect()
 }
 
+/// Ruleset-owned item-state sprites remain runtime tile assets, but are not
+/// authored map tiles. Read their identities without decoding any image frames.
+pub fn bundled_tile_ids_for_project(
+    config_src: &str,
+) -> Result<std::collections::HashSet<Uuid>, String> {
+    let selection = eldiron_ruleset::selected_ruleset_config(config_src);
+    if selection.source == "project" {
+        return Ok(std::collections::HashSet::new());
+    }
+    eldiron_ruleset::bundled_icon_state_assets_for_ruleset(&selection.id, &selection.version)
+        .into_iter()
+        .filter_map(|asset| asset.tile_id.map(|id| (asset, id)))
+        .map(|(asset, id)| {
+            Uuid::parse_str(id).map_err(|error| {
+                format!(
+                    "Bundled icon state '{}:{}' has invalid tile id: {error}",
+                    asset.item_id, asset.state
+                )
+            })
+        })
+        .collect()
+}
+
 pub fn bundled_tiles_for_project(config_src: &str) -> Result<Vec<(Uuid, rusterix::Tile)>, String> {
     let selection = eldiron_ruleset::selected_ruleset_config(config_src);
     if selection.source == "project" {

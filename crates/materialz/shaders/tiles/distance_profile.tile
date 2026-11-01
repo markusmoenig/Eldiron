@@ -1,0 +1,15 @@
+tile 1
+name "Distance Profile"
+category "Operator"
+description "Turns negative-inside signed distance into a bevel or height profile. Select Shape Distance on the image connection."
+group "Profile" true
+param float width "Width" default 0.04 range 0.00001 1
+param float height "Height" default 1 range -10 10
+param float profile "Profile" default 1 range 0 3
+choices "Linear" "Smooth" "Round" "Concave"
+let value = clamp(-input.rgb / max(abs(width), 0.00001), 0, 1)
+let smooth = value * value * (3 - 2 * value)
+let roundProfile = sqrt(max(vec3(0), 1 - (1 - value) * (1 - value)))
+let concave = 1 - sqrt(max(vec3(0), 1 - value * value))
+let shaped = select(equal(profile, 0), value, select(equal(profile, 1), smooth, select(equal(profile, 2), roundProfile, concave)))
+image = vec4(shaped * height, input.a)

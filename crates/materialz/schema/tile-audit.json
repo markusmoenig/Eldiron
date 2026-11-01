@@ -1,0 +1,961 @@
+{
+  "version": 1,
+  "scope": "Implemented core and execution foundations, with specialized recipe migrations and iterative image kernels explicitly pending.",
+  "catalog_count": 83,
+  "entries": [
+    {
+      "source_id": "perlin",
+      "name": "Perlin Noise",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "disc",
+      "name": "Disc",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Fold the useful bevel/profile and cell-variation behavior into modern shape/profile workflows before removing these legacy packed-height shapes.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "multiply",
+      "name": "Multiply",
+      "action": "keep",
+      "priority": "none",
+      "reason": "One operation accepts constant or row-connected operands; Value supplies a constant input when needed.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "color_blend",
+      "name": "Mix",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Consolidate interpolation around a general Mix with constant-or-row endpoints; use separate masks/curves for shaping. Migrate existing examples before removal.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "transform",
+      "name": "Transform",
+      "action": "expand",
+      "priority": "p2",
+      "reason": "Specify consistent coordinate units and alpha/distance behavior. Warped distance fields must not be advertised as exact metric distances.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "circle",
+      "name": "Circle",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "rounded_rectangle",
+      "name": "Rounded Rectangle",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "color",
+      "name": "Color",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "border",
+      "name": "Border",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "periodic_profile",
+      "name": "Periodic Profile",
+      "action": "expand",
+      "priority": "p1",
+      "reason": "Retain the filtered profiles; add a general non-periodic distance/value profile for bevels, strip crowns and edge wear.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "compare_select",
+      "name": "Compare/Select",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "cell_data",
+      "name": "Cell Data",
+      "action": "expand",
+      "priority": "p1",
+      "reason": "Add parity, integer indices and hierarchical group/subcell identities that match Grid. Separate stable identity from local UV and transformed coordinates.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "directional_grain",
+      "name": "Directional Grain",
+      "action": "expand",
+      "priority": "p1",
+      "reason": "Add instance-local orientation and stable cell/group seeding once Grid exists. Keep grain, groove and relief fields separate.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "height_to_normal",
+      "name": "Height to Normal",
+      "action": "expand",
+      "priority": "p2",
+      "reason": "Add normal-map composition with explicit conventions; keep coarse Height separate from fine normals.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_divide",
+      "name": "Divide",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One arithmetic operation should accept either constants or row references for both operands. Preserve vector behavior and defined division handling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_abs",
+      "name": "Abs",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_add",
+      "name": "Add",
+      "action": "keep",
+      "priority": "none",
+      "reason": "One operation accepts constant or row-connected operands; Value supplies a constant input when needed.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_clamp",
+      "name": "Clamp",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_cos",
+      "name": "Cos",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_floor",
+      "name": "Floor",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_fract",
+      "name": "Fract",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_max",
+      "name": "Max",
+      "action": "keep",
+      "priority": "none",
+      "reason": "One operation accepts constant or row-connected operands; Value supplies a constant input when needed.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_min",
+      "name": "Min",
+      "action": "keep",
+      "priority": "none",
+      "reason": "One operation accepts constant or row-connected operands; Value supplies a constant input when needed.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_oneminus",
+      "name": "One Minus",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_powproperty",
+      "name": "Power",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One arithmetic operation should accept either constants or row references for both operands. Preserve vector behavior and defined division handling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_sign",
+      "name": "Sign",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_sin",
+      "name": "Sin",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_smoothstep",
+      "name": "Smooth Step",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_squareroot",
+      "name": "Square Root",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "op_subtract",
+      "name": "Subtract",
+      "action": "keep",
+      "priority": "none",
+      "reason": "One operation accepts constant or row-connected operands; Value supplies a constant input when needed.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "pattern_brickandtiles_shape",
+      "name": "Brick & Tiles (Pattern)",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Replace specialized paving layouts with examples after Grid, cell controls and coordinate transforms can reconstruct them. Keep until the replacements work.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_checker",
+      "name": "Checker B/W",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "pattern_circular_brickandtiles_shape",
+      "name": "Circular Brick & Tiles",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Replace specialized paving layouts with examples after Grid, cell controls and coordinate transforms can reconstruct them. Keep until the replacements work.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_color_grain",
+      "name": "Tileable Color Grain",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "These combine existing primitives/noise/color into material-specific recipes. Move them to example materials after equivalent rows are authored.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_cracks",
+      "name": "Cracks",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Rebuild after Scatter, Voronoi border fields and profile controls exist. Do not delete unique placement and edge behavior before those capabilities are available.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_cutandproject",
+      "name": "Cut and Project",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "pattern_decortiles_shape",
+      "name": "Decor Tiles",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Replace specialized paving layouts with examples after Grid, cell controls and coordinate transforms can reconstruct them. Keep until the replacements work.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_fabricewood",
+      "name": "Wood (2D Pattern)",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "These combine existing primitives/noise/color into material-specific recipes. Move them to example materials after equivalent rows are authored.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_fizzerstiling",
+      "name": "Fizzers Tiling",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Replace specialized paving layouts with examples after Grid, cell controls and coordinate transforms can reconstruct them. Keep until the replacements work.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_herringbone_shape",
+      "name": "Herringbone (Pattern)",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Replace specialized paving layouts with examples after Grid, cell controls and coordinate transforms can reconstruct them. Keep until the replacements work.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_marble",
+      "name": "Marble",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "These combine existing primitives/noise/color into material-specific recipes. Move them to example materials after equivalent rows are authored.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_memorycircles",
+      "name": "Memory Circles",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "These combine existing primitives/noise/color into material-specific recipes. Move them to example materials after equivalent rows are authored.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_noisemask",
+      "name": "Noise Hole Mask",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "These combine existing primitives/noise/color into material-specific recipes. Move them to example materials after equivalent rows are authored.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_otavioswood",
+      "name": "Wood (3D Pattern)",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "These combine existing primitives/noise/color into material-specific recipes. Move them to example materials after equivalent rows are authored.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_random_distribution",
+      "name": "Random",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Rebuild after Scatter, Voronoi border fields and profile controls exist. Do not delete unique placement and edge behavior before those capabilities are available.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_randomgradient",
+      "name": "Random Gradient",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "These combine existing primitives/noise/color into material-specific recipes. Move them to example materials after equivalent rows are authored.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_rocks",
+      "name": "Rocks",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Rebuild after Scatter, Voronoi border fields and profile controls exist. Do not delete unique placement and edge behavior before those capabilities are available.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_scratches",
+      "name": "Scratches",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Rebuild after Scatter, Voronoi border fields and profile controls exist. Do not delete unique placement and edge behavior before those capabilities are available.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_tartan",
+      "name": "Tartan",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "These combine existing primitives/noise/color into material-specific recipes. Move them to example materials after equivalent rows are authored.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "pattern_value",
+      "name": "Value",
+      "action": "expand",
+      "priority": "p2",
+      "reason": "Simplify constant scalar/vector authoring and integrate with a general Compose Channels operation.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "pattern_weave",
+      "name": "Weave",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "These combine existing primitives/noise/color into material-specific recipes. Move them to example materials after equivalent rows are authored.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "shape2d_polygon",
+      "name": "Polygon",
+      "action": "expand",
+      "priority": "none",
+      "reason": "Modern regular/irregular polygon with exact edge distance, instance-uniform controls and shape combinations replaces the packed-height legacy polygon.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "shape2d_star",
+      "name": "Star",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "shape2d_tile",
+      "name": "Tile",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Fold the useful bevel/profile and cell-variation behavior into modern shape/profile workflows before removing these legacy packed-height shapes.",
+      "status": "pending-replacement"
+    },
+    {
+      "source_id": "sys_normal",
+      "name": "Normal",
+      "action": "expand",
+      "priority": "p2",
+      "reason": "Expose the distinction between bake-plane data and actual shading context. Normal-based mixing is currently constant in ordinary 2D bakes.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "sys_position",
+      "name": "Position",
+      "action": "expand",
+      "priority": "p2",
+      "reason": "Expose the distinction between bake-plane data and actual shading context. Normal-based mixing is currently constant in ordinary 2D bakes.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "sys_texcoord2",
+      "name": "Tex Coord 2D",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "trans_circularwarp",
+      "name": "Circular Warp",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "trans_directional_blur",
+      "name": "Directional Blur",
+      "action": "expand",
+      "priority": "p2",
+      "reason": "Make direction, radius, alpha treatment and footprint explicit; use cached passes for expensive filters rather than multiplying whole upstream graphs.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "trans_linearwarp",
+      "name": "Linear Warp",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "simplex",
+      "name": "Simplex Noise",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "voronoi",
+      "name": "Voronoi",
+      "action": "expand",
+      "priority": "p1",
+      "reason": "Add configurable distance metrics and true cell-border distance. Do not label F2-F1 as an exact border distance.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "organic_noise",
+      "name": "Organic Noise",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "organic_fbm",
+      "name": "Organic fBm",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "white_noise",
+      "name": "White Noise",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "gabor",
+      "name": "Gabor Noise",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "spots",
+      "name": "Spots",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "wave_noise",
+      "name": "Wave Noise",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "fbm",
+      "name": "fBm",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "retained"
+    },
+    {
+      "source_id": "warp",
+      "name": "Warp",
+      "action": "expand",
+      "priority": "p2",
+      "reason": "Specify consistent coordinate units and alpha/distance behavior. Warped distance fields must not be advertised as exact metric distances.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "trans_tiler",
+      "name": "Grid",
+      "action": "expand",
+      "priority": "p1",
+      "reason": "Replace the coordinate-folding Tiler with a general Grid repeater: repeat sampled RGBA, use consistent cell-local coordinates, support row-controlled per-cell transforms, and define gap/edge behavior.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "compose_channels",
+      "name": "Compose Channels",
+      "action": "add",
+      "priority": "p1",
+      "reason": "Builds an RGBA value from four independent scalar controls or row connections.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "levels",
+      "name": "Levels",
+      "action": "add",
+      "priority": "p1",
+      "reason": "Remaps an explicit input range into an output range, with gamma and optional clamping.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "curve",
+      "name": "Curve",
+      "action": "add",
+      "priority": "p1",
+      "reason": "Shapes values through four fixed horizontal positions using straight segments or a monotone cubic.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "distance_profile",
+      "name": "Distance Profile",
+      "action": "add",
+      "priority": "p1",
+      "reason": "Converts a signed distance into a reusable bevel, crown or height profile.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "normal_combine",
+      "name": "Normal Combine",
+      "action": "add",
+      "priority": "p1",
+      "reason": "Combines base and detail tangent-space normal maps using reoriented normal mapping.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "vector_math",
+      "name": "Vector Math",
+      "action": "add",
+      "priority": "p1",
+      "reason": "Length, distance, dot product, normalization, projection and XY rotation of vectors.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "color_ramp",
+      "name": "Color Ramp",
+      "action": "add",
+      "priority": "p1",
+      "reason": "Maps the selected first channel through four ordered RGBA color stops.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "scatter",
+      "name": "Scatter",
+      "action": "add",
+      "priority": "p1",
+      "status": "implemented",
+      "reason": "Seeded overlapping RGBA stamps with multiple instances per cell, size/intensity variation, layers and Over/Add/Maximum blending."
+    },
+    {
+      "source_id": "coordinates",
+      "name": "Coordinates",
+      "action": "add",
+      "priority": "p1",
+      "status": "implemented",
+      "reason": "Cartesian, polar and cylindrical coordinate data, with 3D scaling, Euler rotation and translation. Connect XY or XYZ to a row's coordinate input. Angles use turns."
+    },
+    {
+      "source_id": "partition",
+      "name": "Partition",
+      "action": "add",
+      "priority": "p1",
+      "status": "implemented",
+      "reason": "Repeats RGBA in irregular intervals with shared boundaries, stable instance keys and normalized local coordinates."
+    },
+    {
+      "source_id": "height_gradient",
+      "name": "Height Gradient",
+      "action": "add",
+      "priority": "p1",
+      "status": "implemented",
+      "reason": "General-purpose height derivative and vector-steered neighborhood filtering for surface construction."
+    },
+    {
+      "source_id": "vector_filter",
+      "name": "Vector Filter",
+      "action": "add",
+      "priority": "p1",
+      "status": "implemented",
+      "reason": "General-purpose height derivative and vector-steered neighborhood filtering for surface construction."
+    }
+  ],
+  "additions": [
+    {
+      "name": "Compose Channels",
+      "priority": "p1",
+      "purpose": "Build a vector/RGBA result from independent scalar rows; channel selection alone only extracts components from one row.",
+      "status": "implemented",
+      "implementation": "Compose Channels"
+    },
+    {
+      "name": "Levels / Range Remap",
+      "priority": "p1",
+      "purpose": "Explicit input/output ranges, clamping and midpoint control, rather than only the current assumed-range connection remap.",
+      "status": "implemented",
+      "implementation": "Levels / Range Remap"
+    },
+    {
+      "name": "Scalar Curve / Distance Profile",
+      "priority": "p1",
+      "purpose": "Reusable bevel, crown and wear shaping from scalar or distance data, without material-specific sources.",
+      "status": "implemented",
+      "implementation": "Scalar Curve / Distance Profile"
+    },
+    {
+      "name": "Vector Math / Projection",
+      "priority": "p2",
+      "purpose": "Expose length, distance and dot/projection operations for row data; preserve the distinction between rotating values and resampling a domain.",
+      "status": "implemented",
+      "implementation": "Vector Math / Projection"
+    },
+    {
+      "name": "Normal Combine",
+      "priority": "p2",
+      "purpose": "Combine coarse and fine encoded tangent-space normals using an explicit convention.",
+      "status": "implemented",
+      "implementation": "Normal Combine"
+    },
+    {
+      "name": "Scatter",
+      "priority": "p2",
+      "purpose": "Deterministic instance placement with stable IDs, local coordinates and bounded neighbor evaluation.",
+      "status": "implemented",
+      "implementation": "Dedicated bounded Scatter with multiple stamps, size/intensity variation, layers, Over/Add/Maximum and winning fields."
+    },
+    {
+      "name": "Image-pass operations",
+      "priority": "later",
+      "purpose": "Distance transform, flood fill, morphology, broad blur, slope blur and height-derived AO/curvature need a cached multipass execution plan beneath the existing rows.",
+      "status": "later",
+      "implementation": "Image-pass operations"
+    }
+  ],
+  "grid_acceptance": [
+    "Repeat arbitrary upstream RGBA, including Circle/Rounded Rectangle coverage, rather than RGB only.",
+    "Cell Data and Grid agree on count, origin, offset, wrapping and IDs.",
+    "Separate group ID, brick/subcell ID and transformed local UV.",
+    "Allow per-cell 90-degree rotation driven by parity, without a Basketweave mode.",
+    "Define gaps, filtering and neighbor evaluation when instances are shifted or rotated.",
+    "Build the two-brick basketweave as rows and confirm independent per-brick variation."
+  ],
+  "retired": [
+    {
+      "source_id": "mixer_add",
+      "name": "Add (Mixer)",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One arithmetic operation should accept either constants or row references for both operands. Preserve vector behavior and defined division handling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_average",
+      "name": "Average",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One arithmetic operation should accept either constants or row references for both operands. Preserve vector behavior and defined division handling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_maskedcolorblend",
+      "name": "Masked Color Blend",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Consolidate interpolation around a general Mix with constant-or-row endpoints; use separate masks/curves for shaping. Migrate existing examples before removal.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_max",
+      "name": "Max (Mixer)",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One arithmetic operation should accept either constants or row references for both operands. Preserve vector behavior and defined division handling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_min",
+      "name": "Min (Mixer)",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One arithmetic operation should accept either constants or row references for both operands. Preserve vector behavior and defined division handling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_mix",
+      "name": "Mix",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Consolidate interpolation around a general Mix with constant-or-row endpoints; use separate masks/curves for shaping. Migrate existing examples before removal.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_multiply",
+      "name": "Multiply (Mixer)",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One arithmetic operation should accept either constants or row references for both operands. Preserve vector behavior and defined division handling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_normalmix",
+      "name": "Normal Based Mix",
+      "action": "expand",
+      "priority": "p2",
+      "reason": "Expose the distinction between bake-plane data and actual shading context. Normal-based mixing is currently constant in ordinary 2D bakes.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_rotate2d",
+      "name": "Rotate 2D (Mixer)",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One Vector Rotate operation should use consistent angle units and accept constant or row-controlled angles. Keep value rotation distinct from Transform resampling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_smoothmix",
+      "name": "Smooth Mix",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Consolidate interpolation around a general Mix with constant-or-row endpoints; use separate masks/curves for shaping. Migrate existing examples before removal.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "mixer_subtract",
+      "name": "Subtract (Mixer)",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One arithmetic operation should accept either constants or row references for both operands. Preserve vector behavior and defined division handling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_gradient",
+      "name": "Gradient",
+      "action": "expand",
+      "priority": "p1",
+      "reason": "Create an editable Color Ramp and a separate scalar Curve/Levels operation, with ordered stops, interpolation modes and explicit selected-channel input.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_mask",
+      "name": "Mask (Operator)",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Compare/Select already covers nonzero/threshold tests. Keep equality rules explicit while replacing these wrappers.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_normalize",
+      "name": "Normalize",
+      "action": "keep",
+      "priority": "none",
+      "reason": "A distinct general-purpose primitive, operation, or useful noise family; no removal recommended in this pass.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_powinput",
+      "name": "Power of Input",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One arithmetic operation should accept either constants or row references for both operands. Preserve vector behavior and defined division handling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_rotate2d",
+      "name": "Rotate 2D (Operator)",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "One Vector Rotate operation should use consistent angle units and accept constant or row-controlled angles. Keep value rotation distinct from Transform resampling.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_split",
+      "name": "Split",
+      "action": "remove",
+      "priority": "p1",
+      "reason": "Redundant with the native Color source or direct row connections; Utility Node currently returns zero.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "op_step",
+      "name": "Step",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Compare/Select already covers nonzero/threshold tests. Keep equality rules explicit while replacing these wrappers.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "pattern_basketweave_shape",
+      "name": "Basket Weave (Pattern)",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Replace specialized paving layouts with examples after Grid, cell controls and coordinate transforms can reconstruct them. Keep until the replacements work.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "pattern_checker_shape",
+      "name": "Checker",
+      "action": "recipe",
+      "priority": "p2",
+      "reason": "Replace specialized paving layouts with examples after Grid, cell controls and coordinate transforms can reconstruct them. Keep until the replacements work.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "pattern_color",
+      "name": "Color (Pattern)",
+      "action": "remove",
+      "priority": "p1",
+      "reason": "Redundant with the native Color source or direct row connections; Utility Node currently returns zero.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "pattern_frabricesmandist",
+      "name": "Manhattan Voronoi Distance",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Move the Manhattan metric into the Voronoi family after matching its useful outputs.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "sys_param",
+      "name": "Parameter",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Replace the legacy utility protocol with explicit scope data and a resolution-aware supersampling/filter operator before retiring these.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "sys_texcoord",
+      "name": "Tex Coord - Float",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Tex Coord 2D plus a scalar projection covers this averaged-UV source; a general Gradient/Projection control should provide the convenience.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "sys_utilitynode",
+      "name": "Utility Node",
+      "action": "remove",
+      "priority": "p1",
+      "reason": "Redundant with the native Color source or direct row connections; Utility Node currently returns zero.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "sys_utilitynode_aa",
+      "name": "Utility Node (2D Anti-Aliased)",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Replace the legacy utility protocol with explicit scope data and a resolution-aware supersampling/filter operator before retiring these.",
+      "status": "implemented"
+    },
+    {
+      "source_id": "trans_displace",
+      "name": "Displace",
+      "action": "merge",
+      "priority": "p2",
+      "reason": "Warp with a connected noise/vector field should replace this hidden-noise displacement recipe.",
+      "status": "implemented"
+    }
+  ],
+  "grid_acceptance_status": "implemented; exercised by numerical, nested RGBA, instance/group identity and Metal agreement tests plus basketweave and running-bond examples",
+  "engine_foundation": {
+    "scope_tracking": "Per-component pixel/instance/footprint dependencies; metric distance preserved for instance-uniform geometry.",
+    "execution_planning": "Expensive directional filters and periodic wrappers partition into intermediate GPU images with halo padding, affine/wrapped domains, mip filtering, bounded memory and dependency cache keys.",
+    "named_fields": "Stable field.swizzle references, visible on existing wire menus, resolved to shared specialized IR evaluations.",
+    "coordinates": "Affine 3D transforms, polar/cylindrical conversion, XY/XYZ row bindings and estimated footprints.",
+    "partitions": "Irregular 1D intervals and per-ring sector counts, both retaining stable instance keys.",
+    "placement_frames": "Composed origin and axes support instance center, size and orientation fields through nested placement and affine transforms.",
+    "remaining_limits": "Iterative image operators need kernels and resource lifetime scheduling; cached calls through unsupported dynamic or instance-dependent domains return diagnostics.",
+    "height_filters": "Height Gradient and Vector Filter operate on bounded cached image inputs. Height to Normal now declares the same execution contract.",
+    "parameter_sharing": "Repeated parameter connections to the same resolved source share one sample per node on CPU and Metal, with matching budgets. Input/coordinate contexts remain separate.",
+    "rock_recipe": "Fractured Rock uses modern Polygon, tilted planes, layered material channels, Scatter, vector filtering and curvature wear; no specialized rock-pattern source. Arbitrary-mask distance transforms and iterative erosion remain pending."
+  }
+}

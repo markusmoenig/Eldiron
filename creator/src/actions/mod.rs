@@ -465,6 +465,7 @@ pub mod build_procedural;
 pub mod clear_palette;
 pub mod clear_surface_detail;
 pub mod clear_tile;
+pub mod compose_materials;
 pub mod create_center_vertex;
 pub mod create_fitted_geometry;
 pub mod create_geometry_box;

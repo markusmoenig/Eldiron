@@ -54,7 +54,7 @@ pub struct TheSnapperbar {
 
     dim: TheDim,
     text: String,
-    text_color: RGBA,
+    text_color: Option<RGBA>,
     background_color: Option<RGBA>,
     background_palette: Option<(TheThemePalettes, usize)>,
     is_dirty: bool,
@@ -84,7 +84,7 @@ impl TheWidget for TheSnapperbar {
 
             dim: TheDim::zero(),
             text: "".to_string(),
-            text_color: WHITE,
+            text_color: None,
             background_color: None,
             background_palette: None,
             is_dirty: false,
@@ -241,7 +241,11 @@ impl TheWidget for TheSnapperbar {
         } else {
             ListItemIconBorder
         };
-        let border = ThePaint::solid(*style.theme().color(border_role));
+        let border = if !self.selected && !pressed && !hovered {
+            fill.clone()
+        } else {
+            ThePaint::solid(*style.theme().color(border_role))
+        };
         let marker = style.theme().paint(SnapperMarker, bounds);
         let radius = if self.root_mode { 1.5 } else { 0.5 };
         let width = buffer.dim().width.max(0) as usize;
@@ -288,7 +292,9 @@ impl TheWidget for TheSnapperbar {
                     size: 13.5,
                     ..Default::default()
                 },
-                &self.text_color,
+                &self
+                    .text_color
+                    .unwrap_or(*style.theme().color(SectionbarNormalTextColor)),
                 TheHorizontalAlign::Left,
                 TheVerticalAlign::Center,
             );
@@ -341,8 +347,8 @@ impl TheSnapperbarTrait for TheSnapperbar {
         self.is_dirty = true;
     }
     fn set_text_color(&mut self, color: RGBA) {
-        if self.text_color != color {
-            self.text_color = color;
+        if self.text_color != Some(color) {
+            self.text_color = Some(color);
             self.is_dirty = true;
         }
     }

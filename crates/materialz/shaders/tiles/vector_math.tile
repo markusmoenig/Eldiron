@@ -1,0 +1,13 @@
+tile 1
+name "Vector Math"
+category "Operator"
+description "Length, distance, dot product, normalization, projection and degree-based rotation of RGB vectors. Values are transformed; the source sampling domain is not."
+group "Vector" true
+param float operation "Operation" default 0 range 0 5
+choices "Length" "Distance" "Dot" "Normalize" "Project" "Rotate XY"
+param vec3 other "Other Vector" default 1 0 0 range -1000 1000
+param float angle "Angle" default 0 range -360 360
+let unit = other / max(length(other), 0.000001)
+let rotated = vec3(cos(radians(angle)) * input.x - sin(radians(angle)) * input.y, sin(radians(angle)) * input.x + cos(radians(angle)) * input.y, input.z)
+let result = select(equal(operation, 0), vec3(length(input.rgb)), select(equal(operation, 1), vec3(distance(input.rgb, other)), select(equal(operation, 2), vec3(dot(input.rgb, other)), select(equal(operation, 3), input.rgb / max(length(input.rgb), 0.000001), select(equal(operation, 4), unit * dot(input.rgb, unit), rotated)))))
+image = vec4(result, input.a)

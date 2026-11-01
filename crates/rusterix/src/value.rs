@@ -467,7 +467,7 @@ impl ValueContainer {
     }
 
     /// Borrow each key and value together without performing a second lookup.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (&String, &Value)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &Value)> {
         self.values.iter()
     }
 

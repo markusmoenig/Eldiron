@@ -1,6 +1,6 @@
 //! Declarative rules authoring. Branches own definitions; connections never execute.
 //! TOML values are currently the runtime's value tree, not an authoring source.
-use crate::{RawRuleset, ResolvedRuleset, RulesetSelection};
+use crate::ResolvedRuleset;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use theframework::prelude::Uuid;
@@ -133,21 +133,7 @@ impl RulesGraph {
     }
 
     pub fn resolve(&self) -> Result<ResolvedRuleset, String> {
-        let table = self.compile()?;
-        let schema = table
-            .get("ruleset")
-            .and_then(|v| v.get("schema_version"))
-            .and_then(Value::as_str)
-            .unwrap_or("1");
-        ResolvedRuleset::from_raw(
-            RawRuleset::from_table(table.clone()),
-            RulesetSelection {
-                id: "project.rules".into(),
-                schema_version: schema.into(),
-                source: "project".into(),
-                ..Default::default()
-            },
-        )
+        crate::document::RulesDocument::from_graph(self)?.resolve()
     }
 
     /// Restore a definition, including a deleted branch, using its stable path.

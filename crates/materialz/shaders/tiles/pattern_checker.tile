@@ -1,0 +1,11 @@
+tile 1
+name "Checker B/W"
+category "Pattern"
+description "Generates a simple b/w checkerboard pattern."
+group "Checker Pattern" true
+param float scale "Scale" default 5.0 range 0.0 20
+group "About" true
+
+let v0 = floor((scale * (uv).xy))
+let v1 = vec3(mod(((v0).x + (v0).y), 2.))
+image = vec4(v1, input.a)

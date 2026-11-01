@@ -1,0 +1,13 @@
+tile 1
+name "Loop Flow"
+category "Transform"
+description "Moves and crossfades two advected copies for a smooth directed loop. Sample time 0 and 1 match in value and velocity. Material animation duration controls playback speed."
+distance clear
+group "Flow" true
+param vec2 velocity "Travel per Cycle" default 0 0.25 range -4 4
+param float phase "Phase Offset" default 0 range 0 1
+let t = fract(sample_time + phase)
+let w = t * t * t * (t * (t * 6 - 15) + 10)
+let a = sample_image(uv - velocity * t)
+let b = sample_image(uv - velocity * (t - 1))
+image = mix(a, b, w)

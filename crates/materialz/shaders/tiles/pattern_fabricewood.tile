@@ -1,0 +1,304 @@
+tile 1
+name "Wood (2D Pattern)"
+category "2D Pattern"
+description "Generates a wood pattern."
+group "Wood Pattern" true
+param float scale "Scale" default 1.0 range 0.0 10
+param float veins_S "Veins" default 7.0 range 0.0 10
+tooltip "Number of veins."
+group "Warp / Displacement" true
+param float warp_A "Warp Amplitude" default 0.05 range 0.0 1
+tooltip "Global displacement amplitude."
+param float warp_S "Warp Scale" default 1.0 range 0.0 3
+tooltip "Global displacement scale."
+group "Noise" false
+param float noise_A "Noise Amplitude" default 6.0 range 0.0 10
+tooltip "Noise amplitude."
+param vec2 noise_S "Noise Scale" default 0.2 4.0 range 0 50
+tooltip "Noise scale."
+group "Fibers" false
+param float fibers_A "Fibers Amplitude" default 3.0 range 0.0 10
+tooltip "Fibers amplitude, fibers are dents in the knots."
+param float fibers_S "Fibers Scale" default 200.0 range 0.0 1000
+tooltip "Fibers scale, fibers are dents in the knots."
+group "Knots" false
+param float knot_A "Strength" default 0.6 range 0.0 4
+tooltip "Strength of the knots."
+param float inKnot_N "Amount" default 2 range 0 10
+tooltip "Number of knots."
+param vec2 knot_S "Scale" default 0.5 3 range 0 50
+tooltip "Scale of knots."
+param vec2 knot_shape "Shape" default 0.7 0.3 range 0 1
+tooltip "Shape of knots (Perlin)."
+group "About" true
+
+let v0 = inKnot_N
+let v1 = ((uv / scale) + ((input.rgb).z * 12323.1211))
+let v2 = v1
+let v3 = vec3(0)
+let v4 = 0.
+let v5 = .5
+let v6 = 0
+state v7 = vec3(0)
+state v8 = vec2(256)
+state v9 = uv
+state v10 = pos
+state v11 = normal
+state v12 = input.rgb
+state v13 = vec3(0)
+state v14 = vec3(0)
+state v15 = vec3(0)
+state v16 = scale
+state v17 = veins_S
+state v18 = warp_A
+state v19 = warp_S
+state v20 = noise_A
+state v21 = noise_S
+state v22 = fibers_A
+state v23 = fibers_S
+state v24 = knot_A
+state v25 = inKnot_N
+state v26 = knot_S
+state v27 = knot_shape
+state v28 = v0
+state v29 = v1
+state v30 = v2
+state v31 = v3
+state v32 = (warp_S * v1)
+state v33 = 0
+state v34 = 0
+state v35 = v4
+state v36 = v5
+state v37 = v6
+repeat 3 times ((3 - v6) / 1) while less(v37, 3)
+let v39 = floor(v32)
+let v40 = (v32 - v39)
+let v41 = (((v40 * v40) * v40) * ((v40 * ((v40 * 6.) - 15.)) + 10.))
+let v42 = v41
+let v43 = select(0, vec3(0), hash33(vec3(((v39 + vec2(0, 0)) + 65535), 11)))
+let v44 = 1
+let v45 = bit_and(trunc(((v43).x * 256.)), 15)
+let v46 = select(less(v45, 8), ((v40 - vec2(0, 0))).x, ((v40 - vec2(0, 0))).y)
+let v47 = select(less(v45, 4), ((v40 - vec2(0, 0))).y, select(logical_or(equal(v45, 12), equal(v45, 14)), ((v40 - vec2(0, 0))).x, 0.))
+let v48 = (select(equal(bit_and(v45, 1), 0), v46, (-v46)) + select(equal(bit_and(v45, 2), 0), v47, (-v47)))
+let v49 = select(0, 0, v48)
+let v50 = 1
+let v51 = select(0, vec3(0), hash33(vec3(((v39 + vec2(1, 0)) + 65535), 11)))
+let v52 = 1
+let v53 = bit_and(trunc(((v51).x * 256.)), 15)
+let v54 = select(less(v53, 8), ((v40 - vec2(1, 0))).x, ((v40 - vec2(1, 0))).y)
+let v55 = select(less(v53, 4), ((v40 - vec2(1, 0))).y, select(logical_or(equal(v53, 12), equal(v53, 14)), ((v40 - vec2(1, 0))).x, 0.))
+let v56 = (select(equal(bit_and(v53, 1), 0), v54, (-v54)) + select(equal(bit_and(v53, 2), 0), v55, (-v55)))
+let v57 = select(0, 0, v56)
+let v58 = 1
+let v59 = select(0, vec3(0), hash33(vec3(((v39 + vec2(0, 1)) + 65535), 11)))
+let v60 = 1
+let v61 = bit_and(trunc(((v59).x * 256.)), 15)
+let v62 = select(less(v61, 8), ((v40 - vec2(0, 1))).x, ((v40 - vec2(0, 1))).y)
+let v63 = select(less(v61, 4), ((v40 - vec2(0, 1))).y, select(logical_or(equal(v61, 12), equal(v61, 14)), ((v40 - vec2(0, 1))).x, 0.))
+let v64 = (select(equal(bit_and(v61, 1), 0), v62, (-v62)) + select(equal(bit_and(v61, 2), 0), v63, (-v63)))
+let v65 = select(0, 0, v64)
+let v66 = 1
+let v67 = select(0, vec3(0), hash33(vec3(((v39 + vec2(1, 1)) + 65535), 11)))
+let v68 = 1
+let v69 = bit_and(trunc(((v67).x * 256.)), 15)
+let v70 = select(less(v69, 8), ((v40 - vec2(1, 1))).x, ((v40 - vec2(1, 1))).y)
+let v71 = select(less(v69, 4), ((v40 - vec2(1, 1))).y, select(logical_or(equal(v69, 12), equal(v69, 14)), ((v40 - vec2(1, 1))).x, 0.))
+let v72 = (select(equal(bit_and(v69, 1), 0), v70, (-v70)) + select(equal(bit_and(v69, 2), 0), v71, (-v71)))
+let v73 = select(0, 0, v72)
+let v74 = 1
+let v75 = mix(mix(v49, v57, (v42).x), mix(v65, v73, (v42).x), (v42).y)
+let v76 = select(0, 0, v75)
+let v77 = 1
+let v78 = (v35 + (v36 * v76))
+let v79 = (v37 + 1)
+let v80 = (v32 * 2.)
+let v81 = (v36 / 2.)
+update v32 = v80
+update v35 = v78
+update v36 = v81
+update v37 = v79
+end repeat
+let v87 = select(0, 0, v35)
+let v88 = 1
+let v89 = vec2((v1).x, ((v1).y + ((warp_A * v87) / warp_S)))
+let v90 = floor((fibers_S * (v89).y))
+let v91 = fract((fibers_S * (v89).y))
+let v92 = ((v91 * v91) * (3. - (2. * v91)))
+let v93 = select(0, vec3(0), hash33(vec3(v90, 17, 1)))
+let v94 = 1
+let v95 = select(0, vec3(0), hash33(vec3((v90 + 1.), 17, 1)))
+let v96 = 1
+let v97 = select(0, 0, ((-1.) + (2. * (mix(v93, v95, v92)).x)))
+let v98 = 1
+let v99 = vec2(((v89).x + ((fibers_A * v97) / fibers_S)), (v89).y)
+let v100 = 0.
+let v101 = .5
+let v102 = 0
+state v103 = vec3(0)
+state v104 = vec2(256)
+state v105 = uv
+state v106 = pos
+state v107 = normal
+state v108 = input.rgb
+state v109 = vec3(0)
+state v110 = vec3(0)
+state v111 = vec3(0)
+state v112 = scale
+state v113 = veins_S
+state v114 = warp_A
+state v115 = warp_S
+state v116 = noise_A
+state v117 = noise_S
+state v118 = fibers_A
+state v119 = fibers_S
+state v120 = knot_A
+state v121 = inKnot_N
+state v122 = knot_S
+state v123 = knot_shape
+state v124 = v0
+state v125 = v99
+state v126 = v2
+state v127 = v3
+state v128 = (noise_S * v99)
+state v129 = 0
+state v130 = 0
+state v131 = v100
+state v132 = v101
+state v133 = v102
+repeat 3 times ((3 - v102) / 1) while less(v133, 3)
+let v135 = floor(v128)
+let v136 = (v128 - v135)
+let v137 = (((v136 * v136) * v136) * ((v136 * ((v136 * 6.) - 15.)) + 10.))
+let v138 = v137
+let v139 = select(0, vec3(0), hash33(vec3(((v135 + vec2(0, 0)) + 65535), 11)))
+let v140 = 1
+let v141 = bit_and(trunc(((v139).x * 256.)), 15)
+let v142 = select(less(v141, 8), ((v136 - vec2(0, 0))).x, ((v136 - vec2(0, 0))).y)
+let v143 = select(less(v141, 4), ((v136 - vec2(0, 0))).y, select(logical_or(equal(v141, 12), equal(v141, 14)), ((v136 - vec2(0, 0))).x, 0.))
+let v144 = (select(equal(bit_and(v141, 1), 0), v142, (-v142)) + select(equal(bit_and(v141, 2), 0), v143, (-v143)))
+let v145 = select(0, 0, v144)
+let v146 = 1
+let v147 = select(0, vec3(0), hash33(vec3(((v135 + vec2(1, 0)) + 65535), 11)))
+let v148 = 1
+let v149 = bit_and(trunc(((v147).x * 256.)), 15)
+let v150 = select(less(v149, 8), ((v136 - vec2(1, 0))).x, ((v136 - vec2(1, 0))).y)
+let v151 = select(less(v149, 4), ((v136 - vec2(1, 0))).y, select(logical_or(equal(v149, 12), equal(v149, 14)), ((v136 - vec2(1, 0))).x, 0.))
+let v152 = (select(equal(bit_and(v149, 1), 0), v150, (-v150)) + select(equal(bit_and(v149, 2), 0), v151, (-v151)))
+let v153 = select(0, 0, v152)
+let v154 = 1
+let v155 = select(0, vec3(0), hash33(vec3(((v135 + vec2(0, 1)) + 65535), 11)))
+let v156 = 1
+let v157 = bit_and(trunc(((v155).x * 256.)), 15)
+let v158 = select(less(v157, 8), ((v136 - vec2(0, 1))).x, ((v136 - vec2(0, 1))).y)
+let v159 = select(less(v157, 4), ((v136 - vec2(0, 1))).y, select(logical_or(equal(v157, 12), equal(v157, 14)), ((v136 - vec2(0, 1))).x, 0.))
+let v160 = (select(equal(bit_and(v157, 1), 0), v158, (-v158)) + select(equal(bit_and(v157, 2), 0), v159, (-v159)))
+let v161 = select(0, 0, v160)
+let v162 = 1
+let v163 = select(0, vec3(0), hash33(vec3(((v135 + vec2(1, 1)) + 65535), 11)))
+let v164 = 1
+let v165 = bit_and(trunc(((v163).x * 256.)), 15)
+let v166 = select(less(v165, 8), ((v136 - vec2(1, 1))).x, ((v136 - vec2(1, 1))).y)
+let v167 = select(less(v165, 4), ((v136 - vec2(1, 1))).y, select(logical_or(equal(v165, 12), equal(v165, 14)), ((v136 - vec2(1, 1))).x, 0.))
+let v168 = (select(equal(bit_and(v165, 1), 0), v166, (-v166)) + select(equal(bit_and(v165, 2), 0), v167, (-v167)))
+let v169 = select(0, 0, v168)
+let v170 = 1
+let v171 = mix(mix(v145, v153, (v138).x), mix(v161, v169, (v138).x), (v138).y)
+let v172 = select(0, 0, v171)
+let v173 = 1
+let v174 = (v131 + (v132 * v172))
+let v175 = (v133 + 1)
+let v176 = (v128 * 2.)
+let v177 = (v132 / 2.)
+update v128 = v176
+update v131 = v174
+update v132 = v177
+update v133 = v175
+end repeat
+let v183 = select(0, 0, v131)
+let v184 = 1
+let v185 = ((noise_A * v183) / (noise_S).y)
+let v186 = 0.
+let v187 = 0.
+state v188 = vec3(0)
+state v189 = vec2(256)
+state v190 = uv
+state v191 = pos
+state v192 = normal
+state v193 = input.rgb
+state v194 = vec3(0)
+state v195 = vec3(0)
+state v196 = vec3(0)
+state v197 = scale
+state v198 = veins_S
+state v199 = warp_A
+state v200 = warp_S
+state v201 = noise_A
+state v202 = noise_S
+state v203 = fibers_A
+state v204 = fibers_S
+state v205 = knot_A
+state v206 = inKnot_N
+state v207 = knot_S
+state v208 = knot_shape
+state v209 = v0
+state v210 = v99
+state v211 = v2
+state v212 = v3
+state v213 = v185
+state v214 = v186
+state v215 = v187
+repeat 1024 times ((v0 - v187) / 1) while less(v215, v209)
+let v217 = select(0, vec3(0), hash33(vec3(v215, 23, 2)))
+let v218 = 1
+let v219 = floor(((v207 * v210) + (100. * (v217).xy)))
+let v220 = (((v207 * v210) + (100. * (v217).xy)) - v219)
+let v221 = (((v220 * v220) * v220) * ((v220 * ((v220 * 6.) - 15.)) + 10.))
+let v222 = v221
+let v223 = select(0, vec3(0), hash33(vec3(((v219 + vec2(0, 0)) + 65535), 11)))
+let v224 = 1
+let v225 = bit_and(trunc(((v223).x * 256.)), 15)
+let v226 = select(less(v225, 8), ((v220 - vec2(0, 0))).x, ((v220 - vec2(0, 0))).y)
+let v227 = select(less(v225, 4), ((v220 - vec2(0, 0))).y, select(logical_or(equal(v225, 12), equal(v225, 14)), ((v220 - vec2(0, 0))).x, 0.))
+let v228 = (select(equal(bit_and(v225, 1), 0), v226, (-v226)) + select(equal(bit_and(v225, 2), 0), v227, (-v227)))
+let v229 = select(0, 0, v228)
+let v230 = 1
+let v231 = select(0, vec3(0), hash33(vec3(((v219 + vec2(1, 0)) + 65535), 11)))
+let v232 = 1
+let v233 = bit_and(trunc(((v231).x * 256.)), 15)
+let v234 = select(less(v233, 8), ((v220 - vec2(1, 0))).x, ((v220 - vec2(1, 0))).y)
+let v235 = select(less(v233, 4), ((v220 - vec2(1, 0))).y, select(logical_or(equal(v233, 12), equal(v233, 14)), ((v220 - vec2(1, 0))).x, 0.))
+let v236 = (select(equal(bit_and(v233, 1), 0), v234, (-v234)) + select(equal(bit_and(v233, 2), 0), v235, (-v235)))
+let v237 = select(0, 0, v236)
+let v238 = 1
+let v239 = select(0, vec3(0), hash33(vec3(((v219 + vec2(0, 1)) + 65535), 11)))
+let v240 = 1
+let v241 = bit_and(trunc(((v239).x * 256.)), 15)
+let v242 = select(less(v241, 8), ((v220 - vec2(0, 1))).x, ((v220 - vec2(0, 1))).y)
+let v243 = select(less(v241, 4), ((v220 - vec2(0, 1))).y, select(logical_or(equal(v241, 12), equal(v241, 14)), ((v220 - vec2(0, 1))).x, 0.))
+let v244 = (select(equal(bit_and(v241, 1), 0), v242, (-v242)) + select(equal(bit_and(v241, 2), 0), v243, (-v243)))
+let v245 = select(0, 0, v244)
+let v246 = 1
+let v247 = select(0, vec3(0), hash33(vec3(((v219 + vec2(1, 1)) + 65535), 11)))
+let v248 = 1
+let v249 = bit_and(trunc(((v247).x * 256.)), 15)
+let v250 = select(less(v249, 8), ((v220 - vec2(1, 1))).x, ((v220 - vec2(1, 1))).y)
+let v251 = select(less(v249, 4), ((v220 - vec2(1, 1))).y, select(logical_or(equal(v249, 12), equal(v249, 14)), ((v220 - vec2(1, 1))).x, 0.))
+let v252 = (select(equal(bit_and(v249, 1), 0), v250, (-v250)) + select(equal(bit_and(v249, 2), 0), v251, (-v251)))
+let v253 = select(0, 0, v252)
+let v254 = 1
+let v255 = mix(mix(v229, v237, (v222).x), mix(v245, v253, (v222).x), (v222).y)
+let v256 = select(0, 0, v255)
+let v257 = 1
+let v258 = (v214 + smoothstep((v208).x, (v208).y, abs(v256)))
+let v259 = (v215 + 1)
+update v214 = v258
+update v215 = v259
+end repeat
+let v263 = (v185 + (knot_A * v214))
+let v264 = fract((veins_S * v263))
+let v265 = select(0, 0, select(less(v264, .1), smoothstep(.1, (-.1), v264), select(less(v264, (1. - .1)), smoothstep(.1, (1. - .1), v264), smoothstep((1. + .1), (1. - .1), v264))))
+let v266 = 1
+let v267 = v265
+let v268 = vec3(v267)
+image = vec4(v268, input.a)

@@ -43,7 +43,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
                 col = sd_sample_avatar(cmd.params.x, bh.uv);
             } else {
                 // Sample based on repeat mode
-                let frame = sv_tile_frame(bh.tile_index);
+                let frame = sv_tile_frame(bh.tile_index, bh.uv);
                 var atlas_uv: vec2<f32>;
 
                 if (bh.repeat_mode == 1u) {

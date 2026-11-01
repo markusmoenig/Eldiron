@@ -1,0 +1,51 @@
+tile 1
+name "Daves Tileable Value fBM"
+category "2D fBm"
+description "Tileable 2D turbulence. Needs Daves Tileable Value Noise as input."
+group "Daves Tileable Value fBM" true
+param float layers "Layers" default 5 range 2 20
+param float amplitude "Amplitude" default 0.6 range 0.001 10
+param float gain "Gain" default 0.5 range 0.001 3
+param float scaleValue "Scale" default 10 range 0 40
+group "About" true
+group "Sampling" true
+param float time "Time Offset" default 0
+param vec3 extra2 "Input 2" default 0 0 0
+
+let v0 = scaleValue
+let v1 = 0.0
+let v2 = mod(uv, v0)
+let v3 = amplitude
+let v4 = 0
+state v5 = vec3(0)
+state v6 = vec2(256)
+state v7 = uv
+state v8 = pos
+state v9 = normal
+state v10 = input.rgb
+state v11 = select(aux_valid, aux2, extra2)
+state v12 = vec3(0)
+state v13 = vec3(0)
+state v14 = layers
+state v15 = amplitude
+state v16 = gain
+state v17 = scaleValue
+state v18 = (sample_time + time)
+state v19 = v0
+state v20 = v1
+state v21 = v2
+state v22 = v3
+state v23 = v4
+repeat 21 times ((layers - v4) / 1) while less(v23, v14)
+let v25 = (sample_context(v21, v8, v9, v18, v10, v11, vec3(v19))).rgb
+let v26 = (v20 + ((v25).x * v22))
+let v27 = (v22 * v16)
+let v28 = (v19 * 2.)
+let v29 = (v23 + 1)
+update v19 = v28
+update v20 = v26
+update v22 = v27
+update v23 = v29
+end repeat
+let v35 = vec3(min(v20, 1.0))
+image = vec4(v35, input.a)

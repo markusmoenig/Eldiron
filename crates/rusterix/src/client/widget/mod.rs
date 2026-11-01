@@ -636,7 +636,7 @@ impl Widget {
             && let Some(entity) = entity
             && let Some(tile) = Self::portrait_tile_for_entity(entity, assets)
         {
-            let index = *animation_frame % tile.textures.len();
+            let index = tile.frame_index(*animation_frame);
             let rect = self.rect.with_border(4.0);
             draw2d.blend_scale_chunk(
                 buffer.pixels_mut(),
@@ -1134,7 +1134,7 @@ impl Widget {
             && let Some(tile) = source.tile_from_tile_list(assets)
             && !tile.textures.is_empty()
         {
-            let index = animation_frame % tile.textures.len();
+            let index = tile.frame_index(animation_frame);
             let texture = &tile.textures[index];
             draw2d.blend_scale_chunk(
                 buffer.pixels_mut(),
@@ -1155,7 +1155,7 @@ impl Widget {
             && let Some(tile) = AvatarRuntimeBuilder::explicit_item_tile(item, assets)
             && !tile.textures.is_empty()
         {
-            let index = animation_frame % tile.textures.len();
+            let index = tile.frame_index(animation_frame);
             let texture = &tile.textures[index];
             draw2d.blend_scale_chunk(
                 buffer.pixels_mut(),

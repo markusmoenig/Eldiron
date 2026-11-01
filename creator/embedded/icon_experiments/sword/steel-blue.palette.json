@@ -1,0 +1,47 @@
+{
+  "label": "Steel / Blue",
+  "bindings": {
+    "blade-colors": {
+      "color0": 5,
+      "color1": 6,
+      "color2": 7,
+      "color3": 9
+    },
+    "guard-colors": {
+      "color0": 18,
+      "color1": 20,
+      "color2": 24,
+      "color3": 22
+    },
+    "grip-colors": {
+      "color0": 13,
+      "color1": 40,
+      "color2": 41,
+      "color3": 42
+    },
+    "pommel-colors": {
+      "color0": 18,
+      "color1": 20,
+      "color2": 24,
+      "color3": 22
+    },
+    "blade-outline": {
+      "color": 2
+    },
+    "guard-outline": {
+      "color": 2
+    },
+    "grip-outline": {
+      "color": 2
+    },
+    "pommel-outline": {
+      "color": 2
+    },
+    "fuller-color": {
+      "color": 5
+    },
+    "jewel-color": {
+      "color": 43
+    }
+  }
+}

@@ -1,0 +1,37 @@
+# Eldiron palette indices: 01-grass.palette.json (RGB below is the portable MaterialZ cache).
+# Dense grass with stretched blades. Raw coordinates vary across the world.
+project 1
+result from material "surface"
+material "surface" called "Grass"
+  mode pbr
+  tiling raw
+  default base color to 0.09 0.22 0.025
+  default roughness to 0.88
+  default metallic to 0
+  default opacity to 1
+  default emission to 0 0 0
+  default emission strength to 0
+  row "dark" called "Deep Green"
+    use "Color" id "dark-green"
+      set "color" to 0.025 0.075 0.012 1
+  row "light" called "Fresh Green"
+    use "Color" id "fresh-green"
+      set "color" to 0.2 0.38 0.055 1
+  row "grain" called "Grass Blades"
+    use "Perlin Noise" id "grass-grain"
+      set "globalScale" to 0.62
+      set "localScale" to 0.7 2.8
+  row "color" called "Grass Color"
+    use "Color Ramp" id "grass-color"
+      input from row "grain" xxx
+      set "position0" to 0.12
+      set "color0" from row "dark" xyzw
+      set "position1" to 0.38
+      set "color1" to 0.055 0.14 0.02 1
+      set "position2" to 0.55
+      set "color2" to 0.12 0.25 0.03 1
+      set "position3" to 0.74
+      set "color3" from row "light" xyzw
+      set "interpolation" to 0
+  output base color from row "color" xyz
+  output roughness from row "grain" x mapped 0.78 to 0.98

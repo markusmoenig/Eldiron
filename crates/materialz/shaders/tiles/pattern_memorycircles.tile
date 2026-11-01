@@ -1,0 +1,19 @@
+tile 1
+name "Memory Circles"
+category "Pattern"
+description "Generates a circle based pattern."
+group "Memory Circles" true
+param float scale "Scale" default 1.0 range 0.0 10
+group "About" true
+
+let v0 = ((uv / scale) / 8.)
+let v1 = 1500.0
+let v2 = 0.03
+let v3 = vec2((v2 / 2.0), (v2 / 2.0))
+let v4 = vec2(floor(((v0).x / v2)), floor(((v0).y / v2)))
+let v5 = (v0 - (v4 * v2))
+let v6 = length((v3 - v5))
+let v7 = cos(((v6 * v1) / 1.0))
+let v8 = v7
+let v9 = vec3(v8)
+image = vec4(v9, input.a)

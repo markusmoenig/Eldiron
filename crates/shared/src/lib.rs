@@ -11,6 +11,7 @@ pub mod iso_paint_brush;
 pub mod iso_paint_render;
 pub mod item;
 pub mod legacy_tiles;
+pub mod material_composition;
 pub mod particle_graph;
 pub mod prefab_graph;
 pub mod project;

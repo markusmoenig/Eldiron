@@ -17,6 +17,18 @@ pub enum ProjectUndoAtom {
         Box<rusterix::BlockPropAsset>,
     ),
     TilePickerEdit(Box<Project>, Box<Project>),
+    ProceduralMaterialEdit(Uuid, String, String),
+    MaterialCompositionEdit(
+        Uuid,
+        shared::material_composition::MaterialComposition,
+        shared::material_composition::MaterialComposition,
+    ),
+    MapMaterialCompositionCreate(
+        ProjectContext,
+        Box<Map>,
+        Box<Map>,
+        Box<crate::procedural_material::map_composition::CreatedMapComposition>,
+    ),
     ProjectEdit(String, Box<Project>, Box<Project>),
     AddRegion(Region),
     RemoveRegion(usize, Region),
@@ -289,6 +301,9 @@ impl ProjectUndoAtom {
             PrefabPaintEdit(_, _, _, _) => "Prefab Paint Edit".to_string(),
             PrefabAssetEdit(_, _, _) => "Prefab Effect Preset".to_string(),
             TilePickerEdit(_, _) => "Tile Picker Edit".to_string(),
+            ProceduralMaterialEdit(..) => "Edit Procedural Material".to_string(),
+            MaterialCompositionEdit(..) => "Edit Material Composition".to_string(),
+            MapMaterialCompositionCreate(..) => "Compose Map Materials".to_string(),
             ProjectEdit(label, _, _) => label.clone(),
             AddRegion(region) => format!("Add Region: {}", region.name),
             RemoveRegion(_, region) => format!("Remove Region: {}", region.name),
@@ -380,7 +395,47 @@ impl ProjectUndoAtom {
             PrefabAssetEdit(asset_id, old, _) => {
                 Self::apply_prefab_asset_state(project, ctx, *asset_id, old);
             }
+            MapMaterialCompositionCreate(pc, old, new, created) => {
+                project.remove_tile(&created.tile.id);
+                Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, old, Some(new));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Procedural Tiles Restored"),
+                    TheValue::Empty,
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
+            }
+            MaterialCompositionEdit(id, old, _) => {
+                if project.tiles.contains_key(id) {
+                    project.material_compositions.insert(*id, old.clone());
+                    project.procedural_material_cache_keys.shift_remove(id);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Procedural Tiles Restored"),
+                        TheValue::Empty,
+                    ));
+                }
+            }
+            ProceduralMaterialEdit(id, old, _) => {
+                if project.tiles.contains_key(id) {
+                    project.procedural_materials.insert(*id, old.clone());
+                    project.procedural_material_cache_keys.shift_remove(id);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Procedural Tiles Restored"),
+                        TheValue::Empty,
+                    ));
+                }
+            }
             TilePickerEdit(old, _new) => {
+                if project.procedural_materials != old.procedural_materials
+                    || project.material_compositions != old.material_compositions
+                {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Procedural Tiles Restored"),
+                        TheValue::Empty,
+                    ));
+                }
                 *project = (*old.clone()).clone();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Tilepicker"),
@@ -1025,7 +1080,47 @@ impl ProjectUndoAtom {
             PrefabAssetEdit(asset_id, _, new) => {
                 Self::apply_prefab_asset_state(project, ctx, *asset_id, new);
             }
+            MapMaterialCompositionCreate(pc, old, new, created) => {
+                created.install(project);
+                Self::apply_map_edit_state(project, ui, ctx, server_ctx, *pc, new, Some(old));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Procedural Tiles Restored"),
+                    TheValue::Empty,
+                ));
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
+            }
+            MaterialCompositionEdit(id, _, new) => {
+                if project.tiles.contains_key(id) {
+                    project.material_compositions.insert(*id, new.clone());
+                    project.procedural_material_cache_keys.shift_remove(id);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Procedural Tiles Restored"),
+                        TheValue::Empty,
+                    ));
+                }
+            }
+            ProceduralMaterialEdit(id, _, new) => {
+                if project.tiles.contains_key(id) {
+                    project.procedural_materials.insert(*id, new.clone());
+                    project.procedural_material_cache_keys.shift_remove(id);
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Procedural Tiles Restored"),
+                        TheValue::Empty,
+                    ));
+                }
+            }
             TilePickerEdit(_old, new) => {
+                if project.procedural_materials != new.procedural_materials
+                    || project.material_compositions != new.material_compositions
+                {
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Procedural Tiles Restored"),
+                        TheValue::Empty,
+                    ));
+                }
                 *project = (*new.clone()).clone();
                 ctx.ui.send(TheEvent::Custom(
                     TheId::named("Update Tilepicker"),

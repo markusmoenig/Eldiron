@@ -1,0 +1,10 @@
+tile 1
+name "Position"
+category "System"
+description "Returns the bake-context position, (UV.x, UV.y, 0) for ordinary 2D material bakes. Scale or connect coordinates for volume sampling."
+group "Position Settings" true
+param vec3 scale "Scale" default 1.0 1.0 1.0 range -1000 1000
+group "About" true
+
+let v0 = (pos * scale)
+image = vec4(v0, input.a)

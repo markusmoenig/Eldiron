@@ -1,0 +1,39 @@
+# Eldiron palette indices: 02-rock.palette.json (RGB below is the portable MaterialZ cache).
+# Angular stone facets with dark crevices and a four-tone pixel-art ramp.
+project 1
+result from material "surface"
+material "surface" called "Rock"
+  mode pbr
+  tiling raw
+  default base color to 0.2345506 0.2345506 0.2345506
+  default roughness to 0.92
+  default metallic to 0
+  default opacity to 1
+  default emission to 0.0065121 0.0065121 0.0065121
+  default emission strength to 0
+  row "dark" called "Dark Stone"
+    use "Color" id "dark-stone"
+      set "color" to 0.1094617 0.1094617 0.1094617 1
+  row "light" called "Weathered Stone"
+    use "Color" id "weathered-stone"
+      set "color" to 0.5711248 0.6239604 0.7230551 1
+  row "grain" called "Stone Facets"
+    use "Voronoi" id "stone-grain"
+      set "globalScale" to 2.8
+      set "localScale" to 1.2 0.85
+      set "seed" to 23
+      set "jitter" to 0.85
+  row "color" called "Stone Color"
+    use "Color Ramp" id "stone-color"
+      input from row "grain" border.xxx
+      set "position0" to 0
+      set "color0" from row "dark" xyzw
+      set "position1" to 0.035
+      set "color1" to 0.2345506 0.2345506 0.2345506 1
+      set "position2" to 0.13
+      set "color2" to 0.4564110 0.4564110 0.4564110 1
+      set "position3" to 0.3
+      set "color3" from row "light" xyzw
+      set "interpolation" to 0
+  output base color from row "color" xyz
+  output roughness from row "grain" y mapped 0.68 to 1

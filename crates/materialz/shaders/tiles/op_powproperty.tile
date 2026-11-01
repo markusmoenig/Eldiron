@@ -1,0 +1,8 @@
+tile 1
+name "Power"
+category "Operator"
+description "Raises nonnegative input channels to a constant or connected exponent. Negative bases are clamped to zero; zero to a nonpositive exponent uses an epsilon base."
+group "Power" true
+param vec3 power "Exponent" default 1 1 1 range -100 100
+let base = select(less_equal(power, vec3(0)), max(input.rgb, 0.000001), max(input.rgb, 0))
+image = vec4(pow(base, power), input.a)

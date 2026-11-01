@@ -1,0 +1,21 @@
+tile 1
+name "Fizzers Tiling"
+category "Pattern"
+description "Generates square tiles with rotated, square corners."
+group "Fizzers Tiling Pattern" true
+param float border_size "Border Size" default 0.015 range 0.0 0.5
+param float scale "Scale" default 1.0 range 0.0 10
+group "About" true
+
+let v0 = ((uv / scale) * 2.)
+let v1 = border_size
+let v2 = floor(v0)
+let v3 = ((v0 - v2) - vec2(0.5))
+let v4 = (((v3).x * vec2(1.0)) + ((v3).y * vec2(1.0, (-1.0))))
+let v5 = (v4 * 0.6)
+let v6 = max(smoothstep((0.5 - border_size), 0.5, abs((v3).y)), smoothstep((0.5 - border_size), 0.5, abs((v3).x)))
+let v7 = v6
+let v8 = max(smoothstep((0.5 - v1), 0.5, abs((v5).y)), smoothstep((0.5 - v1), 0.5, abs((v5).x)))
+let v9 = v8
+let v10 = vec3((1.0 - max(v9, v7)))
+image = vec4(v10, input.a)

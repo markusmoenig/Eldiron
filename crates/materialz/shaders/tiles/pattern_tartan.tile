@@ -1,0 +1,48 @@
+tile 1
+name "Tartan"
+category "Pattern"
+description "Generates a tartan like cloth pattern."
+group "Tartan" true
+param float globalScale "Scale" default 1.0 range 0.0 10
+param float width "Width" default 4.0 range 0.0 100
+param float settCount "Count" default 100.0 range 0.0 1000
+param color color1 "Color 1" default 0.2 0.2 0.2 1.0
+param color color2 "Color 2" default 1.0 0. 0. 1.0
+param color color3 "Color 3" default 0.8 0.8 0. 1.0
+group "About" true
+
+let v0 = ((uv * 1000.) / globalScale)
+let v1 = (v0).x
+let v2 = (v0).y
+let v3 = 0
+let v4 = 0
+let v5 = 0
+let v6 = 0
+let v7 = floor((v1 / width))
+let v8 = floor((v2 / width))
+let v9 = 0
+let v10 = equal(v9, 0)
+let v11 = select(less(mod((v7 - v8), 4.0), 2.0), v10, v9)
+let v12 = 0.0
+let v13 = 0.0
+let v14 = fract((v1 / width))
+let v15 = fract((v7 / settCount))
+let v16 = fract((v2 / width))
+let v17 = fract((v8 / settCount))
+let v18 = select(v11, v14, v16)
+let v19 = select(v11, v15, v17)
+let v20 = (1.0 - v19)
+let v21 = select(greater(v19, 0.5), v20, v19)
+let v22 = color1.rgb
+let v23 = color2.rgb
+let v24 = color3.rgb
+let v25 = select(less(v21, .3), v24, v22)
+let v26 = select(less(v21, .2), v23, v25)
+let v27 = (1.0 - v18)
+let v28 = select(greater(v18, 0.5), v27, v18)
+let v29 = vec3(1.0, 1.0, 1.0)
+let v30 = vec3(0.1, 0.1, 1.0)
+let v31 = (v26).xyz
+let v32 = select(less(v28, 0.15), v30, v31)
+let v33 = select(less(v28, 0.1), v29, v32)
+image = vec4(v33, input.a)

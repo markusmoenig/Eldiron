@@ -1,0 +1,81 @@
+tile 1
+name "Directional Grain"
+category "Noise"
+description "Seeded directional fiber noise with curved grain, sparse grooves and relief. Separate along/across scales and filtered octaves suit wood, reeds, fibers and brushed surfaces. Axis-aligned integer scales repeat over one UV unit. Packed output contains grain, grooves and height in RGB. Preserves incoming alpha and optional distance."
+group "Grain" true
+param vec2 scale "Scale" default 4 64 range 1 1024
+tooltip "Along-grain and across-grain cell counts. Rounded and clamped to 1..1024."
+param float direction "Direction" default 0 range 0 360
+tooltip "Grain direction in degrees: zero is horizontal, 90 is vertical. Other angles may need seamless material wrapping."
+param float seed "Seed" default 0 range -1000 1000
+param float seedScope "Seed Scope" default 0 range 0 2
+choices "Fixed" "Instance" "Group"
+param float bend "Bend" default 0.25 range 0 2
+tooltip "Small fiber curvature, measured in across-grain cell units."
+param float octaves "Octaves" default 3 range 1 4
+param float contrast "Contrast" default 1 range 0 3
+group "Grooves" false
+param float grooveWidth "Groove Width" default 0.18 range 0 1
+tooltip "Groove width as a fraction of a fiber cell. Narrow filtered lines keep wear localized instead of creating broad noise patches."
+param float threshold "Threshold" default 0.24 range 0 0.5
+param float softness "Softness" default 0.07 range 0.001 0.25
+param float depth "Depth" default 0.35 range 0 1
+group "Output" true
+param float output "Output" default 0 range 0 3
+choices "Grain" "Grooves" "Height" "Packed"
+
+let key = select(equal(seedScope, 2), instance_group, instance_cell)
+let effectiveSeed = seed + select(logical_and(instance_valid, greater(seedScope, 0)), floor(hash33(key).x * 65535), 0)
+let count = clamp(round(abs(scale)), 1, 1024)
+let angle = radians(direction)
+let c = cos(angle)
+let s = sin(angle)
+let oriented = vec2(c * uv.x + s * uv.y, -s * uv.x + c * uv.y)
+let curvePhase = 6.28318530718 * oriented.x * count.x
+let curve = bend * (sin(curvePhase + effectiveSeed) + 0.5 * sin(2 * curvePhase + 1.7 * effectiveSeed))
+let p = oriented * count + vec2(0, curve)
+let footprint = aa * (abs(c) + abs(s)) * (max(count.x, count.y) + 12.56637061436 * abs(bend) * count.x)
+state total = 0
+state totalWeight = 0
+state weight = 1
+state frequency = 1
+state layer = 0
+repeat 4 times clamp(round(octaves), 1, 4) while 1
+  let position = p * frequency
+  let cell = floor(position)
+  let fraction = fract(position)
+  let fade = fraction * fraction * fraction * (fraction * (fraction * 6 - 15) + 10)
+  let period = count * frequency
+  let seedValue = floor(effectiveSeed) + 113 * layer
+  let a = (hash33(vec3(mod(cell, period), seedValue))).x
+  let b = (hash33(vec3(mod(cell + vec2(1, 0), period), seedValue))).x
+  let d = (hash33(vec3(mod(cell + vec2(0, 1), period), seedValue))).x
+  let e = (hash33(vec3(mod(cell + vec2(1, 1), period), seedValue))).x
+  let noise = mix(mix(a, b, fade.x), mix(d, e, fade.x), fade.y)
+  let visibility = 1 - smoothstep(0.3, 0.9, footprint * frequency)
+  update total = total + weight * visibility * (noise - 0.5)
+  update totalWeight = totalWeight + weight
+  update weight = weight * 0.5
+  update frequency = frequency * 2
+  update layer = layer + 1
+end repeat
+let grain = clamp(0.5 + max(contrast, 0) * total / max(totalWeight, 0.000001), 0, 1)
+let cut = 1 - smoothstep(clamp(threshold, 0, 1) - max(softness, 0.000001), clamp(threshold, 0, 1) + max(softness, 0.000001), grain)
+# Each groove is a narrow, jittered fiber line; noise only breaks its length.
+let fiber = mod(floor(p.y), count.y)
+let fiberRandom = hash33(vec3(fiber, 79, floor(effectiveSeed)))
+let center = 0.25 + 0.5 * fiberRandom.x
+let halfWidth = 0.5 * clamp(grooveWidth, 0, 1) * (0.75 + 0.5 * fiberRandom.y)
+let t = fract(p.y - center + 0.5) - 0.5
+let span = max(footprint, 0.000001)
+let lo = t - 0.5 * span
+let hi = t + 0.5 * span
+let middle = max(min(hi, halfWidth) - max(lo, -halfWidth), 0)
+let previous = max(min(hi - 1, halfWidth) - max(lo - 1, -halfWidth), 0)
+let next = max(min(hi + 1, halfWidth) - max(lo + 1, -halfWidth), 0)
+let meanWidth = mix(2 * halfWidth, clamp(grooveWidth, 0, 1), smoothstep(1, 2, span))
+let line = mix(clamp((middle + previous + next) / span, 0, 1), meanWidth, smoothstep(0.5, 1, span))
+let groove = cut * line
+let relief = clamp(0.94 + 0.12 * (grain - 0.5) - clamp(depth, 0, 1) * groove, 0, 1)
+let result = select(equal(output, 0), vec3(grain), select(equal(output, 1), vec3(groove), select(equal(output, 2), vec3(relief), vec3(grain, groove, relief))))
+image = vec4(result, input.a)

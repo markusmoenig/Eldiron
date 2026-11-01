@@ -53,6 +53,111 @@ use std::sync::{
 ))]
 use std::thread;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CreatorTheme {
+    Brown,
+    Black,
+    Light,
+}
+
+impl CreatorTheme {
+    fn from_name(name: &str) -> Self {
+        match name.trim() {
+            "black" => Self::Black,
+            "light" => Self::Light,
+            _ => Self::Brown,
+        }
+    }
+    fn name(self) -> &'static str {
+        match self {
+            Self::Brown => "brown",
+            Self::Black => "black",
+            Self::Light => "light",
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    fn preference_path() -> Option<PathBuf> {
+        #[cfg(target_os = "windows")]
+        let root = std::env::var_os("APPDATA").map(PathBuf::from);
+        #[cfg(target_os = "macos")]
+        let root = std::env::var_os("HOME")
+            .map(|home| PathBuf::from(home).join("Library/Application Support"));
+        #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+        let root = std::env::var_os("XDG_CONFIG_HOME")
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")));
+        root.map(|p| p.join("Eldiron").join("creator-theme"))
+    }
+    pub(crate) fn load() -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(path) = Self::preference_path() {
+            if let Ok(name) = fs::read_to_string(path) {
+                return Self::from_name(&name);
+            }
+        }
+        Self::Brown
+    }
+    fn save(self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(path) = Self::preference_path() {
+            if let Some(parent) = path.parent() {
+                if let Err(err) =
+                    fs::create_dir_all(parent).and_then(|_| fs::write(&path, self.name()))
+                {
+                    eprintln!("Unable to save creator theme: {err}");
+                }
+            }
+        }
+    }
+    fn view_menu(self) -> TheContextMenu {
+        let mut menu = TheContextMenu::named("View".to_string());
+        for (theme, label, id) in [
+            (Self::Brown, "Brown", "Theme Brown"),
+            (Self::Black, "Black", "Theme Black"),
+            (Self::Light, "Light", "Theme Light"),
+        ] {
+            let label = if self == theme {
+                format!("✓  {label}")
+            } else {
+                format!("    {label}")
+            };
+            menu.add(TheContextMenuItem::new(label, TheId::named(id)));
+        }
+        menu
+    }
+    fn apply(self, ui: &mut TheUI, ctx: &mut TheContext) {
+        let theme: Box<dyn TheTheme> = match self {
+            Self::Brown => Box::new(TheBrownTheme::new()),
+            Self::Black => Box::new(TheBlackBlueTheme::new()),
+            Self::Light => Box::new(TheLightTheme::new()),
+        };
+        ui.set_theme(theme, ctx);
+        RUSTERIX.write().unwrap().client.editor_canvas_colors = Some([
+            *ui.style.theme().color(EditorCanvasBackground),
+            *ui.style.theme().color(EditorGrid),
+            *ui.style.theme().color(EditorSubGrid),
+        ]);
+
+        if let Some(menu) = ui.get_menu("Menu") {
+            menu.replace_context_menu(self.view_menu());
+        }
+        TOOLLIST
+            .write()
+            .unwrap()
+            .set_overlay_theme(ui.style.theme().as_ref());
+        crate::hud::set_theme(ui.style.theme().as_ref());
+        crate::procedural_material::register_preview_icons(ctx, ui.style.theme().as_ref());
+        let icon_color = *ui.style.theme().color(SectionbarNormalTextColor);
+        register_themed_bitmap_icons(ctx, icon_color);
+        register_compact_navigation_icons_with_color(ctx, icon_color);
+        ctx.ui.relayout = true;
+        ctx.ui.send(TheEvent::Custom(
+            TheId::named("Creator Theme Changed"),
+            TheValue::Empty,
+        ));
+    }
+}
+
 #[allow(dead_code)]
 const ISO_PAINT_PAR_COMPOSITE_PIXELS: usize = 32_768;
 
@@ -108,20 +213,115 @@ const COMPACT_NAVIGATION_ICON_PATHS: [(&str, &str); 8] = [
 
 const ENTITY_TOOL_ICON_PATH: &str = "M71.59,61.47a8,8,0,0,0-15.18,0l-40,120A8,8,0,0,0,24,192h80a8,8,0,0,0,7.59-10.53ZM35.1,176,64,89.3,92.9,176ZM208,76a52,52,0,1,0-52,52A52.06,52.06,0,0,0,208,76Zm-88,0a36,36,0,1,1,36,36A36,36,0,0,1,120,76Zm104,68H136a8,8,0,0,0-8,8v56a8,8,0,0,0,8,8h88a8,8,0,0,0,8-8V152A8,8,0,0,0,224,144Zm-8,56H144V160h72Z";
 
-fn register_compact_navigation_icons(ctx: &mut TheContext) {
+#[cfg(test)]
+pub(crate) fn register_compact_navigation_icons(ctx: &mut TheContext) {
+    register_compact_navigation_icons_with_color(ctx, [242, 242, 242, 255]);
+}
+
+fn register_compact_navigation_icons_with_color(ctx: &mut TheContext, color: RGBA) {
     for (name, path) in COMPACT_NAVIGATION_ICON_PATHS {
         ctx.ui.add_icon(
             name.to_string(),
-            rasterize_svg_path_icon(path, 18, 256.0, [242, 242, 242, 255]),
+            rasterize_svg_path_icon(path, 18, 256.0, color),
         );
     }
     ctx.ui.add_icon(
         "shapes".to_string(),
-        rasterize_svg_path_icon(ENTITY_TOOL_ICON_PATH, 24, 256.0, [242, 242, 242, 255]),
+        rasterize_svg_path_icon(ENTITY_TOOL_ICON_PATH, 24, 256.0, color),
     );
 }
+fn register_themed_bitmap_icons(ctx: &mut TheContext, color: RGBA) {
+    // File/undo icons belong to the framework, not the Creator asset bundle.
+    // Always decode the originals so switching back from Light restores their tint.
+    let framework = theframework::Embedded::iter()
+        .filter(|name| name.starts_with("icons/icon_role_"))
+        .map(|name| {
+            let data = theframework::Embedded::get(name.as_ref());
+            (name, data)
+        });
+    let creator = Embedded::iter().map(|name| {
+        let data = Embedded::get(name.as_ref());
+        (name, data)
+    });
+    for (file, resource) in framework.chain(creator) {
+        let name = file.as_ref();
+        if !name.starts_with("icons/") || !name.ends_with(".png") {
+            continue;
+        }
+        let Some(file) = resource else {
+            continue;
+        };
+        let decoder = png::Decoder::new(std::io::Cursor::new(file.data));
+        let Ok(mut reader) = decoder.read_info() else {
+            continue;
+        };
+        let Some(size) = reader.output_buffer_size() else {
+            continue;
+        };
+        let mut bytes = vec![0; size];
+        let Ok(info) = reader.next_frame(&mut bytes) else {
+            continue;
+        };
+        if info.color_type != png::ColorType::Rgba || info.bit_depth != png::BitDepth::Eight {
+            continue;
+        }
+        let pixels = &mut bytes[..info.buffer_size()];
+        let monochrome = pixels
+            .chunks_exact(4)
+            .filter(|p| p[3] > 0)
+            .all(|p| p[0].abs_diff(p[1]) < 4 && p[1].abs_diff(p[2]) < 4);
+        if !monochrome {
+            continue;
+        }
+        for p in pixels.chunks_exact_mut(4) {
+            p[..3].copy_from_slice(&color[..3]);
+        }
+        let icon = TheRGBABuffer::from(pixels.to_vec(), info.width, info.height);
+        ctx.ui.add_icon(
+            name.trim_start_matches("icons/")
+                .trim_end_matches(".png")
+                .to_string(),
+            icon,
+        );
+    }
+}
+
 pub static RUSTERIX: LazyLock<RwLock<Rusterix>> =
     LazyLock::new(|| RwLock::new(Rusterix::default()));
+
+#[cfg(test)]
+mod toolbar_icon_theme_tests {
+    use super::*;
+    #[test]
+    fn framework_file_and_undo_icons_follow_theme_switches() {
+        let mut ctx = TheContext::new(100, 100, 1.);
+        for theme in [
+            Box::new(TheLightTheme::new()) as Box<dyn TheTheme>,
+            Box::new(TheBrownTheme::new()),
+            Box::new(TheBlackBlueTheme::new()),
+        ] {
+            let color = *theme.color(SectionbarNormalTextColor);
+            register_themed_bitmap_icons(&mut ctx, color);
+            for name in [
+                "icon_role_load",
+                "icon_role_save",
+                "icon_role_save_as",
+                "icon_role_undo",
+                "icon_role_redo",
+            ] {
+                let icon = ctx.ui.icon(name).unwrap();
+                assert!(icon.pixels().chunks_exact(4).any(|p| p[3] > 0));
+                assert!(
+                    icon.pixels()
+                        .chunks_exact(4)
+                        .filter(|p| p[3] > 0)
+                        .all(|p| p[..3] == color[..3]),
+                    "{name} ignored the active theme"
+                );
+            }
+        }
+    }
+}
 pub static CONFIGEDITOR: LazyLock<RwLock<ConfigEditor>> =
     LazyLock::new(|| RwLock::new(ConfigEditor::new()));
 pub static CONFIG: LazyLock<RwLock<toml::Table>> =
@@ -204,13 +404,13 @@ struct IsoPaintRenderCache {
 }
 
 #[derive(Deserialize, Clone)]
-struct StarterProjectManifest {
-    #[serde(default)]
-    starter: Vec<StarterProjectManifestEntry>,
+struct ExampleProjectManifest {
+    #[serde(default, alias = "starter")]
+    example: Vec<ExampleProjectManifestEntry>,
 }
 
 #[derive(Deserialize, Clone)]
-struct StarterProjectManifestEntry {
+struct ExampleProjectManifestEntry {
     id: String,
     title: String,
     #[serde(default)]
@@ -222,7 +422,7 @@ struct StarterProjectManifestEntry {
 }
 
 #[derive(Clone)]
-struct StarterProjectEntry {
+struct ExampleProjectEntry {
     id: Uuid,
     manifest_id: String,
     title: String,
@@ -249,6 +449,7 @@ pub struct Editor {
     last_active_dirty: bool,
 
     sidebar: Sidebar,
+    procedural_material: crate::procedural_material::ProceduralMaterialEditor,
     mapeditor: MapEditor,
 
     server_ctx: ServerContext,
@@ -290,27 +491,27 @@ pub struct Editor {
 
     build_values: ValueContainer,
     window_state: CreatorWindowState,
-    starter_projects: Vec<StarterProjectEntry>,
-    starter_project_cache: FxHashMap<String, Project>,
-    starter_manifest_cache: Option<Vec<StarterProjectEntry>>,
-    starter_loader_rx: Option<Receiver<Vec<StarterProjectEntry>>>,
-    starter_project_loader_rx: Option<Receiver<(String, Option<Project>)>>,
-    selected_starter_manifest_id: Option<String>,
+    example_projects: Vec<ExampleProjectEntry>,
+    example_project_cache: FxHashMap<String, Project>,
+    example_manifest_cache: Option<Vec<ExampleProjectEntry>>,
+    example_loader_rx: Option<Receiver<Vec<ExampleProjectEntry>>>,
+    example_project_loader_rx: Option<Receiver<(String, Option<Project>)>>,
+    selected_example_manifest_id: Option<String>,
     iso_paint_render_cache: SharedIsoPaintRenderCache,
 }
 
 #[allow(dead_code)]
 impl Editor {
     const PROJECT_EXTENSION: &'static str = "eldiron";
-    const STARTER_REPO_RAW_BASE: &'static str =
+    const EXAMPLE_REPO_RAW_BASE: &'static str =
         "https://raw.githubusercontent.com/markusmoenig/Eldiron/master/";
-    const STARTER_LIST_ID: &'static str = "Starter Project List";
-    const STARTER_PREVIEW_ID: &'static str = "Starter Project Preview";
-    const STARTER_PREVIEW_KIND_ID: &'static str = "Starter Project Preview Kind";
-    const STARTER_PREVIEW_TITLE_ID: &'static str = "Starter Project Preview Title";
-    const STARTER_PREVIEW_DESCRIPTION_ID: &'static str = "Starter Project Preview Description";
-    const STARTER_CREATE_ID: &'static str = "Starter Project Create";
-    const STARTER_CANCEL_ID: &'static str = "Starter Project Cancel";
+    const EXAMPLE_LIST_ID: &'static str = "Example Project List";
+    const EXAMPLE_PREVIEW_ID: &'static str = "Example Project Preview";
+    const EXAMPLE_PREVIEW_KIND_ID: &'static str = "Example Project Preview Kind";
+    const EXAMPLE_PREVIEW_TITLE_ID: &'static str = "Example Project Preview Title";
+    const EXAMPLE_PREVIEW_DESCRIPTION_ID: &'static str = "Example Project Preview Description";
+    const EXAMPLE_OPEN_ID: &'static str = "Example Project Open";
+    const EXAMPLE_BACK_ID: &'static str = "Example Project Back";
 
     /// Programmatic Eldrin entry point for editor automation and plugin hosts.
     pub fn execute_eldrin_action_script(
@@ -4371,12 +4572,12 @@ impl Editor {
         segment.contains("[error]") || segment.contains("[warning]") || segment.contains("[warn]")
     }
 
-    fn starter_manifest_url() -> String {
-        format!("{}starters/manifest.toml", Self::STARTER_REPO_RAW_BASE)
+    fn example_manifest_url() -> String {
+        format!("{}starters/manifest.toml", Self::EXAMPLE_REPO_RAW_BASE)
     }
 
-    fn starter_repo_url(repo_path: &str) -> String {
-        format!("{}{}", Self::STARTER_REPO_RAW_BASE, repo_path)
+    fn example_repo_url(repo_path: &str) -> String {
+        format!("{}{}", Self::EXAMPLE_REPO_RAW_BASE, repo_path)
     }
 
     fn fetch_url_bytes(url: &str) -> Option<Vec<u8>> {
@@ -4465,28 +4666,33 @@ impl Editor {
             project.authoring = source.to_string();
         }
         let _ = project.sync_ruleset_items();
+        if let Err(error) = crate::procedural_material::starters::install(&mut project) {
+            eprintln!("Starter materials: {error}");
+        }
         project
     }
 
-    fn load_starter_manifest() -> Vec<StarterProjectEntry> {
-        let contents = match Self::fetch_url_text(&Self::starter_manifest_url()) {
+    fn load_example_manifest() -> Vec<ExampleProjectEntry> {
+        let contents = match Self::fetch_url_text(&Self::example_manifest_url()) {
             Some(contents) => contents,
             None => return Vec::new(),
         };
-        let manifest = match toml::from_str::<StarterProjectManifest>(&contents) {
+        let manifest = match toml::from_str::<ExampleProjectManifest>(&contents) {
             Ok(manifest) => manifest,
             Err(_) => return Vec::new(),
         };
 
         manifest
-            .starter
+            .example
             .into_iter()
-            .map(|entry| StarterProjectEntry {
+            // Older deployed catalogs still advertise the retired downloadable starter.
+            .filter(|entry| entry.id != "starter-3d")
+            .map(|entry| ExampleProjectEntry {
                 id: Uuid::new_v4(),
                 preview: entry
                     .preview
                     .as_deref()
-                    .and_then(Self::load_starter_preview),
+                    .and_then(Self::load_example_preview),
                 manifest_id: entry.id,
                 title: entry.title,
                 dimension: entry.dimension,
@@ -4496,8 +4702,8 @@ impl Editor {
             .collect()
     }
 
-    fn load_starter_preview(repo_path: &str) -> Option<TheRGBATile> {
-        let bytes = Self::fetch_url_bytes(&Self::starter_repo_url(repo_path))?;
+    fn load_example_preview(repo_path: &str) -> Option<TheRGBATile> {
+        let bytes = Self::fetch_url_bytes(&Self::example_repo_url(repo_path))?;
         Self::decode_png_tile(bytes)
     }
 
@@ -4530,8 +4736,8 @@ impl Editor {
         )))
     }
 
-    fn load_starter_project(repo_path: &str) -> Option<Project> {
-        let bytes = Self::fetch_url_bytes(&Self::starter_repo_url(repo_path))?;
+    fn load_example_project(repo_path: &str) -> Option<Project> {
+        let bytes = Self::fetch_url_bytes(&Self::example_repo_url(repo_path))?;
         Self::load_project_from_bytes(&bytes).ok()
     }
 
@@ -4666,6 +4872,7 @@ impl Editor {
     }
 
     fn deactivate_project_for_switch(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.procedural_material.reset(ui, ctx);
         // Finish editor-local interactions while the outgoing project is still
         // installed, then snapshot it before clearing global UI state.
         DOCKMANAGER
@@ -4739,10 +4946,47 @@ impl Editor {
         }
     }
 
-    fn open_starter_project_dialog(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        self.starter_loader_rx = None;
-        self.starter_project_loader_rx = None;
-        self.selected_starter_manifest_id = None;
+    fn new_project(dimension: crate::project_templates::ProjectDimension) -> Project {
+        let mut project = Self::load_empty_project_template();
+        crate::project_templates::populate(&mut project, dimension);
+        project
+    }
+
+    fn open_project_chooser(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        // Dropping receivers also cancels pending example results when navigating back.
+        self.example_loader_rx = None;
+        self.example_project_loader_rx = None;
+        let mut dialog = TheCanvas::new();
+        dialog.limiter_mut().set_max_size(Vec2::new(360, 232));
+        let mut choices = TheVLayout::new(TheId::named("Project Chooser"));
+        choices.set_margin(Vec4::new(16, 16, 16, 16));
+        choices.set_padding(8);
+        choices.set_background_color(Some(TheThemeColors::ListLayoutBackground));
+        let mut intro = TheText::new(TheId::named("Project Chooser Intro"));
+        intro.set_text(fl!("project_chooser_intro"));
+        intro.limiter_mut().set_max_height(16);
+        choices.add_widget(Box::new(intro));
+        for (id, text) in [
+            ("New Project 2D", fl!("project_new_2d")),
+            ("New Project 3D", fl!("project_new_3d")),
+            ("Browse Examples", fl!("project_browse_examples")),
+            ("Chooser Open Project", fl!("project_open_existing")),
+            ("Project Chooser Cancel", fl!("project_chooser_cancel")),
+        ] {
+            let mut button = TheTraybarButton::new(TheId::named(id));
+            button.set_text(text);
+            button.set_fixed_size(true);
+            button.limiter_mut().set_max_size(Vec2::new(328, 28));
+            choices.add_widget(Box::new(button));
+        }
+        dialog.set_layout(choices);
+        ui.show_dialog(&fl!("new_project"), dialog, vec![], ctx);
+    }
+
+    fn open_example_project_dialog(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        self.example_loader_rx = None;
+        self.example_project_loader_rx = None;
+        self.selected_example_manifest_id = None;
 
         let width = 900;
         let height = 430;
@@ -4759,7 +5003,7 @@ impl Editor {
         intro_canvas
             .limiter_mut()
             .set_max_size(Vec2::new(width, intro_height));
-        let mut intro = TheVLayout::new(TheId::named("Starter Project Intro"));
+        let mut intro = TheVLayout::new(TheId::named("Example Project Intro"));
         intro
             .limiter_mut()
             .set_max_size(Vec2::new(width, intro_height));
@@ -4768,16 +5012,14 @@ impl Editor {
         intro.set_margin(Vec4::new(16, 7, 16, 6));
         intro.set_padding(0);
 
-        let mut intro_title = TheText::new(TheId::named("Starter Project Intro Title"));
-        intro_title.set_text(fl!("starter_intro_title"));
+        let mut intro_title = TheText::new(TheId::named("Example Project Intro Title"));
+        intro_title.set_text(fl!("example_intro_title"));
         intro_title.set_text_size(16.0);
-        intro_title.set_text_color(WHITE);
         intro.add_widget(Box::new(intro_title));
 
-        let mut intro_sub = TheText::new(TheId::named("Starter Project Intro Sub"));
-        intro_sub.set_text(fl!("starter_intro_sub"));
+        let mut intro_sub = TheText::new(TheId::named("Example Project Intro Sub"));
+        intro_sub.set_text(fl!("example_intro_sub"));
         intro_sub.set_text_size(12.0);
-        intro_sub.set_text_color([170, 176, 184, 255]);
         intro.add_widget(Box::new(intro_sub));
         intro_canvas.set_layout(intro);
         dialog.set_top(intro_canvas);
@@ -4788,17 +5030,15 @@ impl Editor {
         list_canvas
             .limiter_mut()
             .set_max_size(Vec2::new(list_width, height));
-        let mut list = TheListLayout::new(TheId::named(Self::STARTER_LIST_ID));
+        let mut list = TheListLayout::new(TheId::named(Self::EXAMPLE_LIST_ID));
         list.limiter_mut().set_max_width(list_width);
         list.set_item_size(70);
         list.set_margin(Vec4::new(10, 10, 10, 10));
-        let mut item = TheListItem::new(TheId::named("Starter Project Loading"));
-        item.set_text(fl!("starter_loading"));
-        item.set_sub_text(fl!("starter_loading_sub"));
+        let mut item = TheListItem::new(TheId::named("Example Project Loading"));
+        item.set_text(fl!("example_loading"));
+        item.set_sub_text(fl!("example_loading_sub"));
         item.set_size(70);
-        item.set_text_color(WHITE);
         item.set_text_size(14.0);
-        item.set_sub_text_color([170, 176, 184, 255]);
         item.set_sub_text_size(12.0);
         list.add_item(item, ctx);
         list_canvas.set_layout(list);
@@ -4809,7 +5049,7 @@ impl Editor {
         preview_canvas
             .limiter_mut()
             .set_max_size(Vec2::new(width - list_width, preview_height));
-        let mut preview = TheIconView::new(TheId::named(Self::STARTER_PREVIEW_ID));
+        let mut preview = TheIconView::new(TheId::named(Self::EXAMPLE_PREVIEW_ID));
         preview
             .limiter_mut()
             .set_max_size(Vec2::new(width - list_width, preview_height));
@@ -4823,26 +5063,24 @@ impl Editor {
         preview_details_canvas
             .limiter_mut()
             .set_max_size(Vec2::new(width - list_width, height - preview_height));
-        let mut preview_details = TheVLayout::new(TheId::named("Starter Project Preview Details"));
+        let mut preview_details = TheVLayout::new(TheId::named("Example Project Preview Details"));
         preview_details.set_background_color(Some(TheThemeColors::ListLayoutBackground));
         preview_details.set_alignment(TheHorizontalAlign::Left);
         preview_details.set_margin(Vec4::new(16, 12, 16, 12));
         preview_details.set_padding(2);
 
-        let mut preview_kind = TheText::new(TheId::named(Self::STARTER_PREVIEW_KIND_ID));
+        let mut preview_kind = TheText::new(TheId::named(Self::EXAMPLE_PREVIEW_KIND_ID));
         preview_kind.set_text(String::new());
         preview_kind.set_text_size(11.0);
-        preview_kind.set_text_color([104, 169, 232, 255]);
         preview_details.add_widget(Box::new(preview_kind));
 
-        let mut preview_title = TheText::new(TheId::named(Self::STARTER_PREVIEW_TITLE_ID));
-        preview_title.set_text(fl!("starter_loading"));
+        let mut preview_title = TheText::new(TheId::named(Self::EXAMPLE_PREVIEW_TITLE_ID));
+        preview_title.set_text(fl!("example_loading"));
         preview_title.set_text_size(16.0);
-        preview_title.set_text_color(WHITE);
         preview_details.add_widget(Box::new(preview_title));
 
         let mut preview_description =
-            TheTextView::new(TheId::named(Self::STARTER_PREVIEW_DESCRIPTION_ID));
+            TheTextView::new(TheId::named(Self::EXAMPLE_PREVIEW_DESCRIPTION_ID));
         preview_description
             .limiter_mut()
             .set_max_size(Vec2::new(width - list_width - 32, 58));
@@ -4863,7 +5101,7 @@ impl Editor {
         bottom
             .limiter_mut()
             .set_max_size(Vec2::new(width, bottom_bar_height));
-        let mut actions = TheHLayout::new(TheId::named("Starter Project Actions"));
+        let mut actions = TheHLayout::new(TheId::named("Example Project Actions"));
         actions
             .limiter_mut()
             .set_max_size(Vec2::new(width, bottom_bar_height));
@@ -4872,64 +5110,62 @@ impl Editor {
         actions.set_padding(8);
         actions.set_reverse_index(Some(2));
 
-        let mut note = TheText::new(TheId::named("Starter Project Note"));
-        note.set_text(fl!("starter_unsaved_note"));
+        let mut note = TheText::new(TheId::named("Example Project Note"));
+        note.set_text(fl!("example_unsaved_note"));
         note.set_text_size(11.0);
-        note.set_text_color([145, 152, 161, 255]);
         actions.add_widget(Box::new(note));
 
-        let mut cancel = TheTraybarButton::new(TheId::named(Self::STARTER_CANCEL_ID));
-        cancel.set_text(fl!("starter_cancel"));
+        let mut cancel = TheTraybarButton::new(TheId::named(Self::EXAMPLE_BACK_ID));
+        cancel.set_text(fl!("example_back"));
         actions.add_widget(Box::new(cancel));
 
-        let mut create = TheTraybarButton::new(TheId::named(Self::STARTER_CREATE_ID));
-        create.set_text(fl!("starter_create"));
+        let mut create = TheTraybarButton::new(TheId::named(Self::EXAMPLE_OPEN_ID));
+        create.set_text(fl!("example_open"));
         actions.add_widget(Box::new(create));
 
         bottom.set_layout(actions);
         dialog.set_bottom(bottom);
 
-        ui.show_dialog(&fl!("starter_dialog_title"), dialog, vec![], ctx);
-        if let Some(starters) = self.starter_manifest_cache.clone() {
-            self.starter_projects = starters;
-            self.rebuild_starter_project_list(ui, ctx);
-            if let Some(first) = self.starter_projects.first() {
+        ui.show_dialog(&fl!("example_dialog_title"), dialog, vec![], ctx);
+        if let Some(starters) = self.example_manifest_cache.clone() {
+            self.example_projects = starters;
+            self.rebuild_example_project_list(ui, ctx);
+            if let Some(first) = self.example_projects.first() {
                 let manifest_id = first.manifest_id.clone();
-                self.selected_starter_manifest_id = Some(manifest_id.clone());
+                self.selected_example_manifest_id = Some(manifest_id.clone());
                 ctx.ui.send(TheEvent::StateChanged(
-                    TheId::named_with_id("Starter Project List Item", first.id),
+                    TheId::named_with_id("Example Project List Item", first.id),
                     TheWidgetState::Selected,
                 ));
-                self.update_starter_project_preview(&manifest_id, ui, ctx);
-                ui.set_enabled(Self::STARTER_CREATE_ID, ctx);
+                self.update_example_project_preview(&manifest_id, ui, ctx);
+                ui.set_enabled(Self::EXAMPLE_OPEN_ID, ctx);
             } else {
-                ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
+                ui.set_disabled(Self::EXAMPLE_OPEN_ID, ctx);
             }
+            return;
         } else {
-            self.starter_projects.clear();
-            ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
+            self.example_projects.clear();
+            ui.set_disabled(Self::EXAMPLE_OPEN_ID, ctx);
         }
 
         let (tx, rx) = std::sync::mpsc::channel();
-        self.starter_loader_rx = Some(rx);
+        self.example_loader_rx = Some(rx);
         std::thread::spawn(move || {
-            let _ = tx.send(Self::load_starter_manifest());
+            let _ = tx.send(Self::load_example_manifest());
         });
     }
 
-    fn rebuild_starter_project_list(&self, ui: &mut TheUI, ctx: &mut TheContext) {
-        if let Some(list) = ui.get_list_layout(Self::STARTER_LIST_ID) {
+    fn rebuild_example_project_list(&self, ui: &mut TheUI, ctx: &mut TheContext) {
+        if let Some(list) = ui.get_list_layout(Self::EXAMPLE_LIST_ID) {
             list.clear();
             list.set_item_size(70);
-            for (index, entry) in self.starter_projects.iter().enumerate() {
+            for (index, entry) in self.example_projects.iter().enumerate() {
                 let mut item =
-                    TheListItem::new(TheId::named_with_id("Starter Project List Item", entry.id));
+                    TheListItem::new(TheId::named_with_id("Example Project List Item", entry.id));
                 item.set_text(entry.title.clone());
                 item.set_sub_text(entry.dimension.clone());
                 item.set_size(70);
-                item.set_text_color(WHITE);
                 item.set_text_size(14.0);
-                item.set_sub_text_color([104, 169, 232, 255]);
                 item.set_sub_text_size(12.0);
                 if index == 0 {
                     item.set_state(TheWidgetState::Selected);
@@ -4939,37 +5175,37 @@ impl Editor {
         }
     }
 
-    fn update_starter_project_preview(
+    fn update_example_project_preview(
         &self,
         manifest_id: &str,
         ui: &mut TheUI,
         ctx: &mut TheContext,
     ) {
         let Some(entry) = self
-            .starter_projects
+            .example_projects
             .iter()
             .find(|entry| entry.manifest_id == manifest_id)
         else {
             return;
         };
 
-        if let Some(widget) = ui.get_widget(Self::STARTER_PREVIEW_ID)
+        if let Some(widget) = ui.get_widget(Self::EXAMPLE_PREVIEW_ID)
             && let Some(preview) = widget.as_icon_view()
         {
             preview.set_rgba_tile(entry.preview.clone().unwrap_or_default());
         }
         ui.set_widget_value(
-            Self::STARTER_PREVIEW_KIND_ID,
+            Self::EXAMPLE_PREVIEW_KIND_ID,
             ctx,
             TheValue::Text(entry.dimension.to_uppercase()),
         );
         ui.set_widget_value(
-            Self::STARTER_PREVIEW_TITLE_ID,
+            Self::EXAMPLE_PREVIEW_TITLE_ID,
             ctx,
             TheValue::Text(entry.title.clone()),
         );
         ui.set_widget_value(
-            Self::STARTER_PREVIEW_DESCRIPTION_ID,
+            Self::EXAMPLE_PREVIEW_DESCRIPTION_ID,
             ctx,
             TheValue::Text(entry.description.clone()),
         );
@@ -4986,6 +5222,13 @@ impl Editor {
         update_server_icons: &mut bool,
         redraw: &mut bool,
     ) {
+        if project_path.is_none()
+            && let Err(error) = crate::procedural_material::starters::install(&mut project)
+        {
+            ctx.ui.send(TheEvent::SetStatusText(
+                TheId::empty(), format!("Starter materials: {error}"),
+            ));
+        }
         Self::sanitize_loaded_project(&mut project);
 
         self.deactivate_project_for_switch(ui, ctx);
@@ -5242,10 +5485,10 @@ impl Editor {
         self.rebuild_project_tabs(ui);
         if self.sessions.len() == 1 && self.project_path.is_none() {
             self.replace_next_project_load_in_active_tab = true;
-            self.open_starter_project_dialog(ui, ctx);
+            self.open_project_chooser(ui, ctx);
             ctx.ui.send(TheEvent::SetStatusText(
                 TheId::empty(),
-                fl!("status_starter_choose"),
+                fl!("status_project_choose"),
             ));
             *redraw = true;
         }
@@ -7696,28 +7939,7 @@ impl TheTrait for Editor {
     where
         Self: Sized,
     {
-        let mut project = Project::new();
-        if let Some(bytes) = crate::Embedded::get("toml/config.toml") {
-            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                project.config = source.to_string();
-            }
-        }
-        if let Some(bytes) = crate::Embedded::get("toml/locales.toml") {
-            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                project.locales = source.to_string();
-            }
-        }
-        if let Some(bytes) = crate::Embedded::get("toml/audio_fx.toml") {
-            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                project.audio_fx = source.to_string();
-            }
-        }
-        if let Some(bytes) = crate::Embedded::get("toml/authoring.toml") {
-            if let Ok(source) = std::str::from_utf8(bytes.data.as_ref()) {
-                project.authoring = source.to_string();
-            }
-        }
-        let _ = project.sync_ruleset_items();
+        let project = Self::load_empty_project_template();
 
         #[cfg(all(
             feature = "self-update",
@@ -7748,6 +7970,7 @@ impl TheTrait for Editor {
             last_active_dirty: false,
 
             sidebar: Sidebar::new(),
+            procedural_material: Default::default(),
             mapeditor: MapEditor::new(),
 
             server_ctx: ServerContext::default(),
@@ -7786,12 +8009,12 @@ impl TheTrait for Editor {
 
             build_values: ValueContainer::default(),
             window_state: Self::load_window_state(),
-            starter_projects: Vec::new(),
-            starter_project_cache: FxHashMap::default(),
-            starter_manifest_cache: None,
-            starter_loader_rx: None,
-            starter_project_loader_rx: None,
-            selected_starter_manifest_id: None,
+            example_projects: Vec::new(),
+            example_project_cache: FxHashMap::default(),
+            example_manifest_cache: None,
+            example_loader_rx: None,
+            example_project_loader_rx: None,
+            selected_example_manifest_id: None,
             iso_paint_render_cache: SharedIsoPaintRenderCache::default(),
         }
     }
@@ -7883,11 +8106,7 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
-        ui.set_theme(Box::new(TheBlackBlueTheme::new()), ctx);
-        TOOLLIST
-            .write()
-            .unwrap()
-            .set_overlay_theme(ui.style.theme().as_ref());
+        CreatorTheme::load().apply(ui, ctx);
         RUSTERIX.write().unwrap().client.messages_font = ctx.ui.font.clone();
 
         // Embedded Icons
@@ -7918,10 +8137,15 @@ impl TheTrait for Editor {
             }
         }
 
+        register_themed_bitmap_icons(ctx, *ui.style.theme().color(SectionbarNormalTextColor));
+
         // Compact navigation controls use SVG path data rasterized by Zeno at
         // their exact draw size. This guarantees transparent backgrounds and
         // avoids bitmap resampling artifacts on every frame.
-        register_compact_navigation_icons(ctx);
+        register_compact_navigation_icons_with_color(
+            ctx,
+            *ui.style.theme().color(SectionbarNormalTextColor),
+        );
 
         // ---
 
@@ -7959,7 +8183,7 @@ impl TheTrait for Editor {
             file_menu.add(TheContextMenuItem::new_with_accel(
                 fl!("menu_save_as"),
                 TheId::named("Save As"),
-                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'a'),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 's'),
             ));
             let mut edit_menu = TheContextMenu::named(fl!("menu_edit"));
             edit_menu.add(TheContextMenuItem::new_with_accel(
@@ -8004,7 +8228,7 @@ impl TheTrait for Editor {
             game_menu.add(TheContextMenuItem::new_with_accel(
                 fl!("menu_pause"),
                 TheId::named("Pause"),
-                TheAccelerator::new(TheAcceleratorKey::CTRLCMD, 'o'),
+                TheAccelerator::new(TheAcceleratorKey::CTRLCMD | TheAcceleratorKey::SHIFT, 'o'),
             ));
             game_menu.add(TheContextMenuItem::new_with_accel(
                 fl!("menu_stop"),
@@ -8080,12 +8304,15 @@ impl TheTrait for Editor {
                 show_menu,
             ));
 
+            let view_menu = CreatorTheme::load().view_menu();
+
             file_menu.register_accel(ctx);
             edit_menu.register_accel(ctx);
             game_menu.register_accel(ctx);
 
             menu.add_context_menu(file_menu);
             menu.add_context_menu(edit_menu);
+            menu.add_context_menu(view_menu);
             menu.add_context_menu(game_menu);
             menu_canvas.set_widget(menu);
             top_canvas.set_top(menu_canvas);
@@ -8417,6 +8644,9 @@ impl TheTrait for Editor {
     fn update_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
         let mut update_server_icons = false;
+        redraw |= self
+            .procedural_material
+            .update(ui, ctx, &mut self.project, &mut self.server_ctx);
 
         #[cfg(not(target_arch = "wasm32"))]
         let mut scepter_events = Vec::new();
@@ -8907,83 +9137,86 @@ impl TheTrait for Editor {
             }
         }
 
-        if let Some(receiver) = &mut self.starter_loader_rx
+        if ui.dialog.is_none() {
+            self.example_loader_rx = None;
+            self.example_project_loader_rx = None;
+        }
+
+        if let Some(receiver) = &mut self.example_loader_rx
             && let Ok(starters) = receiver.try_recv()
         {
-            self.starter_manifest_cache = Some(starters.clone());
-            self.starter_projects = starters;
-            self.rebuild_starter_project_list(ui, ctx);
-            if let Some(first) = self.starter_projects.first() {
+            self.example_manifest_cache = (!starters.is_empty()).then(|| starters.clone());
+            self.example_projects = starters;
+            self.rebuild_example_project_list(ui, ctx);
+            if let Some(first) = self.example_projects.first() {
                 let manifest_id = first.manifest_id.clone();
-                self.selected_starter_manifest_id = Some(manifest_id.clone());
+                self.selected_example_manifest_id = Some(manifest_id.clone());
                 ctx.ui.send(TheEvent::StateChanged(
-                    TheId::named_with_id("Starter Project List Item", first.id),
+                    TheId::named_with_id("Example Project List Item", first.id),
                     TheWidgetState::Selected,
                 ));
-                self.update_starter_project_preview(&manifest_id, ui, ctx);
-                ui.set_enabled(Self::STARTER_CREATE_ID, ctx);
-            } else if let Some(list) = ui.get_list_layout(Self::STARTER_LIST_ID) {
+                self.update_example_project_preview(&manifest_id, ui, ctx);
+                ui.set_enabled(Self::EXAMPLE_OPEN_ID, ctx);
+            } else if let Some(list) = ui.get_list_layout(Self::EXAMPLE_LIST_ID) {
                 list.clear();
-                let mut item = TheListItem::new(TheId::named("Starter Project Empty"));
-                item.set_text(fl!("starter_empty"));
-                item.set_sub_text(fl!("starter_empty_sub"));
+                let mut item = TheListItem::new(TheId::named("Example Project Empty"));
+                item.set_text(fl!("example_empty"));
+                item.set_sub_text(fl!("example_empty_sub"));
                 item.set_size(70);
-                item.set_text_color(WHITE);
                 item.set_text_size(14.0);
-                item.set_sub_text_color([170, 176, 184, 255]);
                 item.set_sub_text_size(12.0);
                 list.add_item(item, ctx);
                 ui.set_widget_value(
-                    Self::STARTER_PREVIEW_KIND_ID,
+                    Self::EXAMPLE_PREVIEW_KIND_ID,
                     ctx,
                     TheValue::Text(String::new()),
                 );
                 ui.set_widget_value(
-                    Self::STARTER_PREVIEW_TITLE_ID,
+                    Self::EXAMPLE_PREVIEW_TITLE_ID,
                     ctx,
-                    TheValue::Text(fl!("starter_empty")),
+                    TheValue::Text(fl!("example_empty")),
                 );
                 ui.set_widget_value(
-                    Self::STARTER_PREVIEW_DESCRIPTION_ID,
+                    Self::EXAMPLE_PREVIEW_DESCRIPTION_ID,
                     ctx,
                     TheValue::Text(String::new()),
                 );
             }
-            self.starter_loader_rx = None;
+            self.example_loader_rx = None;
             ctx.ui.relayout = true;
             ctx.ui.redraw_all = true;
             redraw_update = true;
         }
 
-        let starter_cancel_pending = pending_events.iter().any(|event| {
+        let example_cancel_pending = pending_events.iter().any(|event| {
             matches!(
                 event,
                 TheEvent::StateChanged(id, TheWidgetState::Clicked)
-                    if id.name == Self::STARTER_CANCEL_ID
+                    if id.name == Self::EXAMPLE_BACK_ID
             )
         });
-        let loaded_starter = (!starter_cancel_pending)
+        let loaded_example = (!example_cancel_pending)
             .then(|| {
-                self.starter_project_loader_rx
+                self.example_project_loader_rx
                     .as_mut()
                     .and_then(|receiver| receiver.try_recv().ok())
             })
             .flatten();
-        if let Some((manifest_id, project)) = loaded_starter {
-            self.starter_project_loader_rx = None;
+        if let Some((manifest_id, project)) = loaded_example {
+            self.example_project_loader_rx = None;
             ui.set_widget_value(
-                Self::STARTER_CREATE_ID,
+                Self::EXAMPLE_OPEN_ID,
                 ctx,
-                TheValue::Text(fl!("starter_create")),
+                TheValue::Text(fl!("example_open")),
             );
             // The tray button sizes itself from its label. Re-layout after
             // replacing the longer loading text so a failed load restores the
             // compact action button instead of retaining the loading width.
             ctx.ui.relayout = true;
-            ui.set_enabled(Self::STARTER_CREATE_ID, ctx);
+            ui.set_enabled(Self::EXAMPLE_OPEN_ID, ctx);
 
             if let Some(project) = project {
-                self.starter_project_cache
+                self.example_project_cache
                     .insert(manifest_id, project.clone());
                 ui.clear_dialog();
                 self.open_project_as_session(
@@ -8996,17 +9229,17 @@ impl TheTrait for Editor {
                 );
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
-                    fl!("status_starter_initialized"),
+                    fl!("status_example_initialized"),
                 ));
             } else {
                 ctx.ui.send(TheEvent::SetStatusText(
                     TheId::empty(),
-                    fl!("status_starter_load_failed"),
+                    fl!("status_example_load_failed"),
                 ));
             }
 
             ctx.ui
-                .set_widget_state(Self::STARTER_CREATE_ID.to_string(), TheWidgetState::None);
+                .set_widget_state(Self::EXAMPLE_OPEN_ID.to_string(), TheWidgetState::None);
             ctx.ui.clear_hover();
             redraw_update = true;
             redraw = true;
@@ -9260,6 +9493,7 @@ impl TheTrait for Editor {
                     }
 
                     let rusterix = &mut RUSTERIX.write().unwrap();
+                    rusterix.client.use_editor_canvas = !running_game_mode;
                     rusterix.client.builder_d2.draw_grid = self.server_ctx.show_editor_grid;
 
                     if running_game_mode {
@@ -9920,6 +10154,16 @@ impl TheTrait for Editor {
         }
 
         for event in pending_events {
+            if self.procedural_material.handle_event(
+                &event,
+                ui,
+                ctx,
+                &mut self.project,
+                &mut self.server_ctx,
+            ) {
+                redraw = true;
+                continue;
+            }
             if self.server_ctx.game_input_mode && !self.server_ctx.game_mode {
                 // In game input mode send events to the game tool
                 if let Some(game_tool) = TOOLLIST
@@ -10574,7 +10818,21 @@ impl TheTrait for Editor {
                     }
                 }
                 TheEvent::StateChanged(id, state) => {
-                    if id.name == "Dock Edit Maximize" && state == TheWidgetState::Clicked {
+                    if state == TheWidgetState::Clicked
+                        && matches!(
+                            id.name.as_str(),
+                            "Theme Brown" | "Theme Black" | "Theme Light"
+                        )
+                    {
+                        let theme = match id.name.as_str() {
+                            "Theme Black" => CreatorTheme::Black,
+                            "Theme Light" => CreatorTheme::Light,
+                            _ => CreatorTheme::Brown,
+                        };
+                        theme.apply(ui, ctx);
+                        theme.save();
+                        redraw = true;
+                    } else if id.name == "Dock Edit Maximize" && state == TheWidgetState::Clicked {
                         DOCKMANAGER.write().unwrap().edit_maximize(
                             ui,
                             ctx,
@@ -10602,29 +10860,67 @@ impl TheTrait for Editor {
                         redraw = true;
                     } else if id.name == "GameInput" {
                         self.server_ctx.game_input_mode = state == TheWidgetState::Clicked;
-                    } else if id.name == "Starter Project List Item"
+                    } else if matches!(id.name.as_str(), "New Project 2D" | "New Project 3D")
+                        && state == TheWidgetState::Clicked
+                    {
+                        let dimension = if id.name == "New Project 3D" {
+                            crate::project_templates::ProjectDimension::ThreeD
+                        } else {
+                            crate::project_templates::ProjectDimension::TwoD
+                        };
+                        ui.clear_dialog();
+                        self.open_project_as_session(
+                            Self::new_project(dimension),
+                            None,
+                            ui,
+                            ctx,
+                            &mut update_server_icons,
+                            &mut redraw,
+                        );
+                        ctx.ui.clear_hover();
+                        redraw = true;
+                    } else if id.name == "Browse Examples" && state == TheWidgetState::Clicked {
+                        self.open_example_project_dialog(ui, ctx);
+                        ctx.ui.clear_hover();
+                        redraw = true;
+                    } else if id.name == "Chooser Open Project" && state == TheWidgetState::Clicked
+                    {
+                        ui.clear_dialog();
+                        ctx.ui.send(TheEvent::StateChanged(
+                            TheId::named("Open"),
+                            TheWidgetState::Clicked,
+                        ));
+                        ctx.ui.clear_hover();
+                        redraw = true;
+                    } else if id.name == "Project Chooser Cancel"
+                        && state == TheWidgetState::Clicked
+                    {
+                        ui.clear_dialog();
+                        ctx.ui.clear_hover();
+                        redraw = true;
+                    } else if id.name == "Example Project List Item"
                         && state == TheWidgetState::Selected
                     {
                         let selected_manifest_id = self
-                            .starter_projects
+                            .example_projects
                             .iter()
                             .find(|entry| entry.id == id.uuid)
                             .map(|entry| entry.manifest_id.clone());
-                        self.selected_starter_manifest_id = selected_manifest_id.clone();
+                        self.selected_example_manifest_id = selected_manifest_id.clone();
                         if let Some(manifest_id) = selected_manifest_id {
-                            self.update_starter_project_preview(&manifest_id, ui, ctx);
+                            self.update_example_project_preview(&manifest_id, ui, ctx);
                         }
                         redraw = true;
-                    } else if id.name == Self::STARTER_CREATE_ID {
+                    } else if id.name == Self::EXAMPLE_OPEN_ID && state == TheWidgetState::Clicked {
                         let selected_manifest_id =
-                            self.selected_starter_manifest_id.clone().or_else(|| {
-                                self.starter_projects
+                            self.selected_example_manifest_id.clone().or_else(|| {
+                                self.example_projects
                                     .first()
                                     .map(|entry| entry.manifest_id.clone())
                             });
                         if let Some(manifest_id) = selected_manifest_id {
                             if let Some(project) =
-                                self.starter_project_cache.get(&manifest_id).cloned()
+                                self.example_project_cache.get(&manifest_id).cloned()
                             {
                                 ui.clear_dialog();
                                 self.open_project_as_session(
@@ -10637,69 +10933,62 @@ impl TheTrait for Editor {
                                 );
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
-                                    fl!("status_starter_initialized"),
+                                    fl!("status_example_initialized"),
                                 ));
-                            } else if self.starter_project_loader_rx.is_none()
+                            } else if self.example_project_loader_rx.is_none()
                                 && let Some(choice) = self
-                                    .starter_projects
+                                    .example_projects
                                     .iter()
                                     .find(|choice| choice.manifest_id == manifest_id)
                             {
                                 let project_path = choice.project_path.clone();
                                 let (tx, rx) = std::sync::mpsc::channel();
-                                self.starter_project_loader_rx = Some(rx);
+                                self.example_project_loader_rx = Some(rx);
                                 ui.set_widget_value(
-                                    Self::STARTER_CREATE_ID,
+                                    Self::EXAMPLE_OPEN_ID,
                                     ctx,
-                                    TheValue::Text(fl!("starter_loading_project")),
+                                    TheValue::Text(fl!("example_loading_project")),
                                 );
                                 // The button was initially measured for its action label.
                                 // Re-layout so the loading label is not clipped.
                                 ctx.ui.relayout = true;
-                                ui.set_disabled(Self::STARTER_CREATE_ID, ctx);
+                                ui.set_disabled(Self::EXAMPLE_OPEN_ID, ctx);
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
-                                    fl!("starter_loading_project"),
+                                    fl!("example_loading_project"),
                                 ));
                                 std::thread::spawn(move || {
-                                    let project = Self::load_starter_project(&project_path);
+                                    let project = Self::load_example_project(&project_path);
                                     let _ = tx.send((manifest_id, project));
                                 });
                             } else {
                                 ctx.ui.send(TheEvent::SetStatusText(
                                     TheId::empty(),
-                                    fl!("status_starter_load_failed"),
+                                    fl!("status_example_load_failed"),
                                 ));
                             }
                         }
                         ctx.ui.set_widget_state(
-                            Self::STARTER_CREATE_ID.to_string(),
+                            Self::EXAMPLE_OPEN_ID.to_string(),
                             TheWidgetState::None,
                         );
                         ctx.ui.clear_hover();
                         redraw = true;
-                    } else if id.name == Self::STARTER_CANCEL_ID {
-                        self.starter_project_loader_rx = None;
+                    } else if id.name == Self::EXAMPLE_BACK_ID && state == TheWidgetState::Clicked {
+                        self.example_project_loader_rx = None;
                         ui.clear_dialog();
                         ctx.ui.set_widget_state(
-                            Self::STARTER_CANCEL_ID.to_string(),
+                            Self::EXAMPLE_BACK_ID.to_string(),
                             TheWidgetState::None,
                         );
                         ctx.ui.clear_hover();
-                        self.open_project_as_session(
-                            Self::load_empty_project_template(),
-                            None,
-                            ui,
-                            ctx,
-                            &mut update_server_icons,
-                            &mut redraw,
-                        );
+                        self.open_project_chooser(ui, ctx);
                         redraw = true;
                     } else if id.name == "New" {
-                        self.open_starter_project_dialog(ui, ctx);
+                        self.open_project_chooser(ui, ctx);
                         ctx.ui.send(TheEvent::SetStatusText(
                             TheId::empty(),
-                            fl!("status_starter_choose"),
+                            fl!("status_project_choose"),
                         ));
                         ctx.ui
                             .set_widget_state("New".to_string(), TheWidgetState::None);
@@ -11727,6 +12016,207 @@ mod tests {
             assert_eq!(Editor::presentation_fps(true, true, fps), fps.clamp(1, 60));
             assert_eq!(Editor::presentation_fps(true, false, fps), fps.clamp(1, 60));
         }
+    }
+
+    #[test]
+    fn empty_project_template_includes_editable_starter_materials() {
+        let project = Editor::load_empty_project_template();
+        let labels: Vec<_> = project.procedural_materials.keys()
+            .map(|id| project.tiles[id].alias.as_str()).collect();
+        assert_eq!(labels, ["Grass", "Rock", "Hills", "Street", "Walls", "Water"]);
+    }
+
+    #[test]
+    fn generated_projects_round_trip_with_player_floor_and_screen() {
+        use crate::project_templates::ProjectDimension;
+        for (dimension, camera, map_camera) in [
+            (ProjectDimension::TwoD, PlayerCamera::D2, MapCamera::TwoD),
+            (
+                ProjectDimension::ThreeD,
+                PlayerCamera::D3Iso,
+                MapCamera::ThreeDIso,
+            ),
+        ] {
+            let project = Editor::new_project(dimension);
+            let bytes = shared::project_io::encode_project(&project).unwrap();
+            let mut project = Editor::load_project_from_bytes(&bytes).unwrap();
+            shared::entity_graph::synchronize(&mut project).unwrap();
+            shared::rusterix_utils::insert_content_into_maps(&mut project);
+            let region = &project.regions[0];
+            assert_eq!(region.map.camera, map_camera);
+            assert_eq!(region.map.entities.len(), 1);
+            let mut player = region.map.entities[0].clone();
+            assert!(player.is_player());
+            assert_eq!(
+                player.attributes.get("player_camera"),
+                Some(&Value::PlayerCamera(camera.clone()))
+            );
+            let bindings: toml::Table = player
+                .attributes
+                .get_str("_input_bindings")
+                .unwrap()
+                .parse()
+                .unwrap();
+            for key in ["w", "a", "s", "d", "up", "down", "left", "right"] {
+                let command = bindings["input"][key].as_str().unwrap();
+                assert!(rusterix::client::command::parse_client_command(command).is_some());
+            }
+            let rules = project.rules_source().unwrap().parse().unwrap();
+            rusterix::server::region::apply_ruleset_character_defaults(&rules, &mut player);
+            assert!(
+                player.get_attr_string("avatar").is_some(),
+                "player inherits a visible ruleset avatar"
+            );
+            assert!(project.time.hours >= 6 && project.time.hours < 18);
+            assert!(project.screens.values().next().unwrap().is_responsive());
+            if matches!(dimension, ProjectDimension::ThreeD) {
+                assert_eq!(
+                    region.map.geometry_floor_height_nearest(Vec2::zero(), 0.0),
+                    Some(0.0)
+                );
+                let floor = &region.map.geometry_objects[0];
+                for face in &floor.faces {
+                    let Some(rusterix::PixelSource::TileId(id)) = &face.tile else {
+                        panic!("3D starter floor must use an editable material");
+                    };
+                    assert_eq!(project.tiles[id].alias, "Street");
+                    assert!(project.procedural_materials.contains_key(id));
+                }
+            } else {
+                assert!(region.map.find_sector_at(Vec2::new(0.5, 0.5)).is_some());
+                assert!(region.map.geometry_objects.is_empty());
+                assert_eq!(region.map.sectors.len(), 64);
+                for cell in &region.map.sectors {
+                    let bounds = cell.bounding_box(&region.map);
+                    assert_eq!(bounds.size(), Vec2::new(1.0, 1.0));
+                    assert!(cell.properties.get_bool_default("rect", false));
+                    assert_eq!(cell.layer, Some(1));
+                    let Some(rusterix::PixelSource::TileId(id)) = cell.properties.get_default_source() else {
+                        panic!("starter ground must use painted tiles");
+                    };
+                    let tile = &project.tiles[id];
+                    assert!(!tile.blocking);
+                    assert!(matches!(tile.alias.as_str(), "Grass" | "Street"));
+                }
+            }
+            let screen = project.screens.values().next().unwrap();
+            let widget = screen
+                .map
+                .sectors
+                .iter()
+                .find(|s| s.name == "Game")
+                .unwrap();
+            let data: toml::Table = widget.properties.get_str("data").unwrap().parse().unwrap();
+            assert_eq!(data["ui"]["role"].as_str(), Some("game"));
+            assert_eq!(
+                data["camera"]["type"].as_str(),
+                Some(if matches!(dimension, ProjectDimension::ThreeD) {
+                    "iso"
+                } else {
+                    "2d"
+                })
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU"]
+    fn generated_projects_register_player_and_initialize_game_widget() {
+        use crate::project_templates::ProjectDimension;
+        for (dimension, camera) in [
+            (ProjectDimension::TwoD, PlayerCamera::D2),
+            (ProjectDimension::ThreeD, PlayerCamera::D3Iso),
+        ] {
+            let mut project = Editor::new_project(dimension);
+            shared::rusterix_utils::insert_content_into_maps(&mut project);
+            let mut runtime = Rusterix::new_without_audio();
+            // The client registers the authored player through its normal startup command.
+            for character in project.characters.values() {
+                runtime.assets.entities.insert(
+                    character.name.clone(),
+                    (character.source.clone(), character.data.clone()),
+                );
+            }
+            let commands = shared::rusterix_utils::setup_client(&mut runtime, &mut project);
+            assert_eq!(
+                commands.len(),
+                1,
+                "startup must register exactly one player"
+            );
+            assert!(
+                matches!(&commands[0], rusterix::Command::CreateEntity(_, entity) if entity.is_player())
+            );
+            assert_eq!(runtime.client.current_map, "Region");
+            assert_eq!(
+                runtime.client.active_game_widget_camera_mode(),
+                Some(camera)
+            );
+            let rect = runtime
+                .client
+                .game_widget_rect()
+                .expect("screen has a game widget");
+            assert_eq!((rect.width, rect.height), (960.0, 540.0));
+        }
+    }
+
+    #[test]
+    fn project_chooser_is_compact_and_does_not_start_downloads() {
+        let mut editor = Editor::new();
+        let mut ctx = TheContext::new(800, 600, 1.0);
+        let mut ui = TheUI::new();
+        ui.init(&mut ctx);
+        ui.canvas.root = true;
+        ui.canvas.set_dim(TheDim::new(0, 0, 800, 600), &mut ctx);
+        ui.set_theme(Box::new(TheBrownTheme::new()), &mut ctx);
+        editor.open_project_chooser(&mut ui, &mut ctx);
+        assert!(editor.example_loader_rx.is_none());
+        assert!(editor.example_project_loader_rx.is_none());
+        assert!(ui.get_list_layout(Editor::EXAMPLE_LIST_ID).is_none());
+        for id in [
+            "New Project 2D",
+            "New Project 3D",
+            "Browse Examples",
+            "Chooser Open Project",
+            "Project Chooser Cancel",
+        ] {
+            assert!(ui.get_widget(id).is_some(), "missing chooser action {id}");
+        }
+        let mut frame = vec![0; 800 * 600 * 4];
+        ui.draw(&mut frame, &mut ctx);
+        if let Ok(path) = std::env::var("ELDIRON_CHOOSER_PREVIEW") {
+            let file = std::fs::File::create(path).unwrap();
+            let mut encoder = png::Encoder::new(file, 800, 600);
+            encoder.set_color(png::ColorType::Rgba);
+            encoder.set_depth(png::BitDepth::Eight);
+            encoder
+                .write_header()
+                .unwrap()
+                .write_image_data(&frame)
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn examples_catalog_excludes_the_retired_3d_starter() {
+        let manifest: ExampleProjectManifest =
+            toml::from_str(include_str!("../../starters/manifest.toml")).unwrap();
+        assert_eq!(manifest.example.len(), 4);
+        assert!(
+            manifest
+                .example
+                .iter()
+                .all(|entry| entry.id != "starter-3d")
+        );
+        // Keep the published schema compatible with existing Creator releases.
+        let renamed =
+            include_str!("../../starters/manifest.toml").replace("[[starter]]", "[[example]]");
+        assert_eq!(
+            toml::from_str::<ExampleProjectManifest>(&renamed)
+                .unwrap()
+                .example
+                .len(),
+            4
+        );
     }
 
     #[test]

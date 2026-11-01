@@ -1,0 +1,16 @@
+tile 1
+name "Normal Combine"
+category "Operator"
+description "Combines encoded tangent-space normals using reoriented normal mapping. Flat detail leaves the base unchanged."
+group "Normals" true
+param vec3 detail "Detail Normal" default 0.5 0.5 1 range 0 1
+param float strength "Detail Strength" default 1 range 0 4
+let base = normalize(input.rgb * 2 - 1)
+let decoded = detail * 2 - 1
+let second = normalize(vec3(decoded.xy * strength, max(decoded.z, 0.00001)))
+let t = base + vec3(0, 0, 1)
+let u = second * vec3(-1, -1, 1)
+let reoriented = t * (dot(t, u) / max(t.z, 0.00001)) - u
+let fallback = vec3(base.xy + second.xy, base.z * second.z)
+let result = normalize(select(less(t.z, 0.00001), fallback, reoriented))
+image = vec4(result * 0.5 + 0.5, input.a)

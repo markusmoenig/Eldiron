@@ -1,0 +1,62 @@
+tile 1
+name "Circular Warp"
+category "Transform"
+description "Warps the input shape into circular rings."
+group "Circular Warp" true
+param float scaleX "Thickness" default 0.3 range 0 2
+param float globalScale "Scale" default 1.0 range 0.0 10
+param float amplitude "Noise Amp." default 0.4 range 0.0 2
+param float rot "Rotate" default 0.0 range 0.0 360
+group "About" true
+group "Sampling" true
+param float time "Time Offset" default 0
+param vec3 extra2 "Input 2" default 0 0 0
+param vec3 extra3 "Input 3" default 0 0 0
+
+let v0 = vec2(5, .1)
+let v1 = vec2(1, 0)
+let v2 = .4
+let v3 = 8.
+let v4 = ((uv / globalScale) / 0.5)
+let v5 = sin((vec2(1.5707963, 0) + radians(rot)))
+let v6 = vec4(v5, (-(v5).y), (v5).x)
+let v7 = vec2((v4).x*(v6).x+(v4).y*(v6).y, (v4).x*(v6).z+(v4).y*(v6).w)
+let v8 = v7
+let v9 = floor((v8 * v3))
+let v10 = fract((v8 * v3))
+let v11 = ((v10 * v10) * (3. - (2. * v10)))
+let v12 = vec2(((v9 + vec2(0, 0))).x*(vec4(127.1, 311.7, 269.5, 183.3)).x+((v9 + vec2(0, 0))).y*(vec4(127.1, 311.7, 269.5, 183.3)).y, ((v9 + vec2(0, 0))).x*(vec4(127.1, 311.7, 269.5, 183.3)).z+((v9 + vec2(0, 0))).y*(vec4(127.1, 311.7, 269.5, 183.3)).w)
+let v13 = vec2(((v9 + vec2(1, 0))).x*(vec4(127.1, 311.7, 269.5, 183.3)).x+((v9 + vec2(1, 0))).y*(vec4(127.1, 311.7, 269.5, 183.3)).y, ((v9 + vec2(1, 0))).x*(vec4(127.1, 311.7, 269.5, 183.3)).z+((v9 + vec2(1, 0))).y*(vec4(127.1, 311.7, 269.5, 183.3)).w)
+let v14 = mix(fract((18.5453 * sin(v12))), fract((18.5453 * sin(v13))), (v11).x)
+let v15 = vec2(((v9 + vec2(0, 1))).x*(vec4(127.1, 311.7, 269.5, 183.3)).x+((v9 + vec2(0, 1))).y*(vec4(127.1, 311.7, 269.5, 183.3)).y, ((v9 + vec2(0, 1))).x*(vec4(127.1, 311.7, 269.5, 183.3)).z+((v9 + vec2(0, 1))).y*(vec4(127.1, 311.7, 269.5, 183.3)).w)
+let v16 = vec2(((v9 + vec2(1, 1))).x*(vec4(127.1, 311.7, 269.5, 183.3)).x+((v9 + vec2(1, 1))).y*(vec4(127.1, 311.7, 269.5, 183.3)).y, ((v9 + vec2(1, 1))).x*(vec4(127.1, 311.7, 269.5, 183.3)).z+((v9 + vec2(1, 1))).y*(vec4(127.1, 311.7, 269.5, 183.3)).w)
+let v17 = mix(fract((18.5453 * sin(v15))), fract((18.5453 * sin(v16))), (v11).x)
+let v18 = mix(v14, v17, (v11).y)
+let v19 = select(0, vec2(0), ((2. * v18) - 1.))
+let v20 = 1
+let v21 = (v8 + ((amplitude / v3) * v19))
+let v22 = select(0, vec2(0), v21)
+let v23 = 1
+let v24 = v22
+let v25 = vec2(((atan((v24).y, (v24).x) / 6.28319) + .5), length(v24))
+let v26 = select(0, vec2(0), v25)
+let v27 = 1
+let v28 = v26
+let v29 = select(0, vec2(0), fract((v28 * vec2(1, 3))))
+let v30 = 1
+let v31 = v29
+let v32 = clamp((.5 + ((v31 - .5) / vec2(.3, scaleX))), 0., 1.)
+let v33 = select(0, vec2(0), v32)
+let v34 = 1
+let v35 = v33
+let v36 = select(equal((vec2(0, 3)).x, 2), (2. * min((v35).x, (1. - (v35).x))), (.5 - (.5 * cos((6.28319 * (v35).x)))))
+let v37 = select(equal((vec2(0, 3)).x, 1), (1. - (v35).x), v36)
+let v38 = select(equal((vec2(0, 3)).y, 2), (2. * min((v35).y, (1. - (v35).y))), (.5 - (.5 * cos((6.28319 * (v35).y)))))
+let v39 = select(equal((vec2(0, 3)).y, 1), (1. - (v35).y), v38)
+let v40 = vec2(select(equal((vec2(0, 3)).x, 0), (v35).x, v37), select(equal((vec2(0, 3)).y, 0), (v35).y, v39))
+let v41 = select(0, vec2(0), v40)
+let v42 = 1
+let v43 = v41
+let v44 = (sample_context(v43, pos, normal, (sample_time + time), input.rgb, select(aux_valid, aux2, extra2), select(aux_valid, aux3, extra3))).rgb
+let v45 = v44
+image = vec4(v45, input.a)

@@ -244,6 +244,18 @@ impl NodesDock {
     fn render(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.apply_branch_filter();
         self.update_particle_preview();
+        let theme = ui.style.theme();
+        let graph_theme = GraphTheme {
+            background: *theme.color(MaterialCanvas),
+            grid: *theme.color(MaterialGrid),
+            body: *theme.color(MaterialPanel),
+            control: *theme.color(MaterialControl),
+            text: *theme.color(MaterialText),
+            muted: *theme.color(MaterialMuted),
+            wire: *theme.color(MaterialWire),
+            active: *theme.color(SelectedTextEditBorder1),
+            ..GraphTheme::default()
+        };
         let Some(view) = ui.get_render_view(VIEW) else {
             return;
         };
@@ -285,7 +297,7 @@ impl NodesDock {
             &self.tiles,
             &mut painter,
             [d.width as f32, d.height as f32],
-            &GraphTheme::default(),
+            &graph_theme,
         );
         if self.doc.nodes.is_empty() || self.load_error.is_some() {
             let empty = if configuration {
@@ -303,7 +315,7 @@ impl NodesDock {
                 },
                 label,
                 14.,
-                [210, 210, 210, 255],
+                graph_theme.text,
             );
         }
         if let Some(error) = rules_error {
@@ -322,7 +334,7 @@ impl NodesDock {
             picker.paint(&mut painter);
         }
         if let Some(editor) = &mut self.conversation {
-            editor.paint(&mut painter, &GraphTheme::default());
+            editor.paint(&mut painter, &graph_theme);
         }
         if let Some(overlay) = &mut self.text_overlay {
             let view = [d.width as f32, d.height as f32];
@@ -333,7 +345,7 @@ impl NodesDock {
                     size: [d.width as f32 * 0.7, d.height as f32 * 0.76],
                 },
             };
-            overlay.paint(&mut painter, &GraphTheme::default());
+            overlay.paint(&mut painter, &graph_theme);
             painter.text(
                 GraphRect {
                     origin: [
@@ -344,7 +356,7 @@ impl NodesDock {
                 },
                 &fl!("node_text_overlay_hint"),
                 12.,
-                [163, 169, 166, 255],
+                graph_theme.muted,
             );
         }
         if self.branches_dirty {
@@ -1473,6 +1485,12 @@ impl Dock for NodesDock {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        if let TheEvent::Custom(id, _) = event
+            && id.name == "Creator Theme Changed"
+        {
+            self.render(ui, ctx);
+            return true;
+        }
         if let TheEvent::ValueChanged(id, TheValue::Text(text)) = event {
             if id.name == "Node Branch Search" {
                 self.branch_filter = text.clone();

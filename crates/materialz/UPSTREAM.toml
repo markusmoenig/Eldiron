@@ -1,0 +1,35 @@
+# Provenance only; this is not a dependency on another checkout.
+project = "MaterialZ"
+imported_on = "2026-10-29"
+package = "denrim-materials"
+version = "0.1.0"
+base_revision = "6ed7d95ae21e23b6d7a9a04a856d56c10e6d33e6"
+working_tree_snapshot = true
+# Includes uncommitted source changes that are absent from base_revision.
+file_manifest = "UPSTREAM_FILES.json"
+file_manifest_sha256 = "4dfd5db36fe72a090b44f342e1245b4a1743e66c719245021050404dd5ff186d"
+working_tree_status = "UPSTREAM_STATUS.txt"
+
+[local_changes]
+"tests/noise_core.rs" = "Audit included Rust examples; omit the Apple app example directory."
+"scripts/generate-bsdf.py" = "Generate Rust channel definitions without modifying excluded Apple renderer sources."
+"src/format.rs" = "Persist incoming row connections independently of the tiles using them."
+"src/ir.rs" = "Validate dormant row ports and retain editable empty receiver rows without evaluating unused edges."
+"src/live.rs" = "Initialize incoming row ports when constructing rows."
+"src/gpu.rs" = "Add seven-channel authoring previews including Height and Normal; keep the five-channel runtime profile."
+"tests/row_connections.rs" = "Exercise row-port persistence, validation, deletion and empty receiver evaluation."
+"tests/wgpu.rs" = "Validate the extended authoring output profile."
+"tests/wgpu_runtime.rs" = "Render authoring Height/Normal and verify the runtime profile stays unchanged."
+"docs/format.md" = "Document row-owned incoming connections and dormant edges."
+"docs/eldiron-integration.md" = "Document the additive authoring preview profile."
+
+"src/raster.rs" = "Decode bounded RGBA8 raster payloads into linear samples for ordinary Eldiron tile sources."
+"src/tilelang.rs" = "Carry embedded raster samples through the shared CPU/GPU algorithm without counting image bytes as executable code."
+"src/metal.rs" = "Sample host image tiles through the existing immutable parameter buffer; preserve offsets across execution passes."
+"src/lib.rs" = "Register the internal raster decoder."
+"tests/raster.rs" = "Verify raster bounds, color space, alpha, UV repeat, storage-buffer rendering and shader reuse."
+
+[back_integrated_animation]
+date = "2026-10-31"
+features = ["normalized GPU/CPU time", "loop metadata", "Loop Flow", "continuous Grid keys", "water and brick examples"]
+original_app = "Swift animation controls, native Metal time binding, play/pause previews and AnimationSmoke test"

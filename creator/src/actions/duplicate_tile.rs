@@ -54,6 +54,20 @@ impl Action for DuplicateTile {
             if let Some(mut tile) = project.tiles.get(&tile_id).cloned() {
                 tile.id = Uuid::new_v4();
                 let id = tile.id;
+                if let Some(bundle) = project.procedural_materials.get(&tile_id) {
+                    match crate::procedural_material::duplicate_bundle(bundle, id) {
+                        Ok(bundle) => {
+                            project.procedural_materials.insert(id, bundle);
+                        }
+                        Err(e) => {
+                            ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), e));
+                            return;
+                        }
+                    }
+                }
+                if let Some(composition) = project.material_compositions.get(&tile_id).cloned() {
+                    project.material_compositions.insert(id, composition);
+                }
                 project.tiles.insert(id, tile);
                 project.place_tile_at_picker_selection(id, server_ctx.curr_tile_board_cell.take());
                 server_ctx.curr_tile_id = Some(id);

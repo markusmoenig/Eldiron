@@ -10,6 +10,7 @@ use toml::Table;
 
 const SETTINGS_NAV_LAYOUT_ID: &str = "Game Settings Navigation";
 const SETTINGS_NAV_ITEM_PREFIX: &str = "Game Settings Nav ";
+const MATERIAL_RESOLUTION_ID: &str = "Game Material Pixels Per Tile";
 
 struct SettingNavEntry {
     key: &'static str,
@@ -598,6 +599,7 @@ impl Dock for DataDock {
         }
 
         self.sync_settings_navigation(ui, ctx, server_ctx.pc.is_project_settings());
+        self.sync_material_resolution(ui, ctx, project);
         self.validate_project_documents(project);
 
         // Store initial state for undo
@@ -618,7 +620,38 @@ impl Dock for DataDock {
 
         match event {
             TheEvent::ValueChanged(id, value) => {
-                if id.name == "DockDataEditor" {
+                if id.name == MATERIAL_RESOLUTION_ID && server_ctx.pc.is_project_settings() {
+                    let pixels = match value {
+                        TheValue::IntRange(v, _) | TheValue::Int(v) => (*v).clamp(0, 64) as u32,
+                        _ => return false,
+                    };
+                    match crate::procedural_material::pixel_style::set_density(
+                        &project.config,
+                        pixels,
+                    ) {
+                        Ok(config) if config != project.config => {
+                            let states = ui.get_text_area_edit("DockDataEditor").map(|edit| {
+                                let before = edit.get_state();
+                                edit.set_value(TheValue::Text(config.clone()));
+                                (before, edit.get_state())
+                            });
+                            if let Some((before, after)) = states {
+                                self.add_undo(DataUndoAtom::TextEdit(before, after.clone()), ctx);
+                                self.prev_state = Some(after);
+                            }
+                            project.config = config;
+                            let mut rusterix = RUSTERIX.write().unwrap();
+                            rusterix.assets.config = project.config.clone();
+                            rusterix
+                                .scene_handler
+                                .sync_base_render_settings(&project.config);
+                            redraw = true;
+                        }
+                        Ok(_) => {}
+                        Err(error) => ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), error)),
+                    }
+                    self.sync_material_resolution(ui, ctx, project);
+                } else if id.name == "DockDataEditor" {
                     if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                         // Add undo atom before applying the change
                         if let Some(prev) = &self.prev_state {
@@ -754,6 +787,7 @@ impl Dock for DataDock {
                     }
 
                     self.validate_project_documents(project);
+                    self.sync_material_resolution(ui, ctx, project);
                 }
             }
             TheEvent::NewListItemSelected(id, layout_id) => {
@@ -957,6 +991,20 @@ impl Dock for DataDock {
 }
 
 impl DataDock {
+    fn sync_material_resolution(&self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
+        if let Some(widget) = ui
+            .get_widget("Game Material Resolution")
+            .and_then(|item| item.as_tree_item())
+            .and_then(|item| item.embedded_widget_mut())
+        {
+            widget.set_value(TheValue::Int(
+                crate::procedural_material::pixel_style::density(&project.config) as i32,
+            ));
+            widget.set_needs_redraw(true);
+            ctx.ui.redraw_all = true;
+        }
+    }
+
     fn sync_settings_navigation(&mut self, ui: &mut TheUI, _ctx: &mut TheContext, active: bool) {
         let Some(tree) = ui.get_tree_layout(SETTINGS_NAV_LAYOUT_ID) else {
             return;
@@ -976,6 +1024,18 @@ impl DataDock {
         if !active {
             return;
         }
+
+        let mut materials = TheTreeNode::new(TheId::named("Procedural Materials"));
+        materials.set_open(true);
+        let mut item = TheTreeItem::new(TheId::named("Game Material Resolution"));
+        item.set_text("Pixels per tile".into());
+        let mut resolution = TheTextLineEdit::new(TheId::named(MATERIAL_RESOLUTION_ID));
+        resolution.set_value(TheValue::Int(16));
+        resolution.set_range(TheValue::RangeI32(0..=64));
+        resolution.set_status_text("Global procedural texture resolution (1–64 pixels per tile). Slide or type a value. 0 uses smooth 64px baking. Changes rebake all procedural materials.");
+        item.add_widget_column(140, Box::new(resolution));
+        materials.add_widget(Box::new(item));
+        root.add_child(materials);
 
         for section in GAME_SETTINGS_NAV_SECTIONS {
             let mut node = TheTreeNode::new(TheId::named(&format!("[{}]", section.table)));
@@ -1776,6 +1836,7 @@ impl DataDock {
                     .scene_handler
                     .sync_base_render_settings(&project.config);
             }
+            self.sync_material_resolution(ui, ctx, project);
         } else if server_ctx.pc.is_game_locales() {
             if let Some(edit) = ui.get_text_area_edit("DockDataEditor") {
                 let state = edit.get_state();
@@ -1803,5 +1864,74 @@ impl DataDock {
         }
 
         self.validate_project_documents(project);
+    }
+}
+
+#[cfg(test)]
+mod material_resolution_tests {
+    use super::*;
+
+    fn resolution_value(ui: &mut TheUI) -> TheValue {
+        ui.get_widget("Game Material Resolution")
+            .unwrap()
+            .as_tree_item()
+            .unwrap()
+            .embedded_widget_mut()
+            .unwrap()
+            .value()
+    }
+
+    #[test]
+    #[ignore = "settings edits initialize the native GPU renderer"]
+    fn global_resolution_ui_updates_config_and_supports_undo_redo() {
+        let mut dock = DataDock::new();
+        let mut ctx = TheContext::new(1000, 650, 1.);
+        let mut ui = TheUI::new();
+        ui.canvas = dock.setup(&mut ctx);
+        let mut project = Project::default();
+        project.config = "# Preserve this\n[game]\ntarget_fps = 60\n".into();
+        let original = project.config.clone();
+        let mut server = ServerContext::default();
+        server.pc = ProjectContext::ProjectSettings;
+        dock.activate(&mut ui, &mut ctx, &project, &mut server);
+        assert_eq!(resolution_value(&mut ui), TheValue::IntRange(16, 0..=64));
+        assert!(dock.handle_event(
+            &TheEvent::ValueChanged(
+                TheId::named(MATERIAL_RESOLUTION_ID),
+                TheValue::IntRange(32, 0..=64)
+            ),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server,
+        ));
+        assert_eq!(
+            crate::procedural_material::pixel_style::density(&project.config),
+            32
+        );
+        assert!(project.config.contains("# Preserve this"));
+        assert_eq!(
+            ui.get_text_area_edit("DockDataEditor")
+                .unwrap()
+                .get_state()
+                .rows
+                .join("\n"),
+            project.config
+        );
+        dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(project.config, original);
+        assert_eq!(resolution_value(&mut ui), TheValue::IntRange(16, 0..=64));
+        dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(
+            crate::procedural_material::pixel_style::density(&project.config),
+            32
+        );
+        assert_eq!(resolution_value(&mut ui), TheValue::IntRange(32, 0..=64));
+        let saved = serde_json::to_string(&project).unwrap();
+        let reopened: Project = serde_json::from_str(&saved).unwrap();
+        assert_eq!(
+            crate::procedural_material::pixel_style::density(&reopened.config),
+            32
+        );
     }
 }

@@ -1,0 +1,18 @@
+tile 1
+name "Transform"
+category "Transform"
+description "Scales, rotates and moves the input shape."
+group "Warp" true
+param float globalScale "Global" default 1.0 range 0.0 10.0
+tooltip "Global scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+param vec2 localScale "Local" default 1.0 1.0 range 0.0 10.0
+tooltip "Local X/Y scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+param vec2 offset "Offset" default 0.0 0.0 range -10.0 10.0
+param float rot "Rotate" default 0.0 range 0.0 360.0
+group "About" true
+
+let u = (uv - offset) / nonzero(globalScale) / nonzero(localScale)
+let angle = radians(rot)
+let a = vec2(sin(1.5707963 + angle), sin(angle))
+domain = vec2(u.x * a.x + u.y * a.y, -u.x * a.y + u.y * a.x)
+image = input

@@ -1,0 +1,209 @@
+# Reference-inspired reed wicker: broad horizontal strips over paired vertical ribs.
+# Strand-local color and grain; no broad surface-noise or stain overlay.
+project 1
+
+material "weave" called "Reed Wicker"
+  mode bsdf
+  tiling raw
+  default metallic to 0
+  default specular to 0.6
+  default sheen to 0.025
+  default sheen roughness to 0.7
+
+  row "repeat" called "Repeat"
+    use "Value"
+      set "localValue" to 12 20 0
+  row "grid" called "Weave Grid"
+    use "Tex Coord 2D"
+      set "scale" from row "repeat" xy
+  row "strip-tone" called "Strip Tone"
+    use "Cell Data"
+      set "cells" from row "repeat" xy
+      set "offset" to 0 0.5
+      set "output" to 1
+      set "seed" to 37
+  row "rib-tone" called "Rib Tone"
+    use "Cell Data"
+      set "cells" from row "repeat" xy mapped 0 to 2
+      set "output" to 2
+      set "seed" to 83
+
+  row "strip-profile" called "Strip Profile"
+    use "Periodic Profile"
+      input from row "grid" yyy
+      set "profile" to 1
+      set "width" from row "strip-tone" x mapped 0.76 to 0.84
+    use "Smooth Step"
+      set "upperEdge" to 0.35 0.35 0.35
+  row "rib-a" called "Rib A"
+    use "Periodic Profile"
+      input from row "grid" xxx
+      set "profile" to 1
+      set "phase" to 0.145
+      set "width" from row "rib-tone" x mapped 0.105 to 0.125
+  row "rib-b" called "Rib B"
+    use "Periodic Profile"
+      input from row "grid" xxx
+      set "profile" to 1
+      set "phase" to -0.145
+      set "width" from row "rib-tone" x mapped 0.105 to 0.125
+  row "rib-profile" called "Paired Ribs"
+    use "Max"
+      input from row "rib-a" xxx
+      set "localValue" from row "rib-b" xxx
+      set "globalValue" to 1
+    use "Smooth Step"
+      set "upperEdge" to 0.7 0.7 0.7
+
+  # Each horizontal strip arches over the paired ribs; successive rows reverse it.
+  row "crossing" called "Crossing Waves"
+    use "Multiply"
+      input from row "grid" xyz
+      set "localValue" to 2 1 1
+    use "Cos"
+      set "scale" to 3.14159265359
+  row "strip-lift" called "Strip Lift"
+    use "Multiply"
+      input from row "crossing" xxx
+      set "localValue" from row "crossing" yyy
+    use "Multiply"
+      set "globalValue" to 0.38
+    use "Add"
+      set "globalValue" to 0.58
+  row "strip-body" called "Broad Strips"
+    use "Multiply"
+      input from row "strip-profile" xxx
+      set "localValue" from row "strip-lift" xxx
+
+  # Different seeds per strip/rib keep grain continuous along that element only.
+  row "strip-grain" called "Strip Grain"
+    use "Directional Grain"
+      set "scale" to 16 192
+      set "seed" from row "strip-tone" x mapped 0 to 4096
+      set "bend" to 0.1
+      set "octaves" to 2
+      set "contrast" to 1.6
+      set "threshold" to 0.27
+      set "softness" to 0.045
+      set "depth" to 0.4
+      set "output" to 3
+  row "rib-grain" called "Rib Grain"
+    use "Directional Grain"
+      set "direction" to 90
+      set "scale" to 16 256
+      set "seed" from row "rib-tone" x mapped 0 to 4096
+      set "bend" to 0.08
+      set "octaves" to 2
+      set "contrast" to 1.6
+      set "threshold" to 0.28
+      set "depth" to 0.3
+      set "output" to 3
+  row "rib-height" called "Rib Relief"
+    use "Multiply"
+      input from row "rib-profile" xxx
+      set "globalValue" to 0.64
+  row "height" called "Height"
+    use "Max"
+      input from row "strip-body" xxx
+      set "localValue" from row "rib-height" xxx
+      set "globalValue" to 1
+    use "Multiply"
+      set "globalValue" to 0.045
+
+  # Abrasion is confined to the strip shoulders and raised contact regions.
+  row "edge-wear" called "Edge Wear"
+    use "Compare/Select"
+      input from row "strip-profile" xxx
+      set "comparison" to 1
+      set "reference" to 0.94 0.94 0.94
+      set "softness" to 0.06
+    use "Multiply"
+      set "localValue" from row "strip-profile" xxx
+    use "Multiply"
+      set "localValue" from row "strip-lift" xxx mapped 0 to 0.3
+  row "strip-color-stage-1" called "Strip Color"
+    use "Mix"
+      input from row "strip-grain" xxx
+      set "color1" to 0.19 0.12 0.075 1
+      set "color2" to 0.29 0.20 0.11 1
+      set "factor" to 1 1 1
+  row "strip-color-stage-2" called "Strip Color"
+    use "Mix"
+      set "color1" from row "strip-color-stage-1" xyzw
+      set "color2" to 0.04 0.025 0.037 1
+      set "factor" from row "strip-grain" yyy
+    use "Multiply"
+      set "localValue" from row "strip-tone" xxx mapped 0.84 to 1.1
+  row "strip-color" called "Strip Color"
+    use "Mix"
+      set "color1" from row "strip-color-stage-2" xyzw
+      set "color2" to 0.5 0.35 0.19 1
+      set "factor" from row "edge-wear" xxx
+  row "rib-color-stage-3" called "Rib Color"
+    use "Mix"
+      input from row "rib-grain" xxx
+      set "color1" to 0.19 0.125 0.075 1
+      set "color2" to 0.3 0.205 0.115 1
+      set "factor" to 1 1 1
+  row "rib-color" called "Rib Color"
+    use "Mix"
+      set "color1" from row "rib-color-stage-3" xyzw
+      set "color2" to 0.05 0.03 0.038 1
+      set "factor" from row "rib-grain" yyy
+    use "Multiply"
+      set "localValue" from row "rib-tone" xxx mapped 0.84 to 1.12
+  row "surface-color" called "Reed Color"
+    use "Compare/Select"
+      input from row "strip-body" xxx
+      set "reference" from row "rib-height" xxx
+      set "softness" to 0.012
+      set "output" to 1
+      set "trueValue" from row "strip-color" xyz
+      set "falseValue" from row "rib-color" xyz
+  row "cavity" called "Recess Shade"
+    use "Compare/Select"
+      input from row "height" xxx
+      set "reference" to 0.008 0.008 0.008
+      set "softness" to 0.008
+  row "color" called "Color"
+    use "Mix"
+      set "color1" from row "surface-color" xyzw
+      set "color2" to 0.012 0.008 0.01 1
+      set "factor" from row "cavity" xxx mapped 1 to 0
+  row "roughness" called "Roughness"
+    use "Compare/Select"
+      input from row "strip-body" xxx
+      set "reference" from row "rib-height" xxx
+      set "softness" to 0.012
+      set "output" to 1
+      set "trueValue" from row "strip-grain" yyy mapped 0.56 to 0.86
+      set "falseValue" from row "rib-grain" yyy mapped 0.6 to 0.9
+
+  row "fine-height" called "Grain Relief"
+    use "Compare/Select"
+      input from row "strip-body" xxx
+      set "reference" from row "rib-height" xxx
+      set "softness" to 0.012
+      set "output" to 1
+      set "trueValue" from row "strip-grain" zzz mapped 0 to 0.0035
+      set "falseValue" from row "rib-grain" zzz mapped 0 to 0.0035
+  row "normal" called "Grain Normal"
+    use "Height to Normal"
+      input from row "fine-height" xxx
+      set "strength" to 1.3
+      set "radius" to 0.75
+
+  # Coverage is independent of height and color: the backing is actually absent.
+  row "opacity" called "Coverage"
+    use "Max"
+      input from row "strip-profile" xxx
+      set "localValue" from row "rib-profile" xxx
+      set "globalValue" to 1
+    use "Smooth Step"
+      set "upperEdge" to 0.12 0.12 0.12
+
+  output base color from row "color" xyz
+  output height from row "height" x
+  output roughness from row "roughness" x
+  output normal from row "normal" xyz
+  output opacity from row "opacity" x

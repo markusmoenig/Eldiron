@@ -545,8 +545,8 @@ impl Rasterizer {
                                                 if let Some(textile) =
                                                     &assets.tile_list.get(index as usize)
                                                 {
-                                                    let index = scene.animation_frame
-                                                        % textile.textures.len();
+                                                    let index =
+                                                        textile.frame_index(scene.animation_frame);
                                                     textile.textures[index].sample(
                                                         u,
                                                         v,
@@ -561,8 +561,8 @@ impl Rasterizer {
                                                 if let Some(textile) =
                                                     &scene.dynamic_textures.get(index as usize)
                                                 {
-                                                    let index = scene.animation_frame
-                                                        % textile.textures.len();
+                                                    let index =
+                                                        textile.frame_index(scene.animation_frame);
                                                     textile.textures[index].sample(
                                                         u,
                                                         v,
@@ -581,8 +581,9 @@ impl Rasterizer {
                                                     if let Some(textile) =
                                                         entity_sequences.get_index(index as usize)
                                                     {
-                                                        let index = scene.animation_frame
-                                                            % textile.1.textures.len();
+                                                        let index = textile
+                                                            .1
+                                                            .frame_index(scene.animation_frame);
                                                         textile.1.textures[index].sample(
                                                             u,
                                                             v,
@@ -603,8 +604,9 @@ impl Rasterizer {
                                                     if let Some(textile) =
                                                         item_sequences.get_index(index as usize)
                                                     {
-                                                        let index = scene.animation_frame
-                                                            % textile.1.textures.len();
+                                                        let index = textile
+                                                            .1
+                                                            .frame_index(scene.animation_frame);
                                                         textile.1.textures[index].sample(
                                                             u,
                                                             v,
@@ -923,8 +925,7 @@ impl Rasterizer {
                                     let (mut texel, _is_terrain) = match batch.source {
                                         PixelSource::StaticTileIndex(index) => {
                                             let textile = &assets.tile_list[index as usize];
-                                            let index =
-                                                scene.animation_frame % textile.textures.len();
+                                            let index = textile.frame_index(scene.animation_frame);
                                             (
                                                 // textile.textures[index].sample_with_normal(
                                                 //     interpolated_u,
@@ -946,8 +947,7 @@ impl Rasterizer {
                                         }
                                         PixelSource::DynamicTileIndex(index) => {
                                             let textile = &scene.dynamic_textures[index as usize];
-                                            let index =
-                                                scene.animation_frame % textile.textures.len();
+                                            let index = textile.frame_index(scene.animation_frame);
                                             (
                                                 textile.textures[index].sample(
                                                     interpolated_u,
@@ -966,8 +966,9 @@ impl Rasterizer {
                                                 if let Some(textile) =
                                                     entity_sequences.get_index(index as usize)
                                                 {
-                                                    let index = scene.animation_frame
-                                                        % textile.1.textures.len();
+                                                    let index = textile
+                                                        .1
+                                                        .frame_index(scene.animation_frame);
                                                     (
                                                         textile.1.textures[index].sample(
                                                             interpolated_u,
@@ -990,8 +991,9 @@ impl Rasterizer {
                                                 if let Some(textile) =
                                                     item_sequences.get_index(index as usize)
                                                 {
-                                                    let index = scene.animation_frame
-                                                        % textile.1.textures.len();
+                                                    let index = textile
+                                                        .1
+                                                        .frame_index(scene.animation_frame);
                                                     (
                                                         textile.1.textures[index].sample(
                                                             interpolated_u,
@@ -1215,8 +1217,7 @@ impl Rasterizer {
                                     let (mut texel, _is_terrain) = match batch.source {
                                         PixelSource::StaticTileIndex(index) => {
                                             let textile = &assets.tile_list[index as usize];
-                                            let index =
-                                                scene.animation_frame % textile.textures.len();
+                                            let index = textile.frame_index(scene.animation_frame);
                                             (
                                                 textile.textures[index].sample(
                                                     interpolated_u,
@@ -1229,8 +1230,7 @@ impl Rasterizer {
                                         }
                                         PixelSource::DynamicTileIndex(index) => {
                                             let textile = &scene.dynamic_textures[index as usize];
-                                            let index =
-                                                scene.animation_frame % textile.textures.len();
+                                            let index = textile.frame_index(scene.animation_frame);
                                             (
                                                 textile.textures[index].sample(
                                                     interpolated_u,
@@ -1249,8 +1249,9 @@ impl Rasterizer {
                                                 if let Some(textile) =
                                                     entity_sequences.get_index(index as usize)
                                                 {
-                                                    let index = scene.animation_frame
-                                                        % textile.1.textures.len();
+                                                    let index = textile
+                                                        .1
+                                                        .frame_index(scene.animation_frame);
                                                     (
                                                         textile.1.textures[index].sample(
                                                             interpolated_u,
@@ -1273,8 +1274,9 @@ impl Rasterizer {
                                                 if let Some(textile) =
                                                     item_sequences.get_index(index as usize)
                                                 {
-                                                    let index = scene.animation_frame
-                                                        % textile.1.textures.len();
+                                                    let index = textile
+                                                        .1
+                                                        .frame_index(scene.animation_frame);
                                                     (
                                                         textile.1.textures[index].sample(
                                                             interpolated_u,

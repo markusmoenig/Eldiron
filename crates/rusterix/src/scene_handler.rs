@@ -3115,6 +3115,8 @@ impl SceneHandler {
     }
 
     pub fn build_atlas(&mut self, tiles: &IndexMap<Uuid, Tile>, editor: bool) {
+        let active = self.vm.active_vm_index();
+        self.vm.set_active_vm(0);
         let fx_sprite = Self::build_particle_sprite_texture([255, 255, 255, 255], None);
         self.vm.execute(Atom::AddTile {
             id: Self::ruleset_fx_particle_sprite_tile_id(),
@@ -3136,6 +3138,17 @@ impl SceneHandler {
                 frames: tile.to_buffer_array(),
                 material_frames: Some(tile.to_material_array()),
             });
+            if let Some(pages) = &tile.uv_pages {
+                self.vm.execute(Atom::SetTileUvPages {
+                    animation_frames: pages.animation_frames,
+                    repeat_period: pages.repeat_period,
+                    id: *id,
+                    origin: pages.origin,
+                    size: pages.size,
+                    axes: pages.axes,
+                    units_per_page: pages.units_per_page,
+                });
+            }
 
             if let Some(emitter) = &tile.particle_emitter {
                 let sprite =
@@ -3300,6 +3313,7 @@ impl SceneHandler {
         ));
         self.vm.execute(Atom::BuildAtlas);
         self.mark_dynamics_dirty();
+        self.vm.set_active_vm(active);
     }
 
     pub fn clear_overlay(&mut self) {

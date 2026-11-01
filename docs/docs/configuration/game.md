@@ -5,6 +5,13 @@ sidebar_position: 1
 
 You can configure **Eldiron** by selecting the **Game -> Settings** item in the **project tree**.
 
+**Procedural Materials → Pixels per tile** in the settings navigation provides a
+slider with manual entry for the project-wide material resolution. The default
+is **16×16**; use **32** or **64** for finer detail. Baked tiles and world texture
+pages store that actual size. **0** uses smooth evaluation with 64×64 storage.
+Changing the value rebakes all procedural materials and supports undo/redo.
+The equivalent configuration is `[materials] pixels_per_tile = 16`.
+
 Other game-level documents are edited separately:
 
 - **Game -> Authoring**: [Authoring Configuration](./authoring)
@@ -178,13 +185,13 @@ update_policy = "compatible"     # "pinned", "patches", "compatible", or "latest
 
 Selects bundled asset and locale lookup information for the project.
 
-New projects receive the bundled `eldiron.official` node ruleset. **Game / Rules**
-edits the project's complete owned graph; it does not start as an empty override
-layer. Changing these selection fields does not replace the owned graph or its
-preserved original, and `update_policy` does not automatically upgrade nodes.
-See [Ruleset Nodes](../creator/docks/ruleset_nodes) for editing and recovery.
+New projects receive a complete document initialized from the bundled
+`eldiron.official` ruleset. **Game / Rules** edits the project-owned document.
+Changing these selection fields does not replace the document or its preserved
+original, and `update_policy` does not automatically upgrade it. See the
+[Ruleset Editor](../creator/docks/ruleset_nodes) for editing and recovery.
 Gameplay definitions such as formulas, classes, spells, intent ranges, and
-equipment policies belong in those ruleset nodes. Entity Nodes select definitions
+equipment policies belong in the rules document. Entity Nodes select definitions
 and configure individual characters or items.
 
 Equipment slot lists are ruleset data under `[equipment]`. They are not game

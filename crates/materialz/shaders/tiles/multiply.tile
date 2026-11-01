@@ -1,0 +1,10 @@
+tile 1
+name "Multiply"
+category "Operator"
+description "The output is the result of the multiplication of the input value with the global and local properties."
+group "Multiply Operator" true
+param float globalValue "Global" default 1.0 range 0.0 10.0
+param vec3 localValue "Local" default 1.0 1.0 1.0 range -100000.0 100000.0
+group "About" true
+
+image = vec4(input.rgb * globalValue * localValue, input.a)

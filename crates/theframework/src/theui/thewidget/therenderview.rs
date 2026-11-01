@@ -6,6 +6,8 @@ pub struct TheRenderView {
     state: TheWidgetState,
 
     render_buffer: TheRGBABuffer,
+    empty_background: Option<TheThemeColors>,
+    has_content: bool,
     wheel_scale: f32,
     aspect_scaled_scroll: bool,
     accumulated_wheel_delta: Vec2<f32>,
@@ -20,6 +22,12 @@ pub struct TheRenderView {
     is_dirty: bool,
 }
 
+impl TheRenderView {
+    pub fn set_empty_background(&mut self, role: TheThemeColors) {
+        self.empty_background = Some(role);
+        self.is_dirty = true;
+    }
+}
 impl TheWidget for TheRenderView {
     fn new(id: TheId) -> Self
     where
@@ -33,6 +41,8 @@ impl TheWidget for TheRenderView {
             state: TheWidgetState::None,
 
             render_buffer: TheRGBABuffer::new(TheDim::new(0, 0, 20, 20)),
+            empty_background: None,
+            has_content: false,
             wheel_scale: -0.4,
             aspect_scaled_scroll: true,
             accumulated_wheel_delta: Vec2::zero(),
@@ -270,7 +280,19 @@ impl TheWidget for TheRenderView {
             return;
         }
 
-        self.render_buffer.scaled_into_using_dim(buffer, &self.dim);
+        if !self.has_content
+            && let Some(role) = self.empty_background
+        {
+            let stride = buffer.stride();
+            ctx.draw.rect(
+                buffer.draw_target(),
+                &self.dim.to_buffer_utuple(),
+                stride,
+                style.theme().color(role),
+            );
+        } else {
+            self.render_buffer.scaled_into_using_dim(buffer, &self.dim);
+        }
 
         let stride = buffer.stride();
         if Some(self.id.clone()) == ctx.ui.focus {
@@ -319,6 +341,7 @@ impl TheRenderViewTrait for TheRenderView {
         self.text_input = active;
     }
     fn render_buffer_mut(&mut self) -> &mut TheRGBABuffer {
+        self.has_content = true;
         self.is_dirty = true;
         &mut self.render_buffer
     }

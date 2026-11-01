@@ -1,0 +1,26 @@
+tile 1
+name "Height Gradient"
+category "Operator"
+description "Resolution-aware signed gradient, slope and curvature from the incoming red-channel height. Gradient XY can steer Warp and Vector Filter."
+distance clear
+execution image radius units
+output_field gradient "Gradient" 0 xy
+output_field slope "Slope" 1 x
+output_field curvature "Curvature" 2 x
+group "Sampling" true
+param float radius "Radius" default 1 range 0.00001 16
+param float units "Units" default 0 range 0 1
+choices "Pixels" "UV"
+param float strength "Strength" default 1 range -1000 1000
+group "Output" true
+param float output "Output" default 0 range 0 2
+choices "Gradient XY / Curvature" "Slope" "Curvature"
+let h = max(clamp(radius, select(equal(units, 0), 0.25, 0.00001), 16) * select(equal(units, 0), aa, 1), 0.000001)
+let left = sample_image(uv - vec2(h, 0)).r
+let right = sample_image(uv + vec2(h, 0)).r
+let bottom = sample_image(uv - vec2(0, h)).r
+let top = sample_image(uv + vec2(0, h)).r
+let gradient = vec2(right - left, top - bottom) * strength / (2 * h)
+let curvature = (left + right + bottom + top - 4 * input.r) * strength / (h * h)
+let value = select(equal(output, 0), vec3(gradient, curvature), select(equal(output, 1), vec3(length(gradient)), vec3(curvature)))
+image = vec4(value, input.a)

@@ -1,0 +1,35 @@
+# IDs stay stable when labels change. Forward references are allowed.
+project 1
+
+material "demo" called "Warped Disc"
+  row "surface" called "Colored Surface"
+    use "Mix"
+      input from row "warped" xyz
+      set "color1" to 0.025 0.04 0.07 1
+      set "color2" to 0.2 0.85 0.65 1
+      set "factor" to 1 1 1
+  row "warped" called "Noise Driven Transform"
+    use "Transform"
+      input from row "shape" xyz
+      set "rot" from row "noise" x mapped -80 to 80
+      set "offset" from row "noise" xy mapped -0.08 to 0.08
+      set "localScale" to 0.8 1.2
+  row "shape" called "Disc"
+    use "Disc"
+      set "inBEVEL" to 0.25
+      set "globalScale" to 0.65
+    use "Multiply"
+      set "globalValue" to 0.9
+  row "noise" called "Curated Perlin"
+    use "Perlin Noise"
+      set "globalScale" to 0.8
+      set "localScale" to 1 1.3
+  output base color from row "surface" xyz
+  output height from row "warped" x
+  output roughness from row "noise" x mapped 0.3 to 0.9
+
+material "noise-study" called "Reusable Engine Study"
+  row "noise" called "Perlin"
+    use "Perlin Noise"
+      set "globalScale" to 1.2
+  output base color from row "noise" xyz

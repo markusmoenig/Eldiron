@@ -296,9 +296,9 @@ impl TheWidget for TheTraybarButton {
 
         if !self.text.is_empty() {
             let color = if let Some(custom) = &self.custom_color {
-                &custom.to_u8_array()
+                custom.to_u8_array()
             } else {
-                &WHITE
+                *style.theme().color(SectionbarNormalTextColor)
             };
             ctx.draw.text_rect_blend(
                 buffer.draw_target(),
@@ -309,7 +309,7 @@ impl TheWidget for TheTraybarButton {
                     size: self.text_size,
                     ..Default::default()
                 },
-                color,
+                &color,
                 TheHorizontalAlign::Center,
                 TheVerticalAlign::Center,
             );

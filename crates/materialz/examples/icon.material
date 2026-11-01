@@ -1,0 +1,64 @@
+# One reusable silhouette supplies the fill, border and cutout masks.
+project 1
+
+material "icon" called "Eldiron Icon Study"
+  mode art
+  row "silhouette" called "Rounded Badge with Cutout"
+    use "Rounded Rectangle"
+      set "halfSize" to 0.37 0.32
+      set "radius" to 0.09
+    use "Circle"
+      combine subtract
+      set "radius" to 0.115
+      set "center" to 0.16 0.11
+  row "styled" called "Fill and Inside Border"
+    use "Color"
+      input from row "silhouette" xyz
+      set "color" to 0.06 0.32 0.65 1
+    use "Border"
+      set "width" to 0.025
+      set "color" to 1 0.72 0.15 1
+  row "textured" called "Ordinary Noise and Color Tiles"
+    use "Perlin Noise"
+      input from row "silhouette" xyz
+      set "globalScale" to 1.2
+    use "Mix"
+      set "color1" to 0.02 0.08 0.22 1
+      set "color2" to 0.1 0.6 0.85 1
+      set "factor" to 1 1 1
+    use "Border"
+      set "width" to 0.025
+      set "color" to 1 0.72 0.15 1
+  output base color from row "styled" xyz
+  output opacity from row "styled" w
+  output distance from row "silhouette" distance
+
+material "combinations" called "Shape Combination Study"
+  mode art
+  row "union" called "Union"
+    use "Circle"
+      set "radius" to 0.24
+      set "center" to -0.16 0
+    use "Circle"
+      combine union
+      set "radius" to 0.24
+      set "center" to 0.16 0
+  row "smooth" called "Smooth Union"
+    use "Circle"
+      set "radius" to 0.24
+      set "center" to -0.16 0
+    use "Circle"
+      combine smooth union
+      set "radius" to 0.24
+      set "center" to 0.16 0
+      set "smoothness" to 0.12
+  row "intersection" called "Intersection"
+    use "Circle"
+      set "radius" to 0.32
+      set "center" to -0.15 0
+    use "Circle"
+      combine intersect
+      set "radius" to 0.32
+      set "center" to 0.15 0
+  output base color from row "smooth" xyz
+  output distance from row "smooth" distance

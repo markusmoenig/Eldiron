@@ -1,0 +1,11 @@
+tile 1
+name "Value"
+category "Pattern"
+description "Generates a static value. The global value is added to the local value."
+group "Value Pattern" true
+param float globalValue "Global" default 0.0 range 0.0 10
+param vec3 localValue "Local" default 0.0 0.0 0.0 range -1000 1000
+group "About" true
+
+let v0 = (globalValue + localValue)
+image = vec4(v0, input.a)

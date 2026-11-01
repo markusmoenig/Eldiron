@@ -356,7 +356,7 @@ impl TheWidget for TheDropdownMenu {
                         size: 12.5,
                         ..Default::default()
                     },
-                    &WHITE,
+                    style.theme().color(SectionbarNormalTextColor),
                     TheHorizontalAlign::Left,
                     TheVerticalAlign::Center,
                 );

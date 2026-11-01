@@ -1,0 +1,94 @@
+tile 1
+name "Wave Noise"
+category "Noise"
+description "Wave like noise."
+group "Wave Noise" true
+param float globalScale "Global Scale" default 1.0 range 0.0 10
+param vec2 localScale "Local Scale" default 1.0 1.0 range -1000 1000
+group "About" true
+group "Sampling" true
+param float time "Time Offset" default 0
+
+let v0 = 2.7182818284590452353602874
+let v1 = (((uv + vec2(0.5)) / globalScale) * localScale)
+let v2 = (v1 * vec2((2.0 * 3.1415), 3.1415))
+let v3 = cos((v2).y)
+let v4 = (cos((v2).x) * sin((v2).y))
+let v5 = (sin((v2).x) * sin((v2).y))
+let v6 = normalize(vec3(v4, v5, v3))
+let v7 = vec4(v6, (((.5 * 2.0) - 1.0) * 10.0))
+let v8 = (10.0 + (.5 * 10.0))
+let v9 = (sample_time + time)
+let v10 = 0.0
+let v11 = 6.0
+let v12 = 2.0
+let v13 = 1.0
+let v14 = 0.0
+let v15 = 0.0
+let v16 = 0.0
+let v17 = 0
+state v18 = vec3(0)
+state v19 = vec2(256)
+state v20 = uv
+state v21 = pos
+state v22 = normal
+state v23 = input.rgb
+state v24 = vec3(0)
+state v25 = vec3(0)
+state v26 = vec3(0)
+state v27 = globalScale
+state v28 = localScale
+state v29 = (sample_time + time)
+state v30 = v0
+state v31 = v2
+state v32 = v3
+state v33 = v4
+state v34 = v5
+state v35 = v6
+state v36 = v7
+state v37 = v8
+state v38 = v9
+state v39 = v10
+state v40 = v11
+state v41 = v12
+state v42 = v13
+state v43 = v14
+state v44 = v15
+state v45 = v16
+state v46 = v17
+repeat 20 times ((20 - v17) / 1) while less(v46, 20)
+let v48 = vec4(0)
+let v49 = fract((4768.1232345456 * sin(v45)))
+let v50 = (v45 + 1.0)
+let v51 = fract((4768.1232345456 * sin(v50)))
+let v52 = (v50 + 1.0)
+let v53 = fract((4768.1232345456 * sin(v52)))
+let v54 = (v52 + 1.0)
+let v55 = fract((4768.1232345456 * sin(v54)))
+let v56 = (v54 + 1.0)
+let v57 = (((vec4(v49, v51, v53, v55) * 2.0) - 1.0) * 30.0)
+let v58 = distance(v36, v57)
+let v59 = (pow(v30, sin(((v58 * v40) - (v38 * v41)))) / v30)
+let v60 = (0.006 + v38)
+let v61 = (pow(v30, sin(((v58 * v40) - (v60 * v41)))) / v30)
+let v62 = (((normalize((v36 - v57)) * (v59 - v61)) * v42) * v37)
+let v63 = (v36 - v62)
+let v64 = (v43 + (v59 * v42))
+let v65 = (v39 + 12.0)
+let v66 = (v44 + v42)
+let v67 = mix(v42, 0.0, 0.2)
+let v68 = (v40 * 1.2)
+let v69 = (v41 * 1.02)
+let v70 = (v46 + 1)
+update v36 = v63
+update v39 = v65
+update v40 = v68
+update v41 = v69
+update v42 = v67
+update v43 = v64
+update v44 = v66
+update v45 = v56
+update v46 = v70
+end repeat
+let v81 = (vec3(1.0) * (v43 / v44))
+image = vec4(v81, input.a)

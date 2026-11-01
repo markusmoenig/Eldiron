@@ -10,6 +10,7 @@ pub mod cli;
 mod formula;
 pub mod graph;
 pub mod graph_authoring;
+pub mod document;
 mod help;
 pub mod particle_graph;
 pub use formula::{evaluate_formula, formula_identifiers, formula_is_valid};

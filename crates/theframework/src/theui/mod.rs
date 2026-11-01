@@ -1430,9 +1430,8 @@ impl TheUI {
         self.mouse_wheel_with_event((delta.0 as f32, delta.1 as f32), false, ctx)
     }
 
-    /// Routes precise scrolling as a distinct event only when it lands on a
-    /// render view. Scrollable UI layouts and all other widgets retain their
-    /// established mouse-wheel behavior.
+    /// Retain precise deltas for render views and custom widgets that opt in.
+    /// Other widgets and scrollable layouts keep their existing behavior.
     pub fn precise_scroll(&mut self, delta: (f32, f32), ctx: &mut TheContext) -> bool {
         self.mouse_wheel_with_event(delta, true, ctx)
     }
@@ -1467,10 +1466,18 @@ impl TheUI {
 
         if !processed {
             // If not processed, call the widget directly.
-            if let Some(id) = &ctx.ui.hover {
+            // Route by pointer position rather than a potentially stale hover ID.
+            let coord = self.mouse_coord;
+            let target = self
+                .get_widget_at_coord(coord)
+                .map(|widget| widget.id().clone());
+            if let Some(id) = target {
                 if let Some(widget) = self.get_widget_abs(Some(&id.name), Some(&id.uuid)) {
-                    let is_render_view = widget.as_render_view().is_some();
-                    let event = if precise && is_render_view {
+                    let custom = widget.supports_precise_scroll();
+                    if custom {
+                        widget.on_event(&TheEvent::Hover(widget.dim().to_local(coord)), ctx);
+                    }
+                    let event = if precise && (custom || widget.as_render_view().is_some()) {
                         TheEvent::PreciseScroll(Vec2::new(delta.0, delta.1))
                     } else {
                         TheEvent::MouseWheel(Vec2::new(delta.0 as i32, delta.1 as i32))

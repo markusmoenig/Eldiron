@@ -1844,6 +1844,13 @@ impl SceneVM {
         }
     }
 
+    /// Share the initialized device with offscreen tools without creating a second GPU context.
+    pub fn gpu_context(&self) -> Option<(wgpu::Device, wgpu::Queue)> {
+        self.gpu
+            .as_ref()
+            .map(|gpu| (gpu.device.clone(), gpu.queue.clone()))
+    }
+
     /// Is the GPU initialized and ready?
     pub fn is_gpu_ready(&self) -> bool {
         if self.gpu.is_some() {
@@ -2952,6 +2959,7 @@ impl SceneVM {
         matches!(
             atom,
             Atom::AddTile { .. }
+                | Atom::SetTileUvPages { .. }
                 | Atom::AddSolid { .. }
                 | Atom::SetTileMaterialFrames { .. }
                 | Atom::BuildAtlas

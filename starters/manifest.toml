@@ -1,24 +1,17 @@
+# Downloadable example projects. The table name is retained for older Creator releases.
 [[starter]]
 id = "hideout-2d"
 title = "Hideout 2D"
 dimension = "2D"
-description = "A compact 2D starter featuring 2D & text play, combat, item use, gate unlocking, and a merchant."
+description = "A compact 2D example featuring 2D & text play, combat, item use, gate unlocking, and a merchant."
 project_path = "starters/projects/Hideout2D.eldiron"
 preview = "starters/images/hideout-2d-preview.png"
-
-[[starter]]
-id = "starter-3d"
-title = "3D Starter"
-dimension = "3D"
-description = "A compact 3D starter scene with editable geometry, a floor, wall, and player."
-project_path = "starters/projects/3DStarter.eldiron"
-preview = "starters/images/3d-starter-preview.png"
 
 [[starter]]
 id = "gate"
 title = "Gate"
 dimension = "3D"
-description = "A compact 3D starter featuring block editing, stairs, mesh navigation, and an 8-direction avatar."
+description = "A compact 3D example featuring block editing, stairs, mesh navigation, and an 8-direction avatar."
 project_path = "starters/projects/Gate.eldiron"
 preview = "starters/images/gate-preview.png"
 

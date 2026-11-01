@@ -1,0 +1,612 @@
+[
+  {
+    "stem": "mixer_divide",
+    "file": "mixer_divide.fs",
+    "name": "Divide",
+    "category": "Operator",
+    "input": true,
+    "id": "mixer_divide",
+    "authored": true
+  },
+  {
+    "stem": "op_abs",
+    "file": "op_abs.fs",
+    "name": "Abs",
+    "category": "Operator",
+    "input": true,
+    "id": "op_abs"
+  },
+  {
+    "stem": "op_add",
+    "file": "op_add.fs",
+    "name": "Add",
+    "category": "Operator",
+    "input": true,
+    "id": "op_add",
+    "authored": true
+  },
+  {
+    "stem": "op_clamp",
+    "file": "op_clamp.fs",
+    "name": "Clamp",
+    "category": "Operator",
+    "input": true,
+    "id": "op_clamp"
+  },
+  {
+    "stem": "op_cos",
+    "file": "op_cos.fs",
+    "name": "Cos",
+    "category": "Operator",
+    "input": true,
+    "id": "op_cos"
+  },
+  {
+    "stem": "op_floor",
+    "file": "op_floor.fs",
+    "name": "Floor",
+    "category": "Operator",
+    "input": true,
+    "id": "op_floor"
+  },
+  {
+    "stem": "op_fract",
+    "file": "op_fract.fs",
+    "name": "Fract",
+    "category": "Operator",
+    "input": true,
+    "id": "op_fract"
+  },
+  {
+    "stem": "op_max",
+    "file": "op_max.fs",
+    "name": "Max",
+    "category": "Operator",
+    "input": true,
+    "id": "op_max",
+    "authored": true
+  },
+  {
+    "stem": "op_min",
+    "file": "op_min.fs",
+    "name": "Min",
+    "category": "Operator",
+    "input": true,
+    "id": "op_min",
+    "authored": true
+  },
+  {
+    "stem": "op_oneminus",
+    "file": "op_oneminus.fs",
+    "name": "One Minus",
+    "category": "Operator",
+    "input": true,
+    "id": "op_oneminus"
+  },
+  {
+    "stem": "op_powproperty",
+    "file": "op_powproperty.fs",
+    "name": "Power",
+    "category": "Operator",
+    "input": true,
+    "id": "op_powproperty",
+    "authored": true
+  },
+  {
+    "stem": "op_sign",
+    "file": "op_sign.fs",
+    "name": "Sign",
+    "category": "Operator",
+    "input": true,
+    "id": "op_sign"
+  },
+  {
+    "stem": "op_sin",
+    "file": "op_sin.fs",
+    "name": "Sin",
+    "category": "Operator",
+    "input": true,
+    "id": "op_sin"
+  },
+  {
+    "stem": "op_smoothstep",
+    "file": "op_smoothstep.fs",
+    "name": "Smooth Step",
+    "category": "Operator",
+    "input": true,
+    "id": "op_smoothstep"
+  },
+  {
+    "stem": "op_squareroot",
+    "file": "op_squareroot.fs",
+    "name": "Square Root",
+    "category": "Operator",
+    "input": true,
+    "id": "op_squareroot"
+  },
+  {
+    "stem": "op_subtract",
+    "file": "op_subtract.fs",
+    "name": "Subtract",
+    "category": "Operator",
+    "input": true,
+    "id": "op_subtract",
+    "authored": true
+  },
+  {
+    "stem": "pattern_brickandtiles_shape",
+    "file": "pattern_brickandtiles_shape.fs",
+    "name": "Brick & Tiles (Pattern)",
+    "category": "Pattern",
+    "input": true,
+    "id": "pattern_brickandtiles_shape"
+  },
+  {
+    "stem": "pattern_checker",
+    "file": "pattern_checker.fs",
+    "name": "Checker B/W",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_checker"
+  },
+  {
+    "stem": "pattern_circular_brickandtiles_shape",
+    "file": "pattern_circular_brickandtiles_shape.fs",
+    "name": "Circular Brick & Tiles",
+    "category": "Pattern",
+    "input": true,
+    "id": "pattern_circular_brickandtiles_shape"
+  },
+  {
+    "stem": "pattern_color_grain",
+    "file": "pattern_color_grain.fs",
+    "name": "Tileable Color Grain",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_color_grain"
+  },
+  {
+    "stem": "pattern_cracks",
+    "file": "pattern_cracks.fs",
+    "name": "Cracks",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_cracks"
+  },
+  {
+    "stem": "pattern_cutandproject",
+    "file": "pattern_cutandproject.fs",
+    "name": "Cut and Project",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_cutandproject"
+  },
+  {
+    "stem": "pattern_decortiles_shape",
+    "file": "pattern_decortiles_shape.fs",
+    "name": "Decor Tiles",
+    "category": "Pattern",
+    "input": true,
+    "id": "pattern_decortiles_shape"
+  },
+  {
+    "stem": "pattern_fabricewood",
+    "file": "pattern_fabricewood.fs",
+    "name": "Wood (2D Pattern)",
+    "category": "2D Pattern",
+    "input": false,
+    "id": "pattern_fabricewood"
+  },
+  {
+    "stem": "pattern_fizzerstiling",
+    "file": "pattern_fizzerstiling.fs",
+    "name": "Fizzers Tiling",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_fizzerstiling"
+  },
+  {
+    "stem": "pattern_herringbone_shape",
+    "file": "pattern_herringbone_shape.fs",
+    "name": "Herringbone (Pattern)",
+    "category": "Pattern",
+    "input": true,
+    "id": "pattern_herringbone_shape"
+  },
+  {
+    "stem": "pattern_marble",
+    "file": "pattern_marble.fs",
+    "name": "Marble",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_marble"
+  },
+  {
+    "stem": "pattern_memorycircles",
+    "file": "pattern_memorycircles.fs",
+    "name": "Memory Circles",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_memorycircles"
+  },
+  {
+    "stem": "pattern_noisemask",
+    "file": "pattern_noisemask.fs",
+    "name": "Noise Hole Mask",
+    "category": "2D Pattern",
+    "input": true,
+    "id": "pattern_noisemask"
+  },
+  {
+    "stem": "pattern_otavioswood",
+    "file": "pattern_otavioswood.fs",
+    "name": "Wood (3D Pattern)",
+    "category": "3D Pattern",
+    "input": true,
+    "id": "pattern_otavioswood"
+  },
+  {
+    "stem": "pattern_random_distribution",
+    "file": "pattern_random_distribution.fs",
+    "name": "Random",
+    "category": "Pattern",
+    "input": true,
+    "id": "pattern_random_distribution"
+  },
+  {
+    "stem": "pattern_randomgradient",
+    "file": "pattern_randomgradient.fs",
+    "name": "Random Gradient",
+    "category": "Pattern",
+    "input": true,
+    "id": "pattern_randomgradient"
+  },
+  {
+    "stem": "pattern_rocks",
+    "file": "pattern_rocks.fs",
+    "name": "Rocks",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_rocks"
+  },
+  {
+    "stem": "pattern_scratches",
+    "file": "pattern_scratches.fs",
+    "name": "Scratches",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_scratches"
+  },
+  {
+    "stem": "pattern_tartan",
+    "file": "pattern_tartan.fs",
+    "name": "Tartan",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_tartan"
+  },
+  {
+    "stem": "pattern_value",
+    "file": "pattern_value.fs",
+    "name": "Value",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_value"
+  },
+  {
+    "stem": "pattern_weave",
+    "file": "pattern_weave.fs",
+    "name": "Weave",
+    "category": "Pattern",
+    "input": false,
+    "id": "pattern_weave"
+  },
+  {
+    "stem": "shape2d_polygon",
+    "file": "materialz_core.txt",
+    "name": "Polygon",
+    "category": "Shape",
+    "input": false,
+    "id": "shape2d_polygon",
+    "authored": true
+  },
+  {
+    "stem": "shape2d_star",
+    "file": "shape2d_star.fs",
+    "name": "Star",
+    "category": "Shape",
+    "input": false,
+    "id": "shape2d_star"
+  },
+  {
+    "stem": "shape2d_tile",
+    "file": "shape2d_tile.fs",
+    "name": "Tile",
+    "category": "Shape",
+    "input": false,
+    "id": "shape2d_tile"
+  },
+  {
+    "stem": "sys_normal",
+    "file": "sys_normal.fs",
+    "name": "Normal",
+    "category": "System",
+    "input": false,
+    "id": "sys_normal"
+  },
+  {
+    "stem": "sys_position",
+    "file": "sys_position.fs",
+    "name": "Position",
+    "category": "System",
+    "input": false,
+    "id": "sys_position"
+  },
+  {
+    "stem": "sys_texcoord2",
+    "file": "sys_texcoord2.fs",
+    "name": "Tex Coord 2D",
+    "category": "System",
+    "input": false,
+    "id": "sys_texcoord2"
+  },
+  {
+    "stem": "trans_circularwarp",
+    "file": "trans_circularwarp.fs",
+    "name": "Circular Warp",
+    "category": "Transform",
+    "input": true,
+    "id": "trans_circularwarp"
+  },
+  {
+    "stem": "trans_directional_blur",
+    "file": "trans_directional_blur.fs",
+    "name": "Directional Blur",
+    "category": "Transform",
+    "input": true,
+    "id": "trans_directional_blur",
+    "authored": true
+  },
+  {
+    "stem": "trans_linearwarp",
+    "file": "trans_linearwarp.fs",
+    "name": "Linear Warp",
+    "category": "Transform",
+    "input": true,
+    "id": "trans_linearwarp"
+  },
+  {
+    "stem": "simplex",
+    "file": "noise_brianssimplex2d.fs",
+    "name": "Simplex Noise",
+    "category": "Noise",
+    "input": false,
+    "authored": true,
+    "id": "simplex"
+  },
+  {
+    "stem": "voronoi",
+    "file": "noise_iqvoronoi2d.fs",
+    "name": "Voronoi",
+    "category": "Noise",
+    "input": false,
+    "authored": true,
+    "id": "voronoi"
+  },
+  {
+    "stem": "organic_noise",
+    "file": "noise_davestileablenoise2d.fs",
+    "name": "Organic Noise",
+    "category": "Noise",
+    "input": false,
+    "authored": true,
+    "id": "organic_noise"
+  },
+  {
+    "stem": "organic_fbm",
+    "file": "fbm_davestileablefbm.fs",
+    "name": "Organic fBm",
+    "category": "Noise",
+    "input": false,
+    "authored": true,
+    "id": "organic_fbm"
+  },
+  {
+    "stem": "white_noise",
+    "file": "noise_hashnoise.fs",
+    "name": "White Noise",
+    "category": "Noise",
+    "input": false,
+    "authored": true,
+    "id": "white_noise"
+  },
+  {
+    "stem": "gabor",
+    "file": "noise_gabor.fs",
+    "name": "Gabor Noise",
+    "category": "Noise",
+    "input": false,
+    "authored": true,
+    "id": "gabor"
+  },
+  {
+    "stem": "spots",
+    "file": "noise_spotnoise.fs",
+    "name": "Spots",
+    "category": "Noise",
+    "input": false,
+    "authored": true,
+    "id": "spots"
+  },
+  {
+    "stem": "wave_noise",
+    "file": "noise_wavenoise.fs",
+    "name": "Wave Noise",
+    "category": "Noise",
+    "input": false,
+    "authored": true,
+    "id": "wave_noise"
+  },
+  {
+    "stem": "fbm",
+    "file": "fbm_turbulence2d.fs",
+    "name": "fBm",
+    "category": "Fractal",
+    "input": true,
+    "authored": true,
+    "id": "fbm"
+  },
+  {
+    "stem": "warp",
+    "file": "fbm_offset2d.fs",
+    "name": "Warp",
+    "category": "Transform",
+    "input": true,
+    "authored": true,
+    "id": "warp"
+  },
+  {
+    "id": "trans_tiler",
+    "stem": "grid",
+    "file": "materialz_core.txt",
+    "name": "Grid",
+    "category": "Transform",
+    "input": true,
+    "authored": true
+  },
+  {
+    "id": "compose_channels",
+    "stem": "compose_channels",
+    "file": "materialz_core.txt",
+    "name": "Compose Channels",
+    "category": "System",
+    "input": false,
+    "authored": true
+  },
+  {
+    "id": "levels",
+    "stem": "levels",
+    "file": "materialz_core.txt",
+    "name": "Levels",
+    "category": "Operator",
+    "input": true,
+    "authored": true
+  },
+  {
+    "id": "curve",
+    "stem": "curve",
+    "file": "materialz_core.txt",
+    "name": "Curve",
+    "category": "Operator",
+    "input": true,
+    "authored": true
+  },
+  {
+    "id": "distance_profile",
+    "stem": "distance_profile",
+    "file": "materialz_core.txt",
+    "name": "Distance Profile",
+    "category": "Operator",
+    "input": true,
+    "authored": true
+  },
+  {
+    "id": "normal_combine",
+    "stem": "normal_combine",
+    "file": "materialz_core.txt",
+    "name": "Normal Combine",
+    "category": "Operator",
+    "input": true,
+    "authored": true
+  },
+  {
+    "id": "vector_math",
+    "stem": "vector_math",
+    "file": "materialz_core.txt",
+    "name": "Vector Math",
+    "category": "Operator",
+    "input": true,
+    "authored": true
+  },
+  {
+    "id": "color_ramp",
+    "stem": "color_ramp",
+    "file": "materialz_core.txt",
+    "name": "Color Ramp",
+    "category": "Operator",
+    "input": true,
+    "authored": true
+  },
+  {
+    "stem": "coordinates",
+    "id": "coordinates",
+    "file": "materialz_core.txt",
+    "name": "Coordinates",
+    "category": "System",
+    "input": false,
+    "authored": true
+  },
+  {
+    "stem": "partition",
+    "id": "partition",
+    "file": "materialz_core.txt",
+    "name": "Partition",
+    "category": "Transform",
+    "input": true,
+    "authored": true
+  },
+  {
+    "stem": "scatter",
+    "id": "scatter",
+    "file": "materialz_core.txt",
+    "name": "Scatter",
+    "category": "Transform",
+    "input": true,
+    "authored": true
+  },
+  {
+    "stem": "height_gradient",
+    "file": "materialz_core.txt",
+    "name": "Height Gradient",
+    "category": "Operator",
+    "input": true,
+    "id": "height_gradient",
+    "authored": true
+  },
+  {
+    "stem": "vector_filter",
+    "file": "materialz_core.txt",
+    "name": "Vector Filter",
+    "category": "Transform",
+    "input": true,
+    "id": "vector_filter",
+    "authored": true
+  },
+  {
+    "stem": "loop_flow",
+    "file": "materialz_core.txt",
+    "name": "Loop Flow",
+    "category": "Transform",
+    "input": true,
+    "id": "loop_flow",
+    "authored": true
+  },
+  {
+    "stem": "directional_gradient",
+    "file": "materialz_core.txt",
+    "name": "Directional Gradient",
+    "category": "Operator",
+    "input": true,
+    "id": "directional_gradient",
+    "authored": true
+  },
+  {
+    "stem": "alpha_over",
+    "file": "materialz_core.txt",
+    "name": "Alpha Over",
+    "category": "Mixer",
+    "input": true,
+    "id": "alpha_over",
+    "authored": true
+  }
+]

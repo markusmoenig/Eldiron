@@ -197,6 +197,76 @@ fn palette_index_tile_uuid(index: u16) -> Uuid {
     Uuid::from_u128(0x50414C455454455F0000000000000000u128 | index as u128)
 }
 
+fn projected_axes(points: &[[f32; 4]]) -> [[f32; 3]; 2] {
+    if points.len() < 3 {
+        return [[1., 0., 0.], [0., 0., 1.]];
+    }
+    let a = Vec3::new(
+        points[1][0] - points[0][0],
+        points[1][1] - points[0][1],
+        points[1][2] - points[0][2],
+    );
+    let b = Vec3::new(
+        points[2][0] - points[0][0],
+        points[2][1] - points[0][1],
+        points[2][2] - points[0][2],
+    );
+    let n = a.cross(b).map(f32::abs);
+    if n.y >= n.x && n.y >= n.z {
+        [[1., 0., 0.], [0., 0., 1.]]
+    } else {
+        let edge = Vec3::new(a.x * b.y - a.y * b.x, 0., a.z * b.y - a.y * b.z);
+        let mut u = if edge.magnitude_squared() > 0.00001 {
+            edge.normalized()
+        } else {
+            Vec3::new(1., 0., 0.)
+        };
+        if u.x < -0.00001 || (u.x.abs() < 0.00001 && u.z < 0.) {
+            u = -u;
+        }
+        [[u.x, 0., u.z], [0., -1., 0.]]
+    }
+}
+fn project_poly3d(atlas: &SharedAtlas, poly: &mut Poly3D) {
+    if let Some(pages) = atlas.uv_pages(&poly.tile_id) {
+        let axes = if pages.axes == [[0.; 3]; 2] {
+            projected_axes(&poly.vertices)
+        } else {
+            pages.axes
+        };
+        poly.uvs = poly
+            .vertices
+            .iter()
+            .map(|p| axes.map(|a| a[0] * p[0] + a[1] * p[1] + a[2] * p[2]))
+            .collect();
+    }
+}
+fn project_poly2d(atlas: &SharedAtlas, poly: &mut Poly2D) {
+    if let Some(pages) = atlas.uv_pages(&poly.tile_id) {
+        let axes = if pages.axes == [[0.; 3]; 2] {
+            [[1., 0., 0.], [0., 0., 1.]]
+        } else {
+            pages.axes
+        };
+        poly.uvs = poly
+            .vertices
+            .iter()
+            .map(|p| {
+                let world = poly.transform * Vec3::new(p[0], p[1], 1.);
+                axes.map(|a| a[0] * world.x + a[2] * world.y)
+            })
+            .collect();
+    }
+}
+fn project_material_uvs(atlas: &SharedAtlas, chunk: &mut Chunk) {
+    for poly in chunk.polys_map.values_mut() {
+        project_poly2d(atlas, poly);
+    }
+    for poly in chunk.polys3d_map.values_mut().flatten() {
+        project_poly3d(atlas, poly);
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct TileAnimMetaPod {
@@ -644,7 +714,7 @@ struct VsOut {
   @location(4) @interpolate(flat) tint_rgba: u32,
 };
 
-fn tile_frame(tile_index: u32, phase_start_counter: u32) -> TileFrame {
+fn tile_frame(tile_index: u32, phase_start_counter: u32, uv: vec2<f32>) -> TileFrame {
   let meta_len = arrayLength(&tile_anims.data);
   if (meta_len == 0u) {
     return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
@@ -657,14 +727,33 @@ fn tile_frame(tile_index: u32, phase_start_counter: u32) -> TileFrame {
     return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
   }
   let anim_counter = max(u32(max(UBO.misc0.z, 0.0)), phase_start_counter);
-  let frame_offset = anim.first_frame + ((anim_counter - phase_start_counter) % count);
+  var offset = (anim_counter - phase_start_counter) % count;
+  if (anim._pad.x > 0u) {
+    let domain = tile_frames.data[anim._pad.x - 1u];
+    let cell = clamp(vec2<i32>(floor(uv / f32(max(anim._pad.y, 1u))) - domain.ofs), vec2<i32>(0), vec2<i32>(domain.scale) - vec2<i32>(1));
+    offset = u32(cell.y) * u32(domain.scale.x) + u32(cell.x);
+    let playback = tile_frames.data[anim._pad.x];
+    let phase = (anim_counter - phase_start_counter) % max(u32(playback.ofs.x), 1u);
+    offset += phase * u32(domain.scale.x * domain.scale.y);
+  }
+  let frame_offset = anim.first_frame + offset;
   let frame_idx = min(frame_offset, frames_len - 1u);
   return tile_frames.data[frame_idx];
 }
 
+fn tile_sample_uv(tile_index: u32, uv: vec2<f32>) -> vec2<f32> {
+  let anim = tile_anims.data[min(tile_index, arrayLength(&tile_anims.data)-1u)];
+  if (anim._pad.x > 0u) {
+    let period = tile_frames.data[anim._pad.x].scale;
+    if (all(period > vec2<f32>(0.0))) { return uv / period; }
+    return uv / f32(max(anim._pad.y,1u));
+  }
+  return uv;
+}
+
 fn atlas_uv(tile_index: u32, uv_obj: vec2<f32>, phase_start_counter: u32) -> vec2<f32> {
-  let frame = tile_frame(tile_index, phase_start_counter);
-  let uv_wrapped = fract(uv_obj);
+  let frame = tile_frame(tile_index, phase_start_counter, uv_obj);
+  let uv_wrapped = fract(tile_sample_uv(tile_index, uv_obj));
   return frame.ofs + uv_wrapped * frame.scale;
 }
 
@@ -1435,7 +1524,7 @@ fn camera_to_clip(world_pos: vec3<f32>) -> vec4<f32> {
     return vec4<f32>(cx * (f / aspect), cy * f, a * z + b, z);
 }
 
-fn tile_frame(tile_idx: u32, phase_start_counter: u32) -> TileFrame {
+fn tile_frame(tile_idx: u32, phase_start_counter: u32, uv: vec2<f32>) -> TileFrame {
     if (arrayLength(&tile_meta.data) == 0u || arrayLength(&tile_frames.data) == 0u) {
         return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
     }
@@ -1449,21 +1538,39 @@ fn tile_frame(tile_idx: u32, phase_start_counter: u32) -> TileFrame {
         let anim_counter = max(UBO.anim_counter, phase_start_counter);
         frame_offset = (anim_counter - phase_start_counter) % tile_anim.frame_count;
     }
+    if (tile_anim._pad0 > 0u) {
+        let domain = tile_frames.data[tile_anim._pad0 - 1u];
+        let cell = clamp(vec2<i32>(floor(uv / f32(max(tile_anim._pad1, 1u))) - domain.ofs), vec2<i32>(0), vec2<i32>(domain.scale) - vec2<i32>(1));
+        frame_offset = u32(cell.y) * u32(domain.scale.x) + u32(cell.x);
+        let playback = tile_frames.data[tile_anim._pad0];
+        let phase = (max(UBO.anim_counter, phase_start_counter) - phase_start_counter) % max(u32(playback.ofs.x), 1u);
+        frame_offset += phase * u32(domain.scale.x * domain.scale.y);
+    }
     let frame_idx = min(tile_anim.first_frame + frame_offset, arrayLength(&tile_frames.data) - 1u);
     return tile_frames.data[frame_idx];
 }
 
+fn tile_sample_uv(tile_index: u32, uv: vec2<f32>) -> vec2<f32> {
+  let anim = tile_meta.data[min(tile_index, arrayLength(&tile_meta.data)-1u)];
+  if (anim._pad0 > 0u) {
+    let period = tile_frames.data[anim._pad0].scale;
+    if (all(period > vec2<f32>(0.0))) { return uv / period; }
+    return uv / f32(max(anim._pad1,1u));
+  }
+  return uv;
+}
+
 fn sample_tile(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool, phase_start_counter: u32) -> vec4<f32> {
-    let frame = tile_frame(tile_idx, phase_start_counter);
-    var uv_wrapped = fract(uv);
+    let frame = tile_frame(tile_idx, phase_start_counter, uv);
+    var uv_wrapped = fract(tile_sample_uv(tile_idx, uv));
     if (clamp_uv) {
         uv_wrapped = clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999));
     }
     var atlas_uv = frame.ofs + uv_wrapped * frame.scale;
     // Use gradients from the non-wrapped UVs to avoid mip shimmer on repeating tiles.
     let lod_bias = 1.0;
-    let atlas_ddx = dpdx(uv) * frame.scale * lod_bias;
-    let atlas_ddy = dpdy(uv) * frame.scale * lod_bias;
+    let atlas_ddx = dpdx(tile_sample_uv(tile_idx, uv)) * frame.scale * lod_bias;
+    let atlas_ddy = dpdy(tile_sample_uv(tile_idx, uv)) * frame.scale * lod_bias;
     let atlas_dims = vec2<f32>(textureDimensions(atlas_tex, 0));
     let ddx_tex = atlas_ddx * atlas_dims;
     let ddy_tex = atlas_ddy * atlas_dims;
@@ -1479,8 +1586,8 @@ fn sample_tile(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool, phase_start_counter
 }
 
 fn sample_tile_lod0(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool, phase_start_counter: u32) -> vec4<f32> {
-    let frame = tile_frame(tile_idx, phase_start_counter);
-    var uv_wrapped = fract(uv);
+    let frame = tile_frame(tile_idx, phase_start_counter, uv);
+    var uv_wrapped = fract(tile_sample_uv(tile_idx, uv));
     if (clamp_uv) {
         uv_wrapped = clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999));
     }
@@ -1494,8 +1601,8 @@ fn sample_tile_lod0(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool, phase_start_co
 }
 
 fn sample_tile_material(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool, phase_start_counter: u32) -> vec4<f32> {
-    let frame = tile_frame(tile_idx, phase_start_counter);
-    var uv_wrapped = fract(uv);
+    let frame = tile_frame(tile_idx, phase_start_counter, uv);
+    var uv_wrapped = fract(tile_sample_uv(tile_idx, uv));
     if (clamp_uv) {
         uv_wrapped = clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999));
     }
@@ -4830,6 +4937,7 @@ impl VM {
         let atlas_w = atlas_w_px.max(1) as f32;
         let atlas_h = atlas_h_px.max(1) as f32;
         let tables: AtlasGpuTables = self.shared_atlas.gpu_tile_tables();
+        let domains: Vec<_> = tables.metas.iter().map(|m| m.uv_pages).collect();
 
         self.cached_tile_anim_meta.clear();
         if tables.metas.is_empty() {
@@ -4863,6 +4971,21 @@ impl VM {
             }
         }
 
+        // Domain descriptors share the frame buffer but are outside all frame ranges.
+        for (meta, domain) in self.cached_tile_anim_meta.iter_mut().zip(domains) {
+            if let Some(domain) = domain {
+                meta._pad[0] = self.cached_tile_frame_data.len() as u32 + 1;
+                meta._pad[1] = domain.units_per_page.max(1);
+                self.cached_tile_frame_data.push(TileFramePod {
+                    ofs: domain.origin.map(|v| v as f32),
+                    scale: domain.size.map(|v| v as f32),
+                });
+                self.cached_tile_frame_data.push(TileFramePod {
+                    ofs: [domain.animation_frames.max(1) as f32, 0.],
+                    scale: domain.repeat_period,
+                });
+            }
+        }
         self.cached_atlas_layout_version = new_version;
         self.tile_gpu_dirty = true;
         self.log_layer(format!(
@@ -5370,6 +5493,31 @@ impl VM {
                     self.geometry3d_dirty = true;
                 }
             }
+            Atom::SetTileUvPages {
+                animation_frames,
+                repeat_period,
+                id,
+                origin,
+                size,
+                axes,
+                units_per_page,
+            } => {
+                self.shared_atlas.set_uv_pages(
+                    &id,
+                    crate::atlas::TileUvPages {
+                        animation_frames,
+                        repeat_period,
+                        origin,
+                        size,
+                        axes,
+                        units_per_page,
+                    },
+                );
+                for chunk in self.chunks_map.values_mut() {
+                    project_material_uvs(&self.shared_atlas, chunk);
+                }
+                self.mark_all_geometry_dirty();
+            }
             Atom::AddTile {
                 id,
                 width,
@@ -5602,7 +5750,8 @@ impl VM {
                 self.cached_atlas_layout_version = 0; // force metadata rebuild on next upload
                 self.mark_all_geometry_dirty();
             }
-            Atom::AddPoly { poly } => {
+            Atom::AddPoly { mut poly } => {
+                project_poly2d(&self.shared_atlas, &mut poly);
                 let chunk_id = match self.current_chunk {
                     Some(cid) => cid,
                     None => {
@@ -5616,7 +5765,8 @@ impl VM {
                 self.chunks_map.entry(chunk_id).or_default().add(poly);
                 self.mark_2d_dirty();
             }
-            Atom::AddPoly3D { poly } => {
+            Atom::AddPoly3D { mut poly } => {
+                project_poly3d(&self.shared_atlas, &mut poly);
                 let chunk_id = match self.current_chunk {
                     Some(cid) => cid,
                     None => {
@@ -5703,7 +5853,8 @@ impl VM {
                 self.organic_billboards.dirty = true;
                 self.mark_2d_dirty();
             }
-            Atom::AddChunk { id, chunk } => {
+            Atom::AddChunk { id, mut chunk } => {
+                project_material_uvs(&self.shared_atlas, &mut chunk);
                 // Insert or replace the chunk as-is; caller controls current_chunk separately
                 self.chunks_map.insert(id, chunk);
                 self.accel_dirty = true;
@@ -9395,7 +9546,7 @@ impl VM {
         let m = self.transform2d;
         let m_inv = mat3_inverse_f32(&m).unwrap_or(Mat3::<f32>::identity());
         let u = Raster2DUniforms {
-            misc0: [fb_w as f32, fb_h as f32, self.animation_counter as f32, 0.0],
+            misc0: [fb_w as f32, fb_h as f32, self.animation_counter as f32, 0.],
             post_params: [
                 self.gp9.x,
                 self.gp9.y,
@@ -14420,6 +14571,589 @@ mod shader_tests {
         assert_eq!(pack_particle_tint_2d(Vec3::new(1.0, 0.0, 0.5)), 0xff8000ff);
     }
 
+    #[test]
+    fn surface_page_projection_is_world_aligned_for_chunks_and_keeps_negative_origins() {
+        use super::project_poly3d;
+        use crate::atlas::SharedAtlas;
+        let atlas = SharedAtlas::new(32, 32);
+        let tile = Uuid::new_v4();
+        atlas.add_tile(tile, 1, 1, vec![vec![255; 4]; 4], vec![]);
+        atlas.set_uv_pages(
+            &tile,
+            crate::atlas::TileUvPages {
+                animation_frames: 1,
+                repeat_period: [0.; 2],
+                origin: [-2, -1],
+                size: [2, 2],
+                axes: [[0.; 3]; 2],
+                units_per_page: 1,
+            },
+        );
+        let mut floor = Poly3D::poly(
+            GeoId::Unknown(1),
+            tile,
+            vec![[-2., 0., -1., 1.], [0., 0., -1., 1.], [0., 0., 1., 1.]],
+            vec![[0.; 2]; 3],
+            vec![(0, 1, 2)],
+        );
+        project_poly3d(&atlas, &mut floor);
+        assert_eq!(floor.uvs, vec![[-2., -1.], [0., -1.], [0., 1.]]);
+        let mut wall = Poly3D::poly(
+            GeoId::Unknown(2),
+            tile,
+            vec![[-2., 0., 0., 1.], [0., 0., 2., 1.], [0., 2., 2., 1.]],
+            vec![[0.; 2]; 3],
+            vec![(0, 1, 2)],
+        );
+        project_poly3d(&atlas, &mut wall);
+        assert!((wall.uvs[1][0] - wall.uvs[0][0] - 8_f32.sqrt()).abs() < 0.0001);
+        assert_eq!(wall.uvs[2][1], -2.);
+        let tables = atlas.gpu_tile_tables();
+        assert!(tables.metas.is_empty(), "Packing remains explicit");
+    }
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn surface_pages_render_distinct_animated_regions_in_both_2d_backends() {
+        use crate::{Atom, Poly2D, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        for mode in [RenderMode::Raster2D, RenderMode::Compute2D] {
+            let mut scene = SceneVM::new(64, 16);
+            scene.execute(Atom::SetAnimationCounter(0));
+            let tile = Uuid::new_v4();
+            scene.execute(Atom::SetRenderMode(mode));
+            scene.execute(Atom::SetBackground(Vec4::new(0., 0., 0., 1.)));
+            scene.execute(Atom::SetGP3(Vec4::one()));
+            scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+            let colors = [
+                [255, 0, 0, 255],
+                [0, 255, 0, 255],
+                [0, 0, 255, 255],
+                [255, 255, 0, 255],
+            ];
+            scene.execute(Atom::AddTile {
+                id: tile,
+                width: 2,
+                height: 2,
+                frames: colors
+                    .iter()
+                    .chain(colors.iter().rev())
+                    .map(|c| c.repeat(4))
+                    .collect(),
+                material_frames: None,
+            });
+            scene.execute(Atom::SetTileUvPages {
+                animation_frames: 2,
+                repeat_period: [0.; 2],
+                id: tile,
+                origin: [0, 0],
+                size: [4, 1],
+                axes: [[0.; 3]; 2],
+                units_per_page: 16,
+            });
+            scene.execute(Atom::BuildAtlas);
+            let mut chunk = Chunk::new(Vec2::zero(), 64);
+            chunk.add(Poly2D::poly(
+                GeoId::Unknown(1),
+                tile,
+                vec![[0., 0.], [64., 0.], [64., 16.], [0., 16.]],
+                vec![[0.; 2]; 4],
+                vec![(0, 1, 2), (0, 2, 3)],
+            ));
+            scene.execute(Atom::AddChunk {
+                id: Uuid::new_v4(),
+                chunk,
+            });
+            let mut pixels = vec![0; 64 * 16 * 4];
+            scene.render_frame(&mut pixels, 64, 16);
+            for (i, expected) in colors.iter().enumerate() {
+                let at = (8 * 64 + i * 16 + 8) * 4;
+                let actual = &pixels[at..at + 3];
+                assert!(
+                    actual.iter().zip(expected).all(|(a, b)| if *b == 0 {
+                        *a < 12
+                    } else {
+                        *a > 40
+                    }),
+                    "{mode:?} region {i}: {actual:?}"
+                );
+            }
+            let before = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(2));
+            scene.render_frame(&mut pixels, 64, 16);
+            assert_eq!(pixels, before, "Pages must not cycle as animated frames");
+            let first = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(1));
+            scene.render_frame(&mut pixels, 64, 16);
+            assert_ne!(pixels, first, "Server ticks must animate spatial pages in {mode:?}");
+            scene.execute(Atom::SetAnimationCounter(2));
+            scene.render_frame(&mut pixels, 64, 16);
+            assert_eq!(
+                pixels, first,
+                "Animation must loop without moving geometry in {mode:?}"
+            );
+        }
+    }
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn procedural_and_normal_tiles_follow_identical_server_ticks() {
+        use crate::{Atom,Poly2D,RenderMode,SceneVM};
+        use vek::{Vec2,Vec4};
+        for mode in [RenderMode::Raster2D,RenderMode::Compute2D] {
+            let mut scene=SceneVM::new(32,16);
+            scene.execute(Atom::SetRenderMode(mode));
+            scene.execute(Atom::SetGP3(Vec4::one()));
+            scene.execute(Atom::SetGP8(Vec4::new(0.,0.,1.,1.)));
+            let ids=[Uuid::new_v4(),Uuid::new_v4()];
+            for id in ids { scene.execute(Atom::AddTile { id,width:1,height:1,frames:vec![vec![255,0,0,255],vec![0,255,0,255]],material_frames:None }); }
+            scene.execute(Atom::SetTileUvPages { id:ids[1],animation_frames:2,repeat_period:[16.;2],origin:[0;2],size:[1;2],axes:[[0.;3];2],units_per_page:1 });
+            scene.execute(Atom::BuildAtlas);
+            let mut chunk=Chunk::new(Vec2::zero(),32);
+            for (i,id) in ids.into_iter().enumerate() {
+                let x=i as f32*16.;
+                chunk.add(Poly2D::poly(GeoId::Unknown(i as u32),id,vec![[x,0.],[x+16.,0.],[x+16.,16.],[x,16.]],vec![[0.,0.],[1.,0.],[1.,1.],[0.,1.]],vec![(0,1,2),(0,2,3)]));
+            }
+            scene.execute(Atom::AddChunk{id:Uuid::new_v4(),chunk});
+            let mut pixels=vec![0;32*16*4];
+            for tick in [0,0,1,1,2,7,8] {
+                scene.execute(Atom::SetAnimationCounter(tick));
+                scene.render_frame(&mut pixels,32,16);
+                let normal=&pixels[(8*32+8)*4..(8*32+8)*4+3];
+                let procedural=&pixels[(8*32+24)*4..(8*32+24)*4+3];
+                assert_eq!(normal,procedural,"{mode:?}: both tile kinds must hold and advance together on tick {tick}");
+                assert!(normal[tick%2]>40 && normal[1-tick%2]<12,"{mode:?} tick {tick}: {normal:?}");
+            }
+        }
+    }
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn one_repeat_pattern_renders_animated_periods_in_both_2d_backends() {
+        use crate::{Atom, Poly2D, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        for mode in [RenderMode::Raster2D, RenderMode::Compute2D] {
+            let mut scene = SceneVM::new(64, 16);
+            scene.execute(Atom::SetAnimationCounter(0));
+            let tile = Uuid::new_v4();
+            scene.execute(Atom::SetRenderMode(mode));
+            scene.execute(Atom::SetBackground(Vec4::new(0., 0., 0., 1.)));
+            scene.execute(Atom::SetGP3(Vec4::one()));
+            scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+            let colors = [
+                [255, 0, 0, 255],
+                [0, 255, 0, 255],
+                [0, 0, 255, 255],
+                [255, 255, 0, 255],
+            ];
+            scene.execute(Atom::AddTile {
+                id: tile,
+                width: 4,
+                height: 2,
+                frames: vec![colors.repeat(2).into_iter().flatten().collect(), colors.iter().rev().copied().collect::<Vec<_>>().repeat(2).into_iter().flatten().collect()],
+                material_frames: None,
+            });
+            scene.execute(Atom::SetTileUvPages {
+                animation_frames: 2,
+                repeat_period: [32.,16.],
+                id: tile,
+                origin: [0, 0],
+                size: [1, 1],
+                axes: [[0.; 3]; 2],
+                units_per_page: 16,
+            });
+            scene.execute(Atom::BuildAtlas);
+            let mut chunk = Chunk::new(Vec2::zero(), 64);
+            chunk.add(Poly2D::poly(
+                GeoId::Unknown(1),
+                tile,
+                vec![[0., 0.], [64., 0.], [64., 16.], [0., 16.]],
+                vec![[0.; 2]; 4],
+                vec![(0, 1, 2), (0, 2, 3)],
+            ));
+            scene.execute(Atom::AddChunk {
+                id: Uuid::new_v4(),
+                chunk,
+            });
+            let mut pixels = vec![0; 64 * 16 * 4];
+            scene.render_frame(&mut pixels, 64, 16);
+            for i in 0..8 {
+                let expected=&colors[i%4];
+                let at = (8 * 64 + i * 8 + 4) * 4;
+                let actual = &pixels[at..at + 3];
+                assert!(
+                    actual.iter().zip(expected).all(|(a, b)| if *b == 0 {
+                        *a < 12
+                    } else {
+                        *a > 40
+                    }),
+                    "{mode:?} region {i}: {actual:?}"
+                );
+            }
+            let before = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(2));
+            scene.render_frame(&mut pixels, 64, 16);
+            assert_eq!(pixels, before, "Pages must not cycle as animated frames");
+            let first = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(1));
+            scene.render_frame(&mut pixels, 64, 16);
+            assert_ne!(pixels, first, "Server ticks must animate spatial pages in {mode:?}");
+            scene.execute(Atom::SetAnimationCounter(2));
+            scene.render_frame(&mut pixels, 64, 16);
+            assert_eq!(
+                pixels, first,
+                "Animation must loop without moving geometry in {mode:?}"
+            );
+        }
+    }
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn surface_pages_render_distinct_static_regions_in_both_2d_backends() {
+        use crate::{Atom, Poly2D, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        for mode in [RenderMode::Raster2D, RenderMode::Compute2D] {
+            let mut scene = SceneVM::new(64, 16);
+            let tile = Uuid::new_v4();
+            scene.execute(Atom::SetRenderMode(mode));
+            scene.execute(Atom::SetBackground(Vec4::new(0., 0., 0., 1.)));
+            scene.execute(Atom::SetGP3(Vec4::one()));
+            scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+            let colors = [
+                [255, 0, 0, 255],
+                [0, 255, 0, 255],
+                [0, 0, 255, 255],
+                [255, 255, 0, 255],
+            ];
+            scene.execute(Atom::AddTile {
+                id: tile,
+                width: 2,
+                height: 2,
+                frames: colors.iter().map(|c| c.repeat(4)).collect(),
+                material_frames: None,
+            });
+            scene.execute(Atom::SetTileUvPages {
+                animation_frames: 1,
+                repeat_period: [0.; 2],
+                id: tile,
+                origin: [0, 0],
+                size: [4, 1],
+                axes: [[0.; 3]; 2],
+                units_per_page: 16,
+            });
+            scene.execute(Atom::BuildAtlas);
+            let mut chunk = Chunk::new(Vec2::zero(), 64);
+            chunk.add(Poly2D::poly(
+                GeoId::Unknown(1),
+                tile,
+                vec![[0., 0.], [64., 0.], [64., 16.], [0., 16.]],
+                vec![[0.; 2]; 4],
+                vec![(0, 1, 2), (0, 2, 3)],
+            ));
+            scene.execute(Atom::AddChunk {
+                id: Uuid::new_v4(),
+                chunk,
+            });
+            let mut pixels = vec![0; 64 * 16 * 4];
+            scene.render_frame(&mut pixels, 64, 16);
+            for (i, expected) in colors.iter().enumerate() {
+                let at = (8 * 64 + i * 16 + 8) * 4;
+                let actual = &pixels[at..at + 3];
+                assert!(
+                    actual.iter().zip(expected).all(|(a, b)| if *b == 0 {
+                        *a < 12
+                    } else {
+                        *a > 40
+                    }),
+                    "{mode:?} region {i}: {actual:?}"
+                );
+            }
+            let before = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(3));
+            scene.render_frame(&mut pixels, 64, 16);
+            assert_eq!(pixels, before, "Pages must not cycle as animated frames");
+        }
+    }
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn surface_pages_render_distinct_animated_regions_on_whole_3d_walls() {
+        use crate::{Atom, Camera3D, CameraKind, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        for mode in [RenderMode::Raster3D, RenderMode::Compute3D] {
+            let mut scene = SceneVM::new(128, 64);
+            scene.execute(Atom::SetAnimationCounter(0));
+            let tile = Uuid::new_v4();
+            scene.execute(Atom::SetRenderMode(mode));
+            scene.execute(Atom::SetBackground(Vec4::new(0., 0., 0., 1.)));
+            scene.execute(Atom::SetGP3(Vec4::one()));
+            scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+            scene.execute(Atom::SetGP9(Vec4::new(0., 0., 1., 2.2)));
+            let colors = [
+                [255, 0, 0, 255],
+                [0, 255, 0, 255],
+                [0, 0, 255, 255],
+                [255, 255, 0, 255],
+                [0, 255, 255, 255],
+                [255, 0, 255, 255],
+                [255, 100, 0, 255],
+                [100, 100, 100, 255],
+            ];
+            scene.execute(Atom::AddTile {
+                id: tile,
+                width: 2,
+                height: 2,
+                frames: colors
+                    .iter()
+                    .chain(colors.iter().rev())
+                    .map(|c| c.repeat(4))
+                    .collect(),
+                material_frames: None,
+            });
+            scene.execute(Atom::SetTileUvPages {
+                animation_frames: 2,
+                repeat_period: [0.; 2],
+                id: tile,
+                origin: [0, -2],
+                size: [4, 2],
+                axes: [[0.; 3]; 2],
+                units_per_page: 1,
+            });
+            scene.execute(Atom::BuildAtlas);
+            let mut chunk = Chunk::new(Vec2::zero(), 8);
+            chunk.add_3d(Poly3D::poly(
+                GeoId::Unknown(1),
+                tile,
+                vec![
+                    [0., 0., 0., 1.],
+                    [4., 0., 0., 1.],
+                    [4., 2., 0., 1.],
+                    [0., 2., 0., 1.],
+                ],
+                vec![[0.; 2]; 4],
+                vec![(0, 1, 2), (0, 2, 3)],
+            ));
+            scene.execute(Atom::AddChunk {
+                id: Uuid::new_v4(),
+                chunk,
+            });
+            let camera = Camera3D::builder()
+                .with_kind(CameraKind::OrthoIso)
+                .with_pos(Vec3::new(2., 1., 5.))
+                .with_basis(Vec3::new(0., 0., -1.), Vec3::unit_y())
+                .with_ortho_half_h(1.);
+            scene.execute(Atom::SetCamera3D { camera });
+            let mut pixels = vec![0; 128 * 64 * 4];
+            scene.render_frame(&mut pixels, 128, 64);
+            for (row, y) in [16, 48].into_iter().enumerate() {
+                for (column, x) in [16, 48, 80, 112].into_iter().enumerate() {
+                    let at = (y * 128 + x) * 4;
+                    let actual = &pixels[at..at + 3];
+                    let expected = colors[row * 4 + column];
+                    assert!(
+                        actual.iter().zip(expected).all(|(a, b)| if b == 0 {
+                            *a < 12
+                        } else {
+                            *a > 20
+                        }),
+                        "{mode:?} row {row} column {column}: {actual:?}"
+                    );
+                }
+            }
+            let before = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(2));
+            scene.render_frame(&mut pixels, 128, 64);
+            assert_eq!(pixels, before);
+            let first = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(1));
+            scene.render_frame(&mut pixels, 128, 64);
+            assert_ne!(pixels, first, "Server ticks must animate spatial pages in {mode:?}");
+            scene.execute(Atom::SetAnimationCounter(2));
+            scene.render_frame(&mut pixels, 128, 64);
+            assert_eq!(
+                pixels, first,
+                "Animation must loop without moving geometry in {mode:?}"
+            );
+        }
+    }
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn one_repeat_pattern_renders_animated_periods_on_whole_3d_walls() {
+        use crate::{Atom, Camera3D, CameraKind, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        for mode in [RenderMode::Raster3D, RenderMode::Compute3D] {
+            let mut scene = SceneVM::new(128, 64);
+            scene.execute(Atom::SetAnimationCounter(0));
+            let tile = Uuid::new_v4();
+            scene.execute(Atom::SetRenderMode(mode));
+            scene.execute(Atom::SetBackground(Vec4::new(0., 0., 0., 1.)));
+            scene.execute(Atom::SetGP3(Vec4::one()));
+            scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+            scene.execute(Atom::SetGP9(Vec4::new(0., 0., 1., 2.2)));
+            let colors = [
+                [255, 0, 0, 255],
+                [0, 255, 0, 255],
+                [0, 0, 255, 255],
+                [255, 255, 0, 255],
+                [0, 255, 255, 255],
+                [255, 0, 255, 255],
+                [255, 100, 0, 255],
+                [100, 100, 100, 255],
+            ];
+            scene.execute(Atom::AddTile {
+                id: tile,
+                width: 2,
+                height: 2,
+                frames: vec![vec![[255,0,0,255],[0,255,0,255],[0,0,255,255],[255,255,0,255]].into_iter().flatten().collect(), vec![[0,0,255,255],[255,255,0,255],[255,0,0,255],[0,255,0,255]].into_iter().flatten().collect()],
+                material_frames: None,
+            });
+            scene.execute(Atom::SetTileUvPages {
+                animation_frames: 2,
+                repeat_period: [2.,2.],
+                id: tile,
+                origin: [0,0],
+                size: [1, 1],
+                axes: [[0.; 3]; 2],
+                units_per_page: 1,
+            });
+            scene.execute(Atom::BuildAtlas);
+            let mut chunk = Chunk::new(Vec2::zero(), 8);
+            chunk.add_3d(Poly3D::poly(
+                GeoId::Unknown(1),
+                tile,
+                vec![
+                    [0., 0., 0., 1.],
+                    [4., 0., 0., 1.],
+                    [4., 2., 0., 1.],
+                    [0., 2., 0., 1.],
+                ],
+                vec![[0.; 2]; 4],
+                vec![(0, 1, 2), (0, 2, 3)],
+            ));
+            scene.execute(Atom::AddChunk {
+                id: Uuid::new_v4(),
+                chunk,
+            });
+            let camera = Camera3D::builder()
+                .with_kind(CameraKind::OrthoIso)
+                .with_pos(Vec3::new(2., 1., 5.))
+                .with_basis(Vec3::new(0., 0., -1.), Vec3::unit_y())
+                .with_ortho_half_h(1.);
+            scene.execute(Atom::SetCamera3D { camera });
+            let mut pixels = vec![0; 128 * 64 * 4];
+            scene.render_frame(&mut pixels, 128, 64);
+            for (row, y) in [16, 48].into_iter().enumerate() {
+                for (column, x) in [16, 48, 80, 112].into_iter().enumerate() {
+                    let at = (y * 128 + x) * 4;
+                    let actual = &pixels[at..at + 3];
+                    let expected = colors[row * 2 + column % 2];
+                    assert!(
+                        actual.iter().zip(expected).all(|(a, b)| if b == 0 {
+                            *a < 12
+                        } else {
+                            *a > 20
+                        }),
+                        "{mode:?} row {row} column {column}: {actual:?}"
+                    );
+                }
+            }
+            let before = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(2));
+            scene.render_frame(&mut pixels, 128, 64);
+            assert_eq!(pixels, before);
+            let first = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(1));
+            scene.render_frame(&mut pixels, 128, 64);
+            assert_ne!(pixels, first, "Server ticks must animate spatial pages in {mode:?}");
+            scene.execute(Atom::SetAnimationCounter(2));
+            scene.render_frame(&mut pixels, 128, 64);
+            assert_eq!(
+                pixels, first,
+                "Animation must loop without moving geometry in {mode:?}"
+            );
+        }
+    }
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn surface_pages_render_distinct_static_regions_on_whole_3d_walls() {
+        use crate::{Atom, Camera3D, CameraKind, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        for mode in [RenderMode::Raster3D, RenderMode::Compute3D] {
+            let mut scene = SceneVM::new(128, 64);
+            let tile = Uuid::new_v4();
+            scene.execute(Atom::SetRenderMode(mode));
+            scene.execute(Atom::SetBackground(Vec4::new(0., 0., 0., 1.)));
+            scene.execute(Atom::SetGP3(Vec4::one()));
+            scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+            scene.execute(Atom::SetGP9(Vec4::new(0., 0., 1., 2.2)));
+            let colors = [
+                [255, 0, 0, 255],
+                [0, 255, 0, 255],
+                [0, 0, 255, 255],
+                [255, 255, 0, 255],
+                [0, 255, 255, 255],
+                [255, 0, 255, 255],
+                [255, 100, 0, 255],
+                [100, 100, 100, 255],
+            ];
+            scene.execute(Atom::AddTile {
+                id: tile,
+                width: 2,
+                height: 2,
+                frames: colors.iter().map(|c| c.repeat(4)).collect(),
+                material_frames: None,
+            });
+            scene.execute(Atom::SetTileUvPages {
+                animation_frames: 1,
+                repeat_period: [0.; 2],
+                id: tile,
+                origin: [0, -2],
+                size: [4, 2],
+                axes: [[0.; 3]; 2],
+                units_per_page: 1,
+            });
+            scene.execute(Atom::BuildAtlas);
+            let mut chunk = Chunk::new(Vec2::zero(), 8);
+            chunk.add_3d(Poly3D::poly(
+                GeoId::Unknown(1),
+                tile,
+                vec![
+                    [0., 0., 0., 1.],
+                    [4., 0., 0., 1.],
+                    [4., 2., 0., 1.],
+                    [0., 2., 0., 1.],
+                ],
+                vec![[0.; 2]; 4],
+                vec![(0, 1, 2), (0, 2, 3)],
+            ));
+            scene.execute(Atom::AddChunk {
+                id: Uuid::new_v4(),
+                chunk,
+            });
+            let camera = Camera3D::builder()
+                .with_kind(CameraKind::OrthoIso)
+                .with_pos(Vec3::new(2., 1., 5.))
+                .with_basis(Vec3::new(0., 0., -1.), Vec3::unit_y())
+                .with_ortho_half_h(1.);
+            scene.execute(Atom::SetCamera3D { camera });
+            let mut pixels = vec![0; 128 * 64 * 4];
+            scene.render_frame(&mut pixels, 128, 64);
+            for (row, y) in [16, 48].into_iter().enumerate() {
+                for (column, x) in [16, 48, 80, 112].into_iter().enumerate() {
+                    let at = (y * 128 + x) * 4;
+                    let actual = &pixels[at..at + 3];
+                    let expected = colors[row * 4 + column];
+                    assert!(
+                        actual.iter().zip(expected).all(|(a, b)| if b == 0 {
+                            *a < 12
+                        } else {
+                            *a > 20
+                        }),
+                        "{mode:?} row {row} column {column}: {actual:?}"
+                    );
+                }
+            }
+            let before = pixels.clone();
+            scene.execute(Atom::SetAnimationCounter(5));
+            scene.render_frame(&mut pixels, 128, 64);
+            assert_eq!(pixels, before);
+        }
+    }
     #[test]
     fn raster_shader_validates_with_uniformity_checks() {
         let module = wgpu::naga::front::wgsl::parse_str(SCENEVM_3D_RASTER_WGSL)

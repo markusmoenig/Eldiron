@@ -265,6 +265,20 @@ impl SceneManager {
         self.send(SceneManagerCmd::SetTileList(tiles, tile_indices));
     }
 
+    /// Texture-only changes do not invalidate already rendered map chunks.
+    pub fn sync_tile_textures(&mut self, tiles: Vec<Tile>, indices: FxHashMap<Uuid, u16>) {
+        let added = indices
+            .keys()
+            .any(|id| !self.assets.tile_indices.contains_key(id));
+        self.assets.tile_list = tiles;
+        self.assets.tile_indices = indices;
+        // A brand-new tile may have been painted before its first bake. Replace
+        // missing-source chunks in place, keeping all current geometry visible.
+        if added {
+            self.dirty.extend(self.all.iter().copied());
+        }
+    }
+
     pub fn set_block_props(&mut self, block_props: IndexMap<Uuid, BlockPropAsset>) {
         self.send(SceneManagerCmd::SetBlockProps(block_props));
     }
@@ -467,6 +481,23 @@ impl SceneManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn baked_texture_sync_preserves_queued_map_work_and_does_not_clear() {
+        let mut manager = SceneManager::new();
+        manager.dirty.insert((0, 0));
+        manager.all.insert((0, 0));
+        let map_id = manager.map.id;
+        let tile = Tile::from_texture(Texture::from_color([10, 20, 30, 255]));
+        let id = tile.id;
+        manager.assets.tile_indices.insert(id, 0);
+        manager.sync_tile_textures(vec![tile], FxHashMap::from_iter([(id, 0)]));
+        assert_eq!(manager.map.id, map_id);
+        assert_eq!(manager.dirty, FxHashSet::from_iter([(0, 0)]));
+        assert_eq!(manager.all, FxHashSet::from_iter([(0, 0)]));
+        assert_eq!(manager.assets.tile_list[0].id, id);
+        assert!(manager.receive().is_none());
+    }
 
     #[test]
     fn wall_surface_preview_visibility_does_not_enter_runtime_maps() {

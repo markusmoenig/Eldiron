@@ -1,0 +1,233 @@
+tile 1
+name "Random"
+category "Pattern"
+description "Creates a random distribution of the input shape. Returns the cell id in the X component, the depth map in Y and the angle of the shape in degrees in the Z component. Use the Split Operator to access the individual components."
+group "Random Pattern" true
+param float VCELLST "Cells" default 6 range 1 100
+tooltip "The vertical amount of cells."
+param float RATIO "Ratio" default 1.0 range 0.01 10
+tooltip "Cell length / width ratio."
+param float BLEND "Blend" default 0 range 0 1
+choices "Addition" "Maximum"
+param float DEPTH "Layers" default 1 range 1 3
+tooltip "Amount of shape layers."
+param float LACUNARITY "Lacunarity" default 4.0 range 0.0 10.0
+tooltip "The amount the shapes get smaller per layer."
+group "Shapes" false
+param float RADIUSA "Scale" default 0.5 range 0.01 3
+tooltip "Scale of the cells."
+param float RADIUS_D "Size Distribution" default 1.0 range 0.0 2
+tooltip "Size distribution of the cells. Higher values vary the size more."
+param float AMP_D "Intensity Distribution" default 0.0 range 0.0 2
+tooltip "Intensity distribution of the cells. Higher values vary the intensity of cells more."
+param float NB "Shapes per Cell" default 1 range 1 3
+tooltip "Amount of shapes per cell."
+param float ROTshape1 "Random Rot." default 180.0 range 0.0 180
+tooltip "Maximum random rotation in degrees."
+group "About" true
+group "Sampling" true
+param float time "Time Offset" default 0
+param vec3 extra3 "Input 3" default 0 0 0
+
+let v0 = 0
+let v1 = 1
+let v2 = 0.
+let v3 = VCELLST
+let v4 = vec2(round((v3 / RATIO)), v3)
+let v5 = 0.
+let v6 = (uv + vec2(0.5))
+let v7 = 0.
+let v8 = vec2(RATIO, 1)
+let v9 = (v6 * (v3 / v8))
+let v10 = v9
+let v11 = 0.
+let v12 = (-1.)
+let v13 = 1.
+let v14 = 0.
+let v15 = 0
+let v16 = 0
+state v17 = vec3(0)
+state v18 = vec2(256)
+state v19 = uv
+state v20 = pos
+state v21 = normal
+state v22 = input.rgb
+state v23 = vec3(0)
+state v24 = select(aux_valid, aux3, extra3)
+state v25 = vec3(0)
+state v26 = VCELLST
+state v27 = RATIO
+state v28 = BLEND
+state v29 = DEPTH
+state v30 = LACUNARITY
+state v31 = RADIUSA
+state v32 = RADIUS_D
+state v33 = AMP_D
+state v34 = NB
+state v35 = ROTshape1
+state v36 = (sample_time + time)
+state v37 = v0
+state v38 = v1
+state v39 = v2
+state v40 = v3
+state v41 = v4
+state v42 = v5
+state v43 = v9
+state v44 = v7
+state v45 = v8
+state v46 = v10
+state v47 = v11
+state v48 = v12
+state v49 = v13
+state v50 = v14
+state v51 = v15
+state v52 = v16
+repeat 4 times ((DEPTH - v16) / 1) while less(v52, v29)
+let v54 = v43
+let v55 = floor(v54)
+let v56 = 0.
+let v57 = 0
+state v58 = v17
+state v59 = v18
+state v60 = v19
+state v61 = v20
+state v62 = v21
+state v63 = v22
+state v64 = v23
+state v65 = v24
+state v66 = v25
+state v67 = v26
+state v68 = v27
+state v69 = v28
+state v70 = v29
+state v71 = v30
+state v72 = v31
+state v73 = v32
+state v74 = v33
+state v75 = v34
+state v76 = v35
+state v77 = v36
+state v78 = v37
+state v79 = v38
+state v80 = v39
+state v81 = v40
+state v82 = v41
+state v83 = v42
+state v84 = v43
+state v85 = v44
+state v86 = v45
+state v87 = v46
+state v88 = v47
+state v89 = v48
+state v90 = v49
+state v91 = v50
+state v92 = v56
+state v93 = v52
+state v94 = v54
+state v95 = v55
+state v96 = v57
+repeat 9 times ((9 - v57) / 1) while less(v96, 9)
+let v98 = (v95 + vec2((mod(v96, 3) - 1), ((v96 / 3) - 1)))
+let v99 = 0
+state v100 = v58
+state v101 = v59
+state v102 = v60
+state v103 = v61
+state v104 = v62
+state v105 = v63
+state v106 = v64
+state v107 = v65
+state v108 = v66
+state v109 = v67
+state v110 = v68
+state v111 = v69
+state v112 = v70
+state v113 = v71
+state v114 = v72
+state v115 = v73
+state v116 = v74
+state v117 = v75
+state v118 = v76
+state v119 = v77
+state v120 = v78
+state v121 = v79
+state v122 = v80
+state v123 = v81
+state v124 = v82
+state v125 = v83
+state v126 = v84
+state v127 = v85
+state v128 = v86
+state v129 = v87
+state v130 = v88
+state v131 = v89
+state v132 = v90
+state v133 = v91
+state v134 = v92
+state v135 = v93
+state v136 = v94
+state v137 = v95
+state v138 = v96
+state v139 = v98
+state v140 = v99
+repeat 4 times ((v75 - v99) / 1) while less(v140, v117)
+let v142 = vec3(select(equal(v124, vec2(0)), v139, mod(v139, v124)), v140)
+let v143 = select(0, vec3(0), hash33(vec3(vec3(floor(v142)))))
+let v144 = 1
+let v145 = v143
+let v146 = ((-v122) + ((1. + (2. * v122)) * (v145).xy))
+let v147 = ((v139 - v136) + v146)
+let v148 = (v147 * v128)
+let v149 = (v148 / (v114 * (1. + (v115 * ((2. * (v145).z) - 1.)))))
+let v150 = select(0, vec3(0), hash33(vec3((v145 * 4294967295.0))))
+let v151 = 1
+let v152 = select(0, vec3(0), v150)
+let v153 = 1
+let v154 = v152
+let v155 = (v154).x
+let v156 = (v125 + (v118 * ((-1.) + (2. * (v154).y))))
+let v157 = vec4(sin((radians(v156) + (vec4(1, 0, 2, 1) * 1.5707))))
+let v158 = vec2((v149).x*(v157).x+(v149).y*(v157).y, (v149).x*(v157).z+(v149).y*(v157).w)
+let v159 = (.5 + (v116 * ((2. * (v154).z) - 1.)))
+let v160 = (sample_context(v158, v103, v104, v119, vec3(1, 1, v155), vec3(0, 0, 0), v107)).rgb
+let v161 = (v159 * (v160).x)
+let v162 = (v134 + v161)
+let v163 = max(v134, v161)
+let v164 = select(equal(v111, 0), v162, v163)
+let v165 = logical_and(logical_or(equal(v135, 0), less(v131, 0.)), greater(v161, 0.))
+let v166 = v156
+let v167 = v155
+let v168 = select(logical_and(v165, equal(v161, v164)), v166, v130)
+let v169 = select(logical_and(v165, equal(v161, v164)), v167, v131)
+let v170 = (v140 + 1)
+update v130 = v168
+update v131 = v169
+update v134 = v164
+update v140 = v170
+end repeat
+let v176 = (v96 + 1)
+update v88 = v130
+update v89 = v131
+update v92 = v134
+update v96 = v176
+end repeat
+let v182 = (v44 + (v49 * v92))
+let v183 = (v43 * v30)
+let v184 = (v41 * v30)
+let v185 = (v50 + v49)
+let v186 = (v49 / v30)
+let v187 = (v52 + 1)
+update v41 = v184
+update v43 = v183
+update v44 = v182
+update v47 = v88
+update v48 = v89
+update v49 = v186
+update v50 = v185
+update v51 = v92
+update v52 = v187
+end repeat
+let v198 = (v44 / v50)
+let v199 = select(equal(BLEND, 1), v198, v44)
+let v200 = vec3(v48, v199, v47)
+image = vec4(v200, input.a)

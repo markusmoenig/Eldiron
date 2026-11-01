@@ -1,0 +1,257 @@
+tile 1
+name "Marble"
+category "Pattern"
+description "Generates a marble pattern."
+group "Marble Pattern" true
+param float inCell "Cells" default 4 range 1 20
+tooltip "The vertical amount of cells."
+param float fractal_depth_i "Layers" default 3 range 1 6
+tooltip "The amount of crack layers."
+param float fractal_scale "Scale per Layer" default 1.5 range 0.1 4.
+tooltip "The downscale applied to each layer."
+param float CRACK_noise_scale "Noise Scale" default 1.0 range 0.1 4.
+tooltip "Scales the input noise for the shape."
+param float CRACK_noise_amp "Noise Amp." default 0.67 range 0. 4.
+tooltip "Amplifies the noise. Useful for controlling the shape of the crack lines."
+group "About" true
+
+let v0 = 1.
+let v1 = inCell
+let v2 = fractal_depth_i
+let v3 = 50.
+let v4 = .0
+let v5 = ((uv * v1) + ((input.rgb).z * 12323.1211))
+let v6 = vec3(0)
+let v7 = vec3(0)
+let v8 = 0.
+state v9 = vec3(0)
+state v10 = vec2(256)
+state v11 = uv
+state v12 = pos
+state v13 = normal
+state v14 = input.rgb
+state v15 = vec3(0)
+state v16 = vec3(0)
+state v17 = vec3(0)
+state v18 = inCell
+state v19 = fractal_depth_i
+state v20 = fractal_scale
+state v21 = CRACK_noise_scale
+state v22 = CRACK_noise_amp
+state v23 = v0
+state v24 = v1
+state v25 = v2
+state v26 = v3
+state v27 = v4
+state v28 = v5
+state v29 = v6
+state v30 = v7
+state v31 = v8
+repeat 1024 times ((v2 - v8) / 1) while less(v31, v25)
+let v33 = (v28 / vec2(v23, 1))
+let v34 = vec2(0)
+let v35 = .5
+let v36 = vec4(cos(.37), (-sin(.37)), sin(.37), cos(.37))
+let v37 = 0
+state v38 = v9
+state v39 = v10
+state v40 = v11
+state v41 = v12
+state v42 = v13
+state v43 = v14
+state v44 = v15
+state v45 = v16
+state v46 = v17
+state v47 = v18
+state v48 = v19
+state v49 = v20
+state v50 = v21
+state v51 = v22
+state v52 = v23
+state v53 = v24
+state v54 = v25
+state v55 = v26
+state v56 = v27
+state v57 = v28
+state v58 = v29
+state v59 = v30
+state v60 = v37
+state v61 = v33
+state v62 = (v28 / v21)
+state v63 = vec2(0)
+state v64 = 0
+state v65 = v34
+state v66 = v35
+state v67 = v36
+repeat 6 times ((6 - v37) / 1) while less(v60, 6)
+let v69 = vec2((v62).x*(v67).x+(v62).y*(v67).y, (v62).x*(v67).z+(v62).y*(v67).w)
+let v70 = 1
+let v71 = floor(v69)
+let v72 = fract(v69)
+let v73 = ((v72 * v72) * (3. - (2. * v72)))
+let v74 = (sin(dot((v71 + vec2(0, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v75 = (sin(dot((v71 + vec2(1, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v76 = (sin(dot((v71 + vec2(0, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v77 = (sin(dot((v71 + vec2(1, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v78 = mix(mix(fract(v74), fract(v75), (v73).x), mix(fract(v76), fract(v77), (v73).x), (v73).y)
+let v79 = v78
+let v80 = select(0, 0, select(equal(v70, 0), v79, select(equal(v70, 1), ((2. * v79) - 1.), select(equal(v70, 2), abs(((2. * v79) - 1.)), (1. - abs(((2. * v79) - 1.)))))))
+let v81 = 1
+let v82 = 1
+let v83 = floor((v69 + 17.7))
+let v84 = fract((v69 + 17.7))
+let v85 = ((v84 * v84) * (3. - (2. * v84)))
+let v86 = (sin(dot((v83 + vec2(0, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v87 = (sin(dot((v83 + vec2(1, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v88 = (sin(dot((v83 + vec2(0, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v89 = (sin(dot((v83 + vec2(1, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v90 = mix(mix(fract(v86), fract(v87), (v85).x), mix(fract(v88), fract(v89), (v85).x), (v85).y)
+let v91 = v90
+let v92 = select(0, 0, select(equal(v82, 0), v91, select(equal(v82, 1), ((2. * v91) - 1.), select(equal(v82, 2), abs(((2. * v91) - 1.)), (1. - abs(((2. * v91) - 1.)))))))
+let v93 = 1
+let v94 = (v65 + (v66 * vec2(v80, v92)))
+let v95 = (v60 + 1)
+let v96 = (v69 * 2.)
+let v97 = (v66 / 2.)
+update v60 = v95
+update v62 = v96
+update v65 = v94
+update v66 = v97
+end repeat
+let v103 = select(0, vec2(0), v65)
+let v104 = 1
+let v105 = ((v22 * v103) * v21)
+let v106 = .5
+let v107 = floor((v33 + v105))
+let v108 = vec2(0)
+let v109 = vec2(0)
+let v110 = 1e9
+let v111 = 0
+let v112 = 0
+state v113 = v9
+state v114 = v10
+state v115 = v11
+state v116 = v12
+state v117 = v13
+state v118 = v14
+state v119 = v15
+state v120 = v16
+state v121 = v17
+state v122 = v18
+state v123 = v19
+state v124 = v20
+state v125 = v21
+state v126 = v22
+state v127 = v23
+state v128 = v24
+state v129 = v25
+state v130 = v26
+state v131 = v27
+state v132 = v28
+state v133 = v29
+state v134 = v30
+state v135 = v31
+state v136 = v33
+state v137 = v105
+state v138 = (v33 + v105)
+state v139 = vec3(0)
+state v140 = 0
+state v141 = v106
+state v142 = v107
+state v143 = v108
+state v144 = v109
+state v145 = v110
+state v146 = v111
+state v147 = v112
+repeat 25 times ((25 - v112) / 1) while less(v147, 25)
+let v149 = (v142 + vec2((mod(v147, 5) - 2), ((v147 / 5) - 2)))
+let v150 = v149
+let v151 = vec2((v150).x*(vec4(127.1, 311.7, 269.5, 183.3)).x+(v150).y*(vec4(127.1, 311.7, 269.5, 183.3)).y, (v150).x*(vec4(127.1, 311.7, 269.5, 183.3)).z+(v150).y*(vec4(127.1, 311.7, 269.5, 183.3)).w)
+let v152 = ((1. + (2. * v141)) * fract((18.5453 * sin(v151))))
+let v153 = ((-v141) + v152)
+let v154 = ((v150 - v138) + v153)
+let v155 = dot(v154, v154)
+let v156 = v155
+let v157 = (v150 - v142)
+let v158 = v154
+let v159 = select(less(v155, v145), v157, v143)
+let v160 = select(less(v155, v145), v158, v144)
+let v161 = select(less(v155, v145), v156, v145)
+let v162 = (v147 + 1)
+update v143 = v159
+update v144 = v160
+update v145 = v161
+update v146 = v155
+update v147 = v162
+end repeat
+let v169 = 1e9
+let v170 = 0
+state v171 = v9
+state v172 = v10
+state v173 = v11
+state v174 = v12
+state v175 = v13
+state v176 = v14
+state v177 = v15
+state v178 = v16
+state v179 = v17
+state v180 = v18
+state v181 = v19
+state v182 = v20
+state v183 = v21
+state v184 = v22
+state v185 = v23
+state v186 = v24
+state v187 = v25
+state v188 = v26
+state v189 = v27
+state v190 = v28
+state v191 = v29
+state v192 = v30
+state v193 = v31
+state v194 = v33
+state v195 = v105
+state v196 = (v33 + v105)
+state v197 = vec3(0)
+state v198 = 0
+state v199 = v106
+state v200 = v107
+state v201 = v143
+state v202 = v144
+state v203 = v169
+state v204 = v146
+state v205 = v170
+repeat 25 times ((25 - v170) / 1) while less(v205, 25)
+let v207 = ((v200 + v201) + vec2((mod(v205, 5) - 2), ((v205 / 5) - 2)))
+let v208 = v207
+let v209 = vec2((v208).x*(vec4(127.1, 311.7, 269.5, 183.3)).x+(v208).y*(vec4(127.1, 311.7, 269.5, 183.3)).y, (v208).x*(vec4(127.1, 311.7, 269.5, 183.3)).z+(v208).y*(vec4(127.1, 311.7, 269.5, 183.3)).w)
+let v210 = ((1. + (2. * v199)) * fract((18.5453 * sin(v209))))
+let v211 = ((-v199) + v210)
+let v212 = ((v208 - v196) + v211)
+let v213 = (.5 * dot((v202 + v212), normalize((v212 - v202))))
+let v214 = min(v203, v213)
+let v215 = select(greater(dot((v202 - v212), (v202 - v212)), 1e-5), v214, v203)
+let v216 = (v205 + 1)
+update v203 = v215
+update v205 = v216
+end repeat
+let v220 = select(0, vec3(0), vec3(v203, (v144 + (v33 + v105))))
+let v221 = 1
+let v222 = v220
+let v223 = v222
+let v224 = select(equal(v31, 0.), v223, v30)
+let v225 = (v222).x
+let v226 = clamp((v26 * (v225 - v27)), 0., 1.)
+let v227 = (v29 + (vec3((1. - v226)) / exp2(v31)))
+let v228 = vec2(v20*(vec4(cos(.37), (-sin(.37)), sin(.37), cos(.37))).x+v20*(vec4(cos(.37), (-sin(.37)), sin(.37), cos(.37))).y, v20*(vec4(cos(.37), (-sin(.37)), sin(.37), cos(.37))).z+v20*(vec4(cos(.37), (-sin(.37)), sin(.37), cos(.37))).w)
+let v229 = (v28 * v228)
+let v230 = (v31 + 1)
+update v28 = v229
+update v29 = v227
+update v30 = v224
+update v31 = v230
+end repeat
+let v236 = (1. - v29)
+let v237 = vec3(v236)
+let v238 = v237
+image = vec4(v238, input.a)

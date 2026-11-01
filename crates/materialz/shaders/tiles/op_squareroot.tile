@@ -1,0 +1,10 @@
+tile 1
+name "Square Root"
+category "Operator"
+description "The output is the square root of the input value."
+group "Square Root Operator" true
+param float scale "Scale" default 1.0 range 0.0 10
+group "About" true
+
+let v0 = sqrt((input.rgb * scale))
+image = vec4(v0, input.a)

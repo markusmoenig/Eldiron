@@ -1,0 +1,59 @@
+tile 1
+name "Gabor Noise"
+category "Noise"
+description "Generates random stripes with displacements called blobs. Often used to simulate dunes and similar."
+group "Gabor Noise" true
+param float NB "Number of Blobs" default 10 range 1 200
+param float SIZE "Size of Blobs" default 5. range 0.001 10.
+param float dist "Distance" default -0.485 range -2.0 2.
+param float freq "Frequency" default 10. range 0. 100.
+group "Scale" true
+param float globalScale "Global Scale" default 1.0 range 0.0 10
+param vec2 localScale "Local Scale" default 1.0 1.0 range -1000 1000
+group "About" true
+
+let v0 = (((uv / globalScale) * 1.) / localScale)
+let v1 = vec3(0.)
+let v2 = 0
+state v3 = vec3(0)
+state v4 = vec2(256)
+state v5 = uv
+state v6 = pos
+state v7 = normal
+state v8 = input.rgb
+state v9 = vec3(0)
+state v10 = vec3(0)
+state v11 = vec3(0)
+state v12 = NB
+state v13 = SIZE
+state v14 = dist
+state v15 = freq
+state v16 = globalScale
+state v17 = localScale
+state v18 = v0
+state v19 = v1
+state v20 = v2
+repeat 201 times ((NB - v2) / 1) while less(v20, v12)
+let v22 = hash33(vec3(v20, 0, 0))
+let v23 = (v22).x
+let v24 = hash33(vec3(v20, 1, 0))
+let v25 = (v24).x
+let v26 = hash33(vec3(v20, 2, 0))
+let v27 = (v26).x
+let v28 = hash33(vec3(v20, 3, 0))
+let v29 = (v28).x
+let v30 = vec2((1.5 * v23), v25)
+let v31 = (v18 - v30)
+let v32 = (((1. + v14) * vec2(v27, v29)) - v14)
+let v33 = (v15 * v32)
+let v34 = (exp(((-((v31).x * (v31).x)) / (v13 * v13))) * exp(((-((v31).y * (v31).y)) / (v13 * v13))))
+let v35 = v34
+let v36 = sin((((dot(v31, v33) * 2.) * 3.14159265358979) - 10.))
+let v37 = (.5 * v36)
+let v38 = (v19 + (v37 * v35))
+let v39 = (v20 + 1)
+update v19 = v38
+update v20 = v39
+end repeat
+let v43 = v19
+image = vec4(v43, input.a)

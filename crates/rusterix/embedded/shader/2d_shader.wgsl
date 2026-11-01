@@ -122,9 +122,9 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
         let dist = abs(rel_p - closest_mul_main);
 
         // Colors (match Eldiron defaults)
-        let bg_color       = vec4<f32>(0.05, 0.05, 0.05, 1.0);
-        let line_color     = vec4<f32>(0.15, 0.15, 0.15, 1.0);
-        let sub_line_color = vec4<f32>(0.11, 0.11, 0.11, 1.0);
+        let bg_color       = select(vec4<f32>(0.05, 0.05, 0.05, 1.0), U.gp5, U.gp5.w > 0.5);
+        let line_color     = select(vec4<f32>(0.15, 0.15, 0.15, 1.0), U.gp6, U.gp5.w > 0.5);
+        let sub_line_color = select(vec4<f32>(0.11, 0.11, 0.11, 1.0), U.gp7, U.gp5.w > 0.5);
 
         // Thickness in pixels (use 1px for both major and minor)
         let th  = 1.0;

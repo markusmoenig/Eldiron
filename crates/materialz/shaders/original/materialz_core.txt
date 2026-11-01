@@ -1,0 +1,4 @@
+MaterialZ general-purpose core sources, authored for MaterialZ.
+The maintained Tile Language definitions are in shaders/tiles.
+Shared hash and mathematical primitives retain their existing provenance.
+Normal Combine uses the reoriented-normal construction described by Stephen Hill and Colin Barré-Brisebois.

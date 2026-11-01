@@ -1,0 +1,35 @@
+tile 1
+name "Vector Filter"
+category "Transform"
+description "Samples a bounded trail along a vector field. Minimum and Maximum select an RGBA sample by red-channel height; Average filters premultiplied RGBA. Gradient XY can steer chipped edges and directional erosion."
+distance clear
+execution image radius units
+group "Filter" true
+param float mode "Mode" default 0 range 0 2
+choices "Minimum" "Maximum" "Average"
+param float radius "Radius" default 2 range 0 64
+param float units "Units" default 0 range 0 1
+choices "Pixels" "UV"
+param vec3 vector "Vector" default 1 0 0 range -1000 1000
+param float samples "Samples" default 8 range 1 32
+param float centered "Centered" default 0 range 0 1
+choices "Trail" "Centered"
+let count = clamp(round(samples), 1, 32)
+let span = clamp(radius, 0, 64) * select(equal(units, 0), aa, 1)
+let direction = vector.xy / max(length(vector.xy), 1)
+state picked = input
+state alpha = clamp(input.a, 0, 1)
+state total = vec4(input.rgb * alpha, alpha)
+state i = 0
+repeat 32 times count while 1
+let t = select(equal(centered, 0), (i + 1) / count, (i + 0.5) / count)
+let offset = select(equal(centered, 0), t, 2 * t - 1)
+let tap = sample_image(uv + direction * span * offset)
+let a = clamp(tap.a, 0, 1)
+let wins = select(equal(mode, 0), less(tap.r, picked.r), greater(tap.r, picked.r))
+update picked = select(wins, tap, picked)
+update total = total + vec4(tap.rgb * a, a)
+update i = i + 1
+end repeat
+let mean = total / (count + 1)
+image = select(equal(mode, 2), vec4(mean.rgb / max(mean.a, 0.000001), mean.a), picked)

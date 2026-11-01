@@ -1,0 +1,78 @@
+tile 1
+name "Grid"
+category "Transform"
+description "Repeats a complete RGBA row in a seeded grid, with stable nested instance keys and bounded neighboring-cell evaluation."
+distance clear
+group "Grid" true
+param float layout "Layout" default 0 range 0 1
+choices "Cartesian" "Rings"
+param vec2 cells "Cells" default 8 8 range 1 1024
+param vec2 offset "Cell Offset" default 0 0 range -10 10
+param float rowOffset "Row Stagger" default 0 range -1 1
+param vec2 gap "Gap" default 0.08 0.08 range 0 0.95
+param vec2 scale "Instance Scale" default 1 1 range 0.001 1
+param float continuous "Cell Identities" default 0 range 0 1
+choices "Repeat" "Continuous"
+tooltip "Continuous gives each world-space brick a distinct stable cell key. Repeat wraps cell keys within the grid period."
+group "Placement" false
+param float rotation "Rotation" default 0 range -180 180
+param vec2 jitter "Jitter" default 0 0 range 0 0.45
+param float randomRotation "Random Rotation" default 0 range 0 180
+param float probability "Probability" default 1 range 0 1
+param float seed "Seed" default 0 range -10000 10000
+
+let count = clamp(round(abs(cells)), 1, 1024)
+let radius = length(uv)
+let turns = atan2(uv.y, nonzero(uv.x)) / 6.28318530718 + 0.5
+let point = select(equal(layout, 0), (uv + 0.5) * count + offset, vec2(0, radius * count.y + offset.y))
+let base = floor(point)
+let size = max((1 - clamp(gap, 0, 0.95)) * clamp(scale, 0.001, 1), 0.0001)
+let namespace = select(instance_valid, floor(hash33(instance_cell).x * 16777215), 0) + floor(seed)
+let aligned = logical_and(less(abs(sin(radians(rotation * 2))), 0.000001), logical_and(equal(randomRotation, 0), equal(length(jitter), 0)))
+state premultiplied = vec3(0)
+state coverage = 0
+state y = -1
+repeat 3 times 3 while 1
+let cellY = base.y + y
+let columns = select(equal(layout, 0), count.x, max(round(6.28318530718 * max(cellY + 0.5 - offset.y, 0.5) / count.y * count.x), 1))
+let rowX = select(equal(layout, 0), point.x, turns * columns + offset.x)
+let stagger = mod(mod(cellY, count.y), 2) * rowOffset
+let baseX = floor(rowX - stagger)
+state x = -1
+repeat 3 times 3 while 1
+let cell = vec2(baseX + x, cellY)
+let key = vec3(select(greater(continuous, 0.5), cell, mod(cell, vec2(columns, count.y))), namespace)
+let random = hash33(key)
+let center = cell + vec2(0.5 + stagger, 0.5) + (random.xy * 2 - 1) * clamp(jitter, 0, 0.45)
+let angle = radians(rotation + (random.z * 2 - 1) * randomRotation)
+let c = cos(angle)
+let s = sin(angle)
+let delta = vec2(rowX, point.y) - center
+let local = vec2(c * delta.x + s * delta.y, -s * delta.x + c * delta.y) / size
+let density = select(equal(layout, 0), max(count.x, count.y), max(count.y, columns / (6.28318530718 * max(radius, 0.5 / count.y))))
+let footprint = aa * density * (abs(c) + abs(s)) / min(size.x, size.y)
+let span = max(footprint, 0.000001)
+let overlap = max(min(local + 0.5 * span, vec2(0.5)) - max(local - 0.5 * span, vec2(-0.5)), vec2(0)) / span
+let clip = overlap.x * overlap.y
+let validRow = logical_or(equal(layout, 0), greater_equal(cellY, 0))
+let visible = logical_and(validRow, logical_and(greater(clip, 0), less(hash33(key + vec3(47, 79, 131)).x, clamp(probability, 0, 1))))
+repeat 1 times visible while 1
+let group = select(instance_valid, instance_cell, key)
+let centerTurn = (center.x - offset.x) / columns - 0.5
+let theta = centerTurn * 6.28318530718
+let r = max((center.y - offset.y) / count.y, 0)
+let frameCenter = select(equal(layout, 0), vec3((center - offset) / count - 0.5, 0), vec3(cos(theta), sin(theta), 0) * r)
+let tangent = vec3(-sin(theta), cos(theta), 0) * (6.28318530718 * r / columns)
+let radial = vec3(cos(theta), sin(theta), 0) / count.y
+let frameX = select(equal(layout, 0), vec3(c * size.x / count.x, s * size.x / count.y, 0), (tangent * c + radial * s) * size.x)
+let frameY = select(equal(layout, 0), vec3(-s * size.y / count.x, c * size.y / count.y, 0), (-tangent * s + radial * c) * size.y)
+let sample = sample_scoped(local, footprint, key, group, frameCenter, frameX, frameY)
+let alpha = clamp(sample.a, 0, 1) * clip
+update premultiplied = sample.rgb * alpha + premultiplied * select(aligned, 1, 1 - alpha)
+update coverage = alpha + coverage * select(aligned, 1, 1 - alpha)
+end repeat
+update x = x + 1
+end repeat
+update y = y + 1
+end repeat
+image = vec4(premultiplied / max(coverage, 0.000001), clamp(coverage, 0, 1))

@@ -1,0 +1,7 @@
+tile 1
+name "Divide"
+category "Operator"
+description "Divides each input channel by a constant or connected divisor. Near-zero divisors retain their sign and are limited to magnitude 0.000001."
+group "Divide" true
+param vec3 divisor "Divisor" default 1 1 1 range -100000 100000
+image = vec4(input.rgb / nonzero(divisor), input.a)

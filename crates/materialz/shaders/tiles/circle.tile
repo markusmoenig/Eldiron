@@ -1,0 +1,11 @@
+tile 1
+name "Circle"
+category "Shape"
+description "Circle with a signed distance in document coordinates. Negative values are inside."
+group "Circle" true
+param float radius "Radius" default 0.3 range 1e-6 1.0
+param vec2 center "Center" default 0.0 0.0 range -1.0 1.0
+param float smoothness "Union Smoothness" default 0.05 range 1e-6 1.0
+group "About" true
+
+shape = length(uv - center) - max(radius, 0.000001)

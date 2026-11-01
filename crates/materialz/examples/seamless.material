@@ -1,0 +1,17 @@
+project 1
+material "seamless" called "Seamless Study"
+  tiling seamless
+  period 1 1
+  seam blend 0.15
+  row "grain" called "Noise"
+    use "Perlin Noise"
+  row "surface" called "Colored Surface"
+    use "Mix"
+      input from row "grain" xyz
+      set "color1" to 0.03 0.08 0.12 1
+      set "color2" to 0.7 0.35 0.1 1
+      set "factor" to 1 1 1
+  row "spare" called "Unconnected"
+    use "Disc"
+  output base color from row "surface" xyz
+  output height from row "grain" x mapped 0 to 0.03

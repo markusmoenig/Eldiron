@@ -358,13 +358,13 @@ impl TheLayout for TheTextLayout {
             if self.text[i].is_empty() {
                 continue;
             }
-            let mut color = [240, 240, 240, 255];
+            let mut color = *style.theme().color(TextEditTextColor);
             if self.widgets[i]
                 .as_any()
                 .downcast_ref::<TheSeparator>()
                 .is_some()
             {
-                color = [160, 160, 160, 255];
+                color = *style.theme().color(TextEditLineNumberColor);
             }
 
             ctx.draw.text_rect_blend(
@@ -430,6 +430,8 @@ impl TheLayout for TheTextLayout {
 
 /// TheTextLayout specific functions.
 pub trait TheTextLayoutTrait: TheLayout {
+    fn scroll_offset(&mut self) -> i32;
+    fn set_scroll_offset(&mut self, offset: i32);
     /// Clear the text and widget pairs.
     fn clear(&mut self);
     /// Add a text / widget pair.
@@ -445,6 +447,19 @@ pub trait TheTextLayoutTrait: TheLayout {
 }
 
 impl TheTextLayoutTrait for TheTextLayout {
+    fn scroll_offset(&mut self) -> i32 {
+        self.vertical_scrollbar
+            .as_vertical_scrollbar()
+            .map(|scrollbar| scrollbar.scroll_offset())
+            .unwrap_or_default()
+    }
+    fn set_scroll_offset(&mut self, offset: i32) {
+        if let Some(scrollbar) = self.vertical_scrollbar.as_vertical_scrollbar() {
+            scrollbar.set_scroll_offset(offset.max(0));
+        }
+        self.layout_dirty = true;
+        self.is_dirty = true;
+    }
     fn clear(&mut self) {
         self.text.clear();
         self.widgets.clear();

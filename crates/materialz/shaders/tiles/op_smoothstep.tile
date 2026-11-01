@@ -1,0 +1,11 @@
+tile 1
+name "Smooth Step"
+category "Operator"
+description "The output is a smooth hermite interpolation between 0..1 if the input value is located between the lower and upper edge. 0.0 or 1.0 otherwise."
+group "Smooth Step Operator" true
+param vec3 lowerEdge "Lower Edge" default 0.0 0.0 0.0 range -1000 1000
+param vec3 upperEdge "Upper Edge" default 1.0 1.0 1.0 range -1000 1000
+group "About" true
+
+let v0 = smoothstep(lowerEdge, upperEdge, input.rgb)
+image = vec4(v0, input.a)

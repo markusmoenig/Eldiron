@@ -1,0 +1,8 @@
+tile 1
+name "Normal"
+category "System"
+description "Returns the bake-context normal, (0, 0, 1) for ordinary 2D material bakes. This is not the mesh shading normal."
+group "About" true
+
+let v0 = normal
+image = vec4(v0, input.a)

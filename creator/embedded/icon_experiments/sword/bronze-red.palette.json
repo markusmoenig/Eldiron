@@ -1,0 +1,47 @@
+{
+  "label": "Bronze / Red",
+  "bindings": {
+    "blade-colors": {
+      "color0": 18,
+      "color1": 19,
+      "color2": 20,
+      "color3": 22
+    },
+    "guard-colors": {
+      "color0": 3,
+      "color1": 4,
+      "color2": 5,
+      "color3": 7
+    },
+    "grip-colors": {
+      "color0": 17,
+      "color1": 18,
+      "color2": 27,
+      "color3": 26
+    },
+    "pommel-colors": {
+      "color0": 3,
+      "color1": 4,
+      "color2": 5,
+      "color3": 7
+    },
+    "blade-outline": {
+      "color": 16
+    },
+    "guard-outline": {
+      "color": 16
+    },
+    "grip-outline": {
+      "color": 16
+    },
+    "pommel-outline": {
+      "color": 16
+    },
+    "fuller-color": {
+      "color": 18
+    },
+    "jewel-color": {
+      "color": 25
+    }
+  }
+}

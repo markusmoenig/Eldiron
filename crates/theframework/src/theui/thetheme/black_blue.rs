@@ -551,6 +551,7 @@ impl TheTheme for TheBlackBlueTheme {
             .copied()
             .unwrap_or_else(|| match of {
                 TheThemePalettes::ActionGroups => ACTION_GROUPS[index % ACTION_GROUPS.len()],
+                TheThemePalettes::MaterialCategories => self.base.palette_color(of, index),
             })
     }
 

@@ -1,0 +1,16 @@
+{
+  "@surface": {
+    "base color": 37,
+    "emission": 1
+  },
+  "dark-green": {
+    "color": 37
+  },
+  "fresh-green": {
+    "color": 34
+  },
+  "grass-color": {
+    "color1": 36,
+    "color2": 35
+  }
+}

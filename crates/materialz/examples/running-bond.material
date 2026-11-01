@@ -1,0 +1,48 @@
+# A single Grid with half-cell row staggering; ordinary shapes form each brick.
+project 1
+material "running-bond" called "Running Bond"
+  mode bsdf
+  tiling raw
+  default roughness to 0.78
+  default specular to 0.3
+  row "tone" called "Brick Tone"
+    use "Cell Data"
+      set "scope" to 1
+  row "shape" called "Brick"
+    use "Rounded Rectangle"
+      set "halfSize" to 0.48 0.48
+      set "radius" to 0.035
+  row "profile" called "Bevel"
+    use "Distance Profile"
+      input from row "shape" distance
+      set "width" to 0.045
+      set "profile" to 2
+    use "Multiply"
+      set "localValue" from row "tone" xxx mapped 0.78 to 1
+  row "grain" called "Clay Grain"
+    use "Organic Noise"
+      set "scaleValue" to 8
+    use "Levels"
+      set "outputLow" to 0.93
+  row "brick" called "Surface"
+    use "Multiply"
+      input from row "profile" xyz
+      set "localValue" from row "grain" xxx
+  row "pattern" called "Layout"
+    use "Grid"
+      input from row "brick" xyz
+      set "cells" to 8 16
+      set "rowOffset" to 0.5
+      set "gap" to 0.025 0.035
+  row "surface" called "Clay"
+    use "Color Ramp"
+      input from row "pattern" xxx
+      set "position0" to 0
+      set "color0" to 0.1 0.088 0.065 1
+      set "position1" to 0.18
+      set "color1" to 0.18 0.043 0.018 1
+      set "position2" to 0.7
+      set "color2" to 0.44 0.12 0.035 1
+      set "color3" to 0.68 0.24 0.075 1
+  output base color from row "surface" xyz
+  output height from row "pattern" x mapped 0 to 0.025

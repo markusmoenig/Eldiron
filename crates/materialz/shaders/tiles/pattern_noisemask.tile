@@ -1,0 +1,27 @@
+tile 1
+name "Noise Hole Mask"
+category "2D Pattern"
+description "Generates a noise based pattern of solid shapes / holes which can be used as a mask. Requires a 2D input noise."
+group "Noise Hole Mask Pattern" true
+param float globalScale "Global Scale" default 1.0 range 0.0 10
+param vec2 localScale "Local Scale" default 1.0 1.0 range -1000 1000
+param float offset "Offset" default 3. range 0.1 10
+tooltip "Defines the shape of the mask."
+param float cutOff "Cut Off" default 0.6 range 0.0 1
+tooltip "The smaller the cut off, the larger the area covered by the mask."
+group "About" true
+group "Sampling" true
+param float time "Time Offset" default 0
+param vec3 extra2 "Input 2" default 0 0 0
+param vec3 extra3 "Input 3" default 0 0 0
+
+let v0 = (((uv / globalScale) * 1.) / localScale)
+let v1 = (sample_context(v0, pos, normal, (sample_time + time), input.rgb, select(aux_valid, aux2, extra2), select(aux_valid, aux3, extra3))).rgb
+let v2 = (v1).x
+let v3 = (sample_context((v0 * offset), pos, normal, (sample_time + time), input.rgb, select(aux_valid, aux2, extra2), select(aux_valid, aux3, extra3))).rgb
+let v4 = (v2 + ((v3).x * 0.2))
+let v5 = vec3(0)
+let v6 = vec3(1)
+let v7 = select(less(v4, cutOff), v6, v5)
+let v8 = v7
+image = vec4(v8, input.a)

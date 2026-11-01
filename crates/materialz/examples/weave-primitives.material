@@ -1,0 +1,118 @@
+# A plain weave assembled from general-purpose sources, without the Weave tile.
+# X carries warp height; Y carries weft height. All color is procedural dye.
+project 1
+
+material "weave" called "Plain Weave"
+  mode bsdf
+  tiling raw
+  default metallic to 0
+  default sheen to 0.04
+  default specular to 0.5
+  default sheen roughness to 0.65
+
+  row "uv" called "UV"
+    use "Tex Coord 2D"
+  # Use even integer counts for a natural unit repeat, including crossing order.
+  row "coordinates" called "Density"
+    use "Multiply"
+      input from row "uv" xyz
+      set "globalValue" to 32
+  row "profiles" called "Yarn Profile"
+    use "Periodic Profile"
+      input from row "coordinates" xyz
+      set "profile" to 1
+      set "width" to 0.86
+    use "Power"
+      set "power" to 0.35 0.35 0.35
+
+  row "crossing-waves" called "Crossing Waves"
+    use "Cos"
+      input from row "coordinates" xyz
+      set "scale" to 3.14159265359
+  row "crossings" called "Over Under"
+    use "Multiply"
+      input from row "crossing-waves" xxx
+      set "localValue" from row "crossing-waves" yyy
+  row "yarn-bodies" called "Interlace"
+    use "Multiply"
+      input from row "crossings" xxx
+      set "globalValue" to 0.22
+      set "localValue" to 1 -1 0
+    use "Add"
+      set "globalValue" to 0.78
+    use "Multiply"
+      set "localValue" from row "profiles" xyz
+
+  # Separate directional grain follows each strand instead of crossing it.
+  row "warp-grain" called "Warp Grain"
+    use "Organic Noise"
+      set "scaleValue" to 16
+    use "Transform"
+      set "localScale" to 0.0625 1
+    use "Mix"
+      set "color1" to 0.03 0.022 0.027 1
+      set "color2" to 0.4 0.27 0.13 1
+      set "factor" to 1 1 1
+  row "weft-grain" called "Weft Grain"
+    use "Organic Noise"
+      set "scaleValue" to 16
+    use "Transform"
+      set "localScale" to 1 0.0625
+      set "offset" to 0.173 0.317
+    use "Mix"
+      set "color1" to 0.05 0.03 0.023 1
+      set "color2" to 0.46 0.3 0.15 1
+      set "factor" to 1 1 1
+  row "fibers" called "Grain Height"
+    use "Mix"
+      set "color1" from row "warp-grain" xxxw
+      set "color2" from row "weft-grain" xxxw
+      set "factor" to 0 1 0
+    use "Multiply"
+      set "globalValue" to 0.6
+    use "Add"
+      set "globalValue" to 0.8
+  row "yarns" called "Yarns"
+    use "Multiply"
+      input from row "yarn-bodies" xyz
+      set "localValue" from row "fibers" xyz
+  row "height" called "Height"
+    use "Max"
+      input from row "yarns" xxx
+      set "localValue" from row "yarns" yyy
+      set "globalValue" to 1
+    use "Multiply"
+      set "globalValue" to 0.025
+
+  row "yarn-color" called "Yarn Color"
+    use "Compare/Select"
+      input from row "yarns" xxx
+      set "reference" from row "yarns" yyy
+      set "softness" to 0.04
+      set "output" to 1
+      set "trueValue" from row "warp-grain" xyz
+      set "falseValue" from row "weft-grain" xyz
+  row "visible-fibers" called "Surface Grain"
+    use "Compare/Select"
+      input from row "yarns" xxx
+      set "reference" from row "yarns" yyy
+      set "softness" to 0.04
+      set "output" to 1
+      set "trueValue" from row "fibers" xxx
+      set "falseValue" from row "fibers" yyy
+  row "coverage" called "Recess Shade"
+    use "Compare/Select"
+      input from row "height" xxx
+      set "reference" to 0.006 0.006 0.006
+      set "softness" to 0.006
+  row "color" called "Color"
+    use "Mix"
+      set "color1" from row "yarn-color" xyzw
+      set "color2" to 0.008 0.012 0.015 1
+      set "factor" from row "coverage" xxx mapped 1 to 0
+    use "Multiply"
+      set "localValue" from row "visible-fibers" xxx
+
+  output base color from row "color" xyz
+  output height from row "height" x
+  output roughness from row "visible-fibers" x mapped 1.3 to 0.65

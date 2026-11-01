@@ -1,0 +1,243 @@
+tile 1
+name "Decor Tiles"
+category "Pattern"
+description "Generates a decor stone tile pattern. Needs an input shape (by default Tile). Returns the cell id in the x component, the depth map in y and the angle of the tiles in degrees in the z component. Use the Split Operator to access the individual components."
+group "Decor Tiles Pattern" true
+param float VCELLST "Cells" default 6 range 1 200
+tooltip "The vertical amount of cells."
+param float RATIO "Ratio" default 2.8 range 0.01 14.
+tooltip "Width / height ratio of the individual tiles."
+param float inGap "Gap" default 0.2 range 0.0 1.0
+tooltip "Gap between the tiles in percent."
+param float inMaxRandRot "Max Rotation" default 0.0 range 0.0 10
+tooltip "Maximum random rotation per tile in degrees. A value of 0 means no rotation, a value of 10 means each tile gets randomly rotated up to 10 degrees."
+group "Shapes" false
+param vec2 shapeN "Amount" default 1 1 range 0 50
+tooltip "The amount of shapes in the x and y direction."
+param vec2 shapeGap "Gap" default 0.0 0.0 range 0 1
+tooltip "The gap between the shapes."
+group "About" true
+group "Sampling" true
+param float time "Time Offset" default 0
+param vec3 extra3 "Input 3" default 0 0 0
+
+let v0 = VCELLST
+let v1 = 0.
+let v2 = inMaxRandRot
+let v3 = vec2((inGap / 2.))
+let v4 = vec2(round((v0 / RATIO)), v0)
+let v5 = 0
+let v6 = 0.
+let v7 = vec3(0)
+let v8 = uv
+let v9 = uv
+let v10 = vec2(RATIO, 1)
+let v11 = (v8 * (v0 / v10))
+let v12 = floor(v11)
+let v13 = fract((v11).x)
+let v14 = vec2(1e5)
+let v15 = vec2((-1e5))
+let v16 = vec2(1e5)
+let v17 = vec2(0)
+let v18 = (-4.)
+state v19 = vec3(0)
+state v20 = vec2(256)
+state v21 = uv
+state v22 = pos
+state v23 = normal
+state v24 = input.rgb
+state v25 = vec3(0)
+state v26 = select(aux_valid, aux3, extra3)
+state v27 = vec3(0)
+state v28 = VCELLST
+state v29 = RATIO
+state v30 = inGap
+state v31 = inMaxRandRot
+state v32 = shapeN
+state v33 = shapeGap
+state v34 = (sample_time + time)
+state v35 = v0
+state v36 = v1
+state v37 = v2
+state v38 = v3
+state v39 = v4
+state v40 = v5
+state v41 = v6
+state v42 = v7
+state v43 = v11
+state v44 = v9
+state v45 = v10
+state v46 = v11
+state v47 = vec4(0)
+state v48 = 0
+state v49 = v12
+state v50 = v13
+state v51 = v14
+state v52 = v15
+state v53 = v16
+state v54 = v17
+state v55 = v18
+repeat 9 times (((4. - v18) / 1) + 1) while less_equal(v55, 4.)
+let v57 = dot(mod((v49 + vec2(v55, 0)), v39), vec2(127.1, 311.7))
+let v58 = select(0, 0, fract((sin(v57) * 18.5453)))
+let v59 = 1
+let v60 = v58
+let v61 = ((v55 - v50) + (((-(3. - 1.)) / 2.) + (3. * v60)))
+let v62 = vec2(abs(v61), v60)
+let v63 = select(less(abs(v61), (v51).x), v62, v51)
+let v64 = vec2((v52).x, (v52).x)
+let v65 = vec2(v61, (v64).y)
+let v66 = vec2((v52).x, v61)
+let v67 = select(greater(v61, (v52).y), v66, v52)
+let v68 = select(greater(v61, (v52).x), v65, v67)
+let v69 = vec2((v53).x, (v53).x)
+let v70 = vec2(v61, (v69).y)
+let v71 = vec2((v53).x, v61)
+let v72 = select(less(v61, (v53).y), v71, v53)
+let v73 = select(less(v61, (v53).x), v70, v72)
+let v74 = select(less(v61, 0.), v68, v52)
+let v75 = select(less(v61, 0.), v53, v73)
+let v76 = (v55 + 1)
+update v51 = v63
+update v52 = v74
+update v53 = v75
+update v55 = v76
+end repeat
+let v82 = (vec2(((v52).x + (v52).y), ((v52).x + (v53).x)) / 2.)
+let v83 = (vec2(((v52).x + (v53).x), ((v53).x + (v53).y)) / 2.)
+let v84 = select(equal((-(v51).x), (v52).x), v82, v83)
+let v85 = (v84 + (v11).x)
+let v86 = vec4(v51, ((v85).y - (v85).x), (((v85).x + (v85).y) / 2.))
+let v87 = select(0, vec4(0), v86)
+let v88 = 1
+let v89 = v87
+let v90 = vec2(((v89).y * 1e4), select(equal(v4, vec2(0)), (v11).y, mod((v11).y, (v4).y)))
+let v91 = v90
+let v92 = vec2((((v11).x - (v89).w) * (v10).x), (fract((v11).y) - .5))
+let v93 = v92
+let v94 = hash33(vec3(v91, 2))
+let v95 = (v94).x
+let v96 = hash33(vec3(v91, 1))
+let v97 = (v96).x
+let v98 = (v1 + (v2 * ((-1.) + (2. * v97))))
+let v99 = vec4(sin((radians(v98) + (vec4(1, 0, 2, 1) * 1.5707))))
+let v100 = v99
+let v101 = vec2((v93).x*(v100).x+(v93).y*(v100).y, (v93).x*(v100).z+(v93).y*(v100).w)
+let v102 = vec2(((v10).x * (v89).z), (v10).y)
+let v103 = vec2((v102 - (2. * v3)))
+let v104 = (shapeN - 1.)
+let v105 = (v103 / shapeN)
+let v106 = ((v103 / shapeN) - shapeGap)
+let v107 = vec2(min((v106).x, (v106).y))
+let v108 = select(greater((shapeN).x, 1.0), v107, v106)
+let v109 = 1.
+let v110 = ((-(v104).y) / 2.)
+state v111 = vec3(0)
+state v112 = vec2(256)
+state v113 = uv
+state v114 = pos
+state v115 = normal
+state v116 = input.rgb
+state v117 = vec3(0)
+state v118 = select(aux_valid, aux3, extra3)
+state v119 = vec3(0)
+state v120 = VCELLST
+state v121 = RATIO
+state v122 = inGap
+state v123 = inMaxRandRot
+state v124 = shapeN
+state v125 = shapeGap
+state v126 = (sample_time + time)
+state v127 = v0
+state v128 = v1
+state v129 = v2
+state v130 = v3
+state v131 = v4
+state v132 = v5
+state v133 = v6
+state v134 = v7
+state v135 = v11
+state v136 = v9
+state v137 = v102
+state v138 = v89
+state v139 = v91
+state v140 = v101
+state v141 = v96
+state v142 = v95
+state v143 = v97
+state v144 = v98
+state v145 = v100
+state v146 = v103
+state v147 = v104
+state v148 = v105
+state v149 = v108
+state v150 = v109
+state v151 = v110
+repeat 64 times (((((v104).y / 2.) - v110) / 1) + 1) while less_equal(v151, ((v147).y / 2.))
+let v153 = ((-(v147).x) / 2.)
+state v154 = v111
+state v155 = v112
+state v156 = v113
+state v157 = v114
+state v158 = v115
+state v159 = v116
+state v160 = v117
+state v161 = v118
+state v162 = v119
+state v163 = v120
+state v164 = v121
+state v165 = v122
+state v166 = v123
+state v167 = v124
+state v168 = v125
+state v169 = v126
+state v170 = v127
+state v171 = v128
+state v172 = v129
+state v173 = v130
+state v174 = v131
+state v175 = v132
+state v176 = v133
+state v177 = v134
+state v178 = v135
+state v179 = v136
+state v180 = v137
+state v181 = v138
+state v182 = v139
+state v183 = v140
+state v184 = v141
+state v185 = v142
+state v186 = v143
+state v187 = v144
+state v188 = v145
+state v189 = v146
+state v190 = v147
+state v191 = v148
+state v192 = v149
+state v193 = v150
+state v194 = v151
+state v195 = v153
+repeat 64 times (((((v147).x / 2.) - v153) / 1) + 1) while less_equal(v195, ((v190).x / 2.))
+let v197 = (v193 + 1)
+let v198 = hash33(vec3((vec3(v185, (.9 / v193), 0) * 4294967295.0)))
+let v199 = v198
+let v200 = (v199).x
+let v201 = (sample_context((v183 + (vec2(v195, v194) * v191)), v157, v158, v169, vec3(v192, v200), vec3(v176, 0, 0), v161)).rgb
+let v202 = (v177 + v201)
+let v203 = (v195 + 1)
+let v204 = (v197 + 1)
+update v177 = v202
+update v193 = v204
+update v195 = v203
+end repeat
+let v209 = (v151 + 1)
+update v134 = v177
+update v150 = v193
+update v151 = v209
+end repeat
+let v214 = select(equal(v5, 0), v134, v7)
+let v215 = select(equal(v5, 0), v102, v10)
+let v216 = vec3(v95, (v214).y, (v214).z)
+let v217 = vec3((v216).x, (v216).y, (v98 + (90. * v6)))
+let v218 = v217
+image = vec4(v218, input.a)

@@ -110,7 +110,7 @@ impl TheWidget for TheToolListBar {
                 size: 11.5,
                 ..Default::default()
             },
-            &WHITE,
+            style.theme().color(SectionbarNormalTextColor),
             TheHorizontalAlign::Center,
             TheVerticalAlign::Center,
         );

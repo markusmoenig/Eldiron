@@ -1,0 +1,44 @@
+{
+  "label": "Bronze / Red",
+  "bindings": {
+    "rim-colors": {
+      "color0": 18,
+      "color1": 20,
+      "color2": 24,
+      "color3": 22
+    },
+    "boss-colors": {
+      "color0": 18,
+      "color1": 20,
+      "color2": 24,
+      "color3": 22
+    },
+    "face-colors": {
+      "color0": 17,
+      "color1": 18,
+      "color2": 27,
+      "color3": 26
+    },
+    "outer-outline": {
+      "color": 16
+    },
+    "face-outline": {
+      "color": 16
+    },
+    "emblem-outline": {
+      "color": 16
+    },
+    "boss-outline": {
+      "color": 16
+    },
+    "rivet-outline": {
+      "color": 16
+    },
+    "emblem-color": {
+      "color": 22
+    },
+    "rivet-color": {
+      "color": 22
+    }
+  }
+}

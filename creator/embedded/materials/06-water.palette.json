@@ -1,0 +1,12 @@
+{
+  "@surface": {
+    "base color": 40,
+    "emission": 1
+  },
+  "water-colors": {
+    "color0": 39,
+    "color1": 40,
+    "color2": 41,
+    "color3": 42
+  }
+}

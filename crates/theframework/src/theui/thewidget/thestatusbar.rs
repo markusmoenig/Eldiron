@@ -100,7 +100,7 @@ impl TheWidget for TheStatusbar {
                 size: 13.5,
                 ..Default::default()
             },
-            &WHITE,
+            style.theme().color(SectionbarNormalTextColor),
             TheHorizontalAlign::Left,
             TheVerticalAlign::Center,
         );

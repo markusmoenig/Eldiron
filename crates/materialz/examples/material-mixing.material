@@ -1,0 +1,28 @@
+project 1
+result from material "mix"
+material "mix" called "Mixed Materials"
+  mix "Mask"
+  stack slot 2
+  mixing input 1 from material "copper"
+  mixing input 2 from material "paint"
+  mixing mask-material "copper"
+  mixing mask from row "mask" xyz
+material "copper" called "Copper"
+  row "mask" called "Layer Mask"
+    use "Perlin Noise"
+  default base color to 0.8 0.3 0.1
+  default metallic to 1
+  default roughness to 0.24
+  default height to 0.02
+  default coat to 0.2
+material "paint" called "Blue Paint"
+  default base color to 0.02 0.16 0.6
+  default roughness to 0.65
+  default height to 0.04
+  default subsurface to 0.15
+
+material "stack-base" called "Material Stack · 1"
+  mix "Mask"
+  stack slot 1
+  mixing input 1 from material "copper"
+  mixing input 2 from material "copper"

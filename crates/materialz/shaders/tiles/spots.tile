@@ -1,0 +1,220 @@
+tile 1
+name "Spots"
+category "Noise"
+description "Creates random spots of configurable styles and sizes."
+group "Spot Noise" true
+param float VCELLST "Cells" default 20 range 1 40
+tooltip "The vertical amount of cells."
+param float RATIO "Ratio" default 1.0 range 0.01 100
+tooltip "Tile length / width ratio."
+param float SHAPE "Profile" default 1 range 0 3
+choices "Blob" "Gaussian" "Hemisphere" "Antisphere"
+param float BLEND "Blend" default 0 range 0 1
+choices "Addition" "Maximum"
+group "Spots" false
+param float RADIUSA "Radius" default 1.0 range 0.01 3
+tooltip "Radius of the spots."
+param float RADIUS_D "Size Distribution" default 0.0 range 0.0 2
+tooltip "Size distribution of the spots."
+param float NB "Dots per Cell" default 1 range 1 3
+tooltip "Amount of dots per cell."
+group "About" true
+
+let v0 = 0
+let v1 = 1
+let v2 = 2
+let v3 = 3
+let v4 = 0
+let v5 = 1
+let v6 = 0.
+let v7 = VCELLST
+let v8 = .0
+let v9 = 1
+let v10 = vec2(round((v7 / RATIO)), v7)
+let v11 = (uv + vec2(0.5))
+let v12 = 0.
+let v13 = (v11 * (v7 / vec2(RATIO, 1)))
+let v14 = v13
+let v15 = 1.
+let v16 = 0.
+let v17 = 0
+let v18 = 0
+state v19 = vec3(0)
+state v20 = vec2(256)
+state v21 = uv
+state v22 = pos
+state v23 = normal
+state v24 = input.rgb
+state v25 = vec3(0)
+state v26 = vec3(0)
+state v27 = vec3(0)
+state v28 = VCELLST
+state v29 = RATIO
+state v30 = SHAPE
+state v31 = BLEND
+state v32 = RADIUSA
+state v33 = RADIUS_D
+state v34 = NB
+state v35 = v0
+state v36 = v1
+state v37 = v2
+state v38 = v3
+state v39 = v4
+state v40 = v5
+state v41 = v6
+state v42 = v7
+state v43 = v8
+state v44 = v9
+state v45 = v10
+state v46 = v13
+state v47 = v12
+state v48 = v14
+state v49 = v15
+state v50 = v16
+state v51 = v17
+state v52 = v18
+repeat 1 times ((v9 - v18) / 1) while less(v52, v44)
+let v54 = v46
+let v55 = floor(v54)
+let v56 = 0.
+let v57 = 0
+state v58 = v19
+state v59 = v20
+state v60 = v21
+state v61 = v22
+state v62 = v23
+state v63 = v24
+state v64 = v25
+state v65 = v26
+state v66 = v27
+state v67 = v28
+state v68 = v29
+state v69 = v30
+state v70 = v31
+state v71 = v32
+state v72 = v33
+state v73 = v34
+state v74 = v35
+state v75 = v36
+state v76 = v37
+state v77 = v38
+state v78 = v39
+state v79 = v40
+state v80 = v41
+state v81 = v42
+state v82 = v43
+state v83 = v44
+state v84 = v45
+state v85 = v46
+state v86 = v47
+state v87 = v48
+state v88 = v49
+state v89 = v50
+state v90 = v56
+state v91 = v52
+state v92 = v54
+state v93 = v55
+state v94 = v57
+repeat 9 times ((9 - v57) / 1) while less(v94, 9)
+let v96 = (v93 + vec2((mod(v94, 3) - 1), ((v94 / 3) - 1)))
+let v97 = 0
+state v98 = v58
+state v99 = v59
+state v100 = v60
+state v101 = v61
+state v102 = v62
+state v103 = v63
+state v104 = v64
+state v105 = v65
+state v106 = v66
+state v107 = v67
+state v108 = v68
+state v109 = v69
+state v110 = v70
+state v111 = v71
+state v112 = v72
+state v113 = v73
+state v114 = v74
+state v115 = v75
+state v116 = v76
+state v117 = v77
+state v118 = v78
+state v119 = v79
+state v120 = v80
+state v121 = v81
+state v122 = v82
+state v123 = v83
+state v124 = v84
+state v125 = v85
+state v126 = v86
+state v127 = v87
+state v128 = v88
+state v129 = v89
+state v130 = v90
+state v131 = v91
+state v132 = v92
+state v133 = v93
+state v134 = v94
+state v135 = v96
+state v136 = v97
+repeat 4 times ((v73 - v97) / 1) while less(v136, v113)
+let v138 = vec3(select(equal(v124, vec2(0)), v135, mod(v135, v124)), v136)
+let v139 = select(0, vec3(0), hash33(vec3(vec3(floor(v138)))))
+let v140 = 1
+let v141 = v139
+let v142 = ((-v120) + ((1. + (2. * v120)) * (v141).xy))
+let v143 = ((v135 - v132) + v142)
+let v144 = (length(v143) / (v111 + (v112 * ((2. * (v141).z) - 1.))))
+let v145 = v144
+let v146 = (.5 + (v122 * ((2. * (v141).z) - 1.)))
+let v147 = select(0, 0, smoothstep(1., 0., v145))
+let v148 = 1
+let v149 = select(0, 0, exp(((((-.5) * v145) * v145) * 6.)))
+let v150 = 1
+let v151 = (v145 * 1.5)
+let v152 = select(0, 0, sqrt(max(0., (1. - (v151 * v151)))))
+let v153 = 1
+let v154 = max(0., (1. - v145))
+let v155 = select(0, 0, (1. - sqrt((1. - (v154 * v154)))))
+let v156 = 1
+let v157 = select(equal(v109, 3), v154, v145)
+let v158 = select(equal(v109, 3), v155, 0)
+let v159 = select(equal(v109, 3), v156, 0)
+let v160 = select(equal(v109, 2), v151, v157)
+let v161 = select(equal(v109, 2), v152, v158)
+let v162 = select(equal(v109, 2), v153, v159)
+let v163 = select(equal(v109, 1), v145, v160)
+let v164 = select(equal(v109, 1), v149, v161)
+let v165 = select(equal(v109, 1), v150, v162)
+let v166 = select(equal(v109, 0), v145, v163)
+let v167 = select(equal(v109, 0), v147, v164)
+let v168 = select(equal(v109, 0), v148, v165)
+let v169 = (v146 * v167)
+let v170 = (v130 + v169)
+let v171 = max(v130, v169)
+let v172 = select(equal(v110, 0), v170, v171)
+let v173 = (v136 + 1)
+update v130 = v172
+update v136 = v173
+end repeat
+let v177 = (v94 + 1)
+update v90 = v130
+update v94 = v177
+end repeat
+let v181 = (v47 + (v49 * v90))
+let v182 = (v46 * 2.)
+let v183 = (v50 + v49)
+let v184 = (v49 / 2.)
+let v185 = (v52 + 1)
+update v46 = v182
+update v47 = v181
+update v49 = v184
+update v50 = v183
+update v51 = v90
+update v52 = v185
+end repeat
+let v193 = (v47 / v50)
+let v194 = (v193 * 2.)
+let v195 = select(equal(BLEND, 1), v194, v193)
+let v196 = vec3(v195)
+image = vec4(v196, input.a)

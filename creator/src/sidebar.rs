@@ -40,7 +40,7 @@ pub struct Sidebar {
 
 #[allow(clippy::new_without_default)]
 impl Sidebar {
-    const NAVIGATION_PAGE_COUNT: usize = 6;
+    const NAVIGATION_PAGE_COUNT: usize = 7;
     const ACTION_PARAMS_EDITOR: &'static str = "Action Params TOML";
     const PROJECT_ACTION_PARAMS_EDITOR: &'static str = "Project Action Params TOML";
 
@@ -66,7 +66,7 @@ impl Sidebar {
     }
 
     fn navigation_page_status(status: String, index: usize) -> String {
-        if index == 2 {
+        if index == 2 || index == crate::procedural_material::SIDEBAR_PAGE {
             return status;
         }
         let shortcut_index = if index > 2 { index - 1 } else { index };
@@ -85,7 +85,7 @@ impl Sidebar {
         }
     }
 
-    fn set_navigation_page(index: usize, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
+    pub(crate) fn set_navigation_page(index: usize, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         if index >= Self::NAVIGATION_PAGE_COUNT {
             return false;
         }
@@ -101,7 +101,14 @@ impl Sidebar {
             tabs.set_index(index as i32);
         }
 
+        if let Some(stack) = ui.get_stack_layout(crate::procedural_material::PREVIEW_STACK) {
+            let preview = usize::from(index == crate::procedural_material::SIDEBAR_PAGE);
+            changed |= stack.index() != preview;
+            stack.set_index(preview);
+        }
         if changed {
+            ctx.ui.clear_focus();
+            ctx.ui.keyboard_focus = None;
             ctx.ui.relayout = true;
             ctx.ui.redraw_all = true;
         }
@@ -191,6 +198,7 @@ impl Sidebar {
         ctx: &mut TheContext,
         server_ctx: &mut ServerContext,
     ) {
+        crate::procedural_material::register_preview_icons(ctx, ui.style.theme().as_ref());
         // Tree View
 
         let mut canvas: TheCanvas = TheCanvas::new();
@@ -531,6 +539,7 @@ impl Sidebar {
         sidebar_pages.add_canvas(self.console.setup(ctx));
         sidebar_pages.add_canvas(self.debug.setup(ctx));
         sidebar_pages.add_canvas(self.help.setup(ctx));
+        sidebar_pages.add_canvas(crate::procedural_material::material_canvas());
         sidebar_pages.set_index(0);
 
         let mut pages_canvas = TheCanvas::default();
@@ -544,7 +553,7 @@ impl Sidebar {
         // The map remains visible independently of the selected sidebar page.
         let mut sidebar_shared = TheSharedVLayout::new(TheId::named("Sidebar Map Shared"));
         sidebar_shared.add_canvas(pages_canvas);
-        sidebar_shared.add_canvas(minimap_canvas);
+        sidebar_shared.add_canvas(crate::procedural_material::minimap_canvas(minimap_canvas));
         sidebar_shared.set_mode(TheSharedVLayoutMode::Shared);
         sidebar_shared.set_shared_ratio(0.78);
         sidebar_shared.limiter_mut().set_max_width(self.width);
@@ -578,6 +587,11 @@ impl Sidebar {
             String::new(),
             Self::navigation_page_status(fl!("tooltip_sidebar_help"), 5),
             "question-mark".to_string(),
+        );
+        sidebar_tabs.add_text_status_icon(
+            String::new(),
+            "Procedural materials".into(),
+            "paint-bucket".into(),
         );
         sidebar_tabs.set_item_width(30);
 
@@ -5161,8 +5175,10 @@ mod tests {
         assert_eq!(Sidebar::next_navigation_page(2, false), 3);
         assert_eq!(Sidebar::next_navigation_page(3, false), 4);
         assert_eq!(Sidebar::next_navigation_page(4, false), 5);
-        assert_eq!(Sidebar::next_navigation_page(0, true), 5);
-        assert_eq!(Sidebar::next_navigation_page(5, false), 0);
+        assert_eq!(Sidebar::next_navigation_page(0, true), 6);
+        assert_eq!(Sidebar::next_navigation_page(5, false), 6);
+        assert_eq!(Sidebar::next_navigation_page(6, false), 0);
+        assert_eq!(Sidebar::next_navigation_page(6, true), 5);
         assert_eq!(Sidebar::next_navigation_page(5, true), 4);
         assert_eq!(Sidebar::next_navigation_page(4, true), 3);
         assert_eq!(Sidebar::next_navigation_page(3, true), 2);

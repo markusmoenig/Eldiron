@@ -1,0 +1,24 @@
+tile 1
+name "Height to Normal"
+category "Operator"
+description "Converts the input red-channel height to a tangent-space RGB normal map using symmetric UV derivatives. Strength is independent of texture resolution. Connect a grayscale height or select its channel on the input wire. Preserves incoming alpha and optional distance."
+execution image radius units
+group "Normal" true
+param float strength "Strength" default 1 range -4 4
+tooltip "Height-to-slope scale in UV units. Negative values invert the relief."
+param float radius "Radius" default 1 range 0.00001 8
+tooltip "Derivative radius in the selected units. Wider radii smooth fine detail."
+param float units "Units" default 0 range 0 1
+choices "Pixels" "UV"
+param bool flipY "Flip Y" default 0
+tooltip "Off produces OpenGL-style tangent normals; enable to invert the green channel."
+
+let stepSize = max(select(equal(units, 0), aa, 1), 0.000001) * clamp(radius, select(equal(units, 0), 0.5, 0.00001), 8)
+let left = (sample_image(uv - vec2(stepSize, 0))).r
+let right = (sample_image(uv + vec2(stepSize, 0))).r
+let bottom = (sample_image(uv - vec2(0, stepSize))).r
+let top = (sample_image(uv + vec2(0, stepSize))).r
+let dx = strength * (right - left) / (2 * stepSize)
+let dy = strength * (top - bottom) / (2 * stepSize)
+let n = normalize(vec3(-dx, select(flipY, dy, -dy), 1))
+image = vec4(n * 0.5 + 0.5, input.a)

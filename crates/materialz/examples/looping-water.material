@@ -1,0 +1,35 @@
+# Opaque blue/teal water with smoothly looping directional ripples.
+project 1
+result from material "surface"
+material "surface" called "Water"
+  mode pbr
+  tiling raw
+  animation 16 2
+  default base color to 0.018 0.16 0.24
+  default roughness to 0.15
+  default metallic to 0
+  default opacity to 1
+  default emission to 0 0 0
+  row "ripples" called "Water Ripples"
+    use "Perlin Noise" id "water-ripples"
+      set "globalScale" to 0.9
+      set "localScale" to 3.5 0.8
+    use "fBm" id "water-detail"
+      set "layers" to 2
+      set "gain" to 0.35
+    use "Loop Flow" id "water-flow"
+      set "velocity" to 0 0.35
+  row "color" called "Depth and Reflections"
+    use "Color Ramp" id "water-colors"
+      input from row "ripples" xxx
+      set "position0" to 0.25
+      set "color0" to 0.008 0.04 0.11 1
+      set "position1" to 0.44
+      set "color1" to 0.018 0.16 0.24 1
+      set "position2" to 0.56
+      set "color2" to 0.04 0.30 0.36 1
+      set "position3" to 0.7
+      set "color3" to 0.20 0.55 0.60 1
+      set "interpolation" to 0
+  output base color from row "color" xyz
+  output roughness from row "ripples" x mapped 0.12 to 0.24

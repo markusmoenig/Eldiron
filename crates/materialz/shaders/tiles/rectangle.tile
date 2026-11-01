@@ -1,0 +1,15 @@
+tile 1
+name "Rounded Rectangle"
+category "Shape"
+description "Rounded rectangle with a signed distance. Corner radius is clamped to the smaller half size."
+group "Rounded Rectangle" true
+param vec2 halfSize "Half Size" default 0.35 0.3 range 1e-6 1.0
+param float radius "Corner Radius" default 0.08 range 0.0 1.0
+param vec2 center "Center" default 0.0 0.0 range -1.0 1.0
+param float smoothness "Union Smoothness" default 0.05 range 1e-6 1.0
+group "About" true
+
+let half = max(halfSize, 0.000001)
+let r = clamp(radius, 0, min(half.x, half.y))
+let q = abs(uv - center) - half + r
+shape = length(max(q, 0)) + min(max(q.x, q.y), 0) - r

@@ -1926,8 +1926,7 @@ fn invalid_rules_drafts_survive_reopening_and_remain_recoverable() {
     // Removing only the root is an invalid draft, not permission to lose its children.
     dock.doc.nodes.retain(|n| n.id != root);
     dock.store(&mut project, true);
-    assert!(project.rules_source().is_err());
-    assert!(dock.rules_error.is_some());
+    assert!(project.rules.current.compile().is_err());
     let saved = project.rules.current.clone();
     dock.activate(&mut ui, &mut ctx, &project, &mut server);
     dock.store(&mut project, false);
@@ -2103,7 +2102,6 @@ fn rules_key_deletion_and_wire_changes_are_undoable() {
         .unwrap();
     dock.finish(&mut project);
     assert!(project.rules.current.compile().is_err());
-    assert!(dock.rules_error.is_some());
     dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
     assert_eq!(project.rules.current.compile().unwrap(), baseline);
     dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
@@ -2195,7 +2193,7 @@ fn particle_rules_branches_preview_edit_save_undo_and_restore() {
     assert!(dock.copy_branch(&mut project));
     assert!(dock.paste_branch(&mut ui, &mut ctx, &mut project));
     assert_ne!(dock.active_branch, Some(root));
-    assert!(dock.rules_error.is_some()); // Rename the copied preset to give it its own identity.
+    assert!(project.rules.current.compile().is_err()); // The copy needs its own identity.
     let copied_root = dock
         .doc
         .nodes

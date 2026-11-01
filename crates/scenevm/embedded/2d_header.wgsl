@@ -317,7 +317,17 @@ fn sv_min_edge_distance_px(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>, c: vec2<f32
   return min(e0, min(e1, e2));
 }
 
-fn sv_tile_frame(tile_index: u32) -> TileFrame {
+fn sv_tile_uv(tile_index: u32, uv: vec2<f32>) -> vec2<f32> {
+  let anim = tile_anims.data[min(tile_index,arrayLength(&tile_anims.data)-1u)];
+  if (anim._pad.x > 0u) {
+    let period = tile_frames.data[anim._pad.x].scale;
+    if (all(period > vec2<f32>(0.0))) { return uv / period; }
+    return uv / f32(max(anim._pad.y,1u));
+  }
+  return uv;
+}
+
+fn sv_tile_frame(tile_index: u32, uv: vec2<f32>) -> TileFrame {
   let meta_len = arrayLength(&tile_anims.data);
   if (meta_len == 0u) {
     return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
@@ -329,7 +339,16 @@ fn sv_tile_frame(tile_index: u32) -> TileFrame {
   if (frames_len == 0u) {
     return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
   }
-  let frame_offset = anim.first_frame + (U.anim_counter % count);
+  var offset = U.anim_counter % count;
+  if (anim._pad.x > 0u) {
+    let domain = tile_frames.data[anim._pad.x - 1u];
+    let cell = clamp(vec2<i32>(floor(uv / f32(max(anim._pad.y,1u))) - domain.ofs), vec2<i32>(0), vec2<i32>(domain.scale) - vec2<i32>(1));
+    offset = u32(cell.y) * u32(domain.scale.x) + u32(cell.x);
+    let playback = tile_frames.data[anim._pad.x];
+    let phase = U.anim_counter % max(u32(playback.ofs.x), 1u);
+    offset += phase * u32(domain.scale.x * domain.scale.y);
+  }
+  let frame_offset = anim.first_frame + offset;
   let frame_idx = min(frame_offset, frames_len - 1u);
   return tile_frames.data[frame_idx];
 }
@@ -339,8 +358,8 @@ fn sv_tri_atlas_uv_for_tile(i0: u32, i1: u32, i2: u32, w: vec3<f32>, tile_index:
   let uv1 = verts.data[i1].uv;
   let uv2 = verts.data[i2].uv;
   let uv_obj = uv0 * w.x + uv1 * w.y + uv2 * w.z;
-  let frame = sv_tile_frame(tile_index);
-  let uv_wrapped = fract(uv_obj);
+  let frame = sv_tile_frame(tile_index, uv_obj);
+  let uv_wrapped = fract(sv_tile_uv(tile_index,uv_obj));
   return frame.ofs + uv_wrapped * frame.scale;
 }
 

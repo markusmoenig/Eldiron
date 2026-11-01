@@ -1,0 +1,35 @@
+tile 1
+name "Wood (3D Pattern)"
+category "3D Pattern"
+description "Generates a wood ring pattern. Requires a 3D input noise."
+group "Wood Pattern" true
+param float globalScale "Global Scale" default 1.0 range 0.0 10
+param vec3 localScale "Local Scale" default 1.0 1.0 1.0 range -1000 1000
+param color color1 "Wood Color" default 0.78 0.549 0.235 1.0
+param color color2 "Ring Color" default 0.38 0.212 0.059 1.0
+group "About" true
+group "Sampling" true
+param float slice "Z Slice" default 0 range -1000 1000
+param float time "Time Offset" default 0
+param vec3 extra2 "Input 2" default 0 0 0
+param vec3 extra3 "Input 3" default 0 0 0
+
+let v0 = ((((pos + vec3(0, 0, slice)) / globalScale) * 1.) / localScale)
+let v1 = ((v0 * 1.) / 40.)
+let v2 = (sample_context(uv, (v1 * vec3(8.0, 1.5, 8.0)), normal, (sample_time + time), input.rgb, select(aux_valid, aux2, extra2), select(aux_valid, aux3, extra3))).rgb
+let v3 = (v2).x
+let v4 = (v1 * vec3((((-v1) * vec3(8.0, 1.5, 8.0)) + 4.5678)))
+let v5 = (sample_context(uv, v4, normal, (sample_time + time), input.rgb, select(aux_valid, aux2, extra2), select(aux_valid, aux3, extra3))).rgb
+let v6 = (v5).x
+let v7 = length(((v1).xz + (vec2(v3, (v6 * 0.05)) * 64.0)))
+let v8 = (pow(((sin(v7) * 0.5) + 0.5), 8.0) + (cos(v7) * 0.7))
+let v9 = (v8 + 0.7)
+let v10 = (v9 / 1.8)
+let v11 = mix(color1.rgb, color2.rgb, v10)
+let v12 = max(vec3(0.0), v11)
+let v13 = (sample_context(uv, ((v1 * 64.0) * vec3(1.0, 0.2, 1.0)), normal, (sample_time + time), input.rgb, select(aux_valid, aux2, extra2), select(aux_valid, aux3, extra3))).rgb
+let v14 = (v13).x
+let v15 = ((v14 * 0.1) + 0.9)
+let v16 = (v12 * v15)
+let v17 = clamp(v16, 0., 1.)
+image = vec4(v17, input.a)

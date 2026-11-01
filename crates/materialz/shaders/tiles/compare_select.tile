@@ -1,0 +1,32 @@
+tile 1
+name "Compare/Select"
+category "Mixer"
+description "Compares each input channel with a reference. Returns a mask or selects between two values using that mask. Supports strict and inclusive comparisons, equality tolerance and soft transitions. Preserves incoming alpha and optional distance."
+group "Compare" true
+param float comparison "Comparison" default 0 range 0 5
+choices "Greater" "Less" "Greater or Equal" "Less or Equal" "Equal" "Not Equal"
+param vec3 reference "Reference" default 0.5 0.5 0.5 range -10 10
+param float softness "Softness" default 0 range 0 1
+tooltip "Half-width of the transition around the reference. Zero uses the exact comparison, including its behavior at equality."
+param float tolerance "Tolerance" default 0 range 0 1
+tooltip "Equal and Not Equal compare absolute difference with this tolerance. Softness adds a falloff outside the tolerance band."
+group "Output" true
+param float output "Output" default 0 range 0 1
+choices "Mask" "Select"
+param vec3 falseValue "False" default 0 0 0 range -10 10
+param vec3 trueValue "True" default 1 1 1 range -10 10
+
+let delta = input.rgb - reference
+let s = max(softness, 0)
+let toleranceWidth = max(tolerance, 0)
+let greaterHard = 1 - step(input.rgb, reference)
+let lessHard = 1 - step(reference, input.rgb)
+let greaterEqual = step(reference, input.rgb)
+let lessEqual = step(input.rgb, reference)
+let equalHard = step(abs(delta), vec3(toleranceWidth))
+let hard = select(equal(comparison, 0), greaterHard, select(equal(comparison, 1), lessHard, select(equal(comparison, 2), greaterEqual, select(equal(comparison, 3), lessEqual, select(equal(comparison, 4), equalHard, 1 - equalHard)))))
+let greaterSoft = smoothstep(-max(s, 0.000001), max(s, 0.000001), delta)
+let equalSoft = 1 - smoothstep(toleranceWidth, toleranceWidth + max(s, 0.000001), abs(delta))
+let soft = select(equal(comparison, 0), greaterSoft, select(equal(comparison, 1), 1 - greaterSoft, select(equal(comparison, 2), greaterSoft, select(equal(comparison, 3), 1 - greaterSoft, select(equal(comparison, 4), equalSoft, 1 - equalSoft)))))
+let mask = select(greater(s, 0), soft, hard)
+image = vec4(select(equal(output, 0), mask, mix(falseValue, trueValue, mask)), input.a)

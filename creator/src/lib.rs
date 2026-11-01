@@ -19,8 +19,11 @@ pub mod hud;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod i18n;
 pub mod mapeditor;
+pub mod material_editor;
 pub mod minimap;
 pub mod misc;
+mod procedural_material;
+mod project_templates;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod scepter;
 #[cfg(all(
@@ -427,6 +430,28 @@ mod ffi {
             TheId::named("Save As"),
             TheWidgetState::Clicked,
         ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_set_creator_theme(index: u32) {
+        let name = match index {
+            1 => "Theme Black",
+            2 => "Theme Light",
+            _ => "Theme Brown",
+        };
+        CTX.lock().unwrap().ui.send(TheEvent::StateChanged(
+            TheId::named(name),
+            TheWidgetState::Clicked,
+        ));
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn rust_get_creator_theme() -> u32 {
+        match crate::editor::CreatorTheme::load() {
+            crate::editor::CreatorTheme::Brown => 0,
+            crate::editor::CreatorTheme::Black => 1,
+            crate::editor::CreatorTheme::Light => 2,
+        }
     }
 
     #[unsafe(no_mangle)]

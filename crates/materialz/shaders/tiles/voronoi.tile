@@ -1,0 +1,144 @@
+tile 1
+name "Voronoi"
+category "Noise"
+description "Seeded 2D/3D cellular fields with Euclidean, Manhattan and Chebyshev metrics, plus exact Euclidean cell-border distance."
+output_channel x "Cell Value"
+output_channel y "Nearest Distance"
+output_channel z "Second Distance"
+default_channel y
+output_field cell "Cell Value" 0 x
+output_field nearest "Nearest Distance" 0 y
+output_field second "Second Distance" 0 z
+output_field border "Border Distance" 1 x
+output_field key "Cell Key" 2 xyz
+output_field site "Nearest Site" 3 xyz
+output_field local "Local Coordinates" 4 xyz
+group "Scale" true
+param float globalScale "Scale" default 1 range 0.001 10
+param vec2 localScale "Stretch XY" default 1 1 range 0.001 1000
+group "Coordinates" false
+param float dimensions "Dimensions" default 0 range 0 1
+choices "2D" "3D"
+param float slice "Z Slice" default 0 range -1000 1000
+param float depthScale "Stretch Z" default 1 range 0.001 1000
+param float seed "Seed" default 0 range -10000 10000
+param float jitter "Jitter" default 1 range 0 1
+group "Field" true
+param float metric "Metric" default 0 range 0 2
+choices "Euclidean" "Manhattan" "Chebyshev"
+param float output "Output" default 0 range 0 4
+choices "Cell / F1 / F2" "Euclidean Border" "Cell Key" "Nearest Site" "Local Coordinates"
+state result = vec3(0)
+repeat 1 times less(dimensions, 0.5) while 1
+let point = uv / nonzero(globalScale) / nonzero(localScale) * 10
+let cell = floor(point)
+let local = fract(point)
+let selectedMetric = select(equal(output, 1), 0, metric)
+state nearest = 100
+state second = 100
+state value = 0
+state winning = vec2(0)
+state winningCell = vec2(0)
+let radius = 2
+state j = -radius
+repeat 5 times 2 * radius + 1 while 1
+state i = -radius
+repeat 5 times 2 * radius + 1 while 1
+let neighbor = vec2(i, j)
+let key = cell + neighbor
+let random = hash33(vec3(key, floor(seed)))
+let delta = neighbor - local + mix(vec2(0.5), random.xy, clamp(jitter, 0, 1))
+let distance = select(equal(selectedMetric, 0), length(delta), select(equal(selectedMetric, 1), dot(abs(delta), vec2(1)), max(abs(delta.x), abs(delta.y))))
+let closer = less(distance, nearest)
+update second = select(closer, nearest, min(second, distance))
+update value = select(closer, random.x, value)
+update winning = select(closer, delta, winning)
+update winningCell = select(closer, key, winningCell)
+update nearest = min(nearest, distance)
+update i = i + 1
+end repeat
+update j = j + 1
+end repeat
+update result = select(equal(output, 2), vec3(winningCell, 0), select(equal(output, 3), vec3((point + winning) * globalScale * localScale / 10, 0), select(equal(output, 4), vec3(-winning, 0), vec3(value, nearest, second))))
+repeat 1 times equal(output, 1) while 1
+state border = 100
+state jb = -3
+repeat 7 times 7 while 1
+state ib = -3
+repeat 7 times 7 while 1
+let neighbor = vec2(ib, jb)
+let key = cell + neighbor
+let random = hash33(vec3(key, floor(seed)))
+let delta = neighbor - local + mix(vec2(0.5), random.xy, clamp(jitter, 0, 1))
+let between = delta - winning
+let separation = length(between)
+let plane = dot((winning + delta) * 0.5, between / max(separation, 0.000001))
+update border = min(border, select(greater(separation, 0.00001), max(plane, 0), 100))
+update ib = ib + 1
+end repeat
+update jb = jb + 1
+end repeat
+update result = vec3(border)
+end repeat
+end repeat
+repeat 1 times greater_equal(dimensions, 0.5) while 1
+let point = (pos + vec3(0, 0, slice)) / nonzero(globalScale) / nonzero(vec3(localScale, depthScale)) * 10
+let cell = floor(point)
+let local = fract(point)
+let selectedMetric = select(equal(output, 1), 0, metric)
+state nearest = 100
+state second = 100
+state value = 0
+state winning = vec3(0)
+state winningCell = vec3(0)
+let radius = select(equal(selectedMetric, 1), 3, 2)
+state k = -radius
+repeat 7 times 2 * radius + 1 while 1
+state j = -radius
+repeat 7 times 2 * radius + 1 while 1
+state i = -radius
+repeat 7 times 2 * radius + 1 while 1
+let neighbor = vec3(i, j, k)
+let key = cell + neighbor
+let random = hash33(key + vec3(17, 59, 113) * floor(seed))
+let delta = neighbor - local + mix(vec3(0.5), random.xyz, clamp(jitter, 0, 1))
+let distance = select(equal(selectedMetric, 0), length(delta), select(equal(selectedMetric, 1), dot(abs(delta), vec3(1)), max(max(abs(delta.x), abs(delta.y)), abs(delta.z))))
+let closer = less(distance, nearest)
+update second = select(closer, nearest, min(second, distance))
+update value = select(closer, random.x, value)
+update winning = select(closer, delta, winning)
+update winningCell = select(closer, key, winningCell)
+update nearest = min(nearest, distance)
+update i = i + 1
+end repeat
+update j = j + 1
+end repeat
+update k = k + 1
+end repeat
+update result = select(equal(output, 2), winningCell, select(equal(output, 3), (point + winning) * globalScale * vec3(localScale, depthScale) / 10 - vec3(0, 0, slice), select(equal(output, 4), -winning, vec3(value, nearest, second))))
+repeat 1 times equal(output, 1) while 1
+state border = 100
+state kb = -4
+repeat 9 times 9 while 1
+state jb = -4
+repeat 9 times 9 while 1
+state ib = -4
+repeat 9 times 9 while 1
+let neighbor = vec3(ib, jb, kb)
+let key = cell + neighbor
+let random = hash33(key + vec3(17, 59, 113) * floor(seed))
+let delta = neighbor - local + mix(vec3(0.5), random.xyz, clamp(jitter, 0, 1))
+let between = delta - winning
+let separation = length(between)
+let plane = dot((winning + delta) * 0.5, between / max(separation, 0.000001))
+update border = min(border, select(greater(separation, 0.00001), max(plane, 0), 100))
+update ib = ib + 1
+end repeat
+update jb = jb + 1
+end repeat
+update kb = kb + 1
+end repeat
+update result = vec3(border)
+end repeat
+end repeat
+image = vec4(result, input.a)

@@ -1,0 +1,174 @@
+ M Cargo.toml
+ M docs/architecture.md
+ M docs/format.md
+ M docs/live.md
+ M docs/material-mixing.md
+ M docs/renderer.md
+ M docs/sdf.md
+ M docs/tile-language.md
+ M examples/bsdf-layers.material
+ M examples/height.material
+ M examples/icon.material
+ M examples/material-mixing.material
+ M examples/seamless.material
+ M examples/warped-disc.material
+ M examples/weave-primitives.material
+ M examples/wicker.material
+ M include/denrim_materials.h
+ M scripts/generate-library.py
+ M scripts/port-library.py
+ M shaders/PROVENANCE.md
+ M shaders/library.json
+ M shaders/metal/library.metal
+ M shaders/tiles/cell_data.tile
+ M shaders/tiles/color_blend.tile
+ M shaders/tiles/directional_grain.tile
+ D shaders/tiles/fbm_davestileablefbm.tile
+ D shaders/tiles/fbm_domainwarping2d.tile
+ D shaders/tiles/fbm_fabricetileablefbm.tile
+ D shaders/tiles/fbm_offset2d.tile
+ D shaders/tiles/fbm_offset3d.tile
+ D shaders/tiles/fbm_shanesterrain.tile
+ D shaders/tiles/fbm_turbulence2d.tile
+ D shaders/tiles/fbm_turbulence3d.tile
+ M shaders/tiles/height_to_normal.tile
+ D shaders/tiles/mixer_add.tile
+ D shaders/tiles/mixer_average.tile
+ M shaders/tiles/mixer_divide.tile
+ D shaders/tiles/mixer_maskedcolorblend.tile
+ D shaders/tiles/mixer_max.tile
+ D shaders/tiles/mixer_min.tile
+ D shaders/tiles/mixer_mix.tile
+ D shaders/tiles/mixer_multiply.tile
+ D shaders/tiles/mixer_normalmix.tile
+ D shaders/tiles/mixer_rotate2d.tile
+ D shaders/tiles/mixer_smoothmix.tile
+ D shaders/tiles/mixer_subtract.tile
+ D shaders/tiles/noise_adrianvalue2d.tile
+ D shaders/tiles/noise_adrianvalue3d.tile
+ D shaders/tiles/noise_ashimasperlin2d.tile
+ D shaders/tiles/noise_brianscellular2d.tile
+ D shaders/tiles/noise_briansperlin3d.tile
+ D shaders/tiles/noise_brianssimplex2d.tile
+ D shaders/tiles/noise_brianssimplex3d.tile
+ D shaders/tiles/noise_briansvalue2d.tile
+ D shaders/tiles/noise_briansvalue3d.tile
+ D shaders/tiles/noise_davestileablenoise2d.tile
+ D shaders/tiles/noise_fabricetileableperlin.tile
+ D shaders/tiles/noise_gabor.tile
+ D shaders/tiles/noise_gradient2d.tile
+ D shaders/tiles/noise_gradient3d.tile
+ D shaders/tiles/noise_hashnoise.tile
+ D shaders/tiles/noise_iqvalue2d.tile
+ D shaders/tiles/noise_iqvalue3d.tile
+ D shaders/tiles/noise_iqvoronoi.tile
+ D shaders/tiles/noise_iqvoronoi2d.tile
+ D shaders/tiles/noise_noisehash22d.tile
+ D shaders/tiles/noise_noisehash2d.tile
+ D shaders/tiles/noise_spotnoise.tile
+ D shaders/tiles/noise_wavenoise.tile
+ M shaders/tiles/op_add.tile
+ D shaders/tiles/op_gradient.tile
+ D shaders/tiles/op_mask.tile
+ M shaders/tiles/op_max.tile
+ M shaders/tiles/op_min.tile
+ D shaders/tiles/op_normalize.tile
+ D shaders/tiles/op_powinput.tile
+ M shaders/tiles/op_powproperty.tile
+ D shaders/tiles/op_rotate2d.tile
+ D shaders/tiles/op_split.tile
+ D shaders/tiles/op_step.tile
+ M shaders/tiles/op_subtract.tile
+ D shaders/tiles/pattern_basketweave_shape.tile
+ D shaders/tiles/pattern_checker_shape.tile
+ D shaders/tiles/pattern_color.tile
+ D shaders/tiles/pattern_frabricesmandist.tile
+ M shaders/tiles/perlin.tile
+ M shaders/tiles/shape2d_polygon.tile
+ M shaders/tiles/sys_normal.tile
+ D shaders/tiles/sys_param.tile
+ M shaders/tiles/sys_position.tile
+ D shaders/tiles/sys_texcoord.tile
+ D shaders/tiles/sys_utilitynode.tile
+ D shaders/tiles/sys_utilitynode_aa.tile
+ M shaders/tiles/trans_directional_blur.tile
+ D shaders/tiles/trans_displace.tile
+ D shaders/tiles/trans_tiler.tile
+ M src/cpu.rs
+ M src/ffi.rs
+ M src/format.rs
+ M src/ir.rs
+ M src/lib.rs
+ M src/library.rs
+ M src/live.rs
+ M src/material_mix.rs
+ M src/metadata.rs
+ M src/metal.rs
+ M src/periodic.rs
+ M src/tilelang.rs
+ M tests/core.rs
+ M tests/disconnected.rs
+ M tests/library.rs
+ M tests/live.rs
+ M tests/material_defaults.rs
+ M tests/material_mixing.rs
+ M tests/sdf.rs
+ M tests/seamless.rs
+ M tests/tile_language.rs
+ M tests/tileability.rs
+ M tests/wicker.rs
+?? docs/eldiron-concept.md
+?? docs/eldiron-integration.md
+?? examples/basketweave.material
+?? examples/cell-fields.material
+?? examples/circular-paving.material
+?? examples/eldiron_wgpu.rs
+?? examples/filtered-basketweave.material
+?? examples/fractured-rock.material
+?? examples/irregular-paving.material
+?? examples/noise-study.material
+?? examples/running-bond.material
+?? examples/scatter-rocks.material
+?? schema/tile-audit.json
+?? schema/tile-help.json
+?? shaders/metal/cache.metal
+?? shaders/original/materialz_core.txt
+?? shaders/tiles/color_ramp.tile
+?? shaders/tiles/compose_channels.tile
+?? shaders/tiles/coordinates.tile
+?? shaders/tiles/curve.tile
+?? shaders/tiles/distance_profile.tile
+?? shaders/tiles/fbm.tile
+?? shaders/tiles/gabor.tile
+?? shaders/tiles/grid.tile
+?? shaders/tiles/height_gradient.tile
+?? shaders/tiles/levels.tile
+?? shaders/tiles/normal_combine.tile
+?? shaders/tiles/organic_fbm.tile
+?? shaders/tiles/organic_noise.tile
+?? shaders/tiles/partition.tile
+?? shaders/tiles/scatter.tile
+?? shaders/tiles/simplex.tile
+?? shaders/tiles/spots.tile
+?? shaders/tiles/vector_filter.tile
+?? shaders/tiles/vector_math.tile
+?? shaders/tiles/voronoi.tile
+?? shaders/tiles/warp.tile
+?? shaders/tiles/wave_noise.tile
+?? shaders/tiles/white_noise.tile
+?? src/execution.rs
+?? src/fields.rs
+?? src/gpu.rs
+?? src/integration.rs
+?? src/scope.rs
+?? src/wgsl.rs
+?? tests/execution.rs
+?? tests/fixtures/organic-fbm-reference.tile
+?? tests/fixtures/organic-noise-reference.tile
+?? tests/grid_core.rs
+?? tests/help_identity.rs
+?? tests/integration.rs
+?? tests/noise_core.rs
+?? tests/rock_core.rs
+?? tests/wgpu.rs
+?? tests/wgpu_runtime.rs

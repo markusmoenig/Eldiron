@@ -733,6 +733,9 @@ impl ClientDrawDebugTiming {
 }
 
 pub struct Client {
+    /// Creator chrome only; runtime render settings remain project-owned.
+    pub editor_canvas_colors: Option<[RGBA; 3]>,
+    pub use_editor_canvas: bool,
     pub curr_map_id: Uuid,
 
     pub builder_d2: D2PreviewBuilder,
@@ -1447,6 +1450,8 @@ impl Client {
 
     pub fn new() -> Self {
         Self {
+            editor_canvas_colors: None,
+            use_editor_canvas: false,
             curr_map_id: Uuid::default(),
 
             builder_d2: D2PreviewBuilder::new(),
@@ -1945,6 +1950,31 @@ impl Client {
                 -map.offset.y,
             )));
             scene_handler.vm.execute(scenevm::Atom::SetGP2(Vec4::one()));
+            // Overlay compute output is display-space, unlike the base raster clear.
+            let color = |c: RGBA| {
+                Vec4::new(
+                    c[0] as f32 / 255.,
+                    c[1] as f32 / 255.,
+                    c[2] as f32 / 255.,
+                    1.,
+                )
+            };
+            if let Some(colors) = self.editor_canvas_colors.filter(|_| self.use_editor_canvas) {
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP5(color(colors[0])));
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP6(color(colors[1])));
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP7(color(colors[2])));
+            } else {
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP5(Vec4::zero()));
+            }
+
             scene_handler
                 .vm
                 .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute2D));
@@ -2067,6 +2097,37 @@ impl Client {
         scene_handler.settings.apply_hour(hour);
         scene_handler.settings.apply_2d(&mut scene_handler.vm);
         scene_handler.apply_runtime_render_state_2d();
+        let colors = self.editor_canvas_colors.filter(|_| self.use_editor_canvas);
+        let rgba = |c: RGBA| {
+            // Raster clears pass through gamma encoding; custom compute output
+            // already writes display-space pixels, just like the overlay layer.
+            let component = |v: u8| {
+                let value = v as f32 / 255.;
+                if matches!(scenevm_mode_2d, scenevm::RenderMode::Compute2D) {
+                    value
+                } else {
+                    value.powf(2.2)
+                }
+            };
+            Vec4::new(component(c[0]), component(c[1]), component(c[2]), 1.)
+        };
+        if let Some([background, grid, subgrid]) = colors {
+            scene_handler
+                .vm
+                .execute(scenevm::Atom::SetBackground(rgba(background)));
+            scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGP5(rgba(background)));
+            scene_handler.vm.execute(scenevm::Atom::SetGP6(rgba(grid)));
+            scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGP7(rgba(subgrid)));
+        } else {
+            scene_handler
+                .vm
+                .execute(scenevm::Atom::SetGP5(Vec4::zero()));
+        }
+
         if matches!(scenevm_mode_2d, scenevm::RenderMode::Compute2D) {
             scene_handler.vm.execute(scenevm::Atom::SetGP0(Vec4::new(
                 rendered_grid_size,
@@ -2097,6 +2158,31 @@ impl Client {
                 -map.offset.y,
             )));
             scene_handler.vm.execute(scenevm::Atom::SetGP2(Vec4::one()));
+            // Overlay compute output is display-space, unlike the base raster clear.
+            let color = |c: RGBA| {
+                Vec4::new(
+                    c[0] as f32 / 255.,
+                    c[1] as f32 / 255.,
+                    c[2] as f32 / 255.,
+                    1.,
+                )
+            };
+            if let Some(colors) = self.editor_canvas_colors.filter(|_| self.use_editor_canvas) {
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP5(color(colors[0])));
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP6(color(colors[1])));
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP7(color(colors[2])));
+            } else {
+                scene_handler
+                    .vm
+                    .execute(scenevm::Atom::SetGP5(Vec4::zero()));
+            }
+
             scene_handler
                 .vm
                 .execute(scenevm::Atom::SetRenderMode(scenevm::RenderMode::Compute2D));
@@ -2243,9 +2329,19 @@ impl Client {
         scene_handler.settings.apply_3d(&mut scene_handler.vm);
         scene_handler.apply_runtime_render_state_3d();
         if editor_neutral_background {
-            scene_handler
-                .vm
-                .execute(scenevm::Atom::SetGP0(Vec4::new(0.018, 0.018, 0.020, 0.0)));
+            scene_handler.vm.execute(scenevm::Atom::SetGP0({
+                let rgb = self
+                    .editor_canvas_colors
+                    .filter(|_| self.use_editor_canvas)
+                    .map(|colors| {
+                        std::array::from_fn(|i| {
+                            let display = (colors[0][i] as f32 / 255.).powf(2.2);
+                            display / (1. - display).max(0.001)
+                        })
+                    })
+                    .unwrap_or([0.018, 0.018, 0.020]);
+                Vec4::new(rgb[0], rgb[1], rgb[2], 0.)
+            }));
         }
 
         scene_handler
@@ -4500,7 +4596,7 @@ impl Client {
                 && let Some(Value::Source(source)) = item.attributes.get("source")
                 && let Some(tile) = source.tile_from_tile_list(assets)
             {
-                let index = self.animation_frame % tile.textures.len();
+                let index = tile.frame_index(self.animation_frame);
                 let texture = &tile.textures[index];
                 let preview_size = 28usize;
                 let x = self.cursor_pos.x as usize;
@@ -12831,10 +12927,7 @@ impl Client {
         let Some(tile) = Self::resolve_tile_reference(assets, tile_ref) else {
             return false;
         };
-        let Some(texture) = tile
-            .textures
-            .get(self.animation_frame % tile.textures.len().max(1))
-        else {
+        let Some(texture) = tile.textures.get(tile.frame_index(self.animation_frame)) else {
             return false;
         };
         let stride = self.target.stride();

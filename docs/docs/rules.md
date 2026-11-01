@@ -7,7 +7,7 @@ Eldiron rules are documented from five perspectives.
 
 ## Editing Your Ruleset
 
-Read [Ruleset Nodes](./creator/docks/ruleset_nodes) for the Creator workflow:
+Read [Ruleset Editor](./creator/docks/ruleset_nodes) for the Creator workflow:
 changing values, adding or removing definitions, replacing icons, editing particle
 effects, and restoring the original ruleset.
 
@@ -22,8 +22,8 @@ This is the player-facing and creator-facing gameplay guide.
 ## Rules In Eldiron
 
 Read [Rules In Eldiron](./rules_in_eldiron) if you want the implementation
-view: where the ruleset nodes live, how they are compiled, how **Game / Rules**
-edits definition branches and restores checkpoints, how item templates are
+view: how project rules are stored and resolved, how **Game / Rules**
+edits definitions and restores checkpoints, how item templates are
 created, and how to test rules from the terminal or Creator console.
 
 ## Ruleset Contract
@@ -44,10 +44,9 @@ and documentation.
 
 New projects use the bundled `eldiron.official` ruleset by default.
 
-**Game / Rules** opens a node editor with one selected definition branch at a
-time. Projects own their current nodes and preserve their original ruleset for
-restoration. This initial implementation uses full owned rulesets; inherited
-node deltas and upgrade workflows remain future work.
+**Game / Rules** opens a searchable catalogue and forms for editing definitions.
+Projects own their complete current rules document and preserve their original
+rules for restoration. Inherited deltas and upgrade workflows remain future work.
 
 During ruleset development, `test_projects/Hideout2D.eldiron` follows the
 current representation. The starter copy remains frozen for the released

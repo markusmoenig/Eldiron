@@ -15,6 +15,10 @@ name = "eldiron-creator"
 path = "src/main.rs"
 
 [dependencies]
+denrim-materials.workspace = true
+wgpu = "29.0.3"
+half = "2"
+pollster = "0.4"
 rusterix.workspace = true
 scenevm = { path = "../crates/scenevm", version = "0.95.6", default-features = false, features = ["gpu"] }
 
@@ -35,6 +39,7 @@ vek = { version = "0.17.1", default-features = true }
 regex = "1.11.1"
 arboard = "3.4.1"
 toml = "0.8.20"
+toml_edit = "0.22.27"
 rand = "0.9"
 ureq = "2.10.1"
 earcutr = "0.5"

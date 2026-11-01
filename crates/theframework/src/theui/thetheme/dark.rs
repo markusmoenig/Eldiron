@@ -14,6 +14,25 @@ impl TheTheme for TheDarkTheme {
         Self: Sized,
     {
         let mut colors = FxHashMap::default();
+        colors.insert(EditorCanvasBackground, [13, 13, 13, 255]);
+        colors.insert(EditorGrid, [38, 38, 38, 255]);
+        colors.insert(EditorSubGrid, [28, 28, 28, 255]);
+
+        colors.insert(MaterialCanvas, [16, 18, 22, 255]);
+        colors.insert(MaterialGrid, [28, 32, 38, 255]);
+        colors.insert(MaterialPanel, [25, 29, 35, 255]);
+        colors.insert(MaterialControl, [61, 72, 87, 255]);
+        colors.insert(MaterialText, [237, 242, 249, 255]);
+        colors.insert(MaterialMuted, [166, 183, 202, 255]);
+        colors.insert(MaterialWire, [119, 155, 184, 255]);
+        colors.insert(MaterialDropdown, [43, 48, 56, 255]);
+        colors.insert(MaterialSource, [32, 38, 46, 255]);
+        colors.insert(MaterialPopup, [25, 30, 38, 255]);
+        colors.insert(MaterialPopupHover, [47, 56, 69, 255]);
+        colors.insert(MaterialPopupSelection, [40, 65, 88, 255]);
+        colors.insert(MaterialShadow, [7, 9, 12, 255]);
+        colors.insert(MaterialCheckerDark, [70, 70, 70, 255]);
+        colors.insert(MaterialCheckerLight, [110, 110, 110, 255]);
 
         colors.insert(Green, [10, 245, 5, 255]);
         colors.insert(Red, [209, 42, 42, 255]);

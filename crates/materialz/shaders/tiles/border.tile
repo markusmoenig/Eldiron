@@ -1,0 +1,12 @@
+tile 1
+name "Border"
+category "Style"
+description "Inside border using optional distance or bounded sampling of the image alpha mask. Preserves the input silhouette and optional distance. Width uses document units."
+group "Inside Border" true
+param float width "Width" default 0.02 range 0.0 1.0
+param color color "Color" default 1.0 0.8 0.2 1.0
+group "About" true
+
+# Bounded host sampling primitive: analytic distance band when available;
+# otherwise 16 directions x 3 rings of callable input alpha samples.
+primitive border

@@ -1,0 +1,11 @@
+tile 1
+name "Clamp"
+category "Operator"
+description "The output is the input value constrained to lie between the low and high properties."
+group "Clamp Operator" true
+param vec3 value1 "Low" default 0.0 0.0 0.0 range -1000 1000
+param vec3 value2 "High" default 1.0 1.0 1.0 range -1000 1000
+group "About" true
+
+let v0 = clamp(input.rgb, value1, value2)
+image = vec4(v0, input.a)

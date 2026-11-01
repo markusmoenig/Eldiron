@@ -15,7 +15,7 @@ pub struct HelpDock {
     visible_item_ids: Vec<String>,
     history: Vec<Option<String>>,
     history_index: usize,
-    observed_rules: Option<shared::rulesets::graph::RulesGraph>,
+    observed_rules: Option<String>,
     draft_error: bool,
 }
 
@@ -28,10 +28,10 @@ impl HelpDock {
         project: &Project,
         force: bool,
     ) -> bool {
-        if !force && self.observed_rules.as_ref() == Some(&project.rules.current) {
+        if !force && self.observed_rules.as_ref() == Some(&project.rules_document.current) {
             return false;
         }
-        self.observed_rules = Some(project.rules.current.clone());
+        self.observed_rules = Some(project.rules_document.current.clone());
         match Self::effective_rules(project) {
             Ok(source) => {
                 if self.document.is_empty() || self.rules_source != source || self.draft_error {
@@ -878,45 +878,24 @@ mod tests {
         dock.activate(&mut ui, &mut ctx, &project, &mut server);
         dock.navigate_to_command("action basic_attack", &mut ui, &mut ctx, &project);
         let history = dock.history.clone();
-        let original = project.rules.current.clone();
-        let branch = project
-            .rules
-            .current
-            .branches
-            .iter_mut()
-            .find(|b| shared::rulesets::graph::branch_path(b) == Some("/actions/basic_attack"))
-            .unwrap();
-        let node = branch
-            .nodes
-            .iter_mut()
-            .find(|n| n.definition.as_deref() == Some("rules_definition"))
-            .unwrap();
-        let theframework::thegraph::GraphControlValue::List { rows, .. } = &mut node.rows[1].value
-        else {
-            panic!()
-        };
-        let field = rows
-            .iter_mut()
-            .find(|r| r[0] == theframework::thegraph::GraphControlValue::Text("name".into()))
-            .unwrap();
-        field[2] = theframework::thegraph::GraphControlValue::Text("Live Robot Strike".into());
+        let original = project.rules_document.current.clone();
+        project.rules_document.edit(|table| {
+            table["actions"]["basic_attack"].as_table_mut().unwrap().insert("name".into(), shared::rulesets::document::RulesValue::String("Live Robot Strike".into()));
+            Ok(())
+        }).unwrap();
         assert!(dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server));
         assert!(dock.document.plain_text().contains("Live Robot Strike"));
         assert_eq!(dock.history, history);
         assert!(!dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server));
-        let valid = project.rules.current.clone();
-        project
-            .rules
-            .current
-            .branches
-            .push(project.rules.current.branches[0].clone());
+        let valid = project.rules_document.current.clone();
+        project.rules_document.current = "[invalid".into();
         assert!(dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server));
         assert!(dock.document.plain_text().contains("last valid rules"));
         assert_eq!(dock.history, history);
-        project.rules.current = valid;
+        project.rules_document.current = valid;
         assert!(dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server));
         assert!(dock.document.plain_text().contains("Live Robot Strike"));
-        project.rules.current = original;
+        project.rules_document.current = original;
         dock.activate(&mut ui, &mut ctx, &project, &mut server);
         assert!(!dock.document.plain_text().contains("Live Robot Strike"));
         assert_eq!(dock.history, history);

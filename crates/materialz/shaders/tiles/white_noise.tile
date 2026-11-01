@@ -1,0 +1,14 @@
+tile 1
+name "White Noise"
+category "Noise"
+description "Seeded integer-hash noise with stable UV cell density, independent of preview resolution. Choose grayscale or independent RGB channels."
+references "Integer hash from shaders/original/noise_hashnoise.fs"
+group "Noise" true
+param vec2 cells "Cells" default 256 256 range 1 4096
+param float seed "Seed" default 0 range -10000 10000
+param float output "Output" default 0 range 0 1
+choices "Grayscale" "Color"
+
+let cell = floor((uv + 0.5) * max(round(abs(cells)), 1))
+let value = hash33(vec3(cell, floor(seed)))
+image = vec4(select(equal(output, 0), vec3(value.x), value), input.a)

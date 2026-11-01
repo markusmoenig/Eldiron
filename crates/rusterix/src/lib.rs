@@ -213,6 +213,7 @@ pub use crate::{
         tile::{
             Tile, TileAttachment, TileBoxGeometry, TileGeometryFeature, TileGeometryOperation,
             TileLightEffect, TileMaterialMeta, TileNicheGeometry, TileParticleEffect, TileRole,
+            TileUvPages,
         },
         tilesource::TileSource,
         topology::MapTopology,

@@ -1,0 +1,7 @@
+outName = "Border";
+outCategory = "Style";
+ParameterGroup = "Inside Border";
+ParamSlider = "width", "Width", "0.02", "0", "1";
+ParamColor = "color", "Color", "float4(1, 0.8, 0.2, 1)";
+ParameterGroup = "About";
+ParamDescription = "Inside border using optional distance or bounded sampling of the image alpha mask. Preserves the input silhouette and optional distance. Width uses document units.";

@@ -1,0 +1,66 @@
+tile 1
+name "Star"
+category "Shape"
+description "Generates a star shape."
+group "Star Shape" true
+param float polyN "Sides" default 5 range 3 16
+param float starR "Int. Radius" default 0.5 range 0 1
+param float inBEVEL "Bevel" default 0.01 range 0.0 1
+tooltip "Beveling."
+param float ROTshape0 "Fixed Rot." default 0.0 range 0.0 180
+tooltip "Fixed rotation in degrees."
+param float ROTshape1 "Random Rot." default 0.0 range 0.0 180
+tooltip "Maximum random rotation in degrees."
+group "Gradient" false
+param bool GRAD "Random Gradient" default 0
+tooltip "Gives the shape a random gradient, useful for generating uneveness through visually tilting the shape."
+param float inStrengthGradient "Gradient Strength" default 0.5 range 0.0 1
+tooltip "Strength of the gradient."
+group "Size & Offset" false
+param float globalScale "Global" default 1.0 range 0.0 1.0
+tooltip "Global scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+param vec2 localScale "Local" default 1 1 range 0 1
+tooltip "Local X/Y scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+param vec2 offset "Offset" default 0 0 range 0 100
+tooltip "X/Y offset of the shape. If shape is used inside a pattern the offset should be 0. as the pattern will position the shape automatically."
+group "About" true
+
+let v0 = vec2(inBEVEL)
+let v1 = vec2(1, 0)
+let v2 = 2.
+let v3 = 360.
+let v4 = (((uv / globalScale) * localScale) - offset)
+let v5 = equal((select(aux_valid, aux1, vec3(0))).xy, vec2(0))
+let v6 = select(v5, vec2(1, 1), (select(aux_valid, aux1, vec3(0))).xy)
+let v7 = (select(aux_valid, aux1, vec3(0))).z
+let v8 = vec3(0)
+let v9 = hash33(vec3((vec3(v7, .4, 0) * 4294967295.0)))
+let v10 = v9
+let v11 = (ROTshape0 + (ROTshape1 * ((-1.) + (2. * (v10).x))))
+let v12 = (atan((v4).x, (-(v4).y)) + radians(v11))
+let v13 = length(v4)
+let v14 = (3.14159 / polyN)
+let v15 = tan(v14)
+let v16 = ((.5 * (starR * v15)) / (sqrt((1. + (v15 * v15))) - starR))
+let v17 = v16
+let v18 = (mod(v12, (2. * v14)) - v14)
+let v19 = ((v13 * vec2(cos(v18), sin(v18))) / cos(v14))
+let v20 = vec2((v19).x, abs((v19).y))
+let v21 = vec2(((v20).x - (.5 * (v6).y)), (v20).y)
+let v22 = ((-((v17 * (v21).x) + (v21).y)) / sqrt((1. + (v17 * v17))))
+let v23 = v22
+let v24 = ((v23 * 2.) / (v0).y)
+let v25 = v24
+let v26 = (v8 + clamp(v25, 0., 1.))
+let v27 = hash33(vec3((vec3(v7, .3, 0) * 4294967295.0)))
+let v28 = v27
+let v29 = ((-1.) + (2. * v28))
+let v30 = (radians(((v3 / 2.) * (v29).x)) + (vec4(1, 0, 2, 1) * 1.5707))
+let v31 = vec4(sin(v30))
+let v32 = vec2((v31).x*pow(v2, (v29).y)+(v31).z*pow(v2, (v29).y), (v31).y*pow(v2, (v29).y)+(v31).w*pow(v2, (v29).y))
+let v33 = (v1 * v32)
+let v34 = vec3((((v26).rgb * ((3. - (inStrengthGradient * 3.)) + dot(v33, v21)))).x, (((v26).rgb * ((3. - (inStrengthGradient * 3.)) + dot(v33, v21)))).y, (((v26).rgb * ((3. - (inStrengthGradient * 3.)) + dot(v33, v21)))).z)
+let v35 = select(GRAD, v33, v1)
+let v36 = select(GRAD, v34, v26)
+let v37 = v36
+image = vec4(v37, input.a)

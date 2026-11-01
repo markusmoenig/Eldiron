@@ -308,7 +308,7 @@ impl TheWidget for TheGroupButton {
                     size: 12.5,
                     ..Default::default()
                 },
-                &WHITE,
+                style.theme().color(SectionbarNormalTextColor),
                 if has_icon {
                     TheHorizontalAlign::Left
                 } else {

@@ -141,8 +141,8 @@ impl Dock for TilesDock {
 
         let mut add_button =
             TheTraybarButton::new(TheId::named(&self.widget_name("Tiles Dock Add")));
-        add_button.set_text("New".to_string());
-        add_button.set_status_text(&fl!("action_new_tile_desc"));
+        add_button.set_text("Make Proc".to_string());
+        add_button.set_status_text("Create a procedural material in the selected empty tile slot.");
         toolbar_hlayout.add_widget(Box::new(add_button));
 
         let mut collection_button =
@@ -571,17 +571,10 @@ impl Dock for TilesDock {
                         ));
                     }
                 } else if id.name == self.widget_name("Tiles Dock Add") {
-                    if let Some(action) = ACTIONLIST
-                        .read()
-                        .unwrap()
-                        .get_action_by_command_id("tile.new")
-                    {
-                        server_ctx.curr_action_id = Some(action.id().uuid);
-                        ctx.ui.send(TheEvent::Custom(
-                            TheId::named("Update Action List"),
-                            TheValue::Empty,
-                        ));
-                    }
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Make Procedural Tile"),
+                        TheValue::Empty,
+                    ));
                 } else if id.name == self.widget_name("Tiles Dock Apply Tile") {
                     if let Some(map) = project.get_map(server_ctx) {
                         server_ctx.curr_map_tool_type =
@@ -982,6 +975,10 @@ impl Dock for TilesDock {
                         self.select_source(project, source, ui, ctx, server_ctx);
                     } else if let Some(cell) = self.coord_to_board_cell(tab, *coord) {
                         self.select_empty_cell(project, tab, cell, server_ctx);
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Tilepicker Empty Selected"),
+                            TheValue::Empty,
+                        ));
                         self.sync_collection_menu(ui, project);
                         ctx.ui.send(TheEvent::Custom(
                             TheId::named("Update Action List"),
@@ -1867,10 +1864,15 @@ impl TilesDock {
             .get(tab)
             .map(|spec| spec.kind)
             .unwrap_or(TileTabKind::Project);
+        let ruleset_tiles =
+            shared::rulesets::bundled_tile_ids_for_project(&project.config).unwrap_or_default();
         project
             .tiles
             .iter()
             .filter_map(|(id, tile)| {
+                if project.map_material_bindings.contains_key(id) || ruleset_tiles.contains(id) {
+                    return None;
+                }
                 let source = TileSource::SingleTile(*id);
                 let in_tab = match kind {
                     TileTabKind::Project => true,
@@ -2129,7 +2131,7 @@ impl TilesDock {
                             );
                         buffer.pixels_mut().copy_from_slice(preview.pixels());
                     } else if !tile.textures.is_empty() {
-                        let index = server_ctx.animation_counter % tile.textures.len();
+                        let index = tile.frame_index(server_ctx.animation_counter);
                         let tex = &tile.textures[index];
                         let src_w = tex.width as f32;
                         let src_h = tex.height as f32;
@@ -2537,6 +2539,54 @@ mod tests {
     use super::*;
 
     #[test]
+    fn ruleset_sprites_stay_available_to_items_but_not_in_picker_tabs() {
+        let mut project = Project::default();
+        project.config = shared::rulesets::DEFAULT_RULESET_CONFIG.into();
+        let bundled = shared::rulesets::bundled_tiles_for_project(&project.config).unwrap();
+        assert!(!bundled.is_empty());
+        let ids: Vec<_> = bundled.iter().map(|(id, _)| *id).collect();
+        project.tiles.extend(bundled);
+        for (index, id) in ids.iter().enumerate() {
+            project
+                .set_tile_board_position(TileSource::SingleTile(*id), Vec2::new(index as i32, 0));
+        }
+        // User art with the same name/role remains a legitimate map tile.
+        let mut user_tile = rusterix::Tile::from_texture(rusterix::Texture::alloc(4, 4));
+        user_tile.alias = "torch on".into();
+        user_tile.role = TileRole::Icon;
+        let user_id = user_tile.id;
+        project.tiles.insert(user_id, user_tile);
+        let collection = TileCollectionAsset::new("Tiles".into());
+        let collection_id = collection.id;
+        project.add_tile_collection(collection);
+        for id in ids.iter().chain(std::iter::once(&user_id)) {
+            project.add_source_to_collection(&collection_id, TileSource::SingleTile(*id));
+        }
+        let dock = <TilesDock as Dock>::new();
+        for tab in [0, 1] {
+            let entries = dock.entries_for_tab(&project, tab);
+            assert_eq!(entries.len(), 1);
+            assert!(entries[0].source == TileSource::SingleTile(user_id));
+        }
+        assert!(
+            ids.iter().all(|id| project.tiles.contains_key(id)),
+            "Hiding item sprites must not remove their runtime textures"
+        );
+        crate::procedural_material::starters::install(&mut project).unwrap();
+        let grass = *project
+            .tiles
+            .iter()
+            .find(|(_, tile)| tile.alias == "Grass")
+            .unwrap()
+            .0;
+        assert_eq!(
+            project.tile_board_tiles[&grass],
+            Vec2::new(1, 0),
+            "Ruleset sprites must not reserve blank cells before the starter materials"
+        );
+    }
+
+    #[test]
     fn empty_cell_selection_does_not_create_assets_and_new_tile_uses_it() {
         let mut dock = <TilesDock as Dock>::new();
         let mut project = Project::new();
@@ -2642,5 +2692,43 @@ mod tests {
         assert!(prefab.edits_map_for_event(&apply));
         assert!(prefab.edits_map_for_event(&clear));
         assert!(!prefab.edits_map_for_event(&select));
+    }
+    #[test]
+    fn map_composition_caches_are_not_picker_entries() {
+        use shared::material_composition::{CompositionSurface, MapMaterialBinding};
+        let mut p = Project::default();
+        let source = rusterix::Tile::from_texture(rusterix::Texture::alloc(4, 4));
+        let source_id = source.id;
+        let cache = rusterix::Tile::from_texture(rusterix::Texture::alloc(4, 4));
+        let cache_id = cache.id;
+        p.tiles.insert(source_id, source);
+        p.tiles.insert(cache_id, cache);
+        p.map_material_bindings.insert(
+            cache_id,
+            MapMaterialBinding {
+                map: Uuid::new_v4(),
+                surface: CompositionSurface::Sector {
+                    id: 1,
+                    ceiling: false,
+                },
+            },
+        );
+        let dock = <TilesDock as Dock>::new();
+        let entries = dock.entries_for_tab(&p, 0);
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.source == TileSource::SingleTile(source_id))
+        );
+        assert!(
+            !entries
+                .iter()
+                .any(|entry| entry.source == TileSource::SingleTile(cache_id))
+        );
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(400, 400, 1.);
+        let mut dock = <TilesDock as Dock>::new();
+        ui.canvas = dock.setup(&mut ctx);
+        assert!(ui.get_widget("Tiles Dock Compose").is_none());
     }
 }

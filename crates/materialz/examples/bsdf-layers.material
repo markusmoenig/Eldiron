@@ -1,0 +1,20 @@
+project 1
+
+material "surface" called "Coated Procedural Metal"
+  mode bsdf
+  row "grain" called "Brushed Grain"
+    use "Perlin Noise"
+      set "globalScale" to 0.4
+      set "localScale" to 0.4 5
+  row "color"
+    use "Mix"
+      input from row "grain" xyz
+      set "color1" to 0.08 0.12 0.16 1
+      set "color2" to 0.65 0.3 0.08 1
+      set "factor" to 1 1 1
+  output base color from row "color" xyz
+  output metallic from row "grain" x mapped 1 to 1
+  output roughness from row "grain" x mapped 0.15 to 0.45
+  output anisotropy from row "grain" x mapped 0.7 to 0.7
+  output coat from row "grain" x mapped 0.65 to 0.65
+  output coat roughness from row "grain" x mapped 0.12 to 0.12

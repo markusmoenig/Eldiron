@@ -7,119 +7,21 @@ This page explains how the official rules are applied inside Eldiron.
 
 For the player-facing rulebook, see [Official Rules](./official_rules). This
 page is about storage, embedding, project selection, Creator behavior, runtime
-resolution, project-level rule overrides, and rule testing.
+resolution, project-owned rules, and rule testing.
 
 ## Source Of Truth
 
-The official rules are authored as `crates/ruleset/rulesets/eldiron/v1/rules.graph.json`.
-The `eldiron-ruleset` crate embeds this node document and compiles its branches
-into the same validated runtime value tree used by Creator, clients, inspectors,
-and tests. The previous split TOML rules are retained as a conversion test
-reference, not loaded as the production official rules source. Locales and
-assets retain their existing formats.
-
-Projects store `rules_graph`: current node branches, a preserved original node
-ruleset, and recovery checkpoints. There is no independently editable TOML rules
-source and no importer for historical project TOML overrides. Existing projects
-without a node ruleset receive the bundled original.
+The bundled official rules are currently compiled from `crates/ruleset/rulesets/eldiron/v1/rules.graph.json`. New projects receive their own rules document, including an original and recovery checkpoints. Project storage and runtime resolution use that document; the former project rules graph is no longer the authoring source.
 
 ## Game / Rules
 
-Selecting **Game / Rules** opens the node dock. The left branch list selects one
-definition, such as `actions / basic_attack`, `classes / Warrior`, or
-`items / weapons / training_sword`. The filter searches branch paths. The canvas
-shows only the selected branch; drag new nodes from the sidebar's **Node List**.
+The rules editor provides a searchable catalogue and a property inspector. Select a definition to edit its existing values, add fields, or duplicate and rename it. List entries can be added, removed, and reordered. Icon fields offer an artwork selector and preview, and particle presets show an animated preview. See [Ruleset Editor](./creator/docks/ruleset_nodes) for the workflow.
 
-The initial generic vocabulary is:
+Valid changes refresh running and paused games. Invalid rules remain saved, while a running game retains its last valid rules and new play sessions are blocked until errors are repaired. Checkpoint, recovery, and undo support experimentation.
 
-- **Definition**: a global definition at a path such as `/actions/repair`.
-- **Table**: nested named fields connected to a parent key terminal.
-- **List**: an ordered collection connected to a parent key; indices start at zero.
-- **Set Attribute**: a typed scalar value connected to a parent key.
+Projects currently own complete rules documents. Inherited deltas and upgrade conflict handling remain future work. Game / Settings still supplies asset and locale lookup; it does not replace the owned document or apply `update_policy` to it.
 
-FX presets use **Particle FX Preset** branches at `/fx/presets/name`.
-Connect a single chain of reusable **Particle Emission**, **Motion**, **Lifetime**,
-**Size**, **Color**, **Direction**, **Spawn Area**, and **Lifetime Curves** nodes.
-Each module can be omitted or disabled to use the emitter default for its fields.
-The preset root owns the effect duration and size multiplier. Color controls
-show swatches and accept `#RRGGBB` or `#RRGGBBAA`; four colors describe birth,
-early, late, and end-of-life color. The root shows an animated emitter preview
-using the same simulator as game particles.
-
-Actions, spells, conditions, and fallback mappings reference the preset name.
-Adding, renaming, or removing presets uses the same branch workflow and reference
-validation as other rules. Valid edits update live rules and help; undo,
-checkpoints, Restore Branch, and Restore All also cover particle branches.
-The shared particle modules compile to the existing emitter format and are
-available to prefab and other graph hosts. The official seven presets are tested
-against the original semantic translator, including stage color, density, size,
-and duration overrides. Descriptive recipe hints that the engine did not execute
-(such as `mood`, `light`, and `secondary`) are replaced by the supported emitter
-controls; these nodes do not add new lighting or secondary-effect execution.
-
-Definition, Table, and List nodes have editable typed field rows. Text, integer,
-number, boolean, table, and list types preserve their meaning. Every key has its
-own output terminal, aligned with its row. Connect Table/List keys to the
-corresponding child node; the wire defines the child's location, with no child
-path to type. Scalar keys use their inline Value unless connected to a matching
-Set Attribute node. Renaming or reordering entries preserves connections.
-Deleting a key removes its wire; an orphaned child remains editable and reports
-a validation error. Definition paths use `~1` for a slash inside a key and `~0`
-for a tilde. No gameplay executes along these connections.
-
-Valid node edits update the running Creator game at the next region update
-boundary, including while paused. Actions, conditions, equipment policies,
-attribute roles, and icon assets refresh without restarting the game. Invalid
-drafts stay editable while runtime regions and assets retain their last valid
-rules. Undo, recovery, and restoration use the same update path.
-
-Existing characters keep their current health, inventory, position, and quest
-state. Changes to spawn defaults affect new entities; live editing does not
-recreate existing characters. Help refreshes the current query when rules
-change and preserves navigation history. Opening Help also reads the current
-rules, and its icon gallery uses the refreshed runtime assets.
-
-Icon fields show the resolved artwork. Click an icon to open the existing tile
-picker and choose a replacement from project tiles, or select Inherit to clear
-an optional override. Icon catalog branches also show a clickable artwork
-preview; replacing it writes that icon's texture mapping, so consumers of the
-same semantic icon share the replacement. Replacements persist by tile UUID
-and support undo, checkpoints, and restoration.
-
-Add a Definition branch to introduce an action, race, class, profession, or
-custom data definition. Remove or disable a branch to omit it. Removing a
-referenced definition reports a validation error; dependent definitions must be
-repaired explicitly. Custom data does not automatically introduce new runtime
-mechanics.
-
-**Start Empty** checkpoints the current rules and removes all definitions, so a
-standalone game can start without the fantasy RPG content.
-
-**Checkpoint** saves a recovery snapshot. **Restore Branch** restores the
-selected definition from the project's original. **Restore All** restores the
-entire preserved original, including deleted definitions, and first checkpoints
-the discarded draft. **Recover** swaps with the latest checkpoint. Original
-rules and checkpoints travel with the project, so restoration does not substitute
-a newer bundled ruleset. Ordinary edits support Undo/Redo.
-
-Invalid drafts stay editable and saved, but game startup rejects them. Validation
-feedback appears at the top of the rules canvas; startup errors appear in the log.
-
-## Current Authoring Boundary
-
-This first implementation uses a complete project-owned node ruleset. Minimal
-inherited node deltas, upgrade conflict previews, dedicated domain controls, and
-module-wide operations remain follow-up work. Game / Settings ruleset selection
-still supplies asset and locale lookup information; it does not replace the
-project's owned rules graph or apply `update_policy` to it.
-
-Compiled values are currently serialized internally for existing source-based
-runtime consumers. The examples below describe those compiled runtime fields;
-they are not a second authoring interface.
-
-Global definitions own gameplay policy. Character and item configuration graphs
-select those definitions and author entity-specific settings. Ruleset timing
-uses seconds; world scheduling commands still use in-game minutes.
+Global definitions own gameplay policy. Character and item configuration graphs select those definitions and author entity-specific settings. Ruleset timing uses seconds; world scheduling commands still use in-game minutes.
 
 ## Locales And Assets
 
@@ -131,12 +33,11 @@ presentation.
 
 ## Conversion Tests
 
-The node compiler is compared against the frozen split TOML reference for every
-value, definition, list order, and scalar type. Save/reload and layout changes
-must preserve the compiled result. Rules tests also exercise removal, disabled
-branches, additions, invalid drafts, and recovery. Runtime regressions consume
-the node-compiled official rules; a robot sandbox exercises a custom resource
-action with no races, classes, professions, spells, or progression.
+The bundled source is compiled and compared against the frozen split TOML
+reference for values, definitions, list order, and scalar types. Editor tests
+also cover field and nested-list edits, save/reload, undo, and recovery. Runtime
+regressions exercise resolved rules, including a robot sandbox with a custom
+resource action and no races, classes, professions, spells, or progression.
 
 ## Character Defaults
 
@@ -663,7 +564,7 @@ pixel drawing, palette-index geometry sources, and 3D Paint.
 
 For ruleset-driven projects:
 
-- Ruleset Palette changes should be made by overriding `[palette]` in **Game / Rules**.
+- Ruleset Palette changes should be made in the project rules under `[palette]` in **Game / Rules**.
 - Art Palette changes are made with the Palette Tool and do not alter rules-owned indices.
 - palette clear/import actions affect the Art Palette only.
 - Art Palette material preset/finish metadata remains editable project render metadata.
@@ -720,12 +621,10 @@ missing art; authored RGBA icon PNGs retain their own colors.
 Runtime systems should use the effective ruleset, not scattered character or
 item rule attributes.
 
-That means clients and shared runtime helpers resolve rules by combining:
-
-- the selected bundled ruleset
-- the project-level **Game / Rules** override
-- concrete character or item identity/state such as race, class, level, and
-  equipment
+Clients and shared runtime helpers use the project-owned rules document as
+the rules source, together with concrete character or item identity and state
+such as race, class, level, and equipment. The selected bundled ruleset supplies
+asset and locale lookup; it is not layered over the project document at runtime.
 
 The practical result is that Creator, graphical clients, terminal clients, and
 shared server logic all answer the same rules questions.
@@ -892,7 +791,7 @@ keep it dead.
 
 ## Economy
 
-The official economy lives in `economy.toml`. Runtime wallets store one integer
+The official economy is part of the project rules document. Runtime wallets store one integer
 base amount. In v1 the base is copper:
 
 ```toml
@@ -939,8 +838,8 @@ worth = 50
 
 ## Recipes
 
-Recipes live in `recipes.toml` and use the same source of truth as items,
-actions, skills, professions, and spells. The official set includes immediate
+Recipes are part of the project rules document, alongside items, actions, skills,
+professions, and spells. The official set includes immediate
 crafts and a multi-stage ritual economy:
 
 - `wooden_arrows`: consumes `green_wood x1` and `feather x2`, produces `wooden_arrows x10`

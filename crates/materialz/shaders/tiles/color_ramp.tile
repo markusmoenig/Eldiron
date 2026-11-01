@@ -1,0 +1,25 @@
+tile 1
+name "Color Ramp"
+category "Operator"
+description "Maps the first input channel through four ordered color stops. Select the desired source field on the connection."
+group "Stops" true
+param float position0 "Position 1" default 0 range -1000 1000
+param color color0 "Color 1" default 0 0 0 1
+param float position1 "Position 2" default 0.3333333333 range -1000 1000
+param color color1 "Color 2" default 0.3333333 0.3333333 0.3333333 1
+param float position2 "Position 3" default 0.6666666667 range -1000 1000
+param color color2 "Color 3" default 0.6666667 0.6666667 0.6666667 1
+param float position3 "Position 4" default 1 range -1000 1000
+param color color3 "Color 4" default 1 1 1 1
+param float interpolation "Interpolation" default 1 range 0 2
+choices "Constant" "Linear" "Smooth"
+let p0 = position0
+let p1 = max(position1, p0 + 0.000001)
+let p2 = max(position2, p1 + 0.000001)
+let p3 = max(position3, p2 + 0.000001)
+let raw = vec3(clamp((input.x - p0) / (p1 - p0), 0, 1), clamp((input.x - p1) / (p2 - p1), 0, 1), clamp((input.x - p2) / (p3 - p2), 0, 1))
+let weights = select(equal(interpolation, 0), step(vec3(1), raw), select(equal(interpolation, 1), raw, raw * raw * (3 - 2 * raw)))
+let a = mix(color0, color1, weights.x)
+let b = mix(a, color2, weights.y)
+let c = mix(b, color3, weights.z)
+image = vec4(c.rgb, c.a * input.a)

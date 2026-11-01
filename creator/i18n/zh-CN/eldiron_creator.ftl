@@ -29,19 +29,27 @@ action_shortcut = 快捷键
 node_editor_create_button = 创建图形
 ## Render Editor
 render_editor_trace_button = 开始追踪
-## Starter Project
-starter_dialog_title = 新建项目
-starter_intro_title = 选择起点
-starter_intro_sub = 为新游戏选择一个模板，之后所有内容都可以更改。
-starter_loading = 正在加载入门项目...
-starter_loading_sub = 正在从 Eldiron 仓库获取元数据。
-starter_loading_project = 正在加载入门项目...
-starter_choose = 选择
-starter_create = 创建项目
-starter_cancel = 取消
-starter_unsaved_note = 模板将作为未保存的项目打开。
-starter_empty = 未找到入门项目。
-starter_empty_sub = 无法加载 Eldiron 仓库元数据。
+## Project Chooser and Examples
+project_chooser_intro = 创建游戏或打开项目。
+project_new_2d = 新建 2D 项目
+project_new_3d = 新建 3D 项目
+project_browse_examples = 浏览示例…
+project_open_existing = 打开项目…
+project_chooser_cancel = 取消
+example_dialog_title = 示例项目
+example_intro_title = 探索示例游戏
+example_intro_sub = 将示例作为新项目打开。
+example_loading = 正在加载示例…
+example_loading_sub = 正在从 Eldiron 仓库获取示例。
+example_loading_project = 正在加载示例项目…
+example_open = 打开示例
+example_back = 返回
+example_unsaved_note = 示例将作为未保存的项目打开。
+example_empty = 暂无可用示例。
+example_empty_sub = 无法加载示例目录。
+status_project_choose = 创建 2D 或 3D 游戏、浏览示例或打开项目。
+status_example_initialized = 示例项目已打开。
+status_example_load_failed = 无法加载示例项目。
 ## Tilemap
 tilemap_add_button = 添加图块
 
@@ -60,9 +68,6 @@ status_game_input_button = 游戏运行时，将输入转向游戏而不是编�
 status_time_slider = 调整服务器时间
 status_update_button = 更新应用程序
 status_patreon_button = 访问 Eldiron 的 Patreon 页面，感谢支持。
-status_starter_choose = 选择一个 2D 或 3D 入门项目。
-status_starter_initialized = 入门项目已成功初始化。
-status_starter_load_failed = 无法加载入门项目！
 status_create_cutout_failed = 创建开口需要在同一个 3D 面上至少选择三个表面线点。
 status_create_cutout_open_loop = 创建开口需要闭合的表面线环。请先结束或闭合选中的引导线。
 status_create_cutout_multiple_faces = 创建开口目前需要所有选中的引导线环位于同一个宿主表面。

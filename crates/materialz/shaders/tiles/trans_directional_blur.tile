@@ -1,0 +1,29 @@
+tile 1
+name "Directional Blur"
+category "Transform"
+description "Centered Gaussian filtering along a direction, in UV units or pixels. Filters premultiplied RGBA to avoid fringes around cutouts."
+distance clear
+execution image radius units
+group "Blur" true
+param float radius "Radius" default 2 range 0 64
+param float units "Units" default 0 range 0 1
+choices "Pixels" "UV"
+param float direction "Direction" default 0 range -360 360
+param float samples "Samples" default 9 range 1 33
+let count = clamp(round(samples), 1, 33)
+let span = clamp(radius, 0, 64) * select(equal(units, 0), aa, 1)
+let axis = vec2(cos(radians(direction)), sin(radians(direction)))
+state sum = vec4(0)
+state weights = 0
+state i = 0
+repeat 33 times count while 1
+let x = select(greater(count, 1), 2 * i / max(count - 1, 1) - 1, 0)
+let weight = exp(-4.5 * x * x)
+let tap = sample_image(uv + axis * span * x)
+let a = clamp(tap.a, 0, 1)
+update sum = sum + vec4(tap.rgb * a, a) * weight
+update weights = weights + weight
+update i = i + 1
+end repeat
+let filtered = sum / max(weights, 0.000001)
+image = vec4(filtered.rgb / max(filtered.a, 0.000001), filtered.a)

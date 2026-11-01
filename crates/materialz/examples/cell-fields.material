@@ -1,0 +1,30 @@
+project 1
+material "cell-fields" called "Cell Fields"
+  mode bsdf
+  tiling raw
+  default roughness to 0.8
+  row "cells" called "Cells"
+    use "Voronoi"
+      set "globalScale" to 1.8
+      set "seed" to 63
+  row "profile" called "Crack Profile"
+    use "Levels"
+      input from row "cells" border.xxx
+      set "inputHigh" to 0.065
+      set "gamma" to 0.55
+  row "height" called "Height"
+    use "Multiply"
+      input from row "cells" nearest.xxx
+      set "globalValue" to 0.15
+    use "One Minus"
+    use "Multiply"
+      set "localValue" from row "profile" xxx
+  row "color" called "Stone Color"
+    use "Mix"
+      set "color1" to 0.12 0.1 0.075 1
+      set "color2" to 0.36 0.32 0.23 1
+      set "factor" from row "cells" cell.xxx
+    use "Multiply"
+      set "localValue" from row "profile" xxx mapped 0.12 to 1
+  output base color from row "color" xyz
+  output height from row "height" x mapped 0 to 0.02

@@ -474,6 +474,7 @@ impl MapEditor {
 
         let mut poly_canvas: TheCanvas = TheCanvas::new();
         let mut render_view = TheRenderView::new(TheId::named("PolyView"));
+        render_view.set_empty_background(EditorCanvasBackground);
         render_view.set_auto_focus(true);
         poly_canvas.set_widget(render_view);
         output_stack.add_canvas(poly_canvas);
@@ -544,21 +545,18 @@ impl MapEditor {
         let mut ground_icon = TheIconView::new(TheId::named("Ground Icon"));
         ground_icon.set_text(Some("FLOOR".to_string()));
         ground_icon.set_text_size(10.0);
-        ground_icon.set_text_color([200, 200, 200, 255]);
         ground_icon.limiter_mut().set_max_size(Vec2::new(48, 48));
         ground_icon.set_border_color(Some(self.icon_selected_border_color));
 
         let mut wall_icon = TheIconView::new(TheId::named("Wall Icon"));
         wall_icon.set_text(Some("WALL".to_string()));
         wall_icon.set_text_size(10.0);
-        wall_icon.set_text_color([200, 200, 200, 255]);
         wall_icon.limiter_mut().set_max_size(Vec2::new(48, 48));
         wall_icon.set_border_color(Some(self.icon_normal_border_color));
 
         let mut ceiling_icon = TheIconView::new(TheId::named("Ceiling Icon"));
         ceiling_icon.set_text(Some("CEILING".to_string()));
         ceiling_icon.set_text_size(10.0);
-        ceiling_icon.set_text_color([200, 200, 200, 255]);
         ceiling_icon.limiter_mut().set_max_size(Vec2::new(48, 48));
         ceiling_icon.set_border_color(Some(self.icon_normal_border_color));
 
@@ -580,7 +578,6 @@ impl MapEditor {
 
         let mut text = TheText::new(TheId::named("Cursor Position"));
         text.set_text("()".to_string());
-        text.set_text_color([200, 200, 200, 255]);
         vlayout.add_widget(Box::new(text));
 
         // let mut text = TheText::new(TheId::named("Cursor Height"));

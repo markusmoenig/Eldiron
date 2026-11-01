@@ -1,0 +1,16 @@
+project 1
+
+material "glass" called "Tinted Glass"
+  mode bsdf
+  row "tint"
+    use "Color"
+      set "color" to 0.25 0.75 0.5 1
+  output base color from row "tint" xyz mapped 0.8 to 1
+  output roughness from row "tint" x mapped 0.08 to 0.08
+  output transmission from row "tint" x mapped 1 to 1
+  output transmission color from row "tint" xyz mapped 1 to 1
+  output transmission roughness from row "tint" x mapped 0.08 to 0.08
+  output ior from row "tint" x mapped 1.5 to 1.5
+  output transmission ior from row "tint" x mapped 1.5 to 1.5
+  output absorption color from row "tint" xyz
+  output absorption distance from row "tint" x mapped 2 to 2

@@ -1,0 +1,16 @@
+tile 1
+name "Tex Coord 2D"
+category "System"
+description "Returns the current 2D texture UV coordinate."
+group "Texture Coordinates Settings" true
+param vec2 scale "Scale" default 1.0 1.0 range -1000 1000
+param float rot "Rotate" default 0.0 range 0.0 360
+group "About" true
+
+let v0 = sin((vec2(1.5707963, 0) + radians(rot)))
+let v1 = vec4(v0, (-(v0).y), (v0).x)
+let v2 = vec2((uv).x*(v1).x+(uv).y*(v1).y, (uv).x*(v1).z+(uv).y*(v1).w)
+let v3 = v2
+let v4 = vec3(((v3).x * (scale).x), ((v3).y * (scale).y), 1)
+let v5 = v4
+image = vec4(v5, input.a)

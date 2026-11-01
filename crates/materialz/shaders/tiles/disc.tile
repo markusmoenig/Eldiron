@@ -1,0 +1,23 @@
+tile 1
+name "Disc"
+category "Shape"
+description "Generates a disc shape."
+group "Disc Shape" true
+param float inBEVEL "Bevel" default 0.01 range 0.0 1.0
+tooltip "Beveling."
+group "Gradient" false
+param bool GRAD "Random Gradient" default 0.0
+tooltip "Gives the shape a random gradient, useful for generating uneveness through visually tilting the shape."
+param float inStrengthGradient "Gradient Strength" default 0.5 range 0.0 1.0
+tooltip "Strength of the gradient."
+group "Size & Offset" false
+param float globalScale "Global" default 1.0 range 0.0 1.0
+tooltip "Global scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+param vec2 localScale "Local" default 1.0 1.0 range 0.0 1.0
+tooltip "Local X/Y scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+param vec2 offset "Offset" default 0.0 0.0 range 0.0 100.0
+tooltip "X/Y offset of the shape. If shape is used inside a pattern the offset should be 0. as the pattern will position the shape automatically."
+group "About" true
+
+# Curated Disc primitive with per-cell context retains its uint hash and gradient algorithm.
+image = vec4(vec3(disc_context(uv, inBEVEL, GRAD, inStrengthGradient, globalScale, localScale, offset, aux1)), 1)

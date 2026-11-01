@@ -1,0 +1,100 @@
+tile 1
+name "Simplex Noise"
+category "Noise"
+description "Simplex Noise with 2D UV or 3D position sampling. Scale controls feature size. Preserves incoming alpha."
+group "Scale" true
+param float globalScale "Scale" default 1 range 0.001 10
+param vec2 localScale "Stretch XY" default 1 1 range 0.001 1000
+group "Coordinates" false
+param float dimensions "Dimensions" default 0 range 0 1
+choices "2D" "3D"
+param float slice "Z Slice" default 0 range -1000 1000
+param float depthScale "Stretch Z" default 1 range 0.001 1000
+
+state result = vec3(0)
+repeat 1 times less(dimensions, 0.5) while 1
+let v0 = ((((uv / nonzero(globalScale)) * 1.) / nonzero(localScale)) * 10.)
+let v1 = 0.36602540378443864676372317075294
+let v2 = 0.21132486540518711774542560974902
+let v3 = 0.70710678118654752440084436210485
+let v4 = vec3((1.0 - v2), (-v2), (1.0 - (2.0 * v2)))
+let v5 = (v0 * v3)
+let v6 = floor((v5 + dot(v5, vec2(v1))))
+let v7 = vec4((v6).xy, ((v6).xy + 1.0))
+let v8 = (v7 - (floor((v7 * (1.0 / 71.0))) * 71.0))
+let v9 = (v8 + (vec2(26.0, 161.0)).xyxy)
+let v10 = (v9 * v9)
+let v11 = ((v10).xzxz * (v10).yyww)
+let v12 = fract((v11 * (1.0 / 951.135664)))
+let v13 = fract((v11 * (1.0 / 642.949883)))
+let v14 = ((v6 - dot(v6, vec2(v2))) - v5)
+let v15 = select(less((v14).x, (v14).y), vec4((v4).xy, (v12).y, (v13).y), vec4((v4).yx, (v12).z, (v13).z))
+let v16 = (vec4((v15).xy, (v4).zz) + (v14).xyxy)
+let v17 = (vec3((v12).x, (v15).z, (v12).w) - 0.49999)
+let v18 = (vec3((v13).x, (v15).w, (v13).w) - 0.49999)
+let v19 = ((v17 * vec3((v14).x, (v16).xz)) + (v18 * vec3((v14).y, (v16).yw)))
+let v20 = (inversesqrt(((v17 * v17) + (v18 * v18))) * v19)
+let v21 = 99.204334582718712976990005025589
+let v22 = (vec3((v14).x, (v16).xz) * vec3((v14).x, (v16).xz))
+let v23 = (vec3((v14).y, (v16).yw) * vec3((v14).y, (v16).yw))
+let v24 = (v22 + v23)
+let v25 = max((0.5 - v24), 0.0)
+let v26 = (v25 * v25)
+let v27 = vec3((((dot((v26 * v26), v20) * v21) + 1.) / 2.))
+update result = v27
+end repeat
+repeat 1 times greater_equal(dimensions, 0.5) while 1
+let v0 = ((((pos + vec3(0, 0, slice)) / nonzero(globalScale)) * 1.) / nonzero(vec3(localScale, depthScale)))
+let v1 = (v0 * 10.)
+let v2 = (1.0 / 3.0)
+let v3 = (1.0 / 6.0)
+let v4 = 0.5
+let v5 = 0.70710678118654752440084436210485
+let v6 = (v1 * v5)
+let v7 = floor((v6 + dot(v6, vec3(v2))))
+let v8 = ((v6 - v7) + dot(v7, vec3(v3)))
+let v9 = step((v8).yzx, (v8).xyz)
+let v10 = (1.0 - v9)
+let v11 = min((v9).xyz, (v10).zxy)
+let v12 = max((v9).xyz, (v10).zxy)
+let v13 = ((v8 - v11) + v3)
+let v14 = ((v8 - v12) + v2)
+let v15 = (v8 - v4)
+let v16 = vec4((v8).x, (v13).x, (v14).x, (v15).x)
+let v17 = vec4((v8).y, (v13).y, (v14).y, (v15).y)
+let v18 = vec4((v8).z, (v13).z, (v14).z, (v15).z)
+let v19 = ((v7).xyz - (floor(((v7).xyz * (1.0 / 69.0))) * 69.0))
+let v20 = vec3((v19).x, (v19).y, (v19).z)
+let v21 = (step(v20, vec3((69.0 - 1.5))) * (v20 + 1.0))
+let v22 = (vec4((v20).xy, (v21).xy) + (vec2(50.0, 161.0)).xyxy)
+let v23 = v22
+let v24 = (v23 * v23)
+let v25 = mix((v24).xyxy, (v24).zwzw, vec4((v11).xy, (v12).xy))
+let v26 = v25
+let v27 = (vec4((v24).x, (v26).xz, (v24).z) * vec4((v24).y, (v26).yw, (v24).w))
+let v28 = v27
+let v29 = vec3(635.298681, 682.357502, 668.926525)
+let v30 = vec3(48.500388, 65.294118, 63.934599)
+let v31 = vec3((1.0 / ((v29).xyz + ((v20).zzz * (v30).xyz))))
+let v32 = v31
+let v33 = vec3((1.0 / ((v29).xyz + ((v21).zzz * (v30).xyz))))
+let v34 = v33
+let v35 = select(less((v11).z, 0.5), v32, v34)
+let v36 = select(less((v12).z, 0.5), v32, v34)
+let v37 = fract((v28 * vec4((v32).x, (v35).x, (v36).x, (v34).x)))
+let v38 = (v37 - 0.49999)
+let v39 = fract((v28 * vec4((v32).y, (v35).y, (v36).y, (v34).y)))
+let v40 = (v39 - 0.49999)
+let v41 = fract((v28 * vec4((v32).z, (v35).z, (v36).z, (v34).z)))
+let v42 = (v41 - 0.49999)
+let v43 = inversesqrt((((v38 * v38) + (v40 * v40)) + (v42 * v42)))
+let v44 = (v43 * (((v38 * v16) + (v40 * v17)) + (v42 * v18)))
+let v45 = v44
+let v46 = 37.837227241611314102871574478976
+let v47 = (((v16 * v16) + (v17 * v17)) + (v18 * v18))
+let v48 = max((0.5 - v47), 0.0)
+let v49 = ((v48 * v48) * v48)
+let v50 = vec3((((dot(v49, v45) * v46) + 1.) / 2.))
+update result = v50
+end repeat
+image = vec4(result, input.a)

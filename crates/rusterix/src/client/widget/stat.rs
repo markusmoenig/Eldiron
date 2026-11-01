@@ -376,7 +376,7 @@ impl StatWidget {
             if tile.textures.is_empty() {
                 return;
             }
-            let texture = &tile.textures[animation_frame % tile.textures.len()];
+            let texture = &tile.textures[tile.frame_index(animation_frame)];
             let stride = buffer.stride();
             draw2d.blend_scale_chunk(
                 buffer.pixels_mut(),

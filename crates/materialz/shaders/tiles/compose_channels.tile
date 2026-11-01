@@ -1,0 +1,14 @@
+tile 1
+name "Compose Channels"
+category "System"
+description "Builds RGBA from four independent scalar constants or row connections."
+output_channel x "X / Red"
+output_channel y "Y / Green"
+output_channel z "Z / Blue"
+output_channel w "Alpha"
+group "Channels" true
+param float x "X / Red" default 0 range -1000 1000
+param float y "Y / Green" default 0 range -1000 1000
+param float z "Z / Blue" default 0 range -1000 1000
+param float alpha "Alpha" default 1 range 0 1
+image = vec4(x, y, z, clamp(alpha, 0, 1))

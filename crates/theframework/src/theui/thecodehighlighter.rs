@@ -18,6 +18,7 @@ pub struct TheCodeHighlighter {
     syntax: Arc<SyntaxReference>,
     theme: Theme,
     using_custom_theme: bool,
+    saved_dark_theme: Option<(Theme, bool)>,
 }
 
 impl Default for TheCodeHighlighter {
@@ -28,6 +29,7 @@ impl Default for TheCodeHighlighter {
             theme: THEME_SET.themes["Solarized (light)"].clone(),
             syntax_set,
             using_custom_theme: false,
+            saved_dark_theme: None,
         }
     }
 }
@@ -40,6 +42,7 @@ pub trait TheCodeHighlighterTrait: Send {
 
     fn set_syntax_by_name(&mut self, name: &str);
     fn set_theme(&mut self, theme: &str);
+    fn set_light_ui(&mut self, _light: bool) {}
     fn add_syntax_from_string(&mut self, syntax_str: &str) -> Result<(), String>;
     fn add_theme_from_string(&mut self, theme_str: &str) -> Result<(), String>;
 
@@ -82,6 +85,18 @@ impl TheCodeHighlighterTrait for TheCodeHighlighter {
         if let Some(theme) = THEME_SET.themes.get(theme) {
             self.theme = theme.clone();
             self.using_custom_theme = false;
+        }
+    }
+
+    fn set_light_ui(&mut self, light: bool) {
+        if light && self.saved_dark_theme.is_none() {
+            self.saved_dark_theme = Some((self.theme.clone(), self.using_custom_theme));
+            self.set_theme("Solarized (light)");
+        } else if !light {
+            if let Some((theme, custom)) = self.saved_dark_theme.take() {
+                self.theme = theme;
+                self.using_custom_theme = custom;
+            }
         }
     }
 
@@ -202,5 +217,21 @@ impl TheCodeHighlighterTrait for TheCodeHighlighter {
                 TheColor::default().lighten_darken(0.1),
                 line.len(),
             )])
+    }
+}
+
+#[cfg(test)]
+mod theme_tests {
+    use super::*;
+    #[test]
+    fn light_theme_switch_restores_previous_syntax_theme() {
+        let mut h = TheCodeHighlighter::default();
+        h.set_theme("base16-eighties.dark");
+        let before = h.background().unwrap().to_u8_array();
+        h.set_light_ui(true);
+        let light = h.background().unwrap().to_u8_array();
+        assert_ne!(before, light);
+        h.set_light_ui(false);
+        assert_eq!(before, h.background().unwrap().to_u8_array());
     }
 }

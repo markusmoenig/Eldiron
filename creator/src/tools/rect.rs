@@ -15,6 +15,8 @@ pub struct RectTool {
     hovered_vertices: Option<[Vec2<f32>; 4]>,
     mode: i32,
     hud: Hud,
+    composition_mode_rects: Vec<TheDim>,
+    composition_control_active: bool,
 
     processed: FxHashSet<RectPaintKey>,
 
@@ -48,6 +50,8 @@ impl Tool for RectTool {
             hovered_vertices: None,
             mode: 0,
             hud: Hud::new(HudMode::Rect),
+            composition_mode_rects: Vec::new(),
+            composition_control_active: false,
 
             processed: FxHashSet::default(),
 
@@ -87,6 +91,7 @@ impl Tool for RectTool {
         match tool_event {
             Activate => {
                 server_ctx.curr_map_tool_type = MapToolType::Rect;
+                server_ctx.rect_composition_target = None;
 
                 if let Some(region) = project.get_region_mut(&server_ctx.curr_region) {
                     region.map.selected_vertices.clear();
@@ -99,6 +104,7 @@ impl Tool for RectTool {
                 return true;
             }
             DeActivate => {
+                server_ctx.rect_composition_target = None;
                 server_ctx.curr_map_tool_type = MapToolType::General;
                 server_ctx.hover_cursor = None;
                 self.reset_stroke();
@@ -163,8 +169,61 @@ impl Tool for RectTool {
         match map_event {
             MapKey(_c) => {}
             MapClicked(coord) => {
+                if let Some(index) = self
+                    .composition_mode_rects
+                    .iter()
+                    .position(|rect| rect.contains(coord))
+                {
+                    self.reset_stroke();
+                    self.composition_control_active = true;
+                    server_ctx.rect_compose_mode = index == 1;
+                    server_ctx.rect_composition_target = None;
+                    ctx.ui.send(TheEvent::Custom(
+                        TheId::named("Map Selection Changed"),
+                        TheValue::Empty,
+                    ));
+                    ctx.ui.send(TheEvent::SetStatusText(
+                        self.id.clone(),
+                        if index == 1 {
+                            "Compose: click an individual painted tile to edit its material layers."
+                        } else {
+                            "Paint: paint tiles normally. Alt-click samples a tile."
+                        }
+                        .into(),
+                    ));
+                    ctx.ui.redraw_all = true;
+                    RUSTERIX.write().unwrap().set_dirty();
+                    return None;
+                }
                 if self.hud.clicked(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
+                    return None;
+                }
+
+                if server_ctx.pc.is_region() && server_ctx.rect_compose_mode && !ui.alt {
+                    self.reset_stroke();
+                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
+                    } else {
+                        self.compute_3d_tile(coord, map, ui, server_ctx);
+                    }
+                    server_ctx.rect_composition_target = Self::composition_target(map, server_ctx);
+                    if let Some(binding) = &server_ctx.rect_composition_target {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named(crate::procedural_material::map_composition::OPEN),
+                            TheValue::Text(serde_json::to_string(binding).unwrap()),
+                        ));
+                    } else {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Map Selection Changed"),
+                            TheValue::Empty,
+                        ));
+                        ctx.ui.send(TheEvent::SetStatusText(
+                            self.id.clone(),
+                            "Click a painted tile to compose its materials.".into(),
+                        ));
+                    }
+                    ctx.ui.redraw_all = true;
                     return None;
                 }
 
@@ -259,6 +318,17 @@ impl Tool for RectTool {
                 }
             }
             MapDragged(coord) => {
+                if self.composition_control_active {
+                    return None;
+                }
+                if server_ctx.pc.is_region() && server_ctx.rect_compose_mode && !ui.alt {
+                    if server_ctx.editor_view_mode == EditorViewMode::D2 {
+                        self.hovered_vertices = apply_hover(coord, ui, ctx, map, server_ctx);
+                    } else {
+                        self.compute_3d_tile(coord, map, ui, server_ctx);
+                    }
+                    return None;
+                }
                 if self.hud.dragged(coord.x, coord.y, map, ui, ctx, server_ctx) {
                     crate::editor::RUSTERIX.write().unwrap().set_dirty();
                     return None;
@@ -373,6 +443,10 @@ impl Tool for RectTool {
                 }
             }
             MapUp(_) => {
+                if self.composition_control_active {
+                    self.composition_control_active = false;
+                    return None;
+                }
                 if self.stroke_active {
                     if self.stroke_changed
                         && let (Some(prev), Some(new_map)) =
@@ -412,6 +486,11 @@ impl Tool for RectTool {
             }
             MapDelete => {}
             MapEscape => {
+                server_ctx.rect_composition_target = None;
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Map Selection Changed"),
+                    TheValue::Empty,
+                ));
                 self.reset_stroke();
                 map.clear_temp();
                 crate::editor::RUSTERIX.write().unwrap().set_dirty();
@@ -453,6 +532,7 @@ impl Tool for RectTool {
             None
         };
         self.hud.draw(buffer, map, ctx, server_ctx, id, assets);
+        self.draw_composition_controls(buffer, map, ctx, server_ctx);
     }
 
     fn handle_event(
@@ -699,9 +779,282 @@ mod tests {
             Some((0, (1, 0)))
         );
     }
+    #[test]
+    fn compose_click_selects_one_2d_painted_tile_and_drag_does_not_paint() {
+        use shared::material_composition::CompositionSurface;
+        let mut map = Map::default();
+        let source = PixelSource::TileId(Uuid::new_v4());
+        RectTool::paint_cell(&mut map, cell(0., 0.), Some(source.clone()), false, 0);
+        RectTool::paint_cell(&mut map, cell(1., 0.), Some(source.clone()), false, 0);
+        let first = RectTool::rect_sector_at(&map, [0, 0]).unwrap();
+        let before = serde_json::to_string(&map.sectors).unwrap();
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(400, 400, 1.);
+        let (tx, rx) = std::sync::mpsc::channel();
+        ctx.ui.state_events_sender = Some(tx);
+        let mut view = TheRenderView::new(TheId::named("PolyView"));
+        view.set_dim(TheDim::new(0, 0, 400, 400), &mut ctx);
+        ui.canvas.set_widget(view);
+        let mut server = ServerContext::default();
+        server.pc = ProjectContext::Region(Uuid::new_v4());
+        server.curr_map_tool_type = MapToolType::Rect;
+        server.rect_compose_mode = true;
+        server.editor_view_mode = EditorViewMode::D2;
+        let mut tool = RectTool::new();
+        let screen = |p| {
+            let p = ServerContext::map_grid_to_local(Vec2::new(400., 400.), p, &map);
+            Vec2::new(p.x.round() as i32, p.y.round() as i32)
+        };
+        let first_click = screen(Vec2::new(0.5, 0.5));
+        let second_click = screen(Vec2::new(1.5, 0.5));
+        assert!(
+            tool.map_event(
+                MapClicked(first_click),
+                &mut ui,
+                &mut ctx,
+                &mut map,
+                &mut server
+            )
+            .is_none()
+        );
+        let binding = server.rect_composition_target.clone().unwrap();
+        assert_eq!(
+            binding.surface,
+            CompositionSurface::RectTile { sector: first }
+        );
+        assert!(rx.try_iter().any(|event|matches!(event,TheEvent::Custom(id,TheValue::Text(_)) if id.name==crate::procedural_material::map_composition::OPEN)));
+        tool.map_event(
+            MapDragged(second_click),
+            &mut ui,
+            &mut ctx,
+            &mut map,
+            &mut server,
+        );
+        tool.map_event(
+            MapUp(second_click),
+            &mut ui,
+            &mut ctx,
+            &mut map,
+            &mut server,
+        );
+        assert_eq!(server.rect_composition_target, Some(binding));
+        assert_eq!(serde_json::to_string(&map.sectors).unwrap(), before);
+        assert!(!tool.stroke_active);
+        tool.map_event(
+            MapClicked(second_click),
+            &mut ui,
+            &mut ctx,
+            &mut map,
+            &mut server,
+        );
+        assert_ne!(
+            server.rect_composition_target.as_ref().unwrap().surface,
+            CompositionSurface::RectTile { sector: first }
+        );
+        // A mode-button drag must never leak through into Paint mode.
+        tool.composition_control_active = true;
+        server.rect_compose_mode = false;
+        tool.map_event(
+            MapDragged(first_click),
+            &mut ui,
+            &mut ctx,
+            &mut map,
+            &mut server,
+        );
+        tool.map_event(MapUp(first_click), &mut ui, &mut ctx, &mut map, &mut server);
+        assert!(!tool.composition_control_active);
+        assert_eq!(serde_json::to_string(&map.sectors).unwrap(), before);
+    }
+    #[test]
+    fn composition_targets_use_rect_paint_3d_cells_and_terrain_coordinates() {
+        use shared::material_composition::CompositionSurface;
+        let mut map = Map::default();
+        let object = rusterix::GeometryObject::box_("Wall", Vec3::zero(), Vec3::new(4., 3., 1.));
+        let object_id = object.id;
+        map.geometry_objects.push(object);
+        let mut server = ServerContext::default();
+        server.editor_view_mode = EditorViewMode::FirstP;
+        server.rect_geometry_face_3d = Some((object_id, 0));
+        server.rect_tile_id_3d = (-2, 1);
+        assert_eq!(
+            RectTool::composition_target(&map, &server).unwrap().surface,
+            CompositionSurface::GeometryTile {
+                object: object_id,
+                face: 0,
+                cell: [-2, 1]
+            }
+        );
+        server.rect_tile_id_3d = (-1, 1);
+        assert_eq!(
+            RectTool::composition_target(&map, &server).unwrap().surface,
+            CompositionSurface::GeometryTile {
+                object: object_id,
+                face: 0,
+                cell: [-1, 1]
+            }
+        );
+        map.sectors.push(rusterix::Sector::new(9, vec![]));
+        server.rect_geometry_face_3d = None;
+        server.rect_sector_id_3d = Some(9);
+        server.rect_tile_id_3d = (2, 3);
+        assert_eq!(
+            RectTool::composition_target(&map, &server).unwrap().surface,
+            CompositionSurface::SectorTile {
+                sector: 9,
+                cell: [2, 3]
+            }
+        );
+        map.properties.set("terrain_enabled", Value::Bool(true));
+        server.editor_view_mode = EditorViewMode::D2;
+        server.hover_cursor = Some(Vec2::new(-2., 5.));
+        let d2 = RectTool::composition_target(&map, &server).unwrap();
+        server.editor_view_mode = EditorViewMode::FirstP;
+        server.rect_terrain_id = Some((-2, 5));
+        assert_eq!(d2, RectTool::composition_target(&map, &server).unwrap());
+    }
 }
 
 impl RectTool {
+    /// Rect composition uses exactly the same painted-cell coordinates as paint
+    /// and the eyedropper; hover never changes the clicked editing target.
+    fn composition_target(
+        map: &Map,
+        server: &ServerContext,
+    ) -> Option<shared::material_composition::MapMaterialBinding> {
+        use shared::material_composition::{CompositionSurface, MapMaterialBinding};
+        let surface = if server.editor_view_mode == EditorViewMode::D2 {
+            let cursor = server.hover_cursor?;
+            let cell = [cursor.x.floor() as i32, cursor.y.floor() as i32];
+            if map.properties.get_bool_default("terrain_enabled", false) {
+                CompositionSurface::TerrainTile { cell }
+            } else {
+                CompositionSurface::RectTile {
+                    sector: Self::rect_sector_at(map, cell)?,
+                }
+            }
+        } else if let Some((x, y)) = server.rect_terrain_id {
+            CompositionSurface::TerrainTile { cell: [x, y] }
+        } else if let Some((object, face)) = server.rect_geometry_face_3d {
+            map.geometry_objects
+                .iter()
+                .find(|o| o.id == object)?
+                .faces
+                .get(face)?;
+            CompositionSurface::GeometryTile {
+                object,
+                face,
+                cell: [server.rect_tile_id_3d.0, server.rect_tile_id_3d.1],
+            }
+        } else if let Some(sector) = server.rect_sector_id_3d {
+            map.find_sector(sector)?;
+            CompositionSurface::SectorTile {
+                sector,
+                cell: [server.rect_tile_id_3d.0, server.rect_tile_id_3d.1],
+            }
+        } else {
+            return None;
+        };
+        Some(MapMaterialBinding {
+            map: map.id,
+            surface,
+        })
+    }
+    fn rect_sector_at(map: &Map, cell: [i32; 2]) -> Option<u32> {
+        let (x, y) = (cell[0] as f32, cell[1] as f32);
+        let vertices = [
+            map.find_vertex_at(x, y)?,
+            map.find_vertex_at(x, y + 1.)?,
+            map.find_vertex_at(x + 1., y + 1.)?,
+            map.find_vertex_at(x + 1., y)?,
+        ];
+        map.find_sectors_with_vertex_indices(&vertices)
+            .last()
+            .copied()
+    }
+    fn draw_composition_controls(
+        &mut self,
+        buffer: &mut TheRGBABuffer,
+        map: &Map,
+        ctx: &mut TheContext,
+        server: &ServerContext,
+    ) {
+        self.composition_mode_rects.clear();
+        if buffer.dim().width < 188 || buffer.dim().height < 54 || !server.pc.is_region() {
+            return;
+        }
+        let stride = buffer.stride();
+        for (index, (x, width, label)) in [(8, 70, "Paint"), (80, 100, "Compose")]
+            .into_iter()
+            .enumerate()
+        {
+            let rect = TheDim::rect(x, 26, width, 22);
+            let selected = server.rect_compose_mode == (index == 1);
+            ctx.draw.rect(
+                buffer.pixels_mut(),
+                &rect.to_buffer_utuple(),
+                stride,
+                &if selected {
+                    [68, 68, 74, 245]
+                } else {
+                    [34, 34, 36, 240]
+                },
+            );
+            if selected {
+                ctx.draw.rect(
+                    buffer.pixels_mut(),
+                    &(x as usize + 3, 46, width as usize - 6, 2),
+                    stride,
+                    &[210, 176, 92, 255],
+                );
+            }
+            ctx.draw.text_rect_blend(
+                buffer.pixels_mut(),
+                &rect.to_buffer_utuple(),
+                stride,
+                label,
+                TheFontSettings {
+                    size: 12.,
+                    ..Default::default()
+                },
+                &[230, 230, 232, 255],
+                TheHorizontalAlign::Center,
+                TheVerticalAlign::Center,
+            );
+            self.composition_mode_rects.push(rect);
+        }
+        if server.editor_view_mode == EditorViewMode::D2 && server.rect_compose_mode {
+            use shared::material_composition::CompositionSurface;
+            let bounds = server
+                .rect_composition_target
+                .as_ref()
+                .filter(|b| b.map == map.id)
+                .and_then(|binding| match binding.surface {
+                    CompositionSurface::RectTile { sector } => map.find_sector(sector).map(|s| {
+                        let b = s.bounding_box(map);
+                        (b.min, b.max)
+                    }),
+                    CompositionSurface::TerrainTile { cell } => {
+                        let p = Vec2::new(cell[0] as f32, cell[1] as f32);
+                        Some((p, p + 1.))
+                    }
+                    _ => None,
+                });
+            if let Some((a, b)) = bounds {
+                let size = Vec2::new(buffer.dim().width as f32, buffer.dim().height as f32);
+                let a = ServerContext::map_grid_to_local(size, a, map);
+                let b = ServerContext::map_grid_to_local(size, b, map);
+                buffer.draw_rect_outline(
+                    &TheDim::new(
+                        a.x.min(b.x).round() as i32,
+                        a.y.min(b.y).round() as i32,
+                        (b.x - a.x).abs().round() as i32 + 1,
+                        (b.y - a.y).abs().round() as i32 + 1,
+                    ),
+                    &[210, 176, 92, 255],
+                );
+            }
+        }
+    }
     /// Add a tile at the current hover position
     // The stroke owns its undo snapshots; individual cells only report changes.
     fn paint_cell(
@@ -1297,6 +1650,7 @@ impl RectTool {
     }
 
     fn reset_stroke(&mut self) {
+        self.composition_control_active = false;
         self.stroke_active = false;
         self.stroke_changed = false;
         self.stroke_prev_map = None;

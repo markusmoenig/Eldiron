@@ -1,0 +1,32 @@
+[package]
+name = "denrim-materials"
+version = "0.1.0"
+edition = "2024"
+description = "Shared procedural material IR, text format, CPU evaluator and Metal generator"
+license = "MIT"
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[[bin]]
+name = "materials"
+path = "src/bin/materials.rs"
+
+[[example]]
+name = "eldiron_wgpu"
+required-features = ["wgpu"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
+wgpu = { version = "29.0.3", optional = true }
+naga = { version = "29.0.3", features = ["glsl-in", "wgsl-out"], optional = true }
+
+[features]
+default = []
+integration = ["dep:serde", "dep:serde_json"]
+wgpu = ["integration", "dep:wgpu", "dep:naga"]
+
+[dev-dependencies]
+pollster = "0.4"
+half = "2"

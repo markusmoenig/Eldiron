@@ -578,27 +578,11 @@ mod live_rules_tests {
         assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
         let original = assets.rules.clone();
         assert!(!prepare_live_rules(&mut assets, &project).unwrap().is_some());
-        let branch = project
-            .rules
-            .current
-            .branches
-            .iter_mut()
-            .find(|b| crate::rulesets::graph::branch_path(b) == Some("/actions/basic_attack"))
-            .unwrap();
-        let node = branch
-            .nodes
-            .iter_mut()
-            .find(|n| n.definition.as_deref() == Some("rules_definition"))
-            .unwrap();
-        let theframework::thegraph::GraphControlValue::List { rows, .. } = &mut node.rows[1].value
-        else {
-            panic!()
-        };
-        let field = rows
-            .iter_mut()
-            .find(|r| r[0] == theframework::thegraph::GraphControlValue::Text("name".into()))
-            .unwrap();
-        field[2] = theframework::thegraph::GraphControlValue::Text("Live Robot Strike".into());
+        project.rules_document.edit(|table| {
+            table["actions"]["basic_attack"].as_table_mut().unwrap().insert(
+                "name".into(), crate::rulesets::document::RulesValue::String("Live Robot Strike".into()));
+            Ok(())
+        }).unwrap();
         assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
         let accepted = assets.rules.clone();
         assert!(accepted.contains("Live Robot Strike"));
@@ -607,28 +591,11 @@ mod live_rules_tests {
             rusterix::Tile::from_texture(rusterix::Texture::new(vec![20, 80, 140, 255], 1, 1));
         let tile_id = tile.id;
         project.tiles.insert(tile_id, tile);
-        let branch = project
-            .rules
-            .current
-            .branches
-            .iter_mut()
-            .find(|b| crate::rulesets::graph::branch_path(b) == Some("/icons/basic_attack"))
-            .unwrap();
-        let node = branch
-            .nodes
-            .iter_mut()
-            .find(|n| n.definition.as_deref() == Some("rules_definition"))
-            .unwrap();
-        let theframework::thegraph::GraphControlValue::List { columns, rows, .. } =
-            &mut node.rows[1].value
-        else {
-            panic!()
-        };
-        let mut cells: Vec<_> = columns.iter().map(|c| c.control.clone()).collect();
-        cells[0] = theframework::thegraph::GraphControlValue::Text("texture".into());
-        cells[2] = theframework::thegraph::GraphControlValue::Text(tile_id.to_string());
-        rows.push(cells);
-        crate::rulesets::graph::sync_ports(branch);
+        project.rules_document.edit(|table| {
+            table["icons"]["basic_attack"].as_table_mut().unwrap().insert(
+                "texture".into(), crate::rulesets::document::RulesValue::String(tile_id.to_string()));
+            Ok(())
+        }).unwrap();
         assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
         let mut item = rusterix::Item::default();
         item.attributes
@@ -640,14 +607,10 @@ mod live_rules_tests {
             vec![20, 80, 140, 255]
         );
         let accepted = assets.rules.clone();
-        project
-            .rules
-            .current
-            .branches
-            .push(project.rules.current.branches[0].clone());
+        project.rules_document.current = "[invalid".into();
         assert!(prepare_live_rules(&mut assets, &project).is_err());
         assert_eq!(assets.rules, accepted);
-        project.rules.restore_original();
+        project.rules_document.restore_original();
         assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
         assert_eq!(assets.rules, original);
     }

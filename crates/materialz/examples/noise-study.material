@@ -1,0 +1,28 @@
+# Organic fBm supplies color; Perlin + fBm supplies relief.
+# Voronoi's Y channel drives roughness directly, without a Split tile.
+project 1
+material "clay" called "Organic Clay"
+  mode bsdf
+  tiling seamless
+  default specular to 0.35
+  row "organic" called "Organic Tone"
+    use "Organic fBm"
+      set "scaleValue" to 8
+      set "gain" to 0.42
+  row "color" called "Clay Color"
+    use "Mix"
+      input from row "organic" xxx
+      set "color1" to 0.12 0.035 0.018 1
+      set "color2" to 0.5 0.22 0.09 1
+      set "factor" to 1 1 1
+  row "relief" called "Relief"
+    use "Perlin Noise"
+      set "globalScale" to 0.65
+    use "fBm"
+      set "layers" to 3
+  row "cells" called "Pores"
+    use "Voronoi"
+      set "globalScale" to 0.35
+  output base color from row "color" xyz
+  output height from row "relief" x mapped 0 to 0.025
+  output roughness from row "cells" y mapped 0.5 to 0.85

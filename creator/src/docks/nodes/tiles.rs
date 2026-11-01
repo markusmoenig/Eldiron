@@ -369,10 +369,10 @@ mod tests {
                 .as_str(),
             Some(tile_id.to_string().as_str())
         );
-        let saved: Project =
-            serde_json::from_str(&serde_json::to_string(&project).unwrap()).unwrap();
+        let saved: shared::rulesets::graph::RulesGraph =
+            serde_json::from_str(&serde_json::to_string(&project.rules.current).unwrap()).unwrap();
         assert_eq!(
-            saved.rules.current.compile().unwrap(),
+            saved.compile().unwrap(),
             project.rules.current.compile().unwrap()
         );
         dock.undo(&mut ui, &mut ctx, &mut project, &mut server);

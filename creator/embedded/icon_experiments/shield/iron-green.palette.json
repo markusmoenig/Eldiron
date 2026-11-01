@@ -1,0 +1,44 @@
+{
+  "label": "Iron / Green",
+  "bindings": {
+    "rim-colors": {
+      "color0": 3,
+      "color1": 4,
+      "color2": 5,
+      "color3": 6
+    },
+    "boss-colors": {
+      "color0": 3,
+      "color1": 4,
+      "color2": 5,
+      "color3": 6
+    },
+    "face-colors": {
+      "color0": 38,
+      "color1": 37,
+      "color2": 36,
+      "color3": 35
+    },
+    "outer-outline": {
+      "color": 1
+    },
+    "face-outline": {
+      "color": 1
+    },
+    "emblem-outline": {
+      "color": 1
+    },
+    "boss-outline": {
+      "color": 1
+    },
+    "rivet-outline": {
+      "color": 1
+    },
+    "emblem-color": {
+      "color": 7
+    },
+    "rivet-color": {
+      "color": 7
+    }
+  }
+}

@@ -1,10 +1,12 @@
 use crate::prelude::*;
 
 pub mod black_blue;
+pub mod creator;
 pub mod dark;
 
 pub mod prelude {
     pub use crate::theui::thetheme::black_blue::TheBlackBlueTheme;
+    pub use crate::theui::thetheme::creator::{TheBrownTheme, TheLightTheme};
     pub use crate::theui::thetheme::dark::TheDarkTheme;
 }
 
@@ -202,6 +204,14 @@ pub trait TheTheme: Send {
         ];
         match of {
             TheThemePalettes::ActionGroups => ACTION_GROUPS[index % ACTION_GROUPS.len()],
+            TheThemePalettes::MaterialCategories => [
+                [181, 148, 231, 255],
+                [93, 197, 168, 255],
+                [232, 164, 111, 255],
+                [222, 194, 112, 255],
+                [113, 175, 231, 255],
+                [144, 187, 207, 255],
+            ][index % 6],
         }
     }
 
@@ -310,11 +320,33 @@ pub enum TheThemeMetrics {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum TheThemePalettes {
     ActionGroups,
+    /// Noise, shapes, color, coordinates, math, and uncategorized material tiles.
+    MaterialCategories,
 }
 
 /// The
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum TheThemeColors {
+    EditorCanvasBackground,
+    EditorGrid,
+    EditorSubGrid,
+    // Procedural material editor surfaces; independent of other graph widgets.
+    MaterialCanvas,
+    MaterialGrid,
+    MaterialPanel,
+    MaterialControl,
+    MaterialText,
+    MaterialMuted,
+    MaterialWire,
+    MaterialDropdown,
+    MaterialSource,
+    MaterialPopup,
+    MaterialPopupHover,
+    MaterialPopupSelection,
+    MaterialShadow,
+    MaterialCheckerDark,
+    MaterialCheckerLight,
+
     Green,
     Red,
 

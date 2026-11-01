@@ -45,6 +45,7 @@ pub struct TheTextAreaEdit {
     state: TheTextEditState,
     modified_since_last_return: bool,
     modified_since_last_tick: bool,
+    last_light_ui: Option<bool>,
 
     // Text render
     renderer: TheTextRenderer,
@@ -120,6 +121,7 @@ impl TheWidget for TheTextAreaEdit {
             state: TheTextEditState::default(),
             modified_since_last_return: false,
             modified_since_last_tick: false,
+            last_light_ui: None,
 
             renderer: TheTextRenderer::default(),
             highlight_source: None,
@@ -1303,6 +1305,16 @@ impl TheWidget for TheTextAreaEdit {
             return;
         }
 
+        let background = *style.theme().color(TextEditBackground);
+        let light = u16::from(background[0]) + u16::from(background[1]) + u16::from(background[2])
+            > 3 * 160;
+        if self.last_light_ui != Some(light) {
+            if let Some(highlighter) = self.renderer.highlighter.as_mut() {
+                highlighter.set_light_ui(light);
+                self.modified_since_last_tick = true;
+            }
+            self.last_light_ui = Some(light);
+        }
         let mut shrinker = TheDimShrinker::zero();
         self.renderer.render_widget(
             &mut shrinker,

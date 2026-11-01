@@ -1,0 +1,23 @@
+tile 1
+name "Coordinates"
+category "System"
+description "Cartesian, polar and cylindrical coordinate data, with 3D scaling, Euler rotation and translation. Connect XY or XYZ to a row's coordinate input. Angles use turns."
+group "Coordinates" true
+param float source "Source" default 0 range 0 2
+choices "UV" "Position" "Input"
+param float mapping "Mapping" default 0 range 0 4
+choices "Cartesian" "Cartesian to Polar" "Polar to Cartesian" "Cartesian to Cylindrical" "Cylindrical to Cartesian"
+group "Transform" true
+param vec3 scale "Scale" default 1 1 1 range -1000 1000
+param vec3 rotation "Rotation" default 0 0 0 range -360 360
+param vec3 offset "Offset" default 0 0 0 range -1000 1000
+let p = select(equal(source, 0), vec3(uv, 0), select(equal(source, 1), pos, input.rgb)) * scale
+let a = radians(rotation)
+let rx = vec3(p.x, cos(a.x) * p.y - sin(a.x) * p.z, sin(a.x) * p.y + cos(a.x) * p.z)
+let ry = vec3(cos(a.y) * rx.x + sin(a.y) * rx.z, rx.y, -sin(a.y) * rx.x + cos(a.y) * rx.z)
+let v = vec3(cos(a.z) * ry.x - sin(a.z) * ry.y, sin(a.z) * ry.x + cos(a.z) * ry.y, ry.z) + offset
+let polar = vec3(atan2(v.y, nonzero(v.x)) / 6.28318530718 + 0.5, length(v.xy), v.z)
+let cartesian = vec3(cos((v.x - 0.5) * 6.28318530718) * v.y, sin((v.x - 0.5) * 6.28318530718) * v.y, v.z)
+let cylindrical = vec3(atan2(v.z, nonzero(v.x)) / 6.28318530718 + 0.5, length(v.xz), v.y)
+let cylinderInverse = vec3(cos((v.x - 0.5) * 6.28318530718) * v.y, v.z, sin((v.x - 0.5) * 6.28318530718) * v.y)
+image = vec4(select(equal(mapping, 0), v, select(equal(mapping, 1), polar, select(equal(mapping, 2), cartesian, select(equal(mapping, 3), cylindrical, cylinderInverse)))), input.a)

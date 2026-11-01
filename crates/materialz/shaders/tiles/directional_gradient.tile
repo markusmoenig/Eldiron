@@ -1,0 +1,14 @@
+tile 1
+name "Directional Gradient"
+category "Operator"
+description "A linear UV gradient for palette shading, bevel tones and masks. Angle sets the direction of increasing brightness. Preserves incoming alpha and optional shape distance. Feed the result into Color Ramp."
+group "Gradient" true
+param float angle "Direction" default 225 range -360 360
+param float scale "Contrast" default 1.2020815 range 0 100
+param float offset "Bias" default 0.5 range -100 100
+param vec2 center "Origin" default 0 0 range -100 100
+let c = cos(radians(angle))
+let s = sin(radians(angle))
+let direction = vec2(select(less(abs(c), 0.000001), 0, c), select(less(abs(s), 0.000001), 0, s))
+let value = clamp(offset + dot(uv - center, direction) * scale, 0, 1)
+image = vec4(vec3(value), input.a)

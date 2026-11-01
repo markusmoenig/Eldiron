@@ -377,12 +377,26 @@ impl Default for TileMaterialMeta {
     }
 }
 
+/// A coordinate-addressed grid with optional time-major animation frames.
+#[derive(Serialize, Deserialize, PartialEq, Clone, Debug)]
+pub struct TileUvPages {
+    pub animation_frames: u32,
+    pub repeat_period: [f32; 2],
+    pub origin: [i32; 2],
+    pub size: [u32; 2],
+    /// World-space projection axes; zero axes choose floor/wall projection per polygon.
+    pub axes: [[f32; 3]; 2],
+    pub units_per_page: u32,
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Debug, Default)]
 pub struct Tile {
     pub id: Uuid,
     pub role: TileRole,
     /// The textures of the tiles. Primary source.
     pub textures: Vec<Texture>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uv_pages: Option<TileUvPages>,
     /// The module if the textures are shader generated
     pub module: Option<serde_json::Value>,
     /// For top down 2D scenarios
@@ -427,6 +441,17 @@ pub struct Tile {
 }
 
 impl Tile {
+    /// Pick the tick-selected animation phase's representative spatial page.
+    pub fn frame_index(&self, frame: usize) -> usize {
+        if let Some(pages) = &self.uv_pages {
+            let n = pages.animation_frames.max(1);
+            let phase = frame % n as usize;
+            phase * pages.size[0] as usize * pages.size[1] as usize
+        } else {
+            frame % self.textures.len().max(1)
+        }
+    }
+
     /// Parse a comma, semicolon, or newline separated gameplay tag list.
     /// Tags are stored in a stable, lowercase form so scripts can compare them
     /// without depending on how they were capitalized in Creator.
@@ -483,6 +508,7 @@ impl Tile {
             id: Uuid::new_v4(),
             role: TileRole::ManMade,
             textures: vec![texture],
+            uv_pages: None,
             module: None,
             blocking: false,
             scale: 1.0,
@@ -507,6 +533,7 @@ impl Tile {
         Self {
             id: Uuid::new_v4(),
             textures,
+            uv_pages: None,
             module: None,
             blocking: false,
             scale: 1.0,
@@ -600,6 +627,7 @@ impl Tile {
             id: self.id,
             role: self.role,
             textures: resized_textures,
+            uv_pages: self.uv_pages.clone(),
             module: self.module.clone(),
             blocking: self.blocking,
             scale: self.scale,

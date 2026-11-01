@@ -212,3 +212,8 @@ sunset_time = 18.0
 
 # Transition window in hours for color blending.
 color_transition_duration_hours = 0.5
+
+[materials]
+# Procedural texture size (1..64); 0 keeps smooth evaluation at 64px.
+# Also editable in Game > Settings > Procedural Materials > Pixels per tile.
+pixels_per_tile = 16

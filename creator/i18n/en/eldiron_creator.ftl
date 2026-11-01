@@ -29,19 +29,27 @@ action_shortcut = Shortcut
 node_editor_create_button = Create Graph
 ## Render Editor
 render_editor_trace_button = Start Trace
-## Starter Project
-starter_dialog_title = New Project
-starter_intro_title = Choose a starting point
-starter_intro_sub = Pick a starter for your new game. Everything can be changed later.
-starter_loading = Loading starter projects...
-starter_loading_sub = Fetching metadata from the Eldiron repo.
-starter_loading_project = Loading starter project...
-starter_choose = Choose
-starter_create = Create Project
-starter_cancel = Cancel
-starter_unsaved_note = The starter opens as an unsaved project.
-starter_empty = No starter projects found.
-starter_empty_sub = The Eldiron repo metadata could not be loaded.
+## Project Chooser and Examples
+project_chooser_intro = Create a game or open a project.
+project_new_2d = New 2D Project
+project_new_3d = New 3D Project
+project_browse_examples = Browse Examples…
+project_open_existing = Open Project…
+project_chooser_cancel = Cancel
+example_dialog_title = Example Projects
+example_intro_title = Explore example games
+example_intro_sub = Open an example as a new project.
+example_loading = Loading examples…
+example_loading_sub = Fetching examples from the Eldiron repository.
+example_loading_project = Loading example project…
+example_open = Open Example
+example_back = Back
+example_unsaved_note = Examples open as unsaved projects.
+example_empty = No examples available.
+example_empty_sub = The example catalog could not be loaded.
+status_project_choose = Create a 2D or 3D game, browse examples, or open a project.
+status_example_initialized = Example project opened.
+status_example_load_failed = Unable to load example project.
 ## Tilemap
 tilemap_add_button = Add Tile(s)
 
@@ -60,9 +68,6 @@ status_game_input_button = Routes input to the game instead of the editor when t
 status_time_slider = Adjust the server time.
 status_update_button = Update application.
 status_patreon_button = Visit the Eldiron Patreon page. Thanks for your support.
-status_starter_choose = Choose a 2D or 3D starter project.
-status_starter_initialized = Starter project successfully initialized.
-status_starter_load_failed = Unable to load starter project!
 status_create_cutout_failed = Create Cutout needs at least three selected surface-line points on one 3D face.
 status_create_cutout_open_loop = Create Cutout needs closed surface-line loops. Finish or close the selected guide first.
 status_create_cutout_multiple_faces = Create Cutout currently needs all selected guide loops on one host surface.

@@ -1,0 +1,2235 @@
+{
+  "version": 1,
+  "source_language": "en",
+  "ui": {
+    "ui.tile_help.open": "Tile Help",
+    "ui.tile_help.close": "Close",
+    "ui.tile_help.input": "Input",
+    "ui.tile_help.output": "Output",
+    "ui.tile_help.usage": "How to use",
+    "ui.tile_help.notes": "Notes",
+    "ui.tile_help.parameters": "Parameters"
+  },
+  "tiles": {
+    "border": {
+      "title": "Border",
+      "summary": "Colors an inside band along the edge of an input silhouette.",
+      "input": "Connect a shape or an image whose alpha defines the silhouette.",
+      "output": "A colored inside border that preserves the input silhouette.",
+      "usage": "Set Width in document units and choose the border color. Connect a shape with distance data for the most direct result.",
+      "notes": "Without usable distance, the border samples the alpha mask in a bounded neighborhood. Fine details below the sampling scale may be approximated, and wide borders cost more than an analytic distance band.",
+      "parameters": {
+        "width": {
+          "title": "Width"
+        },
+        "color": {
+          "title": "Color"
+        }
+      }
+    },
+    "cell_data": {
+      "title": "Cell Data",
+      "summary": "Stable UV-grid or instance data: random values, indices, parity and hierarchical keys.",
+      "input": "No image is required. Instance scope reads the enclosing Grid through row and parameter connections.",
+      "output": "Random scalar/color, local UV, cell center, integer indices, parity, group random/key or cell key. Named center/size/angle fields expose the composed placement frame in placement-space units.",
+      "usage": "Use UV Grid for standalone periodic controls. Inside repeated rows choose Instance; connect Parity to a Transform rotation or random values to color/seed controls.",
+      "notes": "Instance scope uses stable current-instance data. Outside placement it uses a fixed zero key, rather than falling back to UV-grid randomness. Local UV follows transformations. Named fields can be selected directly on connections. Instance Center, Size and Angle describe the composed placement frame, avoiding references back to the parent row. This frame describes placement before nonlinear warps.",
+      "parameters": {
+        "cells": {
+          "title": "Cells",
+          "text": "Positive integer cells per UV unit, rounded and clamped to 1–1024."
+        },
+        "offset": {
+          "title": "Offset",
+          "text": "Offset in cell units. A half-cell offset changes where cell centers fall."
+        },
+        "seed": {
+          "title": "Seed",
+          "text": "Deterministic seed. Nested Grids also hash the parent identity to keep subcells independent."
+        },
+        "scope": {
+          "title": "Scope",
+          "text": "UV Grid derives cells from UV. Instance derives keys from placement and uses a fixed zero key outside an instance."
+        },
+        "output": {
+          "title": "Output",
+          "text": "Selects the control field supplied by this row."
+        }
+      }
+    },
+    "circle": {
+      "title": "Circle",
+      "summary": "A circular shape with antialiased coverage and signed distance.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB is white and alpha carries antialiased shape coverage. Shape Distance is available as a separate connection choice.",
+      "usage": "Control Radius and Center, then use Color or another style row to color the silhouette. Connect coverage or a derived mask to Opacity when the shape should cut out the material.",
+      "notes": "Signed distance is negative inside and positive outside. Coarse material Height and surface color are separate from the shape distance.",
+      "parameters": {
+        "radius": {
+          "title": "Radius",
+          "text": "Circle radius in document units."
+        },
+        "center": {
+          "title": "Center",
+          "text": "Center of the shape in document coordinates."
+        },
+        "smoothness": {
+          "title": "Union Smoothness",
+          "text": "Blend width for Smooth Union with a preceding shape; it does not change a standalone shape."
+        }
+      }
+    },
+    "color": {
+      "title": "Color",
+      "summary": "Solid color across the image or within the incoming alpha mask. Preserves optional distance.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "color": {
+          "title": "Color"
+        }
+      }
+    },
+    "color_blend": {
+      "title": "Mix",
+      "summary": "Mixes two constant or connected RGBA endpoints using a per-channel factor.",
+      "input": "Optional image input supplies a mask and coverage; without it, only Factor controls interpolation.",
+      "output": "RGB interpolates per channel. Alpha interpolates with the mean clamped factor and multiplies input coverage.",
+      "usage": "Connect A and B, then Factor. To colorize a grayscale input like the former Color Blend, set Factor to (1, 1, 1).",
+      "notes": "Both endpoints and Factor accept row connections. Endpoints can carry their own alpha. Unbounded RGB factors allow extrapolation.",
+      "parameters": {
+        "color1": {
+          "title": "A",
+          "text": "First endpoint, as constant RGBA or a connected row."
+        },
+        "color2": {
+          "title": "B",
+          "text": "Second endpoint, as constant RGBA or a connected row."
+        },
+        "factor": {
+          "title": "Factor",
+          "text": "Per-channel interpolation weight, multiplied by the optional image input. Zero selects A and one selects B."
+        }
+      }
+    },
+    "compare_select": {
+      "title": "Compare/Select",
+      "summary": "Compares values to make a mask or select between two results.",
+      "input": "The image supplies the values being compared. Reference, True and False may be constants or other row connections.",
+      "output": "Mask returns comparison coverage. Select blends False and True using that coverage. RGB channels are compared separately.",
+      "usage": "Use Mask for material regions, or Select for crossing order and alternative colors. Softness smooths transitions; Tolerance defines the equality band.",
+      "notes": "Greater and Less exclude exact equality. Greater or Equal and Less or Equal include it. Connect the resulting mask to Opacity when it should remove material.",
+      "parameters": {
+        "comparison": {
+          "title": "Comparison"
+        },
+        "reference": {
+          "title": "Reference"
+        },
+        "softness": {
+          "title": "Softness",
+          "text": "Half-width of the transition around the reference. Zero uses the exact comparison, including its behavior at equality."
+        },
+        "tolerance": {
+          "title": "Tolerance",
+          "text": "Equal and Not Equal compare absolute difference with this tolerance. Softness adds a falloff outside the tolerance band."
+        },
+        "output": {
+          "title": "Output"
+        },
+        "falseValue": {
+          "title": "False"
+        },
+        "trueValue": {
+          "title": "True"
+        }
+      }
+    },
+    "directional_grain": {
+      "title": "Directional Grain",
+      "summary": "Curved directional fibers with sparse grooves and a separate relief signal.",
+      "input": "No image input is needed. Seed may be driven by cell or strip data.",
+      "output": "Choose Grain, Grooves or Height. Packed returns Grain in X, Grooves in Y and Height in Z. Incoming alpha and optional distance are preserved.",
+      "usage": "Set Direction and the along/across Scale values. Use per-strip seeds for wicker. Use Grain for subtle color variation, Grooves for wear masks, and Height for fine normals.",
+      "notes": "Inside a Grid, UV follows instance orientation. Seed Scope can add stable Instance or Group variation. Axis-aligned integer scales repeat naturally; other directions may need seamless wrapping.",
+      "parameters": {
+        "scale": {
+          "title": "Scale",
+          "text": "Along-grain and across-grain cell counts. Rounded and clamped to 1..1024."
+        },
+        "direction": {
+          "title": "Direction",
+          "text": "Grain direction in degrees: zero is horizontal, 90 is vertical. Other angles may need seamless material wrapping."
+        },
+        "seed": {
+          "title": "Seed"
+        },
+        "seedScope": {
+          "title": "Seed Scope",
+          "text": "Fixed uses Seed alone. Instance and Group add a stable hash from the enclosing Grid identity."
+        },
+        "bend": {
+          "title": "Bend",
+          "text": "Small fiber curvature, measured in across-grain cell units."
+        },
+        "octaves": {
+          "title": "Octaves"
+        },
+        "contrast": {
+          "title": "Contrast"
+        },
+        "grooveWidth": {
+          "title": "Groove Width",
+          "text": "Groove width as a fraction of a fiber cell. Narrow filtered lines keep wear localized instead of creating broad noise patches."
+        },
+        "threshold": {
+          "title": "Threshold"
+        },
+        "softness": {
+          "title": "Softness"
+        },
+        "depth": {
+          "title": "Depth"
+        },
+        "output": {
+          "title": "Output"
+        }
+      }
+    },
+    "disc": {
+      "title": "Disc",
+      "summary": "Generates a disc shape.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "The preview shows the shape. Circle and Rounded Rectangle also provide signed distance as a separate connection choice; a grayscale shape result is not automatically material Opacity.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "inBEVEL": {
+          "title": "Bevel",
+          "text": "Beveling."
+        },
+        "GRAD": {
+          "title": "Random Gradient",
+          "text": "Gives the shape a random gradient, useful for generating uneveness through visually tilting the shape."
+        },
+        "inStrengthGradient": {
+          "title": "Gradient Strength",
+          "text": "Strength of the gradient."
+        },
+        "globalScale": {
+          "title": "Global",
+          "text": "Global scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+        },
+        "localScale": {
+          "title": "Local",
+          "text": "Local X/Y scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+        },
+        "offset": {
+          "title": "Offset",
+          "text": "X/Y offset of the shape. If shape is used inside a pattern the offset should be 0. as the pattern will position the shape automatically."
+        }
+      }
+    },
+    "fbm": {
+      "title": "fBm",
+      "summary": "Builds layered detail by sampling an input row at increasing frequencies.",
+      "input": "Connect the noise or image row you want to layer. The same operation works with 2D and 3D sources.",
+      "output": "The weighted RGB sum divided by the total octave weight. Incoming alpha is retained.",
+      "usage": "Start with three to five Octaves. Increase Lacunarity for greater frequency separation or Gain for stronger fine detail. Select a single channel on the input connection when layering packed data.",
+      "notes": "More octaves re-evaluate the entire upstream row and can be expensive. Unit-repeat behavior depends on the source and frequency multipliers. Organic fBm is a separate complete source preserving its own response.",
+      "parameters": {
+        "layers": {
+          "title": "Octaves",
+          "text": "Number of layers. Each layer samples the connected row again."
+        },
+        "lacunarity": {
+          "title": "Lacunarity",
+          "text": "Frequency multiplier between layers. Two doubles the frequency at each octave."
+        },
+        "gain": {
+          "title": "Gain",
+          "text": "Amplitude multiplier between layers. Lower values reduce fine detail."
+        },
+        "globalScale": {
+          "title": "Scale",
+          "text": "Overall feature-size multiplier applied before sampling."
+        },
+        "localScale": {
+          "title": "Stretch",
+          "text": "Feature-size multipliers along the sampled axes."
+        }
+      }
+    },
+    "gabor": {
+      "title": "Gabor Noise",
+      "summary": "Localized directional wave packets for dunes, striations and banded detail.",
+      "input": "No input image is required. Optional incoming alpha is preserved.",
+      "output": "A signed wave sum repeated in RGB. It is not normalized into a guaranteed zero-to-one range.",
+      "usage": "Adjust the blob count and size for coverage, and Frequency for stripe spacing. Use Levels, a profile, or Mix to turn the signed signal into material properties.",
+      "notes": "More blobs increase evaluation cost. This source has its own character and should not be treated as interchangeable with smooth value noise.",
+      "parameters": {
+        "NB": {
+          "title": "Number of Blobs"
+        },
+        "SIZE": {
+          "title": "Size of Blobs"
+        },
+        "dist": {
+          "title": "Distance"
+        },
+        "freq": {
+          "title": "Frequency"
+        },
+        "globalScale": {
+          "title": "Global Scale"
+        },
+        "localScale": {
+          "title": "Local Scale"
+        }
+      }
+    },
+    "height_to_normal": {
+      "title": "Height to Normal",
+      "summary": "Converts a height field into an encoded tangent-space normal map.",
+      "input": "Connect grayscale height, or select the required channel on the image connection.",
+      "output": "Encoded RGB normal: flat height produces approximately 0.5, 0.5, 1. Alpha and optional shape distance are preserved.",
+      "usage": "Connect the result to Normal Map. Use Strength to control relief and Radius to set the derivative sampling span.",
+      "notes": "Normal maps change lighting rather than geometry. Keep coarse form in Height when you need displacement. The derivative strength is independent of bake resolution, but very fine detail can still exceed that resolution.",
+      "parameters": {
+        "strength": {
+          "title": "Strength",
+          "text": "Height-to-slope scale in UV units. Negative values invert the relief."
+        },
+        "radius": {
+          "title": "Radius",
+          "text": "Derivative sampling radius in Pixels or UV units. Pixels retain the previous minimum of 0.5; small UV radii keep a physical sampling scale."
+        },
+        "flipY": {
+          "title": "Flip Y",
+          "text": "Off produces OpenGL-style tangent normals; enable to invert the green channel."
+        },
+        "units": {
+          "title": "Units",
+          "text": "Derivative radius in pixels or UV units. Pixels retain the previous default behavior."
+        }
+      }
+    },
+    "mixer_divide": {
+      "title": "Divide",
+      "summary": "Divides each channel by a constant or connected vector.",
+      "input": "RGB dividend. Connect a Value row for a constant dividend.",
+      "output": "Componentwise quotients, with incoming alpha.",
+      "usage": "Set Divisor or connect another row, using its channel selector when a scalar is needed.",
+      "notes": "Divisors closer to zero than 0.000001 use a signed epsilon.",
+      "parameters": {
+        "divisor": {
+          "title": "Divisor"
+        }
+      }
+    },
+    "multiply": {
+      "title": "Multiply",
+      "summary": "The output is the result of the multiplication of the input value with the global and local properties.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "globalValue": {
+          "title": "Global"
+        },
+        "localValue": {
+          "title": "Local"
+        }
+      }
+    },
+    "op_abs": {
+      "title": "Abs",
+      "summary": "The output is the absolute / non-negative value of the input.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {}
+    },
+    "op_add": {
+      "title": "Add",
+      "summary": "The output is the input value added to the global and local properties.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "globalValue": {
+          "title": "Global"
+        },
+        "localValue": {
+          "title": "Local"
+        }
+      }
+    },
+    "op_clamp": {
+      "title": "Clamp",
+      "summary": "The output is the input value constrained to lie between the low and high properties.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "value1": {
+          "title": "Low"
+        },
+        "value2": {
+          "title": "High"
+        }
+      }
+    },
+    "op_cos": {
+      "title": "Cos",
+      "summary": "The output is the cosine of the input value multiplied by the scale property.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "scale": {
+          "title": "Scale"
+        }
+      }
+    },
+    "op_floor": {
+      "title": "Floor",
+      "summary": "The output is the nearest integer less than or equal to the input value.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {}
+    },
+    "op_fract": {
+      "title": "Fract",
+      "summary": "The output is the fractional part of the input value.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {}
+    },
+    "op_max": {
+      "title": "Max",
+      "summary": "The output is the greater of the input value and the global property multiplied with the local property.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "globalValue": {
+          "title": "Global"
+        },
+        "localValue": {
+          "title": "Local"
+        }
+      }
+    },
+    "op_min": {
+      "title": "Min",
+      "summary": "The output is the lesser of the input value and the global property multiplied with the local property.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "globalValue": {
+          "title": "Global"
+        },
+        "localValue": {
+          "title": "Local"
+        }
+      }
+    },
+    "op_oneminus": {
+      "title": "One Minus",
+      "summary": "The output is the result of the value property (by default one) minus the input value.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "value": {
+          "title": "Value"
+        }
+      }
+    },
+    "op_powproperty": {
+      "title": "Power",
+      "summary": "Raises nonnegative input channels to a constant or connected exponent.",
+      "input": "RGB bases. Connect a Value row for a constant base.",
+      "output": "Componentwise powers, with incoming alpha.",
+      "usage": "Exponent below one lifts dark values; above one tightens highlights.",
+      "notes": "Negative bases are clamped to zero. Zero bases use an epsilon for nonpositive exponents to keep results finite.",
+      "parameters": {
+        "power": {
+          "title": "Exponent"
+        }
+      }
+    },
+    "op_sign": {
+      "title": "Sign",
+      "summary": "The output is -1.0 if the input value is negative and 1.0 if it is positive, 0.0 otherwise.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {}
+    },
+    "op_sin": {
+      "title": "Sin",
+      "summary": "The output is the sine of the input value multiplied by the scale property.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "scale": {
+          "title": "Scale"
+        }
+      }
+    },
+    "op_smoothstep": {
+      "title": "Smooth Step",
+      "summary": "The output is a smooth hermite interpolation between 0..1 if the input value is located between the lower and upper edge. 0.0 or 1.0 otherwise.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "lowerEdge": {
+          "title": "Lower Edge"
+        },
+        "upperEdge": {
+          "title": "Upper Edge"
+        }
+      }
+    },
+    "op_squareroot": {
+      "title": "Square Root",
+      "summary": "The output is the square root of the input value.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "scale": {
+          "title": "Scale"
+        }
+      }
+    },
+    "op_subtract": {
+      "title": "Subtract",
+      "summary": "The output is the result of the subtraction of the sum of the local and global properties from the input value.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Select a single source channel when you want to process one field from a packed result. Choosing All channels processes the RGB components separately unless the tile says otherwise.",
+      "parameters": {
+        "globalValue": {
+          "title": "Global"
+        },
+        "localValue": {
+          "title": "Local"
+        }
+      }
+    },
+    "organic_fbm": {
+      "title": "Organic fBm",
+      "summary": "Dave Hoskins' matching layered organic noise, available as a complete source.",
+      "input": "No noise input is required. An optional preceding image can supply alpha coverage.",
+      "output": "The original weighted octave sum, capped at one and repeated in RGB.",
+      "usage": "Set Frequency for the broad structure, Octaves for detail, Gain for fine-detail strength, and Amplitude for overall contribution.",
+      "notes": "This preserves the matching organic fractal response, including its final cap at one. It is not normalized like general fBm. Large amplitudes can flatten bright areas. Integer Frequency maintains the intended unit repeat.",
+      "parameters": {
+        "layers": {
+          "title": "Octaves",
+          "text": "Number of accumulated noise layers. More octaves add finer detail and increase evaluation cost."
+        },
+        "amplitude": {
+          "title": "Amplitude",
+          "text": "Weight of the first octave. The final result is capped at one."
+        },
+        "gain": {
+          "title": "Gain",
+          "text": "Weight multiplier from one octave to the next."
+        },
+        "scaleValue": {
+          "title": "Frequency",
+          "text": "Frequency of the first octave. Subsequent octaves double their frequency."
+        }
+      }
+    },
+    "organic_noise": {
+      "title": "Organic Noise",
+      "summary": "Dave Hoskins' organic, tileable value noise, with softly connected patches.",
+      "input": "No image input is needed. Optional incoming alpha is preserved.",
+      "output": "A scalar value repeated in RGB.",
+      "usage": "Use Frequency to set the number of features. Feed the result to Mix, roughness, height, or a mask.",
+      "notes": "Integer Frequency repeats over one UV unit. Fractional frequency can introduce seams. For the matching layered result, choose Organic fBm; connecting this source to a special fractal wrapper is unnecessary.",
+      "parameters": {
+        "scaleValue": {
+          "title": "Frequency",
+          "text": "Feature frequency. Larger values produce more, smaller features. Use an integer for a one-unit repeat."
+        }
+      }
+    },
+    "pattern_brickandtiles_shape": {
+      "title": "Brick & Tiles (Pattern)",
+      "summary": "Generates a brick or tile pattern. Needs an input shape or pattern (by default Tile). Returns the cell id in the X component, the depth map in Y and the angle of the shape in degrees in the Z component.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "Packed layout data: X is a cell value, Y is height/depth, and Z is orientation in degrees. Select the field on each outgoing connection.",
+      "usage": "Connect Tile or Disc as the legacy shape input where required. Read Height/Depth (Y) before colorizing; read X separately for cell variation.",
+      "notes": "This is a specialized layout recipe. Its packed RGB output is not a ready-colored material, and its legacy shape inputs are not interchangeable with every modern alpha-mask shape.",
+      "parameters": {
+        "VCELLST": {
+          "title": "Cells",
+          "text": "The vertical amount of shapes."
+        },
+        "inRatio": {
+          "title": "Ratio",
+          "text": "Width / height ratio of the individual shapes."
+        },
+        "inGap": {
+          "title": "Gap",
+          "text": "Gap between the shapes in percent."
+        },
+        "inMaxRandRot": {
+          "title": "Max Rotation",
+          "text": "Maximum random rotation per shape in degrees. A value of 0 means no rotation, a value of 10 means each shape gets randomly rotated up to 10 degrees."
+        },
+        "BRICK": {
+          "title": "Brick",
+          "text": "Switch between shape and brick pattern."
+        },
+        "probability": {
+          "title": "Probability",
+          "text": "The probability that a given shape is drawn, 1. always draws every shape, lower values draw less and less shapes."
+        },
+        "shapeN": {
+          "title": "Amount",
+          "text": "The amount of shapes in the x and y direction."
+        },
+        "shapeGap": {
+          "title": "Gap",
+          "text": "The gap between the shapes."
+        },
+        "SUPERCELL": {
+          "title": "Grid",
+          "text": "Shapes can be grouped into a grid. The grid gap will be applied after every x, y grid shape. Only applicable for tiles, not bricks."
+        },
+        "SUPERGAP": {
+          "title": "Grid Gap",
+          "text": "Shapes can be grouped into a grid. The grid gap will be applied after every x, y grid shape. Only applicable for tiles, not bricks."
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "pattern_checker": {
+      "title": "Checker B/W",
+      "summary": "Generates a simple b/w checkerboard pattern.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "scale": {
+          "title": "Scale"
+        }
+      }
+    },
+    "pattern_circular_brickandtiles_shape": {
+      "title": "Circular Brick & Tiles",
+      "summary": "Generates a circular brick or tile pattern. Needs an input shape or pattern (by default Tile). Returns the cell id in the X component, the depth map in Y and the angle of the shape in degrees in the Z component.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "Packed layout data: X is a cell value, Y is height/depth, and Z is orientation in degrees. Select the field on each outgoing connection.",
+      "usage": "Connect Tile or Disc as the legacy shape input where required. Read Height/Depth (Y) before colorizing; read X separately for cell variation.",
+      "notes": "This is a specialized layout recipe. Its packed RGB output is not a ready-colored material, and its legacy shape inputs are not interchangeable with every modern alpha-mask shape.",
+      "parameters": {
+        "VCELLNT": {
+          "title": "Cells",
+          "text": "The vertical amount of shapes."
+        },
+        "inRatio": {
+          "title": "Ratio",
+          "text": "Width / height ratio of the individual shapes."
+        },
+        "inGap": {
+          "title": "Gap",
+          "text": "Gap between the shapes in percent."
+        },
+        "inHOLLOW": {
+          "title": "Center Size",
+          "text": "The size of the empty center in shapes."
+        },
+        "inMaxRandRot": {
+          "title": "Max Rotation",
+          "text": "Maximum random rotation per shape in degrees. A value of 0 means no rotation, a value of 10 means each shape gets randomly rotated up to 10 degrees."
+        },
+        "BRICK": {
+          "title": "Brick",
+          "text": "Switch between shape and brick pattern."
+        },
+        "probability": {
+          "title": "Probability",
+          "text": "The probability that a given shape is drawn, 1. always draws every shape, lower values draw less and less shapes."
+        },
+        "OFFSET": {
+          "title": "Offset",
+          "text": "Offset between circles."
+        },
+        "RANDofs": {
+          "title": "Random Offsets",
+          "text": "Adds a random offset to the offsets between circles to reduce visible tiling."
+        },
+        "shapeN": {
+          "title": "Amount",
+          "text": "The amount of shapes in the x and y direction."
+        },
+        "shapeGap": {
+          "title": "Gap",
+          "text": "The gap between the shapes."
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "pattern_color_grain": {
+      "title": "Tileable Color Grain",
+      "summary": "Creates a grainy color pattern based on two weighted colors.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "colorA": {
+          "title": "Color A"
+        },
+        "weightA": {
+          "title": "Weight"
+        },
+        "colorB": {
+          "title": "Color B"
+        },
+        "weightB": {
+          "title": "Weight"
+        },
+        "globalScale": {
+          "title": "Global"
+        },
+        "localScale": {
+          "title": "Local"
+        },
+        "repeatScale": {
+          "title": "Repeat"
+        }
+      }
+    },
+    "pattern_cracks": {
+      "title": "Cracks",
+      "summary": "Generates a pattern of random cracks. Returns the cell id in the X component and the depth map in Y component.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "inCell": {
+          "title": "Cells",
+          "text": "The vertical amount of cells."
+        },
+        "inType": {
+          "title": "Type"
+        },
+        "RATIO": {
+          "title": "Ratio",
+          "text": "Tile length / width ratio."
+        },
+        "probability": {
+          "title": "Probability",
+          "text": "The probability that a given shape is drawn, 1. always draws every shape, lower values draw less and less shapes."
+        },
+        "STONE_slope": {
+          "title": "Cell Slope"
+        },
+        "STONE_height": {
+          "title": "Cell Height"
+        },
+        "STONE_profile": {
+          "title": "Profile"
+        },
+        "CRACK_zebra_scale": {
+          "title": "Zebra Scale"
+        },
+        "CRACK_zebra_amp": {
+          "title": "Zebra Amp"
+        },
+        "CRACK_profile": {
+          "title": "Profile"
+        },
+        "CRACK_slope": {
+          "title": "Slope"
+        },
+        "CRACK_width": {
+          "title": "Width"
+        }
+      }
+    },
+    "pattern_cutandproject": {
+      "title": "Cut and Project",
+      "summary": "Generates a tileable pattern using the cut and projection method. This pattern is slow to render.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "VCELLST": {
+          "title": "Cells",
+          "text": "The vertical amount of cells."
+        },
+        "BEVEL": {
+          "title": "Bevel",
+          "text": "Beveling."
+        },
+        "GAP": {
+          "title": "Gap",
+          "text": "GAP between cells."
+        },
+        "CP_tans_adir": {
+          "title": "Tiling #1"
+        },
+        "CP_tans_u2dir": {
+          "title": "Tiling #2"
+        },
+        "CP_tans_v2dir": {
+          "title": "Tiling #3"
+        }
+      }
+    },
+    "pattern_decortiles_shape": {
+      "title": "Decor Tiles",
+      "summary": "Generates a decor stone tile pattern. Needs an input shape (by default Tile). Returns the cell id in the x component, the depth map in y and the angle of the tiles in degrees in the z component.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "Packed layout data: X is a cell value, Y is height/depth, and Z is orientation in degrees. Select the field on each outgoing connection.",
+      "usage": "Connect Tile or Disc as the legacy shape input where required. Read Height/Depth (Y) before colorizing; read X separately for cell variation.",
+      "notes": "This is a specialized layout recipe. Its packed RGB output is not a ready-colored material, and its legacy shape inputs are not interchangeable with every modern alpha-mask shape.",
+      "parameters": {
+        "VCELLST": {
+          "title": "Cells",
+          "text": "The vertical amount of cells."
+        },
+        "RATIO": {
+          "title": "Ratio",
+          "text": "Width / height ratio of the individual tiles."
+        },
+        "inGap": {
+          "title": "Gap",
+          "text": "Gap between the tiles in percent."
+        },
+        "inMaxRandRot": {
+          "title": "Max Rotation",
+          "text": "Maximum random rotation per tile in degrees. A value of 0 means no rotation, a value of 10 means each tile gets randomly rotated up to 10 degrees."
+        },
+        "shapeN": {
+          "title": "Amount",
+          "text": "The amount of shapes in the x and y direction."
+        },
+        "shapeGap": {
+          "title": "Gap",
+          "text": "The gap between the shapes."
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "pattern_fabricewood": {
+      "title": "Wood (2D Pattern)",
+      "summary": "Generates a wood pattern.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "scale": {
+          "title": "Scale"
+        },
+        "veins_S": {
+          "title": "Veins",
+          "text": "Number of veins."
+        },
+        "warp_A": {
+          "title": "Warp Amplitude",
+          "text": "Global displacement amplitude."
+        },
+        "warp_S": {
+          "title": "Warp Scale",
+          "text": "Global displacement scale."
+        },
+        "noise_A": {
+          "title": "Noise Amplitude",
+          "text": "Noise amplitude."
+        },
+        "noise_S": {
+          "title": "Noise Scale",
+          "text": "Noise scale."
+        },
+        "fibers_A": {
+          "title": "Fibers Amplitude",
+          "text": "Fibers amplitude, fibers are dents in the knots."
+        },
+        "fibers_S": {
+          "title": "Fibers Scale",
+          "text": "Fibers scale, fibers are dents in the knots."
+        },
+        "knot_A": {
+          "title": "Strength",
+          "text": "Strength of the knots."
+        },
+        "inKnot_N": {
+          "title": "Amount",
+          "text": "Number of knots."
+        },
+        "knot_S": {
+          "title": "Scale",
+          "text": "Scale of knots."
+        },
+        "knot_shape": {
+          "title": "Shape",
+          "text": "Shape of knots (Perlin)."
+        }
+      }
+    },
+    "pattern_fizzerstiling": {
+      "title": "Fizzers Tiling",
+      "summary": "Generates square tiles with rotated, square corners.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "border_size": {
+          "title": "Border Size"
+        },
+        "scale": {
+          "title": "Scale"
+        }
+      }
+    },
+    "pattern_herringbone_shape": {
+      "title": "Herringbone (Pattern)",
+      "summary": "Generates a herringbone pattern. Needs an input shape or pattern (by default Tile). Returns the cell id in the X component, the depth map in Y and the angle of the shape in degrees in the Z component.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "Packed layout data: X is a cell value, Y is height/depth, and Z is orientation in degrees. Select the field on each outgoing connection.",
+      "usage": "Connect Tile or Disc as the legacy shape input where required. Read Height/Depth (Y) before colorizing; read X separately for cell variation.",
+      "notes": "This is a specialized layout recipe. Its packed RGB output is not a ready-colored material, and its legacy shape inputs are not interchangeable with every modern alpha-mask shape.",
+      "parameters": {
+        "VCELLST": {
+          "title": "Cells",
+          "text": "The vertical amount of shapes."
+        },
+        "inRatio": {
+          "title": "Ratio",
+          "text": "Width / height ratio of the individual shapes."
+        },
+        "inGap": {
+          "title": "Gap",
+          "text": "Gap between the shapes in percent."
+        },
+        "inMaxRandRot": {
+          "title": "Max Rotation",
+          "text": "Maximum random rotation per shape in degrees. A value of 0 means no rotation, a value of 10 means each shape gets randomly rotated up to 10 degrees."
+        },
+        "probability": {
+          "title": "Probability",
+          "text": "The probability that a given shape is drawn, 1. always draws every shape, lower values draw less and less shapes."
+        },
+        "shapeN": {
+          "title": "Amount",
+          "text": "The amount of shapes in the x and y direction."
+        },
+        "shapeGap": {
+          "title": "Gap",
+          "text": "The gap between the shapes."
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "pattern_marble": {
+      "title": "Marble",
+      "summary": "Generates a marble pattern.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "inCell": {
+          "title": "Cells",
+          "text": "The vertical amount of cells."
+        },
+        "fractal_depth_i": {
+          "title": "Layers",
+          "text": "The amount of crack layers."
+        },
+        "fractal_scale": {
+          "title": "Scale per Layer",
+          "text": "The downscale applied to each layer."
+        },
+        "CRACK_noise_scale": {
+          "title": "Noise Scale",
+          "text": "Scales the input noise for the shape."
+        },
+        "CRACK_noise_amp": {
+          "title": "Noise Amp.",
+          "text": "Amplifies the noise. Useful for controlling the shape of the crack lines."
+        }
+      }
+    },
+    "pattern_memorycircles": {
+      "title": "Memory Circles",
+      "summary": "Generates a circle based pattern.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "scale": {
+          "title": "Scale"
+        }
+      }
+    },
+    "pattern_noisemask": {
+      "title": "Noise Hole Mask",
+      "summary": "Generates a noise based pattern of solid shapes / holes which can be used as a mask. Requires a 2D input noise.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "globalScale": {
+          "title": "Global Scale"
+        },
+        "localScale": {
+          "title": "Local Scale"
+        },
+        "offset": {
+          "title": "Offset",
+          "text": "Defines the shape of the mask."
+        },
+        "cutOff": {
+          "title": "Cut Off",
+          "text": "The smaller the cut off, the larger the area covered by the mask."
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra2": {
+          "title": "Input 2"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "pattern_otavioswood": {
+      "title": "Wood (3D Pattern)",
+      "summary": "Generates a wood ring pattern. Requires a 3D input noise.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "globalScale": {
+          "title": "Global Scale"
+        },
+        "localScale": {
+          "title": "Local Scale"
+        },
+        "color1": {
+          "title": "Wood Color"
+        },
+        "color2": {
+          "title": "Ring Color"
+        },
+        "slice": {
+          "title": "Z Slice"
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra2": {
+          "title": "Input 2"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "pattern_random_distribution": {
+      "title": "Random",
+      "summary": "Creates a random distribution of the input shape. Returns the cell id in the X component, the depth map in Y and the angle of the shape in degrees in the Z component.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "Packed layout data: X is a cell value, Y is height/depth, and Z is orientation in degrees. Select the field on each outgoing connection.",
+      "usage": "Connect Tile or Disc as the legacy shape input where required. Read Height/Depth (Y) before colorizing; read X separately for cell variation.",
+      "notes": "This is a specialized layout recipe. Its packed RGB output is not a ready-colored material, and its legacy shape inputs are not interchangeable with every modern alpha-mask shape.",
+      "parameters": {
+        "VCELLST": {
+          "title": "Cells",
+          "text": "The vertical amount of cells."
+        },
+        "RATIO": {
+          "title": "Ratio",
+          "text": "Cell length / width ratio."
+        },
+        "BLEND": {
+          "title": "Blend"
+        },
+        "DEPTH": {
+          "title": "Layers",
+          "text": "Amount of shape layers."
+        },
+        "LACUNARITY": {
+          "title": "Lacunarity",
+          "text": "The amount the shapes get smaller per layer."
+        },
+        "RADIUSA": {
+          "title": "Scale",
+          "text": "Scale of the cells."
+        },
+        "RADIUS_D": {
+          "title": "Size Distribution",
+          "text": "Size distribution of the cells. Higher values vary the size more."
+        },
+        "AMP_D": {
+          "title": "Intensity Distribution",
+          "text": "Intensity distribution of the cells. Higher values vary the intensity of cells more."
+        },
+        "NB": {
+          "title": "Shapes per Cell",
+          "text": "Amount of shapes per cell."
+        },
+        "ROTshape1": {
+          "title": "Random Rot.",
+          "text": "Maximum random rotation in degrees."
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "pattern_randomgradient": {
+      "title": "Random Gradient",
+      "summary": "Generates a random gradient in the specified direction. You can smooth the gradient by increasing the scale.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "dir": {
+          "title": "Direction"
+        },
+        "seed": {
+          "title": "Seed"
+        },
+        "globalScale": {
+          "title": "Global Scale"
+        },
+        "localScale": {
+          "title": "Local Scale"
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra2": {
+          "title": "Input 2"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "pattern_rocks": {
+      "title": "Rocks",
+      "summary": "Generates a rock pattern. Returns the cell id in the X component, the depth map in Y and the angle of the cell in degrees in the Z component.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "Packed layout data: X is a cell value, Y is height/depth, and Z is orientation in degrees. Select the field on each outgoing connection.",
+      "usage": "Connect Tile or Disc as the legacy shape input where required. Read Height/Depth (Y) before colorizing; read X separately for cell variation.",
+      "notes": "This is a specialized layout recipe. Its packed RGB output is not a ready-colored material, and its legacy shape inputs are not interchangeable with every modern alpha-mask shape.",
+      "parameters": {
+        "VCELLST": {
+          "title": "Cells",
+          "text": "The vertical amount of cells."
+        },
+        "RATIO": {
+          "title": "Ratio",
+          "text": "Tile length / width ratio."
+        },
+        "BLEND": {
+          "title": "Blend"
+        },
+        "ROCK_radiusA": {
+          "title": "Size"
+        },
+        "ROCK_radiusD": {
+          "title": "Spread"
+        },
+        "BEVEL": {
+          "title": "Bevel"
+        },
+        "inLayers": {
+          "title": "Layers"
+        },
+        "ROCK_noise_scale": {
+          "title": "Noise Scale"
+        },
+        "ROCK_noise_amp": {
+          "title": "Noise Amp."
+        },
+        "ROCK_nb": {
+          "title": "Rocks per Cell"
+        },
+        "gradA": {
+          "title": "Gradient"
+        },
+        "grad_randA": {
+          "title": "Gradient Spread"
+        }
+      }
+    },
+    "pattern_scratches": {
+      "title": "Scratches",
+      "summary": "Generates layers of scratches.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "SCALE": {
+          "title": "Scale",
+          "text": "Scales the shape."
+        },
+        "uLayers": {
+          "title": "Layers",
+          "text": "The amount of scratch layers."
+        },
+        "uWavyness": {
+          "title": "Wavyness",
+          "text": "The amount of wavyness / rounding of each scratch."
+        }
+      }
+    },
+    "pattern_tartan": {
+      "title": "Tartan",
+      "summary": "Generates a tartan like cloth pattern.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "globalScale": {
+          "title": "Scale"
+        },
+        "width": {
+          "title": "Width"
+        },
+        "settCount": {
+          "title": "Count"
+        },
+        "color1": {
+          "title": "Color 1"
+        },
+        "color2": {
+          "title": "Color 2"
+        },
+        "color3": {
+          "title": "Color 3"
+        }
+      }
+    },
+    "pattern_value": {
+      "title": "Value",
+      "summary": "Generates a static value. The global value is added to the local value.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "globalValue": {
+          "title": "Global"
+        },
+        "localValue": {
+          "title": "Local"
+        }
+      }
+    },
+    "pattern_weave": {
+      "title": "Weave",
+      "summary": "Generates a weave pattern. The pattern can be modified via the pattern size properties.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "scale": {
+          "title": "Scale"
+        },
+        "xSize": {
+          "title": "Pattern X-Size"
+        },
+        "ySize": {
+          "title": "Pattern Y-Size"
+        },
+        "color1": {
+          "title": "Color #1"
+        },
+        "color2": {
+          "title": "Color #2"
+        }
+      }
+    },
+    "periodic_profile": {
+      "title": "Periodic Profile",
+      "summary": "Repeating one-dimensional profiles from a coordinate or control signal.",
+      "input": "Connect a coordinate channel. For horizontal strips, start from UV Y; for vertical strips, start from UV X.",
+      "output": "A rounded, dome, triangle or flat profile for each input component. Alpha and optional shape distance are preserved.",
+      "usage": "Choose a Profile, adjust Width for the filled portion of each repeat, and Phase for its position. Multiply coordinates upstream to control repeat density.",
+      "notes": "Antialiasing filters the profile over the estimated input footprint. This makes narrow repeated profiles more stable when viewed at a distance.",
+      "parameters": {
+        "profile": {
+          "title": "Profile"
+        },
+        "frequency": {
+          "title": "Frequency",
+          "text": "Cycles per input unit. Negative frequencies reverse the profile; zero produces a constant phase."
+        },
+        "width": {
+          "title": "Width",
+          "text": "Occupied fraction of each period. Zero is empty; one fills the period."
+        },
+        "phase": {
+          "title": "Phase",
+          "text": "Phase offset in cycles. Peaks are centered at integer input coordinates when phase is zero."
+        },
+        "antialias": {
+          "title": "Antialias",
+          "text": "Integrates the selected profile over the local input footprint. Unresolved repeats converge to their mean instead of flickering."
+        }
+      }
+    },
+    "perlin": {
+      "title": "Perlin Noise",
+      "summary": "Smooth gradient noise for broad variation and layered surface detail.",
+      "input": "No image input is required. An optional input carries shape coverage through the noise.",
+      "output": "The same scalar noise value is returned in RGB. Incoming alpha is preserved.",
+      "usage": "Start with Scale, then stretch X and Y for elongated features. Select 3D to sample a position-based volume; Z Slice changes the slice shown in the material preview.",
+      "notes": "Larger Scale values make larger features. Ordinary Perlin is not a guaranteed one-unit repeat; use Seamless material wrapping when required.",
+      "parameters": {
+        "globalScale": {
+          "title": "Scale",
+          "text": "Feature size. Increasing Scale enlarges the pattern."
+        },
+        "localScale": {
+          "title": "Stretch XY",
+          "text": "Feature-size multipliers along X and Y."
+        },
+        "dimensions": {
+          "title": "Dimensions",
+          "text": "2D uses UV coordinates. 3D uses position coordinates and the selected Z slice."
+        },
+        "slice": {
+          "title": "Z Slice",
+          "text": "Position of the sampled plane along Z. Used in 3D mode."
+        },
+        "depthScale": {
+          "title": "Stretch Z",
+          "text": "Feature-size multiplier along Z. Used in 3D mode."
+        }
+      }
+    },
+    "rounded_rectangle": {
+      "title": "Rounded Rectangle",
+      "summary": "A rectangular shape with rounded corners, antialiased coverage and signed distance.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB is white and alpha carries antialiased shape coverage. Shape Distance is available as a separate connection choice.",
+      "usage": "Use Half Size for half the brick or strip width and height, and Corner Radius to soften corners. Build bevel or height profiles from Shape Distance rather than covering the form with broad noise.",
+      "notes": "Corner radius is limited by the smaller half-size. The shape does not repeat itself; layout and shape creation are separate operations.",
+      "parameters": {
+        "halfSize": {
+          "title": "Half Size",
+          "text": "Half of the rectangle width and height, measured from its center."
+        },
+        "radius": {
+          "title": "Corner Radius",
+          "text": "Radius of rounded corners, limited by the smaller half-size."
+        },
+        "center": {
+          "title": "Center",
+          "text": "Center of the shape in document coordinates."
+        },
+        "smoothness": {
+          "title": "Union Smoothness",
+          "text": "Blend width for Smooth Union with a preceding shape; it does not change a standalone shape."
+        }
+      }
+    },
+    "shape2d_polygon": {
+      "title": "Polygon",
+      "summary": "A regular or seeded irregular polygon with negative-inside signed edge distance.",
+      "input": "Optional incoming shape for shape combinations.",
+      "output": "RGBA coverage and an exact signed distance while geometry controls are uniform within each instance.",
+      "usage": "Use Distance Profile on Shape Distance to create bevels. Connect instance-scoped Cell Data to Seed for unique repeated outlines.",
+      "notes": "Radial and angular variation preserve vertex ordering. Spatially varying geometry controls clear metric distance. Transforms and warps follow the shared distance rules.",
+      "parameters": {
+        "sides": {
+          "title": "Sides",
+          "text": "Vertex count, rounded and clamped to 3–16."
+        },
+        "radius": {
+          "title": "Radius",
+          "text": "Circumradius of the regular outline in local UV units. Irregularity varies each vertex around this radius."
+        },
+        "irregularity": {
+          "title": "Irregularity",
+          "text": "Seeded radial and angular vertex variation. Zero gives a regular polygon; vertex order is retained."
+        },
+        "rotation": {
+          "title": "Rotation",
+          "text": "Rotation of the complete outline in local degrees."
+        },
+        "seed": {
+          "title": "Seed",
+          "text": "Deterministic outline variation. Connect instance-scoped Cell Data for a different outline per repeated item."
+        },
+        "center": {
+          "title": "Center",
+          "text": "Outline center in local UV coordinates."
+        },
+        "smoothness": {
+          "title": "Union Smoothness",
+          "text": "Blend width used by Smooth Union when combining signed-distance shapes."
+        }
+      }
+    },
+    "shape2d_star": {
+      "title": "Star",
+      "summary": "Generates a star shape.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "The preview shows the shape. Circle and Rounded Rectangle also provide signed distance as a separate connection choice; a grayscale shape result is not automatically material Opacity.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "polyN": {
+          "title": "Sides"
+        },
+        "starR": {
+          "title": "Int. Radius"
+        },
+        "inBEVEL": {
+          "title": "Bevel",
+          "text": "Beveling."
+        },
+        "ROTshape0": {
+          "title": "Fixed Rot.",
+          "text": "Fixed rotation in degrees."
+        },
+        "ROTshape1": {
+          "title": "Random Rot.",
+          "text": "Maximum random rotation in degrees."
+        },
+        "GRAD": {
+          "title": "Random Gradient",
+          "text": "Gives the shape a random gradient, useful for generating uneveness through visually tilting the shape."
+        },
+        "inStrengthGradient": {
+          "title": "Gradient Strength",
+          "text": "Strength of the gradient."
+        },
+        "globalScale": {
+          "title": "Global",
+          "text": "Global scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+        },
+        "localScale": {
+          "title": "Local",
+          "text": "Local X/Y scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+        },
+        "offset": {
+          "title": "Offset",
+          "text": "X/Y offset of the shape. If shape is used inside a pattern the offset should be 0. as the pattern will position the shape automatically."
+        }
+      }
+    },
+    "shape2d_tile": {
+      "title": "Tile",
+      "summary": "Generates a tile shape. This is the default shape for brick and all other rectangular shaped patterns.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "The preview shows the shape. Circle and Rounded Rectangle also provide signed distance as a separate connection choice; a grayscale shape result is not automatically material Opacity.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "ROUND": {
+          "title": "Rounding",
+          "text": "Edge rounding of the tiles."
+        },
+        "inBEVEL": {
+          "title": "Bevel",
+          "text": "Beveling."
+        },
+        "PROFILE": {
+          "title": "Profile"
+        },
+        "GRAD": {
+          "title": "Random Gradient",
+          "text": "Gives the shape a random gradient, useful for generating uneveness through visually tilting the shape."
+        },
+        "inStrengthGradient": {
+          "title": "Gradient Strength",
+          "text": "Strength of the gradient."
+        },
+        "globalScale": {
+          "title": "Global",
+          "text": "Global scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+        },
+        "localScale": {
+          "title": "Local",
+          "text": "Local X/Y scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+        },
+        "offset": {
+          "title": "Offset",
+          "text": "X/Y offset of the shape. If shape is used inside a pattern the offset should be 0. as the pattern will position the shape automatically."
+        }
+      }
+    },
+    "simplex": {
+      "title": "Simplex Noise",
+      "summary": "Smooth simplex gradient noise with a character distinct from Perlin.",
+      "input": "No image input is required. An optional input carries shape coverage.",
+      "output": "A scalar noise value repeated in RGB, with incoming alpha preserved.",
+      "usage": "Choose 2D or 3D, adjust feature size, then use fBm for layered detail.",
+      "notes": "In the material preview, 3D is sampled as a slice. Changing Z Slice changes that slice; it does not switch the sphere to direct volume-texture evaluation.",
+      "parameters": {
+        "globalScale": {
+          "title": "Scale",
+          "text": "Feature size. Increasing Scale enlarges the pattern."
+        },
+        "localScale": {
+          "title": "Stretch XY",
+          "text": "Feature-size multipliers along X and Y."
+        },
+        "dimensions": {
+          "title": "Dimensions",
+          "text": "2D uses UV coordinates. 3D uses position coordinates and the selected Z slice."
+        },
+        "slice": {
+          "title": "Z Slice",
+          "text": "Position of the sampled plane along Z. Used in 3D mode."
+        },
+        "depthScale": {
+          "title": "Stretch Z",
+          "text": "Feature-size multiplier along Z. Used in 3D mode."
+        }
+      }
+    },
+    "spots": {
+      "title": "Spots",
+      "summary": "Scattered soft blobs, rounded dots and pits with controllable size variation.",
+      "input": "No input image is required. Optional incoming alpha is preserved.",
+      "output": "A grayscale spot field repeated in RGB. Addition can accumulate values above one; Maximum retains the strongest spot.",
+      "usage": "Choose a Profile and Blend mode, then set Cells, Radius and Size Distribution. Use the result for pores, stains or height detail.",
+      "notes": "The source evaluates neighboring cells to find spots. Large radii and many dots per cell increase cost and can exceed the intended local coverage.",
+      "parameters": {
+        "VCELLST": {
+          "title": "Cells",
+          "text": "The vertical amount of cells."
+        },
+        "RATIO": {
+          "title": "Ratio",
+          "text": "Tile length / width ratio."
+        },
+        "SHAPE": {
+          "title": "Profile"
+        },
+        "BLEND": {
+          "title": "Blend"
+        },
+        "RADIUSA": {
+          "title": "Radius",
+          "text": "Radius of the spots."
+        },
+        "RADIUS_D": {
+          "title": "Size Distribution",
+          "text": "Size distribution of the spots."
+        },
+        "NB": {
+          "title": "Dots per Cell",
+          "text": "Amount of dots per cell."
+        }
+      }
+    },
+    "sys_normal": {
+      "title": "Normal",
+      "summary": "Returns the normal supplied by the evaluation context.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "Signed XYZ normal components, not an encoded normal-map color.",
+      "usage": "Use only when the caller provides meaningful normals. Convert a height field with Height to Normal when you need a normal map.",
+      "notes": "The standard 2D material bake supplies a fixed normal. This source does not read the sphere mesh normal at every shading point.",
+      "parameters": {}
+    },
+    "sys_position": {
+      "title": "Position",
+      "summary": "Returns the current 3D position.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "The standard material bake samples a plane with a fixed Z value. Position is not direct access to every point on the preview sphere.",
+      "parameters": {
+        "scale": {
+          "title": "Scale"
+        }
+      }
+    },
+    "sys_texcoord2": {
+      "title": "Tex Coord 2D",
+      "summary": "Returns the current 2D texture UV coordinate.",
+      "input": "No input image is required. Properties can be controlled by row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "scale": {
+          "title": "Scale"
+        },
+        "rot": {
+          "title": "Rotate"
+        }
+      }
+    },
+    "trans_circularwarp": {
+      "title": "Circular Warp",
+      "summary": "Warps the input shape into circular rings.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "scaleX": {
+          "title": "Thickness"
+        },
+        "globalScale": {
+          "title": "Scale"
+        },
+        "amplitude": {
+          "title": "Noise Amp."
+        },
+        "rot": {
+          "title": "Rotate"
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra2": {
+          "title": "Input 2"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "trans_directional_blur": {
+      "title": "Directional Blur",
+      "summary": "A centered Gaussian directional blur that preserves colored cutout edges.",
+      "input": "Arbitrary straight-alpha RGBA.",
+      "output": "Filtered straight RGBA; exact metric distance is cleared.",
+      "usage": "Set Radius in pixels or UV units, choose Direction in degrees and a sample count from 1–33.",
+      "notes": "Small compositions stay callable. Expensive inputs automatically become bounded intermediate GPU images with halo padding and premultiplied bilinear sampling. Downstream edits reuse input images; upstream edits invalidate them. Instance-dependent data cannot be cached across distinct instances.",
+      "parameters": {
+        "radius": {
+          "title": "Radius"
+        },
+        "units": {
+          "title": "Units",
+          "text": "Pixels scales Radius by the current sampling footprint; UV uses document coordinate units."
+        },
+        "direction": {
+          "title": "Direction"
+        },
+        "samples": {
+          "title": "Samples",
+          "text": "Bounded count from 1–33; one samples the center only."
+        }
+      }
+    },
+    "trans_linearwarp": {
+      "title": "Linear Warp",
+      "summary": "Linearly warps the input shapes into vertical stripes",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "scaleX": {
+          "title": "Thickness"
+        },
+        "globalScale": {
+          "title": "Scale"
+        },
+        "amplitude": {
+          "title": "Noise Amp."
+        },
+        "rot": {
+          "title": "Rotate"
+        },
+        "time": {
+          "title": "Time Offset"
+        },
+        "extra2": {
+          "title": "Input 2"
+        },
+        "extra3": {
+          "title": "Input 3"
+        }
+      }
+    },
+    "trans_tiler": {
+      "title": "Grid",
+      "summary": "Repeats arbitrary RGBA rows in a seeded grid, including nested layouts and transparent shapes.",
+      "input": "Connect the row to repeat. Inside that row, Cell Data in Instance scope reports the current instance.",
+      "output": "Straight RGBA, with gaps and transformed upstream coverage; no metric distance survives repetition.",
+      "usage": "Use Cells, Gap and Row Stagger for layouts. Put a Transform inside the repeated row and connect its Rotation to Cell Data parity for alternating groups. Nested Grids give subcells independent keys.",
+      "notes": "Placement searches the nearest three columns in each of three rows after staggering. Jitter is limited to 0.45 cells and scale to one cell so this search remains bounded. Footprints are conservative; very dense/minified layouts are approximations, not a baked area average. Axis-aligned cells accumulate disjoint coverage to avoid alpha seams; overlapping rotated/jittered instances use ordered over compositing.",
+      "parameters": {
+        "layout": {
+          "title": "Layout",
+          "text": "Cartesian repeats a rectangular grid. Rings varies sector counts with circumference to keep approximately constant strip width; Cells X is tangential density and Cells Y is radial density."
+        },
+        "cells": {
+          "title": "Cells",
+          "text": "Positive integer cells per UV unit, rounded and clamped to 1–1024."
+        },
+        "offset": {
+          "title": "Cell Offset"
+        },
+        "rowOffset": {
+          "title": "Row Stagger",
+          "text": "Horizontal shift of alternating grid rows, measured in cell widths; 0.5 gives running bond."
+        },
+        "gap": {
+          "title": "Gap",
+          "text": "Fraction of each cell reserved for empty space before instance scaling."
+        },
+        "scale": {
+          "title": "Instance Scale",
+          "text": "Fractional size of each instance inside its available cell, limited to one."
+        },
+        "rotation": {
+          "title": "Rotation",
+          "text": "Base instance rotation in degrees. A row-controlled Transform inside the input row can use instance parity."
+        },
+        "jitter": {
+          "title": "Jitter",
+          "text": "Maximum seeded center displacement per axis, in cell units."
+        },
+        "randomRotation": {
+          "title": "Random Rotation",
+          "text": "Maximum seeded random angle added to Rotation, in degrees."
+        },
+        "probability": {
+          "title": "Probability",
+          "text": "Probability that each instance is present; zero removes every instance."
+        },
+        "seed": {
+          "title": "Seed",
+          "text": "Deterministic seed. Nested Grids also hash the parent identity to keep subcells independent."
+        }
+      }
+    },
+    "transform": {
+      "title": "Transform",
+      "summary": "Scales, rotates and moves the input shape.",
+      "input": "Connect an upstream row to Image, or place this tile after a source in the same row. Properties can be controlled by separate row connections.",
+      "output": "RGB contains the resulting values. Use Source Channel on a connection to read one component; alpha is the fourth component.",
+      "usage": "Connect the result to another row or to a material input. Select a source channel and enable Remap when the receiving input needs a different range.",
+      "notes": "Alpha and material Opacity are separate: connect a mask to Opacity when the material needs transparent areas.",
+      "parameters": {
+        "globalScale": {
+          "title": "Global",
+          "text": "Global scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+        },
+        "localScale": {
+          "title": "Local",
+          "text": "Local X/Y scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+        },
+        "offset": {
+          "title": "Offset"
+        },
+        "rot": {
+          "title": "Rotate"
+        }
+      }
+    },
+    "voronoi": {
+      "title": "Voronoi",
+      "summary": "Seeded 2D or 3D cellular fields, with multiple distance metrics and exact Euclidean cell-border distance.",
+      "input": "UV in 2D or bake-context Position plus Z Slice in 3D. Optional image coverage is retained.",
+      "output": "Cell/F1/F2 remain RGB. Named connections also expose border, cell key, nearest site in document coordinates and local coordinates in feature units, independently of the visible Output menu.",
+      "usage": "Choose Metric for F1/F2. Choose Euclidean Border for cracks and cell edges, then shape the field using Levels or Compare/Select.",
+      "notes": "Distances are in feature-space units. Border uses bisector planes, not F2 minus F1, and always uses Euclidean geometry. A bounded complete search covers fully jittered sites in both dimensions.",
+      "parameters": {
+        "globalScale": {
+          "title": "Scale",
+          "text": "Feature size. Increasing Scale enlarges the pattern."
+        },
+        "localScale": {
+          "title": "Stretch XY",
+          "text": "Feature-size multipliers along X and Y."
+        },
+        "dimensions": {
+          "title": "Dimensions",
+          "text": "Choose UV sampling in 2D or position plus Z Slice in 3D."
+        },
+        "slice": {
+          "title": "Z Slice",
+          "text": "Position of the sampled plane along Z. Used in 3D mode."
+        },
+        "depthScale": {
+          "title": "Stretch Z",
+          "text": "Feature-size multiplier along Z. Used in 3D mode."
+        },
+        "seed": {
+          "title": "Seed",
+          "text": "Deterministic seed. Nested Grids also hash the parent identity to keep subcells independent."
+        },
+        "jitter": {
+          "title": "Jitter",
+          "text": "Zero places a site at each cell center; one allows the full cell."
+        },
+        "metric": {
+          "title": "Metric",
+          "text": "Euclidean, Manhattan or Chebyshev distance for F1/F2. Border always evaluates Euclidean geometry."
+        },
+        "output": {
+          "title": "Output"
+        }
+      }
+    },
+    "warp": {
+      "title": "Warp",
+      "summary": "Resamples an input row at displaced UV and 3D coordinates.",
+      "input": "Connect the row to distort. Vector displacement may come from another row.",
+      "output": "The image sampled at the displaced coordinates.",
+      "usage": "Self mode uses the input first channel as displacement. Vector mode uses the Vector property; center a 0–1 noise vector around zero for displacement in both directions.",
+      "notes": "Amount is a coordinate-space offset, not physical mesh displacement. Large offsets can disrupt seams or pull detail across neighboring cells.",
+      "parameters": {
+        "mode": {
+          "title": "Displacement"
+        },
+        "offsetIntensity": {
+          "title": "Amount"
+        },
+        "displacement": {
+          "title": "Vector"
+        }
+      }
+    },
+    "wave_noise": {
+      "title": "Wave Noise",
+      "summary": "Animated layered waves with a flowing, interference-like character.",
+      "input": "No input image is required. Optional incoming alpha is preserved.",
+      "output": "A grayscale field from a fixed twenty-layer wave construction.",
+      "usage": "Adjust Scale and Stretch for the visible pattern. Time Offset selects the phase of the wave motion.",
+      "notes": "The construction maps UV coordinates through a spherical parameterization. It is a complete wave source, not a general fBm operation, and can be more expensive than simple gradient noise.",
+      "parameters": {
+        "globalScale": {
+          "title": "Global Scale"
+        },
+        "localScale": {
+          "title": "Local Scale"
+        },
+        "time": {
+          "title": "Time Offset"
+        }
+      }
+    },
+    "white_noise": {
+      "title": "White Noise",
+      "summary": "Seeded independent random cell values with explicit UV density.",
+      "input": "No image input is needed. Optional alpha coverage is retained.",
+      "output": "Grayscale repeats one random value in RGB. Color returns independent RGB values.",
+      "usage": "Set Cells to control density and Seed for a new arrangement. Use low densities for random blocks or high densities for fine grain.",
+      "notes": "Cell density is independent of the preview pixel size. A single sample cannot represent every tiny cell when the pattern is heavily minified.",
+      "parameters": {
+        "cells": {
+          "title": "Cells",
+          "text": "Number of random cells per UV unit along X and Y."
+        },
+        "seed": {
+          "title": "Seed",
+          "text": "Selects a deterministic random arrangement."
+        },
+        "output": {
+          "title": "Output",
+          "text": "Grayscale shares one value across RGB; Color uses independent components."
+        }
+      }
+    },
+    "compose_channels": {
+      "title": "Compose Channels",
+      "summary": "Builds an RGBA value from four independent scalar controls or row connections.",
+      "input": "Connect scalar channels to X, Y, Z and Alpha independently.",
+      "output": "RGB retains signed values; Alpha is clamped to 0–1.",
+      "usage": "Use this to assemble packed fields, vectors, or a color plus an independently authored opacity.",
+      "notes": "Selecting a channel on a wire extracts data; this tile assembles data from multiple rows.",
+      "parameters": {
+        "x": {
+          "title": "X / Red"
+        },
+        "y": {
+          "title": "Y / Green"
+        },
+        "z": {
+          "title": "Z / Blue"
+        },
+        "alpha": {
+          "title": "Alpha"
+        }
+      }
+    },
+    "levels": {
+      "title": "Levels",
+      "summary": "Remaps an explicit input range into an output range, with gamma and optional clamping.",
+      "input": "An image or scalar field, broadcast from its selected connection channel.",
+      "output": "Remapped RGB with incoming alpha retained.",
+      "usage": "Set Input Low/High to the actual source range, then Output Low/High. Gamma above one brightens the normalized midpoint.",
+      "notes": "Unclamped values use a signed power so negative input remains finite. Equal endpoints use a signed epsilon denominator.",
+      "parameters": {
+        "inputLow": {
+          "title": "Input Low"
+        },
+        "inputHigh": {
+          "title": "Input High"
+        },
+        "gamma": {
+          "title": "Gamma"
+        },
+        "clampInput": {
+          "title": "Clamp Input"
+        },
+        "outputLow": {
+          "title": "Output Low"
+        },
+        "outputHigh": {
+          "title": "Output High"
+        }
+      }
+    },
+    "curve": {
+      "title": "Curve",
+      "summary": "Shapes values through four fixed horizontal positions using straight segments or a monotone cubic.",
+      "input": "Normalized RGB or a selected scalar channel.",
+      "output": "Curved RGB with input alpha.",
+      "usage": "Adjust the values at zero, one third, two thirds and one. Choose Linear for corners or Monotone Cubic for smooth transitions.",
+      "notes": "Values outside 0–1 are clamped. Cubic interpolation preserves each segment’s monotonicity; it does not invent overshooting peaks.",
+      "parameters": {
+        "start": {
+          "title": "Start"
+        },
+        "lower": {
+          "title": "One Third"
+        },
+        "upper": {
+          "title": "Two Thirds"
+        },
+        "end": {
+          "title": "End"
+        },
+        "interpolation": {
+          "title": "Interpolation"
+        }
+      }
+    },
+    "distance_profile": {
+      "title": "Distance Profile",
+      "summary": "Converts a signed distance into a reusable bevel, crown or height profile.",
+      "input": "Choose Shape Distance on the connection from a Circle, Rounded Rectangle, or another row with valid distance.",
+      "output": "Height in RGB, with the source coverage retained.",
+      "usage": "Width is the inward bevel distance. Choose Linear, Smooth, Round or Concave, and scale with Height. Repeat the resulting row with Grid.",
+      "notes": "Distance is negative inside. A distance connection now broadcasts automatically to image and vector inputs. Nonuniform transforms and warps invalidate exact metric distance.",
+      "parameters": {
+        "width": {
+          "title": "Width"
+        },
+        "height": {
+          "title": "Height"
+        },
+        "profile": {
+          "title": "Profile"
+        }
+      }
+    },
+    "normal_combine": {
+      "title": "Normal Combine",
+      "summary": "Combines base and detail tangent-space normal maps using reoriented normal mapping.",
+      "input": "Encoded RGB normal map, with flat normal (0.5, 0.5, 1).",
+      "output": "Normalized encoded RGB normal, with the base alpha retained.",
+      "usage": "Connect Detail Normal and set Detail Strength. Both normals must use the same tangent convention.",
+      "notes": "Flip Y at Height to Normal when required. This is normal-map composition; it does not provide mesh geometry normals during a 2D bake.",
+      "parameters": {
+        "detail": {
+          "title": "Detail Normal"
+        },
+        "strength": {
+          "title": "Detail Strength"
+        }
+      }
+    },
+    "vector_math": {
+      "title": "Vector Math",
+      "summary": "Length, distance, dot product, normalization, projection and XY rotation of vectors.",
+      "input": "RGB vector data; select and broadcast channels on the connection when needed.",
+      "output": "Length, Distance and Dot broadcast a scalar. Other operations return a vector. Alpha is retained.",
+      "usage": "Choose the operation, connect Other Vector when used, or set Angle in degrees for Rotate XY.",
+      "notes": "Rotating vector values does not resample the source image. Use Transform for coordinate rotation.",
+      "parameters": {
+        "operation": {
+          "title": "Operation"
+        },
+        "other": {
+          "title": "Other Vector"
+        },
+        "angle": {
+          "title": "Angle"
+        }
+      }
+    },
+    "color_ramp": {
+      "title": "Color Ramp",
+      "summary": "Maps the selected first channel through four ordered RGBA color stops.",
+      "input": "A scalar field; choose the intended channel explicitly on its connection.",
+      "output": "RGBA colors, with stop opacity multiplied by incoming coverage.",
+      "usage": "Set stop positions and colors. Constant makes steps; Linear makes straight blends; Smooth eases each interval.",
+      "notes": "Positions are kept at least 0.000001 apart in evaluation. Values outside the stop range use the endpoint color.",
+      "parameters": {
+        "position0": {
+          "title": "Position 1"
+        },
+        "color0": {
+          "title": "Color 1"
+        },
+        "position1": {
+          "title": "Position 2"
+        },
+        "color1": {
+          "title": "Color 2",
+          "text": "First endpoint, as constant RGBA or a connected row."
+        },
+        "position2": {
+          "title": "Position 3"
+        },
+        "color2": {
+          "title": "Color 3",
+          "text": "Second endpoint, as constant RGBA or a connected row."
+        },
+        "position3": {
+          "title": "Position 4"
+        },
+        "color3": {
+          "title": "Color 4"
+        },
+        "interpolation": {
+          "title": "Interpolation"
+        }
+      }
+    },
+    "coordinates": {
+      "title": "Coordinates",
+      "summary": "Cartesian, polar and cylindrical coordinate data, with 3D scaling, Euler rotation and translation. Connect XY or XYZ to a row's coordinate input. Angles use turns.",
+      "input": "UV and Position need no input. Input mode transforms connected vector data.",
+      "output": "Cartesian XYZ, polar (angle in turns, radius, Z) or cylindrical (angle in turns, radius, height).",
+      "usage": "Apply Scale, X/Y/Z Rotation in degrees, then Offset before mapping. Connect XY to a UV row, or XYZ to sample volume noise.",
+      "notes": "Row coordinate connections estimate a transformed footprint and accept XY or XYZ. Polar angles wrap at zero/one. Mapping clears metric distance; build a profile before deforming it when a constant world-space bevel is not required.",
+      "parameters": {
+        "source": {
+          "title": "Source"
+        },
+        "mapping": {
+          "title": "Mapping"
+        },
+        "scale": {
+          "title": "Scale"
+        },
+        "rotation": {
+          "title": "Rotation"
+        },
+        "offset": {
+          "title": "Offset"
+        }
+      }
+    },
+    "partition": {
+      "title": "Partition",
+      "summary": "Repeats RGBA in irregular intervals with shared boundaries, stable instance keys and normalized local coordinates.",
+      "input": "Connect an RGBA motif to repeat along irregular X or Y intervals.",
+      "output": "Image plus named key, local UV, center, width, bounds and random fields.",
+      "usage": "Cells controls interval density and Irregularity moves sites. Adjacent intervals share exact boundaries. Nest inside Grid for rows of varying-width bricks.",
+      "notes": "Jittered sites remain ordered. Width and Bounds are in document UV units. Instance keys stay stable under the local remapping.",
+      "parameters": {
+        "axis": {
+          "title": "Axis"
+        },
+        "cells": {
+          "title": "Cells"
+        },
+        "jitter": {
+          "title": "Irregularity"
+        },
+        "offset": {
+          "title": "Offset"
+        },
+        "gap": {
+          "title": "Gap"
+        },
+        "seed": {
+          "title": "Seed"
+        },
+        "output": {
+          "title": "Output"
+        }
+      }
+    },
+    "scatter": {
+      "title": "Scatter",
+      "summary": "Seeded overlapping RGBA stamps with multiple instances per cell, size/intensity variation, layers and Over/Add/Maximum blending.",
+      "input": "Connect an RGBA motif in its local -0.5…0.5 support. Instance Cell Data remains available inside it.",
+      "output": "Over composites RGBA. Add Height and Maximum Height combine alpha-weighted height/color contributions. Named fields expose the winning key, random value, angle and local UV.",
+      "usage": "Choose Size, Instances per Cell, layers, size/intensity variation and Blend. Size can span up to three cells, with a bounded seven-by-seven search.",
+      "notes": "Add/Maximum treat RGB as height fields and multiply by motif coverage. Per-instance controls belong inside the motif. Very dense minification is approximate; expensive motifs and high layer/instance counts remain bounded by compiler budgets.",
+      "parameters": {
+        "cells": {
+          "title": "Cells"
+        },
+        "size": {
+          "title": "Size"
+        },
+        "variation": {
+          "title": "Size Variation"
+        },
+        "amount": {
+          "title": "Instances per Cell"
+        },
+        "probability": {
+          "title": "Probability"
+        },
+        "rotation": {
+          "title": "Rotation"
+        },
+        "seed": {
+          "title": "Seed"
+        },
+        "layers": {
+          "title": "Layers"
+        },
+        "lacunarity": {
+          "title": "Lacunarity"
+        },
+        "gain": {
+          "title": "Gain"
+        },
+        "intensity": {
+          "title": "Intensity Variation"
+        },
+        "blend": {
+          "title": "Blend"
+        },
+        "output": {
+          "title": "Output"
+        }
+      }
+    },
+    "height_gradient": {
+      "title": "Height Gradient",
+      "summary": "Signed derivatives, slope and curvature from a height image.",
+      "input": "The red channel is height; select another channel on the connection when needed.",
+      "output": "Gradient XY with curvature in Z, or scalar slope/curvature. Named fields are independent of the visible Output mode.",
+      "usage": "Feed Gradient XY to a vector displacement/filter. Remap signed curvature for edge and recess masks.",
+      "notes": "Curvature is a finite-difference Laplacian, not ambient occlusion. Filtering radius controls the scale being measured. Expensive inputs use cached GPU passes.",
+      "parameters": {
+        "radius": {
+          "title": "Radius",
+          "text": "Derivative sampling radius. Pixels clamp to at least 0.25; UV units support small physical sampling radii."
+        },
+        "units": {
+          "title": "Units",
+          "text": "Pixels follow the current sampling footprint. UV units retain a fixed document-space radius at different resolutions."
+        },
+        "strength": {
+          "title": "Strength",
+          "text": "Signed multiplier for gradient and curvature. Negative values reverse their orientation/sign."
+        },
+        "output": {
+          "title": "Output",
+          "text": "Gradient returns signed XY derivatives with curvature in Z. Slope is gradient length; Curvature is the signed Laplacian. Named fields select these independently."
+        }
+      }
+    },
+    "vector_filter": {
+      "title": "Vector Filter",
+      "summary": "A bounded directional filter steered by a connected vector field.",
+      "input": "RGBA image; red is the comparison height for Minimum and Maximum.",
+      "output": "Selected RGBA for extrema, or premultiplied RGBA averaging. Metric distance is cleared.",
+      "usage": "Use Height Gradient from a control noise as Vector. Minimum creates directional erosion; Maximum expands raised features.",
+      "notes": "The local vector stays fixed along each sampling trail; this is not an iterative evolving flow solver. Vectors longer than one are normalized, shorter vectors reduce the travel distance. Expensive inputs use cached image passes.",
+      "parameters": {
+        "mode": {
+          "title": "Mode",
+          "text": "Minimum or Maximum chooses a complete RGBA sample by red-channel height. Average filters premultiplied color and alpha."
+        },
+        "radius": {
+          "title": "Radius",
+          "text": "Maximum trail travel in the chosen units, bounded to 0–64. Zero returns the original sample."
+        },
+        "units": {
+          "title": "Units",
+          "text": "Pixels follow the current sampling footprint; UV units retain a fixed document-space effect scale."
+        },
+        "vector": {
+          "title": "Vector",
+          "text": "XY steers the trail. Vectors longer than one are normalized; shorter vectors shorten travel. Z is ignored."
+        },
+        "samples": {
+          "title": "Samples",
+          "text": "Number of additional trail samples, bounded to 1–32. The center sample is always included."
+        },
+        "centered": {
+          "title": "Centered",
+          "text": "Trail samples one direction from the starting point. Centered uses symmetric midpoint samples on both sides."
+        }
+      }
+    }
+  }
+}

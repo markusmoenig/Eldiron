@@ -325,7 +325,22 @@ const TILE_INDEX_FLAGS_MASK: u32 =
 
 // ---- UV wrapping helpers (GPU-side repeat inside atlas rect) ----
 // OBJECT-UV bary mapping into atlas
-fn sv_tile_frame(tile_index: u32) -> TileFrame {
+fn sv_tile_has_pages(tile_index: u32) -> bool {
+  let idx = min(tile_index & (~TILE_INDEX_FLAGS_MASK), arrayLength(&tile_anims.data) - 1u);
+  return tile_anims.data[idx]._pad.x > 0u;
+}
+
+fn sv_tile_uv(tile_index: u32, uv: vec2<f32>) -> vec2<f32> {
+  let anim = tile_anims.data[min(tile_index & (~TILE_INDEX_FLAGS_MASK),arrayLength(&tile_anims.data)-1u)];
+  if (anim._pad.x > 0u) {
+    let period = tile_frames.data[anim._pad.x].scale;
+    if (all(period > vec2<f32>(0.0))) { return uv / period; }
+    return uv / f32(max(anim._pad.y,1u));
+  }
+  return uv;
+}
+
+fn sv_tile_frame(tile_index: u32, uv: vec2<f32>) -> TileFrame {
   let meta_len = arrayLength(&tile_anims.data);
   if (meta_len == 0u) {
     return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
@@ -338,7 +353,16 @@ fn sv_tile_frame(tile_index: u32) -> TileFrame {
   if (frames_len == 0u) {
     return TileFrame(vec2<f32>(0.0), vec2<f32>(0.0));
   }
-  let frame_offset = anim.first_frame + (U.anim_counter % count);
+  var offset = U.anim_counter % count;
+  if (anim._pad.x > 0u) {
+    let domain = tile_frames.data[anim._pad.x - 1u];
+    let cell = clamp(vec2<i32>(floor(uv / f32(max(anim._pad.y,1u))) - domain.ofs), vec2<i32>(0), vec2<i32>(domain.scale) - vec2<i32>(1));
+    offset = u32(cell.y) * u32(domain.scale.x) + u32(cell.x);
+    let playback = tile_frames.data[anim._pad.x];
+    let phase = U.anim_counter % max(u32(playback.ofs.x), 1u);
+    offset += phase * u32(domain.scale.x * domain.scale.y);
+  }
+  let frame_offset = anim.first_frame + offset;
   let frame_idx = min(frame_offset, frames_len - 1u);
   return tile_frames.data[frame_idx];
 }
@@ -351,11 +375,12 @@ fn sv_tri_atlas_uv_obj(i0: u32, i1: u32, i2: u32, bu: f32, bv: f32) -> vec2<f32>
   let w = 1.0 - bu - bv;
   let uv_obj = uv0 * w + uv1 * bu + uv2 * bv;
 
-  let frame = sv_tile_frame(verts3d.data[i0].tile_index);
+  let tile_index = verts3d.data[i0].tile_index;
+  let frame = sv_tile_frame(tile_index, uv_obj);
 
   // Repeat OBJECT uv, then scale into sub-rect and add offset
-  var uv_wrapped = fract(uv_obj);          // [0,1) repeat in object space
-  uv_wrapped.y = fract(1.0 - uv_wrapped.y); // flip Y so tiles aren't upside down
+  var uv_wrapped = fract(sv_tile_uv(tile_index,uv_obj));          // [0,1) repeat in object space
+  if (!sv_tile_has_pages(tile_index)) { uv_wrapped.y = fract(1.0 - uv_wrapped.y); } // flip Y so tiles aren't upside down
   let uv_atlas   = frame.ofs + uv_wrapped * frame.scale; // map into atlas sub-rect
 
   // Clamp into the interior of the frame to avoid bleeding from neighboring tiles.
@@ -382,10 +407,10 @@ fn sv_tri_sample_rmoe(i0: u32, i1: u32, i2: u32, bu: f32, bv: f32) -> vec4<f32> 
 
 // Sample albedo for a specific tile (not triangle-based)
 fn sv_sample_tile_albedo(tile_index: u32, uv: vec2<f32>) -> vec4<f32> {
-  let frame = sv_tile_frame(tile_index);
+  let frame = sv_tile_frame(tile_index, uv);
   let clamp_uv = (tile_index & TILE_INDEX_CLAMP_UV_FLAG) != 0u;
-  var uv_wrapped = select(fract(uv), clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999)), clamp_uv);
-  uv_wrapped.y = fract(1.0 - uv_wrapped.y);
+  var uv_wrapped = select(fract(sv_tile_uv(tile_index,uv)), clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999)), clamp_uv);
+  if (!sv_tile_has_pages(tile_index)) { uv_wrapped.y = fract(1.0 - uv_wrapped.y); }
   let uv_atlas = frame.ofs + uv_wrapped * frame.scale;
 
   let atlas_dims = vec2<f32>(textureDimensions(atlas_tex, 0));
@@ -399,10 +424,10 @@ fn sv_sample_tile_albedo(tile_index: u32, uv: vec2<f32>) -> vec4<f32> {
 
 // Sample material (RMOE) for a specific tile
 fn sv_sample_tile_rmoe(tile_index: u32, uv: vec2<f32>) -> vec4<f32> {
-  let frame = sv_tile_frame(tile_index);
+  let frame = sv_tile_frame(tile_index, uv);
   let clamp_uv = (tile_index & TILE_INDEX_CLAMP_UV_FLAG) != 0u;
-  var uv_wrapped = select(fract(uv), clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999)), clamp_uv);
-  uv_wrapped.y = fract(1.0 - uv_wrapped.y);
+  var uv_wrapped = select(fract(sv_tile_uv(tile_index,uv)), clamp(uv, vec2<f32>(0.0), vec2<f32>(0.9999)), clamp_uv);
+  if (!sv_tile_has_pages(tile_index)) { uv_wrapped.y = fract(1.0 - uv_wrapped.y); }
   let uv_atlas = frame.ofs + uv_wrapped * frame.scale;
 
   let atlas_dims = vec2<f32>(textureDimensions(atlas_mat_tex, 0));

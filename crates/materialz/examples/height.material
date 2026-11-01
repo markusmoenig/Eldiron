@@ -1,0 +1,13 @@
+project 1
+material "height-study" called "Height Study"
+  mode bsdf
+  default base color to 0.15 0.2 0.25
+  default roughness to 0.4
+  default metallic to 0.2
+  row "bumps" called "Height Detail"
+    use "Perlin Noise"
+      set "globalScale" to 0.35
+      set "localScale" to 1 2
+    use "Multiply"
+      set "globalValue" to 0.03
+  output height from row "bumps" x

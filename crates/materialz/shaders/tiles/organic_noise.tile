@@ -1,0 +1,30 @@
+tile 1
+name "Organic Noise"
+category "Noise"
+description "Dave Hoskins' tileable cubic value noise. Integer frequency repeats over one UV unit."
+references "Dave Hoskins; shaders/original/noise_davestileablenoise2d.fs"
+group "Noise" true
+param float scaleValue "Frequency" default 10 range 0.001 40
+
+let v0 = vec3(scaleValue)
+let v1 = (uv * (v0).x)
+let v2 = vec2(0)
+let v3 = fract(v1)
+let v4 = floor(v1)
+let v5 = ((v3 * v3) * (3.0 - (2.0 * v3)))
+let v6 = mod(v4, (v0).x)
+let v7 = (sin(dot(v6, vec2(27.16898, 38.90563))) * 5151.5473453)
+let v8 = fract(v7)
+let v9 = mod((v4 + vec2(1.0, 0.0)), (v0).x)
+let v10 = (sin(dot(v9, vec2(27.16898, 38.90563))) * 5151.5473453)
+let v11 = fract(v10)
+let v12 = mod((v4 + vec2(0.0, 1.0)), (v0).x)
+let v13 = (sin(dot(v12, vec2(27.16898, 38.90563))) * 5151.5473453)
+let v14 = fract(v13)
+let v15 = mod((v4 + vec2(1.0, 1.0)), (v0).x)
+let v16 = (sin(dot(v15, vec2(27.16898, 38.90563))) * 5151.5473453)
+let v17 = fract(v16)
+let v18 = mix(mix(v8, v11, (v5).x), mix(v14, v17, (v5).x), (v5).y)
+let v19 = v18
+let v20 = vec3(v19)
+image = vec4(v20, input.a)

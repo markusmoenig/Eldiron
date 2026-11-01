@@ -1,0 +1,18 @@
+# Nonuniform scaling renders a shape image but clears metric distance.
+# The same normal Color and Border tiles continue to work on its alpha mask.
+project 1
+
+material "image" called "Border from Image Alpha"
+  mode art
+  row "icon" called "Image Only Ellipse"
+    use "Circle"
+      set "radius" to 0.27
+    use "Transform"
+      set "localScale" to 1.3 0.8
+    use "Color"
+      set "color" to 0.08 0.45 0.7 1
+    use "Border"
+      set "width" to 0.025
+      set "color" to 1 0.7 0.15 1
+  output base color from row "icon" xyz
+  output opacity from row "icon" w

@@ -9,7 +9,7 @@ const ATLAS_FRAME_PADDING: u32 = 4;
 const SEMANTIC_MATERIAL_MARKER: u8 = 0xFE;
 const DEFAULT_MATERIAL_PIXEL: [u8; 4] = [7u8, 15u8, 128u8, 128u8];
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AtlasEntry {
     pub x: u32,
     pub y: u32,
@@ -18,9 +18,20 @@ pub struct AtlasEntry {
 }
 
 #[derive(Debug, Clone, Copy)]
+pub struct TileUvPages {
+    pub animation_frames: u32,
+    pub repeat_period: [f32; 2],
+    pub origin: [i32; 2],
+    pub size: [u32; 2],
+    pub axes: [[f32; 3]; 2],
+    pub units_per_page: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub struct AtlasTileMeta {
     pub first_frame: u32,
     pub frame_count: u32,
+    pub uv_pages: Option<TileUvPages>,
 }
 
 pub struct AtlasGpuTables {
@@ -34,6 +45,7 @@ pub struct Tile {
     pub h: u32,
     pub frames: Vec<Vec<u8>>,
     pub material_frames: Vec<Vec<u8>>,
+    pub uv_pages: Option<TileUvPages>,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -104,6 +116,7 @@ impl SharedAtlas {
                 h: height,
                 frames,
                 material_frames,
+                uv_pages: None,
             },
         );
         if !guard.tiles_order.contains(&id) {
@@ -114,6 +127,31 @@ impl SharedAtlas {
         guard.content_version = guard.content_version.wrapping_add(1);
     }
 
+    pub fn set_uv_pages(&self, id: &Uuid, pages: TileUvPages) {
+        let mut guard = self.inner.lock().unwrap();
+        if let Some(tile) = guard.tiles_map.get_mut(id) {
+            if pages.size[0]
+                .checked_mul(pages.size[1])
+                .and_then(|n| n.checked_mul(pages.animation_frames.max(1)))
+                == Some(tile.frames.len() as u32)
+                && pages.size.iter().all(|v| *v > 0)
+                && (pages.repeat_period == [0.; 2]
+                    || (pages.size == [1; 2]
+                        && pages.repeat_period.iter().all(|v| v.is_finite() && *v > 0.)))
+            {
+                tile.uv_pages = Some(pages);
+                guard.layout_version = guard.layout_version.wrapping_add(1);
+            }
+        }
+    }
+    pub fn uv_pages(&self, id: &Uuid) -> Option<TileUvPages> {
+        self.inner
+            .lock()
+            .unwrap()
+            .tiles_map
+            .get(id)
+            .and_then(|tile| tile.uv_pages)
+    }
     pub fn layout_version(&self) -> u64 {
         let guard = self.inner.lock().unwrap();
         guard.layout_version
@@ -195,7 +233,7 @@ impl SharedAtlas {
         if tile.w == 0 || tile.h == 0 || frame_count == 0 {
             return None;
         }
-        let frame = &tile.frames[(anim_frame as usize) % frame_count];
+        let frame = &tile.frames[representative_frame(tile, anim_frame as usize)];
         let x = ((uv[0].clamp(0.0, 0.9999)) * tile.w as f32).floor() as usize;
         let y = ((uv[1].clamp(0.0, 0.9999)) * tile.h as f32).floor() as usize;
         let idx = (y * tile.w as usize + x) * 4;
@@ -215,7 +253,7 @@ impl SharedAtlas {
         if tile.w == 0 || tile.h == 0 || frame_count == 0 {
             return None;
         }
-        let frame = &tile.frames[(anim_frame as usize) % frame_count];
+        let frame = &tile.frames[representative_frame(tile, anim_frame as usize)];
         if frame.len() < 4 {
             return None;
         }
@@ -239,6 +277,7 @@ impl SharedAtlas {
                     metas.push(AtlasTileMeta {
                         first_frame: first,
                         frame_count: rects.len() as u32,
+                        uv_pages: guard.tiles_map.get(id).and_then(|tile| tile.uv_pages),
                     });
                 }
             }
@@ -274,7 +313,9 @@ impl SharedAtlas {
         let out = f(tile);
         guard.atlas_dirty = true;
         guard.content_version = guard.content_version.wrapping_add(1);
-        // Pixel/material edits don't require repacking atlas layout.
+        // A changed tile may have shared its atlas storage with another identity.
+        // Repack to detach changed frames before uploading either color or PBR.
+        guard.layout_dirty = true;
         Some(out)
     }
 
@@ -343,7 +384,9 @@ impl SharedAtlas {
         if rects.is_empty() {
             return None;
         }
-        let idx = (anim_frame as usize) % rects.len();
+        // Consumers without surface coordinates (icons/billboards) use the first
+        // representative page, never the animation counter as a page address.
+        let idx = representative_frame(guard.tiles_map.get(id)?, anim_frame as usize);
         rects.get(idx).cloned()
     }
 
@@ -375,7 +418,9 @@ impl SharedAtlas {
         if rects.is_empty() {
             return None;
         }
-        let idx = (anim_frame as usize) % rects.len();
+        // Consumers without surface coordinates (icons/billboards) use the first
+        // representative page, never the animation counter as a page address.
+        let idx = representative_frame(guard.tiles_map.get(id)?, anim_frame as usize);
         let rect = rects.get(idx)?;
         let w = guard.atlas.width.max(1) as f32;
         let h = guard.atlas.height.max(1) as f32;
@@ -413,6 +458,34 @@ impl SharedAtlas {
     }
 }
 
+/// The same tick advances normal tiles and procedural animation phases.
+/// CPU consumers without surface coordinates display the first spatial page.
+fn representative_frame(tile: &Tile, tick: usize) -> usize {
+    if let Some(pages) = tile.uv_pages {
+        (tick % pages.animation_frames.max(1) as usize)
+            * pages.size[0] as usize
+            * pages.size[1] as usize
+    } else {
+        tick % tile.frames.len().max(1)
+    }
+}
+
+#[derive(Hash, PartialEq, Eq)]
+struct FrameIdentity<'a> {
+    w: u32,
+    h: u32,
+    color: &'a [u8],
+    material: Option<&'a [u8]>,
+}
+fn frame_identity(tile: &Tile, frame: usize) -> FrameIdentity<'_> {
+    FrameIdentity {
+        w: tile.w,
+        h: tile.h,
+        color: &tile.frames[frame],
+        material: tile.material_frames.get(frame).map(Vec::as_slice),
+    }
+}
+
 fn build_atlas_inner(inner: &mut SharedAtlasInner) {
     inner.atlas.data.fill(0);
     fill_default_material_pixels(&mut inner.atlas_material.data);
@@ -423,6 +496,7 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
     inner.atlas_map.reserve(estimated_tiles);
     inner.tiles_index_map.reserve(estimated_tiles);
 
+    let mut shared = FxHashMap::default();
     let mut pen_x: u32 = 0;
     let mut pen_y: u32 = 0;
     let mut shelf_h: u32 = 0;
@@ -444,6 +518,11 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
         let need_bytes = (w as usize) * (h as usize) * 4;
 
         for f in 0..frames_len {
+            let identity = frame_identity(tile, f);
+            if let Some(entry) = shared.get(&identity) {
+                rects.push(*entry);
+                continue;
+            }
             if pen_x + packed_w > inner.atlas.width {
                 pen_x = 0;
                 pen_y = pen_y.saturating_add(shelf_h);
@@ -481,12 +560,14 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
                 ATLAS_FRAME_PADDING,
             );
 
-            rects.push(AtlasEntry {
+            let entry = AtlasEntry {
                 x: pen_x + ATLAS_FRAME_PADDING,
                 y: pen_y + ATLAS_FRAME_PADDING,
                 w,
                 h,
-            });
+            };
+            shared.insert(identity, entry);
+            rects.push(entry);
             pen_x = pen_x.saturating_add(packed_w);
         }
 
@@ -506,6 +587,7 @@ fn build_atlas_inner(inner: &mut SharedAtlasInner) {
 }
 
 fn pack_fits(inner: &SharedAtlasInner, atlas_w: u32, atlas_h: u32) -> bool {
+    let mut unique = rustc_hash::FxHashSet::default();
     let mut pen_x: u32 = 0;
     let mut pen_y: u32 = 0;
     let mut shelf_h: u32 = 0;
@@ -524,7 +606,10 @@ fn pack_fits(inner: &SharedAtlasInner, atlas_w: u32, atlas_h: u32) -> bool {
             return false;
         }
 
-        for _ in 0..tile.frames.len() {
+        for f in 0..tile.frames.len() {
+            if !unique.insert(frame_identity(tile, f)) {
+                continue;
+            }
             if pen_x + packed_w > atlas_w {
                 pen_x = 0;
                 pen_y = pen_y.saturating_add(shelf_h);
@@ -545,6 +630,7 @@ fn auto_resize_atlas_inner(inner: &mut SharedAtlasInner) {
     const MIN_ATLAS_SIDE: u32 = 256;
     const MAX_ATLAS_SIDE: u32 = 16384;
 
+    let mut unique = rustc_hash::FxHashSet::default();
     let mut max_dim = 1u32;
     let mut total_area: u64 = 0;
     let mut frame_count: u64 = 0;
@@ -560,9 +646,12 @@ fn auto_resize_atlas_inner(inner: &mut SharedAtlasInner) {
         let packed_w = tile.w.saturating_add(ATLAS_FRAME_PADDING * 2);
         let packed_h = tile.h.saturating_add(ATLAS_FRAME_PADDING * 2);
         max_dim = max_dim.max(packed_w.max(packed_h));
-        total_area = total_area
-            .saturating_add((packed_w as u64) * (packed_h as u64) * (tile.frames.len() as u64));
-        frame_count = frame_count.saturating_add(tile.frames.len() as u64);
+        for f in 0..tile.frames.len() {
+            if unique.insert(frame_identity(tile, f)) {
+                total_area = total_area.saturating_add((packed_w as u64) * (packed_h as u64));
+                frame_count += 1;
+            }
+        }
     }
 
     let mut side = max_dim.max(MIN_ATLAS_SIDE).next_power_of_two();
@@ -947,6 +1036,83 @@ fn blit_rgba_into_with_border(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn procedural_icons_and_alpha_advance_once_per_normal_tile_tick() {
+        let atlas = SharedAtlas::new(16, 16);
+        let id = Uuid::new_v4();
+        atlas.add_tile(
+            id,
+            1,
+            1,
+            (0..6).map(|i| vec![20 * i, 0, 0, 30 * i]).collect(),
+            vec![],
+        );
+        atlas.set_uv_pages(
+            &id,
+            TileUvPages {
+                animation_frames: 2,
+                repeat_period: [0.; 2],
+                origin: [0; 2],
+                size: [3, 1],
+                axes: [[0.; 3]; 2],
+                units_per_page: 1,
+            },
+        );
+        atlas.ensure_built();
+        let first = atlas.frame_rect(&id, 0).unwrap();
+        let second = atlas.frame_rect(&id, 1).unwrap();
+        assert_ne!(first, second);
+        assert_eq!(atlas.frame_rect(&id, 2).unwrap(), first);
+        assert_eq!(atlas.sample_tile_alpha(&id, 0, [0.; 2]), Some(0));
+        assert_eq!(
+            atlas.sample_tile_alpha(&id, 1, [0.; 2]),
+            Some(90),
+            "A tick selects the next phase, not the next world page"
+        );
+        assert_eq!(atlas.sample_tile_alpha(&id, 2, [0.; 2]), Some(0));
+        assert_eq!(atlas.sdf_uv4(&id, 1), atlas.sdf_uv4(&id, 3));
+    }
+
+    #[test]
+    fn copied_patterns_share_texture_storage_and_edits_detach_color_and_pbr() {
+        let atlas = SharedAtlas::new(16, 16);
+        let frames = vec![
+            vec![30, 90, 40, 255].repeat(16 * 16),
+            vec![40, 100, 50, 255].repeat(16 * 16),
+        ];
+        let material = vec![default_material_frame(16 * 16 * 4); 2];
+        let ids: Vec<_> = (0..1000).map(|_| Uuid::new_v4()).collect();
+        for id in &ids {
+            atlas.add_tile(*id, 16, 16, frames.clone(), material.clone());
+        }
+        atlas.ensure_built();
+        assert_eq!(
+            atlas.dims(),
+            (256, 256),
+            "Copies must not enlarge the GPU atlas"
+        );
+        {
+            let guard = atlas.inner.lock().unwrap();
+            let first = &guard.atlas_map[&ids[0]];
+            assert_ne!(
+                first[0], first[1],
+                "Distinct animation frames retain their own storage"
+            );
+            assert!(ids.iter().all(|id| guard.atlas_map[id] == *first));
+        }
+        atlas.with_tile_mut(&ids[1], |tile| tile.frames[0][0] = 200);
+        atlas.with_tile_mut(&ids[2], |tile| tile.material_frames[0][0] = 123);
+        atlas.ensure_built();
+        let guard = atlas.inner.lock().unwrap();
+        assert_ne!(guard.atlas_map[&ids[0]][0], guard.atlas_map[&ids[1]][0]);
+        assert_ne!(
+            guard.atlas_map[&ids[0]][0], guard.atlas_map[&ids[2]][0],
+            "PBR payload is part of texture identity"
+        );
+        assert_eq!(guard.atlas_map[&ids[0]][1], guard.atlas_map[&ids[1]][1]);
+        assert_eq!(guard.atlas_map[&ids[0]], guard.atlas_map[&ids[999]]);
+    }
 
     #[test]
     fn semantic_opaque_material_is_not_translucent() {

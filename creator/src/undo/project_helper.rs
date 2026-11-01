@@ -1458,7 +1458,7 @@ pub fn set_project_context(
             DOCKMANAGER
                 .write()
                 .unwrap()
-                .set_dock("Nodes".into(), ui, ctx, project, server_ctx);
+                .set_dock("Rules".into(), ui, ctx, project, server_ctx);
         }
         ProjectContext::GameLocales => {
             ui.set_widget_value(

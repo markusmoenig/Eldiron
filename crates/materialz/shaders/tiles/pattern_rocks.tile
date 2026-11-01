@@ -1,0 +1,327 @@
+tile 1
+name "Rocks"
+category "Pattern"
+description "Generates a rock pattern. Returns the cell id in the X component, the depth map in Y and the angle of the cell in degrees in the Z component. Use the Split Operator to access the individual components."
+group "Rock Pattern" true
+param float VCELLST "Cells" default 4 range 1 20
+tooltip "The vertical amount of cells."
+param float RATIO "Ratio" default 1.0 range 0.01 10
+tooltip "Tile length / width ratio."
+param float BLEND "Blend" default 0 range 0 1
+choices "Addition" "Maximum"
+group "Rocks" false
+param float ROCK_radiusA "Size" default 0.6 range 0.0 1.0
+param float ROCK_radiusD "Spread" default 0.2 range 0.0 1.0
+param float BEVEL "Bevel" default 0.1 range 0.0 1.0
+param float inLayers "Layers" default 3 range 1 10
+param float ROCK_noise_scale "Noise Scale" default 1.0 range 0.0 10
+param float ROCK_noise_amp "Noise Amp." default 0.37 range 0.0 10
+param float ROCK_nb "Rocks per Cell" default 1 range 1 10
+param vec2 gradA "Gradient" default 0.5 0.0 range -1000 1000
+param float grad_randA "Gradient Spread" default 2.0 range 0.0 10.0
+group "About" true
+
+let v0 = VCELLST
+let v1 = inLayers
+let v2 = vec2(round((v0 / RATIO)), v0)
+let v3 = ((uv * v0) + vec2(0.5))
+let v4 = v3
+let v5 = vec2(0)
+let v6 = 0.
+let v7 = .5
+let v8 = 0
+let v9 = 0.
+let v10 = 1.
+let v11 = 0
+let v12 = 1
+let v13 = 0.
+state v14 = vec3(0)
+state v15 = vec2(256)
+state v16 = uv
+state v17 = pos
+state v18 = normal
+state v19 = input.rgb
+state v20 = vec3(0)
+state v21 = vec3(0)
+state v22 = vec3(0)
+state v23 = VCELLST
+state v24 = RATIO
+state v25 = BLEND
+state v26 = ROCK_radiusA
+state v27 = ROCK_radiusD
+state v28 = BEVEL
+state v29 = inLayers
+state v30 = ROCK_noise_scale
+state v31 = ROCK_noise_amp
+state v32 = ROCK_nb
+state v33 = gradA
+state v34 = grad_randA
+state v35 = v0
+state v36 = v1
+state v37 = v2
+state v38 = v3
+state v39 = v4
+state v40 = v5
+state v41 = v6
+state v42 = v7
+state v43 = v8
+state v44 = v9
+state v45 = v10
+state v46 = v11
+state v47 = v12
+state v48 = v13
+repeat 1024 times ((v1 - v13) / 1) while less(v48, v36)
+let v50 = (v38 / vec2(v24, 1))
+let v51 = 0.
+let v52 = v50
+let v53 = floor(v52)
+let v54 = 0
+state v55 = v14
+state v56 = v15
+state v57 = v16
+state v58 = v17
+state v59 = v18
+state v60 = v19
+state v61 = v20
+state v62 = v21
+state v63 = v22
+state v64 = v23
+state v65 = v24
+state v66 = v25
+state v67 = v26
+state v68 = v27
+state v69 = v28
+state v70 = v29
+state v71 = v30
+state v72 = v31
+state v73 = v32
+state v74 = v33
+state v75 = v34
+state v76 = v35
+state v77 = v36
+state v78 = v37
+state v79 = v38
+state v80 = v39
+state v81 = v40
+state v82 = v41
+state v83 = v42
+state v84 = v51
+state v85 = v44
+state v86 = v45
+state v87 = v46
+state v88 = v47
+state v89 = v48
+state v90 = v50
+state v91 = v52
+state v92 = v53
+state v93 = v54
+repeat 9 times ((9 - v54) / 1) while less(v93, 9)
+let v95 = (v92 + vec2((mod(v93, 3) - 1), ((v93 / 3) - 1)))
+let v96 = select(equal(v78, vec2(0)), v95, mod(v95, v78))
+let v97 = 0
+state v98 = v55
+state v99 = v56
+state v100 = v57
+state v101 = v58
+state v102 = v59
+state v103 = v60
+state v104 = v61
+state v105 = v62
+state v106 = v63
+state v107 = v64
+state v108 = v65
+state v109 = v66
+state v110 = v67
+state v111 = v68
+state v112 = v69
+state v113 = v70
+state v114 = v71
+state v115 = v72
+state v116 = v73
+state v117 = v74
+state v118 = v75
+state v119 = v76
+state v120 = v77
+state v121 = v78
+state v122 = v79
+state v123 = v80
+state v124 = v81
+state v125 = v82
+state v126 = v83
+state v127 = v84
+state v128 = v85
+state v129 = v86
+state v130 = v87
+state v131 = v88
+state v132 = v89
+state v133 = v90
+state v134 = v91
+state v135 = v92
+state v136 = v93
+state v137 = v95
+state v138 = v96
+state v139 = v97
+repeat 11 times ((v73 - v97) / 1) while less(v139, v116)
+let v141 = select(0, vec3(0), hash33(vec3(vec3(floor(vec3(v138, v139))))))
+let v142 = 1
+let v143 = (v141).xy
+let v144 = ((v137 - v134) + v143)
+let v145 = (v138 + v143)
+let v146 = select(0, vec3(0), hash33(vec3(vec3(floor(vec3((v145 * 1e4), 1))))))
+let v147 = 1
+let v148 = v146
+let v149 = vec2(0)
+let v150 = .5
+let v151 = vec4(cos(.37), (-sin(.37)), sin(.37), cos(.37))
+let v152 = 0
+state v153 = v98
+state v154 = v99
+state v155 = v100
+state v156 = v101
+state v157 = v102
+state v158 = v103
+state v159 = v104
+state v160 = v105
+state v161 = v106
+state v162 = v107
+state v163 = v108
+state v164 = v109
+state v165 = v110
+state v166 = v111
+state v167 = v112
+state v168 = v113
+state v169 = v114
+state v170 = v115
+state v171 = v116
+state v172 = v117
+state v173 = v118
+state v174 = v119
+state v175 = v120
+state v176 = v121
+state v177 = v122
+state v178 = v123
+state v179 = v124
+state v180 = v125
+state v181 = v126
+state v182 = v127
+state v183 = v128
+state v184 = v129
+state v185 = v130
+state v186 = v131
+state v187 = v152
+state v188 = v133
+state v189 = v134
+state v190 = v135
+state v191 = v136
+state v192 = (v145 + (v144 / v114))
+state v193 = v138
+state v194 = v139
+state v195 = v143
+state v196 = v144
+state v197 = v145
+state v198 = v148
+state v199 = vec2(0)
+state v200 = 0
+state v201 = v149
+state v202 = v150
+state v203 = v151
+repeat 5 times ((5 - v152) / 1) while less(v187, 5)
+let v205 = vec2((v192).x*(v203).x+(v192).y*(v203).y, (v192).x*(v203).z+(v192).y*(v203).w)
+let v206 = 1
+let v207 = floor(v205)
+let v208 = fract(v205)
+let v209 = ((v208 * v208) * (3. - (2. * v208)))
+let v210 = (sin(dot((v207 + vec2(0, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v211 = (sin(dot((v207 + vec2(1, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v212 = (sin(dot((v207 + vec2(0, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v213 = (sin(dot((v207 + vec2(1, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v214 = mix(mix(fract(v210), fract(v211), (v209).x), mix(fract(v212), fract(v213), (v209).x), (v209).y)
+let v215 = v214
+let v216 = select(0, 0, select(equal(v206, 0), v215, select(equal(v206, 1), ((2. * v215) - 1.), select(equal(v206, 2), abs(((2. * v215) - 1.)), (1. - abs(((2. * v215) - 1.)))))))
+let v217 = 1
+let v218 = 1
+let v219 = floor((v205 + 17.7))
+let v220 = fract((v205 + 17.7))
+let v221 = ((v220 * v220) * (3. - (2. * v220)))
+let v222 = (sin(dot((v219 + vec2(0, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v223 = (sin(dot((v219 + vec2(1, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v224 = (sin(dot((v219 + vec2(0, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v225 = (sin(dot((v219 + vec2(1, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v226 = mix(mix(fract(v222), fract(v223), (v221).x), mix(fract(v224), fract(v225), (v221).x), (v221).y)
+let v227 = v226
+let v228 = select(0, 0, select(equal(v218, 0), v227, select(equal(v218, 1), ((2. * v227) - 1.), select(equal(v218, 2), abs(((2. * v227) - 1.)), (1. - abs(((2. * v227) - 1.)))))))
+let v229 = 1
+let v230 = (v201 + (v202 * vec2(v216, v228)))
+let v231 = (v187 + 1)
+let v232 = (v205 * 2.)
+let v233 = (v202 / 2.)
+update v187 = v231
+update v192 = v232
+update v201 = v230
+update v202 = v233
+end repeat
+let v239 = select(0, vec2(0), v201)
+let v240 = 1
+let v241 = (v144 + ((v115 * v239) * v114))
+let v242 = vec4(cos((6.28 * (v148).x)), (-sin((6.28 * (v148).x))), sin((6.28 * (v148).x)), cos((6.28 * (v148).x)))
+let v243 = vec2((v241).x*(v242).x+(v241).y*(v242).y, (v241).x*(v242).z+(v241).y*(v242).w)
+let v244 = abs(v243)
+let v245 = ((v110 + (v111 * ((2. * (v148).y) - 1.))) - max((v244).x, (v244).y))
+let v246 = clamp((v245 / v112), 0., 1.)
+let v247 = select(0, vec3(0), hash33(vec3(vec3(floor(vec3((v145 * 1e4), 3))))))
+let v248 = 1
+let v249 = ((-1.) + (2. * v247))
+let v250 = vec4(cos((3.14 * (v249).x)), (-sin((3.14 * (v249).x))), sin((3.14 * (v249).x)), cos((3.14 * (v249).x)))
+let v251 = vec2((v117).x*(v250).x+(v117).y*(v250).y, (v117).x*(v250).z+(v117).y*(v250).w)
+let v252 = (v251 * pow(v118, (v249).y))
+let v253 = (v246 * (.5 + dot(v252, v144)))
+let v254 = v143
+let v255 = (180. * (v249).x)
+let v256 = length(v252)
+let v257 = select(logical_and(equal(v132, 0.), greater(v253, v127)), v254, v124)
+let v258 = select(logical_and(equal(v132, 0.), greater(v253, v127)), v255, v128)
+let v259 = select(logical_and(equal(v132, 0.), greater(v253, v127)), v256, v129)
+let v260 = (v127 + v253)
+let v261 = max(v127, v253)
+let v262 = select(equal(v109, 0), v260, v261)
+let v263 = (v139 + 1)
+update v124 = v257
+update v127 = v262
+update v128 = v258
+update v129 = v259
+update v133 = v244
+update v139 = v263
+end repeat
+let v271 = (v93 + 1)
+update v81 = v124
+update v84 = v127
+update v85 = v128
+update v86 = v129
+update v90 = v133
+update v93 = v271
+end repeat
+let v279 = vec4(cos((-radians(v85))), (-sin((-radians(v85)))), sin((-radians(v85))), cos((-radians(v85))))
+let v280 = vec2((((v38 + (1e3 * v81)) * vec2(v86, 1))).x*(v279).x+(((v38 + (1e3 * v81)) * vec2(v86, 1))).y*(v279).y, (((v38 + (1e3 * v81)) * vec2(v86, 1))).x*(v279).z+(((v38 + (1e3 * v81)) * vec2(v86, 1))).y*(v279).w)
+let v281 = select(0, 0, 0.)
+let v282 = 1
+let v283 = (v84 * (1. + v281))
+let v284 = select(equal(v48, 0.), v283, v84)
+let v285 = (v41 + (v42 * v284))
+let v286 = (v38 * 4.)
+let v287 = (v42 / 4.)
+let v288 = (v37 * 4.)
+let v289 = (v48 + 1)
+update v37 = v288
+update v38 = v286
+update v40 = v81
+update v41 = v285
+update v42 = v287
+update v43 = v284
+update v44 = v85
+update v45 = v86
+update v48 = v289
+end repeat
+let v300 = (v41 / ((1 + ROCK_nb) / 2))
+let v301 = select(equal(BLEND, 0), v300, v41)
+let v302 = vec3((v40).x, v301, v44)
+image = vec4(v302, input.a)

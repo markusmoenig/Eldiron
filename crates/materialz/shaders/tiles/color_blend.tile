@@ -1,0 +1,12 @@
+tile 1
+name "Mix"
+category "Mixer"
+description "Interpolates constant or connected RGBA endpoints. An optional image supplies a per-channel mask multiplied by Factor."
+group "Mix" true
+param color color1 "A" default 0 0 0 1
+param color color2 "B" default 1 1 1 1
+param vec3 factor "Factor" default 0.5 0.5 0.5 range -10 10
+let weight = input.rgb * factor
+let color = mix(color1.rgb, color2.rgb, weight)
+let alpha = mix(color1.a, color2.a, clamp((weight.x + weight.y + weight.z) / 3, 0, 1)) * input.a
+image = vec4(color, alpha)

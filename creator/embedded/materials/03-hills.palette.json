@@ -1,0 +1,12 @@
+{
+  "@surface": {
+    "base color": 6,
+    "emission": 1
+  },
+  "hill-colors": {
+    "color0": 5,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  }
+}

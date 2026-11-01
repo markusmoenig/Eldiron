@@ -1,0 +1,13 @@
+tile 1
+name "Warp"
+category "Transform"
+distance clear
+description "Warps an input row in UV and 3D position together. Self mode uses the input's first channel as an offset; Vector mode accepts a displacement row."
+group "Warp" true
+param float mode "Displacement" default 0 range 0 1
+choices "Self" "Vector"
+param float offsetIntensity "Amount" default 0.1 range -10 10
+param vec3 displacement "Vector" default 0 0 0 range -10 10
+
+let offset = select(equal(mode, 0), vec3(input.x), displacement) * offsetIntensity
+image = sample_context(uv + offset.xy, pos + offset, normal, sample_time, input.rgb, aux2, aux3)

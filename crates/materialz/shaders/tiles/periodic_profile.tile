@@ -1,0 +1,76 @@
+tile 1
+name "Periodic Profile"
+category "Operator"
+description "Periodic profiles of each input channel, in cycles. Rounded, dome, triangle and flat shapes have exact box-filtered integrals. The footprint is estimated from neighboring input samples; transform or warp coordinates upstream for spatially varying repeats. Preserves incoming alpha and optional distance."
+group "Profile" true
+param float profile "Profile" default 0 range 0 3
+choices "Rounded" "Dome" "Triangle" "Flat"
+param float frequency "Frequency" default 1 range -128 128
+tooltip "Cycles per input unit. Negative frequencies reverse the profile; zero produces a constant phase."
+param float width "Width" default 0.8 range 0 1
+tooltip "Occupied fraction of each period. Zero is empty; one fills the period."
+param float phase "Phase" default 0 range -1 1
+tooltip "Phase offset in cycles. Peaks are centered at integer input coordinates when phase is zero."
+group "Filtering" false
+param bool antialias "Antialias" default 1
+tooltip "Integrates the selected profile over the local input footprint. Unresolved repeats converge to their mean instead of flickering."
+
+let w = clamp(width, 0, 1)
+let p = input.rgb * frequency + phase
+let u = fract(p + 0.5)
+let q = clamp((u - 0.5 + 0.5 * w) / max(w, 0.000001), 0, 1)
+let rounded = 0.5 - 0.5 * cos(6.28318530718 * q)
+let dome = 4 * q * (1 - q)
+let triangle = 1 - abs(2 * q - 1)
+let flat = step(0.5 - 0.5 * w, u) - step(0.5 + 0.5 * w, u)
+let point = select(equal(profile, 0), rounded, select(equal(profile, 1), dome, select(equal(profile, 2), triangle, flat)))
+
+# Centered finite differences of the actual callable input, including its mapping.
+let dx = (sample_image(uv + vec2(0.5 * aa, 0))).rgb - (sample_image(uv - vec2(0.5 * aa, 0))).rgb
+let dy = (sample_image(uv + vec2(0, 0.5 * aa))).rgb - (sample_image(uv - vec2(0, 0.5 * aa))).rgb
+let footprint = (abs(dx) + abs(dy)) * abs(frequency)
+let span = max(footprint, 0.000001)
+let lo = fract(u - 0.5 * span)
+let hi = fract(u + 0.5 * span)
+let a = clamp((lo - 0.5 + 0.5 * w) / max(w, 0.000001), 0, 1)
+let b = clamp((hi - 0.5 + 0.5 * w) / max(w, 0.000001), 0, 1)
+
+# Antiderivatives within the pulse, normalized to a unit-width period.
+let roundA = 0.5 * a - 0.07957747155 * sin(6.28318530718 * a)
+let roundB = 0.5 * b - 0.07957747155 * sin(6.28318530718 * b)
+let domeA = a * a * (2 - 1.33333333333 * a)
+let domeB = b * b * (2 - 1.33333333333 * b)
+let triangleA = min(a, 0.5) * min(a, 0.5) + max(a - 0.5, 0) - max(a - 0.5, 0) * max(a - 0.5, 0)
+let triangleB = min(b, 0.5) * min(b, 0.5) + max(b - 0.5, 0) - max(b - 0.5, 0) * max(b - 0.5, 0)
+let integralA = select(equal(profile, 0), roundA, select(equal(profile, 1), domeA, select(equal(profile, 2), triangleA, a)))
+let integralB = select(equal(profile, 0), roundB, select(equal(profile, 1), domeB, select(equal(profile, 2), triangleB, b)))
+let area = w * select(equal(profile, 1), 0.66666666667, select(equal(profile, 3), 1, 0.5))
+# Subtract periodic residuals, avoiding cancellation of large cycle counts.
+let wideFiltered = clamp(area + (w * (integralB - integralA) - (hi - lo) * area) / span, 0, 1)
+
+# For small footprints, integrate clipped intervals relative to the pixel center.
+# This avoids subtracting almost equal antiderivatives at narrow pulse edges.
+state localIntegral = vec3(0)
+state neighbor = -1
+repeat 3 times 3 while 1
+  let center = u - 0.5 + neighbor
+  let left = max(-0.5 * span, -0.5 * w - center)
+  let right = min(0.5 * span, 0.5 * w - center)
+  let extent = max(right - left, 0)
+  let midpoint = center + 0.5 * (left + right)
+  let normalizedCenter = midpoint / max(w, 0.000001)
+  let normalizedExtent = extent / max(w, 0.000001)
+  let angle = 3.14159265359 * normalizedExtent
+  let sinc = mix(1 - angle * angle / 6, sin(angle) / max(angle, 0.000001), smoothstep(0.001, 0.002, angle))
+  let roundMean = 0.5 + 0.5 * cos(6.28318530718 * normalizedCenter) * sinc
+  let domeMean = 1 - 4 * normalizedCenter * normalizedCenter - normalizedExtent * normalizedExtent / 3
+  let centerDistance = abs(midpoint)
+  let overlap = max(0.5 * extent - centerDistance, 0)
+  let triangleMean = 1 - 2 * (centerDistance + overlap * overlap / max(extent, 0.000001)) / max(w, 0.000001)
+  let localMean = select(equal(profile, 0), roundMean, select(equal(profile, 1), domeMean, select(equal(profile, 2), triangleMean, vec3(1))))
+  update localIntegral = localIntegral + extent * clamp(localMean, 0, 1)
+  update neighbor = neighbor + 1
+end repeat
+let filtered = mix(clamp(localIntegral / span, 0, 1), wideFiltered, smoothstep(0.5, 1, footprint))
+let resolved = mix(point, filtered, smoothstep(0.0000001, 0.000001, footprint))
+image = vec4(select(greater(w, 0), select(antialias, resolved, point), vec3(0)), input.a)

@@ -259,6 +259,11 @@ pub trait TheWidget: Send {
         false
     }
 
+    /// Keep fractional touchpad deltas for custom scrollable widgets.
+    fn supports_precise_scroll(&self) -> bool {
+        false
+    }
+
     /// Widgets who support text input return true
     fn supports_text_input(&self) -> bool {
         false

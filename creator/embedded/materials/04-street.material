@@ -1,0 +1,39 @@
+# Eldiron palette indices: 04-street.palette.json (RGB below is the portable MaterialZ cache).
+# Asphalt surface for painting or combining with grass in a road-shaped composition.
+project 1
+result from material "surface"
+material "surface" called "Street"
+  mode pbr
+  tiling raw
+  default base color to 0.0466651 0.0466651 0.0466651
+  default roughness to 0.83
+  default metallic to 0
+  default opacity to 1
+  default emission to 0.0065121 0.0065121 0.0065121
+  default emission strength to 0
+  row "dark" called "Dark Asphalt"
+    use "Color" id "dark-asphalt"
+      set "color" to 0.0202886 0.0202886 0.0202886 1
+  row "light" called "Stone Aggregate"
+    use "Color" id "light-aggregate"
+      set "color" to 0.2345506 0.2345506 0.2345506 1
+  row "grain" called "Asphalt Grain"
+    use "Perlin Noise" id "asphalt-grain"
+      set "globalScale" to 0.22
+    use "fBm" id "asphalt-detail"
+      set "layers" to 2
+      set "gain" to 0.4
+  row "color" called "Street Color"
+    use "Color Ramp" id "street-color"
+      input from row "grain" xxx
+      set "position0" to 0.08
+      set "color0" from row "dark" xyzw
+      set "position1" to 0.23
+      set "color1" to 0.0466651 0.0466651 0.0466651 1
+      set "position2" to 0.61
+      set "color2" to 0.1094617 0.1094617 0.1094617 1
+      set "position3" to 0.9
+      set "color3" from row "light" xyzw
+      set "interpolation" to 0
+  output base color from row "color" xyz
+  output roughness from row "grain" x mapped 0.7 to 0.96

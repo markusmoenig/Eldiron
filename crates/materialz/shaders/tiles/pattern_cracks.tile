@@ -1,0 +1,313 @@
+tile 1
+name "Cracks"
+category "Pattern"
+description "Generates a pattern of random cracks. Returns the cell id in the X component and the depth map in Y component. Use the Split Operator to access the individual components."
+group "Cracks Pattern" true
+param float inCell "Cells" default 4 range 1 20
+tooltip "The vertical amount of cells."
+param float inType "Type" default 1 range 0 1
+choices "Crest" "Fault"
+param float RATIO "Ratio" default 2.0 range 0.01 10
+tooltip "Tile length / width ratio."
+param float probability "Probability" default 1.0 range 0.0 1
+tooltip "The probability that a given shape is drawn, 1. always draws every shape, lower values draw less and less shapes."
+group "Cell" false
+param float STONE_slope "Cell Slope" default 0.3 range -1.0 1.0
+param float STONE_height "Cell Height" default 1.0 range 0.0 1.0
+param float STONE_profile "Profile" default 1.0 range 0.0 2.0
+group "Crack" false
+param float CRACK_zebra_scale "Zebra Scale" default 1.5 range 0.0 10.0
+param float CRACK_zebra_amp "Zebra Amp" default 1.7 range 0.0 10.0
+param float CRACK_profile "Profile" default 0.2 range 0.0 1.0
+param float CRACK_slope "Slope" default 1.4 range 0.0 2.0
+param float CRACK_width "Width" default 0.0 range 0.0 0.1
+group "About" true
+
+let v0 = 0
+let v1 = 1
+let v2 = 0.
+let v3 = inType
+let v4 = inCell
+let v5 = ((uv * v4) + ((input.rgb).z * 12323.1211))
+let v6 = (v5 / vec2(RATIO, 1))
+let v7 = vec2((CRACK_zebra_scale * v5))
+let v8 = v7
+let v9 = vec2(0)
+let v10 = .5
+let v11 = vec4(cos(.37), (-sin(.37)), sin(.37), cos(.37))
+let v12 = 0
+state v13 = vec3(0)
+state v14 = vec2(256)
+state v15 = uv
+state v16 = pos
+state v17 = normal
+state v18 = input.rgb
+state v19 = vec3(0)
+state v20 = vec3(0)
+state v21 = vec3(0)
+state v22 = inCell
+state v23 = inType
+state v24 = RATIO
+state v25 = probability
+state v26 = STONE_slope
+state v27 = STONE_height
+state v28 = STONE_profile
+state v29 = CRACK_zebra_scale
+state v30 = CRACK_zebra_amp
+state v31 = CRACK_profile
+state v32 = CRACK_slope
+state v33 = CRACK_width
+state v34 = v0
+state v35 = v1
+state v36 = v2
+state v37 = v3
+state v38 = v4
+state v39 = v5
+state v40 = v6
+state v41 = v7
+state v42 = v8
+state v43 = v9
+state v44 = v10
+state v45 = v11
+state v46 = v12
+repeat 9 times ((9 - v12) / 1) while less(v46, 9)
+let v48 = vec2((v42).x*(v45).x+(v42).y*(v45).y, (v42).x*(v45).z+(v42).y*(v45).w)
+let v49 = 1
+let v50 = floor(v48)
+let v51 = fract(v48)
+let v52 = ((v51 * v51) * (3. - (2. * v51)))
+let v53 = (sin(dot((v50 + vec2(0, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v54 = (sin(dot((v50 + vec2(1, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v55 = (sin(dot((v50 + vec2(0, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v56 = (sin(dot((v50 + vec2(1, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v57 = mix(mix(fract(v53), fract(v54), (v52).x), mix(fract(v55), fract(v56), (v52).x), (v52).y)
+let v58 = v57
+let v59 = select(equal(v49, 0), v58, select(equal(v49, 1), ((2. * v58) - 1.), select(equal(v49, 2), abs(((2. * v58) - 1.)), (1. - abs(((2. * v58) - 1.))))))
+let v60 = floor((v48 + 17.7))
+let v61 = fract((v48 + 17.7))
+let v62 = ((v61 * v61) * (3. - (2. * v61)))
+let v63 = (sin(dot((v60 + vec2(0, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v64 = (sin(dot((v60 + vec2(1, 0)), vec2(127.1, 311.7))) * 43758.5453123)
+let v65 = (sin(dot((v60 + vec2(0, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v66 = (sin(dot((v60 + vec2(1, 1)), vec2(127.1, 311.7))) * 43758.5453123)
+let v67 = mix(mix(fract(v63), fract(v64), (v62).x), mix(fract(v65), fract(v66), (v62).x), (v62).y)
+let v68 = v67
+let v69 = select(equal(v49, 0), v68, select(equal(v49, 1), ((2. * v68) - 1.), select(equal(v49, 2), abs(((2. * v68) - 1.)), (1. - abs(((2. * v68) - 1.))))))
+let v70 = vec2(v59, v69)
+let v71 = (v43 + (v44 * v70))
+let v72 = (v46 + 1)
+let v73 = (v48 * 2.)
+let v74 = (v44 / 2.)
+update v42 = v73
+update v43 = v71
+update v44 = v74
+update v46 = v72
+end repeat
+let v80 = v43
+let v81 = ((v80 / CRACK_zebra_scale) / CRACK_zebra_amp)
+let v82 = (v6 + v81)
+let v83 = floor(v82)
+let v84 = vec2(0)
+let v85 = vec2(0)
+let v86 = 1e9
+let v87 = 0
+let v88 = 0
+state v89 = vec3(0)
+state v90 = vec2(256)
+state v91 = uv
+state v92 = pos
+state v93 = normal
+state v94 = input.rgb
+state v95 = vec3(0)
+state v96 = vec3(0)
+state v97 = vec3(0)
+state v98 = inCell
+state v99 = inType
+state v100 = RATIO
+state v101 = probability
+state v102 = STONE_slope
+state v103 = STONE_height
+state v104 = STONE_profile
+state v105 = CRACK_zebra_scale
+state v106 = CRACK_zebra_amp
+state v107 = CRACK_profile
+state v108 = CRACK_slope
+state v109 = CRACK_width
+state v110 = v0
+state v111 = v1
+state v112 = v2
+state v113 = v3
+state v114 = v4
+state v115 = v5
+state v116 = v6
+state v117 = v7
+state v118 = v42
+state v119 = v43
+state v120 = v44
+state v121 = v11
+state v122 = v80
+state v123 = v81
+state v124 = v82
+state v125 = v83
+state v126 = v84
+state v127 = v85
+state v128 = v86
+state v129 = v87
+state v130 = v88
+repeat 9 times ((9 - v88) / 1) while less(v130, 9)
+let v132 = (v125 + vec2((mod(v130, 3) - 1), ((v130 / 3) - 1)))
+let v133 = v132
+let v134 = vec2((v133).x*(vec4(127.1, 311.7, 269.5, 183.3)).x+(v133).y*(vec4(127.1, 311.7, 269.5, 183.3)).y, (v133).x*(vec4(127.1, 311.7, 269.5, 183.3)).z+(v133).y*(vec4(127.1, 311.7, 269.5, 183.3)).w)
+let v135 = ((1. + (2. * v112)) * fract((18.5453 * sin(v134))))
+let v136 = ((-v112) + v135)
+let v137 = ((v133 - v124) + v136)
+let v138 = dot(v137, v137)
+let v139 = v138
+let v140 = (v133 - v125)
+let v141 = v137
+let v142 = select(less(v138, v128), v140, v126)
+let v143 = select(less(v138, v128), v141, v127)
+let v144 = select(less(v138, v128), v139, v128)
+let v145 = (v130 + 1)
+update v126 = v142
+update v127 = v143
+update v128 = v144
+update v129 = v138
+update v130 = v145
+end repeat
+let v152 = 1e9
+let v153 = 0
+state v154 = vec3(0)
+state v155 = vec2(256)
+state v156 = uv
+state v157 = pos
+state v158 = normal
+state v159 = input.rgb
+state v160 = vec3(0)
+state v161 = vec3(0)
+state v162 = vec3(0)
+state v163 = inCell
+state v164 = inType
+state v165 = RATIO
+state v166 = probability
+state v167 = STONE_slope
+state v168 = STONE_height
+state v169 = STONE_profile
+state v170 = CRACK_zebra_scale
+state v171 = CRACK_zebra_amp
+state v172 = CRACK_profile
+state v173 = CRACK_slope
+state v174 = CRACK_width
+state v175 = v0
+state v176 = v1
+state v177 = v2
+state v178 = v3
+state v179 = v4
+state v180 = v5
+state v181 = v6
+state v182 = v7
+state v183 = v42
+state v184 = v43
+state v185 = v44
+state v186 = v11
+state v187 = v80
+state v188 = v81
+state v189 = v82
+state v190 = v83
+state v191 = v126
+state v192 = v127
+state v193 = v152
+state v194 = v129
+state v195 = v153
+repeat 25 times ((25 - v153) / 1) while less(v195, 25)
+let v197 = ((v190 + v191) + vec2((mod(v195, 5) - 2), ((v195 / 5) - 2)))
+let v198 = v197
+let v199 = vec2((v198).x*(vec4(127.1, 311.7, 269.5, 183.3)).x+(v198).y*(vec4(127.1, 311.7, 269.5, 183.3)).y, (v198).x*(vec4(127.1, 311.7, 269.5, 183.3)).z+(v198).y*(vec4(127.1, 311.7, 269.5, 183.3)).w)
+let v200 = ((1. + (2. * v177)) * fract((18.5453 * sin(v199))))
+let v201 = ((-v177) + v200)
+let v202 = ((v198 - v189) + v201)
+let v203 = (.5 * dot((v192 + v202), normalize((v202 - v192))))
+let v204 = min(v193, v203)
+let v205 = select(greater(dot((v192 - v202), (v192 - v202)), 1e-5), v204, v193)
+let v206 = (v195 + 1)
+update v193 = v205
+update v195 = v206
+end repeat
+let v210 = vec3(v193, (v127 + v82))
+let v211 = v6
+let v212 = floor(v211)
+let v213 = 1e9
+let v214 = 0
+state v215 = vec3(0)
+state v216 = vec2(256)
+state v217 = uv
+state v218 = pos
+state v219 = normal
+state v220 = input.rgb
+state v221 = vec3(0)
+state v222 = vec3(0)
+state v223 = vec3(0)
+state v224 = inCell
+state v225 = inType
+state v226 = RATIO
+state v227 = probability
+state v228 = STONE_slope
+state v229 = STONE_height
+state v230 = STONE_profile
+state v231 = CRACK_zebra_scale
+state v232 = CRACK_zebra_amp
+state v233 = CRACK_profile
+state v234 = CRACK_slope
+state v235 = CRACK_width
+state v236 = v0
+state v237 = v1
+state v238 = v2
+state v239 = v3
+state v240 = v4
+state v241 = v5
+state v242 = v6
+state v243 = v7
+state v244 = v42
+state v245 = v43
+state v246 = v44
+state v247 = v11
+state v248 = v80
+state v249 = v81
+state v250 = v211
+state v251 = v212
+state v252 = v126
+state v253 = v127
+state v254 = v213
+state v255 = v129
+state v256 = v210
+state v257 = v214
+repeat 9 times ((9 - v214) / 1) while less(v257, 9)
+let v259 = (v251 + vec2((mod(v257, 3) - 1), ((v257 / 3) - 1)))
+let v260 = v259
+let v261 = vec2((v260).x*(vec4(127.1, 311.7, 269.5, 183.3)).x+(v260).y*(vec4(127.1, 311.7, 269.5, 183.3)).y, (v260).x*(vec4(127.1, 311.7, 269.5, 183.3)).z+(v260).y*(vec4(127.1, 311.7, 269.5, 183.3)).w)
+let v262 = ((1. + (2. * v238)) * fract((18.5453 * sin(v261))))
+let v263 = ((-v238) + v262)
+let v264 = ((v260 - v250) + v263)
+let v265 = dot(v264, v264)
+let v266 = v265
+let v267 = v263
+let v268 = select(less(v265, v254), v267, v245)
+let v269 = select(less(v265, v254), v266, v254)
+let v270 = (v257 + 1)
+update v245 = v268
+update v254 = v269
+update v255 = v265
+update v257 = v270
+end repeat
+let v276 = (vec2(sqrt(v254), ((v245).x + (256. * (v245).y)))).x
+let v277 = (STONE_height - (STONE_slope * pow(v276, STONE_profile)))
+let v278 = v277
+let v279 = pow(max(0., ((v210).x - CRACK_width)), CRACK_profile)
+let v280 = min(1., (CRACK_slope * v279))
+let v281 = select(equal(v3, 1), (v280 * v278), mix(1., v278, v280))
+let v282 = hash33(vec3((v210).yz, 1))
+let v283 = (v282).x
+let v284 = step(v283, probability)
+let v285 = mix(0., v281, v284)
+let v286 = vec3(v283, v285, 0)
+image = vec4(v286, input.a)

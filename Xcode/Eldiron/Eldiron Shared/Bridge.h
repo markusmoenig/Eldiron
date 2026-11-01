@@ -70,6 +70,8 @@ void rust_open();
 void rust_close();
 void rust_save();
 void rust_save_as();
+void rust_set_creator_theme(uint32_t);
+uint32_t rust_get_creator_theme();
 void rust_show_settings();
 void rust_show_rules();
 void rust_show_locales();

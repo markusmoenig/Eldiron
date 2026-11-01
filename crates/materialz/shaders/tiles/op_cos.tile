@@ -1,0 +1,10 @@
+tile 1
+name "Cos"
+category "Operator"
+description "The output is the cosine of the input value multiplied by the scale property."
+group "Cos Operator" true
+param float scale "Scale" default 1.0 range 0.0 10
+group "About" true
+
+let v0 = cos((input.rgb * scale))
+image = vec4(v0, input.a)

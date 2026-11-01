@@ -1,0 +1,9 @@
+tile 1
+name "Color"
+category "Style"
+description "Solid color across the image or within the incoming alpha mask. Preserves optional distance."
+group "Color" true
+param color color "Color" default 0.2 0.7 0.9 1.0
+group "About" true
+
+image = vec4(color.rgb, clamp(color.a, 0, 1) * clamp(input.a, 0, 1))

@@ -1,0 +1,202 @@
+tile 1
+name "Circular Brick & Tiles"
+category "Pattern"
+description "Generates a circular brick or tile pattern. Needs an input shape or pattern (by default Tile). Returns the cell id in the X component, the depth map in Y and the angle of the shape in degrees in the Z component. Use the Split Operator to access the individual components."
+group "Circular Brick & Tiles Pattern" true
+param float VCELLNT "Cells" default 20 range 1 200
+tooltip "The vertical amount of shapes."
+param float inRatio "Ratio" default 4.0 range 0.01 14.
+tooltip "Width / height ratio of the individual shapes."
+param float inGap "Gap" default 0.1 range 0.0 1.0
+tooltip "Gap between the shapes in percent."
+param float inHOLLOW "Center Size" default 1 range 0 20
+tooltip "The size of the empty center in shapes."
+param float inMaxRandRot "Max Rotation" default 0.0 range 0.0 10
+tooltip "Maximum random rotation per shape in degrees. A value of 0 means no rotation, a value of 10 means each shape gets randomly rotated up to 10 degrees."
+param bool BRICK "Brick" default 1
+tooltip "Switch between shape and brick pattern."
+param float probability "Probability" default 1.0 range 0.0 1
+tooltip "The probability that a given shape is drawn, 1. always draws every shape, lower values draw less and less shapes."
+group "Offsets" false
+param float OFFSET "Offset" default 0.0 range 0.0 1.0
+tooltip "Offset between circles."
+param bool RANDofs "Random Offsets" default 1
+tooltip "Adds a random offset to the offsets between circles to reduce visible tiling."
+group "Shapes" false
+param vec2 shapeN "Amount" default 1 1 range 0 50
+tooltip "The amount of shapes in the x and y direction."
+param vec2 shapeGap "Gap" default 0.0 0.0 range 0 1
+tooltip "The gap between the shapes."
+group "About" true
+group "Sampling" true
+param float time "Time Offset" default 0
+param vec3 extra3 "Input 3" default 0 0 0
+
+let v0 = VCELLNT
+let v1 = inRatio
+let v2 = 0.
+let v3 = inMaxRandRot
+let v4 = inHOLLOW
+let v5 = vec2(round((v0 / v1)), v0)
+let v6 = vec2((inGap / 2.))
+let v7 = 0
+let v8 = 0.
+let v9 = vec3(0)
+let v10 = uv
+let v11 = (length(v10) * v0)
+let v12 = atan((v10).y, (v10).x)
+let v13 = 0
+let v14 = vec2((v12 * (floor(v11) + .5)), v11)
+let v15 = 1
+let v16 = select(less((v14).y, v4), v15, v7)
+let v17 = ((6.28 * (floor(v11) + .5)) / v1)
+let v18 = vec2(((v14).x * ((floor(v17) + 0.) / v17)), (v14).y)
+let v19 = select(0, vec3(0), hash33(vec3(v11, 1, 12)))
+let v20 = 1
+let v21 = vec2(((v18).x + ((v19).x * v1)), (v18).y)
+let v22 = select(RANDofs, v21, v18)
+let v23 = vec2(((v22).x + (OFFSET * floor(v11))), (v22).y)
+let v24 = vec2(floor(v17), 1e5)
+let v25 = vec2(v1, 1)
+let v26 = (v23 / v25)
+let v27 = vec2(((v26).x + (.5 * mod(floor((v26).y), 2.))), (v26).y)
+let v28 = select(BRICK, v27, v26)
+let v29 = vec2(select(equal(v24, vec2(0)), v28, mod(v28, v24)))
+let v30 = v29
+let v31 = (v25 * (fract(v28) - (1. / 2.)))
+let v32 = select(0, vec3(0), hash33(vec3(v30, 2)))
+let v33 = 1
+let v34 = (v32).r
+let v35 = select(0, vec3(0), hash33(vec3(v30, 1)))
+let v36 = 1
+let v37 = (v2 + (v3 * ((-1.) + (2. * (v35).x))))
+let v38 = vec4(sin((radians(v37) + (vec4(1, 0, 2, 1) * 1.5707))))
+let v39 = vec2((v31).x*(v38).x+(v31).y*(v38).y, (v31).x*(v38).z+(v31).y*(v38).w)
+let v40 = vec2((v25 - (2. * v6)))
+let v41 = (shapeN - 1.)
+let v42 = (v40 / shapeN)
+let v43 = ((v40 / shapeN) - shapeGap)
+let v44 = vec2(min((v43).x, (v43).y))
+let v45 = select(greater((shapeN).x, 1.0), v44, v43)
+let v46 = 1.
+let v47 = ((-(v41).y) / 2.)
+state v48 = vec3(0)
+state v49 = vec2(256)
+state v50 = uv
+state v51 = pos
+state v52 = normal
+state v53 = input.rgb
+state v54 = vec3(0)
+state v55 = select(aux_valid, aux3, extra3)
+state v56 = vec3(0)
+state v57 = VCELLNT
+state v58 = inRatio
+state v59 = inGap
+state v60 = inHOLLOW
+state v61 = inMaxRandRot
+state v62 = BRICK
+state v63 = probability
+state v64 = OFFSET
+state v65 = RANDofs
+state v66 = shapeN
+state v67 = shapeGap
+state v68 = (sample_time + time)
+state v69 = v0
+state v70 = v1
+state v71 = v2
+state v72 = v3
+state v73 = v4
+state v74 = v24
+state v75 = v6
+state v76 = v16
+state v77 = v8
+state v78 = v9
+state v79 = v28
+state v80 = v11
+state v81 = v12
+state v82 = v17
+state v83 = v25
+state v84 = v30
+state v85 = v39
+state v86 = v34
+state v87 = v37
+state v88 = v40
+state v89 = v41
+state v90 = v42
+state v91 = v45
+state v92 = v46
+state v93 = v47
+repeat 64 times (((((v41).y / 2.) - v47) / 1) + 1) while less_equal(v93, ((v89).y / 2.))
+let v95 = ((-(v89).x) / 2.)
+state v96 = v48
+state v97 = v49
+state v98 = v50
+state v99 = v51
+state v100 = v52
+state v101 = v53
+state v102 = v54
+state v103 = v55
+state v104 = v56
+state v105 = v57
+state v106 = v58
+state v107 = v59
+state v108 = v60
+state v109 = v61
+state v110 = v62
+state v111 = v63
+state v112 = v64
+state v113 = v65
+state v114 = v66
+state v115 = v67
+state v116 = v68
+state v117 = v69
+state v118 = v70
+state v119 = v71
+state v120 = v72
+state v121 = v73
+state v122 = v74
+state v123 = v75
+state v124 = v76
+state v125 = v77
+state v126 = v78
+state v127 = v79
+state v128 = v80
+state v129 = v81
+state v130 = v82
+state v131 = v83
+state v132 = v84
+state v133 = v85
+state v134 = v86
+state v135 = v87
+state v136 = v88
+state v137 = v89
+state v138 = v90
+state v139 = v91
+state v140 = v92
+state v141 = v93
+state v142 = v95
+repeat 64 times (((((v89).x / 2.) - v95) / 1) + 1) while less_equal(v142, ((v137).x / 2.))
+let v144 = (v140 + 1)
+let v145 = hash33(vec3((vec3(v134, (.9 / v140), 0) * 4294967295.0)))
+let v146 = v145
+let v147 = (v146).x
+let v148 = (sample_context((v133 + (vec2(v142, v141) * v138)), v99, v100, v116, vec3(v139, v147), vec3(v125, 0, 0), v103)).rgb
+let v149 = (v126 + v148)
+let v150 = (v142 + 1)
+let v151 = (v144 + 1)
+update v126 = v149
+update v140 = v151
+update v142 = v150
+end repeat
+let v156 = (v93 + 1)
+update v78 = v126
+update v92 = v140
+update v93 = v156
+end repeat
+let v161 = select(equal(v16, 0), v78, v9)
+let v162 = vec3(select(v16, 1., v34), (v161).y, (v161).z)
+let v163 = vec3((v162).x, (v162).y, v37)
+let v164 = step(v34, probability)
+let v165 = vec3((v163).x, mix(0., (v163).g, v164), (v163).z)
+let v166 = v165
+image = vec4(v166, input.a)

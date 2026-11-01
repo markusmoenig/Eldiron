@@ -1,0 +1,11 @@
+tile 1
+name "Subtract"
+category "Operator"
+description "The output is the result of the subtraction of the sum of the local and global properties from the input value."
+group "Subtract Operator" true
+param float globalValue "Global" default 0.0 range 0.0 10
+param vec3 localValue "Local" default 0.0 0.0 0.0 range -1000 1000
+group "About" true
+
+let v0 = (input.rgb - (globalValue + localValue))
+image = vec4(v0, input.a)

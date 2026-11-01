@@ -1,0 +1,386 @@
+[
+  {
+    "name": "base color",
+    "variant": "BaseColor",
+    "packed": "baseColor.xyz",
+    "default": [
+      0.8,
+      0.8,
+      0.8
+    ],
+    "group": "Surface"
+  },
+  {
+    "name": "roughness",
+    "variant": "Roughness",
+    "packed": "parameters.x",
+    "default": [
+      0.5
+    ],
+    "group": "Surface"
+  },
+  {
+    "name": "metallic",
+    "variant": "Metallic",
+    "packed": "parameters.y",
+    "default": [
+      0
+    ],
+    "group": "Surface"
+  },
+  {
+    "name": "specular",
+    "variant": "Specular",
+    "packed": "parameters2.x",
+    "default": [
+      1
+    ],
+    "group": "Specular"
+  },
+  {
+    "name": "specular color",
+    "variant": "SpecularColor",
+    "packed": "specularColor.xyz",
+    "default": [
+      1,
+      1,
+      1
+    ],
+    "group": "Specular"
+  },
+  {
+    "name": "ior",
+    "variant": "Ior",
+    "packed": "parameters2.y",
+    "default": [
+      1.5
+    ],
+    "group": "Specular"
+  },
+  {
+    "name": "anisotropy",
+    "variant": "Anisotropy",
+    "packed": "parameters3.w",
+    "default": [
+      0
+    ],
+    "group": "Specular"
+  },
+  {
+    "name": "transmission",
+    "variant": "Transmission",
+    "packed": "emission.w",
+    "default": [
+      0
+    ],
+    "group": "Transmission"
+  },
+  {
+    "name": "transmission color",
+    "variant": "TransmissionColor",
+    "packed": "transmissionColor.xyz",
+    "default": [
+      1,
+      1,
+      1
+    ],
+    "group": "Transmission"
+  },
+  {
+    "name": "transmission roughness",
+    "variant": "TransmissionRoughness",
+    "packed": "parameters3.y",
+    "default": [
+      0.5
+    ],
+    "group": "Transmission"
+  },
+  {
+    "name": "transmission ior",
+    "variant": "TransmissionIor",
+    "packed": "parameters3.z",
+    "default": [
+      1.5
+    ],
+    "group": "Transmission"
+  },
+  {
+    "name": "absorption color",
+    "variant": "AbsorptionColor",
+    "packed": "transmissionAbsorption.xyz",
+    "default": [
+      1,
+      1,
+      1
+    ],
+    "group": "Transmission"
+  },
+  {
+    "name": "absorption distance",
+    "variant": "AbsorptionDistance",
+    "packed": "transmissionAbsorption.w",
+    "default": [
+      0
+    ],
+    "group": "Transmission"
+  },
+  {
+    "name": "thin walled",
+    "variant": "ThinWalled",
+    "packed": "transmissionColor.w",
+    "default": [
+      0
+    ],
+    "group": "Transmission"
+  },
+  {
+    "name": "coat",
+    "variant": "Coat",
+    "packed": "parameters2.z",
+    "default": [
+      0
+    ],
+    "group": "Coat"
+  },
+  {
+    "name": "coat color",
+    "variant": "CoatColor",
+    "packed": "clearcoatColor.xyz",
+    "default": [
+      1,
+      1,
+      1
+    ],
+    "group": "Coat"
+  },
+  {
+    "name": "coat roughness",
+    "variant": "CoatRoughness",
+    "packed": "parameters2.w",
+    "default": [
+      0.1
+    ],
+    "group": "Coat"
+  },
+  {
+    "name": "coat ior",
+    "variant": "CoatIor",
+    "packed": "specularColor.w",
+    "default": [
+      1.5
+    ],
+    "group": "Coat"
+  },
+  {
+    "name": "coat attenuation",
+    "variant": "CoatAttenuation",
+    "packed": "clearcoatAttenuation.xyz",
+    "default": [
+      1,
+      1,
+      1
+    ],
+    "group": "Coat"
+  },
+  {
+    "name": "coat thickness",
+    "variant": "CoatThickness",
+    "packed": "clearcoatAttenuation.w",
+    "default": [
+      0
+    ],
+    "group": "Coat"
+  },
+  {
+    "name": "sheen",
+    "variant": "Sheen",
+    "packed": "sheenColor.w",
+    "default": [
+      0
+    ],
+    "group": "Sheen"
+  },
+  {
+    "name": "sheen color",
+    "variant": "SheenColor",
+    "packed": "sheenColor.xyz",
+    "default": [
+      1,
+      1,
+      1
+    ],
+    "group": "Sheen"
+  },
+  {
+    "name": "sheen roughness",
+    "variant": "SheenRoughness",
+    "packed": "parameters3.x",
+    "default": [
+      0.5
+    ],
+    "group": "Sheen"
+  },
+  {
+    "name": "subsurface",
+    "variant": "Subsurface",
+    "packed": "subsurfaceColor.w",
+    "default": [
+      0
+    ],
+    "group": "Subsurface"
+  },
+  {
+    "name": "subsurface color",
+    "variant": "SubsurfaceColor",
+    "packed": "subsurfaceColor.xyz",
+    "default": [
+      0.8,
+      0.8,
+      0.8
+    ],
+    "group": "Subsurface"
+  },
+  {
+    "name": "subsurface radius",
+    "variant": "SubsurfaceRadius",
+    "packed": "subsurfaceRadius.xyz",
+    "default": [
+      1,
+      1,
+      1
+    ],
+    "group": "Subsurface"
+  },
+  {
+    "name": "subsurface scale",
+    "variant": "SubsurfaceScale",
+    "packed": "subsurfaceRadius.w",
+    "default": [
+      1
+    ],
+    "group": "Subsurface"
+  },
+  {
+    "name": "subsurface anisotropy",
+    "variant": "SubsurfaceAnisotropy",
+    "packed": "subsurfaceParameters.x",
+    "default": [
+      0
+    ],
+    "group": "Subsurface"
+  },
+  {
+    "name": "thin film",
+    "variant": "ThinFilm",
+    "packed": "thinFilm.x",
+    "default": [
+      0
+    ],
+    "group": "Thin Film"
+  },
+  {
+    "name": "film thickness",
+    "variant": "FilmThickness",
+    "packed": "thinFilm.y",
+    "default": [
+      450
+    ],
+    "group": "Thin Film"
+  },
+  {
+    "name": "film ior",
+    "variant": "FilmIor",
+    "packed": "thinFilm.z",
+    "default": [
+      1.45
+    ],
+    "group": "Thin Film"
+  },
+  {
+    "name": "volume scattering",
+    "variant": "VolumeScattering",
+    "packed": "volumeScattering.w",
+    "default": [
+      0
+    ],
+    "group": "Volume"
+  },
+  {
+    "name": "volume color",
+    "variant": "VolumeColor",
+    "packed": "volumeScattering.xyz",
+    "default": [
+      1,
+      1,
+      1
+    ],
+    "group": "Volume"
+  },
+  {
+    "name": "volume distance",
+    "variant": "VolumeDistance",
+    "packed": "volumeParameters.x",
+    "default": [
+      1
+    ],
+    "group": "Volume"
+  },
+  {
+    "name": "volume anisotropy",
+    "variant": "VolumeAnisotropy",
+    "packed": "volumeParameters.y",
+    "default": [
+      0
+    ],
+    "group": "Volume"
+  },
+  {
+    "name": "emission",
+    "variant": "Emission",
+    "packed": "emission.xyz",
+    "default": [
+      0,
+      0,
+      0
+    ],
+    "group": "Emission"
+  },
+  {
+    "name": "emission strength",
+    "variant": "EmissionStrength",
+    "packed": "clearcoatColor.w",
+    "default": [
+      1
+    ],
+    "group": "Emission"
+  },
+  {
+    "name": "opacity",
+    "variant": "Opacity",
+    "packed": "baseColor.w",
+    "default": [
+      1
+    ],
+    "group": "Geometry"
+  },
+  {
+    "name": "normal",
+    "variant": "Normal",
+    "packed": null,
+    "default": [
+      0.5,
+      0.5,
+      1
+    ],
+    "group": "Geometry"
+  },
+  {
+    "name": "height",
+    "variant": "Height",
+    "packed": null,
+    "default": [
+      0
+    ],
+    "group": "Geometry"
+  }
+]

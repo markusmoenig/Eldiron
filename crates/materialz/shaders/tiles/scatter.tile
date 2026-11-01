@@ -1,0 +1,91 @@
+tile 1
+name "Scatter"
+category "Transform"
+description "Seeded overlapping RGBA stamps with multiple instances per cell, size/intensity variation, layers and Over/Add/Maximum blending."
+distance clear
+output_field key "Winning Key" 1 xyz
+output_field random "Winning Random" 2 x
+output_field angle "Winning Angle" 3 x
+output_field local "Winning Local UV" 4 xy
+group "Placement" true
+param vec2 cells "Cells" default 6 6 range 1 1024
+param vec2 size "Size" default 0.8 0.8 range 0.001 3
+param float variation "Size Variation" default 0.3 range 0 1
+param float amount "Instances per Cell" default 1 range 1 8
+param float probability "Probability" default 1 range 0 1
+param float rotation "Rotation" default 180 range 0 180
+param float seed "Seed" default 0 range -10000 10000
+group "Layers" false
+param float layers "Layers" default 1 range 1 4
+param float lacunarity "Lacunarity" default 2 range 1 4
+param float gain "Gain" default 0.5 range 0 1
+param float intensity "Intensity Variation" default 0.2 range 0 1
+group "Output" true
+param float blend "Blend" default 0 range 0 2
+choices "Over" "Add Height" "Maximum Height"
+param float output "Output" default 0 range 0 4
+choices "Image" "Winning Key" "Winning Random" "Winning Angle" "Winning Local UV"
+let namespace = floor(seed) + select(instance_valid, floor(hash33(instance_cell).x * 16777215), 0)
+state color = vec3(0)
+state alpha = 0
+state maximum = -1
+state winningKey = vec3(0)
+state winningLocal = vec3(0)
+state winningAngle = 0
+state frequency = 1
+state weight = 1
+state layer = 0
+repeat 4 times clamp(round(layers), 1, 4) while 1
+let count = clamp(round(abs(cells) * frequency), 1, 4096)
+let p = (uv + 0.5) * count
+state j = -3
+repeat 7 times 7 while 1
+state i = -3
+repeat 7 times 7 while 1
+let cell = floor(p) + vec2(i, j)
+state stamp = 0
+repeat 8 times clamp(round(amount), 1, 8) while 1
+let key = vec3(mod(cell, count), namespace + 65537 * layer + 1031 * stamp)
+let random = hash33(key)
+let second = hash33(key + vec3(97, 193, 389))
+let support = clamp(size * (1 + (second.x * 2 - 1) * clamp(variation, 0, 1)), 0.001, 3)
+let angle = (random.z * 2 - 1) * rotation
+let c = cos(radians(angle))
+let s = sin(radians(angle))
+let delta = p - cell - random.xy
+let local = vec2(c * delta.x + s * delta.y, -s * delta.x + c * delta.y) / support
+let footprint = aa * max(count.x, count.y) * (abs(c) + abs(s)) / min(support.x, support.y)
+let visible = logical_and(less_equal(max(abs(local.x), abs(local.y)), 0.5 + 0.5 * footprint), less(second.z, clamp(probability, 0, 1)))
+repeat 1 times visible while 1
+let frameCenter = vec3((cell + random.xy) / count - 0.5, 0)
+let frameX = vec3(c * support.x / count.x, s * support.x / count.y, 0)
+let frameY = vec3(-s * support.y / count.x, c * support.y / count.y, 0)
+let sampled = sample_scoped(local, footprint, key, select(instance_valid, instance_cell, key), frameCenter, frameX, frameY)
+let clip = 1 - smoothstep(-0.5 * max(footprint, 0.000001), 0.5 * max(footprint, 0.000001), max(abs(local.x), abs(local.y)) - 0.5)
+let a = clamp(sampled.a, 0, 1) * clip
+let amplitude = weight * (1 + clamp(intensity, 0, 1) * (second.y * 2 - 1))
+let h = sampled.r * a * amplitude
+let wins = select(equal(blend, 0), greater(a, 0.000001), greater(h, maximum))
+update winningKey = select(wins, key, winningKey)
+update winningLocal = select(wins, vec3(local, 0), winningLocal)
+update winningAngle = select(wins, angle, winningAngle)
+update maximum = max(maximum, h)
+let over = sampled.rgb * a + color * (1 - a)
+let added = color + sampled.rgb * a * amplitude
+let highest = select(wins, sampled.rgb * a * amplitude, color)
+update color = select(equal(blend, 0), over, select(equal(blend, 1), added, highest))
+update alpha = a + alpha * (1 - a)
+end repeat
+update stamp = stamp + 1
+end repeat
+update i = i + 1
+end repeat
+update j = j + 1
+end repeat
+update frequency = frequency * clamp(lacunarity, 1, 4)
+update weight = weight * clamp(gain, 0, 1)
+update layer = layer + 1
+end repeat
+let rgb = select(equal(blend, 0), color / max(alpha, 0.000001), color)
+let field = select(equal(output, 1), winningKey, select(equal(output, 2), vec3(hash33(winningKey).x), select(equal(output, 3), vec3(winningAngle), winningLocal)))
+image = select(equal(output, 0), vec4(rgb, alpha), vec4(field, step(0.000001, alpha)))

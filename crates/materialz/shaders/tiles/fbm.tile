@@ -1,0 +1,26 @@
+tile 1
+name "fBm"
+category "Fractal"
+description "Normalized octave accumulation of an input row. Resamples UV and 3D position together, so the same operation works with 2D and 3D sources. Select an input channel on the connection to accumulate a single field."
+group "Fractal" true
+param float layers "Octaves" default 5 range 1 20
+param float lacunarity "Lacunarity" default 2 range 0.001 10
+param float gain "Gain" default 0.5 range 0 1
+group "Scale" false
+param float globalScale "Scale" default 1 range 0.001 10
+param vec3 localScale "Stretch" default 1 1 1 range 0.001 1000
+
+let pointUV = uv / nonzero(globalScale) / nonzero(localScale.xy)
+let point3D = pos / nonzero(globalScale) / nonzero(localScale)
+state frequency = 1
+state weight = 1
+state total = vec3(0)
+state weights = 0
+repeat 20 times layers while 1
+let value = sample_context(pointUV * frequency, point3D * frequency, normal, sample_time, input.rgb, aux2, aux3)
+update total = total + value.rgb * weight
+update weights = weights + weight
+update frequency = frequency * lacunarity
+update weight = weight * gain
+end repeat
+image = vec4(total / nonzero(weights), input.a)

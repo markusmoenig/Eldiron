@@ -1,0 +1,10 @@
+tile 1
+name "One Minus"
+category "Operator"
+description "The output is the result of the value property (by default one) minus the input value."
+group "One Minus Operator" true
+param float value "Value" default 1.0 range 0.0 50
+group "About" true
+
+let v0 = (value - input.rgb)
+image = vec4(v0, input.a)

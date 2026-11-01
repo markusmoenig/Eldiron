@@ -291,7 +291,10 @@ impl Dock for TilesEditorDock {
                 if let TheValue::Id(tile_id) = value
                     && id.name == "Tile Picked"
                 {
-                    if let Some(tile) = project.tiles.get(tile_id) {
+                    if project.procedural_materials.contains_key(tile_id) {
+                        server_ctx.editing_ctx = PixelEditingContext::None;
+                        ctx.ui.set_disabled("Tile Editor Dock RGBA Layout View");
+                    } else if let Some(tile) = project.tiles.get(tile_id) {
                         self.set_tile(tile, ui, ctx, server_ctx, false);
                     }
                     self.editing_context_changed(ui, ctx, project, server_ctx);
@@ -1627,6 +1630,7 @@ impl TilesEditorDock {
         server_ctx: &mut ServerContext,
         update_only: bool,
     ) {
+        ctx.ui.set_enabled("Tile Editor Dock RGBA Layout View");
         self.set_item_icon_default_enabled(ui, ctx, false);
         // Switch to this tile's undo stack
         if !update_only {
@@ -1703,6 +1707,23 @@ impl TilesEditorDock {
         project: &Project,
         server_ctx: &mut ServerContext,
     ) {
+        let tile = match server_ctx.editing_ctx {
+            PixelEditingContext::Tile(id, _) => Some(id),
+            PixelEditingContext::None => server_ctx.curr_tile_id,
+            _ => None,
+        };
+        if let Some(id) = tile
+            && project.procedural_materials.contains_key(&id)
+        {
+            server_ctx.editing_ctx = PixelEditingContext::None;
+            ctx.ui.set_disabled("Tile Editor Dock RGBA Layout View");
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("Open Procedural Tile"),
+                TheValue::Id(id),
+            ));
+            return;
+        }
+        ctx.ui.set_enabled("Tile Editor Dock RGBA Layout View");
         if self.paste_preview_texture.is_some() {
             self.clear_paste_preview(ui, ctx);
         }

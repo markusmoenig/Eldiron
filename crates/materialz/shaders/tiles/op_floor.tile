@@ -1,0 +1,8 @@
+tile 1
+name "Floor"
+category "Operator"
+description "The output is the nearest integer less than or equal to the input value."
+group "About" true
+
+let v0 = vec3(floor(input.rgb))
+image = vec4(v0, input.a)

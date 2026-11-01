@@ -409,7 +409,7 @@ fn sample_billboard(hit: BillboardHit) -> vec4<f32> {
     }
 
     // Get tile frame information
-    let frame = sv_tile_frame(hit.tile_index);
+    let frame = sv_tile_frame(hit.tile_index, hit.uv);
 
     // Map UV to atlas coordinates based on repeat mode
     var atlas_uv: vec2<f32>;
@@ -459,7 +459,7 @@ fn sample_billboard_material(hit: BillboardHit) -> vec4<f32> {
     let uv = hit.uv;
 
     // Get tile frame information
-    let frame = sv_tile_frame(hit.tile_index);
+    let frame = sv_tile_frame(hit.tile_index, hit.uv);
 
     // Map UV to atlas coordinates based on repeat mode
     var atlas_uv: vec2<f32>;

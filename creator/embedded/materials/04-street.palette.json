@@ -1,0 +1,16 @@
+{
+  "@surface": {
+    "base color": 4,
+    "emission": 1
+  },
+  "dark-asphalt": {
+    "color": 3
+  },
+  "light-aggregate": {
+    "color": 6
+  },
+  "street-color": {
+    "color1": 4,
+    "color2": 5
+  }
+}

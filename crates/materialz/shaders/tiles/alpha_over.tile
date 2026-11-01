@@ -1,0 +1,13 @@
+tile 1
+name "Alpha Over"
+category "Mixer"
+description "Layers a foreground color or complete RGBA row over the incoming background using straight-alpha compositing. Connect a row to Foreground to assemble sprites and layered images."
+distance clear
+group "Foreground" true
+param color foreground "Foreground" default 1 1 1 1
+param float opacity "Opacity" default 1 range 0 1
+let a = clamp(foreground.a * opacity, 0, 1)
+let backgroundAlpha = clamp(input.a, 0, 1)
+let alpha = a + backgroundAlpha * (1 - a)
+let rgb = (foreground.rgb * a + input.rgb * backgroundAlpha * (1 - a)) / max(alpha, 0.000001)
+image = vec4(rgb, alpha)

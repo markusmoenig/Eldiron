@@ -1,0 +1,8 @@
+outName = "Circle";
+outCategory = "Shape";
+ParameterGroup = "Circle";
+ParamSlider = "radius", "Radius", "0.3", "0.000001", "1";
+ParamVector2 = "center", "Center", "0", "0", "-1", "1";
+ParamSlider = "smoothness", "Union Smoothness", "0.05", "0.000001", "1";
+ParameterGroup = "About";
+ParamDescription = "Circle with a signed distance in document coordinates. Negative values are inside.";

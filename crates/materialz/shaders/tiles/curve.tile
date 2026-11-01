@@ -1,0 +1,36 @@
+tile 1
+name "Curve"
+category "Operator"
+description "Shapes a normalized scalar/vector field through four controls with monotone cubic interpolation or straight segments."
+group "Curve" true
+param float start "Start" default 0 range -10 10
+param float lower "One Third" default 0.3333333333 range -10 10
+param float upper "Two Thirds" default 0.6666666667 range -10 10
+param float end "End" default 1 range -10 10
+param float interpolation "Interpolation" default 1 range 0 1
+choices "Linear" "Monotone Cubic"
+let d0 = 3 * (lower - start)
+let d1 = 3 * (upper - lower)
+let d2 = 3 * (end - upper)
+let m1 = select(greater(d0 * d1, 0), 2 * d0 * d1 / nonzero(d0 + d1), 0)
+let m2 = select(greater(d1 * d2, 0), 2 * d1 * d2 / nonzero(d1 + d2), 0)
+let x = clamp(input.rgb, 0, 1) * 3
+let a = mix(vec3(start), vec3(lower), clamp(x, 0, 1))
+let b = mix(vec3(lower), vec3(upper), clamp(x - 1, 0, 1))
+let c = mix(vec3(upper), vec3(end), clamp(x - 2, 0, 1))
+let linear = mix(mix(a, b, step(vec3(1), x)), c, step(vec3(2), x))
+state result = vec3(0)
+state segment = 0
+repeat 3 times 3 while 1
+let y0 = select(equal(segment, 0), start, select(equal(segment, 1), lower, upper))
+let y1 = select(equal(segment, 0), lower, select(equal(segment, 1), upper, end))
+let slope0 = select(equal(segment, 0), d0, select(equal(segment, 1), m1, m2)) / 3
+let slope1 = select(equal(segment, 0), m1, select(equal(segment, 1), m2, d2)) / 3
+let u = clamp(x - segment, 0, 1)
+let cubic = (2 * u * u * u - 3 * u * u + 1) * y0 + (u * u * u - 2 * u * u + u) * slope0 + (-2 * u * u * u + 3 * u * u) * y1 + (u * u * u - u * u) * slope1
+let mask = step(vec3(segment), x) * (1 - step(vec3(segment + 1), x))
+update result = result + cubic * mask
+update segment = segment + 1
+end repeat
+let cubicResult = mix(result, vec3(end), step(vec3(3), x))
+image = vec4(select(equal(interpolation, 0), linear, cubicResult), input.a)

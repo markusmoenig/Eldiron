@@ -1,0 +1,118 @@
+tile 1
+name "Scratches"
+category "Pattern"
+description "Generates layers of scratches."
+group "Scratches Shape" true
+param float SCALE "Scale" default 1.0 range 0.0 10.0
+tooltip "Scales the shape."
+param float uLayers "Layers" default 4 range 1 20
+tooltip "The amount of scratch layers."
+param float uWavyness "Wavyness" default 0.1 range 0.001 1.0
+tooltip "The amount of wavyness / rounding of each scratch."
+group "About" true
+
+let v0 = (uv / SCALE)
+let v1 = 4.
+let v2 = trunc((v1 * v1))
+let v3 = 0.0
+let v4 = ((2.0 / (vec2(256)).yy) / v1)
+let v5 = 0
+state v6 = vec3(0)
+state v7 = vec2(256)
+state v8 = uv
+state v9 = pos
+state v10 = normal
+state v11 = input.rgb
+state v12 = vec3(0)
+state v13 = vec3(0)
+state v14 = vec3(0)
+state v15 = SCALE
+state v16 = uLayers
+state v17 = uWavyness
+state v18 = v0
+state v19 = v1
+state v20 = v2
+state v21 = v3
+state v22 = v4
+state v23 = v5
+repeat 1024 times ((v2 - v5) / 1) while less(v23, v20)
+let v25 = v23
+let v26 = (v18 + (vec2(floor((v25 / v19)), mod(v25, v19)) * v22))
+let v27 = v26
+let v28 = (v27 * vec2(3.0, 3.0))
+let v29 = (v28 + vec2(0.0, 0.0))
+let v30 = vec2(0.5, 0.5)
+let v31 = 0.0
+let v32 = 0
+state v33 = v6
+state v34 = v7
+state v35 = v8
+state v36 = v9
+state v37 = v10
+state v38 = v11
+state v39 = v12
+state v40 = v13
+state v41 = v14
+state v42 = v15
+state v43 = v16
+state v44 = v17
+state v45 = v29
+state v46 = v19
+state v47 = v20
+state v48 = v21
+state v49 = v22
+state v50 = v32
+state v51 = v25
+state v52 = v27
+state v53 = v16
+state v54 = v17
+state v55 = 0
+state v56 = 0
+state v57 = v30
+state v58 = v31
+repeat 1024 times ((v16 - v32) / 1) while less(v50, v53)
+let v60 = v50
+let v61 = sin((v60 * 3145.0))
+let v62 = cos((v60 * 3145.0))
+let v63 = vec2((v45).x*(vec4(v62, v61, (-v61), v62)).x+(v45).y*(vec4(v62, v61, (-v61), v62)).y, (v45).x*(vec4(v62, v61, (-v61), v62)).z+(v45).y*(vec4(v62, v61, (-v61), v62)).w)
+let v64 = select(0, vec2(0), v63)
+let v65 = 1
+let v66 = v64
+let v67 = ((v66 * v57) + vec2(v60, v60))
+let v68 = vec2(floor((sin(((floor(v67)).x * 51024.0)) * 3104.0)), (floor(v67)).y)
+let v69 = vec2((v68).x, floor((sin(((v68).y * 1324.0)) * 554.0)))
+let v70 = ((fract(v67) * 2.0) - 1.0)
+let v71 = sin(((v69).x + (v69).y))
+let v72 = cos(((v69).x + (v69).y))
+let v73 = vec2((v70).x*(vec4(v72, v71, (-v71), v72)).x+(v70).y*(vec4(v72, v71, (-v71), v72)).y, (v70).x*(vec4(v72, v71, (-v71), v72)).z+(v70).y*(vec4(v72, v71, (-v71), v72)).w)
+let v74 = select(0, vec2(0), v73)
+let v75 = 1
+let v76 = v74
+let v77 = (v76 + sin(((v69).x - (v69).y)))
+let v78 = clamp(((v77 * 0.5) + 0.5), 0.0, 1.0)
+let v79 = (sin(((v69).x + ((v78).y * 3.1415))) * v54)
+let v80 = (sin(((v69).y + ((v78).y * 3.1415))) * v54)
+let v81 = sign((0.01 - abs(((((v78).x - 0.5) + v80) + v79))))
+let v82 = v81
+let v83 = ((((1.0 - pow((v78).y, 2.0)) * (v78).y) * 2.5) * v82)
+let v84 = select(0, 0, clamp(v83, 0.0, 1.0))
+let v85 = 1
+let v86 = select(0, 0, v84)
+let v87 = 1
+let v88 = (v58 + v86)
+let v89 = (v57 + vec2(0.25, 0.25))
+let v90 = (v50 + 1)
+update v50 = v90
+update v57 = v89
+update v58 = v88
+end repeat
+let v95 = select(0, 0, v58)
+let v96 = 1
+let v97 = (v21 + v95)
+let v98 = (v23 + 1)
+update v21 = v97
+update v23 = v98
+end repeat
+let v102 = (v21 / (v1 * v1))
+let v103 = vec3(v102)
+image = vec4(v103, input.a)

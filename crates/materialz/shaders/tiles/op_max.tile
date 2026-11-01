@@ -1,0 +1,11 @@
+tile 1
+name "Max"
+category "Operator"
+description "The output is the greater of the input value and the global property mulitplied with the local property."
+group "Max Operator" true
+param float globalValue "Global" default 0.0 range 0.0 10
+param vec3 localValue "Local" default 1.0 1.0 1.0 range -1000 1000
+group "About" true
+
+let v0 = max(input.rgb, (globalValue * localValue))
+image = vec4(v0, input.a)

@@ -1,0 +1,37 @@
+tile 1
+name "Polygon"
+category "Shape"
+description "Seeded regular or irregular polygons with exact edge distance, stable per-instance variation and shape combinations."
+group "Polygon" true
+param float sides "Sides" default 6 range 3 16
+param float radius "Radius" default 0.42 range 0.00001 1
+param float irregularity "Irregularity" default 0 range 0 0.6
+param float rotation "Rotation" default 0 range -360 360
+param float seed "Seed" default 0 range -10000 10000
+param vec2 center "Center" default 0 0 range -1 1
+param float smoothness "Union Smoothness" default 0.05 range 0.00001 1
+let count = clamp(round(sides), 3, 16)
+let p = uv - center
+let scale = max(abs(radius), 0.00001)
+let variation = clamp(irregularity, 0, 0.6)
+state squared = 1000000
+state inside = 0
+state i = 0
+repeat 16 times count while 1
+let j = mod(i + 1, count)
+let aSeed = hash33(vec3(i, floor(seed), 0))
+let bSeed = hash33(vec3(j, floor(seed), 0))
+let aAngle = radians(rotation) + (i + (aSeed.y - 0.5) * variation * 0.5) * 6.28318530718 / count
+let bAngle = radians(rotation) + (j + (bSeed.y - 0.5) * variation * 0.5) * 6.28318530718 / count
+let a = vec2(cos(aAngle), sin(aAngle)) * scale * (1 + (aSeed.x * 2 - 1) * variation)
+let b = vec2(cos(bAngle), sin(bAngle)) * scale * (1 + (bSeed.x * 2 - 1) * variation)
+let edge = b - a
+let delta = p - a
+let projection = a + edge * clamp(dot(delta, edge) / max(dot(edge, edge), 0.000000000001), 0, 1)
+let distance = p - projection
+update squared = min(squared, dot(distance, distance))
+let crossing = logical_and(different(greater(a.y, p.y), greater(b.y, p.y)), less(p.x, a.x + (p.y - a.y) * edge.x / nonzero(edge.y)))
+update inside = select(crossing, 1 - inside, inside)
+update i = i + 1
+end repeat
+shape = sqrt(max(squared, 0)) * (1 - 2 * inside)

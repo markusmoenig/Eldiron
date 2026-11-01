@@ -1,0 +1,66 @@
+tile 1
+name "Tile"
+category "Shape"
+description "Generates a tile shape. This is the default shape for brick and all other rectangular shaped patterns."
+group "Tile Shape" true
+param float ROUND "Rounding" default 0.0 range 0.0 1
+tooltip "Edge rounding of the tiles."
+param float inBEVEL "Bevel" default 0.01 range 0.0 1
+tooltip "Beveling."
+param float PROFILE "Profile" default 0 range 0 3
+choices "Linear" "SSlope" "TopRounded" "BottomRounded"
+group "Gradient" false
+param bool GRAD "Random Gradient" default 0
+tooltip "Gives the shape a random gradient, useful for generating uneveness through visually tilting the shape."
+param float inStrengthGradient "Gradient Strength" default 0.5 range 0.0 1
+tooltip "Strength of the gradient."
+group "Size & Offset" false
+param float globalScale "Global" default 1.0 range 0.0 1.0
+tooltip "Global scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+param vec2 localScale "Local" default 1 1 range 0 1
+tooltip "Local X/Y scale of the shape. If shape is used inside a pattern the scale should be 1. as the pattern will scale the shape automatically."
+param vec2 offset "Offset" default 0 0 range 0 100
+tooltip "X/Y offset of the shape. If shape is used inside a pattern the offset should be 0. as the pattern will position the shape automatically."
+group "About" true
+
+let v0 = 0
+let v1 = 1
+let v2 = 2
+let v3 = 3
+let v4 = vec2(inBEVEL)
+let v5 = vec2(1, 0)
+let v6 = 2.
+let v7 = 360.
+let v8 = (((uv / globalScale) * localScale) - offset)
+let v9 = equal((select(aux_valid, aux1, vec3(0))).xy, vec2(0))
+let v10 = select(v9, vec2(1, 1), (select(aux_valid, aux1, vec3(0))).xy)
+let v11 = (select(aux_valid, aux1, vec3(0))).z
+let v12 = vec3(0)
+let v13 = ((v10 / 2.) - abs(v8))
+let v14 = ((v13 * 2.) / v4)
+let v15 = min((v14).x, (v14).y)
+let v16 = logical_and(less((v13).x, ROUND), less((v13).y, ROUND))
+let v17 = (((ROUND - length((ROUND - v13))) * 2.) / dot(v4, normalize((ROUND - v13))))
+let v18 = v17
+let v19 = select(v16, v18, v15)
+let v20 = clamp(v19, 0., 1.)
+let v21 = (v12 + v20)
+let v22 = (v12 + smoothstep(0., 1., v20))
+let v23 = (v12 + sqrt((1. - ((1. - v20) * (1. - v20)))))
+let v24 = (v12 + (1. - sqrt((1. - (v20 * v20)))))
+let v25 = select(equal(PROFILE, 3), v24, v12)
+let v26 = select(equal(PROFILE, 2), v23, v25)
+let v27 = select(equal(PROFILE, 1), v22, v26)
+let v28 = select(equal(PROFILE, 0), v21, v27)
+let v29 = hash33(vec3(v11, 3, 1))
+let v30 = v29
+let v31 = ((-1.) + (2. * v30))
+let v32 = (radians(((v7 / 2.) * (v31).x)) + (vec4(1, 0, 2, 1) * 1.5707))
+let v33 = vec4(sin(v32))
+let v34 = vec2((v33).x*pow(v6, (v31).y)+(v33).z*pow(v6, (v31).y), (v33).y*pow(v6, (v31).y)+(v33).w*pow(v6, (v31).y))
+let v35 = (v5 * v34)
+let v36 = vec3((((v28).rgb * ((3. - (inStrengthGradient * 3.)) + dot(v35, v8)))).x, (((v28).rgb * ((3. - (inStrengthGradient * 3.)) + dot(v35, v8)))).y, (((v28).rgb * ((3. - (inStrengthGradient * 3.)) + dot(v35, v8)))).z)
+let v37 = select(GRAD, v35, v5)
+let v38 = select(GRAD, v36, v28)
+let v39 = v38
+image = vec4(v39, input.a)

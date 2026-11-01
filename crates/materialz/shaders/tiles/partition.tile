@@ -1,0 +1,81 @@
+tile 1
+name "Partition"
+category "Transform"
+description "Repeats RGBA in irregular intervals with shared boundaries, stable instance keys and normalized local coordinates."
+distance clear
+output_field key "Cell Key" 1 xyz
+output_field local "Local UV" 2 xy
+output_field center "Center" 3 x
+output_field width "Width" 4 x
+output_field bounds "Bounds" 5 xy
+output_field random "Random" 6 x
+group "Partition" true
+param float axis "Axis" default 0 range 0 1
+choices "X" "Y"
+param float cells "Cells" default 8 range 1 1024
+param float jitter "Irregularity" default 0.8 range 0 1
+param float offset "Offset" default 0 range -10 10
+param float gap "Gap" default 0.04 range 0 0.95
+param float seed "Seed" default 0 range -10000 10000
+param float output "Output" default 0 range 0 6
+choices "Image" "Cell Key" "Local UV" "Center" "Width" "Bounds" "Random"
+let count = clamp(round(abs(cells)), 1, 1024)
+let point = select(equal(axis, 0), uv.x, uv.y)
+let p = (point + 0.5) * count + offset
+let namespace = floor(seed) + select(instance_valid, floor(hash33(instance_cell).x * 16777215), 0)
+state winner = floor(p)
+state nearest = 100
+state i = -1
+repeat 3 times 3 while 1
+let candidate = floor(p) + i
+let site = candidate + 0.5 + (hash33(vec3(mod(candidate, count), namespace, 0)).x - 0.5) * clamp(jitter, 0, 1)
+let distance = abs(p - site)
+update winner = select(less(distance, nearest), candidate, winner)
+update nearest = min(nearest, distance)
+update i = i + 1
+end repeat
+let before = winner - 0.5 + (hash33(vec3(mod(winner - 1, count), namespace, 0)).x - 0.5) * clamp(jitter, 0, 1)
+let site = winner + 0.5 + (hash33(vec3(mod(winner, count), namespace, 0)).x - 0.5) * clamp(jitter, 0, 1)
+let after = winner + 1.5 + (hash33(vec3(mod(winner + 1, count), namespace, 0)).x - 0.5) * clamp(jitter, 0, 1)
+let left = (before + site) * 0.5
+let right = (site + after) * 0.5
+let width = max(right - left, 0.00001)
+let center = (right + left) * 0.5
+let x = (p - center) / (width * max(1 - gap, 0.05))
+let local = select(equal(axis, 0), vec2(x, uv.y), vec2(uv.x, x))
+let footprint = aa * max(1, count / (width * max(1 - gap, 0.05)))
+let clip = 1 - smoothstep(-0.5 * footprint, 0.5 * footprint, abs(x) - 0.5)
+let key = vec3(mod(winner, count), 0, namespace)
+state premultiplied = vec3(0)
+state coverage = 0
+state neighbor = -1
+repeat 3 times 3 while 1
+let index = winner + neighbor
+let a = index - 0.5 + (hash33(vec3(mod(index - 1, count), namespace, 0)).x - 0.5) * clamp(jitter, 0, 1)
+let b = index + 0.5 + (hash33(vec3(mod(index, count), namespace, 0)).x - 0.5) * clamp(jitter, 0, 1)
+let c = index + 1.5 + (hash33(vec3(mod(index + 1, count), namespace, 0)).x - 0.5) * clamp(jitter, 0, 1)
+let lo = (a + b) * 0.5
+let hi = (b + c) * 0.5
+let w = max(hi - lo, 0.00001)
+let intervalCenter = (lo + hi) * 0.5
+let support = w * max(1 - gap, 0.05)
+let span = max(aa * count, 0.000001)
+let cover = max(min(p + 0.5 * span, intervalCenter + 0.5 * support) - max(p - 0.5 * span, intervalCenter - 0.5 * support), 0) / span
+repeat 1 times greater(cover, 0) while 1
+let sampleX = (p - intervalCenter) / support
+let uvLocal = select(equal(axis, 0), vec2(sampleX, uv.y), vec2(uv.x, sampleX))
+let sampleKey = vec3(mod(index, count), 0, namespace)
+let centerLocal = (intervalCenter - offset) / count - 0.5
+let frameCenter = select(equal(axis, 0), vec3(centerLocal, 0, 0), vec3(0, centerLocal, 0))
+let frameX = select(equal(axis, 0), vec3(support / count, 0, 0), vec3(1, 0, 0))
+let frameY = select(equal(axis, 0), vec3(0, 1, 0), vec3(0, support / count, 0))
+let sampled = sample_scoped(uvLocal, aa * max(1, count / support), sampleKey, select(instance_valid, instance_cell, sampleKey), frameCenter, frameX, frameY)
+let alpha = clamp(sampled.a, 0, 1) * cover
+update premultiplied = premultiplied + sampled.rgb * alpha
+update coverage = coverage + alpha
+end repeat
+update neighbor = neighbor + 1
+end repeat
+let imageValue = vec4(premultiplied / max(coverage, 0.000001), clamp(coverage, 0, 1))
+let field = select(equal(output, 1), key, select(equal(output, 2), vec3(local, 0), select(equal(output, 3), vec3((center - offset) / count - 0.5), select(equal(output, 4), vec3(width / count), select(equal(output, 5), vec3((left - offset) / count - 0.5, (right - offset) / count - 0.5, 0), vec3(hash33(key).x))))))
+image = select(equal(output, 0), imageValue, vec4(field, 1))

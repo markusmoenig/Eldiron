@@ -15,5 +15,5 @@ Start with [Behavior Nodes](../../characters_items/behavior_nodes), the [node re
 
 See [Entity Nodes](../../characters_items/entity_nodes) for identity, appearance, input bindings, and template/instance configuration.
 
-Select **Game / Rules** for [Ruleset Nodes](./ruleset_nodes). These connections
-assemble gameplay definitions rather than executing behavior.
+Select **Game / Rules** for the [Ruleset Editor](./ruleset_nodes) to edit
+project-wide gameplay definitions in forms. Behavior nodes remain separate.

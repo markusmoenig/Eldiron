@@ -8,7 +8,7 @@ pub struct TheText {
     dim: TheDim,
     text: String,
     text_size: f32,
-    text_color: RGBA,
+    text_color: Option<RGBA>,
     vertical_offset: i32,
 
     fixed_size_text: String,
@@ -31,7 +31,7 @@ impl TheWidget for TheText {
             dim: TheDim::zero(),
             text: "".to_string(),
             text_size: 13.0,
-            text_color: WHITE,
+            text_color: None,
             vertical_offset: 0,
 
             fixed_size_text: String::default(),
@@ -108,7 +108,7 @@ impl TheWidget for TheText {
     fn draw(
         &mut self,
         buffer: &mut TheRGBABuffer,
-        _style: &mut Box<dyn TheStyle>,
+        style: &mut Box<dyn TheStyle>,
         ctx: &mut TheContext,
     ) {
         if !self.dim().is_valid() {
@@ -131,7 +131,9 @@ impl TheWidget for TheText {
                 size: self.text_size,
                 ..Default::default()
             },
-            &self.text_color,
+            &self
+                .text_color
+                .unwrap_or(*style.theme().color(SectionbarNormalTextColor)),
             TheHorizontalAlign::Left,
             TheVerticalAlign::Center,
         );
@@ -172,7 +174,7 @@ impl TheTextTrait for TheText {
         self.is_dirty = true;
     }
     fn set_text_color(&mut self, color: RGBA) {
-        self.text_color = color;
+        self.text_color = Some(color);
         self.is_dirty = true;
     }
     fn set_vertical_offset(&mut self, offset: i32) {

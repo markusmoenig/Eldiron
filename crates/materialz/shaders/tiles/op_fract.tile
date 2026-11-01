@@ -1,0 +1,8 @@
+tile 1
+name "Fract"
+category "Operator"
+description "The output is the fractional part of the input value."
+group "About" true
+
+let v0 = vec3(fract(input.rgb))
+image = vec4(v0, input.a)

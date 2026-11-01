@@ -1,0 +1,27 @@
+tile 1
+name "Random Gradient"
+category "Pattern"
+description "Generates a random gradient in the specified direction. You can smooth the gradient by increasing the scale."
+group "Random Gradient" true
+param float dir "Direction" default 1 range 0 1
+choices "x" "y"
+param float seed "Seed" default 1.0 range 0.0 10
+param float globalScale "Global Scale" default 1.0 range 0.0 10
+param vec2 localScale "Local Scale" default 1.0 1.0 range -1000 1000
+group "About" true
+group "Sampling" true
+param float time "Time Offset" default 0
+param vec3 extra2 "Input 2" default 0 0 0
+param vec3 extra3 "Input 3" default 0 0 0
+
+let v0 = (((uv / globalScale) * 1.) / localScale)
+let v1 = ((component(v0, dir) * 5.134) + (vec2(2.013) * seed))
+let v2 = (sample_context(v1, pos, normal, (sample_time + time), input.rgb, select(aux_valid, aux2, extra2), select(aux_valid, aux3, extra3))).rgb
+let v3 = ((component(v0, dir) * 15.002) + (vec2(3.591) * seed))
+let v4 = (sample_context(v3, pos, normal, (sample_time + time), input.rgb, select(aux_valid, aux2, extra2), select(aux_valid, aux3, extra3))).rgb
+let v5 = ((component(v0, dir) * 25.922) + (vec2(4.277) * seed))
+let v6 = (sample_context(v5, pos, normal, (sample_time + time), input.rgb, select(aux_valid, aux2, extra2), select(aux_valid, aux3, extra3))).rgb
+let v7 = dot(vec3((v2).x, (v4).x, (v6).x), vec3(.85, .35, .17))
+let v8 = v7
+let v9 = vec3(v8)
+image = vec4(v9, input.a)

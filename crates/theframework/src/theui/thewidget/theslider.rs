@@ -343,7 +343,7 @@ impl TheWidget for TheSlider {
                     size: 13.0,
                     ..Default::default()
                 },
-                &WHITE,
+                style.theme().color(SectionbarNormalTextColor),
                 TheHorizontalAlign::Left,
                 TheVerticalAlign::Center,
             );

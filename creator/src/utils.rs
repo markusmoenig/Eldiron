@@ -773,6 +773,22 @@ pub fn editor_scene_full_rebuild(project: &Project, server_ctx: &ServerContext) 
     RUSTERIX.write().unwrap().set_dirty();
 }
 
+/// Install procedural bake results without clearing or rebuilding the visible map.
+pub fn editor_scene_refresh_material_textures(project: &Project) {
+    let (tiles, indices) = {
+        let mut rusterix = RUSTERIX.write().unwrap();
+        rusterix.refresh_tile_textures(project.tiles.clone(), true);
+        (
+            rusterix.assets.tile_list.clone(),
+            rusterix.assets.tile_indices.clone(),
+        )
+    };
+    SCENEMANAGER
+        .write()
+        .unwrap()
+        .sync_tile_textures(tiles, indices);
+}
+
 /// Refreshes linked Prefab geometry without clearing the whole editor scene.
 /// Only chunks occupied by instances of changed assets are replaced.
 pub fn editor_scene_refresh_prefab_assets(

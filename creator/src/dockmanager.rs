@@ -109,6 +109,11 @@ impl DockManager {
         );
 
         docks.insert(
+            "Rules".into(),
+            Box::new(crate::docks::rules_editor::RulesEditor::new()) as Box<dyn Dock>,
+        );
+
+        docks.insert(
             "Construction".into(),
             Box::new(crate::docks::construction::ConstructionDock::new()) as Box<dyn Dock>,
         );

@@ -1122,7 +1122,7 @@ impl AvatarRuntimeBuilder {
                     }
                     continue;
                 }
-                let tex = &tile.textures[frame_index % tile.textures.len()];
+                let tex = &tile.textures[tile.frame_index(frame_index)];
                 let Some((scaled, sw, sh)) = Self::scaled_texture_rgba(tex, scale) else {
                     if preview_debug {
                         eprintln!(

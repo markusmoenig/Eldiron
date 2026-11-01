@@ -1,0 +1,16 @@
+tile 1
+name "Levels"
+category "Operator"
+description "Explicit input/output range remapping, midpoint shaping and optional clamping, independently per RGB channel."
+group "Input" true
+param float inputLow "Input Low" default 0 range -1000 1000
+param float inputHigh "Input High" default 1 range -1000 1000
+param float gamma "Gamma" default 1 range 0.01 10
+param bool clampInput "Clamp Input" default 1
+group "Output" true
+param float outputLow "Output Low" default 0 range -1000 1000
+param float outputHigh "Output High" default 1 range -1000 1000
+let raw = (input.rgb - inputLow) / nonzero(inputHigh - inputLow)
+let value = select(clampInput, clamp(raw, 0, 1), raw)
+let curved = sign(value) * pow(abs(value), vec3(1 / max(gamma, 0.0001)))
+image = vec4(outputLow + curved * (outputHigh - outputLow), input.a)

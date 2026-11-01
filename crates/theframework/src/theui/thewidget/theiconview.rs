@@ -10,7 +10,7 @@ pub struct TheIconView {
 
     text: Option<String>,
     text_size: f32,
-    text_color: RGBA,
+    text_color: Option<RGBA>,
 
     border_color: Option<RGBA>,
     background_color: Option<RGBA>,
@@ -38,7 +38,7 @@ impl TheWidget for TheIconView {
 
             text: None,
             text_size: 12.0,
-            text_color: WHITE,
+            text_color: None,
 
             border_color: None,
             background_color: None,
@@ -98,7 +98,7 @@ impl TheWidget for TheIconView {
     fn draw(
         &mut self,
         buffer: &mut TheRGBABuffer,
-        _style: &mut Box<dyn TheStyle>,
+        style: &mut Box<dyn TheStyle>,
         ctx: &mut TheContext,
     ) {
         let stride: usize = buffer.stride();
@@ -160,7 +160,9 @@ impl TheWidget for TheIconView {
                     size: self.text_size,
                     ..Default::default()
                 },
-                &self.text_color,
+                &self
+                    .text_color
+                    .unwrap_or(*style.theme().color(SectionbarNormalTextColor)),
                 TheHorizontalAlign::Center,
                 TheVerticalAlign::Center,
             );
@@ -221,7 +223,7 @@ impl TheIconViewTrait for TheIconView {
         self.is_dirty = true;
     }
     fn set_text_color(&mut self, color: RGBA) {
-        self.text_color = color;
+        self.text_color = Some(color);
         self.is_dirty = true;
     }
     fn set_text(&mut self, text: Option<String>) {

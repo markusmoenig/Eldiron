@@ -7,10 +7,10 @@ This document defines the design contract for Eldiron rulesets. It describes
 the target architecture that future ruleset work must preserve. It is not a
 claim that every capability described here is implemented today.
 
-The first node authoring implementation uses complete project-owned graphs with
-a preserved original and recovery checkpoints. Inherited deltas and package
-upgrade workflows below remain target capabilities. TOML examples describe
-existing runtime fields; the node compiler currently adapts to that value tree.
+Project authoring uses a complete project-owned rules document with a preserved
+original and recovery checkpoints. Inherited deltas and package upgrade
+workflows below remain target capabilities. The bundled official graph currently
+compiles to the same rules data used by the editor and runtime.
 
 The accompanying [Ruleset Capability Audit](./ruleset_capability_audit)
 records the current implementation status.
@@ -43,10 +43,10 @@ types.
 
 ### Rules Stay Authorable
 
-Rules are authored as node documents with stable definition identifiers and
-project-local assets. Definition branches keep the canvas focused. Dedicated
-nodes and generic typed fields share one compiler; there is no separate TOML
-authoring system. Authors do not edit Rust types or a compiled runtime representation.
+Rules are authored as structured data with stable definition identifiers and
+project-local assets. Creator provides a catalogue, property controls and
+specialized previews over the same document. Authors do not edit Rust types or
+a compiled runtime representation.
 
 The official ruleset must be authored through the same public format and
 capabilities available to custom rulesets.

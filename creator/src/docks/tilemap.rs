@@ -401,6 +401,7 @@ impl Dock for TilemapDock {
                                             id,
                                             role: tile_for_runtime.role,
                                             textures: texture_array.clone(),
+                                            uv_pages: None,
                                             module: None,
                                             blocking: tile_for_runtime.blocking,
                                             scale: tile_for_runtime.scale,
@@ -483,7 +484,7 @@ impl Dock for TilemapDock {
             && !tile.textures.is_empty()
         {
             buffer.fill(BLACK);
-            let index = server_ctx.animation_counter % tile.textures.len();
+            let index = tile.frame_index(server_ctx.animation_counter);
 
             let stride: usize = buffer.stride();
 
@@ -608,6 +609,7 @@ impl TilemapDock {
             id: rgba_tile.id,
             role: rusterix::TileRole::from_index(rgba_tile.role),
             textures: texture_array.clone(),
+            uv_pages: None,
             module: None,
             blocking: rgba_tile.blocking,
             scale: rgba_tile.scale,

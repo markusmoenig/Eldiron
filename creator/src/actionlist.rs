@@ -87,6 +87,11 @@ impl ActionList {
             crate::actions::apply_tile::ApplyTile::new(),
         );
         list.register(
+            "surface.compose_materials",
+            Surface,
+            crate::actions::compose_materials::ComposeMaterials::new(),
+        );
+        list.register(
             "procedural.build",
             Procedural,
             crate::actions::build_procedural::BuildProcedural::new(),

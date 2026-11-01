@@ -169,6 +169,12 @@ impl Rusterix {
     }
 
     fn orthographic_bake_background(&self, editor_neutral_background: bool) -> [u8; 4] {
+        if editor_neutral_background
+            && self.client.use_editor_canvas
+            && let Some(colors) = self.client.editor_canvas_colors
+        {
+            return colors[0];
+        }
         let linear = if editor_neutral_background {
             [0.018; 3]
         } else {
@@ -1056,7 +1062,7 @@ impl Rusterix {
         let mut all_tiles = self.tiles_with_palette(textures);
         self.assets
             .materialize_geometry_material_tiles(&mut all_tiles);
-        self.apply_tiles(all_tiles, editor);
+        self.apply_tiles(all_tiles, editor, true);
     }
 
     pub fn set_block_props(&mut self, block_props: IndexMap<Uuid, BlockPropAsset>) {
@@ -1077,7 +1083,17 @@ impl Rusterix {
         let mut all_tiles = self.tiles_with_palette(textures);
         self.assets
             .materialize_geometry_material_tiles_for_maps(&mut all_tiles, maps);
-        self.apply_tiles(all_tiles, editor);
+        self.apply_tiles(all_tiles, editor, true);
+    }
+
+    /// Replace baked texture data while retaining the visible world geometry.
+    /// Existing engine-owned palette/synthetic entries keep their indices.
+    pub fn refresh_tile_textures(&mut self, textures: IndexMap<Uuid, Tile>, editor: bool) {
+        let mut all_tiles = self.assets.tiles.clone();
+        for (id, tile) in textures {
+            all_tiles.insert(id, tile);
+        }
+        self.apply_tiles(all_tiles, editor, false);
     }
 
     fn tiles_with_palette(&self, textures: IndexMap<Uuid, Tile>) -> IndexMap<Uuid, Tile> {
@@ -1132,7 +1148,7 @@ impl Rusterix {
         all_tiles
     }
 
-    fn apply_tiles(&mut self, all_tiles: IndexMap<Uuid, Tile>, editor: bool) {
+    fn apply_tiles(&mut self, all_tiles: IndexMap<Uuid, Tile>, editor: bool, clear_scene: bool) {
         self.scene_handler.build_atlas(&all_tiles, editor);
         self.scene_handler
             .sync_prefab_particle_sprites(&self.assets.block_props);
@@ -1153,7 +1169,9 @@ impl Rusterix {
             })
             .collect();
         self.scene_handler.vm.execute(Atom::SetPalette(palette));
-        self.scene_handler.clear_runtime_scene();
+        if clear_scene {
+            self.scene_handler.clear_runtime_scene();
+        }
     }
 }
 
@@ -1214,6 +1232,123 @@ fn composite_rgba_over_solid_background(pixels: &mut [u8], background: [u8; 4]) 
 
 #[cfg(test)]
 mod bake_overlay_tests {
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn baked_material_refresh_preserves_visible_world_and_updates_world_pages() {
+        use super::*;
+        use scenevm::{Chunk, GeoId, Poly2D, Poly3D, RenderMode};
+        use vek::{Vec2, Vec4};
+        let mut renderer = Rusterix::new_without_audio();
+        let mut initial = Texture::alloc(64, 64);
+        initial.fill([255, 0, 0, 255]);
+        let mut tile = Tile::from_texture(initial);
+        let id = tile.id;
+        renderer.set_tiles(IndexMap::from([(id, tile.clone())]), false);
+        let index = renderer.assets.tile_index(&id);
+        renderer.scene_handler.vm.set_active_vm(0);
+        renderer
+            .scene_handler
+            .vm
+            .execute(Atom::SetRenderMode(RenderMode::Raster2D));
+        renderer
+            .scene_handler
+            .vm
+            .execute(Atom::SetBackground(Vec4::zero()));
+        renderer.scene_handler.vm.execute(Atom::SetGP3(Vec4::one()));
+        let mut chunk = Chunk::new(Vec2::zero(), 16);
+        chunk.add(Poly2D::poly(
+            GeoId::Unknown(1),
+            id,
+            vec![[0., 0.], [16., 0.], [16., 8.], [0., 8.]],
+            vec![[0., 0.], [1., 0.], [1., 1.], [0., 1.]],
+            vec![(0, 1, 2), (0, 2, 3)],
+        ));
+        chunk.add_3d(Poly3D::poly(
+            GeoId::Unknown(2),
+            id,
+            vec![[0., 0., 0., 1.], [16., 0., 0., 1.], [16., 0., 8., 1.]],
+            vec![[0.; 2]; 3],
+            vec![(0, 1, 2)],
+        ));
+        renderer.scene_handler.vm.execute(Atom::AddChunk {
+            id: Uuid::new_v4(),
+            chunk,
+        });
+        let mut pixels = vec![0; 16 * 8 * 4];
+        renderer.scene_handler.vm.render_frame(&mut pixels, 16, 8);
+        assert!(pixels.chunks_exact(4).all(|p| p[0] > 200 && p[1] < 10));
+        let mut red = Texture::alloc(16, 16);
+        red.fill([255, 0, 0, 255]);
+        let mut green = Texture::alloc(16, 16);
+        green.fill([0, 255, 0, 255]);
+        tile.textures = vec![red, green];
+        tile.uv_pages = Some(crate::TileUvPages {
+            animation_frames: 1,
+            repeat_period: [0.; 2],
+            origin: [0, 0],
+            size: [2, 1],
+            axes: [[1., 0., 0.], [0., 0., 1.]],
+            units_per_page: 8,
+        });
+        renderer.refresh_tile_textures(IndexMap::from([(id, tile)]), false);
+        let stats = renderer.scene_handler.vm.active_vm().debug_stats();
+        assert_eq!(stats.chunks, 1);
+        assert_eq!(stats.polys2d, 1);
+        assert_eq!(stats.polys3d, 1);
+        assert_eq!(renderer.assets.tile_index(&id), index);
+        renderer.scene_handler.vm.render_frame(&mut pixels, 16, 8);
+        for y in 0..8 {
+            for x in 0..16 {
+                let p = &pixels[(y * 16 + x) * 4..(y * 16 + x) * 4 + 4];
+                if x < 8 {
+                    assert!(p[0] > 200 && p[1] < 10, "{x}/{y}: {p:?}");
+                } else {
+                    assert!(p[1] > 200 && p[0] < 10, "{x}/{y}: {p:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn editor_theme_canvas_colors_render_without_changing_runtime_background() {
+        use super::*;
+        let mut renderer = Rusterix::new_without_audio();
+        renderer.editor_preview_post_enabled = false;
+        renderer.scene_handler.clear_overlay();
+        let map = Map::new();
+        renderer.client.editor_canvas_colors =
+            Some([[29, 26, 24, 255], [65, 57, 49, 255], [45, 39, 34, 255]]);
+        renderer.client.use_editor_canvas = true;
+        let mut pixels = vec![0; 64 * 64 * 4];
+        renderer.client.builder_d2.draw_grid = false;
+        renderer.draw_d2(&map, &mut pixels, 64, 64);
+        assert_eq!(&pixels[..4], &[29, 26, 24, 255]);
+        renderer.client.builder_d2.draw_grid = true;
+        renderer.draw_d2(&map, &mut pixels, 64, 64);
+        assert!(
+            pixels
+                .chunks_exact(4)
+                .any(|pixel| pixel == [65, 57, 49, 255])
+        );
+        renderer.scene_handler.base_settings.backend_2d =
+            crate::render_settings::RendererBackend::Compute;
+        renderer.scene_handler.vm.set_layer_enabled(1, false);
+        renderer.client.builder_d2.draw_grid = false;
+        renderer.draw_d2(&map, &mut pixels, 64, 64);
+        assert_eq!(&pixels[..4], &[29, 26, 24, 255]);
+        renderer.client.builder_d2.draw_grid = true;
+        renderer.draw_d2(&map, &mut pixels, 64, 64);
+        assert!(
+            pixels
+                .chunks_exact(4)
+                .any(|pixel| pixel == [65, 57, 49, 255])
+        );
+        renderer.client.use_editor_canvas = false;
+        renderer.client.builder_d2.draw_grid = false;
+        renderer.draw_d2(&map, &mut pixels, 64, 64);
+        assert_ne!(&pixels[..4], &[29, 26, 24, 255]);
+    }
     use super::{blend_rgba_over, blend_rgba_over_depth, composite_rgba_over_solid_background};
 
     #[test]

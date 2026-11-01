@@ -1,0 +1,8 @@
+tile 1
+name "Abs"
+category "Operator"
+description "The output is the absolute / non-negative value of the input."
+group "About" true
+
+let v0 = abs(input.rgb)
+image = vec4(v0, input.a)

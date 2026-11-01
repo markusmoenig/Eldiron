@@ -335,6 +335,15 @@ pub struct OrganicBillboardInstance {
 /// VM instruction set
 #[derive(Debug)]
 pub enum Atom {
+    SetTileUvPages {
+        animation_frames: u32,
+        repeat_period: [f32; 2],
+        id: Uuid,
+        origin: [i32; 2],
+        size: [u32; 2],
+        axes: [[f32; 3]; 2],
+        units_per_page: u32,
+    },
     AddTile {
         id: Uuid,
         width: u32,

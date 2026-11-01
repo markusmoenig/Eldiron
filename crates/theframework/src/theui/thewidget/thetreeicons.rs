@@ -397,7 +397,7 @@ impl TheWidget for TheTreeIcons {
                 // Draw text overlay (always if present, even over icons)
                 if index < self.texts.len() {
                     if let Some(text) = &self.texts[index] {
-                        let text_color = WHITE;
+                        let text_color = *style.theme().color(ListItemText);
                         let font_size = 9.0; // Small font size
 
                         // Calculate text rectangle to center it in the icon area

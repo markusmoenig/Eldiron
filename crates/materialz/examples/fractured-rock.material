@@ -1,0 +1,156 @@
+# Faceted slabs made from an irregular polygon, two tilted planes and seeded placement.
+# Neighborhood filters run after placement. No specialized rock-pattern source is used.
+project 1
+material "fractured-rock" called "Fractured Rock"
+  mode bsdf
+  tiling raw
+  default specular to 0.28
+  row "variation" called "Stone Variation"
+    use "Cell Data"
+      set "scope" to 1
+  row "outline" called "Outline"
+    use "Polygon"
+      set "sides" to 7
+      set "radius" to 0.46
+      set "irregularity" to 0.38
+      set "seed" from row "variation" random.x mapped 0 to 900
+  row "edge-noise" called "Edge Chips"
+    use "Organic Noise"
+      set "scaleValue" to 11
+    use "Transform"
+      set "offset" from row "variation" random.xx mapped -0.4 to 0.4
+  row "edge" called "Broken Edge"
+    use "Add"
+      input from row "outline" distance
+      set "localValue" from row "edge-noise" xxx mapped 0 to 0.025
+  row "plane-a" called "Face A"
+    use "Tex Coord 2D"
+      set "rot" from row "variation" random.x mapped -35 to 35
+  row "plane-b" called "Face B"
+    use "Tex Coord 2D"
+      set "rot" from row "variation" random.x mapped 100 to 165
+  row "stone" called "Slab"
+    use "Distance Profile"
+      input from row "edge" xxx
+      set "width" to 0.08
+      set "profile" to 0
+    use "Min"
+      set "globalValue" to 1
+      set "localValue" from row "plane-a" xxx mapped 0.62 to 1.35
+    use "Min"
+      set "globalValue" to 1
+      set "localValue" from row "plane-b" xxx mapped 0.7 to 1.1
+    use "Multiply"
+      set "localValue" from row "variation" random.xxx mapped 0.75 to 1.25
+  row "tone" called "Stone Tone"
+    use "Cell Data"
+      set "scope" to 1
+      set "seed" to 47
+  row "payload" called "Stone Channels"
+    use "Compose Channels"
+      set "x" from row "stone" x
+      set "y" from row "tone" random.x
+      set "z" from row "variation" random.x
+      set "alpha" from row "stone" w
+  row "slabs" called "Placement"
+    use "Scatter"
+      input from row "payload" xyz
+      set "cells" to 9 11
+      set "size" to 2.5 1.65
+      set "variation" to 0.4
+      set "rotation" to 30
+      set "blend" to 2
+      set "intensity" to 0.2
+      set "seed" to 183
+    use "Transform"
+      set "rot" to 35
+  row "field" called "Solid Relief"
+    use "Value"
+      set "localValue" from row "slabs" xyz
+    use "Max"
+      set "globalValue" to 1
+      set "localValue" to 0.08 0 0
+  row "control" called "Chip Control"
+    use "Organic Noise"
+      set "scaleValue" to 18
+  row "direction" called "Chip Direction"
+    use "Height Gradient"
+      input from row "control" xxx
+      set "radius" to 0.002
+      set "units" to 1
+  row "chipped" called "Chips"
+    use "Vector Filter"
+      input from row "field" xyz
+      set "vector" from row "direction" gradient.xyx
+      set "radius" to 0.004
+      set "units" to 1
+      set "samples" to 5
+  row "fracture" called "Cracks"
+    use "Voronoi"
+      set "globalScale" to 0.85
+      set "localScale" to 1.7 0.8
+      set "seed" to 71
+      set "output" to 1
+    use "Warp"
+      set "mode" to 1
+      set "offsetIntensity" to 0.007
+      set "displacement" from row "control" xxx mapped -1 to 1
+    use "Levels"
+      set "inputHigh" to 0.025
+      set "outputLow" to 0.018
+      set "outputHigh" to 0
+  row "grain" called "Grain"
+    use "Organic Noise"
+      set "scaleValue" to 40
+    use "fBm"
+      set "layers" to 3
+      set "lacunarity" to 2
+  row "height" called "Relief"
+    use "Subtract"
+      input from row "chipped" xxx
+      set "localValue" from row "fracture" xxx
+    use "Add"
+      set "localValue" from row "grain" xxx mapped -0.018 to 0.018
+    use "Levels"
+  row "base-color" called "Stone Tones"
+    use "Color Ramp"
+      input from row "height" xxx
+      set "position0" to 0
+      set "color0" to 0.07 0.063 0.052 1
+      set "position1" to 0.25
+      set "color1" to 0.2 0.185 0.16 1
+      set "position2" to 0.65
+      set "color2" to 0.36 0.335 0.285 1
+      set "color3" to 0.48 0.445 0.38 1
+    use "Multiply"
+      set "localValue" from row "chipped" yyy mapped 0.7 to 1.18
+  row "wear" called "Exposed Edges"
+    use "Height Gradient"
+      input from row "height" xxx mapped 0 to 0.08
+      set "radius" to 0.003
+      set "units" to 1
+      set "output" to 2
+    use "Levels"
+      set "inputLow" to -30
+      set "inputHigh" to -900
+  row "color" called "Stone Color"
+    use "Mix"
+      input from row "wear" xxx
+      set "color1" from row "base-color" xyzw
+      set "color2" to 0.52 0.47 0.38 1
+      set "factor" to 0.35 0.35 0.35
+  row "roughness" called "Roughness"
+    use "Levels"
+      input from row "grain" xxx
+      set "outputLow" to 0.65
+      set "outputHigh" to 0.88
+    use "Subtract"
+      set "localValue" from row "wear" xxx mapped 0 to 0.1
+  row "normal" called "Normals"
+    use "Height to Normal"
+      input from row "height" xxx mapped 0 to 0.08
+      set "radius" to 1
+  output base color from row "color" xyz
+  output roughness from row "roughness" x
+  output height from row "height" x mapped 0 to 0.08
+  output normal from row "normal" xyz

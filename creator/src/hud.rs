@@ -3,6 +3,47 @@ use crate::prelude::*;
 use rusterix::prelude::*;
 use theframework::prelude::*;
 
+#[derive(Clone, Copy)]
+struct HudColors {
+    background: RGBA,
+    panel: RGBA,
+    text: RGBA,
+    selected_text: RGBA,
+    accent: RGBA,
+    border: RGBA,
+    hover: RGBA,
+    selected: RGBA,
+}
+
+static HUD_COLORS: LazyLock<RwLock<HudColors>> = LazyLock::new(|| {
+    RwLock::new(HudColors {
+        background: [48, 48, 50, 235],
+        panel: [34, 34, 36, 240],
+        text: [168, 168, 172, 255],
+        selected_text: [240, 240, 242, 255],
+        accent: [210, 176, 92, 255],
+        border: [76, 78, 84, 255],
+        hover: [54, 54, 58, 255],
+        selected: [68, 68, 72, 255],
+    })
+});
+
+pub(crate) fn set_theme(theme: &dyn TheTheme) {
+    let mut colors = HUD_COLORS.write().unwrap();
+    *colors = HudColors {
+        background: *theme.color(DefaultWidgetBackground),
+        panel: *theme.color(DefaultWidgetDarkBackground),
+        text: *theme.color(MaterialMuted),
+        selected_text: *theme.color(SectionbarNormalTextColor),
+        accent: *theme.color(SelectedTextEditBorder1),
+        border: *theme.color(DefaultWidgetBorder),
+        hover: *theme.color(ToolbarButtonHover),
+        selected: *theme.color(DefaultSelection),
+    };
+    colors.background[3] = 235;
+    colors.panel[3] = 240;
+}
+
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum HudMode {
     Selection,
@@ -70,13 +111,14 @@ impl Hud {
             return;
         };
 
+        let colors = *HUD_COLORS.read().unwrap();
         ctx.draw
-            .rect(buffer.pixels_mut(), &bar, stride, &[24, 24, 26, 224]);
+            .rect(buffer.pixels_mut(), &bar, stride, &colors.panel);
         ctx.draw.rect(
             buffer.pixels_mut(),
             &(bar.0, bar.1, bar.2, 1),
             stride,
-            &[76, 78, 84, 255],
+            &colors.border,
         );
         ctx.draw.text_rect_blend(
             buffer.pixels_mut(),
@@ -87,7 +129,7 @@ impl Hud {
                 size: 12.5,
                 ..Default::default()
             },
-            &[220, 220, 224, 255],
+            &colors.selected_text,
             TheHorizontalAlign::Left,
             TheVerticalAlign::Center,
         );
@@ -406,11 +448,12 @@ impl Hud {
         let stride = buffer.stride();
 
         let info_height = 20;
-        let bg_color = [48, 48, 50, 235];
-        let panel_color = [34, 34, 36, 240];
-        let text_color = [168, 168, 172, 255];
-        let sel_text_color = [240, 240, 242, 255];
-        let accent_color = [210, 176, 92, 255];
+        let colors = *HUD_COLORS.read().unwrap();
+        let bg_color = colors.background;
+        let panel_color = colors.panel;
+        let text_color = colors.text;
+        let sel_text_color = colors.selected_text;
+        let accent_color = colors.accent;
 
         self.subdiv_rects = vec![];
 
@@ -465,7 +508,7 @@ impl Hud {
             buffer.pixels_mut(),
             &(0, info_height - 1, width, 1),
             stride,
-            &[96, 96, 100, 255],
+            &colors.border,
         );
 
         if server_ctx.editor_view_mode == EditorViewMode::D2 {
@@ -613,7 +656,7 @@ impl Hud {
                 buffer.pixels_mut(),
                 &(r.0 + 1, r.1 + 1, r.2 - 2, r.3 - 2),
                 stride,
-                &[30, 30, 30, 255],
+                &panel_color,
             );
 
             let (tile, has_light) = self.get_icon(
@@ -656,7 +699,7 @@ impl Hud {
                     13,
                 );
                 ctx.draw
-                    .rect(buffer.pixels_mut(), &badge, stride, &[25, 30, 34, 255]);
+                    .rect(buffer.pixels_mut(), &badge, stride, &panel_color);
                 ctx.draw.text_rect(
                     buffer.pixels_mut(),
                     &badge,
@@ -707,9 +750,9 @@ impl Hud {
                 let active = active_subdivision == subdivision;
                 let hovered = rect.contains(self.mouse_pos);
                 let inner = if active {
-                    [68, 68, 72, 255]
+                    colors.selected
                 } else if hovered {
-                    [54, 54, 58, 255]
+                    colors.hover
                 } else {
                     panel_color
                 };
@@ -814,11 +857,7 @@ impl Hud {
                 let rect = TheDim::rect(start_x + (i as i32 * (button_w + 4)), 0, button_w, 20);
                 let active = server_ctx.geometry_gizmo_op == modes[i];
                 let fg = if active { sel_text_color } else { text_color };
-                let inner = if active {
-                    [60, 60, 64, 255]
-                } else {
-                    panel_color
-                };
+                let inner = if active { colors.selected } else { panel_color };
 
                 ctx.draw.rect(
                     buffer.pixels_mut(),
