@@ -267,21 +267,10 @@ impl Sidebar {
             server_ctx.tree_palette_id,
         ));
 
-        let mut ruleset_palette_label = TheTreeItem::new(TheId::named("Ruleset Palette Header"));
-        ruleset_palette_label.set_text(fl!("ruleset_palette"));
-        ruleset_palette_label.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-        palette_node.add_widget(Box::new(ruleset_palette_label));
-
-        let mut ruleset_item = TheTreeIcons::new(TheId::named("Ruleset Palette Item"));
-        ruleset_item.set_icon_count(1);
-        ruleset_item.set_icons_per_row(17);
-        ruleset_item.set_selected_index(None);
-        palette_node.add_widget(Box::new(ruleset_item));
-
-        let mut art_palette_label = TheTreeItem::new(TheId::named("Art Palette Header"));
-        art_palette_label.set_text(fl!("art_palette"));
-        art_palette_label.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
-        palette_node.add_widget(Box::new(art_palette_label));
+        let mut palette_label = TheTreeItem::new(TheId::named("Palette Header"));
+        palette_label.set_text(fl!("palette"));
+        palette_label.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
+        palette_node.add_widget(Box::new(palette_label));
 
         let mut item = TheTreeIcons::new(TheId::named("Palette Item"));
         item.set_icon_count(256);
@@ -753,7 +742,7 @@ impl Sidebar {
                 } else if id.name == "Item Region Override" {
                     server_ctx.item_region_override = *index == 1;
                 } else if id.name == "Palette Item" {
-                    project.art_palette.current_index = *index as u16;
+                    project.palette.current_index = *index as u16;
                     apply_palette(ui, ctx, server_ctx, project);
                 } else if id.name == "Avatar Perspective Count" {
                     let new_count = match index {
@@ -839,21 +828,21 @@ impl Sidebar {
                             let buffer = render_view.render_buffer_mut();
                             if let Some(col) = buffer.get_pixel(coord.x, coord.y) {
                                 let color = TheColor::from(col);
-                                let index = project.art_palette.current_index as usize;
-                                project.ensure_art_palette_materials_len();
+                                let index = project.palette.current_index as usize;
+                                project.ensure_palette_materials_len();
 
                                 if let Some(widget) = ui.get_widget("Palette Hex Edit") {
                                     widget.set_value(TheValue::Text(color.to_hex()));
                                 }
 
-                                if project.art_palette[index] != Some(color.clone()) {
+                                if project.palette[index] != Some(color.clone()) {
                                     if self.pending_palette_drag_undo.is_none() {
                                         self.pending_palette_drag_undo = Some((
-                                            project.art_palette.clone(),
-                                            project.art_palette_materials.clone(),
+                                            project.palette.clone(),
+                                            project.palette_materials.clone(),
                                         ));
                                     }
-                                    project.art_palette[index] = Some(color);
+                                    project.palette[index] = Some(color);
                                     redraw = true;
                                 }
 
@@ -870,8 +859,8 @@ impl Sidebar {
                                         let undo = ProjectUndoAtom::PaletteEdit(
                                             prev,
                                             prev_materials,
-                                            project.art_palette.clone(),
-                                            project.art_palette_materials.clone(),
+                                            project.palette.clone(),
+                                            project.palette_materials.clone(),
                                         );
                                         UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                                     }
@@ -1262,9 +1251,9 @@ impl Sidebar {
             }
             TheEvent::PaletteIndexChanged(id, index) => {
                 if id.name == "Palette Picker" {
-                    project.art_palette.current_index = *index;
+                    project.palette.current_index = *index;
                     apply_palette(ui, ctx, server_ctx, project);
-                    *PALETTE.write().unwrap() = project.art_palette.clone();
+                    *PALETTE.write().unwrap() = project.palette.clone();
                     ctx.ui.send(TheEvent::Custom(
                         TheId::named("Soft Update Minimap"),
                         TheValue::Empty,
@@ -1819,18 +1808,18 @@ impl Sidebar {
                         let color = TheColor::from_hex(&hex);
 
                         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
-                            if project.art_palette[palette_picker.index()] != Some(color.clone()) {
-                                let prev = project.art_palette.clone();
-                                let prev_materials = project.art_palette_materials.clone();
+                            if project.palette[palette_picker.index()] != Some(color.clone()) {
+                                let prev = project.palette.clone();
+                                let prev_materials = project.palette_materials.clone();
 
                                 palette_picker.set_color(color.clone());
                                 redraw = true;
-                                project.art_palette[palette_picker.index()] = Some(color.clone());
+                                project.palette[palette_picker.index()] = Some(color.clone());
                                 let undo = ProjectUndoAtom::PaletteEdit(
                                     prev,
                                     prev_materials,
-                                    project.art_palette.clone(),
-                                    project.art_palette_materials.clone(),
+                                    project.palette.clone(),
+                                    project.palette_materials.clone(),
                                 );
                                 UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
 
@@ -2486,35 +2475,35 @@ impl Sidebar {
                     && let Some(focus_id) = &ctx.ui.focus
                     && (focus_id.name == "Palette Picker" || focus_id.name == "Palette Item")
                 {
-                    let index = project.art_palette.current_index as usize;
-                    if index < project.art_palette.colors.len()
-                        && project.art_palette[index].is_some()
+                    let index = project.palette.current_index as usize;
+                    if index < project.palette.colors.len()
+                        && project.palette[index].is_some()
                     {
-                        let prev = project.art_palette.clone();
-                        let prev_materials = project.art_palette_materials.clone();
-                        project.art_palette[index] = None;
-                        project.reset_art_palette_material(index);
+                        let prev = project.palette.clone();
+                        let prev_materials = project.palette_materials.clone();
+                        project.palette[index] = None;
+                        project.reset_palette_material(index);
 
                         let undo = ProjectUndoAtom::PaletteEdit(
                             prev,
                             prev_materials,
-                            project.art_palette.clone(),
-                            project.art_palette_materials.clone(),
+                            project.palette.clone(),
+                            project.palette_materials.clone(),
                         );
                         UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
 
                         apply_palette(ui, ctx, server_ctx, project);
 
                         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
-                            palette_picker.set_palette(project.art_palette.clone());
+                            palette_picker.set_palette(project.palette.clone());
                         }
                         if let Some(widget) = ui.get_widget("Palette Color Picker")
-                            && let Some(color) = project.art_palette[index].clone()
+                            && let Some(color) = project.palette[index].clone()
                         {
                             widget.set_value(TheValue::ColorObject(color));
                         }
                         if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                            if let Some(color) = project.art_palette[index].clone() {
+                            if let Some(color) = project.palette[index].clone() {
                                 widget.set_value(TheValue::Text(color.to_hex()));
                             } else {
                                 widget.set_value(TheValue::Text(String::new()));
@@ -2627,16 +2616,16 @@ impl Sidebar {
                         TheValue::Empty,
                     ));
                 } else if id.name == "Palette Clear" {
-                    let prev = project.art_palette.clone();
-                    let prev_materials = project.art_palette_materials.clone();
-                    project.art_palette.clear();
-                    project.reset_all_art_palette_materials();
+                    let prev = project.palette.clone();
+                    let prev_materials = project.palette_materials.clone();
+                    project.palette.clear();
+                    project.reset_all_palette_materials();
                     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                         let index = palette_picker.index();
 
-                        palette_picker.set_palette(project.art_palette.clone());
+                        palette_picker.set_palette(project.palette.clone());
                         if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                            if let Some(color) = &project.art_palette[index] {
+                            if let Some(color) = &project.palette[index] {
                                 widget.set_value(TheValue::Text(color.to_hex()));
                             }
                         }
@@ -2646,8 +2635,8 @@ impl Sidebar {
                     let undo = ProjectUndoAtom::PaletteEdit(
                         prev,
                         prev_materials,
-                        project.art_palette.clone(),
-                        project.art_palette_materials.clone(),
+                        project.palette.clone(),
+                        project.palette_materials.clone(),
                     );
                     UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
                 } else if id.name == "Palette Import" {
@@ -2655,12 +2644,12 @@ impl Sidebar {
                         TheId::named_with_id(id.name.as_str(), Uuid::new_v4()),
                         "Open".into(),
                         TheFileExtension::new(
-                            "Palette (*.txt, *.hex)".into(),
+                            "Palette (*.txt, *.hex, *.gpl, *.pal)".into(),
                             vec![
                                 "txt".to_string(),
                                 "TXT".to_string(),
                                 "hex".to_string(),
-                                "HEX".to_string(),
+                                "HEX".to_string(),"gpl".into(),"pal".into(),
                             ],
                         ),
                     );
@@ -3727,8 +3716,8 @@ impl Sidebar {
 
         // New projects carry the Endesga 64 art palette by default. Keep this
         // fallback for very old/corrupt project files.
-        if project.art_palette.is_empty() {
-            project.art_palette = Project::default().art_palette;
+        if project.palette.is_empty() {
+            project.palette = Project::default().palette;
         }
 
         self.apply_regions(ui, ctx, server_ctx, project);
@@ -3781,11 +3770,11 @@ impl Sidebar {
 
         // Adjust Palette and Color Picker
         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
-            palette_picker.set_palette(project.art_palette.clone());
+            palette_picker.set_palette(project.palette.clone());
             let index = palette_picker.index();
 
             if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                if let Some(color) = &project.art_palette[index] {
+                if let Some(color) = &project.palette[index] {
                     widget.set_value(TheValue::Text(color.to_hex()));
                 }
             }
@@ -3806,8 +3795,7 @@ impl Sidebar {
         CONFIGEDITOR.write().unwrap().read_defaults();
         {
             let mut rusterix = RUSTERIX.write().unwrap();
-            rusterix.assets.ruleset_palette = project.palette.clone();
-            rusterix.assets.palette = project.art_palette.clone();
+            rusterix.assets.palette = project.palette.clone();
             rusterix.assets.palette_material_ids = palette_material_ids(project);
             rusterix.set_tiles(project.tiles.clone(), true);
         }

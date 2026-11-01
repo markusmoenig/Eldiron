@@ -78,8 +78,8 @@ For authored pixel tiles:
 
 - editing changes the visible tile texture directly
 - normals are generated from the tile texture data used by Eldiron
-- drawing uses the selected Art Palette color
-- render material comes from high-level material metadata, such as tile presets, Art Palette entry presets, or object overrides
+- drawing uses the selected project palette color
+- render material comes from high-level material metadata, such as tile presets, project palette entry presets, or object overrides
 
 Ruleset icon state directories reserve an optional `material.png` for future
 artist-authored material data: red is roughness, blue metallic, green emission,

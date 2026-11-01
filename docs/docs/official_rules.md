@@ -971,15 +971,15 @@ visual layer.
 | --- | --- |
 | Default avatar | `humanoid` |
 | Avatar assets | `assets/humanoid.eldiron_avatar`, `assets/orc.eldiron_avatar`, `assets/skeleton.eldiron_avatar` |
-| Ruleset Palette | fixed rules-owned mood palette based on Lospec's "31" palette |
+| project palette | fixed rules-owned mood palette based on Lospec's "31" palette |
 | Explicit override | project `tile_id`, `avatar`, or empty visual fields win |
 
 On load, Eldiron resolves the effective ruleset palette into the project's
-Ruleset Palette. This keeps avatar channels, UI color defaults, and generated
+project palette. This keeps avatar channels, UI color defaults, and generated
 missing-art fallbacks on stable rules-owned indices. Authored icon PNGs retain
 their own RGBA colors and are not palette-remapped at runtime.
 
-The editable Art Palette remains separate for tiles, drawing, palette-index
+The editable project palette remains separate for tiles, drawing, palette-index
 geometry sources, and 3D Paint.
 
 ## Tools And Testing

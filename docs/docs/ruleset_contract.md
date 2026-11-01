@@ -844,7 +844,7 @@ assets/icons/<icon-id>/on/material.png # optional, reserved for future use
 single-state `icon_frames`. **Off** is optional; when it is absent, Creator
 shows an empty Off row and runtime presentation falls back to On. Frame numbers
 are zero-based and contiguous. PNG colors are authoritative and are not
-remapped through the Ruleset Palette or Art Palette.
+remapped through the project palette or project palette.
 
 Ruleset-themed local navigation commands may declare `name`, `description`,
 and `icon` under `[ui.commands.<name>]`. A screen command such as

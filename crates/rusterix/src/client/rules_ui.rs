@@ -265,15 +265,62 @@ pub fn container_template_for_item(assets: &Assets, item: &Item) -> ContainerUiT
     };
 
     let default = table_at(&root, &["ui", "container_templates", "default"])
-        .map(|table| parse_container_template("default", table, ContainerUiTemplate::default()))
+        .map(|table| {
+            palette_container_template(
+                assets,
+                table,
+                parse_container_template("default", table, ContainerUiTemplate::default()),
+            )
+        })
         .unwrap_or_default();
     if template_id == "default" {
         return default;
     }
 
     table_at(&root, &["ui", "container_templates", template_id])
-        .map(|table| parse_container_template(template_id, table, default.clone()))
+        .map(|table| {
+            palette_container_template(
+                assets,
+                table,
+                parse_container_template(template_id, table, default.clone()),
+            )
+        })
         .unwrap_or(default)
+}
+
+fn palette_container_template(
+    assets: &Assets,
+    table: &Table,
+    mut template: ContainerUiTemplate,
+) -> ContainerUiTemplate {
+    for (key, color) in [
+        ("background_color", &mut template.background_color),
+        ("border_color", &mut template.border_color),
+        ("slot_color", &mut template.slot_color),
+        ("slot_border_color", &mut template.slot_border_color),
+    ] {
+        if let Some(index) = table
+            .get(key)
+            .and_then(toml::Value::as_integer)
+            .filter(|i| *i >= 0)
+        {
+            if let Some(c) = assets
+                .palette
+                .colors
+                .get(index as usize)
+                .and_then(Option::as_ref)
+            {
+                *color = c.to_u8_array();
+            }
+        }
+        if let Some(alpha) = table
+            .get(&format!("{key}_alpha"))
+            .and_then(toml::Value::as_integer)
+        {
+            color[3] = alpha.clamp(0, 255) as u8;
+        }
+    }
+    template
 }
 
 /// Resolve the presentation-neutral action catalogue for a character.
@@ -1730,6 +1777,36 @@ mod tests {
                 .lines
                 .iter()
                 .any(|line| line == "Damage kind: Physical")
+        );
+    }
+
+    #[test]
+    fn container_colors_follow_project_palette_and_preserve_alpha() {
+        let mut assets = Assets::new();
+        assets.rules = r#"
+            [ui.container_templates.default]
+            background_color = 1
+            background_color_alpha = 230
+            border_color = 2
+            [ui.container_templates.bag_small]
+            slot_color = 3
+            slot_color_alpha = 204
+        "#
+        .into();
+        assets.palette.colors[1] = Some(theframework::prelude::TheColor::from_u8(20, 30, 40, 255));
+        assets.palette.colors[2] = Some(theframework::prelude::TheColor::from_u8(50, 60, 70, 255));
+        assets.palette.colors[3] = Some(theframework::prelude::TheColor::from_u8(80, 90, 100, 255));
+        let mut bag = Item::new();
+        bag.set_attribute("container_template", Value::Str("bag_small".into()));
+        let template = container_template_for_item(&assets, &bag);
+        assert_eq!(template.background_color, [20, 30, 40, 230]);
+        assert_eq!(template.border_color, [50, 60, 70, 255]);
+        assert_eq!(template.slot_color, [80, 90, 100, 204]);
+        assets.palette.colors[1] =
+            Some(theframework::prelude::TheColor::from_u8(150, 160, 170, 255));
+        assert_eq!(
+            container_template_for_item(&assets, &bag).background_color,
+            [150, 160, 170, 230]
         );
     }
 

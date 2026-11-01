@@ -102,7 +102,7 @@ pub(super) fn asset(id: Uuid, tile: &rusterix::Tile) -> Result<EditableMaterialA
 }
 
 /// Hash image inputs directly rather than serializing large pixel arrays every UI tick.
-pub(super) fn key(tile: &rusterix::Tile) -> u64 {
+pub(in crate::procedural_material) fn key(tile: &rusterix::Tile) -> u64 {
     let mut hash = 0xcbf29ce484222325_u64;
     let mut bytes = |data: &[u8]| {
         for byte in data {
@@ -114,7 +114,7 @@ pub(super) fn key(tile: &rusterix::Tile) -> u64 {
             .unwrap_or_default()
             .as_bytes(),
     );
-    if let Some(image) = tile.textures.first() {
+    for image in &tile.textures {
         bytes(&image.width.to_le_bytes());
         bytes(&image.height.to_le_bytes());
         bytes(&image.data);
@@ -122,7 +122,7 @@ pub(super) fn key(tile: &rusterix::Tile) -> u64 {
             bytes(ext);
         }
     }
-    if let Some(materials) = tile.baked_material_data.first() {
+    for materials in &tile.baked_material_data {
         bytes(materials);
     }
     hash

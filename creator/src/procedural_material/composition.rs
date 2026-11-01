@@ -1,6 +1,6 @@
 //! Tile composition authoring and lowering to ordinary whole-material mixers.
 use super::*;
-mod raster_source;
+pub(super) mod raster_source;
 mod shape_picker;
 pub(super) mod surface_pages;
 use denrim_materials::integration::InstanceRecord;

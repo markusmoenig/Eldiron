@@ -21,7 +21,8 @@ fn insert_bundled_ruleset_textures(
 ) {
     match crate::rulesets::bundled_textures_for_project(&project.config) {
         Ok(textures) => {
-            for (id, texture) in textures {
+            for (id, mut texture) in textures {
+                crate::palette::fit_rgba(&mut texture.data, &project.palette);
                 assets.textures.insert(id.to_string(), texture);
             }
         }
@@ -33,11 +34,26 @@ fn insert_bundled_ruleset_item_icons(
     assets: &mut rusterix::server::assets::Assets,
     project: &Project,
 ) {
+    assets.palette_tile_overrides.clear();
+    if let Ok(ids) = crate::rulesets::bundled_tile_ids_for_project(&project.config) {
+        for id in ids {
+            if let Some(original) = project.tiles.get(&id) {
+                let mut tile = original.clone();
+                for frame in &mut tile.textures {
+                    crate::palette::fit_rgba(&mut frame.data, &project.palette);
+                }
+                assets.palette_tile_overrides.insert(id, tile);
+            }
+        }
+    }
     assets.item_icons.clear();
     assets.project_item_icon_keys.clear();
     match crate::rulesets::bundled_item_icon_states_for_project(&project.config) {
         Ok(states) => {
-            for (item_id, state, frames) in states {
+            for (item_id, state, mut frames) in states {
+                for frame in &mut frames {
+                    crate::palette::fit_rgba(&mut frame.data, &project.palette);
+                }
                 let item_id = item_id.trim().to_ascii_lowercase();
                 let state = state.trim().to_ascii_lowercase();
                 assets
@@ -104,6 +120,7 @@ fn insert_project_item_icons(assets: &mut rusterix::server::assets::Assets, proj
 /// overrides. Project frames are inserted last and therefore remain the
 /// authoritative artwork for both ruleset and custom items.
 pub fn sync_item_icon_assets(rusterix: &mut Rusterix, project: &Project) {
+    insert_bundled_ruleset_textures(&mut rusterix.assets, project);
     insert_bundled_ruleset_item_icons(&mut rusterix.assets, project);
     insert_project_item_icons(&mut rusterix.assets, project);
     rusterix.set_overlay_dirty();
@@ -114,10 +131,8 @@ pub fn sync_item_icon_assets(rusterix: &mut Rusterix, project: &Project) {
 pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
     rusterix.assets.config = project.config.clone();
     rusterix.assets.rules = project.rules_source().unwrap_or_else(|_| String::new());
-    rusterix.assets.ruleset_palette = project.palette.clone();
-    rusterix.assets.palette = project.art_palette.clone();
+    rusterix.assets.palette = project.palette.clone();
     rusterix.assets.read_rules_metadata();
-    rusterix.set_tiles(project.tiles.clone(), true);
 
     rusterix.assets.avatars.clear();
     insert_bundled_ruleset_avatars(&mut rusterix.assets, project);
@@ -129,6 +144,7 @@ pub fn sync_editor_visual_assets(rusterix: &mut Rusterix, project: &Project) {
     }
     insert_bundled_ruleset_textures(&mut rusterix.assets, project);
     sync_item_icon_assets(rusterix, project);
+    rusterix.set_tiles(project.tiles.clone(), true);
 }
 
 /// Publish only valid, semantically changed rules. Invalid drafts leave the
@@ -376,15 +392,14 @@ pub fn setup_client(rusterix: &mut Rusterix, project: &mut Project) -> Vec<Comma
     rusterix.assets.region_sources.clear();
     rusterix.set_block_props(project.block_props.clone());
     rusterix.assets.read_locales();
-    rusterix.assets.ruleset_palette = project.palette.clone();
-    rusterix.assets.palette = project.art_palette.clone();
+    rusterix.assets.palette = project.palette.clone();
     rusterix.assets.palette_materials = project
-        .art_palette_materials
+        .palette_materials
         .iter()
         .map(|m| m.rmoe_values())
         .collect();
     rusterix.assets.palette_material_ids = project
-        .art_palette_materials
+        .palette_materials
         .iter()
         .map(|m| m.material_id())
         .collect();
@@ -578,11 +593,19 @@ mod live_rules_tests {
         assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
         let original = assets.rules.clone();
         assert!(!prepare_live_rules(&mut assets, &project).unwrap().is_some());
-        project.rules_document.edit(|table| {
-            table["actions"]["basic_attack"].as_table_mut().unwrap().insert(
-                "name".into(), crate::rulesets::document::RulesValue::String("Live Robot Strike".into()));
-            Ok(())
-        }).unwrap();
+        project
+            .rules_document
+            .edit(|table| {
+                table["actions"]["basic_attack"]
+                    .as_table_mut()
+                    .unwrap()
+                    .insert(
+                        "name".into(),
+                        crate::rulesets::document::RulesValue::String("Live Robot Strike".into()),
+                    );
+                Ok(())
+            })
+            .unwrap();
         assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
         let accepted = assets.rules.clone();
         assert!(accepted.contains("Live Robot Strike"));
@@ -591,11 +614,19 @@ mod live_rules_tests {
             rusterix::Tile::from_texture(rusterix::Texture::new(vec![20, 80, 140, 255], 1, 1));
         let tile_id = tile.id;
         project.tiles.insert(tile_id, tile);
-        project.rules_document.edit(|table| {
-            table["icons"]["basic_attack"].as_table_mut().unwrap().insert(
-                "texture".into(), crate::rulesets::document::RulesValue::String(tile_id.to_string()));
-            Ok(())
-        }).unwrap();
+        project
+            .rules_document
+            .edit(|table| {
+                table["icons"]["basic_attack"]
+                    .as_table_mut()
+                    .unwrap()
+                    .insert(
+                        "texture".into(),
+                        crate::rulesets::document::RulesValue::String(tile_id.to_string()),
+                    );
+                Ok(())
+            })
+            .unwrap();
         assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
         let mut item = rusterix::Item::default();
         item.attributes
@@ -613,5 +644,49 @@ mod live_rules_tests {
         project.rules_document.restore_original();
         assert!(prepare_live_rules(&mut assets, &project).unwrap().is_some());
         assert_eq!(assets.rules, original);
+    }
+}
+
+#[cfg(test)]
+mod unified_palette_tests {
+    use super::*;
+    use theframework::prelude::{TheColor, ThePalette};
+    #[test]
+    fn bundled_icons_and_world_tiles_fit_palette_without_mutating_source_or_custom_art() {
+        let mut project = Project::default();
+        project.sync_ruleset_items().unwrap();
+        let sources = project.tiles.clone();
+        project.palette = ThePalette::empty_256();
+        project.palette.colors[0] = Some(TheColor::from_u8(0, 0, 0, 255));
+        project.palette.colors[1] = Some(TheColor::from_u8(255, 255, 255, 255));
+        let mut assets = rusterix::Assets::default();
+        insert_bundled_ruleset_item_icons(&mut assets, &project);
+        assert!(!assets.palette_tile_overrides.is_empty());
+        let first = assets.palette_tile_overrides.clone();
+        for tile in first.values() {
+            for image in &tile.textures {
+                assert!(
+                    image
+                        .data
+                        .chunks_exact(4)
+                        .filter(|p| p[3] > 0)
+                        .all(|p| p[..3] == [0, 0, 0] || p[..3] == [255, 255, 255])
+                );
+            }
+        }
+        assert_eq!(project.tiles, sources);
+        project.palette.colors[0] = Some(TheColor::from_u8(255, 0, 0, 255));
+        insert_bundled_ruleset_item_icons(&mut assets, &project);
+        project.palette.colors[0] = Some(TheColor::from_u8(0, 0, 0, 255));
+        insert_bundled_ruleset_item_icons(&mut assets, &project);
+        assert_eq!(
+            assets.palette_tile_overrides, first,
+            "Switches rebuild from source pixels, not a quantized copy"
+        );
+        let item = project.items.values_mut().next().unwrap();
+        item.icon_frames = vec![rusterix::Texture::from_color([1, 45, 200, 128])];
+        let key = item.id.to_string().to_ascii_lowercase();
+        insert_project_item_icons(&mut assets, &project);
+        assert_eq!(assets.item_icons[&key][0].data, [1, 45, 200, 128]);
     }
 }

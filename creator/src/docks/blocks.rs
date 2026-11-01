@@ -1062,8 +1062,8 @@ impl Dock for BlocksDock {
                     return false;
                 };
                 self.active_tab = tab;
-                let palette_before = project.art_palette.clone();
-                let palette_materials_before = project.art_palette_materials.clone();
+                let palette_before = project.palette.clone();
+                let palette_materials_before = project.palette_materials.clone();
                 // Bundled Prefabs become project-owned on first use.
                 // The stable ID means existing placements and later edits keep
                 // referencing the same ordinary serialized Prefab asset.
@@ -1082,8 +1082,8 @@ impl Dock for BlocksDock {
                     prefab_assets_changed |= ensure_block_asset_default_palette(project, asset);
                 }
                 if prefab_assets_changed {
-                    let palette_changed = project.art_palette != palette_before
-                        || project.art_palette_materials != palette_materials_before;
+                    let palette_changed = project.palette != palette_before
+                        || project.palette_materials != palette_materials_before;
                     if palette_changed {
                         crate::undo::project_helper::refresh_palette_runtime(project);
                     }

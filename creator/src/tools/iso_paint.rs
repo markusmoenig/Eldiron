@@ -137,7 +137,7 @@ impl IsoPaintTool {
     fn neutral_material_palette(project: &Project) -> (u16, [u8; 4]) {
         let target = [132i32, 132i32, 128i32];
         let mut best: Option<(u16, [u8; 4], i32)> = None;
-        for (index, entry) in project.art_palette.colors.iter().enumerate() {
+        for (index, entry) in project.palette.colors.iter().enumerate() {
             let Some(color) = entry.as_ref() else {
                 continue;
             };

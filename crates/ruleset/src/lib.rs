@@ -5777,7 +5777,7 @@ fn ruleset_item_template_data(
     })
 }
 
-pub fn ruleset_palette(root: &Table) -> Result<ThePalette, String> {
+pub fn palette_template(root: &Table) -> Result<ThePalette, String> {
     let mut palette = ThePalette::empty_256();
     let Some(palette_table) = ruleset_table_at_path(root, &["palette"]) else {
         return Ok(palette);
@@ -5809,9 +5809,9 @@ pub fn ruleset_palette(root: &Table) -> Result<ThePalette, String> {
     Ok(palette)
 }
 
-pub fn ruleset_palette_from_source(src: &str) -> Result<ThePalette, String> {
+pub fn palette_template_from_source(src: &str) -> Result<ThePalette, String> {
     let root = parse_ruleset_table(src)?;
-    ruleset_palette(&root)
+    palette_template(&root)
 }
 
 fn collect_ruleset_item_templates(
@@ -7624,8 +7624,8 @@ mod tests {
                 && template
                     .data
                     .contains("description = \"A blunt wooden practice sword")
-                && template.data.contains("blade_color_index = 10")
-                && template.data.contains("highlight_color_index = 14")
+                && template.data.contains("blade_color_index = 20")
+                && template.data.contains("highlight_color_index = 22")
                 && template.data.contains("visual_template_pixels")
                 && template.data.contains("rig_scale = 0.85")
         }));
@@ -7688,7 +7688,7 @@ mod tests {
                 && template.kind == "material"
                 && template.ruleset_path == "items.materials.green_wood"
                 && template.data.contains("icon = \"gather_wood\"")
-                && template.data.contains("icon_color = \"#9a6a3a\"")
+                && template.data.contains("icon_color = 19")
         }));
         assert!(templates.iter().any(|template| {
             template.id == "feather"
@@ -7723,9 +7723,9 @@ mod tests {
             template.id == "cleric_vestments"
                 && template.kind == "armor"
                 && template.ruleset_path == "items.armor.cleric_vestments"
-                && template.data.contains("color_index = 25")
-                && template.data.contains("torso_index = 25")
-                && template.data.contains("arms_index = 25")
+                && template.data.contains("color_index = 9")
+                && template.data.contains("torso_index = 9")
+                && template.data.contains("arms_index = 9")
         }));
         assert!(
             templates
@@ -7747,9 +7747,9 @@ mod tests {
             template.id == "linen_shirt"
                 && template.kind == "clothing"
                 && template.ruleset_path == "items.clothing.linen_shirt"
-                && template.data.contains("color_index = 2")
-                && template.data.contains("torso_index = 2")
-                && template.data.contains("arms_index = 2")
+                && template.data.contains("color_index = 7")
+                && template.data.contains("torso_index = 7")
+                && template.data.contains("arms_index = 7")
         }));
         assert!(templates.iter().any(|template| {
             template.id == "small_bag"
@@ -7765,21 +7765,21 @@ mod tests {
     }
 
     #[test]
-    fn extracts_official_ruleset_palette() {
-        let palette = ruleset_palette_from_source(latest_official_ruleset()).unwrap();
+    fn extracts_official_default_project_palette() {
+        let palette = palette_template_from_source(latest_official_ruleset()).unwrap();
 
         assert_eq!(
             palette.colors[2].as_ref().map(TheColor::to_hex).as_deref(),
-            Some("#BCAD9F")
+            Some("#1B1B1B")
         );
         assert_eq!(
             palette.colors[30].as_ref().map(TheColor::to_hex).as_deref(),
-            Some("#14233A")
+            Some("#FFA214")
         );
     }
 
     #[test]
-    fn official_orc_skin_uses_ruleset_palette_indices() {
+    fn official_orc_skin_uses_project_palette_indices() {
         let rules = parse_ruleset_table(latest_official_ruleset()).unwrap();
         let attributes = ruleset_table_at_path(&rules, &["races", "Orc", "attributes"])
             .expect("official Orc attributes");
@@ -7788,17 +7788,17 @@ mod tests {
             attributes
                 .get("light_skin_index")
                 .and_then(Value::as_integer),
-            Some(16)
+            Some(36)
         );
         assert_eq!(
             attributes
                 .get("dark_skin_index")
                 .and_then(Value::as_integer),
-            Some(18)
+            Some(38)
         );
         assert_eq!(
             attributes.get("hands_index").and_then(Value::as_integer),
-            Some(16)
+            Some(36)
         );
     }
 

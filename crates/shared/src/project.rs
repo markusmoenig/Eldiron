@@ -25,7 +25,10 @@ where
     D: serde::Deserializer<'de>,
 {
     let entries = <IndexMap<String, String> as serde::Deserialize>::deserialize(deserializer)?;
-    Ok(entries.into_iter().filter_map(|(key, value)| Uuid::parse_str(&key).ok().map(|id| (id, value))).collect())
+    Ok(entries
+        .into_iter()
+        .filter_map(|(key, value)| Uuid::parse_str(&key).ok().map(|id| (id, value)))
+        .collect())
 }
 
 fn default_locales() -> String {
@@ -107,29 +110,9 @@ fn default_palette_material_slots() -> Vec<PaletteMaterial> {
     vec![PaletteMaterial::default(); 256]
 }
 
-fn default_art_palette() -> ThePalette {
-    const ENDESGA_64: [&str; 64] = [
-        "ff0040", "131313", "1b1b1b", "272727", "3d3d3d", "5d5d5d", "858585", "b4b4b4", "ffffff",
-        "c7cfdd", "92a1b9", "657392", "424c6e", "2a2f4e", "1a1932", "0e071b", "1c121c", "391f21",
-        "5d2c28", "8a4836", "bf6f4a", "e69c69", "f6ca9f", "f9e6cf", "edab50", "e07438", "c64524",
-        "8e251d", "ff5000", "ed7614", "ffa214", "ffc825", "ffeb57", "d3fc7e", "99e65f", "5ac54f",
-        "33984b", "1e6f50", "134c4c", "0c2e44", "00396d", "0069aa", "0098dc", "00cdf9", "0cf1ff",
-        "94fdff", "fdd2ed", "f389f5", "db3ffd", "7a09fa", "3003d9", "0c0293", "03193f", "3b1443",
-        "622461", "93388f", "ca52c9", "c85086", "f68187", "f5555d", "ea323c", "c42430", "891e2b",
-        "571c27",
-    ];
-
-    let mut palette = ThePalette::empty_256();
-    for (index, hex) in ENDESGA_64.iter().enumerate() {
-        if let (Ok(r), Ok(g), Ok(b)) = (
-            u8::from_str_radix(&hex[0..2], 16),
-            u8::from_str_radix(&hex[2..4], 16),
-            u8::from_str_radix(&hex[4..6], 16),
-        ) {
-            palette.colors[index] = Some(TheColor::from_u8(r, g, b, 255));
-        }
-    }
-    palette
+fn default_palette() -> ThePalette {
+    static DEFAULT: std::sync::OnceLock<ThePalette> = std::sync::OnceLock::new();
+    DEFAULT.get_or_init(|| crate::rulesets::palette_template_from_source(crate::rulesets::latest_official_ruleset()).expect("Official palette template is valid")).clone()
 }
 
 fn merge_toml_tables(base: &mut toml::Table, overlay: toml::Table) {
@@ -371,7 +354,11 @@ pub struct Project {
 
     /// Versioned MaterialZ editable bundles, keyed by the normal tile UUID.
     /// The tile textures remain the baked runtime representation.
-    #[serde(default, deserialize_with = "deserialize_tile_materials", skip_serializing_if = "IndexMap::is_empty")]
+    #[serde(
+        default,
+        deserialize_with = "deserialize_tile_materials",
+        skip_serializing_if = "IndexMap::is_empty"
+    )]
     pub procedural_materials: IndexMap<Uuid, String>,
 
     /// Ordered shape/blend layers referencing shared procedural picker tiles.
@@ -447,11 +434,13 @@ pub struct Project {
     #[serde(default)]
     pub assets: IndexMap<Uuid, Asset>,
 
-    #[serde(default)]
+    #[serde(default = "default_palette")]
     pub palette: ThePalette,
-
-    #[serde(default = "default_art_palette")]
-    pub art_palette: ThePalette,
+    /// Imported swatches available for assignment; runtime colors live in palette slots.
+    #[serde(default)]
+    pub palette_source_colors: Vec<TheColor>,
+    #[serde(default)]
+    pub palette_source_name: String,
 
     #[serde(default = "default_target_fps")]
     pub target_fps: u32,
@@ -500,9 +489,6 @@ pub struct Project {
 
     #[serde(default = "default_palette_material_slots")]
     pub palette_materials: Vec<PaletteMaterial>,
-
-    #[serde(default = "default_palette_material_slots")]
-    pub art_palette_materials: Vec<PaletteMaterial>,
 }
 
 // A remote derive supplies the field decoder; the trait wrapper converts retired
@@ -563,15 +549,15 @@ impl Project {
             screens: IndexMap::default(),
             assets: IndexMap::default(),
 
-            palette: ThePalette::default(),
-            art_palette: default_art_palette(),
+            palette: default_palette(),
+            palette_source_colors: vec![],
+            palette_source_name: "Endesga 64".into(),
 
             target_fps: default_target_fps(),
             tick_ms: default_tick_ms(),
 
             avatars: IndexMap::default(),
             palette_materials: default_palette_material_slots(),
-            art_palette_materials: default_palette_material_slots(),
 
             config: String::new(),
             world_module: serde_json::Value::Null,
@@ -630,30 +616,6 @@ impl Project {
         changed
     }
 
-    pub fn sync_ruleset_palette(&mut self) -> Result<bool, String> {
-        let rules = self.rules_source()?;
-        let mut palette = crate::rulesets::ruleset_palette_from_source(&rules)?;
-        if palette.is_empty() {
-            return Ok(false);
-        }
-
-        let visible_count = palette
-            .colors
-            .iter()
-            .rposition(Option::is_some)
-            .map(|index| index + 1)
-            .unwrap_or(1);
-        palette.current_index = self
-            .palette
-            .current_index
-            .min(visible_count.saturating_sub(1) as u16);
-        let prev_palette = self.palette.clone();
-        let prev_materials = self.palette_materials.clone();
-        self.palette = palette;
-        self.reset_all_palette_materials();
-        Ok(prev_palette != self.palette || prev_materials != self.palette_materials)
-    }
-
     /// Resolve the project-owned rules document for runtime consumers.
     pub fn rules_source(&self) -> Result<String, String> {
         let resolved = self.rules_document.document()?.resolve()?;
@@ -671,13 +633,6 @@ impl Project {
         resolved.to_toml_string()
     }
 
-    pub fn ruleset_palette_is_active(&self) -> bool {
-        self.rules_source()
-            .ok()
-            .and_then(|source| crate::rulesets::ruleset_palette_from_source(&source).ok())
-            .is_some_and(|palette| !palette.is_empty())
-    }
-
     pub fn palette_visible_color_count(&self) -> usize {
         self.palette
             .colors
@@ -687,17 +642,7 @@ impl Project {
             .unwrap_or(1)
     }
 
-    pub fn art_palette_visible_color_count(&self) -> usize {
-        self.art_palette
-            .colors
-            .iter()
-            .rposition(Option::is_some)
-            .map(|index| index + 1)
-            .unwrap_or(1)
-    }
-
     pub fn sync_ruleset_items(&mut self) -> Result<usize, String> {
-        self.sync_ruleset_palette()?;
         let bundled_tiles = crate::rulesets::bundled_tiles_for_project(&self.config)?;
         let rules = self.rules_source()?;
         let templates = crate::rulesets::ruleset_item_templates_from_source(&rules)?;
@@ -777,79 +722,11 @@ impl Project {
         self.ensure_palette_materials_len();
     }
 
-    pub fn ensure_art_palette_materials_len(&mut self) {
-        if self.art_palette_materials.len() < self.art_palette.colors.len() {
-            self.art_palette_materials
-                .resize(self.art_palette.colors.len(), PaletteMaterial::default());
-        } else if self.art_palette_materials.len() > self.art_palette.colors.len() {
-            self.art_palette_materials
-                .truncate(self.art_palette.colors.len());
-        }
-    }
-
-    pub fn reset_art_palette_material(&mut self, index: usize) {
-        self.ensure_art_palette_materials_len();
-        if let Some(material) = self.art_palette_materials.get_mut(index) {
-            *material = PaletteMaterial::default();
-        }
-    }
-
-    pub fn reset_all_art_palette_materials(&mut self) {
-        self.art_palette_materials = default_palette_material_slots();
-        self.ensure_art_palette_materials_len();
-    }
-
-    pub fn load_art_palette_from_text(&mut self, text: String) {
-        let mut loaded = ThePalette::empty_256();
-        let mut index = 0usize;
-
-        for line in text.lines() {
-            let value = line
-                .trim()
-                .trim_start_matches('#')
-                .split_whitespace()
-                .next()
-                .unwrap_or("");
-            if value.is_empty() || value.starts_with(';') {
-                continue;
-            }
-
-            let rgb = if value.len() == 6 {
-                Some((0, 2, 4))
-            } else if value.len() >= 8 {
-                Some((2, 4, 6))
-            } else {
-                None
-            };
-            let Some((r_start, g_start, b_start)) = rgb else {
-                continue;
-            };
-
-            let parsed = (
-                u8::from_str_radix(&value[r_start..r_start + 2], 16),
-                u8::from_str_radix(&value[g_start..g_start + 2], 16),
-                u8::from_str_radix(&value[b_start..b_start + 2], 16),
-            );
-            if let (Ok(r), Ok(g), Ok(b)) = parsed {
-                if index < loaded.colors.len() {
-                    loaded.colors[index] = Some(TheColor::from_u8(r, g, b, 255));
-                    index += 1;
-                } else {
-                    break;
-                }
-            }
-        }
-
-        if index == 0 {
-            self.art_palette.load_from_txt(text);
-        } else {
-            loaded.current_index = self
-                .art_palette
-                .current_index
-                .min(index.saturating_sub(1) as u16);
-            self.art_palette = loaded;
-        }
-        self.reset_all_art_palette_materials();
+    pub fn load_palette_from_text(&mut self, text: String) -> Result<(), String> {
+        let colors = crate::palette::parse_colors(&text)?;
+        let plan = crate::palette::PaletteSwitch::prepare(self, colors, &[])?;
+        plan.after.apply(self);
+        Ok(())
     }
 
     /// Removes the given character from the project.
@@ -1493,26 +1370,26 @@ mod tests {
     }
 
     #[test]
-    fn project_starts_with_endesga_art_palette() {
+    fn project_starts_with_endesga_palette() {
         let project = Project::new();
 
-        assert_eq!(project.art_palette.colors.len(), 256);
-        assert_eq!(project.art_palette_visible_color_count(), 64);
+        assert_eq!(project.palette.colors.len(), 256);
+        assert_eq!(project.palette_visible_color_count(), 64);
         assert_eq!(
-            project.art_palette.colors[0]
+            project.palette.colors[0]
                 .as_ref()
                 .map(TheColor::to_hex)
                 .as_deref(),
             Some("#FF0040")
         );
         assert_eq!(
-            project.art_palette.colors[63]
+            project.palette.colors[63]
                 .as_ref()
                 .map(TheColor::to_hex)
                 .as_deref(),
             Some("#571C27")
         );
-        assert!(project.art_palette.colors[64].is_none());
+        assert!(project.palette.colors[64].is_none());
     }
 
     #[test]
@@ -1665,30 +1542,24 @@ mod tests {
     }
 
     #[test]
-    fn project_imports_hex_text_into_art_palette() {
+    fn project_imports_palette_without_reassigning_slots_or_resetting_materials() {
         let mut project = Project::new();
-        project.art_palette.current_index = 8;
-
-        project.load_art_palette_from_text("112233\n#445566\n778899\n".to_string());
-
-        assert_eq!(project.art_palette_visible_color_count(), 3);
-        assert_eq!(project.art_palette.current_index, 2);
-        assert_eq!(
-            project.art_palette.colors[0]
-                .as_ref()
-                .map(TheColor::to_hex)
-                .as_deref(),
-            Some("#112233")
+        project.palette.current_index = 8;
+        project.palette_materials[8].preset = "metal".into();
+        project
+            .load_palette_from_text("112233\n#445566\n778899\n".into())
+            .unwrap();
+        assert_eq!(project.palette.current_index, 8);
+        assert_eq!(project.palette_materials[8].preset, "metal");
+        assert_eq!(project.palette_source_colors.len(), 3);
+        assert!(
+            project
+                .palette
+                .colors
+                .iter()
+                .flatten()
+                .all(|color| project.palette_source_colors.contains(color))
         );
-        assert_eq!(
-            project.art_palette.colors[1]
-                .as_ref()
-                .map(TheColor::to_hex)
-                .as_deref(),
-            Some("#445566")
-        );
-        assert!(project.art_palette.colors[3].is_none());
-        assert_eq!(project.art_palette_materials.len(), 256);
     }
 
     #[test]
@@ -1940,7 +1811,10 @@ mod tests {
             }),
             "Hideout2D should contain its ruleset-backed Skeleton"
         );
-        assert_eq!(resolved.table()["races"]["Skeleton"]["default_avatar"].as_str(), Some("skeleton"));
+        assert_eq!(
+            resolved.table()["races"]["Skeleton"]["default_avatar"].as_str(),
+            Some("skeleton")
+        );
         for character_name in [
             "Bone Warden",
             "Bone Archer",
@@ -1972,7 +1846,8 @@ mod tests {
                 .characters
                 .values()
                 .find(|character| character.name == "Brother Corvin")
-                .is_some_and(|character| project.node_graphs
+                .is_some_and(|character| project
+                    .node_graphs
                     .get(&format!("behavior/character/{}", character.id))
                     .is_some_and(|graph| graph.to_string().contains("SAR IR"))),
             "Hideout2D should connect Words of Power to the dungeon quest"
@@ -2067,11 +1942,19 @@ mod tests {
     #[test]
     fn projects_persist_rules_document() {
         let mut project = Project::new();
-        project.rules_document.edit(|table| {
-            table["actions"]["basic_attack"].as_table_mut().unwrap().insert(
-                "name".into(), crate::rulesets::document::RulesValue::String("Custom Strike".into()));
-            Ok(())
-        }).unwrap();
+        project
+            .rules_document
+            .edit(|table| {
+                table["actions"]["basic_attack"]
+                    .as_table_mut()
+                    .unwrap()
+                    .insert(
+                        "name".into(),
+                        crate::rulesets::document::RulesValue::String("Custom Strike".into()),
+                    );
+                Ok(())
+            })
+            .unwrap();
         let json = serde_json::to_value(&project).unwrap();
         assert!(json.get("rules").is_none());
         assert!(json.get("rules_graph").is_none());
@@ -2084,7 +1967,6 @@ mod tests {
             project.rules_source().unwrap()
         );
     }
-
 
     #[test]
     fn project_migrates_legacy_button_fields_to_commands() {
@@ -2157,9 +2039,15 @@ mod tests {
                 .as_ref()
                 .map(TheColor::to_hex)
                 .as_deref(),
-            Some("#BCAD9F")
+            Some("#1B1B1B")
         );
-        assert!(project.ruleset_palette_is_active());
+        project.palette.colors[2] = Some(TheColor::from_u8(15, 25, 35, 255));
+        project.sync_ruleset_items().unwrap();
+        assert_eq!(
+            project.palette.colors[2].as_ref().unwrap().to_u8_array(),
+            [15, 25, 35, 255],
+            "Ruleset refresh must preserve project colors"
+        );
         assert!(project.items.values().any(|item| {
             item.name == "Training Sword"
                 && item
@@ -2188,8 +2076,8 @@ mod tests {
         assert_eq!(project.sync_ruleset_items().unwrap(), 1);
         assert!(project.items.values().any(|item| {
             item_ruleset_path(item).as_deref() == Some("items.clothing.linen_shirt")
-                && item.data.contains("torso_index = 2")
-                && item.data.contains("arms_index = 2")
+                && item.data.contains("torso_index = 7")
+                && item.data.contains("arms_index = 7")
         }));
     }
 

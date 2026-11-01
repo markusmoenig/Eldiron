@@ -3048,7 +3048,7 @@ impl IsoPaintDock {
 
     fn selected_palette_color(project: &Project) -> [u8; 4] {
         let mut color = project
-            .art_palette
+            .palette
             .get_current_color()
             .map(|color| color.to_u8_array())
             .unwrap_or([132, 132, 128, 255]);
@@ -3058,7 +3058,7 @@ impl IsoPaintDock {
 
     fn palette_color(project: &Project, index: u16) -> [u8; 4] {
         let mut color = project
-            .art_palette
+            .palette
             .colors
             .get(index as usize)
             .and_then(|entry| entry.as_ref())
@@ -3114,7 +3114,7 @@ impl IsoPaintDock {
     fn nearest_palette_index(project: &Project, target: [u8; 3], used: &[u16]) -> Option<u16> {
         let mut best_any: Option<(u16, u32)> = None;
         let mut best_unused: Option<(u16, u32)> = None;
-        for (index, entry) in project.art_palette.colors.iter().enumerate() {
+        for (index, entry) in project.palette.colors.iter().enumerate() {
             let Some(color) = entry.as_ref() else {
                 continue;
             };
@@ -3260,7 +3260,7 @@ impl IsoPaintDock {
                     .iter()
                     .map(|index| *index as i32)
                     .collect(),
-                project.art_palette.clone(),
+                project.palette.clone(),
             ));
         }
         if brush.key == "brick" {

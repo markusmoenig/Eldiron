@@ -25,6 +25,8 @@ fn sample() -> MaterialEditorView {
     MaterialEditorView {
         animation: Default::default(),
         title: "Material Study".into(),
+        image_sources: vec![],
+        image_bindings: vec![],
         palette: vec![],
         palette_bindings: vec![],
         tiling: MaterialTilingView::default(),

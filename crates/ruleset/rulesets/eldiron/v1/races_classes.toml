@@ -14,7 +14,7 @@ INT = 10
 WIS = 10
 VIT = 10
 SPEED = 1
-hair_index = 7
+hair_index = 4
 
 [races.Orc]
 description = "Strong, hardy people often used as hostile test enemies in the default rules."
@@ -32,9 +32,9 @@ INT = 8
 WIS = 8
 VIT = 12
 SPEED = 1
-light_skin_index = 16
-dark_skin_index = 18
-hands_index = 16
+light_skin_index = 36
+dark_skin_index = 38
+hands_index = 36
 
 [races.Skeleton]
 description = "Animated skeletal remains driven by necromancy or lingering will."
@@ -135,7 +135,7 @@ DMG = 1
 ARMOR = 1
 INIT = 1
 inventory_slots = 6
-hair_index = 7
+hair_index = 4
 
 [classes.Warrior.progression.damage]
 base = 1
@@ -208,7 +208,7 @@ ARMOR = 1
 RESIST = 1
 INIT = 0
 inventory_slots = 6
-hair_index = 7
+hair_index = 4
 
 [classes.Cleric.progression.damage]
 base = 1

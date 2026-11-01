@@ -552,22 +552,14 @@ policy and reject changes without losing or moving the item.
 
 ## Palette Ownership
 
-The official ruleset owns the **Ruleset Palette**.
-
-On load and ruleset sync, Eldiron resolves the effective ruleset `[palette]`
-into the project's Ruleset Palette. Avatar defaults and generated missing-art
-fallbacks can rely on those indices staying stable. Authored icon PNGs keep
-their own RGBA colors and do not depend on this palette.
-
-The editable **Art Palette** is separate. It is used for artist-authored tiles,
-pixel drawing, palette-index geometry sources, and 3D Paint.
-
-For ruleset-driven projects:
-
-- Ruleset Palette changes should be made in the project rules under `[palette]` in **Game / Rules**.
-- Art Palette changes are made with the Palette Tool and do not alter rules-owned indices.
-- palette clear/import actions affect the Art Palette only.
-- Art Palette material preset/finish metadata remains editable project render metadata.
+The project owns one editable palette, initially seeded with the official
+ruleset's Endesga 64 defaults. Avatars, item fallbacks, world art and game UI all
+resolve indices through it. Ruleset synchronization never replaces project colors.
+Use the [Palette Tool](creator/tools/palette) to edit slots, load a local palette,
+or switch directly from Lospec with perceptual and shading-ramp matching.
+Bundled bitmap item icons are recolored from their canonical images. Project-owned
+bitmap overrides retain their original colors. Palette slots retain material and
+finish metadata when their colors change.
 
 ## Visual Defaults
 
@@ -612,7 +604,7 @@ avatar_channels = ["torso", "arms"]
 
 When no project override, explicit tile, authored item-id icon, or semantic icon
 is available, Eldiron can use the default avatar's idle front frame, extract
-the requested channels, recolor them from the Ruleset Palette, and use that
+the requested channels, recolor them from the project palette, and use that
 shape for inventory, equipped-slot, and ground-item previews. This is generated
 missing art; authored RGBA icon PNGs retain their own colors.
 

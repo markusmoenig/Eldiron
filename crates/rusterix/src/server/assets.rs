@@ -100,15 +100,14 @@ pub struct Assets {
 
     pub fonts: FxHashMap<String, fontdue::Font>,
     pub audio: FxHashMap<String, Vec<u8>>,
-    /// Art palette used by tile, paint, and world rendering.
+    /// Project palette shared by world art, avatars, items and game UI.
     pub palette: ThePalette,
+    /// Palette-fitted runtime copies of canonical ruleset tile artwork.
+    pub palette_tile_overrides: IndexMap<Uuid, Tile>,
     /// Legacy/compat material values for palette-index sources.
     pub palette_materials: Vec<[f32; 4]>,
     /// Semantic material ids for palette-index sources.
     pub palette_material_ids: Vec<u8>,
-    /// Fixed ruleset palette used by rules-driven avatar/item marker colors.
-    pub ruleset_palette: ThePalette,
-
     /// A map of locale names to their translations.
     pub locales: FxHashMap<String, FxHashMap<String, String>>,
 
@@ -215,9 +214,9 @@ impl Assets {
             fonts: FxHashMap::default(),
             audio: FxHashMap::default(),
             palette: ThePalette::default(),
+            palette_tile_overrides: IndexMap::new(),
             palette_materials: vec![[0.5, 0.0, 1.0, 0.0]; 256],
             palette_material_ids: vec![0; 256],
-            ruleset_palette: ThePalette::default(),
             locales: FxHashMap::default(),
             avatars: FxHashMap::default(),
         }

@@ -583,13 +583,13 @@ Tile actions operate from the **Tiles** dock when they need a selected tile or p
 
 ### Clear Palette
 
-Empty the editable Art Palette and reapply it project-wide. The Ruleset Palette is not changed. Undo is supported.
+Empty the editable project palette and reapply it project-wide. The project palette is not changed. Undo is supported.
 
 Options: none.
 
 ### Load Palette
 
-Open a file requester for Paint.NET `.txt` palettes; load colors into the Art Palette at the currently selected palette index. The Ruleset Palette is not changed. Undo is supported.
+Open a file requester for Paint.NET `.txt` palettes; load colors into the project palette at the currently selected palette index. The project palette is not changed. Undo is supported.
 
 Options: none.
 
@@ -646,7 +646,7 @@ finish = "natural"
 
 The editor labels the visual identifier **Name / Alias** and the interaction field **Tags**. Tags are stored as `gameplay_tags`; this is the single tag list used for tile transition events.
 
-Material tile metadata stores the tile's default high-level render material. Object material overrides take priority over tile defaults. Art Palette entries have their own material metadata when a surface uses a `PaletteIndex` source. If no preset applies, Eldiron uses the material library's default material.
+Material tile metadata stores the tile's default high-level render material. Object material overrides take priority over tile defaults. project palette entries have their own material metadata when a surface uses a `PaletteIndex` source. If no preset applies, Eldiron uses the material library's default material.
 
 Supported `preset` values are `default`, `stone`, `dirt`, `wood`, `metal`, `glass`, `water`, `mirror`, `emissive`, `fabric`, `plastic`, `foliage`, `skin`, `bone`, and `wax`.
 
@@ -659,7 +659,7 @@ Options:
 
 ### New Tile
 
-Create a square tile sized 8-64 px with 1-8 frames, filled with the currently selected Art Palette color.
+Create a square tile sized 8-64 px with 1-8 frames, filled with the currently selected project palette color.
 
 Options:
 

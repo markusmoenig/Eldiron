@@ -259,6 +259,7 @@ impl Program {
                     input: None,
                     input_disconnected: true,
                     code: None,
+                    image: None,
                     combine: ast::Combine::Replace,
                 };
                 let tiles = if r.tiles.is_empty() {
@@ -422,7 +423,35 @@ impl Program {
                     if crate::tilelang::definition(code)? != metadata {
                         return Err(Error("Tile source parameter declarations must match the built-in definition; edit the algorithm body for this instance".into()));
                     }
-                    let algorithm = crate::tilelang::Algorithm::compile(code, &metadata, kernel)?;
+                    let mut algorithm =
+                        crate::tilelang::Algorithm::compile(code, &metadata, kernel)?;
+                    if metadata.name == "Image / Tile Source" {
+                        if t.code.is_some() {
+                            return Err(Error("Edit the image asset in Properties; Image / Tile Source has no custom shader body".into()));
+                        }
+                        let constant = |name: &str| -> Result<usize> {
+                            let p = parameters.iter().find(|p| p.id == name).unwrap();
+                            if let Binding::Constant(v) = &p.binding {
+                                if v[0] >= 0. && v[0].fract() == 0. {
+                                    Ok(v[0] as usize)
+                                } else {
+                                    Err(Error("Image options must be nonnegative integers".into()))
+                                }
+                            } else {
+                                Err(Error("Image sampling options must be constants".into()))
+                            }
+                        };
+                        algorithm.raster =
+                            Some(std::sync::Arc::new(crate::raster::Raster::from_image(
+                                t.image.as_ref(),
+                                constant("address")?,
+                                constant("filter")?,
+                                constant("channel")?,
+                                constant("uvMode")? == 0,
+                            )?));
+                    } else if t.image.is_some() {
+                        return Err(Error("Only Image / Tile Source accepts image data".into()));
+                    }
                     program.nodes.push(Node {
                         algorithm,
                         code: code.into(),
@@ -469,7 +498,10 @@ impl Program {
                 outputs.push((channel, resolve(&o.source, &rows, channel.width())?));
             }
             program.materials.push(Material {
-                tiling: { m.animation.validate()?; m.tiling.validate()? },
+                tiling: {
+                    m.animation.validate()?;
+                    m.tiling.validate()?
+                },
                 defaults,
                 id: m.id.clone(),
                 label: m.label.clone(),

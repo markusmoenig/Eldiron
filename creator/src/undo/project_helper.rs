@@ -797,7 +797,7 @@ pub fn update_region(ctx: &mut TheContext) {
 /// Apply the current palette to the tree.
 pub(crate) fn palette_material_values(project: &Project) -> Vec<[f32; 4]> {
     project
-        .art_palette_materials
+        .palette_materials
         .iter()
         .map(|m| m.rmoe_values())
         .collect()
@@ -805,7 +805,7 @@ pub(crate) fn palette_material_values(project: &Project) -> Vec<[f32; 4]> {
 
 pub(crate) fn palette_material_ids(project: &Project) -> Vec<u8> {
     project
-        .art_palette_materials
+        .palette_materials
         .iter()
         .map(|m| m.material_id())
         .collect()
@@ -860,11 +860,11 @@ pub fn palette_status_text(
 }
 
 pub fn refresh_palette_runtime(project: &Project) {
-    *PALETTE.write().unwrap() = project.art_palette.clone();
+    *PALETTE.write().unwrap() = project.palette.clone();
     let (tile_list, tile_indices) = {
         let mut rusterix = RUSTERIX.write().unwrap();
-        rusterix.assets.ruleset_palette = project.palette.clone();
-        rusterix.assets.palette = project.art_palette.clone();
+        rusterix.assets.palette = project.palette.clone();
+        shared::rusterix_utils::sync_item_icon_assets(&mut rusterix, project);
         rusterix.assets.palette_materials = palette_material_values(project);
         rusterix.assets.palette_material_ids = palette_material_ids(project);
         rusterix.set_tiles(project.tiles.clone(), true);
@@ -879,7 +879,7 @@ pub fn refresh_palette_runtime(project: &Project) {
         .unwrap()
         .set_tile_list(tile_list, tile_indices);
     SCENEMANAGER.write().unwrap().set_palette(
-        project.art_palette.clone(),
+        project.palette.clone(),
         palette_material_values(project),
         palette_material_ids(project),
     );
@@ -891,73 +891,46 @@ pub fn apply_palette(
     server_ctx: &mut ServerContext,
     project: &mut Project,
 ) {
-    if project.art_palette.current_index as usize >= project.art_palette.colors.len() {
-        project.art_palette.current_index =
-            project.art_palette.colors.len().saturating_sub(1) as u16;
+    if project.palette.current_index as usize >= project.palette.colors.len() {
+        project.palette.current_index = project.palette.colors.len().saturating_sub(1) as u16;
     }
-    project.ensure_art_palette_materials_len();
-    for (index, color) in project.art_palette.colors.iter_mut().enumerate() {
+    project.ensure_palette_materials_len();
+    for (index, color) in project.palette.colors.iter_mut().enumerate() {
         if color.as_ref().is_some_and(|c| c.a <= f32::EPSILON) {
             *color = None;
-            if let Some(material) = project.art_palette_materials.get_mut(index) {
+            if let Some(material) = project.palette_materials.get_mut(index) {
                 *material = shared::project::PaletteMaterial::default();
             }
         }
     }
-    *PALETTE.write().unwrap() = project.art_palette.clone();
+    *PALETTE.write().unwrap() = project.palette.clone();
 
     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
         if let Some(palette_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_palette_id) {
             palette_node.clear();
 
-            let mut ruleset_label = TheTreeItem::new(TheId::named("Ruleset Palette Header"));
-            ruleset_label.set_text(fl!("ruleset_palette"));
-            ruleset_label.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
-            palette_node.add_widget(Box::new(ruleset_label));
-
-            let mut ruleset_item = TheTreeIcons::new(TheId::named("Ruleset Palette Item"));
-            let ruleset_count = project.palette_visible_color_count();
-            ruleset_item.set_icon_count(ruleset_count);
-            ruleset_item.set_icons_per_row(17);
-            ruleset_item.set_palette(&project.palette);
-            for index in 0..ruleset_count {
-                let status = project.palette.colors[index]
-                    .as_ref()
-                    .map(|color| {
-                        format!(
-                            "Ruleset Palette Index {}. Fixed color {}.",
-                            index,
-                            color.to_hex()
-                        )
-                    })
-                    .unwrap_or_else(|| format!("Ruleset Palette Index {}. Empty.", index));
-                ruleset_item.set_status_text_for(index, status);
-            }
-            ruleset_item.set_selected_index(None);
-            palette_node.add_widget(Box::new(ruleset_item));
-
-            let mut art_label = TheTreeItem::new(TheId::named("Art Palette Header"));
-            art_label.set_text(fl!("art_palette"));
+            let mut art_label = TheTreeItem::new(TheId::named("Palette Header"));
+            art_label.set_text(fl!("palette"));
             art_label.set_background_palette(ActionGroups, ActionRole::Editor.palette_slot());
             palette_node.add_widget(Box::new(art_label));
 
             let mut art_item = TheTreeIcons::new(TheId::named("Palette Item"));
-            let art_count = project.art_palette.colors.len();
+            let art_count = project.palette.colors.len();
             art_item.set_icon_count(art_count);
             art_item.set_icons_per_row(17);
-            art_item.set_palette(&project.art_palette);
+            art_item.set_palette(&project.palette);
             art_item.set_icon_count(art_count);
             for index in 0..art_count {
                 art_item.set_status_text_for(
                     index,
                     palette_status_text(
                         index,
-                        project.art_palette.colors[index].as_ref(),
-                        project.art_palette_materials.get(index),
+                        project.palette.colors[index].as_ref(),
+                        project.palette_materials.get(index),
                     ),
                 );
             }
-            art_item.set_selected_index(Some(project.art_palette.current_index as usize));
+            art_item.set_selected_index(Some(project.palette.current_index as usize));
 
             palette_node.add_widget(Box::new(art_item));
         }
@@ -968,21 +941,21 @@ pub fn apply_palette(
     ctx.ui.relayout = true;
 
     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
-        palette_picker.set_palette(project.art_palette.clone());
-        palette_picker.set_index(project.art_palette.current_index as usize);
+        palette_picker.set_palette(project.palette.clone());
+        palette_picker.set_index(project.palette.current_index as usize);
     }
     if let Some(widget) = ui.get_widget("Palette Dock Picker")
         && let Some(board) = widget
             .as_any()
             .downcast_mut::<crate::docks::palette::PaletteDockBoard>()
     {
-        board.set_palette(project.art_palette.clone());
-        board.set_materials(project.art_palette_materials.clone());
-        board.set_index(project.art_palette.current_index as usize);
+        board.set_palette(project.palette.clone());
+        board.set_materials(project.palette_materials.clone());
+        board.set_index(project.palette.current_index as usize);
     }
 
-    let index = project.art_palette.current_index as usize;
-    let hex = project.art_palette[index]
+    let index = project.palette.current_index as usize;
+    let hex = project.palette[index]
         .as_ref()
         .map(TheColor::to_hex)
         .unwrap_or_default();
@@ -994,7 +967,7 @@ pub fn apply_palette(
         widget.set_value(TheValue::Text(hex));
     }
 
-    if let Some(color) = project.art_palette[index].clone()
+    if let Some(color) = project.palette[index].clone()
         && let Some(widget) = ui.get_widget("Palette Color Picker")
     {
         widget.set_value(TheValue::ColorObject(color));
@@ -1016,18 +989,18 @@ pub fn apply_palette(
     if let Some(widget) = ui.get_widget("Palette Index Text") {
         widget.set_value(TheValue::Text(format!(
             "{:03}",
-            project.art_palette.current_index
+            project.palette.current_index
         )));
     }
     if let Some(widget) = ui.get_widget("Palette Dock Index") {
         widget.set_value(TheValue::Text(format!(
             "Palette {}",
-            project.art_palette.current_index
+            project.palette.current_index
         )));
     }
 
     let material = project
-        .art_palette_materials
+        .palette_materials
         .get(index)
         .cloned()
         .unwrap_or_default();

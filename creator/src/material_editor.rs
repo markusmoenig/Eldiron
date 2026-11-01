@@ -68,6 +68,8 @@ impl MaterialEditorChrome {
 #[derive(Clone, Debug, Default)]
 pub struct MaterialEditorView {
     pub title: String,
+    pub image_sources: Vec<(String, String)>,
+    pub image_bindings: Vec<(String, String)>,
     /// Material constants, edited when no operation is selected.
     pub defaults: Vec<MaterialNumberView>,
     pub rows: Vec<MaterialRowView>,
@@ -231,6 +233,14 @@ pub struct MaterialInputView {
 pub enum MaterialEditorCommand {
     InspectOperation(String),
     InspectSurface,
+    ChooseImage {
+        operation: String,
+        source: String,
+    },
+    SetImage {
+        operation: String,
+        image: Option<denrim_materials::image_source::ImageSource>,
+    },
     InspectSource(String),
     InspectRow(String),
     InspectInput {
@@ -1466,6 +1476,23 @@ impl MaterialEditorWidget {
             if op.palette.is_some() {
                 return lines;
             }
+            if op.label == "Image / Tile Source" {
+                let current = self
+                    .view
+                    .image_bindings
+                    .iter()
+                    .find(|(id, _)| id == &op.id)
+                    .map_or("No image", |(_, label)| label.as_str());
+                let mut choices =
+                    vec![current.into(), "Import image…".into(), "Clear image".into()];
+                choices.extend(
+                    self.view
+                        .image_sources
+                        .iter()
+                        .map(|(_, label)| label.clone()),
+                );
+                lines.push(PropertyLine::Choice {owner:op.id.clone(),parameter:"@image".into(),label:"Source".into(),value:0,choices,tooltip:"Choose an existing bitmap tile or import an image. Linked tile edits update the material.".into()});
+            }
             if let Some(mode) = &op.combine {
                 let modes = ["replace", "union", "subtract", "intersect", "smooth union"];
                 lines.push(PropertyLine::Choice {
@@ -1636,6 +1663,21 @@ impl MaterialEditorWidget {
                 mode: tiling.mode,
                 period: tiling.period,
                 blend: tiling.blend,
+            }
+        } else if parameter == "@image" {
+            let index = value.round() as usize;
+            MaterialEditorCommand::ChooseImage {
+                operation: owner.into(),
+                source: match index {
+                    1 => "@import".into(),
+                    2 => "@clear".into(),
+                    0 => "@current".into(),
+                    _ => self
+                        .view
+                        .image_sources
+                        .get(index - 3)
+                        .map_or("@current".into(), |(id, _)| id.clone()),
+                },
             }
         } else if parameter == "@combine" {
             MaterialEditorCommand::SetCombine {
@@ -3646,6 +3688,8 @@ mod tests {
         };
         w.set_view(MaterialEditorView {
             title: "Material".into(),
+            image_sources: vec![],
+            image_bindings: vec![],
             palette: vec![],
             palette_bindings: vec![],
             tiling: MaterialTilingView::default(),

@@ -274,15 +274,14 @@ impl TheTrait for Client {
         // Load the game data path
         if let Some(path) = self.get_data_path() {
             let mut project = self.load_project(path);
-            self.rusterix.assets.ruleset_palette = project.palette.clone();
-            self.rusterix.assets.palette = project.art_palette.clone();
+            self.rusterix.assets.palette = project.palette.clone();
             self.rusterix.assets.palette_materials = project
-                .art_palette_materials
+                .palette_materials
                 .iter()
                 .map(|m| m.rmoe_values())
                 .collect();
             self.rusterix.assets.palette_material_ids = project
-                .art_palette_materials
+                .palette_materials
                 .iter()
                 .map(|m| m.material_id())
                 .collect();

@@ -91,7 +91,7 @@ fn editable_bundle_preserves_dependencies_custom_code_and_instance_values() {
     assert_eq!(reopened.instances, asset.instances);
     assert_eq!(reopened.selected_material, "result");
     reopened.validate().unwrap();
-    assert_eq!(reopened.source_catalog().len(), 86);
+    assert_eq!(reopened.source_catalog().len(), 87);
     assert!(
         reopened
             .parameter_metadata()

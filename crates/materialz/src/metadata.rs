@@ -289,7 +289,7 @@ impl Kernel {
     pub fn help_key(self) -> String {
         format!("tile.{}", self.source_id())
     }
-    pub const ALL: [Self; 86] = [
+    pub const ALL: [Self; 87] = [
         Self::Perlin,
         Self::Disc,
         Self::Multiply,
@@ -376,6 +376,7 @@ impl Kernel {
         Self::Library(69),
         Self::Library(70),
         Self::Library(71),
+        Self::Library(72),
     ];
     pub fn original(self) -> &'static str {
         match self {

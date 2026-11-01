@@ -44,4 +44,5 @@ pub mod execution;
 
 mod fields;
 
+pub mod image_source;
 mod raster;

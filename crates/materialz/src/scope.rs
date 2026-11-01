@@ -218,7 +218,7 @@ pub fn analyze(program: &mut Program) {
             };
             out = [d, d, d, input[3]];
         }
-        if n.algorithm.primitive {
+        if n.algorithm.primitive || n.algorithm.raster.is_some() {
             out = [PIXEL; 4]
         }
         if n.coordinates.is_some() {

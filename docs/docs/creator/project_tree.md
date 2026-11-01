@@ -114,14 +114,10 @@ For the complete audio workflow (assets, buses, and scripting), see [Audio](../a
 
 ## Palette
 
-Shows both palette roles used by the project:
-
-- **Ruleset Palette**: fixed colors used by ruleset avatars, UI color defaults,
-  and generated missing-art fallbacks. Authored item icon PNGs keep their own
-  RGBA colors.
-- **Art Palette**: editable project art colors used by tiles, drawing, palette-index geometry and 3D Paint.
-
-Use the [Palette Tool](tools/palette) to edit the Art Palette, load external palette colors, and assign Art Palette entries to geometry. Ruleset Palette changes belong in the project’s rules document under **Game / Rules**.
+The project has one editable palette shared by world art, procedural materials,
+avatars, item defaults and game UI. The official default is Endesga 64. Use the
+[Palette Tool](tools/palette) to edit slots or preview a palette from Lospec or a
+local file. Project choices survive ruleset refreshes.
 
 ## Game
 

@@ -82,37 +82,37 @@ impl TilePickerTool {
         let sampled = texture.get_pixel(pos.x as u32, pos.y as u32);
         let sampled_color = TheColor::from(sampled);
 
-        let prev_palette = project.art_palette.clone();
-        let prev_palette_materials = project.art_palette_materials.clone();
+        let prev_palette = project.palette.clone();
+        let prev_palette_materials = project.palette_materials.clone();
 
         let mut selected_index = project
-            .art_palette
+            .palette
             .colors
             .iter()
             .position(|entry| entry.as_ref() == Some(&sampled_color));
 
         if selected_index.is_none() {
-            project.art_palette.add_unique_color(sampled_color.clone());
+            project.palette.add_unique_color(sampled_color.clone());
             selected_index = project
-                .art_palette
+                .palette
                 .colors
                 .iter()
                 .position(|entry| entry.as_ref() == Some(&sampled_color));
         }
         if selected_index.is_none() {
-            selected_index = project.art_palette.find_closest_color_index(&sampled_color);
+            selected_index = project.palette.find_closest_color_index(&sampled_color);
         }
 
         if let Some(index) = selected_index {
-            project.art_palette.current_index = index as u16;
+            project.palette.current_index = index as u16;
         }
 
-        if project.art_palette != prev_palette {
+        if project.palette != prev_palette {
             let undo = ProjectUndoAtom::PaletteEdit(
                 prev_palette,
                 prev_palette_materials,
-                project.art_palette.clone(),
-                project.art_palette_materials.clone(),
+                project.palette.clone(),
+                project.palette_materials.clone(),
             );
             UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
         }
@@ -120,8 +120,8 @@ impl TilePickerTool {
         apply_palette(ui, ctx, server_ctx, project);
 
         if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
-            palette_picker.set_palette(project.art_palette.clone());
-            palette_picker.set_index(project.art_palette.current_index as usize);
+            palette_picker.set_palette(project.palette.clone());
+            palette_picker.set_index(project.palette.current_index as usize);
         }
         if let Some(widget) = ui.get_widget("Palette Color Picker") {
             widget.set_value(TheValue::ColorObject(sampled_color.clone()));

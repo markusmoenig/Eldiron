@@ -94,7 +94,7 @@ The lower section follows the active tool so each workflow has one shared UI imp
 - **Parts**: Object, Face, Edge, and Vertex tools show independent part branches, the shared node canvas, support surfaces, and Prefab actions.
 - **3D Paint**: the **3D Paint Tool** shows the same brush and layer UI used by the region editor, but writes asset-local Prefab paint.
 - **Tiles**: the **Tile Picker Tool** shows the normal Tiles dock for applying tiles and materials to the Prefab's selected faces or objects.
-- **Palette**: the **Palette Tool** shows the normal Art Palette editor and lets Prefab geometry use the same project palette workflow.
+- **Palette**: the **Palette Tool** shows the normal project palette editor and lets Prefab geometry use the same project palette workflow.
 
 The contextual action list remains available beside the editor. Region-only actions, post-processing controls, and tools that do not apply to a Prefab source are hidden.
 
@@ -109,7 +109,7 @@ The same contextual modeling actions are available where applicable. Common Pref
 - duplicate selected Geometry Objects for repeated legs, slats, handles, or trim
 - edit faces with extrude, inset, subdivide, delete, texture, and opening actions
 - edit edges, contours, and vertices with the normal direct-geometry tools
-- assign tiles, materials, Art Palette colors, and 3D Paint
+- assign tiles, materials, project palette colors, and 3D Paint
 
 See [Object Tool](object), [Sector / Face Tool](sector), [Linedef / Edge Tool](linedef), [Vertex Tool](vertex), and [Creator Actions](/docs/creator/actions) for the complete shared modeling operations.
 

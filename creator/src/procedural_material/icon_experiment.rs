@@ -26,7 +26,7 @@ fn asset_for(kind: &str, name: &str) -> (EditableMaterialAsset, Variant) {
     )
     .unwrap();
     let project = Project::default();
-    super::super::palette::ensure_color_bindings(&mut asset, &project.art_palette).unwrap();
+    super::super::palette::ensure_color_bindings(&mut asset, &project.palette).unwrap();
     for (operation, parameters) in &variant.bindings {
         for (parameter, index) in parameters {
             asset = super::super::palette::bind_parameter(
@@ -34,7 +34,7 @@ fn asset_for(kind: &str, name: &str) -> (EditableMaterialAsset, Variant) {
                 operation,
                 parameter,
                 *index,
-                &project.art_palette,
+                &project.palette,
             )
             .unwrap();
         }

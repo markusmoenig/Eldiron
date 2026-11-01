@@ -1952,7 +1952,7 @@ impl Widget {
             .or_else(|| item.attributes.get_int("color"))
             .or_else(|| item.attributes.get_int("color_index"))
         {
-            return Self::ruleset_palette_color(assets, index, fallback);
+            return Self::palette_color_for_index(assets, index, fallback);
         }
         fallback
     }
@@ -1967,21 +1967,21 @@ impl Widget {
             return TheColor::from_hex(hex).to_u8_array();
         }
         if let Some(index) = item.attributes.get_int(&color_key) {
-            return Self::ruleset_palette_color(assets, index, fallback);
+            return Self::palette_color_for_index(assets, index, fallback);
         }
         if let Some(index) = item.attributes.get_int(&index_key) {
-            return Self::ruleset_palette_color(assets, index, fallback);
+            return Self::palette_color_for_index(assets, index, fallback);
         }
         fallback
     }
 
-    fn ruleset_palette_color(assets: &Assets, index: i32, fallback: [u8; 4]) -> [u8; 4] {
+    fn palette_color_for_index(assets: &Assets, index: i32, fallback: [u8; 4]) -> [u8; 4] {
         if index < 0 {
             return fallback;
         }
         let index = index as usize;
-        if index < assets.ruleset_palette.colors.len()
-            && let Some(color) = &assets.ruleset_palette[index]
+        if index < assets.palette.colors.len()
+            && let Some(color) = &assets.palette[index]
         {
             return color.to_u8_array();
         }
@@ -2040,9 +2040,9 @@ mod tests {
     }
 
     #[test]
-    fn generated_item_icon_colors_use_ruleset_palette() {
+    fn generated_item_icon_colors_use_project_palette() {
         let mut assets = Assets::default();
-        assets.ruleset_palette.colors[10] = Some(TheColor::from_u8(41, 82, 123, 255));
+        assets.palette.colors[10] = Some(TheColor::from_u8(41, 82, 123, 255));
         assets.palette.colors[10] = Some(TheColor::from_u8(240, 96, 16, 255));
 
         let mut item = Item::default();

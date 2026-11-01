@@ -231,7 +231,7 @@ impl Dock for TilemapDock {
                         );
                     }
                 } else if item_id.name == "Add Tileset Colors" {
-                    // let prev = project.art_palette.clone();
+                    // let prev = project.palette.clone();
                     if let Some(tilemap) = project.get_tilemap(self.curr_tilemap_id).cloned() {
                         let width = tilemap.buffer.dim().width;
                         let height = tilemap.buffer.dim().height;
@@ -240,7 +240,7 @@ impl Dock for TilemapDock {
                                 if let Some(c) = tilemap.buffer.get_pixel(x, y) {
                                     let color = TheColor::from(c);
                                     if color.a == 1.0 {
-                                        project.art_palette.add_unique_color(color);
+                                        project.palette.add_unique_color(color);
                                     }
                                 }
                             }
@@ -249,14 +249,14 @@ impl Dock for TilemapDock {
                     if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
                         let index = palette_picker.index();
 
-                        palette_picker.set_palette(project.art_palette.clone());
+                        palette_picker.set_palette(project.palette.clone());
                         if let Some(widget) = ui.get_widget("Palette Color Picker") {
-                            if let Some(color) = &project.art_palette[index] {
+                            if let Some(color) = &project.palette[index] {
                                 widget.set_value(TheValue::ColorObject(color.clone()));
                             }
                         }
                         if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                            if let Some(color) = &project.art_palette[index] {
+                            if let Some(color) = &project.palette[index] {
                                 widget.set_value(TheValue::Text(color.to_hex()));
                             }
                         }

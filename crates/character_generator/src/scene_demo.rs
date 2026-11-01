@@ -31,15 +31,14 @@ impl Demo {
         let mut project = decode_project(&std::fs::read(path)?)?;
         project.migrate_default_ruleset();
         let mut runtime = Rusterix::default();
-        runtime.assets.ruleset_palette = project.palette.clone();
-        runtime.assets.palette = project.art_palette.clone();
+        runtime.assets.palette = project.palette.clone();
         runtime.assets.palette_materials = project
-            .art_palette_materials
+            .palette_materials
             .iter()
             .map(|m| m.rmoe_values())
             .collect();
         runtime.assets.palette_material_ids = project
-            .art_palette_materials
+            .palette_materials
             .iter()
             .map(|m| m.material_id())
             .collect();

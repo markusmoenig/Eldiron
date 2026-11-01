@@ -97,6 +97,7 @@ pub struct Tile {
     pub id: String,
     pub input_disconnected: bool,
     pub code: Option<String>,
+    pub image: Option<crate::image_source::ImageSource>,
     pub kernel: String,
     pub parameters: Vec<(String, Binding)>,
     pub input: Option<Reference>,
@@ -529,6 +530,7 @@ pub fn parse(source: &str) -> Result<Project> {
                             input_disconnected: false,
                             kernel: t[1].clone(),
                             code: None,
+                            image: None,
                             parameters: vec![],
                             input: None,
                             combine: Combine::Replace,
@@ -564,6 +566,42 @@ pub fn parse(source: &str) -> Result<Project> {
                     if t == ["input", "disconnected"] {
                         tile.input_disconnected = true;
                         tile.input = None;
+                    } else if t.first().is_some_and(|s| s == "image") {
+                        use crate::image_source::{ImagePlane, ImageSource};
+                        let image = tile.image.get_or_insert_with(ImageSource::default);
+                        match t.get(1).map(String::as_str) {
+                            Some("size") if t.len() == 4 && image.width == 0 => {
+                                image.width = t[2]
+                                    .parse()
+                                    .map_err(|_| Error("Invalid image width".into()))?;
+                                image.height = t[3]
+                                    .parse()
+                                    .map_err(|_| Error("Invalid image height".into()))?;
+                            }
+                            Some("reference") if t.len() == 3 && image.reference.is_none() => {
+                                image.reference = Some(t[2].clone())
+                            }
+                            Some("frame") if t.len() == 5 => {
+                                if let Some(p) = image.planes.iter_mut().find(|p| p.channel == t[2])
+                                {
+                                    if p.space != t[3] {
+                                        return Err(Error("Image plane mixes color spaces".into()));
+                                    }
+                                    p.frames.push(t[4].clone());
+                                } else {
+                                    image.planes.push(ImagePlane {
+                                        channel: t[2].clone(),
+                                        space: t[3].clone(),
+                                        frames: vec![t[4].clone()],
+                                    })
+                                }
+                            }
+                            _ => {
+                                return Err(Error(
+                                    "Expected image size, image reference or image frame".into(),
+                                ));
+                            }
+                        }
                     } else if t == ["source"] {
                         if tile.code.is_some() {
                             return Err(Error("Duplicate tile source".into()));
@@ -812,6 +850,22 @@ pub fn write(project: &Project) -> String {
                     writeln!(s, "      input from {}", write_reference(input)).unwrap();
                 } else if tile.input_disconnected {
                     s.push_str("      input disconnected\n");
+                }
+                if let Some(image) = &tile.image {
+                    writeln!(s, "      image size {} {}", image.width, image.height).unwrap();
+                    if let Some(reference) = &image.reference {
+                        writeln!(s, "      image reference {}", quote(reference)).unwrap();
+                    }
+                    for plane in &image.planes {
+                        for frame in &plane.frames {
+                            writeln!(
+                                s,
+                                "      image frame {} {} {}",
+                                plane.channel, plane.space, frame
+                            )
+                            .unwrap();
+                        }
+                    }
                 }
                 if let Some(code) = &tile.code {
                     s.push_str("      source\n");

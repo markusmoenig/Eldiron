@@ -1,4 +1,4 @@
-use crate::{editor::UNDOMANAGER, prelude::*};
+use crate::prelude::*;
 
 pub struct ImportPalette {
     id: TheId,
@@ -47,7 +47,7 @@ impl Action for ImportPalette {
     ) {
         ctx.ui.open_file_requester(
             TheId::named_with_id("actionImportPalette", Uuid::new_v4()),
-            "Load Palette".into(),
+            "Switch Project Palette".into(),
             TheFileExtension::new(
                 "Palette".into(),
                 vec![
@@ -55,6 +55,8 @@ impl Action for ImportPalette {
                     "TXT".to_string(),
                     "hex".to_string(),
                     "HEX".to_string(),
+                    "gpl".into(),
+                    "pal".into(),
                 ],
             ),
         );
@@ -66,38 +68,12 @@ impl Action for ImportPalette {
 
     fn handle_event(
         &mut self,
-        event: &TheEvent,
-        project: &mut Project,
-        ui: &mut TheUI,
-        ctx: &mut TheContext,
-        server_ctx: &mut ServerContext,
+        _event: &TheEvent,
+        _project: &mut Project,
+        _ui: &mut TheUI,
+        _ctx: &mut TheContext,
+        _server_ctx: &mut ServerContext,
     ) -> bool {
-        match event {
-            TheEvent::FileRequesterResult(id, paths) => {
-                if id.name == "actionImportPalette" {
-                    for p in paths {
-                        if let Ok(contents) = std::fs::read_to_string(p) {
-                            let prev = project.art_palette.clone();
-                            let prev_materials = project.art_palette_materials.clone();
-
-                            project.load_art_palette_from_text(contents);
-                            apply_palette(ui, ctx, server_ctx, project);
-                            crate::undo::project_helper::refresh_palette_runtime(project);
-
-                            let undo_atom = ProjectUndoAtom::PaletteEdit(
-                                prev,
-                                prev_materials,
-                                project.art_palette.clone(),
-                                project.art_palette_materials.clone(),
-                            );
-                            UNDOMANAGER.write().unwrap().add_undo(undo_atom, ctx);
-                            return true;
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
         false
     }
 }

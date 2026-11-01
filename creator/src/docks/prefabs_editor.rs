@@ -1170,14 +1170,14 @@ impl PrefabsEditorDock {
 
     fn effect_palette_index(project: &Project, color: [u8; 4]) -> i32 {
         project
-            .art_palette
+            .palette
             .find_closest_color_index(&TheColor::from(color))
-            .unwrap_or(project.art_palette.current_index as usize) as i32
+            .unwrap_or(project.palette.current_index as usize) as i32
     }
 
     fn effect_palette_color(project: &Project, index: u16) -> Option<[u8; 4]> {
         project
-            .art_palette
+            .palette
             .colors
             .get(index as usize)
             .and_then(|color| color.as_ref())
@@ -2050,18 +2050,18 @@ impl PrefabsEditorDock {
         if let Some(widget) = ui.get_widget(EFFECT_COLOR)
             && let Some(picker) = widget.as_any().downcast_mut::<ThePaletteIndexPicker>()
         {
-            picker.set_palette(project.art_palette.clone());
+            picker.set_palette(project.palette.clone());
             picker.set_selected_index(
                 light
                     .map(|effect| effect.color)
                     .map(|color| Self::effect_palette_index(project, color))
-                    .unwrap_or(project.art_palette.current_index as i32),
+                    .unwrap_or(project.palette.current_index as i32),
             );
         }
         if let Some(widget) = ui.get_widget(EFFECT_COLOR_RAMP)
             && let Some(picker) = widget.as_any().downcast_mut::<ThePaletteIndexRowPicker>()
         {
-            picker.set_palette(project.art_palette.clone());
+            picker.set_palette(project.palette.clone());
             picker.set_selected_indices(
                 particle
                     .and_then(|effect| effect.emitter.color_ramp)
@@ -2070,7 +2070,7 @@ impl PrefabsEditorDock {
                             .map(|color| Self::effect_palette_index(project, color))
                             .collect()
                     })
-                    .unwrap_or_else(|| vec![project.art_palette.current_index as i32; 4]),
+                    .unwrap_or_else(|| vec![project.palette.current_index as i32; 4]),
             );
         }
         set_text(

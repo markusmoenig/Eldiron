@@ -450,6 +450,7 @@ pub struct Editor {
 
     sidebar: Sidebar,
     procedural_material: crate::procedural_material::ProceduralMaterialEditor,
+    palette_switch: crate::palette_switch::PaletteSwitchController,
     mapeditor: MapEditor,
 
     server_ctx: ServerContext,
@@ -4605,7 +4606,7 @@ impl Editor {
         loaded.migrate_default_ruleset();
         loaded.migrate_button_commands();
         let _ = loaded.sync_ruleset_items();
-        loaded.art_palette.current_index = 0;
+        loaded.palette.current_index = 0;
         Ok(loaded)
     }
 
@@ -4873,6 +4874,7 @@ impl Editor {
 
     fn deactivate_project_for_switch(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.procedural_material.reset(ui, ctx);
+        self.palette_switch.reset();
         // Finish editor-local interactions while the outgoing project is still
         // installed, then snapshot it before clearing global UI state.
         DOCKMANAGER
@@ -5334,13 +5336,13 @@ impl Editor {
         *update_server_icons = true;
         *redraw = true;
 
-        *PALETTE.write().unwrap() = self.project.art_palette.clone();
+        *PALETTE.write().unwrap() = self.project.palette.clone();
         {
             let mut rusterix = RUSTERIX.write().unwrap();
-            rusterix.assets.palette = self.project.art_palette.clone();
+            rusterix.assets.palette = self.project.palette.clone();
             rusterix.assets.palette_materials = self
                 .project
-                .art_palette_materials
+                .palette_materials
                 .iter()
                 .map(|m| m.rmoe_values())
                 .collect();
@@ -5349,9 +5351,9 @@ impl Editor {
             rusterix.set_tiles(self.project.tiles.clone(), true);
         }
         SCENEMANAGER.write().unwrap().set_palette(
-            self.project.art_palette.clone(),
+            self.project.palette.clone(),
             self.project
-                .art_palette_materials
+                .palette_materials
                 .iter()
                 .map(|m| m.rmoe_values())
                 .collect(),
@@ -7971,6 +7973,7 @@ impl TheTrait for Editor {
 
             sidebar: Sidebar::new(),
             procedural_material: Default::default(),
+            palette_switch: Default::default(),
             mapeditor: MapEditor::new(),
 
             server_ctx: ServerContext::default(),
@@ -8644,6 +8647,7 @@ impl TheTrait for Editor {
     fn update_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
         let mut update_server_icons = false;
+        redraw |= self.palette_switch.update(ctx);
         redraw |= self
             .procedural_material
             .update(ui, ctx, &mut self.project, &mut self.server_ctx);
@@ -10154,6 +10158,16 @@ impl TheTrait for Editor {
         }
 
         for event in pending_events {
+            if self.palette_switch.handle_event(
+                &event,
+                &mut self.project,
+                ui,
+                ctx,
+                &mut self.server_ctx,
+            ) {
+                redraw = true;
+                continue;
+            }
             if self.procedural_material.handle_event(
                 &event,
                 ui,
@@ -10712,54 +10726,6 @@ impl TheTrait for Editor {
                 }
                 TheEvent::FileRequesterResult(id, paths) => {
                     // Load a palette from a file
-                    if id.name == "Palette Import" {
-                        for p in paths {
-                            let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                            let prev = self.project.art_palette.clone();
-                            let prev_materials = self.project.art_palette_materials.clone();
-                            self.project.load_art_palette_from_text(contents);
-                            *PALETTE.write().unwrap() = self.project.art_palette.clone();
-                            {
-                                let mut rusterix = RUSTERIX.write().unwrap();
-                                rusterix.assets.palette = self.project.art_palette.clone();
-                                rusterix.assets.palette_materials =
-                                    crate::undo::project_helper::palette_material_values(
-                                        &self.project,
-                                    );
-                                rusterix.assets.palette_material_ids =
-                                    crate::undo::project_helper::palette_material_ids(
-                                        &self.project,
-                                    );
-                                rusterix.set_tiles(self.project.tiles.clone(), true);
-                            }
-
-                            if let Some(palette_picker) = ui.get_palette_picker("Palette Picker") {
-                                let index = palette_picker.index();
-
-                                palette_picker.set_palette(self.project.art_palette.clone());
-                                if let Some(widget) = ui.get_widget("Palette Color Picker") {
-                                    if let Some(color) = &self.project.art_palette[index] {
-                                        widget.set_value(TheValue::ColorObject(color.clone()));
-                                    }
-                                }
-                                if let Some(widget) = ui.get_widget("Palette Hex Edit") {
-                                    if let Some(color) = &self.project.art_palette[index] {
-                                        widget.set_value(TheValue::Text(color.to_hex()));
-                                    }
-                                }
-                            }
-                            redraw = true;
-
-                            let undo = ProjectUndoAtom::PaletteEdit(
-                                prev,
-                                prev_materials,
-                                self.project.art_palette.clone(),
-                                self.project.art_palette_materials.clone(),
-                            );
-                            UNDOMANAGER.write().unwrap().add_undo(undo, ctx);
-                        }
-                    } else
-                    // Open
                     if id.name == "Open" {
                         for p in paths {
                             match Self::load_project_from_path(&p) {

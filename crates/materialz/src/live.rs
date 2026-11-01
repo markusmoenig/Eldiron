@@ -42,10 +42,11 @@ impl Document {
                         };
                         format!("{}:{value}",j(id))
                     }).collect::<Vec<_>>().join(",");
+                    let image=t.image.as_ref().map(|v|v.json()).unwrap_or_else(||"null".into());
                     let code=t.code.as_deref().map(j).unwrap_or_else(||"null".into());
                     let input=t.input.as_ref().map(reference).unwrap_or_else(|| "null".into());
                     let distance=self.program.tile(&m.id,&r.id,i).map(|id|self.program.nodes[id.0].has_distance).unwrap_or(false);
-                    format!("{{\"id\":{},\"kernel\":{},\"combine\":{},\"input\":{input},\"input_disconnected\":{},\"parameters\":{{{params}}},\"has_distance\":{distance},\"code\":{code}}}",j(&t.id),j(&t.kernel),j(t.combine.name()),t.input_disconnected)
+                    format!("{{\"id\":{},\"kernel\":{},\"combine\":{},\"input\":{input},\"input_disconnected\":{},\"parameters\":{{{params}}},\"has_distance\":{distance},\"image\":{image},\"code\":{code}}}",j(&t.id),j(&t.kernel),j(t.combine.name()),t.input_disconnected)
                 }).collect::<Vec<_>>().join(",");
                 let coordinates=r.coordinates.as_ref().map(reference).unwrap_or_else(|| "null".into());
                 let incoming=r.incoming.iter().map(|link|format!("{{\"id\":{},\"source\":{}}}",j(&link.id),reference(&link.source))).collect::<Vec<_>>().join(",");

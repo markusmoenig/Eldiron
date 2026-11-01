@@ -35,7 +35,7 @@ pub(super) fn starter(id: Uuid, project: &Project) -> Result<EditableMaterialAss
     let mut asset = EditableMaterialAsset::parse(&id.to_string(), STARTER, "surface")
         .map_err(|e| e.to_string())?;
     let filled: Vec<_> = project
-        .art_palette
+        .palette
         .colors
         .iter()
         .enumerate()
@@ -56,9 +56,9 @@ pub(super) fn starter(id: Uuid, project: &Project) -> Result<EditableMaterialAss
     // custom palettes keep their own indices and fall back to their first colors.
     let a = preferred(37, first);
     let b = preferred(34, filled.get(1).copied().unwrap_or(first));
-    asset = bind_color(&asset, "palette-a", a, &project.art_palette)?;
-    asset = bind_color(&asset, "palette-b", b, &project.art_palette)?;
-    ensure_color_bindings(&mut asset, &project.art_palette)?;
+    asset = bind_color(&asset, "palette-a", a, &project.palette)?;
+    asset = bind_color(&asset, "palette-b", b, &project.palette)?;
+    ensure_color_bindings(&mut asset, &project.palette)?;
     Ok(asset)
 }
 
@@ -232,7 +232,7 @@ pub(super) fn refresh(project: &mut Project) -> Vec<String> {
         let result = EditableMaterialAsset::reopen(bundle)
             .map_err(|e| e.to_string())
             .and_then(|mut asset| {
-                ensure_color_bindings(&mut asset, &project.art_palette)?;
+                ensure_color_bindings(&mut asset, &project.palette)?;
                 asset.validate().map_err(|e| e.to_string())?;
                 asset.save().map_err(|e| e.to_string())
             });
@@ -423,7 +423,7 @@ material "surface" called "Surface"
   output base color from row "mix" xyz
 "#;
         let mut asset = EditableMaterialAsset::parse(&id.to_string(), source, "surface").unwrap();
-        ensure_color_bindings(&mut asset, &project.art_palette).unwrap();
+        ensure_color_bindings(&mut asset, &project.palette).unwrap();
         let colors = asset
             .parameter_metadata()
             .unwrap()
@@ -459,7 +459,7 @@ material "surface" called "Surface"
                 .any(|b| b.operation == "ramp" && b.parameter == "color2" && b.index == 41)
         );
         project.procedural_materials.insert(id, saved.clone());
-        project.art_palette.colors[41] = Some(TheColor::new(1., 0., 0., 1.));
+        project.palette.colors[41] = Some(TheColor::new(1., 0., 0., 1.));
         assert!(refresh(&mut project).is_empty());
         let updated = EditableMaterialAsset::reopen(&project.procedural_materials[&id]).unwrap();
         assert_eq!(
@@ -544,7 +544,7 @@ material "surface" called "Surface"
     #[test]
     fn palette_updates_linearize_rgb_preserve_alpha_and_keep_indices() {
         let mut project = Project::default();
-        project.art_palette.colors[37] = Some(TheColor::new(0.5, 0.25, 1., 0.4));
+        project.palette.colors[37] = Some(TheColor::new(0.5, 0.25, 1., 0.4));
         let id = Uuid::new_v4();
         let asset = starter(id, &project).unwrap();
         let color = color_tile(&asset, "palette-a")
@@ -561,7 +561,7 @@ material "surface" called "Surface"
         project
             .procedural_materials
             .insert(id, asset.save().unwrap());
-        project.art_palette.colors[37] = Some(TheColor::new(1., 0., 0., 0.2));
+        project.palette.colors[37] = Some(TheColor::new(1., 0., 0., 0.2));
         assert!(refresh(&mut project).is_empty());
         let changed = EditableMaterialAsset::reopen(&project.procedural_materials[&id]).unwrap();
         assert_eq!(binding_index(&changed, "palette-a"), Some(37));
@@ -576,18 +576,18 @@ material "surface" called "Surface"
     #[test]
     fn new_colors_bind_selected_slot_and_invalid_selection_is_transactional() {
         let mut project = Project::default();
-        project.art_palette.current_index = 8;
+        project.palette.current_index = 8;
         let mut asset=EditableMaterialAsset::parse("color","project 1\nmaterial \"surface\" called \"Color\"\n  mode pbr\n  row \"color\"\n    use \"Color\" id \"paint\"\n  output base color from row \"color\" xyz\n","surface").unwrap();
-        assert!(ensure_color_bindings(&mut asset, &project.art_palette).unwrap());
+        assert!(ensure_color_bindings(&mut asset, &project.palette).unwrap());
         assert_eq!(binding_index(&asset, "paint"), Some(8));
         let saved = asset.save().unwrap();
-        assert!(bind_color(&asset, "paint", 255, &project.art_palette).is_err());
+        assert!(bind_color(&asset, "paint", 255, &project.palette).is_err());
         assert_eq!(asset.save().unwrap(), saved);
-        let changed = bind_color(&asset, "paint", 0, &project.art_palette).unwrap();
+        let changed = bind_color(&asset, "paint", 0, &project.palette).unwrap();
         assert_eq!(binding_index(&changed, "paint"), Some(0));
-        let fingerprint = key(&project.art_palette);
-        project.art_palette.current_index = 4;
-        assert_eq!(key(&project.art_palette), fingerprint);
+        let fingerprint = key(&project.palette);
+        project.palette.current_index = 4;
+        assert_eq!(key(&project.palette), fingerprint);
     }
     #[test]
     fn deleted_or_connected_colors_prune_palette_keys_without_rebinding_masks() {
@@ -606,7 +606,7 @@ material "surface" called "Surface"
             mapping: None,
         });
         prune_bindings(&mut asset);
-        ensure_color_bindings(&mut asset, &project.art_palette).unwrap();
+        ensure_color_bindings(&mut asset, &project.palette).unwrap();
         assert_eq!(binding_index(&asset, "palette-a"), None);
         asset.root.project.materials[0]
             .rows
@@ -621,7 +621,7 @@ material "surface" called "Surface"
         let mut asset = starter(id, &project).unwrap();
         let dependency=EditableMaterialAsset::parse("shared-colors","project 1\nmaterial \"dependency\" called \"Shared Color\"\n  mode pbr\n  row \"color\"\n    use \"Color\" id \"shared-color\"\n  output base color from row \"color\" xyz\n","dependency").unwrap();
         asset.dependencies.push(dependency.root);
-        ensure_color_bindings(&mut asset, &project.art_palette).unwrap();
+        ensure_color_bindings(&mut asset, &project.palette).unwrap();
         asset.validate().unwrap();
         let duplicate =
             super::super::duplicate_bundle(&asset.save().unwrap(), Uuid::new_v4()).unwrap();
@@ -635,7 +635,7 @@ material "surface" called "Surface"
                 .any(|binding| binding.key.asset == "shared-colors"
                     && binding.key.tile == "shared-color")
         );
-        let changed = bind_color(&duplicate, "palette-a", 8, &project.art_palette).unwrap();
+        let changed = bind_color(&duplicate, "palette-a", 8, &project.palette).unwrap();
         assert_eq!(binding_index(&changed, "palette-a"), Some(8));
         assert_eq!(binding_index(&asset, "palette-a"), Some(37));
     }
@@ -662,7 +662,7 @@ material "surface" called "Surface"
         project.material_compositions.insert(id, model);
         let before = super::super::composition::bundle(id, &project, None).unwrap();
         project.procedural_materials.insert(id, before.clone());
-        project.art_palette.colors[37] = Some(TheColor::new(1., 0., 1., 0.7));
+        project.palette.colors[37] = Some(TheColor::new(1., 0., 1., 0.7));
         assert!(refresh(&mut project).is_empty());
         let after = super::super::composition::bundle(id, &project, None).unwrap();
         assert_ne!(before, after);

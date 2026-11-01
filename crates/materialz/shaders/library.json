@@ -608,5 +608,14 @@
     "input": true,
     "id": "alpha_over",
     "authored": true
+  },
+  {
+    "stem": "image_source",
+    "file": "materialz_core.txt",
+    "name": "Image / Tile Source",
+    "category": "Image",
+    "input": false,
+    "id": "image_source",
+    "authored": true
   }
 ]

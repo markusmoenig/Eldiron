@@ -596,6 +596,13 @@ fn generate_part(
             }
             s.push_str("};\n");
         }
+        let raster_offset = values.len();
+        if let Some(raster) = &n.algorithm.raster {
+            if buffered {
+                values.extend_from_slice(&raster.pixels);
+            }
+            s.push_str(&raster.metal_helpers(id.0, buffered, raster_offset));
+        }
         writeln!(s, "\nMzSample mz_node_{}({signature}) {{", id.0).unwrap();
         if let Some(c) = &n.coordinates {
             let kind = if c.components.len() == 3 {
@@ -627,18 +634,7 @@ fn generate_part(
             }
         }
         if let Some(raster) = &n.algorithm.raster {
-            let index = format!(
-                "uint(floor(fract(uv.y)*{}.0f))*{}u + uint(floor(fract(uv.x)*{}.0f))",
-                raster.height, raster.width, raster.width
-            );
-            let load = if buffered {
-                let offset = values.len();
-                values.extend_from_slice(&raster.pixels);
-                format!("params[{offset} + {index}]")
-            } else {
-                format!("mz_bitmap_{}[{index}]", id.0)
-            };
-            writeln!(s,"    float4 mz_pixel = {load};\n    MzSample result = mz_image(mz_pixel.rgb);\n    result.color = mz_pixel;\n    return result;\n}}").unwrap();
+            s.push_str(&raster.metal_sample(id.0, buffered));
             continue;
         }
         let mut parameter_sources = HashMap::new();

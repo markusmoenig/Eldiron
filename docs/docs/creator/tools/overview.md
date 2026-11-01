@@ -107,16 +107,16 @@ The **icons in the upper-right corner** of the HUD are **tool-specific** and all
 
 With the [Palette Tool](palette), the lower picker area shows the **Palette** dock instead:
 
-- a fixed Ruleset Palette view
-- an editable Art Palette board
-- material and finish selectors for Art Palette entries
+- a fixed project palette view
+- an editable project palette board
+- material and finish selectors for project palette entries
 - `Apply Color` and `Clear` actions for palette-based assignment
 
 With the [3D Paint Tool](iso_paint), the lower picker area shows the **3D Paint** dock instead:
 
 - visual brush presets
 - draw/erase/pick and Surface/No Clip controls
-- Art Palette color slots
+- project palette color slots
 - material, finish, shape, and pattern settings for surface-space paint strokes
 
 With the [Prefab Tool](blocks), the lower picker area shows the **Prefabs** dock instead:
@@ -167,7 +167,7 @@ The **Palette Tool** is another bottom-row mode toggle. When enabled, contexts t
 
 Palette mode is used for:
 
-- editing Art Palette entries
+- editing project palette entries
 - changing palette material and finish metadata
 - applying palette-index sources to geometry
 

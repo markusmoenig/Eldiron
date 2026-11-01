@@ -243,7 +243,7 @@ impl MaterialControls {
             self.names.insert(id.clone(), label.clone());
             self.tiles.push(GraphPickerItem { id, label });
         }
-        for (index, color) in project.art_palette.colors.iter().enumerate() {
+        for (index, color) in project.palette.colors.iter().enumerate() {
             let Some(color) = color else {
                 continue;
             };

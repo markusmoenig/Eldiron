@@ -23,6 +23,7 @@ pub mod material_editor;
 pub mod minimap;
 pub mod misc;
 mod procedural_material;
+mod palette_switch;
 mod project_templates;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod scepter;

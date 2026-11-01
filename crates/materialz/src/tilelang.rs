@@ -776,7 +776,7 @@ impl Algorithm {
         mut input: impl FnMut([f32; 2], Option<crate::cpu::SampleContext>) -> [f32; 4],
     ) -> (Option<[f32; 4]>, Option<f32>) {
         if let Some(raster) = &self.raster {
-            return (Some(raster.sample(uv)), None);
+            return (Some(raster.sample(uv, context.time)), None);
         }
         let mut values = vec![
             uv.to_vec(),

@@ -33,7 +33,7 @@ pub(crate) fn install(project: &mut Project) -> Result<(), String> {
                 .ok_or("Recipe has no material")?;
             let mut asset = EditableMaterialAsset::parse(&id.to_string(), source, selected)
                 .map_err(|e| e.to_string())?;
-            super::palette::ensure_color_bindings(&mut asset, &project.art_palette)?;
+            super::palette::ensure_color_bindings(&mut asset, &project.palette)?;
             let palette_path = path.replace(".material", ".palette.json");
             if let Some(bytes) = crate::Embedded::get(&palette_path) {
                 let references: std::collections::BTreeMap<
@@ -45,7 +45,7 @@ pub(crate) fn install(project: &mut Project) -> Result<(), String> {
                         // Custom palettes may have fewer slots; retain the nearest
                         // existing color chosen on import rather than inserting RGB.
                         if project
-                            .art_palette
+                            .palette
                             .colors
                             .get(index as usize)
                             .is_some_and(Option::is_some)
@@ -55,7 +55,7 @@ pub(crate) fn install(project: &mut Project) -> Result<(), String> {
                                 &operation,
                                 &parameter,
                                 index,
-                                &project.art_palette,
+                                &project.palette,
                             )?;
                         }
                     }

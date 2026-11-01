@@ -381,8 +381,8 @@ impl AvatarRuntimeBuilder {
             return default;
         }
         let i = idx as usize;
-        if i < assets.ruleset_palette.colors.len() {
-            if let Some(col) = &assets.ruleset_palette[i] {
+        if i < assets.palette.colors.len() {
+            if let Some(col) = &assets.palette[i] {
                 return col.to_u8_array();
             }
         }
@@ -440,12 +440,22 @@ impl AvatarRuntimeBuilder {
 
     fn marker_colors_for_entity(entity: &Entity, assets: &Assets) -> AvatarMarkerColors {
         let defaults = AvatarMarkerColors::default();
-        let light_skin = Self::marker_color(entity, assets, "light_skin", defaults.skin_light);
+        let light_skin = Self::marker_color(
+            entity,
+            assets,
+            "light_skin",
+            Self::marker_color_from_index(assets, 22, defaults.skin_light),
+        );
         let mut colors = AvatarMarkerColors {
             // Base/default marker color for most slots is light_skin.
             skin_light: light_skin,
             // Keep a distinct dark skin default even when only light_skin is configured.
-            skin_dark: Self::marker_color(entity, assets, "dark_skin", defaults.skin_dark),
+            skin_dark: Self::marker_color(
+                entity,
+                assets,
+                "dark_skin",
+                Self::marker_color_from_index(assets, 20, defaults.skin_dark),
+            ),
             torso: Self::marker_color(entity, assets, "torso", light_skin),
             arms: Self::marker_color(entity, assets, "arms", light_skin),
             legs: Self::marker_color(entity, assets, "legs", light_skin),
@@ -830,7 +840,7 @@ impl AvatarRuntimeBuilder {
             item,
             assets,
             "grip",
-            Self::marker_color_from_index(assets, 10, [165, 120, 80, 255]),
+            Self::marker_color_from_index(assets, 20, [165, 120, 80, 255]),
         );
         let accent = Self::item_role_visual_color(item, assets, "accent", [48, 56, 67, 255]);
         let dark = [48, 56, 67, 255];

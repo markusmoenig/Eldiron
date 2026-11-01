@@ -432,4 +432,10 @@ pub(crate) const TILES: &[(&str, &str, bool, &str)] = &[
         true,
         "alpha_over",
     ),
+    (
+        include_str!("../shaders/tiles/image_source.tile"),
+        include_str!("../shaders/original/materialz_core.txt"),
+        false,
+        "image_source",
+    ),
 ];

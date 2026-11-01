@@ -389,3 +389,5 @@ impl RenderTile {
 /// Optional AI interpretation for existing text-game hosts.
 #[cfg(feature = "text-ai")]
 pub mod ai;
+
+pub mod palette;

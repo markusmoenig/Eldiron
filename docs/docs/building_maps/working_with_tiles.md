@@ -24,7 +24,7 @@ Single tiles can also have a human-readable alias. Set it with **Edit Tile Meta*
 
 **Edit Tile Meta Data** also provides comma-separated **Gameplay Tags**. When a character enters or leaves a painted 2D tile carrying these tags, it receives an [`entered_tile`](/docs/characters_items/events) or [`left_tile`](/docs/characters_items/events) event for each tag. This keeps tile-based interactions attached to the artwork when a tile is moved. Aliases and gameplay tags are separate: aliases identify visual sources, while gameplay tags describe behavior such as `chair`, `water`, `lava`, or `trap`.
 
-Single tiles can also have high-level material metadata. Use **Edit Tile Meta** to assign a material preset and finish for tile sources. Art Palette colors carry their own material preset and finish in the **Palette** dock.
+Single tiles can also have high-level material metadata. Use **Edit Tile Meta** to assign a material preset and finish for tile sources. project palette colors carry their own material preset and finish in the **Palette** dock.
 
 The tile picker contains individual tiles, which can be organised in collections.
 
@@ -40,7 +40,7 @@ Selecting a tile and clicking the top-right **Edit / Maximize Dock** control, or
 
 Use the adjacent **Restore Dock** control or `Cmd/Ctrl + ]` to return to the normal split layout.
 
-Drawing pixels uses the currently selected color in the Art Palette. Palette actions such as [Clear Palette](/docs/creator/actions/#clear-palette) and [Load Palette](/docs/creator/actions/#load-palette) operate on the editable Art Palette, not the fixed Ruleset Palette.
+Drawing pixels uses the currently selected color in the project palette. Palette actions such as [Clear Palette](/docs/creator/actions/#clear-palette) and [Load Palette](/docs/creator/actions/#load-palette) operate on the editable project palette, not the fixed project palette.
 
 Editing tiles auto-updates them on the map. Undo is supported for each tile individually.
 

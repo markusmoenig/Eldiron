@@ -1509,3 +1509,7 @@ material "surface" called "Initial thumbnails"
 #[cfg(test)]
 #[path = "icon_experiment.rs"]
 mod icon_experiment;
+
+#[cfg(test)]
+#[path = "image_source_gpu.rs"]
+mod image_source_gpu;

@@ -15,6 +15,7 @@ pub(crate) const SIDEBAR_PAGE: usize = 6;
 pub(crate) const PREVIEW_STACK: &str = "Sidebar Preview Stack";
 const PREVIEW: &str = "Material Preview";
 mod composition;
+mod image_source;
 pub(crate) mod map_composition;
 mod palette;
 pub(crate) mod pixel_style;
@@ -236,6 +237,7 @@ material "preview" called "Source Preview"
                 input: None,
                 input_disconnected: false,
                 code: None,
+                image: None,
                 combine: format::Combine::Replace,
             },
         );
@@ -376,6 +378,7 @@ fn input_preview_asset(
             input: None,
             input_disconnected: true,
             code: Some(format!("{declarations}image = {expression}\n")),
+            image: None,
             combine: format::Combine::Replace,
         }],
     });
@@ -516,6 +519,20 @@ fn view(asset: &EditableMaterialAsset) -> Result<MaterialEditorView, String> {
     let params = asset.parameter_metadata().map_err(|e| e.to_string())?;
     Ok(MaterialEditorView {
         title: mat.label.clone(),
+        image_sources: vec![],
+        image_bindings: mat
+            .rows
+            .iter()
+            .flat_map(|r| &r.tiles)
+            .filter_map(|t| {
+                t.image.as_ref().map(|i| {
+                    (
+                        t.id.clone(),
+                        format!("{} × {} · {} frame(s)", i.width, i.height, i.frame_count()),
+                    )
+                })
+            })
+            .collect(),
         palette: vec![],
         palette_bindings: palette::bindings(asset),
         animation: MaterialAnimationView {
@@ -1025,6 +1042,7 @@ fn edited(
                 id: format::new_tile_id(),
                 input_disconnected: false,
                 code: None,
+                image: None,
                 kernel: source.metadata.name,
                 parameters: vec![],
                 input: None,
@@ -1127,19 +1145,39 @@ fn edited_for_project(
     command: MaterialEditorCommand,
     project: &Project,
 ) -> Result<EditableMaterialAsset, String> {
+    if let MaterialEditorCommand::SetImage { operation, image } = &command {
+        return image_source::set(asset, operation, image.clone());
+    }
+    if let MaterialEditorCommand::ChooseImage { operation, source } = &command {
+        if source == "@current" {
+            return Ok(asset.clone());
+        }
+        if source == "@clear" {
+            return image_source::set(asset, operation, None);
+        }
+        let id = Uuid::parse_str(source).map_err(|_| "Invalid image tile reference")?;
+        if project.procedural_materials.contains_key(&id) {
+            return Err("Choose a bitmap tile as the image source".into());
+        }
+        let tile = project
+            .tiles
+            .get(&id)
+            .ok_or("Image source tile is missing")?;
+        return image_source::set(asset, operation, Some(image_source::from_tile(id, tile)?));
+    }
     if let MaterialEditorCommand::SetPaletteParameter {
         operation,
         parameter,
         index,
     } = &command
     {
-        return palette::bind_parameter(asset, operation, parameter, *index, &project.art_palette);
+        return palette::bind_parameter(asset, operation, parameter, *index, &project.palette);
     }
     if let MaterialEditorCommand::SetPalette { operation, index } = command {
-        return palette::bind_color(asset, &operation, index, &project.art_palette);
+        return palette::bind_color(asset, &operation, index, &project.palette);
     }
     let mut next = edited(asset, command)?;
-    palette::ensure_color_bindings(&mut next, &project.art_palette)?;
+    palette::ensure_color_bindings(&mut next, &project.palette)?;
     next.validate().map_err(|e| e.to_string())?;
     Ok(next)
 }
@@ -1179,6 +1217,8 @@ pub struct ProceduralMaterialEditor {
     palette_key: Option<u64>,
     pixel_density: u32,
     pixel_config_key: Option<u64>,
+    image_source_key: Option<u64>,
+    pending_image: Option<(Uuid, String)>,
     composition_key: Option<u64>,
     composition_ui_key: Option<(Uuid, u64, usize)>,
     composition_layer: usize,
@@ -1279,6 +1319,47 @@ impl ProceduralMaterialEditor {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        if let TheEvent::FileRequesterResult(id, paths) = event {
+            if id.name == "Material Image Import" {
+                if let (Some((target, operation)), Some(path)) =
+                    (self.pending_image.take(), paths.first())
+                {
+                    let result = (|| -> Result<(), String> {
+                        let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+                        let texture = rusterix::Texture::from_image_safe(bytes.as_slice())
+                            .ok_or("Could not decode image")?;
+                        let image = denrim_materials::image_source::ImageSource::rgba8(
+                            texture.width,
+                            texture.height,
+                            &[texture.data],
+                        )
+                        .map_err(|e| e.to_string())?;
+                        let before = project
+                            .procedural_materials
+                            .get(&target)
+                            .ok_or("Material was removed")?
+                            .clone();
+                        let asset =
+                            EditableMaterialAsset::reopen(&before).map_err(|e| e.to_string())?;
+                        let next = image_source::set(&asset, &operation, Some(image))?;
+                        let bundle = next.save().map_err(|e| e.to_string())?;
+                        project.procedural_materials.insert(target, bundle.clone());
+                        UNDOMANAGER.write().unwrap().add_undo(
+                            ProjectUndoAtom::ProceduralMaterialEdit(target, before, bundle),
+                            ctx,
+                        );
+                        if self.tile == Some(target) {
+                            self.asset = Some(next);
+                        }
+                        Ok(())
+                    })();
+                    if let Err(e) = result {
+                        Self::status(ui, ctx, e);
+                    }
+                }
+                return true;
+            }
+        }
         if self.map_binding.is_some() {
             self.follow_map_composition(ui, ctx, project, server);
         }
@@ -1433,6 +1514,28 @@ impl ProceduralMaterialEditor {
                     .map(|w| w.take_commands())
                     .unwrap_or_default();
                 for command in commands {
+                    if let MaterialEditorCommand::ChooseImage { operation, source } = &command {
+                        if source == "@import" {
+                            if let Some(tile) = self.tile {
+                                self.pending_image = Some((tile, operation.clone()));
+                                ctx.ui.open_file_requester(
+                                    TheId::named("Material Image Import"),
+                                    "Import Material Image".into(),
+                                    TheFileExtension::new(
+                                        "Image".into(),
+                                        vec![
+                                            "png".into(),
+                                            "jpg".into(),
+                                            "jpeg".into(),
+                                            "bmp".into(),
+                                            "webp".into(),
+                                        ],
+                                    ),
+                                );
+                            }
+                            continue;
+                        }
+                    }
                     if let MaterialEditorCommand::InspectRow(_) = &command {
                         continue;
                     }
@@ -1593,8 +1696,47 @@ impl ProceduralMaterialEditor {
     fn set_project_view(ui: &mut TheUI, asset: &EditableMaterialAsset, project: &Project) {
         Self::sync_tiling_button(ui, asset);
         if let Ok(mut view) = view(asset) {
+            view.image_sources = project
+                .tiles
+                .iter()
+                .filter(|(id, t)| {
+                    !project.procedural_materials.contains_key(*id) && !t.textures.is_empty()
+                })
+                .map(|(id, t)| {
+                    (
+                        id.to_string(),
+                        if t.alias.is_empty() {
+                            id.to_string()
+                        } else {
+                            t.alias.clone()
+                        },
+                    )
+                })
+                .collect();
+            view.image_sources
+                .sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
+            for (operation, label) in &mut view.image_bindings {
+                let source = asset
+                    .root
+                    .project
+                    .materials
+                    .iter()
+                    .flat_map(|m| &m.rows)
+                    .flat_map(|r| &r.tiles)
+                    .find(|t| &t.id == operation)
+                    .and_then(|t| t.image.as_ref())
+                    .and_then(|i| i.reference.as_deref())
+                    .and_then(|s| s.strip_prefix("eldiron:tile:"))
+                    .and_then(|s| Uuid::parse_str(s).ok())
+                    .and_then(|id| project.tiles.get(&id));
+                if let Some(source) = source {
+                    if !source.alias.is_empty() {
+                        *label = format!("{} · {}", source.alias, label);
+                    }
+                }
+            }
             view.palette = project
-                .art_palette
+                .palette
                 .colors
                 .iter()
                 .enumerate()
@@ -1646,6 +1788,29 @@ impl ProceduralMaterialEditor {
         server: &mut ServerContext,
     ) -> bool {
         let mut changed = false;
+        let image_key = image_source::input_key(project);
+        if self.image_source_key != Some(image_key) {
+            self.image_source_key = Some(image_key);
+            let mut updates = vec![];
+            for (id, bundle) in &project.procedural_materials {
+                if let Ok(asset) = EditableMaterialAsset::reopen(bundle) {
+                    match image_source::refresh(&asset, project) {
+                        Ok(Some(a)) => {
+                            if let Ok(b) = a.save() {
+                                updates.push((*id, b));
+                            }
+                        }
+                        Err(e) => Self::status(ui, ctx, e),
+                        _ => {}
+                    }
+                }
+            }
+            for (id, bundle) in updates {
+                project.procedural_materials.insert(id, bundle);
+                changed = true;
+            }
+            self.image_source_key = Some(image_source::input_key(project));
+        }
         let config_key = cache_key(&project.config);
         if self.pixel_config_key != Some(config_key) {
             self.pixel_config_key = Some(config_key);
@@ -1658,7 +1823,7 @@ impl ProceduralMaterialEditor {
             }
         }
         let pixel_density = self.pixel_density;
-        let palette_key = palette::key(&project.art_palette);
+        let palette_key = palette::key(&project.palette);
         if self.palette_key != Some(palette_key) {
             self.palette_key = Some(palette_key);
             for error in palette::refresh(project) {
@@ -3189,8 +3354,8 @@ mod gpu_workspace_test {
     #[ignore = "requires a GPU device; writes /tmp/eldiron-materials-palette.png"]
     fn palette_starter_initial_cards_and_palette_updates_render_in_the_sidebar() {
         let mut project = Project::default();
-        project.art_palette.colors[37] = Some(TheColor::new(0.8, 0.1, 0.1, 0.5));
-        project.art_palette.colors[34] = Some(TheColor::new(0.1, 0.8, 0.1, 1.));
+        project.palette.colors[37] = Some(TheColor::new(0.8, 0.1, 0.1, 0.5));
+        project.palette.colors[34] = Some(TheColor::new(0.1, 0.8, 0.1, 1.));
         let tile = rusterix::Tile::from_textures(vec![rusterix::Texture::alloc(64, 64)]);
         let id = tile.id;
         let asset = palette::starter(id, &project).unwrap();
@@ -3229,7 +3394,7 @@ mod gpu_workspace_test {
                 "Missing initial thumbnail for {operation}"
             );
         }
-        let expected = project.art_palette.colors[37]
+        let expected = project.palette.colors[37]
             .as_ref()
             .unwrap()
             .to_u8_array();
@@ -3267,7 +3432,7 @@ mod gpu_workspace_test {
             .unwrap()
             .write_image_data(&pixels)
             .unwrap();
-        project.art_palette.colors[37] = Some(TheColor::new(0.1, 0.1, 0.8, 0.5));
+        project.palette.colors[37] = Some(TheColor::new(0.1, 0.1, 0.8, 0.5));
         host.update(&mut ui, &mut ctx, &mut project, &mut server);
         let expected_key = pixel_style::bake_key(
             &project.procedural_materials[&id],
@@ -3291,7 +3456,7 @@ mod gpu_workspace_test {
             .find(|(id, _)| id == "palette-a")
             .unwrap()
             .1;
-        let expected = project.art_palette.colors[37]
+        let expected = project.palette.colors[37]
             .as_ref()
             .unwrap()
             .to_u8_array();

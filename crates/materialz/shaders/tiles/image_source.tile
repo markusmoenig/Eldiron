@@ -1,0 +1,15 @@
+tile 1
+name "Image / Tile Source"
+category "Image"
+description "An embedded image or host tile, including alpha, animation and optional material maps. Transparent outside the image by default. Choose centered coordinates for shapes/icons or 0–1 for world tiles. Image pixels are document data and remain portable."
+distance clear
+group "Image" true
+param float uvMode "UV Domain" default 0
+choices "Centered" "Tile (0–1)"
+param float address "Edges" default 0
+choices "Transparent" "Clamp" "Repeat"
+param float filter "Filtering" default 0
+choices "Nearest" "Linear"
+param float channel "Channel" default 0
+choices "Color" "Roughness" "Metallic" "Opacity" "Emission"
+image = vec4(0)

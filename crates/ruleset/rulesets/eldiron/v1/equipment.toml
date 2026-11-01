@@ -418,16 +418,16 @@ description = "A blunt wooden practice sword used for early drills and safe spar
 category = "sword"
 slot = "main_hand"
 rarity = "common"
-color = 10
+color = 20
 icon = "training_sword"
 visual_template = "sword_diagonal"
 rig_scale = 0.85
 rig_pivot = [0.31, 0.82]
 rig_layer = "back"
-blade_color_index = 10
-grip_color_index = 7
-accent_color_index = 6
-highlight_color_index = 14
+blade_color_index = 20
+grip_color_index = 4
+accent_color_index = 19
+highlight_color_index = 22
 
 [items.weapons.training_sword.attributes]
 DMG = 2
@@ -447,16 +447,16 @@ description = "A compact iron axe with a worn wooden handle, useful as both tool
 category = "axe"
 slot = "main_hand"
 rarity = "common"
-color = 25
+color = 9
 icon = "hand_axe"
 visual_template = "axe_diagonal"
 rig_scale = 0.85
 rig_pivot = [0.31, 0.82]
 rig_layer = "back"
-blade_color_index = 25
-grip_color_index = 10
-accent_color_index = 29
-highlight_color_index = 23
+blade_color_index = 9
+grip_color_index = 20
+accent_color_index = 4
+highlight_color_index = 8
 
 [items.weapons.hand_axe.attributes]
 DMG = 3
@@ -476,16 +476,16 @@ description = "A plain iron mace with a wooden haft, heavy enough for first comb
 category = "mace"
 slot = "main_hand"
 rarity = "common"
-color = 25
+color = 9
 icon = "novice_mace"
 visual_template = "mace_diagonal"
 rig_scale = 0.85
 rig_pivot = [0.31, 0.82]
 rig_layer = "back"
-blade_color_index = 25
-grip_color_index = 10
-accent_color_index = 29
-highlight_color_index = 23
+blade_color_index = 9
+grip_color_index = 20
+accent_color_index = 4
+highlight_color_index = 8
 
 [items.weapons.novice_mace.attributes]
 DMG = 2
@@ -505,15 +505,15 @@ description = "A simple wooden bow suitable for short patrols and first hunts."
 category = "bow"
 slot = "main_hand"
 rarity = "common"
-color = 7
+color = 4
 icon = "hunting_bow"
 visual_template = "bow_diagonal"
 rig_scale = 0.9
 rig_pivot = [0.36, 0.84]
 rig_layer = "back"
-grip_color_index = 10
-accent_color_index = 7
-highlight_color_index = 23
+grip_color_index = 20
+accent_color_index = 4
+highlight_color_index = 8
 
 [items.weapons.hunting_bow.attributes]
 DMG = 1
@@ -535,16 +535,16 @@ description = "A simple practice spear with an iron tip and a long wooden shaft.
 category = "spear"
 slot = "main_hand"
 rarity = "common"
-color = 10
+color = 20
 icon = "training_spear"
 visual_template = "spear_diagonal"
 rig_scale = 0.9
 rig_pivot = [0.31, 0.82]
 rig_layer = "back"
-blade_color_index = 25
-grip_color_index = 10
-accent_color_index = 29
-highlight_color_index = 23
+blade_color_index = 9
+grip_color_index = 20
+accent_color_index = 4
+highlight_color_index = 8
 
 [items.weapons.training_spear.attributes]
 DMG = 2
@@ -564,7 +564,7 @@ description = "Layered cloth padding that softens early blows without slowing mo
 category = "cloth"
 slot = "torso"
 rarity = "common"
-color = 9
+color = 5
 icon = "padded_armor"
 avatar_channels = ["torso", "arms"]
 
@@ -577,7 +577,7 @@ description = "Pale layered vestments reinforced for novice temple guardians and
 category = "cloth"
 slot = "torso"
 rarity = "common"
-color = 25
+color = 9
 icon = "linen_shirt"
 avatar_channels = ["torso", "arms"]
 
@@ -590,7 +590,7 @@ description = "A flexible leather vest for scouts, hunters, and light guards."
 category = "leather"
 slot = "torso"
 rarity = "common"
-color = 7
+color = 4
 icon = "leather_vest"
 avatar_channels = ["torso"]
 
@@ -603,7 +603,7 @@ description = "Interlinked metal rings worn over padding for reliable protection
 category = "chain"
 slot = "torso"
 rarity = "common"
-color = 25
+color = 9
 icon = "chain_shirt"
 avatar_channels = ["torso", "arms"]
 
@@ -616,15 +616,15 @@ description = "A round wooden shield with a metal rim and a simple boss."
 category = "shield"
 slot = "shield"
 rarity = "common"
-color = 10
+color = 20
 icon = "round_shield"
 visual_template = "shield"
 rig_scale = 0.9
 rig_pivot = [0.5, 0.5]
 rig_layer = "front"
-blade_color_index = 10
-accent_color_index = 25
-highlight_color_index = 23
+blade_color_index = 20
+accent_color_index = 9
+highlight_color_index = 8
 
 [items.armor.round_shield.attributes]
 ARMOR = 1
@@ -635,14 +635,14 @@ description = "A hand-balanced censer whose prepared smoke steadies healing and 
 category = "focus"
 slot = "focus"
 rarity = "uncommon"
-color = 14
+color = 22
 worth = 85
 icon = "novice_mace"
 visual_template = "mace_diagonal"
-blade_color_index = 14
-grip_color_index = 10
-accent_color_index = 23
-highlight_color_index = 13
+blade_color_index = 22
+grip_color_index = 20
+accent_color_index = 8
+highlight_color_index = 23
 
 [items.armor.ritual_censer.attributes]
 POWER = 1
@@ -654,13 +654,13 @@ description = "A warm talisman that turns hostile sorcery and stray flame away f
 category = "focus"
 slot = "focus"
 rarity = "uncommon"
-color = 14
+color = 22
 worth = 120
 icon = "holy_light"
 visual_template = "coin_round"
-blade_color_index = 14
-accent_color_index = 23
-highlight_color_index = 13
+blade_color_index = 22
+accent_color_index = 8
+highlight_color_index = 23
 
 [items.armor.sunward_charm.attributes]
 RESIST = 2
@@ -672,7 +672,7 @@ description = "A plain linen shirt for everyday travel and layering under armor.
 category = "cloth"
 slot = "torso"
 rarity = "common"
-color = 2
+color = 7
 worth = 5
 icon = "linen_shirt"
 avatar_channels = ["torso", "arms"]
@@ -683,7 +683,7 @@ description = "Sturdy wool trousers suited for road dust and cold evenings."
 category = "cloth"
 slot = "legs"
 rarity = "common"
-color = 28
+color = 12
 worth = 6
 icon = "wool_trousers"
 avatar_channels = ["legs"]
@@ -694,7 +694,7 @@ description = "Simple leather shoes with enough grip for town paths and dry trai
 category = "leather"
 slot = "feet"
 rarity = "common"
-color = 7
+color = 4
 worth = 8
 icon = "leather_shoes"
 avatar_channels = ["feet"]
@@ -705,14 +705,14 @@ description = "A simple cloth pouch for carrying a few loose items."
 category = "bag"
 slot = "container"
 rarity = "common"
-color = 10
+color = 20
 max_stack = 1
 container_template = "bag_small"
 icon = "small_bag"
 visual_template = "bag_pouch"
-grip_color_index = 10
-accent_color_index = 11
-highlight_color_index = 14
+grip_color_index = 20
+accent_color_index = 24
+highlight_color_index = 22
 
 [items.containers.small_bag.attributes]
 container = true
@@ -725,15 +725,15 @@ description = "A lootable body containing carried items."
 category = "corpse"
 slot = "container"
 rarity = "common"
-color = 28
+color = 12
 max_stack = 1
 container_template = "default"
 icon = "loot_corpse"
 visual_template = "tombstone_mark"
-blade_color_index = 30
-grip_color_index = 25
-accent_color_index = 29
-highlight_color_index = 23
+blade_color_index = 14
+grip_color_index = 9
+accent_color_index = 4
+highlight_color_index = 8
 
 [items.containers.loot_corpse.attributes]
 container = true
@@ -748,13 +748,13 @@ description = "A bundle of plain wooden arrows for bows."
 category = "arrow"
 slot = "ammunition"
 rarity = "common"
-color = 8
+color = 4
 max_stack = 99
 icon = "wooden_arrows"
 visual_template = "arrow_diagonal"
-grip_color_index = 10
-blade_color_index = 25
-highlight_color_index = 23
+grip_color_index = 20
+blade_color_index = 9
+highlight_color_index = 8
 
 [items.ammunition.wooden_arrows.attributes]
 stackable = true
@@ -767,14 +767,14 @@ description = "A small bundle of blessed herbs used for simple restoration rites
 category = "herb"
 slot = "reagent"
 rarity = "common"
-color = 13
+color = 23
 max_stack = 20
 icon = "blessed_herb"
 visual_template = "herb_sprig"
-blade_color_index = 13
-grip_color_index = 10
-accent_color_index = 14
-highlight_color_index = 23
+blade_color_index = 23
+grip_color_index = 20
+accent_color_index = 22
+highlight_color_index = 8
 
 [items.reagents.blessed_herb.attributes]
 stackable = true
@@ -787,13 +787,13 @@ description = "Moonleaf distilled into a cool reagent associated with life and r
 category = "liquid"
 slot = "reagent"
 rarity = "common"
-color = 24
+color = 9
 max_stack = 20
 icon = "minor_heal"
 visual_template = "coin_round"
-blade_color_index = 24
-accent_color_index = 23
-highlight_color_index = 16
+blade_color_index = 9
+accent_color_index = 8
+highlight_color_index = 36
 
 [items.reagents.moonwater.attributes]
 stackable = true
@@ -807,13 +807,13 @@ description = "Blessed herbs carrying a sun shard's radiance for grace and holy 
 category = "oil"
 slot = "reagent"
 rarity = "common"
-color = 14
+color = 22
 max_stack = 20
 icon = "holy_light"
 visual_template = "coin_round"
-blade_color_index = 14
-accent_color_index = 13
-highlight_color_index = 23
+blade_color_index = 22
+accent_color_index = 23
+highlight_color_index = 8
 
 [items.reagents.consecrated_oil.attributes]
 stackable = true
@@ -827,13 +827,13 @@ description = "Grave dust purified by sunlight, used to trace boundaries the dea
 category = "salt"
 slot = "reagent"
 rarity = "common"
-color = 23
+color = 8
 max_stack = 30
 icon = "round_shield"
 visual_template = "coin_round"
-blade_color_index = 23
-accent_color_index = 16
-highlight_color_index = 14
+blade_color_index = 8
+accent_color_index = 36
+highlight_color_index = 22
 
 [items.reagents.warding_salt.attributes]
 stackable = true
@@ -847,13 +847,13 @@ description = "A hardened drop of volatile resin that wakes when a flame word is
 category = "bead"
 slot = "reagent"
 rarity = "common"
-color = 9
+color = 5
 max_stack = 30
 icon = "torch"
 visual_template = "coin_round"
-blade_color_index = 9
-accent_color_index = 14
-highlight_color_index = 23
+blade_color_index = 5
+accent_color_index = 22
+highlight_color_index = 8
 
 [items.reagents.ember_bead.attributes]
 stackable = true
@@ -867,10 +867,10 @@ description = "Fresh flexible wood suitable for simple shafts, handles, and earl
 category = "wood"
 slot = "material"
 rarity = "common"
-color = 10
+color = 20
 max_stack = 50
 icon = "gather_wood"
-icon_color = "#9a6a3a"
+icon_color = 19
 
 [items.materials.green_wood.attributes]
 stackable = true
@@ -883,7 +883,7 @@ description = "A clean feather used for fletching arrows and light craftwork."
 category = "feather"
 slot = "material"
 rarity = "common"
-color = 23
+color = 8
 max_stack = 50
 icon = "feather"
 
@@ -898,14 +898,14 @@ description = "An unprepared herb gathered from the field."
 category = "herb"
 slot = "material"
 rarity = "common"
-color = 13
+color = 23
 max_stack = 50
 icon = "wild_herb"
 visual_template = "herb_sprig"
-blade_color_index = 13
-grip_color_index = 10
-accent_color_index = 14
-highlight_color_index = 23
+blade_color_index = 23
+grip_color_index = 20
+accent_color_index = 22
+highlight_color_index = 8
 
 [items.materials.wild_herb.attributes]
 stackable = true
@@ -918,14 +918,14 @@ description = "A pale night-growing leaf that holds dew long after sunrise."
 category = "herb"
 slot = "material"
 rarity = "common"
-color = 24
+color = 9
 max_stack = 50
 icon = "wild_herb"
 visual_template = "herb_sprig"
-blade_color_index = 24
-grip_color_index = 13
-accent_color_index = 23
-highlight_color_index = 16
+blade_color_index = 9
+grip_color_index = 23
+accent_color_index = 8
+highlight_color_index = 36
 
 [items.materials.moonleaf.attributes]
 stackable = true
@@ -938,13 +938,13 @@ description = "A soft golden mineral that stores a trace of daylight."
 category = "mineral"
 slot = "material"
 rarity = "uncommon"
-color = 14
+color = 22
 max_stack = 40
 icon = "holy_light"
 visual_template = "coin_round"
-blade_color_index = 14
-accent_color_index = 9
-highlight_color_index = 23
+blade_color_index = 22
+accent_color_index = 5
+highlight_color_index = 8
 
 [items.materials.sun_shard.attributes]
 stackable = true
@@ -957,13 +957,13 @@ description = "Cold mineral dust carrying the memory of a burial place."
 category = "dust"
 slot = "material"
 rarity = "common"
-color = 25
+color = 9
 max_stack = 50
 icon = "loot_corpse"
 visual_template = "coin_round"
-blade_color_index = 25
-accent_color_index = 30
-highlight_color_index = 23
+blade_color_index = 9
+accent_color_index = 14
+highlight_color_index = 8
 
 [items.materials.grave_dust.attributes]
 stackable = true
@@ -976,13 +976,13 @@ description = "Warm sap from scorched wood, stable until shaped or exposed to ma
 category = "resin"
 slot = "material"
 rarity = "common"
-color = 9
+color = 5
 max_stack = 50
 icon = "torch"
 visual_template = "coin_round"
-blade_color_index = 9
-accent_color_index = 10
-highlight_color_index = 14
+blade_color_index = 5
+accent_color_index = 20
+highlight_color_index = 22
 
 [items.materials.ember_resin.attributes]
 stackable = true
@@ -995,13 +995,13 @@ description = "A small wild herb growth that can be gathered for fresh herbs."
 category = "herb"
 slot = "resource"
 rarity = "common"
-color = 13
+color = 23
 icon = "wild_herb_node"
 visual_template = "herb_sprig"
-blade_color_index = 13
-grip_color_index = 10
-accent_color_index = 14
-highlight_color_index = 23
+blade_color_index = 23
+grip_color_index = 20
+accent_color_index = 22
+highlight_color_index = 8
 
 [items.resources.wild_herb_node.attributes]
 static = true
@@ -1020,11 +1020,11 @@ description = "A young flexible wood growth that can be gathered for green wood.
 category = "wood"
 slot = "resource"
 rarity = "common"
-color = 10
+color = 20
 icon = "green_wood_node"
 visual_template = "spear_diagonal"
-grip_color_index = 10
-highlight_color_index = 14
+grip_color_index = 20
+highlight_color_index = 22
 
 [items.resources.green_wood_node.attributes]
 static = true
@@ -1043,12 +1043,12 @@ description = "A small nest that can be gathered for usable feathers."
 category = "nest"
 slot = "resource"
 rarity = "common"
-color = 10
+color = 20
 icon = "bird_nest_node"
 visual_template = "arrow_diagonal"
-blade_color_index = 10
-grip_color_index = 23
-highlight_color_index = 14
+blade_color_index = 20
+grip_color_index = 8
+highlight_color_index = 22
 
 [items.resources.bird_nest_node.attributes]
 static = true
@@ -1067,13 +1067,13 @@ description = "A shaded patch of pale leaves beaded with cold dew."
 category = "herb"
 slot = "resource"
 rarity = "common"
-color = 24
+color = 9
 icon = "wild_herb_node"
 visual_template = "herb_sprig"
-blade_color_index = 24
-grip_color_index = 13
-accent_color_index = 23
-highlight_color_index = 16
+blade_color_index = 9
+grip_color_index = 23
+accent_color_index = 8
+highlight_color_index = 36
 
 [items.resources.moonleaf_patch.attributes]
 static = true
@@ -1092,12 +1092,12 @@ description = "A low mineral outcrop glittering with trapped golden light."
 category = "mineral"
 slot = "resource"
 rarity = "uncommon"
-color = 14
+color = 22
 icon = "green_wood_node"
 visual_template = "spear_diagonal"
-blade_color_index = 14
-grip_color_index = 25
-highlight_color_index = 23
+blade_color_index = 22
+grip_color_index = 9
+highlight_color_index = 8
 
 [items.resources.sunstone_outcrop.attributes]
 static = true
@@ -1116,13 +1116,13 @@ description = "A weathered grave whose cold soil is useful in banishing rites."
 category = "grave"
 slot = "resource"
 rarity = "common"
-color = 25
+color = 9
 icon = "loot_corpse"
 visual_template = "tombstone_mark"
-blade_color_index = 25
-grip_color_index = 30
-accent_color_index = 29
-highlight_color_index = 23
+blade_color_index = 9
+grip_color_index = 14
+accent_color_index = 4
+highlight_color_index = 8
 
 [items.resources.old_grave.attributes]
 static = true
@@ -1141,13 +1141,13 @@ description = "A fire-scarred stump bleeding beads of warm amber resin."
 category = "wood"
 slot = "resource"
 rarity = "common"
-color = 9
+color = 5
 icon = "green_wood_node"
 visual_template = "spear_diagonal"
-blade_color_index = 9
-grip_color_index = 10
-accent_color_index = 14
-highlight_color_index = 23
+blade_color_index = 5
+grip_color_index = 20
+accent_color_index = 22
+highlight_color_index = 8
 
 [items.resources.resinous_stump.attributes]
 static = true
@@ -1171,9 +1171,9 @@ currency = "copper"
 amount = 1
 worth = 1
 visual_template = "coin_round"
-blade_color_index = 10
-accent_color_index = 7
-highlight_color_index = 14
+blade_color_index = 20
+accent_color_index = 4
+highlight_color_index = 22
 
 [items.currency.silver_coin]
 name = "Silver Coin"
@@ -1186,9 +1186,9 @@ currency = "silver"
 amount = 1
 worth = 10
 visual_template = "coin_round"
-blade_color_index = 23
-accent_color_index = 16
-highlight_color_index = 14
+blade_color_index = 8
+accent_color_index = 36
+highlight_color_index = 22
 
 [items.currency.gold_coin]
 name = "Gold Coin"
@@ -1201,9 +1201,9 @@ currency = "gold"
 amount = 1
 worth = 100
 visual_template = "coin_round"
-blade_color_index = 14
-accent_color_index = 10
-highlight_color_index = 23
+blade_color_index = 22
+accent_color_index = 20
+highlight_color_index = 8
 
 [items.tools.torch]
 name = "Torch"
@@ -1213,10 +1213,10 @@ slot = "tool"
 rarity = "common"
 icon = "torch"
 visual_template = "torch_standing"
-blade_color_index = 10
-grip_color_index = 10
-accent_color_index = 23
-highlight_color_index = 14
+blade_color_index = 20
+grip_color_index = 20
+accent_color_index = 8
+highlight_color_index = 22
 tile_id = "05ab6adc-1631-4ed2-9857-f85820a7f1ad"
 script = '''
 fn event(event, value) {

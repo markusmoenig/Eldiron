@@ -75,12 +75,12 @@ The right detail view exposes the editable settings for the selected preset:
 
 - size
 - opacity
-- one or more Art Palette color slots
+- one or more project palette color slots
 - material mode
 - pattern settings when the selected preset uses generated patterns
 - stamp density, size jitter, and rotation jitter when the selected preset is in stamp mode
 
-Brush colors come from the **Art Palette**. A multi-color brush exposes multiple `Color` slots so terrain, moss, grass, and pattern brushes can use several related colors instead of a single flat swatch.
+Brush colors come from the **project palette**. A multi-color brush exposes multiple `Color` slots so terrain, moss, grass, and pattern brushes can use several related colors instead of a single flat swatch.
 
 ## Materials and Modes
 

@@ -734,19 +734,19 @@ pub fn ensure_block_asset_default_palette(project: &mut Project, asset: &BlockAs
     if asset.name != "Table" {
         return false;
     }
-    let before_palette = project.art_palette.clone();
-    let before_materials = project.art_palette_materials.clone();
+    let before_palette = project.palette.clone();
+    let before_materials = project.palette_materials.clone();
     prefab_palette_slot(project, FURNITURE_WOOD, "wood", "natural");
     prefab_palette_slot(project, FURNITURE_DARK_WOOD, "wood", "natural");
     let top_source = block_asset_default_surface_source(
         asset,
         BlockComponentKind::TableTop,
-        &project.art_palette,
+        &project.palette,
     );
     let leg_source = block_asset_default_surface_source(
         asset,
         BlockComponentKind::TableLegLeftFront,
-        &project.art_palette,
+        &project.palette,
     );
     let mut geometry_changed = false;
     let mut metadata_changed = false;
@@ -803,8 +803,8 @@ pub fn ensure_block_asset_default_palette(project: &mut Project, asset: &BlockAs
             metadata_changed = true;
         }
     }
-    project.art_palette != before_palette
-        || project.art_palette_materials != before_materials
+    project.palette != before_palette
+        || project.palette_materials != before_materials
         || geometry_changed
         || metadata_changed
 }
@@ -951,15 +951,15 @@ fn palette_color_distance(a: [u8; 4], b: [u8; 4]) -> u32 {
 }
 
 fn prefab_palette_slot(project: &mut Project, color: [u8; 4], material: &str, finish: &str) -> u16 {
-    project.ensure_art_palette_materials_len();
+    project.ensure_palette_materials_len();
     let best_matching_material = project
-        .art_palette
+        .palette
         .colors
         .iter()
         .enumerate()
         .filter_map(|(index, entry)| {
             let entry = entry.as_ref()?;
-            let palette_material = project.art_palette_materials.get(index)?;
+            let palette_material = project.palette_materials.get(index)?;
             (palette_material.preset == material)
                 .then_some((index, palette_color_distance(entry.to_u8_array(), color)))
         })
@@ -971,14 +971,14 @@ fn prefab_palette_slot(project: &mut Project, color: [u8; 4], material: &str, fi
     }
 
     if let Some(index) = project
-        .art_palette
+        .palette
         .colors
         .iter()
         .position(|entry| entry.as_ref().is_none_or(|color| color.a <= f32::EPSILON))
     {
-        project.art_palette.colors[index] = Some(TheColor::from(color));
-        project.ensure_art_palette_materials_len();
-        if let Some(palette_material) = project.art_palette_materials.get_mut(index) {
+        project.palette.colors[index] = Some(TheColor::from(color));
+        project.ensure_palette_materials_len();
+        if let Some(palette_material) = project.palette_materials.get_mut(index) {
             palette_material.preset = material.to_string();
             palette_material.finish = finish.to_string();
         }
@@ -986,9 +986,9 @@ fn prefab_palette_slot(project: &mut Project, color: [u8; 4], material: &str, fi
     }
 
     project
-        .art_palette
+        .palette
         .find_closest_color_index(&TheColor::from(color))
-        .unwrap_or(project.art_palette.current_index as usize) as u16
+        .unwrap_or(project.palette.current_index as usize) as u16
 }
 
 /// Resolve only genuinely unassigned faces. Existing tile, color, material,
@@ -2383,8 +2383,8 @@ pub fn bundled_prefab(id: Uuid) -> Option<&'static rusterix::BlockPropAsset> {
 /// project is loading. A built-in Prefab can then become project-owned later
 /// without rebuilding the live texture atlas on its first selection.
 fn ensure_bundled_prefab_default_palette(project: &mut Project) -> bool {
-    let before_palette = project.art_palette.clone();
-    let before_materials = project.art_palette_materials.clone();
+    let before_palette = project.palette.clone();
+    let before_materials = project.palette_materials.clone();
     for asset in bundled_prefabs() {
         for part in &asset.parts {
             for object in part.geometry_source.geometry_objects() {
@@ -2393,7 +2393,7 @@ fn ensure_bundled_prefab_default_palette(project: &mut Project) -> bool {
             }
         }
     }
-    project.art_palette != before_palette || project.art_palette_materials != before_materials
+    project.palette != before_palette || project.palette_materials != before_materials
 }
 
 /// Bring project-owned copies of bundled Prefabs forward when their shipped
@@ -3182,13 +3182,13 @@ mod tests {
         let top_source = block_asset_default_surface_source(
             asset,
             BlockComponentKind::TableTop,
-            &project.art_palette,
+            &project.palette,
         )
         .expect("Table top palette source");
         let leg_source = block_asset_default_surface_source(
             asset,
             BlockComponentKind::TableLegLeftFront,
-            &project.art_palette,
+            &project.palette,
         )
         .expect("Table leg palette source");
 
@@ -3200,13 +3200,13 @@ mod tests {
         };
         assert_ne!(top_index, leg_index);
         assert_eq!(
-            project.art_palette.colors[top_index as usize]
+            project.palette.colors[top_index as usize]
                 .as_ref()
                 .map(TheColor::to_u8_array),
             Some(FURNITURE_WOOD)
         );
         assert_eq!(
-            project.art_palette.colors[leg_index as usize]
+            project.palette.colors[leg_index as usize]
                 .as_ref()
                 .map(TheColor::to_u8_array),
             Some(FURNITURE_DARK_WOOD)
@@ -3358,8 +3358,8 @@ mod tests {
     fn built_in_prefab_palette_is_ready_before_first_catalog_selection() {
         let mut project = Project::default();
         ensure_bundled_prefab_default_palette(&mut project);
-        let palette = project.art_palette.clone();
-        let materials = project.art_palette_materials.clone();
+        let palette = project.palette.clone();
+        let materials = project.palette_materials.clone();
         let carpet = bundled_prefabs()
             .iter()
             .find(|asset| asset.name == "Floor Carpet")
@@ -3369,8 +3369,8 @@ mod tests {
         project.block_props.insert(carpet_id, carpet);
 
         assert!(ensure_prefab_default_surfaces(&mut project, carpet_id));
-        assert_eq!(project.art_palette, palette);
-        assert_eq!(project.art_palette_materials, materials);
+        assert_eq!(project.palette, palette);
+        assert_eq!(project.palette_materials, materials);
     }
 
     #[test]

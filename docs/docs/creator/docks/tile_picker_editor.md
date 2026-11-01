@@ -88,3 +88,15 @@ If **Authoring** mode is enabled in the tool strip, the tile picker is replaced 
 
 - [Pixel Tile Editor](/docs/creator/docks/pixel_tile_editor)
 - [Working With Tiles](/docs/building_maps/working_with_tiles)
+
+## Bitmap images inside procedural materials
+
+Choose **Make Proc** on a tile, open the procedural sidebar, and drag
+**Sources → Image → Image / Tile Source** into a row. Select the new node and use
+**Props → Source** to import an image or select an existing bitmap tile.
+
+The source includes transparency and preserves animation/material maps from
+linked project tiles. Editing a linked bitmap refreshes the procedural material.
+Choose **Edges → Repeat** for a repeating bitmap, or Transparent for a stamp.
+Color and W/Alpha can connect to the material's Color and Opacity outputs; RGBA
+can also feed Alpha Over to combine the image with shapes or noise.

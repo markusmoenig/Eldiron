@@ -843,8 +843,7 @@ impl Dock for DataDock {
 
         let frame_index = Self::preview_frame_index(avatar, &preview, server_ctx.animation_counter);
         let mut assets = rusterix::Assets::new();
-        assets.ruleset_palette = project.palette.clone();
-        assets.palette = project.art_palette.clone();
+        assets.palette = project.palette.clone();
         assets.tiles = project.tiles.clone();
 
         let out = AvatarRuntimeBuilder::build_preview_for_entity(

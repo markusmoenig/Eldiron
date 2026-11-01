@@ -327,18 +327,18 @@ impl Action for EditFaceParticles {
         if let Some(TheNodeUIItem::PaletteIndexRowPicker(_, _, _, values, palette)) =
             self.nodeui.get_item_mut(PALETTE_COLORS_ID)
         {
-            *palette = project.art_palette.clone();
+            *palette = project.palette.clone();
             *values = (0..4)
                 .map(|slot| {
                     settings.palette_indices[slot]
                         .map(i32::from)
                         .or_else(|| {
                             project
-                                .art_palette
+                                .palette
                                 .find_closest_color_index(&TheColor::from(ramp[slot]))
                                 .map(|index| index as i32)
                         })
-                        .unwrap_or(project.art_palette.current_index as i32)
+                        .unwrap_or(project.palette.current_index as i32)
                 })
                 .collect();
         }
