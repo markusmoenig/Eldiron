@@ -1,7 +1,8 @@
 # Official Eldiron icon catalog.
 #
-# `assets/icons/<id>/<state>/<frame>.png` contains the authoritative,
-# artist-editable RGBA artwork.
+# Native MZ artwork lives in `assets/procedural_icons`; other artwork remains
+# in `assets/icons/<id>/<state>/<frame>.png`. Procedural recipes take precedence
+# for migrated icons, while the original image assets remain available.
 # This catalog records only the Game-icons-derived subset and lets
 # `eldiron-icon-builder` bootstrap those missing source files without
 # overwriting existing artwork. Eldiron-authored item PNGs need no upstream

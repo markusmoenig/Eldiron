@@ -65,6 +65,7 @@ impl ProfileStatBar {
 }
 
 pub struct ProfileWidget {
+    pub animation_frame: usize,
     pub name: String,
     pub rect: Rect,
     pub toml_str: String,
@@ -106,6 +107,7 @@ impl Default for ProfileWidget {
 impl ProfileWidget {
     pub fn new() -> Self {
         Self {
+            animation_frame: 0,
             name: String::new(),
             rect: Rect::default(),
             toml_str: String::new(),
@@ -353,17 +355,21 @@ impl ProfileWidget {
             .unwrap_or(fallback)
     }
 
-    fn explicit_profile_texture(entity: &Entity, assets: &Assets) -> Option<Texture> {
+    fn explicit_profile_texture(
+        entity: &Entity,
+        assets: &Assets,
+        animation_frame: usize,
+    ) -> Option<Texture> {
         for key in ["profile_tile_id", "profile_source", "portrait_tile_id"] {
             if let Some(source) = entity.attributes.get_source(key)
                 && let Some(tile) = source.tile_from_tile_list(assets)
-                && let Some(texture) = tile.textures.first()
+                && let Some(texture) = tile.textures.get(tile.frame_index(animation_frame))
             {
                 return Some(texture.clone());
             }
             if let Some(id) = entity.attributes.get_id(key)
                 && let Some(tile) = assets.tiles.get(&id)
-                && let Some(texture) = tile.textures.first()
+                && let Some(texture) = tile.textures.get(tile.frame_index(animation_frame))
             {
                 return Some(texture.clone());
             }
@@ -372,7 +378,7 @@ impl ProfileWidget {
                 .get_str(key)
                 .and_then(|value| Uuid::parse_str(value.trim()).ok())
                 && let Some(tile) = assets.tiles.get(&id)
-                && let Some(texture) = tile.textures.first()
+                && let Some(texture) = tile.textures.get(tile.frame_index(animation_frame))
             {
                 return Some(texture.clone());
             }
@@ -983,7 +989,8 @@ impl ProfileWidget {
         let (mut image_rect, mut text_rect, mut stat_rects) = self.layout(inner_w, inner_h);
         Self::offset_layout(&mut image_rect, &mut text_rect, &mut stat_rects, inset);
 
-        if let Some(texture) = Self::explicit_profile_texture(entity, assets) {
+        if let Some(texture) = Self::explicit_profile_texture(entity, assets, self.animation_frame)
+        {
             draw2d.blend_scale_chunk(
                 self.buffer.pixels_mut(),
                 &image_rect,
@@ -1047,5 +1054,38 @@ impl ProfileWidget {
         }
         self.draw_stat_bars(entity, draw2d, &stat_rects);
         self.finish_draw(target, draw2d);
+    }
+}
+
+#[cfg(test)]
+mod material_tests {
+    use super::*;
+    #[test]
+    fn explicit_profile_artwork_follows_frames_and_material_refresh() {
+        let tile = crate::Tile::from_textures(vec![
+            Texture::from_color([10, 20, 30, 255]),
+            Texture::from_color([40, 50, 60, 255]),
+        ]);
+        let mut assets = Assets::default();
+        assets.set_tiles([(tile.id, tile.clone())].into_iter().collect());
+        let mut entity = Entity::default();
+        entity
+            .attributes
+            .set("profile_tile_id", crate::Value::Id(tile.id));
+        assert_eq!(
+            ProfileWidget::explicit_profile_texture(&entity, &assets, 1)
+                .unwrap()
+                .data,
+            tile.textures[1].data
+        );
+        let mut updated = tile.clone();
+        updated.textures[1] = Texture::from_color([70, 80, 90, 255]);
+        assets.set_tiles([(tile.id, updated.clone())].into_iter().collect());
+        assert_eq!(
+            ProfileWidget::explicit_profile_texture(&entity, &assets, 1)
+                .unwrap()
+                .data,
+            updated.textures[1].data
+        );
     }
 }

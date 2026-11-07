@@ -1,0 +1,425 @@
+{
+  "version": 1,
+  "id": "hand_axe",
+  "label": "Ruleset hand axe",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Axe dimensions",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Hand Axe",
+            "document": {
+              "version": 1,
+              "id": "hand-axe-details",
+              "label": "Iron hand axe",
+              "rows": [
+                {
+                  "id": "axe-steel",
+                  "label": "Axe Steel",
+                  "tiles": [
+                    {
+                      "id": "axe-steel-value",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.35,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "axe-wood",
+                  "label": "Axe Wood",
+                  "tiles": [
+                    {
+                      "id": "axe-wood-value",
+                      "op": {
+                        "type": "material",
+                        "palette": 20,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "axe-leather",
+                  "label": "Axe Leather",
+                  "tiles": [
+                    {
+                      "id": "axe-leather-value",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "axe-head",
+                  "label": "Bearded iron head",
+                  "tiles": [
+                    {
+                      "id": "axe-head-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.055,
+                            0.19
+                          ],
+                          [
+                            -0.085,
+                            0.24
+                          ],
+                          [
+                            -0.22,
+                            0.3
+                          ],
+                          [
+                            -0.265,
+                            0.255
+                          ],
+                          [
+                            -0.24,
+                            0.105
+                          ],
+                          [
+                            -0.17,
+                            0.045
+                          ],
+                          [
+                            -0.075,
+                            0.09
+                          ],
+                          [
+                            0.055,
+                            0.105
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "axe-head-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.04
+                      }
+                    },
+                    {
+                      "id": "axe-head-finish",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "axe-steel"
+                      }
+                    },
+                    {
+                      "id": "axe-head-steel",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/steel",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "axe-haft",
+                  "label": "Wooden haft",
+                  "tiles": [
+                    {
+                      "id": "axe-haft-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            -0.29
+                          ],
+                          [
+                            0.026,
+                            -0.285
+                          ],
+                          [
+                            0.021,
+                            0.245
+                          ],
+                          [
+                            0,
+                            0.25
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "axe-haft-turn",
+                      "op": {
+                        "type": "revolve",
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "axe-haft-finish",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "axe-wood"
+                      }
+                    },
+                    {
+                      "id": "axe-haft-wood",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/wood",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "axe-wrap",
+                  "label": "Leather hand wrap",
+                  "tiles": [
+                    {
+                      "id": "axe-wrap-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.025,
+                            -0.245
+                          ],
+                          [
+                            0.03,
+                            -0.24
+                          ],
+                          [
+                            0.029,
+                            -0.065
+                          ],
+                          [
+                            0.024,
+                            -0.06
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "axe-wrap-turn",
+                      "op": {
+                        "type": "revolve",
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "axe-wrap-finish",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "axe-leather"
+                      }
+                    },
+                    {
+                      "id": "axe-wrap-leather",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/leather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "axe-body",
+                  "label": "Axe assembly",
+                  "tiles": [
+                    {
+                      "id": "axe-assembly",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "axe-head",
+                          "axe-haft",
+                          "axe-wrap"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "axe-grip",
+                  "label": "Hand attachment",
+                  "tiles": [
+                    {
+                      "id": "axe-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          -0.15,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "axe-body",
+              "grip": "axe-grip"
+            },
+            "controls": [
+              {
+                "id": "head-width",
+                "label": "Head width",
+                "category": "Shape",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.5,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "axe-head"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ],
+                "help": "Scale the axe head while the socket stays on the haft."
+              },
+              {
+                "id": "haft-length",
+                "label": "Haft length (m)",
+                "category": "Shape",
+                "order": 1,
+                "value": 0.54,
+                "reference": 0.54,
+                "min": 0.35,
+                "max": 0.75,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "axe-haft",
+                      "axe-wrap"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.25,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      1.8518518518518516,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  },
+                  {
+                    "type": "affine",
+                    "parts": [],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.25,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      1.8518518518518516,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ],
+                "help": "Resize the haft and move its hand grip together."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

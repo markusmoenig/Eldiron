@@ -15,7 +15,9 @@ Creating geometry is crucial for both 2D and 3D maps. We have 3 different types 
 The terms **Linedefs** and **Sectors** are based on the game Doom, which used the same terminology. 
 </Admonition>
 
-You can apply tiles **only** to sectors, for example via the **Apply Tile** button in the **Tile Picker** dock or by using the [Rect](creator/tools/rect) tool.
+Apply tile sources to sectors in 2D and editable faces in 3D, using **Apply Tile**
+in the Tile Picker or the [Rect](creator/tools/rect) tool. Sources include bitmap
+tiles and [MZ procedural materials](building_maps/procedural_materials).
 
 ## Creating Sectors
 
@@ -69,6 +71,12 @@ Press **Delete** to remove the currently selected geometry.
 All geometry editing operations are undoable.
 
 ## Construction patterns
+
+Construction graphs below generate map structures. They are separate from MZ's
+material rows and character/item geometry editor. A construction material's Tile
+input can reference a procedural world tile; edit that tile's recipe in the
+Procedural Materials sidebar. Use [Appearance](characters_items/appearance) for
+character/item modelling and rigging rather than map construction branches.
 
 The **Wall Tool** creates and selects walls, floors, and ceilings. Its panel switches between
 Build, Select, Opening, Brick, and Surface modes. In Surface mode, choose Floor or Ceiling and

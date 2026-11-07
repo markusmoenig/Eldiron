@@ -10,6 +10,26 @@ use std::ops::{Index, IndexMut, Range};
 use rayon::prelude::*;
 use rayon::slice::ParallelSliceMut;
 
+/// Composite straight RGBA with an effective source alpha (including coverage).
+#[inline]
+pub fn source_over(destination: [u8; 4], source: [u8; 4], alpha: f32) -> [u8; 4] {
+    let alpha = alpha.clamp(0., 1.);
+    if alpha <= 0. {
+        return destination;
+    }
+    if alpha >= 1. {
+        return [source[0], source[1], source[2], 255];
+    }
+    let retained = destination[3] as f32 / 255. * (1. - alpha);
+    let output = alpha + retained;
+    let mut result = [0; 4];
+    for c in 0..3 {
+        result[c] = ((source[c] as f32 * alpha + destination[c] as f32 * retained) / output) as u8;
+    }
+    result[3] = (output * 255.).round() as u8;
+    result
+}
+
 fn unit_render_scale() -> f32 {
     1.0
 }
@@ -36,7 +56,20 @@ impl Default for TheRGBABuffer {
     }
 }
 
-/// TheRGBABuffer contains the pixel buffer for a canvas or icon.
+/// Repeat one RGBA pixel using bulk copies, preserving alpha exactly.
+pub(crate) fn fill_rgba(pixels: &mut [u8], color: &[u8; 4]) {
+    if pixels.is_empty() {
+        return;
+    }
+    pixels[..4].copy_from_slice(color);
+    let mut filled = 4;
+    while filled < pixels.len() {
+        let count = filled.min(pixels.len() - filled);
+        pixels.copy_within(..count, filled);
+        filled += count;
+    }
+}
+
 impl TheRGBABuffer {
     /// Create an empty buffer.
     pub fn empty() -> Self {
@@ -572,17 +605,12 @@ impl TheRGBABuffer {
                     continue;
                 }
 
-                let src_alpha = src_pixel[3] as f32 / 255.0;
-                let inv_alpha = 1.0 - src_alpha;
-
-                for j in 0..3 {
-                    dst_pixel[j] =
-                        (src_pixel[j] as f32 * src_alpha + dst_pixel[j] as f32 * inv_alpha) as u8;
-                }
-
-                // Update alpha if necessary (e.g., for premultiplied alpha)
-                dst_pixel[3] =
-                    (src_pixel[3] as f32 * src_alpha + dst_pixel[3] as f32 * inv_alpha) as u8;
+                let mixed = source_over(
+                    dst_pixel.try_into().unwrap(),
+                    src_pixel.try_into().unwrap(),
+                    src_pixel[3] as f32 / 255.,
+                );
+                dst_pixel.copy_from_slice(&mixed);
             }
         }
     }
@@ -677,23 +705,10 @@ impl TheRGBABuffer {
                     let mut sx = source_offset_x;
                     let mut dx = dst_x_off;
                     for _ in 0..copy_width as usize {
-                        let sr = src_row[sx] as f32;
-                        let sg = src_row[sx + 1] as f32;
-                        let sb = src_row[sx + 2] as f32;
-                        let sa = src_row[sx + 3] as f32; // 0..255
-
-                        let src_a = sa / 255.0;
-                        let inv_a = 1.0 - src_a;
-
-                        let dr = dst_row[dx] as f32;
-                        let dg = dst_row[dx + 1] as f32;
-                        let db = dst_row[dx + 2] as f32;
-                        let da = dst_row[dx + 3] as f32;
-
-                        dst_row[dx] = (sr * src_a + dr * inv_a) as u8;
-                        dst_row[dx + 1] = (sg * src_a + dg * inv_a) as u8;
-                        dst_row[dx + 2] = (sb * src_a + db * inv_a) as u8;
-                        dst_row[dx + 3] = (sa * src_a + da * inv_a) as u8; // keep same alpha formula as single-threaded
+                        let source: [u8; 4] = src_row[sx..sx + 4].try_into().unwrap();
+                        let destination = dst_row[dx..dx + 4].try_into().unwrap();
+                        let mixed = source_over(destination, source, source[3] as f32 / 255.);
+                        dst_row[dx..dx + 4].copy_from_slice(&mixed);
 
                         sx += 4;
                         dx += 4;
@@ -1033,22 +1048,7 @@ impl TheRGBABuffer {
 
     /// Fills the entire buffer with the given RGBA color.
     pub fn fill(&mut self, color: [u8; 4]) {
-        if self.render_scale != 1.0 {
-            for pixel in self.buffer.chunks_exact_mut(4) {
-                pixel.copy_from_slice(&color);
-            }
-            return;
-        }
-
-        for y in 0..self.dim.height {
-            for x in 0..self.dim.width {
-                let index = (y * self.dim.width + x) as usize * 4;
-                // Check to make sure we don't write out of bounds
-                if index < self.buffer.len() {
-                    self.buffer[index..index + 4].copy_from_slice(&color);
-                }
-            }
-        }
+        fill_rgba(&mut self.buffer, &color);
     }
 
     /// Multiplies every pixel in the buffer by the given RGBA pixel (component-wise, 0-255 space).
@@ -1751,7 +1751,6 @@ mod render_copy_tests {
                 let mut actual = native_buffer(9, 8, 1.0);
                 actual.fill([41, 79, 139, 113]);
                 let mut expected = actual.clone();
-                let a = alpha as f32 / 255.0;
                 for sy in 0..5 {
                     for sx in 0..7 {
                         let (dx, dy) = (sx + x, sy + y);
@@ -1759,17 +1758,47 @@ mod render_copy_tests {
                             continue;
                         }
                         let i = ((dy * 9 + dx) * 4) as usize;
-                        for (channel, value) in [173, 91, 37, alpha].iter().enumerate() {
-                            expected.pixels_mut()[i + channel] = (*value as f32 * a
-                                + expected.pixels()[i + channel] as f32 * (1.0 - a))
-                                as u8;
+                        let weight = u32::from(alpha) * 255;
+                        let retained = 113 * (255 - u32::from(alpha));
+                        let output = weight + retained;
+                        for (c, source) in [173, 91, 37].into_iter().enumerate() {
+                            let destination = u32::from(expected.pixels()[i + c]);
+                            expected.pixels_mut()[i + c] =
+                                ((source * weight + destination * retained) / output) as u8;
                         }
+                        expected.pixels_mut()[i + 3] = ((output + 127) / 255) as u8;
                     }
                 }
                 actual.blend_into(x, y, &source);
-                assert_eq!(actual.pixels(), expected.pixels(), "alpha={alpha}, at {x},{y}");
+                for (a, e) in actual
+                    .pixels()
+                    .chunks_exact(4)
+                    .zip(expected.pixels().chunks_exact(4))
+                {
+                    assert_eq!(a[3], e[3], "alpha={alpha}, at {x},{y}");
+                    for c in 0..3 {
+                        assert!(
+                            (a[c] as i16 - e[c] as i16).abs() <= 1,
+                            "alpha={alpha}, at {x},{y}: {a:?} vs {e:?}"
+                        );
+                    }
+                }
             }
         }
+    }
+
+    #[test]
+    fn parallel_compositing_matches_serial_straight_alpha_with_clipping() {
+        let mut source = native_buffer(1024, 1024, 1.);
+        for (i, pixel) in source.pixels_mut().chunks_exact_mut(4).enumerate() {
+            pixel.copy_from_slice(&[(i * 17) as u8, (i * 31) as u8, (i * 73) as u8, i as u8]);
+        }
+        let mut serial = native_buffer(1024, 1024, 1.);
+        serial.fill([15, 31, 63, 91]);
+        let mut parallel = serial.clone();
+        serial.blend_into(-2, -1, &source);
+        parallel.blend_into_par(-2, -1, &source);
+        assert_eq!(serial.pixels(), parallel.pixels());
     }
 
     #[test]

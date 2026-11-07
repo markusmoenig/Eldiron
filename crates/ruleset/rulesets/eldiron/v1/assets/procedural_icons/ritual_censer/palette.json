@@ -1,0 +1,57 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "handle-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "handle-outline": {
+    "color": 1
+  },
+  "chain-0-color": {
+    "color": 7
+  },
+  "chain-0-outline": {
+    "color": 1
+  },
+  "chain-1-color": {
+    "color": 7
+  },
+  "chain-1-outline": {
+    "color": 1
+  },
+  "bowl-colors": {
+    "color0": 19,
+    "color1": 24,
+    "color2": 24,
+    "color3": 22
+  },
+  "bowl-outline": {
+    "color": 1
+  },
+  "lid-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "lid-outline": {
+    "color": 1
+  },
+  "vent-color": {
+    "color": 2
+  },
+  "foot-colors": {
+    "color0": 19,
+    "color1": 24,
+    "color2": 24,
+    "color3": 22
+  },
+  "foot-outline": {
+    "color": 1
+  }
+}

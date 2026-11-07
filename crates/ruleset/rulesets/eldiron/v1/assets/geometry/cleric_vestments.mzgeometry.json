@@ -1,0 +1,399 @@
+{
+  "version": 1,
+  "id": "cleric_vestments",
+  "label": "Cleric Vestments",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Cleric Vestments",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Cleric Vestments",
+            "document": {
+              "version": 1,
+              "id": "cleric_vestments-construction",
+              "label": "Cleric Vestments construction",
+              "rows": [
+                {
+                  "id": "cleric-vestments",
+                  "label": "Cleric-Vestments",
+                  "tiles": [
+                    {
+                      "id": "cleric-vestments-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 23,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "folded-body",
+                  "label": "Folded Body",
+                  "tiles": [
+                    {
+                      "id": "folded-body-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.11,
+                            -0.21
+                          ],
+                          [
+                            0.11,
+                            -0.21
+                          ],
+                          [
+                            0.115,
+                            0.06
+                          ],
+                          [
+                            0.17,
+                            0.035
+                          ],
+                          [
+                            0.2,
+                            0.11
+                          ],
+                          [
+                            0.1,
+                            0.21
+                          ],
+                          [
+                            0.035,
+                            0.21
+                          ],
+                          [
+                            0.025,
+                            0.16999999999999998
+                          ],
+                          [
+                            -0.025,
+                            0.16999999999999998
+                          ],
+                          [
+                            -0.035,
+                            0.21
+                          ],
+                          [
+                            -0.1,
+                            0.21
+                          ],
+                          [
+                            -0.2,
+                            0.11
+                          ],
+                          [
+                            -0.17,
+                            0.035
+                          ],
+                          [
+                            -0.115,
+                            0.06
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "folded-body-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.045
+                      }
+                    },
+                    {
+                      "id": "folded-body-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "folded-body-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "cleric-vestments"
+                      }
+                    },
+                    {
+                      "id": "folded-body-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/cleric-vestments",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-blue",
+                  "label": "Item-Blue",
+                  "tiles": [
+                    {
+                      "id": "item-blue-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 41,
+                        "roughness": 0.4,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stole--0.055",
+                  "label": "Stole  0.055",
+                  "tiles": [
+                    {
+                      "id": "stole--0.055-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.027,
+                          0.39,
+                          0.005
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stole--0.055-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0,
+                          0.026
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stole--0.055-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-blue"
+                      }
+                    },
+                    {
+                      "id": "stole--0.055-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-blue",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stole-0.055",
+                  "label": "Stole 0.055",
+                  "tiles": [
+                    {
+                      "id": "stole-0.055-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.027,
+                          0.39,
+                          0.005
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stole-0.055-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0,
+                          0.026
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stole-0.055-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-blue"
+                      }
+                    },
+                    {
+                      "id": "stole-0.055-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-blue",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Cleric Vestments assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "folded-body",
+                          "stole--0.055",
+                          "stole-0.055"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

@@ -1360,3 +1360,10 @@ prefab_nodes_catalog_help = Drag a node into the selected prefab part branch.
 prefab_nodes_branch_help = Select the part branch to edit its nodes and geometry.
 prefab_node_part_links = Part Links
 prefab_node_part_links_help = Rename the prefab, set the part parent, or reassign selected geometry.
+
+entity_equipment = Equipment
+entity_equipment_items = Wear / equip
+entity_equipment_item = Item
+entity_equipment_help = Items worn or held when this character starts. Connect this node to Entity. Drag item headers from the project tree onto this node. A drop replaces the item in the same slot; class and two-handed conflicts are reported. Names are displayed and stable project IDs are saved. Item names and ruleset IDs can also be entered manually. With no Equipment node, the class outfit is inherited. An empty list equips nothing.
+
+entity_equipment_drop_hint = Drop to equip this item, replacing the current item in its slot. Class and two-handed rules apply.

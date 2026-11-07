@@ -14,10 +14,12 @@ const EDITOR: &str = "Procedural Material Editor";
 pub(crate) const SIDEBAR_PAGE: usize = 6;
 pub(crate) const PREVIEW_STACK: &str = "Sidebar Preview Stack";
 const PREVIEW: &str = "Material Preview";
-mod composition;
-mod image_source;
+pub(crate) mod composition;
+pub(crate) mod image_source;
 pub(crate) mod map_composition;
-mod palette;
+#[cfg(not(target_arch = "wasm32"))]
+mod model_source;
+pub(crate) mod palette;
 pub(crate) mod pixel_style;
 mod row_inputs;
 pub(crate) mod starters;
@@ -52,7 +54,40 @@ material "surface" called "Procedural Tile"
 "#;
 
 // Vector paths use the same rasterizer, size and tint as the sidebar navigation.
-const PREVIEW_ICONS: [(&str, &str); 10] = [
+const PREVIEW_ICONS: [(&str, &str); 22] = [
+    ("mz-add", "M10 2H14V10H22V14H14V22H10V14H2V10H10Z"),
+    (
+        "mz-profile",
+        "M3 3H5V21H3Z M8 5L20 2V22L8 19Z M10 7V17L18 19V5Z",
+    ),
+    (
+        "mz-pose",
+        "M10 1H14V5H10Z M11 6H13V12L20 19L18 21L12 15L6 21L4 19L10 12V9H3V7H11Z",
+    ),
+    (
+        "mz-mirror",
+        "M11 1H13V23H11Z M1 5L9 2V22L1 19Z M23 5L15 2V22L23 19Z",
+    ),
+    (
+        "mz-group",
+        "M2 5H10L13 8H22V21H2Z M11 11H14V14H18V17H14V20H11V17H7V14H11Z",
+    ),
+    ("mz-back", "M12 3L3 12L12 21V15H22V9H12Z"),
+    ("mz-copy", "M8 2H22V17H19V5H8Z M2 7H17V22H2Z M4 9V20H15V9Z"),
+    (
+        "mz-trash",
+        "M4 5H20V7H4Z M7 8H17V22H7Z M9 10V20H11V10Z M13 10V20H15V10Z M9 2H15V4H9Z",
+    ),
+    ("mz-play", "M6 3L21 12L6 21Z"),
+    ("mz-pause", "M5 3H10V21H5Z M14 3H19V21H14Z"),
+    (
+        "mz-rig",
+        "M10 2H14V6H10Z M11 7H13V14H11Z M3 8H21V10H3Z M11 13H13L19 22H16L12 16L8 22H5Z",
+    ),
+    (
+        "mz-geometry",
+        "M12 2L22 7V17L12 22L2 17V7Z M3 7L12 12L21 7 M12 12V21",
+    ),
     (
         "mz-output",
         "M3 6L12 2L21 6L12 10Z M3 10L12 14L21 10V13L12 17L3 13Z M3 16L12 20L21 16V19L12 23L3 19Z",
@@ -110,7 +145,20 @@ pub fn material_canvas() -> TheCanvas {
     stack.add_canvas(composition::canvas());
     let mut canvas = TheCanvas::default();
     canvas.set_layout(stack);
-    canvas
+    let mut library = TheDropdownMenu::new(TheId::named("Ruleset Material"));
+    library.add_option("Tile material".into());
+    for def in shared::ruleset_materials::definitions(shared::rulesets::DEFAULT_RULESET_CONFIG) {
+        library.add_option(format!("Ruleset · {}", def.id.replace('-', " ")));
+    }
+    library.limiter_mut().set_max_width(240);
+    let mut row = TheHLayout::new(TheId::empty());
+    row.limiter_mut().set_max_height(28);
+    row.set_margin(Vec4::new(6, 4, 6, 4));
+    row.add_widget(Box::new(library));
+    let mut top = TheCanvas::new();
+    top.set_layout(row);
+    canvas.set_top(top);
+    crate::geometry_editor::workspace(canvas)
 }
 
 pub fn minimap_canvas(normal: TheCanvas) -> TheCanvas {
@@ -207,6 +255,16 @@ pub(crate) fn duplicate_bundle(bundle: &str, id: Uuid) -> Result<String, String>
 /// A temporary evaluation target for the selected operation. Keep the authored
 /// document untouched, including the complete row used by the baked material.
 fn source_preview_asset(source_id: &str) -> Result<EditableMaterialAsset, String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    let alias = (source_id == model_source::SOURCE).then(|| {
+        source_catalog()
+            .into_iter()
+            .find(|s| s.metadata.name == "Image / Tile Source")
+            .unwrap()
+            .id
+    });
+    #[cfg(not(target_arch = "wasm32"))]
+    let source_id = alias.as_deref().unwrap_or(source_id);
     let source = source_catalog()
         .into_iter()
         .find(|source| source.id == source_id)
@@ -514,10 +572,12 @@ fn core_reference(
     }
 }
 
-fn view(asset: &EditableMaterialAsset) -> Result<MaterialEditorView, String> {
+pub(crate) fn view(asset: &EditableMaterialAsset) -> Result<MaterialEditorView, String> {
     let mat = material(asset)?;
     let params = asset.parameter_metadata().map_err(|e| e.to_string())?;
     Ok(MaterialEditorView {
+        geometry: false,
+        row_types: vec![],
         title: mat.label.clone(),
         image_sources: vec![],
         image_bindings: mat
@@ -1140,11 +1200,75 @@ fn edited(
     next.validate().map_err(|e| e.to_string())?;
     Ok(next)
 }
-fn edited_for_project(
+pub(crate) fn edited_for_project(
     asset: &EditableMaterialAsset,
     command: MaterialEditorCommand,
     project: &Project,
 ) -> Result<EditableMaterialAsset, String> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        if let MaterialEditorCommand::AddSource { source, row, after } = &command
+            && source == model_source::SOURCE
+        {
+            let model = model_source::choices(project)
+                .first()
+                .and_then(|(id, _)| id.strip_prefix("@model:"))
+                .and_then(|id| Uuid::parse_str(id).ok())
+                .ok_or("Create or import a model first")?;
+            let source = source_catalog()
+                .into_iter()
+                .find(|s| s.metadata.name == "Image / Tile Source")
+                .ok_or("Image source is missing")?;
+            let mut next = edited(
+                asset,
+                MaterialEditorCommand::AddSource {
+                    source: source.id,
+                    row: row.clone(),
+                    after: after.clone(),
+                },
+            )?;
+            let old = asset
+                .root
+                .project
+                .materials
+                .iter()
+                .flat_map(|m| &m.rows)
+                .flat_map(|r| &r.tiles)
+                .map(|t| &t.id)
+                .collect::<std::collections::HashSet<_>>();
+            let operation = next
+                .root
+                .project
+                .materials
+                .iter()
+                .flat_map(|m| &m.rows)
+                .flat_map(|r| &r.tiles)
+                .find(|t| !old.contains(&t.id))
+                .ok_or("New image source is missing")?
+                .id
+                .clone();
+            next = model_source::assign(&next, &operation, model_source::Spec::new(model))?;
+            return Ok(next);
+        }
+        if let MaterialEditorCommand::SetNumber {
+            operation,
+            parameter,
+            value,
+        } = &command
+            && parameter.starts_with("@model-")
+        {
+            return model_source::edit(asset, operation, parameter, *value, project);
+        }
+        if let MaterialEditorCommand::ChooseImage { operation, source } = &command
+            && let Some(id) = source.strip_prefix("@model:")
+        {
+            return model_source::assign(
+                asset,
+                operation,
+                model_source::Spec::new(Uuid::parse_str(id).map_err(|_| "Invalid model source")?),
+            );
+        }
+    }
     if let MaterialEditorCommand::SetImage { operation, image } = &command {
         return image_source::set(asset, operation, image.clone());
     }
@@ -1218,6 +1342,8 @@ pub struct ProceduralMaterialEditor {
     pixel_density: u32,
     pixel_config_key: Option<u64>,
     image_source_key: Option<u64>,
+    bake_keys_revision: Option<(u64, u32)>,
+    bake_keys: std::collections::HashMap<Uuid, u64>,
     pending_image: Option<(Uuid, String)>,
     composition_key: Option<u64>,
     composition_ui_key: Option<(Uuid, u64, usize)>,
@@ -1227,6 +1353,8 @@ pub struct ProceduralMaterialEditor {
     map_binding: Option<shared::material_composition::MapMaterialBinding>,
     #[cfg(not(target_arch = "wasm32"))]
     worker: Option<gpu::Worker>,
+    #[cfg(not(target_arch = "wasm32"))]
+    model_sources: model_source::State,
 }
 impl ProceduralMaterialEditor {
     fn status(_ui: &mut TheUI, ctx: &mut TheContext, text: impl Into<String>) {
@@ -1251,6 +1379,17 @@ impl ProceduralMaterialEditor {
             return;
         }
         self.tile = Some(id);
+        if let Some(w) = ui.get_widget("Ruleset Material") {
+            if w.state() != TheWidgetState::Clicked {
+                if let Some(menu) = w.as_drop_down_menu() {
+                    let index = shared::ruleset_materials::definitions(&project.config)
+                        .iter()
+                        .position(|d| shared::rulesets::material_asset_id(d.id) == id)
+                        .map_or(0, |i| i + 1);
+                    menu.set_selected_index(index as i32);
+                }
+            }
+        }
         self.composition_layer = 0;
         self.composition_ui_key = None;
         if project.material_compositions.contains_key(&id) {
@@ -1308,6 +1447,10 @@ impl ProceduralMaterialEditor {
     }
     pub fn reset(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.clear_selection(ui, ctx);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.model_sources = Default::default();
+        }
         self.requested.clear();
         self.palette_key = None;
     }
@@ -1319,6 +1462,27 @@ impl ProceduralMaterialEditor {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        if let TheEvent::IndexChanged(id, index) = event {
+            if id.name == "Ruleset Material" {
+                if let Some(def) = index.checked_sub(1).and_then(|i| {
+                    shared::ruleset_materials::definitions(&project.config)
+                        .get(i)
+                        .cloned()
+                }) {
+                    self.open(
+                        shared::rulesets::material_asset_id(def.id),
+                        ui,
+                        ctx,
+                        project,
+                    );
+                } else if let Some(id) = server.curr_tile_id {
+                    self.open(id, ui, ctx, project);
+                } else {
+                    self.clear_selection(ui, ctx);
+                }
+                return true;
+            }
+        }
         if let TheEvent::FileRequesterResult(id, paths) = event {
             if id.name == "Material Image Import" {
                 if let (Some((target, operation)), Some(path)) =
@@ -1422,13 +1586,22 @@ impl ProceduralMaterialEditor {
                 self.open(*tile, ui, ctx, project);
                 true
             }
-            TheEvent::Custom(id, _) if id.name == "Procedural Tiles Restored" => {
+            TheEvent::Custom(id, _) if id.name == "Ruleset Materials Restored" => {
+                self.palette_key = None;
+                self.preview_dirty = true;
+                ctx.ui.redraw_all = true;
+                true
+            }
+            TheEvent::Custom(id, _) if id.name == "Procedural Tiles Restored" || id.name == "Scepter Materials Published" => {
                 self.palette_key = None;
                 self.composition_key = None;
                 self.composition_ui_key = None;
                 self.requested.clear();
                 refresh_tiles(ctx);
-                crate::utils::editor_scene_full_rebuild(project, server);
+                // Scepter publication has already installed the complete scene.
+                if id.name != "Scepter Materials Published" {
+                    crate::utils::editor_scene_full_rebuild(project, server);
+                }
                 true
             }
             TheEvent::Custom(id, TheValue::Text(binding)) if id.name == map_composition::OPEN => {
@@ -1713,6 +1886,8 @@ impl ProceduralMaterialEditor {
                     )
                 })
                 .collect();
+            #[cfg(not(target_arch = "wasm32"))]
+            model_source::decorate(&mut view, asset, project);
             view.image_sources
                 .sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
             for (operation, label) in &mut view.image_bindings {
@@ -1787,12 +1962,20 @@ impl ProceduralMaterialEditor {
         project: &mut Project,
         server: &mut ServerContext,
     ) -> bool {
+        let mut perf = crate::misc::FrameProfile::new();
         let mut changed = false;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            changed |= self.model_sources.update(project, ctx);
+        }
         let image_key = image_source::input_key(project);
         if self.image_source_key != Some(image_key) {
             self.image_source_key = Some(image_key);
             let mut updates = vec![];
             for (id, bundle) in &project.procedural_materials {
+                if !bundle.contains("eldiron:tile:") {
+                    continue;
+                }
                 if let Ok(asset) = EditableMaterialAsset::reopen(bundle) {
                     match image_source::refresh(&asset, project) {
                         Ok(Some(a)) => {
@@ -1811,6 +1994,7 @@ impl ProceduralMaterialEditor {
             }
             self.image_source_key = Some(image_source::input_key(project));
         }
+        perf.lap("material_links");
         let config_key = cache_key(&project.config);
         if self.pixel_config_key != Some(config_key) {
             self.pixel_config_key = Some(config_key);
@@ -1837,7 +2021,9 @@ impl ProceduralMaterialEditor {
         if self.map_binding.is_some() {
             self.follow_map_composition(ui, ctx, project, server);
         }
+        perf.lap("material_palette");
         self.sync_compositions(project, ui, ctx);
+        perf.lap("material_compositions");
         self.composition_view(ui, ctx, project);
         let preview_aspect = Self::preview_aspect(ui);
         let active = ui
@@ -1850,7 +2036,26 @@ impl ProceduralMaterialEditor {
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
-            if self.worker.is_none() && !project.procedural_materials.is_empty() {
+            // A fully baked map needs no material compiler/preview worker.
+            // Initialize it only for editing or for an actual stale bake.
+            let bake_revision = (project.procedural_materials.revision(), pixel_density);
+            if self.bake_keys_revision != Some(bake_revision) {
+                self.bake_keys = project
+                    .procedural_materials
+                    .iter()
+                    .filter(|(id, _)| {
+                        !shared::ruleset_materials::is_library_tile(&project.config, id)
+                    })
+                    .map(|(id, b)| (*id, pixel_style::bake_key(b, pixel_density)))
+                    .collect();
+                self.bake_keys_revision = Some(bake_revision);
+            }
+            let needs_worker = self.tile.is_some()
+                || self.bake_keys.iter().any(|(id, key)| {
+                    project.tiles.contains_key(id)
+                        && project.procedural_material_cache_keys.get(id) != Some(key)
+                });
+            if self.worker.is_none() && needs_worker {
                 if let Some((device, queue)) =
                     RUSTERIX.read().unwrap().scene_handler.vm.gpu_context()
                 {
@@ -1860,7 +2065,9 @@ impl ProceduralMaterialEditor {
             if let Some(worker) = &self.worker {
                 let mut installed_bakes = false;
                 for result in worker.results.try_iter() {
-                    if result.pixels_per_tile != pixel_density
+                    if result.pixels_per_tile
+                        != shared::ruleset_materials::resolution(&project.config, &result.tile)
+                            .unwrap_or(pixel_density)
                         || project.procedural_materials.get(&result.tile) != Some(&result.bundle)
                         || !project.tiles.contains_key(&result.tile)
                     {
@@ -1872,7 +2079,12 @@ impl ProceduralMaterialEditor {
                             let needs_bake =
                                 project.procedural_material_cache_keys.get(&result.tile)
                                     != Some(&key);
-                            if needs_bake {
+                            if needs_bake
+                                && !shared::ruleset_materials::is_library_tile(
+                                    &project.config,
+                                    &result.tile,
+                                )
+                            {
                                 let baked = project.tiles.get_mut(&result.tile).unwrap();
                                 if let Some(pages) = &frame.surface_pages {
                                     baked.textures = pages.textures.clone();
@@ -1930,13 +2142,17 @@ impl ProceduralMaterialEditor {
                 // The persisted cache key makes undo/redo and interrupted saves
                 // rebuild correctly even when the material editor is closed.
                 for (id, bundle) in &project.procedural_materials {
+                    if shared::ruleset_materials::is_library_tile(&project.config, id) {
+                        continue;
+                    }
                     // The authoring request below renders and bakes this tile.
                     // Avoid racing a background-only bake ahead of its previews.
                     if self.tile == Some(*id) && self.bundle.as_ref() != Some(bundle) {
                         continue;
                     }
-                    let key = pixel_style::bake_key(bundle, pixel_density);
+                    let key = self.bake_keys[id];
                     if project.tiles.contains_key(id)
+                        && !self.model_sources.pending(*id)
                         && project.procedural_material_cache_keys.get(id) != Some(&key)
                         && self.requested.get(id) != Some(&key)
                     {
@@ -1954,9 +2170,16 @@ impl ProceduralMaterialEditor {
                 }
             }
         }
+        perf.lap("material_bakes");
         let Some(tile) = self.tile else {
             return self.draw_preview(ui, server.animation_counter) || changed;
         };
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.model_sources.pending(tile) {
+            return self.draw_preview(ui, server.animation_counter) || changed;
+        }
+        let pixel_density =
+            shared::ruleset_materials::resolution(&project.config, &tile).unwrap_or(pixel_density);
         if !project.tiles.contains_key(&tile) || !project.procedural_materials.contains_key(&tile) {
             self.clear_selection(ui, ctx);
             return true;
@@ -1996,7 +2219,10 @@ impl ProceduralMaterialEditor {
                                 tile,
                                 revision: self.revision,
                                 bundle: bundle.clone(),
-                                continuous: true,
+                                continuous: !shared::ruleset_materials::is_icon(
+                                    &project.config,
+                                    &tile,
+                                ),
                                 selection: if self.preview_tile {
                                     self.selection_target()
                                 } else {
@@ -2046,7 +2272,7 @@ impl ProceduralMaterialEditor {
                     tile,
                     revision: self.revision,
                     bundle: bundle.clone(),
-                    continuous: true,
+                    continuous: !shared::ruleset_materials::is_icon(&project.config, &tile),
                     selection: if self.preview_tile {
                         self.selection_target()
                     } else {
@@ -2160,10 +2386,10 @@ fn cache_key(bundle: &str) -> u64 {
 fn refresh_tiles(ctx: &mut TheContext) {
     // The caller already installs textures in the scene. Update Tiles would
     // clear/reload them a second time through Sidebar::update_tiles.
-    for name in ["Update Tilepicker"] {
-        ctx.ui
-            .send(TheEvent::Custom(TheId::named(name), TheValue::Empty));
-    }
+    ctx.ui.send(TheEvent::Custom(
+        TheId::named("Update Tilepicker Textures"),
+        TheValue::Empty,
+    ));
 }
 #[cfg(test)]
 fn draw_preview(buffer: &mut TheRGBABuffer, image: Option<(usize, &[u8], bool)>) {
@@ -2217,7 +2443,7 @@ fn draw_preview_with_colors(
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-mod gpu;
+pub(crate) mod gpu;
 #[cfg(target_arch = "wasm32")]
 mod gpu {
     pub struct Frame {
@@ -2245,7 +2471,9 @@ mod tests {
         refresh_tiles(&mut ctx);
         let events: Vec<_> = receiver.try_iter().collect();
         assert_eq!(events.len(), 1);
-        assert!(matches!(&events[0],TheEvent::Custom(id,_) if id.name=="Update Tilepicker"));
+        assert!(
+            matches!(&events[0],TheEvent::Custom(id,_) if id.name=="Update Tilepicker Textures")
+        );
     }
     #[test]
     fn deleting_mix_keeps_row_ports_and_reassigns_them_after_save_and_undo() {
@@ -3254,6 +3482,52 @@ mod tests {
         workspace_ui(1024, 768)
     }
     #[test]
+    fn library_selector_uses_the_pbr_editor_and_returns_to_the_map_tile() {
+        let (mut ui, mut ctx) = ui_fixture();
+        let mut project = Project::default();
+        shared::ruleset_materials::install(&mut project).unwrap();
+        starters::install(&mut project).unwrap();
+        let grass = *project
+            .tiles
+            .iter()
+            .find(|(_, t)| t.alias == "Grass")
+            .unwrap()
+            .0;
+        let mut server = ServerContext::default();
+        server.curr_tile_id = Some(grass);
+        let mut host = ProceduralMaterialEditor::default();
+        host.open(grass, &mut ui, &mut ctx, &project);
+        let index = shared::ruleset_materials::definitions(&project.config)
+            .iter()
+            .position(|d| d.id == "tunic")
+            .unwrap()
+            + 1;
+        host.handle_event(
+            &TheEvent::IndexChanged(TheId::named("Ruleset Material"), index),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server,
+        );
+        assert_eq!(
+            host.tile,
+            Some(shared::rulesets::material_asset_id("tunic"))
+        );
+        assert_eq!(
+            server.curr_tile_id,
+            Some(grass),
+            "Library editing must preserve the map brush"
+        );
+        host.handle_event(
+            &TheEvent::IndexChanged(TheId::named("Ruleset Material"), 0),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server,
+        );
+        assert_eq!(host.tile, Some(grass));
+    }
+    #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn minimap_animation_advances_only_with_the_tile_tick() {
         let (mut ui, mut ctx) = ui_fixture();
@@ -3351,6 +3625,35 @@ mod tests {
 mod gpu_workspace_test {
     use super::*;
     #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn opening_baked_hideout_does_not_schedule_gpu_rebakes() {
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../test_projects/Hideout2D-MZ.eldiron"
+        ))
+        .unwrap();
+        let mut project = shared::project_io::decode_project(&bytes).unwrap();
+        let original = project.clone();
+        let (mut ui, mut ctx) = super::tests::workspace_ui(1200, 850);
+        ui.init(&mut ctx);
+        let mut host = ProceduralMaterialEditor::default();
+        let mut server = ServerContext::default();
+        for _ in 0..3 {
+            host.update(&mut ui, &mut ctx, &mut project, &mut server);
+            assert!(
+                host.requested.is_empty(),
+                "Saved valid bakes must not be queued on load"
+            );
+            assert!(
+                host.worker.is_none(),
+                "A baked map needs no material compiler on load"
+            );
+        }
+        assert_eq!(project.procedural_materials, original.procedural_materials);
+        assert_eq!(project.tiles, original.tiles);
+        assert_eq!(project.tile_board_tiles, original.tile_board_tiles);
+    }
+    #[test]
     #[ignore = "requires a GPU device; writes /tmp/eldiron-materials-palette.png"]
     fn palette_starter_initial_cards_and_palette_updates_render_in_the_sidebar() {
         let mut project = Project::default();
@@ -3394,10 +3697,7 @@ mod gpu_workspace_test {
                 "Missing initial thumbnail for {operation}"
             );
         }
-        let expected = project.palette.colors[37]
-            .as_ref()
-            .unwrap()
-            .to_u8_array();
+        let expected = project.palette.colors[37].as_ref().unwrap().to_u8_array();
         let color = &frame
             .thumbnails
             .iter()
@@ -3456,10 +3756,7 @@ mod gpu_workspace_test {
             .find(|(id, _)| id == "palette-a")
             .unwrap()
             .1;
-        let expected = project.palette.colors[37]
-            .as_ref()
-            .unwrap()
-            .to_u8_array();
+        let expected = project.palette.colors[37].as_ref().unwrap().to_u8_array();
         assert!(color.chunks_exact(4).all(|pixel| {
             pixel
                 .iter()
@@ -3673,5 +3970,108 @@ mod gpu_workspace_test {
         assert_eq!(ui.get_stack_layout("Game Output Stack").unwrap().index(), 0);
         assert!(map_dim.width > 700);
         assert!(ui.get_widget(EDITOR).unwrap().dim().width <= 380);
+    }
+}
+
+/// Cached offscreen bakes reuse the exact editor GPU worker. The snapshot is
+/// owned by Scepter; finished bakes never race the live project's authoring.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) struct ScepterBakeCache {
+    worker: gpu::Worker,
+    tiles: std::collections::HashMap<Uuid, (u64, rusterix::Tile)>,
+}
+#[cfg(not(target_arch = "wasm32"))]
+impl ScepterBakeCache {
+    pub(crate) fn new(device: wgpu::Device, queue: wgpu::Queue) -> Self {
+        Self {
+            worker: gpu::Worker::new(device, queue),
+            tiles: Default::default(),
+        }
+    }
+    pub(crate) fn prepare(&mut self, project: &mut Project) -> Result<(), String> {
+        let mut errors = palette::refresh(project);
+        errors.extend(composition::prepare_project(project));
+        if !errors.is_empty() {
+            return Err(errors.join("; "));
+        }
+        self.tiles
+            .retain(|id, _| project.procedural_materials.contains_key(id));
+        let density = pixel_style::density(&project.config);
+        let ids = project
+            .procedural_materials
+            .keys()
+            .copied()
+            .collect::<Vec<_>>();
+        for id in ids {
+            if shared::ruleset_materials::is_library_tile(&project.config, &id) {
+                continue;
+            }
+            let bundle = &project.procedural_materials[&id];
+            let key = pixel_style::bake_key(bundle, density);
+            if project.procedural_material_cache_keys.get(&id) == Some(&key) {
+                continue;
+            }
+            let tile = project
+                .tiles
+                .get_mut(&id)
+                .ok_or_else(|| format!("Material {id} has no tile"))?;
+            if let Some((_, cached)) = self.tiles.get(&id).filter(|(k, _)| *k == key) {
+                tile.textures = cached.textures.clone();
+                tile.uv_pages = cached.uv_pages.clone();
+                tile.baked_material_data = cached.baked_material_data.clone();
+            } else {
+                self.worker.send(gpu::Job {
+                    pixels_per_tile: density,
+                    tile: id,
+                    revision: 0,
+                    bundle: bundle.clone(),
+                    continuous: false,
+                    selection: None,
+                    preview_aspect: 1.,
+                });
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+                let result = loop {
+                    let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+                    let result = self
+                        .worker
+                        .results
+                        .recv_timeout(remaining)
+                        .map_err(|e| format!("Material {id} bake: {e}"))?;
+                    if result.tile == id
+                        && result.bundle == *bundle
+                        && result.pixels_per_tile == density
+                    {
+                        break result;
+                    }
+                };
+                let frame = result.frame?;
+                if let Some(pages) = frame.surface_pages {
+                    tile.textures = pages.textures.clone();
+                    tile.uv_pages = Some(pages.layout.clone());
+                } else {
+                    tile.textures = vec![frame.tile];
+                    tile.uv_pages = None;
+                }
+                tile.baked_material_data =
+                    tile.textures.iter().map(|t| t.material_bytes()).collect();
+                let bytes = |tile: &rusterix::Tile| {
+                    tile.textures
+                        .iter()
+                        .map(|t| t.data.len() + t.data_ext.as_ref().map_or(0, Vec::len))
+                        .sum::<usize>()
+                        + tile.baked_material_data.iter().map(Vec::len).sum::<usize>()
+                };
+                if self.tiles.values().map(|(_, t)| bytes(t)).sum::<usize>() + bytes(tile)
+                    > 64 * 1024 * 1024
+                {
+                    self.tiles.clear();
+                }
+                if bytes(tile) <= 64 * 1024 * 1024 {
+                    self.tiles.insert(id, (key, tile.clone()));
+                }
+            }
+            project.procedural_material_cache_keys.insert(id, key);
+        }
+        Ok(())
     }
 }

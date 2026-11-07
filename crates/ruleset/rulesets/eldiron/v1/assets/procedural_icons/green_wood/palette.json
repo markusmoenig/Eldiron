@@ -1,0 +1,57 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "lower-bark-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "lower-bark-outline": {
+    "color": 1
+  },
+  "lower-cut-colors": {
+    "color0": 19,
+    "color1": 20,
+    "color2": 21,
+    "color3": 22
+  },
+  "lower-cut-outline": {
+    "color": 1
+  },
+  "lower-rings-color": {
+    "color": 18
+  },
+  "upper-bark-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "upper-bark-outline": {
+    "color": 1
+  },
+  "upper-cut-colors": {
+    "color0": 19,
+    "color1": 20,
+    "color2": 21,
+    "color3": 22
+  },
+  "upper-cut-outline": {
+    "color": 1
+  },
+  "upper-rings-color": {
+    "color": 18
+  },
+  "fresh-leaf-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "fresh-leaf-outline": {
+    "color": 1
+  }
+}

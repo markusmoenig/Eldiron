@@ -1,0 +1,149 @@
+# 32px ruleset inventory artwork. Stock MZ rows; authored colors are project palette indices.
+project 1
+result from material "icon"
+material "icon" called "Torch - Lit"
+  mode pbr
+  tiling raw
+  animation 4 1
+  default roughness to 0.8
+  default metallic to 0
+  default opacity to 0
+  default emission strength to 1
+  row "haft" called "Wooden handle"
+    use "Rounded Rectangle" id "haft-shape-0"
+      set "center" to 0 0
+      set "halfSize" to 0.022 0.28
+      set "radius" to 0.012
+    use "Directional Gradient" id "haft-gradient"
+      set "angle" to 0
+      set "scale" to 16
+      set "offset" to 0.5
+    use "Color Ramp" id "haft-colors"
+      set "position0" to 0
+      set "position1" to 0.3
+      set "position2" to 0.58
+      set "position3" to 0.85
+      set "interpolation" to 0
+    use "Border" id "haft-outline"
+      set "width" to 0.005
+    use "Transform" id "haft-placement"
+      set "offset" to 0 0.14
+      set "localScale" to 1 1
+      set "rot" to 180
+  row "wrap" called "Cloth wrapped head"
+    use "Rounded Rectangle" id "wrap-shape-0"
+      set "center" to 0 -0.13
+      set "halfSize" to 0.06 0.08
+      set "radius" to 0.018
+    use "Directional Gradient" id "wrap-gradient"
+      set "angle" to 0
+      set "scale" to 2.5
+      set "offset" to 0.5
+    use "Color Ramp" id "wrap-colors"
+      set "position0" to 0
+      set "position1" to 0.3
+      set "position2" to 0.58
+      set "position3" to 0.85
+      set "interpolation" to 0
+    use "Border" id "wrap-outline"
+      set "width" to 0.007
+  row "bands" called "Iron retaining bands"
+    use "Rounded Rectangle" id "bands-shape-0"
+      set "center" to 0 -0.18
+      set "halfSize" to 0.065 0.014
+      set "radius" to 0.01
+    use "Rounded Rectangle" id "bands-shape-1"
+      combine union
+      set "center" to 0 -0.07
+      set "halfSize" to 0.065 0.014
+      set "radius" to 0.01
+    use "Directional Gradient" id "bands-gradient"
+      set "angle" to 0
+      set "scale" to 2.5
+      set "offset" to 0.5
+    use "Color Ramp" id "bands-colors"
+      set "position0" to 0
+      set "position1" to 0.3
+      set "position2" to 0.58
+      set "position3" to 0.85
+      set "interpolation" to 0
+    use "Border" id "bands-outline"
+      set "width" to 0.007
+  row "flame" called "Looping outer flame"
+    use "Circle" id "flame-shape-0"
+      set "center" to 0.14 -0.23
+      set "radius" to 0.075
+    use "Polygon" id "flame-shape-1"
+      combine union
+      set "center" to 0.17 -0.30
+      set "radius" to 0.10
+      set "sides" to 3
+      set "rotation" to -90
+    use "Directional Gradient" id "flame-gradient"
+      set "angle" to 0
+      set "center" to 0.14 -0.23
+      set "scale" to 8
+      set "offset" to 0.5
+    use "Color Ramp" id "flame-colors"
+      set "position0" to 0
+      set "position1" to 0.3
+      set "position2" to 0.58
+      set "position3" to 0.85
+      set "interpolation" to 0
+    use "Loop Flow" id "flame-flicker"
+      set "velocity" to 0.055 -0.055
+  row "core" called "Golden flame core"
+    use "Circle" id "core-shape-0"
+      set "center" to 0.135 -0.22
+      set "radius" to 0.04
+    use "Polygon" id "core-shape-1"
+      combine union
+      set "center" to 0.145 -0.27
+      set "radius" to 0.057
+      set "sides" to 3
+      set "rotation" to -90
+    use "Directional Gradient" id "core-gradient"
+      set "angle" to 0
+      set "center" to 0.135 -0.22
+      set "scale" to 10
+      set "offset" to 0.5
+    use "Color Ramp" id "core-colors"
+      set "position0" to 0
+      set "position1" to 0.3
+      set "position2" to 0.58
+      set "position3" to 0.85
+      set "interpolation" to 0
+    use "Loop Flow" id "core-flicker"
+      set "velocity" to -0.025 -0.035
+  row "composite-1" called "Wrap over previous layers"
+    use "Alpha Over" id "composite-1"
+      input from row "haft" xyz
+      set "foreground" from row "wrap" xyzw
+  row "composite-2" called "Bands over previous layers"
+    use "Alpha Over" id "composite-2"
+      input from row "composite-1" xyz
+      set "foreground" from row "bands" xyzw
+  row "torch" called "Diagonal torch"
+    use "Transform" id "torch-angle"
+      input from row "composite-2" xyz
+      set "rot" to 45
+  row "composite-3" called "Flame over previous layers"
+    use "Alpha Over" id "composite-3"
+      input from row "torch" xyz
+      set "foreground" from row "flame" xyzw
+  row "composite-4" called "Core over previous layers"
+    use "Alpha Over" id "composite-4"
+      input from row "composite-3" xyz
+      set "foreground" from row "core" xyzw
+  row "pixel-alpha" called "Crisp 32px silhouette"
+    use "Compare/Select" id "pixel-alpha"
+      input from row "composite-4" www
+      set "comparison" to 2
+      set "reference" to 0.5 0.5 0.5
+  row "glow" called "Emissive detail only"
+    use "Multiply" id "glow-mask"
+      input from row "flame" xyz
+      set "localValue" from row "flame" www
+  output base color from row "composite-4" xyz
+  output opacity from row "pixel-alpha" x
+  output emission from row "glow" xyz

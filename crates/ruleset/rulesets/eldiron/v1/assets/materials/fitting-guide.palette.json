@@ -1,0 +1,9 @@
+{
+  "base": {
+    "color": 1
+  },
+  "@surface": {
+    "base color": 1,
+    "emission": 1
+  }
+}

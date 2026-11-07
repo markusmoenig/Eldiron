@@ -1,0 +1,307 @@
+{
+  "version": 1,
+  "id": "pitched-roof",
+  "label": "Pitched Roof",
+  "rows": [
+    {
+      "id": "selection",
+      "label": "Selection",
+      "tiles": [
+        {
+          "id": "selection-0",
+          "op": {
+            "type": "input",
+            "name": "selection",
+            "preview": {
+              "version": 1,
+              "id": "selection-preview",
+              "label": "Selection Preview",
+              "rows": [
+                {
+                  "id": "bounds",
+                  "label": "Bounds",
+                  "tiles": [
+                    {
+                      "id": "bounds-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          4,
+                          2,
+                          4
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "bounds",
+              "grip": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "roof",
+      "label": "Roof",
+      "tiles": [
+        {
+          "id": "roof-0",
+          "op": {
+            "type": "group",
+            "label": "Pitched roof",
+            "document": {
+              "version": 1,
+              "id": "roof-construction",
+              "label": "Roof Construction",
+              "rows": [
+                {
+                  "id": "tiles",
+                  "label": "Tiles",
+                  "tiles": [
+                    {
+                      "id": "tiles-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 26,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-slope",
+                  "label": "Left Slope",
+                  "tiles": [
+                    {
+                      "id": "left-slope-0",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -2,
+                            0
+                          ],
+                          [
+                            0,
+                            1
+                          ],
+                          [
+                            0,
+                            1.14
+                          ],
+                          [
+                            -2,
+                            0.14
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-slope-1",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 4
+                      }
+                    },
+                    {
+                      "id": "left-slope-2",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "tiles"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-slope",
+                  "label": "Right Slope",
+                  "tiles": [
+                    {
+                      "id": "right-slope-0",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            1
+                          ],
+                          [
+                            2,
+                            0
+                          ],
+                          [
+                            2,
+                            0.14
+                          ],
+                          [
+                            0,
+                            1.14
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-slope-1",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 4
+                      }
+                    },
+                    {
+                      "id": "right-slope-2",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "tiles"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "slopes",
+                  "label": "Slopes",
+                  "tiles": [
+                    {
+                      "id": "slopes-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "left-slope",
+                          "right-slope"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "slopes",
+              "grip": null
+            },
+            "controls": [
+              {
+                "id": "rise",
+                "label": "Roof rise",
+                "category": "Shape",
+                "help": "Ridge height above the eaves, in world units.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.25,
+                "max": 3,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "left-slope"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      1,
+                      0
+                    ],
+                    "weight": {
+                      "axis": 0,
+                      "from": -2,
+                      "to": 0
+                    },
+                    "frames": false
+                  },
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "right-slope"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      1,
+                      0
+                    ],
+                    "weight": {
+                      "axis": 0,
+                      "from": 2,
+                      "to": 0
+                    },
+                    "frames": false
+                  }
+                ]
+              },
+              {
+                "id": "color",
+                "label": "Roof color",
+                "category": "Appearance",
+                "help": "Project palette slot.",
+                "order": 0,
+                "value": 26,
+                "reference": 26,
+                "min": 0,
+                "max": 255,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "left-slope",
+                      "right-slope"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "roof-1",
+          "op": {
+            "type": "fit_to",
+            "target": "selection",
+            "axes": [
+              true,
+              false,
+              true
+            ],
+            "source_anchor": [
+              0.5,
+              0,
+              0.5
+            ],
+            "target_anchor": [
+              0.5,
+              1,
+              0.5
+            ],
+            "padding": [
+              0.25,
+              0,
+              0.25
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "roof",
+  "grip": null
+}

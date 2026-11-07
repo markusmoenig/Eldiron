@@ -1,5 +1,9 @@
 /target
 /generated
+# Local MZ experiments and exported previews; keep these out of GitHub.
+/test_projects/Hideout2D-MZ/
+/test_projects/MZSelectionRecipes/
+/test_projects/MZSelectionRecipes.eldiron
 /notes/
 /docs/static/play/
 utilities/target

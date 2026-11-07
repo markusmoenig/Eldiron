@@ -1,11 +1,12 @@
-use eldiron_scepter::{
-    ActionList as ScepterActionList, ActionRun, ActionRunScript, AttributesGet, AttributesPatch,
-    RegionPaintCells, RegionPaintRect, RegionRef, RegionRenderPreview, ScepterCommand,
-    ScepterLorebook, ScriptGet, ScriptPatch, ScriptValidate, ToolList as ScepterToolList,
-    ToolSelect,
-};
+use eldiron_scepter::{RegionRef, ScepterCommand, ScepterLorebook};
 use serde_json::json;
-use std::io::{Read, Write};
+use std::io::Write;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+pub mod jobs;
+mod transport;
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
@@ -16,81 +17,14 @@ pub const SCEPTER_PORT: u16 = 37687;
 
 #[derive(Debug)]
 pub enum ScepterEvent {
+    PreparedEdit(crate::editor::scepter_staging::PreparedEdit),
+    Execute {
+        request: eldiron_scepter::ScepterRequest,
+        job: Arc<jobs::Job>,
+    },
     Ping {
         message: String,
         peer: String,
-    },
-    ProjectSnapshot {
-        reply: Sender<serde_json::Value>,
-    },
-    ProjectUndo {
-        reply: Sender<serde_json::Value>,
-    },
-    ProjectRedo {
-        reply: Sender<serde_json::Value>,
-    },
-    TilesSnapshot {
-        reply: Sender<serde_json::Value>,
-    },
-    RegionSnapshot {
-        request: ScepterRegionRequest,
-        reply: Sender<serde_json::Value>,
-    },
-    RegionSummary {
-        request: ScepterRegionRequest,
-        reply: Sender<serde_json::Value>,
-    },
-    RegionRenderPreview {
-        command: RegionRenderPreview,
-        reply: Sender<serde_json::Value>,
-    },
-    RegionPaintRect {
-        command: RegionPaintRect,
-        reply: Sender<serde_json::Value>,
-    },
-    RegionPaintCells {
-        command: RegionPaintCells,
-        reply: Sender<serde_json::Value>,
-    },
-    ScriptGet {
-        command: ScriptGet,
-        reply: Sender<serde_json::Value>,
-    },
-    ScriptPatch {
-        command: ScriptPatch,
-        reply: Sender<serde_json::Value>,
-    },
-    ScriptValidate {
-        command: ScriptValidate,
-        reply: Sender<serde_json::Value>,
-    },
-    ActionList {
-        command: ScepterActionList,
-        reply: Sender<serde_json::Value>,
-    },
-    ActionRun {
-        command: ActionRun,
-        reply: Sender<serde_json::Value>,
-    },
-    ActionRunScript {
-        command: ActionRunScript,
-        reply: Sender<serde_json::Value>,
-    },
-    ToolList {
-        command: ScepterToolList,
-        reply: Sender<serde_json::Value>,
-    },
-    ToolSelect {
-        command: ToolSelect,
-        reply: Sender<serde_json::Value>,
-    },
-    AttributesGet {
-        command: AttributesGet,
-        reply: Sender<serde_json::Value>,
-    },
-    AttributesPatch {
-        command: AttributesPatch,
-        reply: Sender<serde_json::Value>,
     },
     ServiceError(String),
 }
@@ -118,15 +52,21 @@ impl Default for ScepterRegionRequest {
 pub struct ScepterService {
     address: String,
     started: bool,
+    tx: Option<Sender<ScepterEvent>>,
 }
 
 impl ScepterService {
+    pub fn sender(&self) -> Option<Sender<ScepterEvent>> {
+        self.tx.clone()
+    }
+
     pub fn start() -> (Self, Receiver<ScepterEvent>) {
         let (tx, rx) = channel();
         let address = format!("{SCEPTER_HOST}:{SCEPTER_PORT}");
         let service = Self {
             address: address.clone(),
             started: true,
+            tx: Some(tx.clone()),
         };
 
         match TcpListener::bind(&address) {
@@ -146,6 +86,7 @@ impl ScepterService {
                     Self {
                         address,
                         started: false,
+                        tx: None,
                     },
                     rx,
                 );
@@ -168,556 +109,213 @@ impl ScepterService {
 }
 
 fn run_listener(listener: TcpListener, tx: Sender<ScepterEvent>) {
+    let registry = Arc::new(jobs::Registry::default());
+    let active = Arc::new(AtomicUsize::new(0));
     loop {
         match listener.accept() {
-            Ok((stream, _)) => handle_stream(stream, &tx),
-            Err(err) if err.kind() == std::io::ErrorKind::WouldBlock => {
-                thread::sleep(Duration::from_millis(25));
+            Ok((mut stream, _)) => {
+                if active.fetch_add(1, Ordering::AcqRel) >= 16 {
+                    active.fetch_sub(1, Ordering::AcqRel);
+                    let _ = stream.set_write_timeout(Some(Duration::from_millis(100)));
+                    let _ = write_json(
+                        &mut stream,
+                        503,
+                        json!({"ok":false,"error":"Too many requests"}),
+                    );
+                    continue;
+                }
+                let tx = tx.clone();
+                let registry = registry.clone();
+                let active = active.clone();
+                thread::spawn(move || {
+                    handle_stream(stream, &tx, &registry);
+                    active.fetch_sub(1, Ordering::AcqRel);
+                });
             }
-            Err(err) => {
-                let _ = tx.send(ScepterEvent::ServiceError(format!("listener error: {err}")));
-                thread::sleep(Duration::from_millis(250));
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                thread::sleep(Duration::from_millis(10))
+            }
+            Err(e) => {
+                let _ = tx.send(ScepterEvent::ServiceError(e.to_string()));
+                thread::sleep(Duration::from_millis(100));
             }
         }
     }
 }
-
-fn handle_stream(mut stream: TcpStream, tx: &Sender<ScepterEvent>) {
-    let peer = stream
-        .peer_addr()
-        .map(|addr| addr.to_string())
-        .unwrap_or_else(|_| "local".to_string());
-    let mut buffer = [0_u8; 16 * 1024];
-    let size = match stream.read(&mut buffer) {
-        Ok(size) => size,
-        Err(err) => {
-            let _ = write_json(
-                &mut stream,
-                400,
-                json!({ "ok": false, "error": err.to_string() }),
-            );
+fn handle_stream(mut stream: TcpStream, tx: &Sender<ScepterEvent>, registry: &jobs::Registry) {
+    let _ = stream.set_nonblocking(false);
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
+    let request = match transport::read(&mut stream) {
+        Ok(v) => v,
+        Err((code, error)) => {
+            let _ = write_json(&mut stream, code, json!({"ok":false,"error":error}));
             return;
         }
     };
-    let request = String::from_utf8_lossy(&buffer[..size]);
-    let (method, path) = request
-        .lines()
-        .next()
-        .and_then(parse_request_line)
-        .unwrap_or(("GET", "/"));
-    let body = request
-        .split_once("\r\n\r\n")
-        .map(|(_, body)| body)
-        .unwrap_or_default();
-
-    match (method, path_without_query(path)) {
-        ("GET", "/scepter/ping") | ("POST", "/scepter/ping") => {
-            let message = ping_message(path, body);
-            let _ = tx.send(ScepterEvent::Ping {
-                message: message.clone(),
-                peer: peer.clone(),
-            });
-            let _ = write_json(
-                &mut stream,
-                200,
-                json!({
-                    "ok": true,
-                    "service": "eldiron_scepter",
-                    "message": "pong",
-                    "received": message,
-                    "peer": peer,
-                }),
-            );
-        }
-        ("GET", "/scepter/lorebook") => {
-            let _ = write_json(&mut stream, 200, json!(ScepterLorebook::built_in()));
-        }
-        ("POST", "/scepter/command") => {
-            let Ok(command) = serde_json::from_str::<ScepterCommand>(body) else {
-                let _ = write_json(
-                    &mut stream,
-                    400,
-                    json!({ "ok": false, "error": "request body is not a valid ScepterCommand" }),
-                );
-                return;
-            };
-
-            handle_command(command, &mut stream, tx);
-        }
-        ("GET", "/scepter/project") => {
-            let (reply_tx, reply_rx) = channel();
-            if tx
-                .send(ScepterEvent::ProjectSnapshot { reply: reply_tx })
-                .is_err()
-            {
-                let _ = write_json(
-                    &mut stream,
-                    500,
-                    json!({ "ok": false, "error": "Creator did not accept project snapshot request" }),
-                );
-                return;
-            }
-
-            match reply_rx.recv_timeout(Duration::from_secs(2)) {
-                Ok(project) => {
-                    let _ = write_json(
-                        &mut stream,
-                        200,
-                        json!({
-                            "ok": true,
-                            "service": "eldiron_scepter",
-                            "project": project,
-                        }),
-                    );
-                }
-                Err(err) => {
-                    let _ = write_json(
-                        &mut stream,
-                        500,
-                        json!({ "ok": false, "error": format!("project snapshot timed out: {err}") }),
-                    );
-                }
-            }
-        }
-        ("GET", "/scepter/region") => {
-            let request = region_request_from_query(path);
-            request_creator_snapshot(
-                &mut stream,
-                tx,
-                "region",
-                |reply| ScepterEvent::RegionSnapshot { request, reply },
-                "Creator did not accept region snapshot request",
-                "region snapshot timed out",
-            );
-        }
-        ("GET", "/scepter/region/summary") => {
-            let request = region_request_from_query(path);
-            request_creator_snapshot(
-                &mut stream,
-                tx,
-                "summary",
-                |reply| ScepterEvent::RegionSummary { request, reply },
-                "Creator did not accept region summary request",
-                "region summary timed out",
-            );
-        }
-        ("GET", "/scepter/tiles") => {
-            let (reply_tx, reply_rx) = channel();
-            if tx
-                .send(ScepterEvent::TilesSnapshot { reply: reply_tx })
-                .is_err()
-            {
-                let _ = write_json(
-                    &mut stream,
-                    500,
-                    json!({ "ok": false, "error": "Creator did not accept tile snapshot request" }),
-                );
-                return;
-            }
-
-            match reply_rx.recv_timeout(Duration::from_secs(2)) {
-                Ok(tiles) => {
-                    let _ = write_json(
-                        &mut stream,
-                        200,
-                        json!({
-                            "ok": true,
-                            "service": "eldiron_scepter",
-                            "tiles": tiles,
-                        }),
-                    );
-                }
-                Err(err) => {
-                    let _ = write_json(
-                        &mut stream,
-                        500,
-                        json!({ "ok": false, "error": format!("tile snapshot timed out: {err}") }),
-                    );
-                }
-            }
-        }
-        _ => {
-            let _ = write_json(
-                &mut stream,
-                404,
-                json!({
-                    "ok": false,
-                    "error": "unknown Scepter endpoint",
-                    "endpoints": [
-                        "/scepter/ping",
-                        "/scepter/lorebook",
-                        "/scepter/command",
-                        "/scepter/project",
-                        "/scepter/region",
-                        "/scepter/region/summary",
-                        "/scepter/tiles"
-                    ],
-                }),
-            );
-        }
-    }
-}
-
-fn handle_command(command: ScepterCommand, stream: &mut TcpStream, tx: &Sender<ScepterEvent>) {
-    match command {
-        ScepterCommand::ScepterHelp => {
-            let lorebook = ScepterLorebook::built_in();
-            let _ = write_json(
-                stream,
-                200,
-                json!({
-                    "ok": true,
-                    "service": "eldiron_scepter",
-                    "help": "Eldiron Scepter is Creator's local automation API. Use the Lorebook to discover commands, schemas, capabilities, and examples.",
-                    "endpoints": [
-                        "/scepter/ping",
-                        "/scepter/lorebook",
-                        "/scepter/command",
-                        "/scepter/project",
-                        "/scepter/region",
-                        "/scepter/region/summary",
-                        "/scepter/tiles"
-                    ],
-                    "commands": lorebook.list_commands(),
-                }),
-            );
-        }
-        ScepterCommand::ScepterListCommands => {
-            let lorebook = ScepterLorebook::built_in();
-            let _ = write_json(
-                stream,
-                200,
-                json!({
-                    "ok": true,
-                    "service": "eldiron_scepter",
-                    "commands": lorebook.list_commands(),
-                }),
-            );
-        }
-        ScepterCommand::ScepterDescribeCommand { name } => {
-            let lorebook = ScepterLorebook::built_in();
-            match lorebook.describe_command(&name) {
-                Some(command) => {
-                    let _ = write_json(
-                        stream,
-                        200,
-                        json!({
-                            "ok": true,
-                            "service": "eldiron_scepter",
-                            "command": command,
-                        }),
-                    );
-                }
-                None => {
-                    let _ = write_json(
-                        stream,
-                        404,
-                        json!({
-                            "ok": false,
-                            "error": format!("unknown Scepter command: {name}"),
-                        }),
-                    );
-                }
-            }
-        }
-        ScepterCommand::ProjectDescribe => request_creator_snapshot(
-            stream,
-            tx,
-            "project",
-            |reply| ScepterEvent::ProjectSnapshot { reply },
-            "Creator did not accept project snapshot request",
-            "project snapshot timed out",
-        ),
-        ScepterCommand::ProjectUndo => request_creator_snapshot(
-            stream,
-            tx,
-            "result",
-            |reply| ScepterEvent::ProjectUndo { reply },
-            "Creator did not accept undo request",
-            "undo timed out",
-        ),
-        ScepterCommand::ProjectRedo => request_creator_snapshot(
-            stream,
-            tx,
-            "result",
-            |reply| ScepterEvent::ProjectRedo { reply },
-            "Creator did not accept redo request",
-            "redo timed out",
-        ),
-        ScepterCommand::RegionSnapshot(params) => {
-            let mut request = ScepterRegionRequest {
-                include_tiles: params.include_tiles,
-                ..ScepterRegionRequest::default()
-            };
-            if let Some(region) = params.region {
-                match region {
-                    RegionRef::Id { id } => request.id = Some(id),
-                    RegionRef::Name { name } => request.name = Some(name),
-                }
-            }
-            request_creator_snapshot(
-                stream,
-                tx,
-                "region",
-                |reply| ScepterEvent::RegionSnapshot { request, reply },
-                "Creator did not accept region snapshot request",
-                "region snapshot timed out",
-            )
-        }
-        ScepterCommand::RegionSummary(params) => {
-            let mut request = ScepterRegionRequest {
-                include_ascii: params.include_ascii,
-                ..ScepterRegionRequest::default()
-            };
-            if let Some(region) = params.region {
-                match region {
-                    RegionRef::Id { id } => request.id = Some(id),
-                    RegionRef::Name { name } => request.name = Some(name),
-                }
-            }
-            request_creator_snapshot(
-                stream,
-                tx,
-                "summary",
-                |reply| ScepterEvent::RegionSummary { request, reply },
-                "Creator did not accept region summary request",
-                "region summary timed out",
-            )
-        }
-        ScepterCommand::RegionRenderPreview(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "preview",
-            |reply| ScepterEvent::RegionRenderPreview { command, reply },
-            "Creator did not accept region preview request",
-            "region preview timed out",
-        ),
-        ScepterCommand::RegionPaintRect(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "result",
-            |reply| ScepterEvent::RegionPaintRect { command, reply },
-            "Creator did not accept region paint request",
-            "region paint timed out",
-        ),
-        ScepterCommand::RegionPaintCells(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "result",
-            |reply| ScepterEvent::RegionPaintCells { command, reply },
-            "Creator did not accept region paint request",
-            "region paint timed out",
-        ),
-        ScepterCommand::TileList(_) => request_creator_snapshot(
-            stream,
-            tx,
-            "tiles",
-            |reply| ScepterEvent::TilesSnapshot { reply },
-            "Creator did not accept tile snapshot request",
-            "tile snapshot timed out",
-        ),
-        ScepterCommand::ScriptGet(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "script",
-            |reply| ScepterEvent::ScriptGet { command, reply },
-            "Creator did not accept script read request",
-            "script read timed out",
-        ),
-        ScepterCommand::ScriptPatch(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "result",
-            |reply| ScepterEvent::ScriptPatch { command, reply },
-            "Creator did not accept script patch request",
-            "script patch timed out",
-        ),
-        ScepterCommand::ScriptValidate(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "validation",
-            |reply| ScepterEvent::ScriptValidate { command, reply },
-            "Creator did not accept script validation request",
-            "script validation timed out",
-        ),
-        ScepterCommand::ActionList(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "actions",
-            |reply| ScepterEvent::ActionList { command, reply },
-            "Creator did not accept action catalogue request",
-            "action catalogue request timed out",
-        ),
-        ScepterCommand::ActionRun(command) => request_creator_snapshot_with_timeout(
-            stream,
-            tx,
-            "result",
-            |reply| ScepterEvent::ActionRun { command, reply },
-            "Creator did not accept action run request",
-            "action run timed out",
-            Duration::from_secs(60),
-        ),
-        ScepterCommand::ActionRunScript(command) => request_creator_snapshot_with_timeout(
-            stream,
-            tx,
-            "result",
-            |reply| ScepterEvent::ActionRunScript { command, reply },
-            "Creator did not accept action script request",
-            "action script timed out",
-            Duration::from_secs(60),
-        ),
-        ScepterCommand::ToolList(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "tools",
-            |reply| ScepterEvent::ToolList { command, reply },
-            "Creator did not accept tool catalogue request",
-            "tool catalogue request timed out",
-        ),
-        ScepterCommand::ToolSelect(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "result",
-            |reply| ScepterEvent::ToolSelect { command, reply },
-            "Creator did not accept tool selection request",
-            "tool selection timed out",
-        ),
-        ScepterCommand::AttributesGet(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "attributes",
-            |reply| ScepterEvent::AttributesGet { command, reply },
-            "Creator did not accept attributes read request",
-            "attributes read timed out",
-        ),
-        ScepterCommand::AttributesPatch(command) => request_creator_snapshot(
-            stream,
-            tx,
-            "result",
-            |reply| ScepterEvent::AttributesPatch { command, reply },
-            "Creator did not accept attributes patch request",
-            "attributes patch timed out",
-        ),
-        command => {
-            let _ = write_json(
-                stream,
-                501,
-                json!({
-                    "ok": false,
-                    "service": "eldiron_scepter",
-                    "command": command.name(),
-                    "error": "command is in the Lorebook but is not executable yet",
-                }),
-            );
-        }
-    }
-}
-
-fn request_creator_snapshot(
-    stream: &mut TcpStream,
-    tx: &Sender<ScepterEvent>,
-    response_key: &str,
-    event: impl FnOnce(Sender<serde_json::Value>) -> ScepterEvent,
-    send_error: &str,
-    timeout_error: &str,
-) {
-    request_creator_snapshot_with_timeout(
-        stream,
-        tx,
-        response_key,
-        event,
-        send_error,
-        timeout_error,
-        Duration::from_secs(2),
-    );
-}
-
-fn request_creator_snapshot_with_timeout(
-    stream: &mut TcpStream,
-    tx: &Sender<ScepterEvent>,
-    response_key: &str,
-    event: impl FnOnce(Sender<serde_json::Value>) -> ScepterEvent,
-    send_error: &str,
-    timeout_error: &str,
-    timeout: Duration,
-) {
-    let (reply_tx, reply_rx) = channel();
-    if tx.send(event(reply_tx)).is_err() {
-        let _ = write_json(stream, 500, json!({ "ok": false, "error": send_error }));
+    let path = request.path.split('?').next().unwrap_or_default();
+    if path == "/scepter/ping" {
+        let _ = write_json(
+            &mut stream,
+            200,
+            json!({"ok":true,"service":"eldiron_scepter","message":"pong"}),
+        );
         return;
     }
-
-    match reply_rx.recv_timeout(timeout) {
-        Ok(value) => {
-            let mut body = json!({
-                "ok": true,
-                "service": "eldiron_scepter",
-            });
-            if let Some(object) = body.as_object_mut() {
-                object.insert(response_key.to_string(), value);
+    if request.method == "GET" && path == "/scepter/lorebook" {
+        let _ = write_json(&mut stream, 200, json!(ScepterLorebook::built_in()));
+        return;
+    }
+    if path == "/scepter/job" && matches!(request.method.as_str(), "GET" | "DELETE") {
+        let id = transport::query(&request.path, "request_id").unwrap_or_default();
+        match registry.get(&id) {
+            Some(job) => {
+                if request.method == "DELETE" {
+                    if job.cancel() {
+                        let _ = write_json(
+                            &mut stream,
+                            200,
+                            json!({"ok":true,"status":"cancelled","request_id":id}),
+                        );
+                    } else {
+                        let _ = write_json(
+                            &mut stream,
+                            409,
+                            json!({"ok":false,"error":"Only queued requests can be cancelled","request_id":id}),
+                        );
+                    }
+                    return;
+                }
+                let mut result = job.response(Duration::ZERO);
+                result["request_id"] = json!(id);
+                send_result(&mut stream, result);
             }
-            let _ = write_json(stream, 200, body);
+            None => {
+                let _ = write_json(
+                    &mut stream,
+                    404,
+                    json!({"ok":false,"error":"Unknown request_id"}),
+                );
+            }
         }
-        Err(err) => {
+        return;
+    }
+    let mut command = if request.method == "POST" && path == "/scepter/command" {
+        match serde_json::from_str::<eldiron_scepter::ScepterRequest>(&request.body) {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = write_json(&mut stream, 400, json!({"ok":false,"error":e.to_string()}));
+                return;
+            }
+        }
+    } else if request.method == "GET" {
+        let region = transport::query(&request.path, "id")
+            .map(RegionRef::id)
+            .or_else(|| transport::query(&request.path, "name").map(RegionRef::name));
+        let command = match path {
+            "/scepter/project" => ScepterCommand::ProjectDescribe,
+            "/scepter/tiles" => ScepterCommand::TileList(Default::default()),
+            "/scepter/region" => ScepterCommand::RegionSnapshot(eldiron_scepter::RegionSnapshot {
+                region,
+                include_tiles: true,
+            }),
+            "/scepter/region/summary" => {
+                ScepterCommand::RegionSummary(eldiron_scepter::RegionSummary {
+                    region,
+                    include_ascii: true,
+                })
+            }
+            _ => {
+                let _ = write_json(
+                    &mut stream,
+                    404,
+                    json!({"ok":false,"error":"Unknown endpoint"}),
+                );
+                return;
+            }
+        };
+        eldiron_scepter::ScepterRequest {
+            request_id: None,
+            session: None,
+            revision: None,
+            command,
+        }
+    } else {
+        let _ = write_json(
+            &mut stream,
+            404,
+            json!({"ok":false,"error":"Unknown endpoint"}),
+        );
+        return;
+    };
+    if !eldiron_scepter::creator_implements(command.command.name()) {
+        let _ = write_json(
+            &mut stream,
+            501,
+            json!({"ok":false,"error":"Command is planned, not implemented","command":command.command.name()}),
+        );
+        return;
+    }
+    if command.command.is_mutation()
+        && (command.request_id.is_none() || command.session.is_none() || command.revision.is_none())
+    {
+        let _ = write_json(
+            &mut stream,
+            428,
+            json!({"ok":false,"error":"Edits require request_id, session and revision from project.describe"}),
+        );
+        return;
+    }
+    let id = command
+        .request_id
+        .clone()
+        .unwrap_or_else(|| theframework::prelude::Uuid::new_v4().to_string());
+    if id.is_empty() || id.len() > 128 {
+        let _ = write_json(
+            &mut stream,
+            400,
+            json!({"ok":false,"error":"request_id must be 1..128 bytes"}),
+        );
+        return;
+    }
+    command.request_id = Some(id.clone());
+    let payload = serde_json::to_string(&command).unwrap();
+    match registry.submit(&id, payload, command.command.is_mutation()) {
+        Ok((job, new)) => {
+            if new
+                && tx
+                    .send(ScepterEvent::Execute {
+                        request: command,
+                        job: job.clone(),
+                    })
+                    .is_err()
+            {
+                job.finish(json!({"ok":false,"http_status":503,"error":"Creator is unavailable"}));
+            }
+            let mut result = job.response(Duration::from_secs(2));
+            result["request_id"] = json!(id);
+            send_result(&mut stream, result);
+        }
+        Err(error) => {
             let _ = write_json(
-                stream,
-                500,
-                json!({ "ok": false, "error": format!("{timeout_error}: {err}") }),
+                &mut stream,
+                if error.starts_with("request_id") {
+                    409
+                } else {
+                    503
+                },
+                json!({"ok":false,"error":error}),
             );
         }
     }
 }
-
-fn parse_request_line(line: &str) -> Option<(&str, &str)> {
-    let mut parts = line.split_whitespace();
-    let method = parts.next()?;
-    let path = parts.next()?;
-    Some((method, path))
+fn send_result(stream: &mut TcpStream, mut result: serde_json::Value) {
+    let status = result
+        .get("http_status")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(if result["ok"] == false { 422 } else { 200 }) as u16;
+    result.as_object_mut().unwrap().remove("http_status");
+    let _ = write_json(stream, status, result);
 }
-
-fn path_without_query(path: &str) -> &str {
-    path.split_once('?').map(|(path, _)| path).unwrap_or(path)
-}
-
-fn ping_message(path: &str, body: &str) -> String {
-    if let Some(query) = path.split_once('?').map(|(_, query)| query) {
-        for part in query.split('&') {
-            if let Some(value) = part.strip_prefix("message=") {
-                return value.replace('+', " ");
-            }
-        }
-    }
-
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(body)
-        && let Some(message) = value.get("message").and_then(serde_json::Value::as_str)
-    {
-        return message.to_string();
-    }
-
-    body.trim().to_string()
-}
-
-fn region_request_from_query(path: &str) -> ScepterRegionRequest {
-    let mut request = ScepterRegionRequest::default();
-    let Some(query) = path.split_once('?').map(|(_, query)| query) else {
-        return request;
-    };
-
-    for part in query.split('&') {
-        if let Some(value) = part.strip_prefix("id=") {
-            request.id = Some(value.replace('+', " "));
-        } else if let Some(value) = part.strip_prefix("name=") {
-            request.name = Some(value.replace('+', " "));
-        } else if let Some(value) = part.strip_prefix("include_tiles=") {
-            request.include_tiles = matches!(value, "1" | "true" | "yes");
-        } else if let Some(value) = part.strip_prefix("include_ascii=") {
-            request.include_ascii = matches!(value, "1" | "true" | "yes");
-        }
-    }
-
-    request
-}
-
 fn write_json(
     stream: &mut TcpStream,
     status: u16,
@@ -725,16 +323,154 @@ fn write_json(
 ) -> std::io::Result<()> {
     let reason = match status {
         200 => "OK",
+        202 => "Accepted",
         400 => "Bad Request",
         404 => "Not Found",
+        408 => "Request Timeout",
+        409 => "Conflict",
+        411 => "Length Required",
+        413 => "Payload Too Large",
+        422 => "Unprocessable Content",
+        428 => "Precondition Required",
         501 => "Not Implemented",
+        503 => "Service Unavailable",
         _ => "Internal Server Error",
     };
-    let body = serde_json::to_string_pretty(&value).unwrap_or_else(|_| "{}".to_string());
-    let response = format!(
+    let body = serde_json::to_string(&value)?;
+    write!(
+        stream,
         "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         body.len(),
         body
-    );
-    stream.write_all(response.as_bytes())
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Read;
+    fn exchange(
+        tx: Sender<ScepterEvent>,
+        registry: Arc<jobs::Registry>,
+        method: &str,
+        path: &str,
+        body: serde_json::Value,
+    ) -> (u16, serde_json::Value) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            handle_stream(stream, &tx, &registry);
+        });
+        let mut stream = TcpStream::connect(addr).unwrap();
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let body = body.to_string();
+        write!(
+            stream,
+            "{method} {path} HTTP/1.1\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+        let mut response = String::new();
+        stream.read_to_string(&mut response).unwrap();
+        server.join().unwrap();
+        let (header, body) = response.split_once("\r\n\r\n").unwrap();
+        (
+            header.split_whitespace().nth(1).unwrap().parse().unwrap(),
+            serde_json::from_str(body).unwrap(),
+        )
+    }
+    #[test]
+    fn http_preconditions_errors_and_idempotent_retries() {
+        let (tx, rx) = channel();
+        let registry = Arc::new(jobs::Registry::default());
+        let payload = json!({"command":"project.undo"});
+        assert_eq!(
+            exchange(
+                tx.clone(),
+                registry.clone(),
+                "POST",
+                "/scepter/command",
+                payload
+            )
+            .0,
+            428
+        );
+        assert!(rx.try_recv().is_err());
+        let payload =
+            json!({"request_id":"edit-1","session":"a","revision":"1","command":"project.undo"});
+        let responder = thread::spawn(move || {
+            let ScepterEvent::Execute { job, .. } = rx.recv().unwrap() else {
+                panic!("Unexpected event")
+            };
+            assert!(job.begin());
+            job.finish(json!({"ok":false,"error":"Nothing to undo"}));
+            rx
+        });
+        let (status, result) = exchange(
+            tx.clone(),
+            registry.clone(),
+            "POST",
+            "/scepter/command",
+            payload.clone(),
+        );
+        assert_eq!(status, 422);
+        assert_eq!(result["ok"], false);
+        let rx = responder.join().unwrap();
+        assert_eq!(
+            exchange(
+                tx.clone(),
+                registry.clone(),
+                "POST",
+                "/scepter/command",
+                payload.clone()
+            )
+            .0,
+            422
+        );
+        assert!(rx.try_recv().is_err());
+        let mut changed = payload;
+        changed["revision"] = json!("2");
+        assert_eq!(
+            exchange(tx, registry, "POST", "/scepter/command", changed).0,
+            409
+        );
+    }
+    #[test]
+    fn http_timeout_is_pending_and_queued_cancel_prevents_execution() {
+        let (tx, rx) = channel();
+        let registry = Arc::new(jobs::Registry::default());
+        let payload =
+            json!({"request_id":"queued-1","session":"a","revision":"1","command":"project.undo"});
+        let (status, result) = exchange(
+            tx.clone(),
+            registry.clone(),
+            "POST",
+            "/scepter/command",
+            payload.clone(),
+        );
+        assert_eq!(status, 202);
+        assert_eq!(result["status"], "queued");
+        assert_eq!(
+            exchange(
+                tx.clone(),
+                registry.clone(),
+                "DELETE",
+                "/scepter/job?request_id=queued-1",
+                json!({})
+            )
+            .0,
+            200
+        );
+        let ScepterEvent::Execute { job, .. } = rx.recv().unwrap() else {
+            panic!("Unexpected event")
+        };
+        assert!(!job.begin());
+        let (status, result) = exchange(tx, registry, "POST", "/scepter/command", payload);
+        assert_eq!(status, 409);
+        assert_eq!(result["status"], "cancelled");
+        assert!(rx.try_recv().is_err());
+    }
 }

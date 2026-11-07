@@ -90,7 +90,7 @@ pub(super) fn bind_color(
     bind_parameter(asset, operation, "color", index, palette)
 }
 
-pub(super) fn bind_parameter(
+pub(crate) fn bind_parameter(
     asset: &EditableMaterialAsset,
     operation: &str,
     parameter: &str,
@@ -129,7 +129,7 @@ pub(super) fn bind_parameter(
 
 /// Give newly dropped Color generators the selected project color. Imported
 /// standalone MaterialZ color constants are assigned a project palette entry.
-pub(super) fn ensure_color_bindings(
+pub(crate) fn ensure_color_bindings(
     asset: &mut EditableMaterialAsset,
     palette: &ThePalette,
 ) -> Result<bool, String> {
@@ -232,12 +232,17 @@ pub(super) fn refresh(project: &mut Project) -> Vec<String> {
         let result = EditableMaterialAsset::reopen(bundle)
             .map_err(|e| e.to_string())
             .and_then(|mut asset| {
-                ensure_color_bindings(&mut asset, &project.palette)?;
+                // Loading is not an authoring edit. Adding bindings for unused
+                // defaults here changes every bundle and discards its saved bake.
+                if !resolve(&mut asset, &project.palette)? {
+                    return Ok(None);
+                }
                 asset.validate().map_err(|e| e.to_string())?;
-                asset.save().map_err(|e| e.to_string())
+                asset.save().map(Some).map_err(|e| e.to_string())
             });
         match result {
-            Ok(updated) => *bundle = updated,
+            Ok(Some(updated)) => *bundle = updated,
+            Ok(None) => {}
             Err(error) => errors.push(format!("Palette material {id}: {error}")),
         }
     }
@@ -296,100 +301,13 @@ pub(super) fn bindings(asset: &EditableMaterialAsset) -> Vec<MaterialPaletteBind
         .collect()
 }
 fn linear_color(palette: &ThePalette, index: u16) -> Result<Vec<f32>, String> {
-    let color = palette
-        .colors
-        .get(usize::from(index))
-        .and_then(Option::as_ref)
-        .ok_or_else(|| format!("Palette color {index} is empty"))?;
-    let linear = |value: f32| {
-        let value = value.clamp(0., 1.);
-        if value <= 0.04045 {
-            value / 12.92
-        } else {
-            ((value + 0.055) / 1.055).powf(2.4)
-        }
-    };
-    if [color.r, color.g, color.b, color.a]
-        .iter()
-        .any(|value| !value.is_finite())
-    {
-        return Err(format!("Palette color {index} is not finite"));
-    }
-    Ok(vec![
-        linear(color.r),
-        linear(color.g),
-        linear(color.b),
-        color.a.clamp(0., 1.),
-    ])
+    rusterix::ruleset_material::linear_color(palette, index)
 }
-fn resolve(asset: &mut EditableMaterialAsset, palette: &ThePalette) -> Result<bool, String> {
-    let bindings = asset
-        .instances
-        .iter()
-        .find(|record| record.id == RECORD)
-        .map(|record| record.palette_bindings.clone())
-        .unwrap_or_default();
-    let mut changed = false;
-    for binding in bindings {
-        let index = u16::try_from(binding.index).map_err(|_| "Palette index is out of range")?;
-        let value = linear_color(palette, index)?;
-        let document = if asset.root.id == binding.key.asset {
-            &mut asset.root
-        } else {
-            asset
-                .dependencies
-                .iter_mut()
-                .find(|document| document.id == binding.key.asset)
-                .ok_or("Palette binding document is missing")?
-        };
-        if let Some(id) = binding.key.tile.strip_prefix("@material:") {
-            let material = document
-                .project
-                .materials
-                .iter_mut()
-                .find(|m| m.id == id)
-                .ok_or("Palette material is missing")?;
-            let rgb = value[..3].to_vec();
-            if let Some((_, old)) = material
-                .defaults
-                .iter_mut()
-                .find(|(name, _)| name == &binding.key.parameter)
-            {
-                if *old != rgb {
-                    *old = rgb;
-                    changed = true;
-                }
-            } else {
-                material.defaults.push((binding.key.parameter, rgb));
-                changed = true;
-            }
-            continue;
-        }
-        let tile = document
-            .project
-            .materials
-            .iter_mut()
-            .flat_map(|material| &mut material.rows)
-            .flat_map(|row| &mut row.tiles)
-            .find(|tile| tile.id == binding.key.tile)
-            .ok_or("Palette Color tile is missing")?;
-        if let Some((_, parameter)) = tile
-            .parameters
-            .iter_mut()
-            .find(|(id, _)| id == &binding.key.parameter)
-        {
-            let next = Binding::Constant(value);
-            if *parameter != next {
-                *parameter = next;
-                changed = true;
-            }
-        } else {
-            tile.parameters
-                .push((binding.key.parameter, Binding::Constant(value)));
-            changed = true;
-        }
-    }
-    Ok(changed)
+pub(crate) fn resolve(
+    asset: &mut EditableMaterialAsset,
+    palette: &ThePalette,
+) -> Result<bool, String> {
+    rusterix::ruleset_material::resolve_palette(asset, palette)
 }
 
 #[cfg(test)]
@@ -407,6 +325,27 @@ mod tests {
             .unwrap()
             .clone()
     }
+    #[test]
+    fn opening_baked_hideout_keeps_materials_and_bake_keys_unchanged() {
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../test_projects/Hideout2D-MZ.eldiron"
+        ))
+        .unwrap();
+        let mut project = shared::project_io::decode_project(&bytes).unwrap();
+        let before = project.procedural_materials.clone();
+        let keys = project.procedural_material_cache_keys.clone();
+        assert!(before.len() >= 150);
+        assert!(refresh(&mut project).is_empty());
+        assert_eq!(
+            project.procedural_materials, before,
+            "Opening must not add bindings for unused defaults or rewrite a saved bundle"
+        );
+        assert_eq!(project.procedural_material_cache_keys, keys);
+        assert!(refresh(&mut project).is_empty());
+        assert_eq!(project.procedural_materials, before);
+    }
+
     #[test]
     fn ramps_mixers_and_material_defaults_keep_palette_indices_through_edit_save_and_refresh() {
         let mut project = Project::default();
@@ -647,9 +586,8 @@ material "surface" called "Surface"
         for _ in 0..2 {
             let tile = rusterix::Tile::from_textures(vec![rusterix::Texture::alloc(4, 4)]);
             let id = tile.id;
-            project
-                .procedural_materials
-                .insert(id, starter(id, &project).unwrap().save().unwrap());
+            let bundle = starter(id, &project).unwrap().save().unwrap();
+            project.procedural_materials.insert(id, bundle);
             project.tiles.insert(id, tile);
             ids.push(id);
         }

@@ -102,11 +102,12 @@ pub(super) fn for_surface(
     project: &Project,
     binding: &MapMaterialBinding,
 ) -> Option<rusterix::TileUvPages> {
-    let map = &project
+    let map = project
         .regions
         .iter()
-        .find(|r| r.map.id == binding.map)?
-        .map;
+        .map(|r| &r.map)
+        .chain(project.screens.values().map(|s| &s.map))
+        .find(|map| map.id == binding.map)?;
     let points;
     let basis;
     match binding.surface {
@@ -180,8 +181,12 @@ fn is_source(source: Option<&PixelSource>, id: Uuid) -> bool {
 }
 pub(super) fn for_template(project: &Project, id: Uuid) -> Option<rusterix::TileUvPages> {
     let mut points = Vec::new();
-    for region in &project.regions {
-        let map = &region.map;
+    for map in project
+        .regions
+        .iter()
+        .map(|r| &r.map)
+        .chain(project.screens.values().map(|s| &s.map))
+    {
         for sector in &map.sectors {
             if is_source(sector.properties.get_source("source"), id)
                 || is_source(sector.properties.get_source("ceiling_source"), id)
@@ -317,6 +322,37 @@ pub(crate) fn decode(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn screen_only_material_bakes_cover_authored_grid_and_follow_edits() {
+        let mut project = Project::default();
+        let tile = Uuid::new_v4();
+        let mut screen = shared::screen::Screen::new();
+        let v = [[-3., -2.], [1., -2.], [1., 2.], [-3., 2.]]
+            .map(|p| screen.map.add_vertex_at(p[0], p[1]));
+        for i in 0..4 {
+            screen.map.create_linedef(v[i], v[(i + 1) % 4]);
+        }
+        screen.map.sectors[0]
+            .properties
+            .set("source", rusterix::Value::Source(PixelSource::TileId(tile)));
+        let id = screen.id;
+        project.screens.insert(id, screen);
+        let pages = for_template(&project, tile).unwrap();
+        assert_eq!(pages.origin, [-3, -2]);
+        assert_eq!(pages.size, [4, 4]);
+        let binding = MapMaterialBinding {
+            map: project.screens[&id].map.id,
+            surface: Surface::Sector {
+                id: project.screens[&id].map.sectors[0].id,
+                ceiling: false,
+            },
+        };
+        assert_eq!(for_surface(&project, &binding).unwrap(), pages);
+        project.screens[&id].map.vertices[0].x = -5.;
+        let pages = for_template(&project, tile).unwrap();
+        assert_eq!(pages.origin, [-5, -2]);
+        assert_eq!(pages.size, [6, 4]);
+    }
     #[test]
     fn page_coverage_keeps_negative_world_coordinates_and_bounds_large_surfaces() {
         let small = layout(vec![[-2.25, -1.], [3.5, 2.]], FLOOR).unwrap();

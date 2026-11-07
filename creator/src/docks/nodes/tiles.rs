@@ -5,6 +5,7 @@ use super::*;
 pub(super) struct TileControls {
     images: HashMap<String, TheRGBABuffer>,
     names: HashMap<String, String>,
+    pub(super) equipment_names: HashMap<String, String>,
     items: Vec<GraphPickerItem>,
 }
 impl TileControls {
@@ -16,7 +17,17 @@ impl TileControls {
         }
     }
 
+    pub(super) fn refresh_equipment_names(&mut self, project: &Project) {
+        self.equipment_names.clear();
+        for item in project.items.values() {
+            self.equipment_names
+                .insert(item.id.to_string(), item.name.clone());
+            self.equipment_names
+                .insert(item.name.clone(), item.name.clone());
+        }
+    }
     pub fn refresh(&mut self, project: &Project) {
+        self.refresh_equipment_names(project);
         self.images.clear();
         self.names.clear();
         self.items = vec![GraphPickerItem {

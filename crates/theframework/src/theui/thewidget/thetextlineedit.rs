@@ -1193,9 +1193,15 @@ mod tests {
         let mut edit = TheTextLineEdit::new(TheId::named("Test"));
         let mut ctx = TheContext::new(100, 30, 1.0);
         edit.set_text("1.0".into());
-        edit.on_event(&TheEvent::ModifierChanged(false, false, false, true), &mut ctx);
+        edit.on_event(
+            &TheEvent::ModifierChanged(false, false, false, true),
+            &mut ctx,
+        );
         edit.on_event(&TheEvent::KeyDown(TheValue::Char('a')), &mut ctx);
-        edit.on_event(&TheEvent::ModifierChanged(false, false, false, false), &mut ctx);
+        edit.on_event(
+            &TheEvent::ModifierChanged(false, false, false, false),
+            &mut ctx,
+        );
         edit.on_event(&TheEvent::KeyDown(TheValue::Char('2')), &mut ctx);
         assert_eq!(edit.text(), "2");
     }

@@ -14,6 +14,10 @@ the official ruleset plus **Game / Rules** project overrides.
 
 Player key bindings are configured through the **Input Binding** node. See [Input Mapping](/docs/characters_items/input_mapping) for command meanings.
 
+MZ model, icon, worn-material and state bindings are described in
+[Character and Item Appearance](appearance#onoff-behavior). Configure an outfit
+through Equipment rather than repeating its materials in character attributes.
+
 ---
 
 ## Attributes
@@ -22,13 +26,17 @@ Player key bindings are configured through the **Input Binding** node. See [Inpu
 
 *Item-only attribute.*
 
-Represents the active state of an item (on or off). When it changes, Eldiron
+Represents the active state of an item (on or off). It selects procedural icon
+and model state bindings such as `appearance_icon_off` and
+`appearance_geometry_off`; the normal binding supplies the default artwork.
+The Appearance workspace previews and edits these states independently.
+
+For tile-based items, when it changes, Eldiron
 automatically selects `on_tile_id` or `off_tile_id` when the matching mapping
 exists. Each mapping accepts a tile UUID, tile alias, or palette index. If the
 requested mapping is absent, the current world source remains unchanged.
-Creator also uses a mapped state tile as that state's default icon. Painting
-the icon stores an independent item override; **Load Default** reads the tile
-mapping again.
+Explicit bitmap icon-state frames remain separate project artwork. Procedural
+state recipes are edited through Appearance rather than the old icon tree rows.
 
 An [active event](events) is also sent to the item for additional
 state-dependent behavior such as enabling a light. No additional node is needed to switch the tile when these mappings are defined.

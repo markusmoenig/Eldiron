@@ -1,0 +1,1358 @@
+{
+  "version": 1,
+  "id": "moonwater",
+  "label": "Moonwater",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Moonwater",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Moonwater",
+            "document": {
+              "version": 1,
+              "id": "moonwater-construction",
+              "label": "Moonwater construction",
+              "rows": [
+                {
+                  "id": "item-glass",
+                  "label": "Item-Glass",
+                  "tiles": [
+                    {
+                      "id": "item-glass-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 10,
+                        "roughness": 0.23,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "glass-body",
+                  "label": "Glass Body",
+                  "tiles": [
+                    {
+                      "id": "glass-body-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.12,
+                              0
+                            ],
+                            "radius": [
+                              0.045,
+                              0.045
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.1,
+                              0
+                            ],
+                            "radius": [
+                              0.075,
+                              0.06
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.025,
+                              0
+                            ],
+                            "radius": [
+                              0.075,
+                              0.06
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.08,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.03
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.145,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.03
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "glass-body-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-glass"
+                      }
+                    },
+                    {
+                      "id": "glass-body-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-glass",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-blue",
+                  "label": "Item-Blue",
+                  "tiles": [
+                    {
+                      "id": "item-blue-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 41,
+                        "roughness": 0.4,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "liquid-body",
+                  "label": "Liquid Body",
+                  "tiles": [
+                    {
+                      "id": "liquid-body-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.105,
+                              0
+                            ],
+                            "radius": [
+                              0.045,
+                              0.056
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.085,
+                              0
+                            ],
+                            "radius": [
+                              0.069,
+                              0.061
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.015,
+                              0
+                            ],
+                            "radius": [
+                              0.069,
+                              0.061
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "liquid-body-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-blue"
+                      }
+                    },
+                    {
+                      "id": "liquid-body-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-blue",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-ash",
+                  "label": "Weapon-Ash",
+                  "tiles": [
+                    {
+                      "id": "weapon-ash-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "cork",
+                  "label": "Cork",
+                  "tiles": [
+                    {
+                      "id": "cork-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.135,
+                              0
+                            ],
+                            "radius": [
+                              0.033,
+                              0.033
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.175,
+                              0
+                            ],
+                            "radius": [
+                              0.034,
+                              0.034
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "cork-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "cork-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "arrow-feather",
+                  "label": "Arrow-Feather",
+                  "tiles": [
+                    {
+                      "id": "arrow-feather-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 9,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bottle-glint",
+                  "label": "Bottle Glint",
+                  "tiles": [
+                    {
+                      "id": "bottle-glint-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.1,
+                          0.005
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bottle-glint-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.039,
+                          -0.025,
+                          0.064
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bottle-glint-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "bottle-glint-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-0",
+                  "label": "Moon Seal 0",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.017,
+                            0.0
+                          ],
+                          [
+                            0.023,
+                            0.0
+                          ],
+                          [
+                            0.01860739087062379,
+                            0.013519060802726883
+                          ],
+                          [
+                            0.013753288904374108,
+                            0.009992349288972044
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-1",
+                  "label": "Moon Seal 1",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.013753288904374108,
+                            0.009992349288972044
+                          ],
+                          [
+                            0.01860739087062379,
+                            0.013519060802726883
+                          ],
+                          [
+                            0.007107390870623791,
+                            0.02187429987478853
+                          ],
+                          [
+                            0.005253288904374107,
+                            0.016167960777017612
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-2",
+                  "label": "Moon Seal 2",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.005253288904374107,
+                            0.016167960777017612
+                          ],
+                          [
+                            0.007107390870623791,
+                            0.02187429987478853
+                          ],
+                          [
+                            -0.007107390870623789,
+                            0.021874299874788533
+                          ],
+                          [
+                            -0.005253288904374105,
+                            0.016167960777017612
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-3",
+                  "label": "Moon Seal 3",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.005253288904374105,
+                            0.016167960777017612
+                          ],
+                          [
+                            -0.007107390870623789,
+                            0.021874299874788533
+                          ],
+                          [
+                            -0.01860739087062379,
+                            0.013519060802726884
+                          ],
+                          [
+                            -0.013753288904374106,
+                            0.009992349288972045
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-4",
+                  "label": "Moon Seal 4",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.013753288904374106,
+                            0.009992349288972045
+                          ],
+                          [
+                            -0.01860739087062379,
+                            0.013519060802726884
+                          ],
+                          [
+                            -0.023,
+                            2.8166876380389123e-18
+                          ],
+                          [
+                            -0.017,
+                            2.0818995585505005e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-5",
+                  "label": "Moon Seal 5",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.017,
+                            2.0818995585505005e-18
+                          ],
+                          [
+                            -0.023,
+                            2.8166876380389123e-18
+                          ],
+                          [
+                            -0.01860739087062379,
+                            -0.01351906080272688
+                          ],
+                          [
+                            -0.013753288904374108,
+                            -0.009992349288972042
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-6",
+                  "label": "Moon Seal 6",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.013753288904374108,
+                            -0.009992349288972042
+                          ],
+                          [
+                            -0.01860739087062379,
+                            -0.01351906080272688
+                          ],
+                          [
+                            -0.007107390870623793,
+                            -0.02187429987478853
+                          ],
+                          [
+                            -0.005253288904374109,
+                            -0.016167960777017612
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-7",
+                  "label": "Moon Seal 7",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.005253288904374109,
+                            -0.016167960777017612
+                          ],
+                          [
+                            -0.007107390870623793,
+                            -0.02187429987478853
+                          ],
+                          [
+                            0.0071073908706237865,
+                            -0.021874299874788533
+                          ],
+                          [
+                            0.0052532889043741034,
+                            -0.016167960777017612
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-8",
+                  "label": "Moon Seal 8",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.0052532889043741034,
+                            -0.016167960777017612
+                          ],
+                          [
+                            0.0071073908706237865,
+                            -0.021874299874788533
+                          ],
+                          [
+                            0.01860739087062379,
+                            -0.013519060802726888
+                          ],
+                          [
+                            0.013753288904374106,
+                            -0.009992349288972047
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "moon-seal-9",
+                  "label": "Moon Seal 9",
+                  "tiles": [
+                    {
+                      "id": "moon-seal-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.013753288904374106,
+                            -0.009992349288972047
+                          ],
+                          [
+                            0.01860739087062379,
+                            -0.013519060802726888
+                          ],
+                          [
+                            0.023,
+                            -5.6333752760778246e-18
+                          ],
+                          [
+                            0.017,
+                            -4.163799117101001e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "moon-seal-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.025,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "moon-seal-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "moon-seal-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Moonwater assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "glass-body",
+                          "liquid-body",
+                          "cork",
+                          "bottle-glint",
+                          "moon-seal-0",
+                          "moon-seal-1",
+                          "moon-seal-2",
+                          "moon-seal-3",
+                          "moon-seal-4",
+                          "moon-seal-5",
+                          "moon-seal-6",
+                          "moon-seal-7",
+                          "moon-seal-8",
+                          "moon-seal-9"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0.08,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.08,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

@@ -251,6 +251,22 @@ impl CreatorPalette {
         } {
             colors.insert(role, color);
         }
+        // Connections need stronger contrast than the quiet construction grid.
+        for (role, color) in if light {
+            [
+                (MaterialWire, [117, 80, 44, 255]),
+                (MaterialGrid, [215, 207, 194, 255]),
+                (NodeConnection, [117, 80, 44, 255]),
+            ]
+        } else {
+            [
+                (MaterialWire, [186, 159, 117, 255]),
+                (MaterialGrid, [54, 48, 42, 255]),
+                (NodeConnection, [186, 159, 117, 255]),
+            ]
+        } {
+            colors.insert(role, color);
+        }
         // Surface roles are explicit: text-colored cream must never fill a panel.
         for (role, color) in if light {
             [
@@ -358,6 +374,32 @@ impl_theme!(TheLightTheme, true);
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn graph_connections_are_distinct_from_the_canvas_and_grid() {
+        let luminance = |c: RGBA| {
+            let linear = |v: u8| {
+                let v = v as f32 / 255.;
+                if v <= 0.04045 {
+                    v / 12.92
+                } else {
+                    ((v + 0.055) / 1.055).powf(2.4)
+                }
+            };
+            linear(c[0]) * 0.2126 + linear(c[1]) * 0.7152 + linear(c[2]) * 0.0722
+        };
+        for theme in [
+            Box::new(TheBrownTheme::new()) as Box<dyn TheTheme>,
+            Box::new(TheLightTheme::new()),
+        ] {
+            let wire = luminance(*theme.color(MaterialWire));
+            for (role, minimum) in [(MaterialCanvas, 4.5), (MaterialGrid, 3.0)] {
+                let surface = luminance(*theme.color(role));
+                let contrast = (wire.max(surface) + 0.05) / (wire.min(surface) + 0.05);
+                assert!(contrast >= minimum, "{role:?}: {contrast}");
+            }
+        }
+    }
+
     #[test]
     fn tree_category_surfaces_have_readable_text_in_both_themes() {
         fn luminance(color: RGBA) -> f32 {

@@ -973,62 +973,7 @@ impl RegionCtx {
     }
 
     fn resolve_item_class_name(&self, requested: &str) -> Option<String> {
-        let requested = requested.trim();
-        if requested.is_empty() {
-            return None;
-        }
-
-        if self.assets.items.contains_key(requested) {
-            return Some(requested.to_string());
-        }
-
-        // Accept case-insensitive class/template ids.
-        if let Some((class_name, _)) = self
-            .assets
-            .items
-            .iter()
-            .find(|(class_name, _)| class_name.eq_ignore_ascii_case(requested))
-        {
-            return Some(class_name.clone());
-        }
-
-        // Accept display names and stable ruleset ids from item data.
-        for (class_name, (_, item_data)) in &self.assets.items {
-            if let Ok(table) = item_data.parse::<toml::Table>() {
-                let attr_name = table
-                    .get("attributes")
-                    .and_then(toml::Value::as_table)
-                    .and_then(|attrs| attrs.get("name"))
-                    .and_then(toml::Value::as_str);
-                let ruleset_id = table
-                    .get("attributes")
-                    .and_then(toml::Value::as_table)
-                    .and_then(|attrs| attrs.get("ruleset_id"))
-                    .and_then(toml::Value::as_str);
-                let source_id = table
-                    .get("attributes")
-                    .and_then(toml::Value::as_table)
-                    .and_then(|attrs| attrs.get("source_id"))
-                    .and_then(toml::Value::as_str);
-                let ruleset_path_id = table
-                    .get("attributes")
-                    .and_then(toml::Value::as_table)
-                    .and_then(|attrs| attrs.get("ruleset_path"))
-                    .and_then(toml::Value::as_str)
-                    .and_then(|path| path.rsplit('.').next());
-                let top_name = table.get("name").and_then(toml::Value::as_str);
-                if attr_name.is_some_and(|name| name.eq_ignore_ascii_case(requested))
-                    || ruleset_id.is_some_and(|id| id.eq_ignore_ascii_case(requested))
-                    || source_id.is_some_and(|id| id.eq_ignore_ascii_case(requested))
-                    || ruleset_path_id.is_some_and(|id| id.eq_ignore_ascii_case(requested))
-                    || top_name.is_some_and(|name| name.eq_ignore_ascii_case(requested))
-                {
-                    return Some(class_name.clone());
-                }
-            }
-        }
-
-        None
+        self.assets.resolve_item_class_name(requested)
     }
 
     /// Search for a mutable reference to an entity with the given ID.
@@ -1238,8 +1183,16 @@ impl RegionCtx {
         }
 
         let id = crate::server::region::get_global_id();
+        let creator_id = self
+            .assets
+            .item_template_ids
+            .iter()
+            .find_map(|(id, name)| (name == &class_name).then_some(*id))
+            .unwrap_or_default();
         let mut item = Item {
             id,
+            creator_id,
+            item_type: class_name.clone(),
             ..Default::default()
         };
 

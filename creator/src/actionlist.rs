@@ -111,6 +111,8 @@ impl ActionList {
             Geometry,
             crate::actions::create_geometry_box::CreateGeometryBox::new(),
         );
+        list.register("geometry.apply_mz_recipe",Procedural,crate::actions::mz_recipe::ApplyMZRecipe::new());
+        list.register("geometry.edit_mz_recipe",Procedural,crate::actions::mz_recipe::EditMZRecipe::new());
         list.register(
             "geometry.create_rounded_box",
             Geometry,

@@ -1,0 +1,614 @@
+{
+  "version": 1,
+  "id": "loot_corpse",
+  "label": "Loot Corpse",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Loot Corpse",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Loot Corpse",
+            "document": {
+              "version": 1,
+              "id": "loot_corpse-construction",
+              "label": "Loot Corpse construction",
+              "rows": [
+                {
+                  "id": "item-stone",
+                  "label": "Item-Stone",
+                  "tiles": [
+                    {
+                      "id": "item-stone-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 6,
+                        "roughness": 0.95,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "grave-marker",
+                  "label": "Grave Marker",
+                  "tiles": [
+                    {
+                      "id": "grave-marker-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.15,
+                            0
+                          ],
+                          [
+                            0.15,
+                            0
+                          ],
+                          [
+                            0.15,
+                            0.44
+                          ],
+                          [
+                            0.09,
+                            0.53
+                          ],
+                          [
+                            -0.02,
+                            0.57
+                          ],
+                          [
+                            -0.13,
+                            0.51
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "grave-marker-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.1
+                      }
+                    },
+                    {
+                      "id": "grave-marker-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "grave-marker-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stone"
+                      }
+                    },
+                    {
+                      "id": "grave-marker-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stone",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-dust",
+                  "label": "Item-Dust",
+                  "tiles": [
+                    {
+                      "id": "item-dust-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 5,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "grave-face",
+                  "label": "Grave Face",
+                  "tiles": [
+                    {
+                      "id": "grave-face-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.11,
+                            0.04
+                          ],
+                          [
+                            0.11,
+                            0.04
+                          ],
+                          [
+                            0.11,
+                            0.43
+                          ],
+                          [
+                            0.06,
+                            0.49
+                          ],
+                          [
+                            -0.02,
+                            0.52
+                          ],
+                          [
+                            -0.1,
+                            0.47
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "grave-face-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.009
+                      }
+                    },
+                    {
+                      "id": "grave-face-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0.056
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "grave-face-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "grave-face-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-dark",
+                  "label": "Item-Dark",
+                  "tiles": [
+                    {
+                      "id": "item-dark-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 2,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "cross-vertical",
+                  "label": "Cross Vertical",
+                  "tiles": [
+                    {
+                      "id": "cross-vertical-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.025,
+                          0.19,
+                          0.006
+                        ]
+                      }
+                    },
+                    {
+                      "id": "cross-vertical-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.34,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "cross-vertical-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "cross-vertical-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "cross-arm",
+                  "label": "Cross Arm",
+                  "tiles": [
+                    {
+                      "id": "cross-arm-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.12,
+                          0.025,
+                          0.006
+                        ]
+                      }
+                    },
+                    {
+                      "id": "cross-arm-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.38,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "cross-arm-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "cross-arm-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "inscription-0",
+                  "label": "Inscription 0",
+                  "tiles": [
+                    {
+                      "id": "inscription-0-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.09,
+                          0.009,
+                          0.006
+                        ]
+                      }
+                    },
+                    {
+                      "id": "inscription-0-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.16,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "inscription-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "inscription-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "inscription-1",
+                  "label": "Inscription 1",
+                  "tiles": [
+                    {
+                      "id": "inscription-1-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.06,
+                          0.009,
+                          0.006
+                        ]
+                      }
+                    },
+                    {
+                      "id": "inscription-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.12,
+                          0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "inscription-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "inscription-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Loot Corpse assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "grave-marker",
+                          "grave-face",
+                          "cross-vertical",
+                          "cross-arm",
+                          "inscription-0",
+                          "inscription-1"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

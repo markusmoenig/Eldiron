@@ -91,9 +91,14 @@ impl D2Builder {
                                 uvs.push(uv);
                             } else {
                                 let texture_scale = 1.0;
+                                let origin = if tile.uv_pages.is_some() {
+                                    vek::Vec2::zero()
+                                } else {
+                                    bbox.min
+                                };
                                 let uv = [
-                                    (vertex[0] - bbox.min.x) / texture_scale,
-                                    (vertex[1] - bbox.min.y) / texture_scale,
+                                    (vertex[0] - origin.x) / texture_scale,
+                                    (vertex[1] - origin.y) / texture_scale,
                                 ];
                                 uvs.push(uv);
                             }
@@ -152,9 +157,14 @@ impl D2Builder {
                                     uvs.push(uv);
                                 } else {
                                     let texture_scale = 1.0;
+                                    let origin = if tile.uv_pages.is_some() {
+                                        vek::Vec2::zero()
+                                    } else {
+                                        bbox.min
+                                    };
                                     let uv = [
-                                        (vertex[0] - bbox.min.x) / texture_scale,
-                                        (vertex[1] - bbox.min.y) / texture_scale,
+                                        (vertex[0] - origin.x) / texture_scale,
+                                        (vertex[1] - origin.y) / texture_scale,
                                     ];
                                     uvs.push(uv);
                                 }

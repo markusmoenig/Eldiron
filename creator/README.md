@@ -4,6 +4,13 @@
 
 Eldiron natively supports **2D** (like Ultima 4/5), **isometric**, and **first-person** RPGs, allowing developers to craft a variety of experiences effortlessly.
 
+The embedded MaterialZ (MZ) core adds editable procedural world materials,
+shape-based map composition, ruleset item icons, clothing, models and rigs.
+The same project-palette artwork supports 2D sprites and native 3D meshes.
+Bitmap tiles and avatars remain supported. See the
+[material guide](../docs/docs/building_maps/procedural_materials.md) and
+[appearance guide](../docs/docs/characters_items/appearance.md).
+
 ![Eldiron Creator](images/eldiron_v0.9.png)
 
 Eldiron is open-source and licensed under the **MIT License**.

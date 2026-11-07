@@ -75,6 +75,10 @@ pub struct GameWidget {
     pub camera_safe_bottom: f32,
 
     pub player_pos: Vec2<f32>,
+    /// Offscreen inspection can use an explicit camera without following the player.
+    pub follow_player_camera: bool,
+    /// Game cameras stay inside the map; inspection cameras may frame its edges.
+    pub clamp_camera_to_map: bool,
 
     pub toml_str: String,
     pub table: ValueGroups,
@@ -168,6 +172,8 @@ impl GameWidget {
             camera_safe_bottom: 0.0,
 
             player_pos: Vec2::zero(),
+            follow_player_camera: true,
+            clamp_camera_to_map: true,
 
             toml_str: String::new(),
             table: ValueGroups::default(),
@@ -487,6 +493,9 @@ impl GameWidget {
     }
 
     fn update_player_context(&mut self, map: &Map) {
+        if !self.follow_player_camera {
+            return;
+        }
         for entity in &map.entities {
             if entity.is_player() {
                 if !Self::is_2d_camera(&self.camera) {
@@ -1182,23 +1191,25 @@ impl GameWidget {
         let safe_half_width = safe_width * 0.5;
         let safe_half_height = safe_height * 0.5;
 
-        if map_width_px > safe_width {
-            camera_pos.x = camera_pos
-                .x
-                .clamp(min_world.x + safe_half_width, max_world.x - safe_half_width);
-        } else {
-            // Center small maps inside the safe camera area.
-            camera_pos.x = (min_world.x + max_world.x) / 2.0;
-        }
+        if self.clamp_camera_to_map {
+            if map_width_px > safe_width {
+                camera_pos.x = camera_pos
+                    .x
+                    .clamp(min_world.x + safe_half_width, max_world.x - safe_half_width);
+            } else {
+                // Center small maps inside the safe camera area.
+                camera_pos.x = (min_world.x + max_world.x) / 2.0;
+            }
 
-        if map_height_px > safe_height {
-            camera_pos.y = camera_pos.y.clamp(
-                min_world.y + safe_half_height,
-                max_world.y - safe_half_height,
-            );
-        } else {
-            // Center small maps inside the safe camera area.
-            camera_pos.y = (min_world.y + max_world.y) / 2.0;
+            if map_height_px > safe_height {
+                camera_pos.y = camera_pos.y.clamp(
+                    min_world.y + safe_half_height,
+                    max_world.y - safe_half_height,
+                );
+            } else {
+                // Center small maps inside the safe camera area.
+                camera_pos.y = (min_world.y + max_world.y) / 2.0;
+            }
         }
 
         let translation_matrix = Mat3::<f32>::translation_2d((focus_point - camera_pos).floor());

@@ -1,0 +1,79 @@
+# 32px ruleset inventory artwork. Stock MZ rows; authored colors are project palette indices.
+project 1
+result from material "icon"
+material "icon" called "Ember Bead"
+  mode pbr
+  tiling raw
+  default roughness to 0.8
+  default metallic to 0
+  default opacity to 0
+  default emission strength to 1
+  row "cord" called "Threading cord"
+    use "Circle" id "cord-shape-0"
+      set "center" to 0 -0.16
+      set "radius" to 0.19
+    use "Circle" id "cord-shape-1"
+      combine subtract
+      set "center" to 0 -0.16
+      set "radius" to 0.155
+    use "Color" id "cord-color"
+    use "Border" id "cord-outline"
+      set "width" to 0.007
+  row "bead" called "Glazed ember bead"
+    use "Circle" id "bead-shape-0"
+      set "center" to 0 0.08
+      set "radius" to 0.23
+    use "Directional Gradient" id "bead-gradient"
+      set "angle" to 0
+      set "scale" to 2.5
+      set "offset" to 0.5
+    use "Color Ramp" id "bead-colors"
+      set "position0" to 0
+      set "position1" to 0.3
+      set "position2" to 0.58
+      set "position3" to 0.85
+      set "interpolation" to 0
+    use "Border" id "bead-outline"
+      set "width" to 0.018
+  row "incised-rune" called "Incised glowing rune"
+    use "Polygon" id "incised-rune-shape-0"
+      set "center" to 0 0.08
+      set "radius" to 0.12
+      set "sides" to 3
+      set "rotation" to -90
+    use "Polygon" id "incised-rune-shape-1"
+      combine subtract
+      set "center" to 0 0.08
+      set "radius" to 0.075
+      set "sides" to 3
+      set "rotation" to -90
+    use "Color" id "incised-rune-color"
+  row "glint" called "Warm glint"
+    use "Circle" id "glint-shape-0"
+      set "center" to -0.08 -0.005
+      set "radius" to 0.04
+    use "Color" id "glint-color"
+  row "composite-1" called "Bead over previous layers"
+    use "Alpha Over" id "composite-1"
+      input from row "cord" xyz
+      set "foreground" from row "bead" xyzw
+  row "composite-2" called "Incised Rune over previous layers"
+    use "Alpha Over" id "composite-2"
+      input from row "composite-1" xyz
+      set "foreground" from row "incised-rune" xyzw
+  row "composite-3" called "Glint over previous layers"
+    use "Alpha Over" id "composite-3"
+      input from row "composite-2" xyz
+      set "foreground" from row "glint" xyzw
+  row "pixel-alpha" called "Crisp 32px silhouette"
+    use "Compare/Select" id "pixel-alpha"
+      input from row "composite-3" www
+      set "comparison" to 2
+      set "reference" to 0.5 0.5 0.5
+  row "glow" called "Emissive detail only"
+    use "Multiply" id "glow-mask"
+      input from row "incised-rune" xyz
+      set "localValue" from row "incised-rune" www
+  output base color from row "composite-3" xyz
+  output opacity from row "pixel-alpha" x
+  output emission from row "glow" xyz

@@ -22,7 +22,10 @@ pub fn node_available(pc: ProjectContext, key: &str) -> bool {
                 | "entity_attribute"
                 | "entity_light"
         ) || (matches!(pc, ProjectContext::CharacterData(_))
-            && matches!(key, "entity_player" | "entity_input" | "entity_inputs"))
+            && matches!(
+                key,
+                "entity_player" | "entity_input" | "entity_inputs" | "entity_equipment"
+            ))
             || (matches!(pc, ProjectContext::ItemData(_)) && key == "entity_ruleset_item");
     }
     match key {

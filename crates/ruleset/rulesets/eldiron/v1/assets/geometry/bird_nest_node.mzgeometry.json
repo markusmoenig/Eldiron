@@ -1,0 +1,3967 @@
+{
+  "version": 1,
+  "id": "bird_nest_node",
+  "label": "Bird Nest Node",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Bird Nest Node",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Bird Nest Node",
+            "document": {
+              "version": 1,
+              "id": "bird_nest_node-construction",
+              "label": "Bird Nest Node construction",
+              "rows": [
+                {
+                  "id": "weapon-ash",
+                  "label": "Weapon-Ash",
+                  "tiles": [
+                    {
+                      "id": "weapon-ash-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "nest-base",
+                  "label": "Nest Base",
+                  "tiles": [
+                    {
+                      "id": "nest-base-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.015,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.0029999999999999957,
+                              0
+                            ],
+                            "radius": [
+                              0.144,
+                              0.1296
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.025,
+                              0
+                            ],
+                            "radius": [
+                              0.2,
+                              0.18
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.053,
+                              0
+                            ],
+                            "radius": [
+                              0.144,
+                              0.1296
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.065,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "nest-base-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "nest-base-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-0",
+                  "label": "Twig Ring 0 0",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.162,
+                            0.0
+                          ],
+                          [
+                            0.18,
+                            0.0
+                          ],
+                          [
+                            0.15938208461757777,
+                            0.08365017096787833
+                          ],
+                          [
+                            0.14344387615582002,
+                            0.0752851538710905
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-1",
+                  "label": "Twig Ring 0 1",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.14344387615582002,
+                            0.0752851538710905
+                          ],
+                          [
+                            0.15938208461757777,
+                            0.08365017096787833
+                          ],
+                          [
+                            0.10225165441160804,
+                            0.14813709586085813
+                          ],
+                          [
+                            0.09202648897044724,
+                            0.13332338627477233
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-2",
+                  "label": "Twig Ring 0 2",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.09202648897044724,
+                            0.13332338627477233
+                          ],
+                          [
+                            0.10225165441160804,
+                            0.14813709586085813
+                          ],
+                          [
+                            0.02169660244595814,
+                            0.17868759733764972
+                          ],
+                          [
+                            0.019526942201362328,
+                            0.16081883760388474
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-3",
+                  "label": "Twig Ring 0 3",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.019526942201362328,
+                            0.16081883760388474
+                          ],
+                          [
+                            0.02169660244595814,
+                            0.17868759733764972
+                          ],
+                          [
+                            -0.06382887966765638,
+                            0.16830292368337466
+                          ],
+                          [
+                            -0.05744599170089074,
+                            0.15147263131503722
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-4",
+                  "label": "Twig Ring 0 4",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.05744599170089074,
+                            0.15147263131503722
+                          ],
+                          [
+                            -0.06382887966765638,
+                            0.16830292368337466
+                          ],
+                          [
+                            -0.13473193467079822,
+                            0.11936207848334313
+                          ],
+                          [
+                            -0.12125874120371839,
+                            0.10742587063500883
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-5",
+                  "label": "Twig Ring 0 5",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.12125874120371839,
+                            0.10742587063500883
+                          ],
+                          [
+                            -0.13473193467079822,
+                            0.11936207848334313
+                          ],
+                          [
+                            -0.17476952713668936,
+                            0.043076819571760384
+                          ],
+                          [
+                            -0.15729257442302044,
+                            0.038769137614584344
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-6",
+                  "label": "Twig Ring 0 6",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.15729257442302044,
+                            0.038769137614584344
+                          ],
+                          [
+                            -0.17476952713668936,
+                            0.043076819571760384
+                          ],
+                          [
+                            -0.17476952713668936,
+                            -0.043076819571760336
+                          ],
+                          [
+                            -0.15729257442302044,
+                            -0.0387691376145843
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-7",
+                  "label": "Twig Ring 0 7",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.15729257442302044,
+                            -0.0387691376145843
+                          ],
+                          [
+                            -0.17476952713668936,
+                            -0.043076819571760336
+                          ],
+                          [
+                            -0.13473193467079822,
+                            -0.11936207848334308
+                          ],
+                          [
+                            -0.12125874120371842,
+                            -0.10742587063500879
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-8",
+                  "label": "Twig Ring 0 8",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.12125874120371842,
+                            -0.10742587063500879
+                          ],
+                          [
+                            -0.13473193467079822,
+                            -0.11936207848334308
+                          ],
+                          [
+                            -0.06382887966765646,
+                            -0.16830292368337466
+                          ],
+                          [
+                            -0.05744599170089082,
+                            -0.1514726313150372
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-9",
+                  "label": "Twig Ring 0 9",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.05744599170089082,
+                            -0.1514726313150372
+                          ],
+                          [
+                            -0.06382887966765646,
+                            -0.16830292368337466
+                          ],
+                          [
+                            0.021696602445958175,
+                            -0.17868759733764972
+                          ],
+                          [
+                            0.01952694220136236,
+                            -0.16081883760388474
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-10",
+                  "label": "Twig Ring 0 10",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.01952694220136236,
+                            -0.16081883760388474
+                          ],
+                          [
+                            0.021696602445958175,
+                            -0.17868759733764972
+                          ],
+                          [
+                            0.10225165441160786,
+                            -0.14813709586085827
+                          ],
+                          [
+                            0.09202648897044709,
+                            -0.13332338627477244
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-11",
+                  "label": "Twig Ring 0 11",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.09202648897044709,
+                            -0.13332338627477244
+                          ],
+                          [
+                            0.10225165441160786,
+                            -0.14813709586085827
+                          ],
+                          [
+                            0.1593820846175778,
+                            -0.0836501709678783
+                          ],
+                          [
+                            0.14344387615582002,
+                            -0.07528515387109048
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-0-12",
+                  "label": "Twig Ring 0 12",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-0-12-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.14344387615582002,
+                            -0.07528515387109048
+                          ],
+                          [
+                            0.1593820846175778,
+                            -0.0836501709678783
+                          ],
+                          [
+                            0.18,
+                            1.1578483077671782e-16
+                          ],
+                          [
+                            0.162,
+                            1.0420634769904605e-16
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-12-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-12-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.05,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-12-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-0-12-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-0",
+                  "label": "Twig Ring 1 0",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.15,
+                            0.0
+                          ],
+                          [
+                            0.16799999999999998,
+                            0.0
+                          ],
+                          [
+                            0.14875661230973924,
+                            0.0780734929033531
+                          ],
+                          [
+                            0.1328184038479815,
+                            0.06970847580656528
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-1",
+                  "label": "Twig Ring 1 1",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.1328184038479815,
+                            0.06970847580656528
+                          ],
+                          [
+                            0.14875661230973924,
+                            0.0780734929033531
+                          ],
+                          [
+                            0.09543487745083416,
+                            0.13826128947013425
+                          ],
+                          [
+                            0.08520971200967337,
+                            0.12344757988404845
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-2",
+                  "label": "Twig Ring 1 2",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.08520971200967337,
+                            0.12344757988404845
+                          ],
+                          [
+                            0.09543487745083416,
+                            0.13826128947013425
+                          ],
+                          [
+                            0.020250162282894262,
+                            0.16677509084847306
+                          ],
+                          [
+                            0.01808050203829845,
+                            0.14890633111470808
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-3",
+                  "label": "Twig Ring 1 3",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.01808050203829845,
+                            0.14890633111470808
+                          ],
+                          [
+                            0.020250162282894262,
+                            0.16677509084847306
+                          ],
+                          [
+                            -0.05957362102314595,
+                            0.15708272877114968
+                          ],
+                          [
+                            -0.053190733056380314,
+                            0.1402524364028122
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-4",
+                  "label": "Twig Ring 1 4",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.053190733056380314,
+                            0.1402524364028122
+                          ],
+                          [
+                            -0.05957362102314595,
+                            0.15708272877114968
+                          ],
+                          [
+                            -0.125749805692745,
+                            0.11140460658445359
+                          ],
+                          [
+                            -0.11227661222566518,
+                            0.09946839873611928
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-5",
+                  "label": "Twig Ring 1 5",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.11227661222566518,
+                            0.09946839873611928
+                          ],
+                          [
+                            -0.125749805692745,
+                            0.11140460658445359
+                          ],
+                          [
+                            -0.16311822532757672,
+                            0.040205031600309686
+                          ],
+                          [
+                            -0.1456412726139078,
+                            0.03589734964313365
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-6",
+                  "label": "Twig Ring 1 6",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.1456412726139078,
+                            0.03589734964313365
+                          ],
+                          [
+                            -0.16311822532757672,
+                            0.040205031600309686
+                          ],
+                          [
+                            -0.16311822532757675,
+                            -0.040205031600309644
+                          ],
+                          [
+                            -0.1456412726139078,
+                            -0.03589734964313361
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-7",
+                  "label": "Twig Ring 1 7",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.1456412726139078,
+                            -0.03589734964313361
+                          ],
+                          [
+                            -0.16311822532757675,
+                            -0.040205031600309644
+                          ],
+                          [
+                            -0.125749805692745,
+                            -0.11140460658445354
+                          ],
+                          [
+                            -0.11227661222566519,
+                            -0.09946839873611925
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-8",
+                  "label": "Twig Ring 1 8",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.11227661222566519,
+                            -0.09946839873611925
+                          ],
+                          [
+                            -0.125749805692745,
+                            -0.11140460658445354
+                          ],
+                          [
+                            -0.05957362102314603,
+                            -0.15708272877114965
+                          ],
+                          [
+                            -0.05319073305638038,
+                            -0.1402524364028122
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-9",
+                  "label": "Twig Ring 1 9",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.05319073305638038,
+                            -0.1402524364028122
+                          ],
+                          [
+                            -0.05957362102314603,
+                            -0.15708272877114965
+                          ],
+                          [
+                            0.020250162282894297,
+                            -0.16677509084847306
+                          ],
+                          [
+                            0.01808050203829848,
+                            -0.14890633111470808
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-10",
+                  "label": "Twig Ring 1 10",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.01808050203829848,
+                            -0.14890633111470808
+                          ],
+                          [
+                            0.020250162282894297,
+                            -0.16677509084847306
+                          ],
+                          [
+                            0.095434877450834,
+                            -0.13826128947013436
+                          ],
+                          [
+                            0.08520971200967321,
+                            -0.12344757988404854
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-11",
+                  "label": "Twig Ring 1 11",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.08520971200967321,
+                            -0.12344757988404854
+                          ],
+                          [
+                            0.095434877450834,
+                            -0.13826128947013436
+                          ],
+                          [
+                            0.14875661230973927,
+                            -0.07807349290335308
+                          ],
+                          [
+                            0.1328184038479815,
+                            -0.06970847580656525
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-1-12",
+                  "label": "Twig Ring 1 12",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-1-12-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.1328184038479815,
+                            -0.06970847580656525
+                          ],
+                          [
+                            0.14875661230973927,
+                            -0.07807349290335308
+                          ],
+                          [
+                            0.16799999999999998,
+                            1.0806584205826997e-16
+                          ],
+                          [
+                            0.15,
+                            9.648735898059819e-17
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-12-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-12-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.066,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-12-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-1-12-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-0",
+                  "label": "Twig Ring 2 0",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.138,
+                            0.0
+                          ],
+                          [
+                            0.156,
+                            0.0
+                          ],
+                          [
+                            0.13813114000190074,
+                            0.07249681483882789
+                          ],
+                          [
+                            0.12219293154014298,
+                            0.06413179774204006
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-1",
+                  "label": "Twig Ring 2 1",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.12219293154014298,
+                            0.06413179774204006
+                          ],
+                          [
+                            0.13813114000190074,
+                            0.07249681483882789
+                          ],
+                          [
+                            0.0886181004900603,
+                            0.1283854830794104
+                          ],
+                          [
+                            0.0783929350488995,
+                            0.11357177349332459
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-2",
+                  "label": "Twig Ring 2 2",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.0783929350488995,
+                            0.11357177349332459
+                          ],
+                          [
+                            0.0886181004900603,
+                            0.1283854830794104
+                          ],
+                          [
+                            0.01880372211983039,
+                            0.15486258435929642
+                          ],
+                          [
+                            0.016634061875234578,
+                            0.13699382462553145
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-3",
+                  "label": "Twig Ring 2 3",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.016634061875234578,
+                            0.13699382462553145
+                          ],
+                          [
+                            0.01880372211983039,
+                            0.15486258435929642
+                          ],
+                          [
+                            -0.05531836237863553,
+                            0.14586253385892473
+                          ],
+                          [
+                            -0.0489354744118699,
+                            0.12903224149058726
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-4",
+                  "label": "Twig Ring 2 4",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.0489354744118699,
+                            0.12903224149058726
+                          ],
+                          [
+                            -0.05531836237863553,
+                            0.14586253385892473
+                          ],
+                          [
+                            -0.11676767671469179,
+                            0.10344713468556405
+                          ],
+                          [
+                            -0.10329448324761198,
+                            0.09151092683722975
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-5",
+                  "label": "Twig Ring 2 5",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.10329448324761198,
+                            0.09151092683722975
+                          ],
+                          [
+                            -0.11676767671469179,
+                            0.10344713468556405
+                          ],
+                          [
+                            -0.1514669235184641,
+                            0.037333243628859
+                          ],
+                          [
+                            -0.1339899708047952,
+                            0.03302556167168296
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-6",
+                  "label": "Twig Ring 2 6",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.1339899708047952,
+                            0.03302556167168296
+                          ],
+                          [
+                            -0.1514669235184641,
+                            0.037333243628859
+                          ],
+                          [
+                            -0.15146692351846414,
+                            -0.03733324362885896
+                          ],
+                          [
+                            -0.13398997080479522,
+                            -0.033025561671682926
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-7",
+                  "label": "Twig Ring 2 7",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.13398997080479522,
+                            -0.033025561671682926
+                          ],
+                          [
+                            -0.15146692351846414,
+                            -0.03733324362885896
+                          ],
+                          [
+                            -0.1167676767146918,
+                            -0.10344713468556402
+                          ],
+                          [
+                            -0.10329448324761199,
+                            -0.09151092683722971
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-8",
+                  "label": "Twig Ring 2 8",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.10329448324761199,
+                            -0.09151092683722971
+                          ],
+                          [
+                            -0.1167676767146918,
+                            -0.10344713468556402
+                          ],
+                          [
+                            -0.0553183623786356,
+                            -0.1458625338589247
+                          ],
+                          [
+                            -0.04893547441186996,
+                            -0.12903224149058723
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-9",
+                  "label": "Twig Ring 2 9",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.04893547441186996,
+                            -0.12903224149058723
+                          ],
+                          [
+                            -0.0553183623786356,
+                            -0.1458625338589247
+                          ],
+                          [
+                            0.01880372211983042,
+                            -0.15486258435929642
+                          ],
+                          [
+                            0.016634061875234602,
+                            -0.13699382462553145
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-10",
+                  "label": "Twig Ring 2 10",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.016634061875234602,
+                            -0.13699382462553145
+                          ],
+                          [
+                            0.01880372211983042,
+                            -0.15486258435929642
+                          ],
+                          [
+                            0.08861810049006015,
+                            -0.1283854830794105
+                          ],
+                          [
+                            0.07839293504889937,
+                            -0.11357177349332467
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-11",
+                  "label": "Twig Ring 2 11",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.07839293504889937,
+                            -0.11357177349332467
+                          ],
+                          [
+                            0.08861810049006015,
+                            -0.1283854830794105
+                          ],
+                          [
+                            0.13813114000190077,
+                            -0.07249681483882787
+                          ],
+                          [
+                            0.12219293154014299,
+                            -0.06413179774204004
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "twig-ring-2-12",
+                  "label": "Twig Ring 2 12",
+                  "tiles": [
+                    {
+                      "id": "twig-ring-2-12-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.12219293154014299,
+                            -0.06413179774204004
+                          ],
+                          [
+                            0.13813114000190077,
+                            -0.07249681483882787
+                          ],
+                          [
+                            0.156,
+                            1.0034685333982213e-16
+                          ],
+                          [
+                            0.138,
+                            8.876837026215034e-17
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-12-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.021599999999999998
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-12-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.082,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-12-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "twig-ring-2-12-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-ivory",
+                  "label": "Item-Ivory",
+                  "tiles": [
+                    {
+                      "id": "item-ivory-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 9,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "egg-0",
+                  "label": "Egg 0",
+                  "tiles": [
+                    {
+                      "id": "egg-0-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              -0.065,
+                              0.04000000000000001,
+                              0.025
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.065,
+                              0.05800000000000001,
+                              0.025
+                            ],
+                            "radius": [
+                              0.02736,
+                              0.024480000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.065,
+                              0.1,
+                              0.025
+                            ],
+                            "radius": [
+                              0.038,
+                              0.034
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.065,
+                              0.14200000000000002,
+                              0.025
+                            ],
+                            "radius": [
+                              0.02736,
+                              0.024480000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.065,
+                              0.16,
+                              0.025
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "egg-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-ivory"
+                      }
+                    },
+                    {
+                      "id": "egg-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-ivory",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "egg-1",
+                  "label": "Egg 1",
+                  "tiles": [
+                    {
+                      "id": "egg-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.04000000000000001,
+                              -0.025
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.05800000000000001,
+                              -0.025
+                            ],
+                            "radius": [
+                              0.02736,
+                              0.024480000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.1,
+                              -0.025
+                            ],
+                            "radius": [
+                              0.038,
+                              0.034
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.14200000000000002,
+                              -0.025
+                            ],
+                            "radius": [
+                              0.02736,
+                              0.024480000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.16,
+                              -0.025
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "egg-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-ivory"
+                      }
+                    },
+                    {
+                      "id": "egg-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-ivory",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "egg-2",
+                  "label": "Egg 2",
+                  "tiles": [
+                    {
+                      "id": "egg-2-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.065,
+                              0.04000000000000001,
+                              0.025
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.065,
+                              0.05800000000000001,
+                              0.025
+                            ],
+                            "radius": [
+                              0.02736,
+                              0.024480000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.065,
+                              0.1,
+                              0.025
+                            ],
+                            "radius": [
+                              0.038,
+                              0.034
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.065,
+                              0.14200000000000002,
+                              0.025
+                            ],
+                            "radius": [
+                              0.02736,
+                              0.024480000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.065,
+                              0.16,
+                              0.025
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "egg-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-ivory"
+                      }
+                    },
+                    {
+                      "id": "egg-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-ivory",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Bird Nest Node assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "nest-base",
+                          "twig-ring-0-0",
+                          "twig-ring-0-1",
+                          "twig-ring-0-2",
+                          "twig-ring-0-3",
+                          "twig-ring-0-4",
+                          "twig-ring-0-5",
+                          "twig-ring-0-6",
+                          "twig-ring-0-7",
+                          "twig-ring-0-8",
+                          "twig-ring-0-9",
+                          "twig-ring-0-10",
+                          "twig-ring-0-11",
+                          "twig-ring-0-12",
+                          "twig-ring-1-0",
+                          "twig-ring-1-1",
+                          "twig-ring-1-2",
+                          "twig-ring-1-3",
+                          "twig-ring-1-4",
+                          "twig-ring-1-5",
+                          "twig-ring-1-6",
+                          "twig-ring-1-7",
+                          "twig-ring-1-8",
+                          "twig-ring-1-9",
+                          "twig-ring-1-10",
+                          "twig-ring-1-11",
+                          "twig-ring-1-12",
+                          "twig-ring-2-0",
+                          "twig-ring-2-1",
+                          "twig-ring-2-2",
+                          "twig-ring-2-3",
+                          "twig-ring-2-4",
+                          "twig-ring-2-5",
+                          "twig-ring-2-6",
+                          "twig-ring-2-7",
+                          "twig-ring-2-8",
+                          "twig-ring-2-9",
+                          "twig-ring-2-10",
+                          "twig-ring-2-11",
+                          "twig-ring-2-12",
+                          "egg-0",
+                          "egg-1",
+                          "egg-2"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

@@ -163,19 +163,26 @@ struct DocumentRecord {
     recipe: String,
 }
 
-/// Fingerprint includes the actual built-in definitions, not just crate version.
+/// Includes release provenance and a fingerprint of the actual built-in definitions.
+/// Bundle compatibility depends on the schema and definition fingerprint; a release
+/// number alone does not change the material language.
 pub fn source_library_version() -> String {
-    let mut hash = 0xcbf29ce484222325u64;
-    for k in Kernel::ALL {
-        for byte in k
-            .source_id()
-            .bytes()
-            .chain(crate::tilelang::source(k).bytes())
-        {
-            hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
-        }
-    }
-    format!("materialz-{}-{hash:016x}", env!("CARGO_PKG_VERSION"))
+    static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    VERSION
+        .get_or_init(|| {
+            let mut hash = 0xcbf29ce484222325u64;
+            for k in Kernel::ALL {
+                for byte in k
+                    .source_id()
+                    .bytes()
+                    .chain(crate::tilelang::source(k).bytes())
+                {
+                    hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
+                }
+            }
+            format!("materialz-{}-{hash:016x}", env!("CARGO_PKG_VERSION"))
+        })
+        .clone()
 }
 pub fn source_catalog() -> Vec<SourceInfo> {
     Kernel::ALL
@@ -251,7 +258,10 @@ impl EditableMaterialAsset {
     pub fn reopen(text: &str) -> Result<Self> {
         let bundle: Bundle = serde_json::from_str(text)
             .map_err(|e| Diagnostic::new("reopen", Location::asset(""), e))?;
-        if bundle.version != 1 || bundle.source_library != source_library_version() {
+        let current_library = source_library_version();
+        let definitions_match =
+            bundle.source_library.rsplit('-').next() == current_library.rsplit('-').next();
+        if bundle.version != 1 || !definitions_match {
             return Err(Diagnostic::new(
                 "reopen",
                 Location::asset(&bundle.root.id),

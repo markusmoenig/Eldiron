@@ -1,0 +1,28 @@
+# Palette-bound weapon surface shared by 2D sprites and native 3D models.
+project 1
+result from material "surface"
+material "surface" called "Spear point binding"
+  mode pbr
+  tiling raw
+  default roughness to 0.85
+  default metallic to 0
+  default opacity to 1
+  default emission strength to 0
+  row "profile" called "Across the surface"
+    use "Rounded Rectangle" id "surface-domain"
+      set "halfSize" to 0.5 0.5
+      set "radius" to 0
+    use "Coordinates" id "wrap-coordinates"
+    use "Vector Math" id "wrap-angle"
+      set "operation" to 2
+      set "other" to 0.4 1 0
+    use "Multiply" id "wrap-count"
+      set "localValue" to 12 12 12
+    use "Fract" id "wrap-bands"
+    use "Color Ramp" id "surface-colors"
+      set "position0" to 0
+      set "position1" to 0.25
+      set "position2" to 0.5
+      set "position3" to 0.8
+      set "interpolation" to 0
+  output base color from row "profile" xyz

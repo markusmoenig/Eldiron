@@ -12,5 +12,15 @@ visible = true
 # Radius of the character's collision circle
 radius = 0.5
 
+# Clothes, armor and weapons (Entity Nodes: Equipment).
+# Omit this to inherit the class outfit; [] equips nothing.
+# start_equipped_items = ["Linen Shirt", "Wool Trousers", "Leather Shoes", "Training Sword"]
+
+# Procedural motion: blend time in seconds and distance per complete walk cycle.
+# Walk cadence follows actual movement. Set walk_rate to override the automatic rate.
+# avatar_blend_time = 0.12
+# avatar_stride = 0.9
+# avatar_walk_rate = 1.0
+
 # Number of item slots available in the character's inventory
 inventory_slots = 8

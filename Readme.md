@@ -8,7 +8,7 @@
 
 [![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=youtube&logoColor=white)](https://www.youtube.com/channel/UCCmrO356zLQv_m8dPEqBUfA)
 
-[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.95.6-yellow.svg)](https://shields.io/) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
+[![MIT license](https://img.shields.io/badge/License-MIT-blue.svg)](https://lbesson.mit-license.org/) [![version](https://img.shields.io/badge/version-0.96.0-yellow.svg)](https://shields.io/) [![Discord](https://badgen.net/badge/icon/discord?icon=discord&label)](https://discord.gg/ZrNj6baSZU) [![Twitter](https://badgen.net/badge/icon/twitter?icon=twitter&label)](https://twitter.com/MarkusMoenig)
 
 **Eldiron** is a cross-platform creator for classic retro role-playing games (RPGs). Its primary goal is to enable the creation of RPGs reminiscent of the 1980s and 1990s while incorporating modern features such as multiplayer support, procedural content generation, and more.
 
@@ -24,7 +24,8 @@ For a more detailed feature overview please visit [Eldiron.com](https://eldiron.
 
 ## Source Code
 
-Eldiron is built on three embedded crates that I have developed over the last years. Each focuses on a specific aspect of the engine and editor, and together they form the foundation of the Eldiron ecosystem.
+Eldiron's embedded workspace crates cover the editor, engine, rendering and
+procedural artwork. Core components include:
 
 - **TheFramework**
   Handles cross-platform window creation, user event abstraction, and the custom UI system used by *Eldiron Creator*.
@@ -34,6 +35,18 @@ Eldiron is built on three embedded crates that I have developed over the last ye
 
 - **SceneVM**
   An abstracted, layer-based renderer for 2D and 3D built on top of [wGPU](https://wgpu.rs). Each layer can define its own geometry and compute shaders, making SceneVM the main rendering backbone of Eldiron.
+
+- **MaterialZ core** (`crates/materialz`, package `denrim-materials`)
+  Editable row-based PBR materials, shape composition, geometry, rigs, motions
+  and item icons. Creator integrates world materials through the Tile Picker
+  and map composition, and ruleset characters/items through Appearance. Colors
+  use the shared project palette. Materials bake to textures/pages; procedural
+  characters use sprites in 2D and posed meshes in 3D. No sibling MaterialZ
+  checkout or standalone Swift app is needed to build Eldiron.
+
+See [Procedural Materials](docs/docs/building_maps/procedural_materials.md),
+[Appearance](docs/docs/characters_items/appearance.md) and
+[Rigging](docs/docs/characters_items/rigging.md) for the current workflows.
 
 Over the past five years, Eldiron has gone through several major iterations. As a result, some parts of the code are in the process of being consolidated or phased out as the project moves toward a cleaner v1 architecture.
 
@@ -61,7 +74,7 @@ Clone the repository and build:
 ```bash
 git clone https://github.com/markusmoenig/Eldiron
 cd Eldiron
-cargo run --release --package creator
+cargo run --release --package eldiron-creator
 ```
 
 ### Linux Dependencies

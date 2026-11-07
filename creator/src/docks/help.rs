@@ -879,10 +879,19 @@ mod tests {
         dock.navigate_to_command("action basic_attack", &mut ui, &mut ctx, &project);
         let history = dock.history.clone();
         let original = project.rules_document.current.clone();
-        project.rules_document.edit(|table| {
-            table["actions"]["basic_attack"].as_table_mut().unwrap().insert("name".into(), shared::rulesets::document::RulesValue::String("Live Robot Strike".into()));
-            Ok(())
-        }).unwrap();
+        project
+            .rules_document
+            .edit(|table| {
+                table["actions"]["basic_attack"]
+                    .as_table_mut()
+                    .unwrap()
+                    .insert(
+                        "name".into(),
+                        shared::rulesets::document::RulesValue::String("Live Robot Strike".into()),
+                    );
+                Ok(())
+            })
+            .unwrap();
         assert!(dock.poll_background(&mut ui, &mut ctx, &mut project, &mut server));
         assert!(dock.document.plain_text().contains("Live Robot Strike"));
         assert_eq!(dock.history, history);

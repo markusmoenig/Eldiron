@@ -197,6 +197,55 @@ pub fn gen_region_tree_node(region: &Region) -> TheTreeNode {
     node
 }
 
+/// Refresh instance/place rows without changing the active region or tree expansion.
+pub fn refresh_region_tree_widgets(ui: &mut TheUI, project: &Project) {
+    if let Some(tree) = ui.get_tree_layout("Project Tree") {
+        for region in &project.regions {
+            if let Some(node) = tree.get_node_by_id_mut(&region.id) {
+                gen_region_tree_items(node, region);
+            }
+        }
+    }
+}
+
+/// Apply transaction/undo row differences while keeping unrelated in-progress name edits.
+pub fn refresh_region_tree_diff(ui: &mut TheUI, before: &Project, after: &Project) {
+    if let Some(tree) = ui.get_tree_layout("Project Tree") {
+        for region in &after.regions {
+            let old = before.regions.iter().find(|r| r.id == region.id);
+            let rows = |r: &Region| {
+                (
+                    r.name.clone(),
+                    r.characters
+                        .values()
+                        .map(|c| (c.id, c.name.clone()))
+                        .collect::<Vec<_>>(),
+                    r.items
+                        .values()
+                        .map(|i| (i.id, i.name.clone()))
+                        .collect::<Vec<_>>(),
+                    region_areas(r),
+                )
+            };
+            if old.is_some_and(|r| rows(r) == rows(region)) {
+                continue;
+            }
+            if let Some(node) = tree.get_node_by_id_mut(&region.id) {
+                let name = if old.is_some_and(|r| r.name == region.name) && !node.widgets.is_empty()
+                {
+                    Some(node.widgets.remove(0))
+                } else {
+                    None
+                };
+                gen_region_tree_items(node, region);
+                if let Some(name) = name {
+                    node.widgets[0] = name;
+                }
+            }
+        }
+    }
+}
+
 /// Region-level Settings and Behaviour Nodes are hidden for now. The graph
 /// entry has no usable actions yet (`node_available` filters every action out
 /// for region owners) and the settings panel is superseded by the
@@ -281,6 +330,14 @@ pub fn gen_character_tree_node(character: &Character) -> TheTreeNode {
 
     node.add_widget(Box::new(item));
 
+    let mut appearance = TheTreeItem::new(TheId::named_with_reference(
+        "Character Appearance",
+        character.id,
+    ));
+    appearance.set_text("Appearance".into());
+    appearance.set_status_text("Body, rig, material slots and saved equipment preview");
+    node.add_widget(Box::new(appearance));
+
     let mut item = TheTreeItem::new(TheId::named_with_reference(
         "Character Item Code Edit",
         character.id,
@@ -310,6 +367,9 @@ pub fn resolved_item_default_icon_frames_for_state(
     project: &Project,
     on: bool,
 ) -> Vec<rusterix::Texture> {
+    if let Ok(Some(frames)) = shared::ruleset_materials::frames_for_item(project, item, on) {
+        return frames;
+    }
     let mut default_assets = RUSTERIX.read().unwrap().assets.clone();
     default_assets.item_icons.clear();
     default_assets.project_item_icon_keys.clear();
@@ -325,6 +385,7 @@ pub fn resolved_item_default_icon_frames_for_state(
             }
         }
     }
+    shared::rusterix_utils::insert_procedural_ruleset_icons(&mut default_assets, project);
 
     let mut runtime_item = rusterix::Item::default();
     rusterix::server::data::apply_item_data(&mut runtime_item, &item.data);
@@ -382,8 +443,11 @@ pub fn resolved_item_default_icon_frames_for_state(
         .unwrap_or_default()
 }
 
-pub fn gen_item_tree_node(item_: &Item, project: &Project) -> TheTreeNode {
+pub fn gen_item_tree_node(item_: &Item, _project: &Project) -> TheTreeNode {
     let mut node: TheTreeNode = TheTreeNode::new(TheId::named_with_id(&item_.name, item_.id));
+    if let Some(header) = node.widget.as_any().downcast_mut::<TheSnapperbar>() {
+        header.set_drag_id(Some(TheId::named_with_reference("Item Item", item_.id)));
+    }
     node.set_root_mode(false);
     if data_has_attr(&item_.data, "ruleset_path") {
         node.set_background_palette(ActionGroups, RULESET_ITEM_TREE_PALETTE_SLOT);
@@ -400,44 +464,10 @@ pub fn gen_item_tree_node(item_: &Item, project: &Project) -> TheTreeNode {
 
     node.add_widget(Box::new(item));
 
-    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Icon Off", item_.id));
-    item.set_text("Icon: Off".to_string());
-    node.add_widget(Box::new(item));
-
-    let frames = if item_.icon_off_frames.is_empty() {
-        resolved_item_default_icon_frames_for_state(item_, project, false)
-    } else {
-        item_.icon_off_frames.clone()
-    };
-    let mut icons = TheTreeIcons::new(TheId::named_with_reference(
-        "Item Icon Frames Off",
-        item_.id,
-    ));
-    icons.set_icon_size(40);
-    icons.set_icon_count(frames.len().max(1));
-    icons.set_selected_index(Some(0));
-    for (index, texture) in frames.iter().enumerate() {
-        icons.set_icon(index, texture.to_rgba());
-    }
-    node.add_widget(Box::new(icons));
-
-    let mut item = TheTreeItem::new(TheId::named_with_reference("Item Icon On", item_.id));
-    item.set_text("Icon: On".to_string());
-    node.add_widget(Box::new(item));
-
-    let frames = if item_.icon_frames.is_empty() {
-        resolved_item_default_icon_frames(item_, project)
-    } else {
-        item_.icon_frames.clone()
-    };
-    let mut icons = TheTreeIcons::new(TheId::named_with_reference("Item Icon Frames On", item_.id));
-    icons.set_icon_size(40);
-    icons.set_icon_count(frames.len().max(1));
-    icons.set_selected_index(Some(0));
-    for (index, texture) in frames.iter().enumerate() {
-        icons.set_icon(index, texture.to_rgba());
-    }
-    node.add_widget(Box::new(icons));
+    let mut appearance = TheTreeItem::new(TheId::named_with_reference("Item Appearance", item_.id));
+    appearance.set_text("Appearance".into());
+    appearance.set_status_text("Model, material slots, icons and equipped preview");
+    node.add_widget(Box::new(appearance));
 
     let mut item = TheTreeItem::new(TheId::named_with_reference("Item Item Code Edit", item_.id));
     item.set_background_palette(ActionGroups, ActionRole::Dock.palette_slot());
@@ -450,6 +480,91 @@ pub fn gen_item_tree_node(item_: &Item, project: &Project) -> TheTreeNode {
     node.add_widget(Box::new(item));
 
     node
+}
+
+/// Keep the item catalog compact; appearance controls live in one workspace.
+pub fn item_tree_category(item: &Item) -> String {
+    if data_attr_bool(&item.data, "is_spell") {
+        return "Spells".into();
+    }
+    if crate::appearance_workspace::data::attribute(&item.data, "category").as_deref()
+        == Some("utility")
+    {
+        return "Utility".into();
+    }
+    if let Some(path) = crate::appearance_workspace::data::attribute(&item.data, "ruleset_path") {
+        let parts = path.split('.').collect::<Vec<_>>();
+        let group = if parts.first() == Some(&"items") && parts.len() >= 3 {
+            parts[1]
+        } else {
+            "ruleset_items"
+        };
+        if group == "tools" {
+            return "Utility".into();
+        }
+        return group
+            .split('_')
+            .map(|word| {
+                let mut chars = word.chars();
+                chars
+                    .next()
+                    .map(|c| c.to_uppercase().collect::<String>() + chars.as_str())
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
+    }
+    "Custom Items".into()
+}
+pub fn append_item_tree(root: &mut TheTreeNode, item: &Item, project: &Project, open: bool) {
+    let category = item_tree_category(item);
+    let id = Uuid::from_u128(
+        (0x4150504954454d47u128 << 64)
+            | rusterix::procedural_avatar::fingerprint(&category) as u128,
+    );
+    if !root.childs.iter().any(|n| n.id.uuid == id) {
+        let mut group = TheTreeNode::new(TheId::named_with_id(&category, id));
+        group.set_root_mode(false);
+        group.set_open(false);
+        root.add_child(group);
+    }
+    let group = root.childs.iter_mut().find(|n| n.id.uuid == id).unwrap();
+    let mut node = gen_item_tree_node(item, project);
+    node.set_open(open);
+    group.add_child(node);
+    if open {
+        group.set_open(true);
+    }
+}
+/// Remove the definition and its category when the last item is removed.
+pub fn remove_item_tree(root: &mut TheTreeNode, id: &Uuid) {
+    root.remove_child_by_uuid(id);
+    root.childs.retain(|group| !group.childs.is_empty());
+}
+pub fn populate_item_tree(root: &mut TheTreeNode, project: &Project) {
+    fn remember(node: &TheTreeNode, states: &mut std::collections::HashMap<Uuid, bool>) {
+        states.insert(node.id.uuid, node.open);
+        for child in &node.childs {
+            remember(child, states);
+        }
+    }
+    fn restore(node: &mut TheTreeNode, states: &std::collections::HashMap<Uuid, bool>) {
+        if let Some(open) = states.get(&node.id.uuid) {
+            node.set_open(*open);
+        }
+        for child in &mut node.childs {
+            restore(child, states);
+        }
+    }
+    let mut states = std::collections::HashMap::new();
+    remember(root, &mut states);
+    root.clear();
+    let mut items = project.items.values().collect::<Vec<_>>();
+    items.sort_by_key(|i| (item_tree_category(i), i.name.to_lowercase()));
+    for item in items {
+        append_item_tree(root, item, project, false);
+    }
+    restore(root, &states);
 }
 
 /// Rebuilds the tree node for an avatar in the Project Tree.
@@ -895,14 +1010,8 @@ pub fn apply_palette(
         project.palette.current_index = project.palette.colors.len().saturating_sub(1) as u16;
     }
     project.ensure_palette_materials_len();
-    for (index, color) in project.palette.colors.iter_mut().enumerate() {
-        if color.as_ref().is_some_and(|c| c.a <= f32::EPSILON) {
-            *color = None;
-            if let Some(material) = project.palette_materials.get_mut(index) {
-                *material = shared::project::PaletteMaterial::default();
-            }
-        }
-    }
+    // UI refresh is read-only for colors, including transparent/unused slots.
+    // Rewriting Some(transparent) to None invalidates every saved material bake.
     *PALETTE.write().unwrap() = project.palette.clone();
 
     if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -1668,4 +1777,30 @@ pub fn set_project_context(
     }
 
     ctx.ui.relayout = true;
+}
+
+#[cfg(test)]
+mod palette_refresh_tests {
+    use super::*;
+    #[test]
+    fn showing_palette_preserves_transparent_slots_and_saved_bakes() {
+        let mut project = Project::default();
+        project.palette.colors[5] = Some(TheColor::from_u8(30, 50, 80, 0));
+        let id = Uuid::new_v4();
+        project.procedural_material_cache_keys.insert(id, 123);
+        let colors = serde_json::to_string(&project.palette.colors).unwrap();
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(100, 100, 1.);
+        apply_palette(
+            &mut ui,
+            &mut ctx,
+            &mut ServerContext::default(),
+            &mut project,
+        );
+        assert_eq!(
+            serde_json::to_string(&project.palette.colors).unwrap(),
+            colors
+        );
+        assert_eq!(project.procedural_material_cache_keys[&id], 123);
+    }
 }

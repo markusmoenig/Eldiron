@@ -83,6 +83,8 @@ impl TheWidget for TheSeparator {
             style.theme().color(LayoutSeparator),
         );
 
+        self.is_dirty = false;
+
         // utuple.1 += 1;
 
         // ctx.draw.rect(

@@ -320,3 +320,7 @@ pub mod prelude {
     pub use crate::{RepeatMode, SampleMode, Texture};
     pub use crate::{pixel_to_vec4, vec4_to_pixel};
 }
+
+pub mod procedural_avatar;
+
+pub mod ruleset_material;

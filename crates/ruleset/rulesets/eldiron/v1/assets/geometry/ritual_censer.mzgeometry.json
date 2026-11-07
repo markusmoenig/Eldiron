@@ -1,0 +1,2064 @@
+{
+  "version": 1,
+  "id": "ritual_censer",
+  "label": "Ritual Censer",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Ritual Censer",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Ritual Censer",
+            "document": {
+              "version": 1,
+              "id": "ritual_censer-construction",
+              "label": "Ritual Censer construction",
+              "rows": [
+                {
+                  "id": "item-gold",
+                  "label": "Item-Gold",
+                  "tiles": [
+                    {
+                      "id": "item-gold-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 24,
+                        "roughness": 0.34,
+                        "metallic": 0.8
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "censer-bowl",
+                  "label": "Censer Bowl",
+                  "tiles": [
+                    {
+                      "id": "censer-bowl-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.15,
+                              0
+                            ],
+                            "radius": [
+                              0.035,
+                              0.035
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.13,
+                              0
+                            ],
+                            "radius": [
+                              0.07,
+                              0.07
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.045,
+                              0
+                            ],
+                            "radius": [
+                              0.115,
+                              0.115
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.025,
+                              0
+                            ],
+                            "radius": [
+                              0.115,
+                              0.115
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "censer-bowl-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "censer-bowl-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "censer-foot",
+                  "label": "Censer Foot",
+                  "tiles": [
+                    {
+                      "id": "censer-foot-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.18,
+                              0
+                            ],
+                            "radius": [
+                              0.05,
+                              0.05
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.165,
+                              0
+                            ],
+                            "radius": [
+                              0.05,
+                              0.05
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.15,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.03
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "censer-foot-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "censer-foot-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-iron",
+                  "label": "Weapon-Iron",
+                  "tiles": [
+                    {
+                      "id": "weapon-iron-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.3,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "censer-lid",
+                  "label": "Censer Lid",
+                  "tiles": [
+                    {
+                      "id": "censer-lid-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.023,
+                              0
+                            ],
+                            "radius": [
+                              0.12,
+                              0.12
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.005,
+                              0
+                            ],
+                            "radius": [
+                              0.118,
+                              0.118
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.06,
+                              0
+                            ],
+                            "radius": [
+                              0.045,
+                              0.045
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.065,
+                              0
+                            ],
+                            "radius": [
+                              0.025,
+                              0.025
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "censer-lid-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "censer-lid-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-dark",
+                  "label": "Item-Dark",
+                  "tiles": [
+                    {
+                      "id": "item-dark-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 2,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lid-vent-0",
+                  "label": "Lid Vent 0",
+                  "tiles": [
+                    {
+                      "id": "lid-vent-0-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.023,
+                          0.025,
+                          0.009
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-0-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.0,
+                          0.015,
+                          0.083
+                        ],
+                        "rotation": [
+                          0,
+                          0.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "lid-vent-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lid-vent-1",
+                  "label": "Lid Vent 1",
+                  "tiles": [
+                    {
+                      "id": "lid-vent-1-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.023,
+                          0.025,
+                          0.009
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.058689862838483445,
+                          0.015,
+                          0.05868986283848345
+                        ],
+                        "rotation": [
+                          0,
+                          45.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "lid-vent-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lid-vent-2",
+                  "label": "Lid Vent 2",
+                  "tiles": [
+                    {
+                      "id": "lid-vent-2-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.023,
+                          0.025,
+                          0.009
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-2-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.083,
+                          0.015,
+                          5.082284216461516e-18
+                        ],
+                        "rotation": [
+                          0,
+                          90.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "lid-vent-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lid-vent-3",
+                  "label": "Lid Vent 3",
+                  "tiles": [
+                    {
+                      "id": "lid-vent-3-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.023,
+                          0.025,
+                          0.009
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-3-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.05868986283848345,
+                          0.015,
+                          -0.058689862838483445
+                        ],
+                        "rotation": [
+                          0,
+                          135.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "lid-vent-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lid-vent-4",
+                  "label": "Lid Vent 4",
+                  "tiles": [
+                    {
+                      "id": "lid-vent-4-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.023,
+                          0.025,
+                          0.009
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-4-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          1.0164568432923032e-17,
+                          0.015,
+                          -0.083
+                        ],
+                        "rotation": [
+                          0,
+                          180.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "lid-vent-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lid-vent-5",
+                  "label": "Lid Vent 5",
+                  "tiles": [
+                    {
+                      "id": "lid-vent-5-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.023,
+                          0.025,
+                          0.009
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-5-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.058689862838483445,
+                          0.015,
+                          -0.05868986283848346
+                        ],
+                        "rotation": [
+                          0,
+                          225.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "lid-vent-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lid-vent-6",
+                  "label": "Lid Vent 6",
+                  "tiles": [
+                    {
+                      "id": "lid-vent-6-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.023,
+                          0.025,
+                          0.009
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-6-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.083,
+                          0.015,
+                          -1.5246852649384548e-17
+                        ],
+                        "rotation": [
+                          0,
+                          270.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "lid-vent-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "lid-vent-7",
+                  "label": "Lid Vent 7",
+                  "tiles": [
+                    {
+                      "id": "lid-vent-7-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.023,
+                          0.025,
+                          0.009
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-7-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.05868986283848346,
+                          0.015,
+                          0.05868986283848343
+                        ],
+                        "rotation": [
+                          0,
+                          315.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "lid-vent-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "lid-vent-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "suspension-0",
+                  "label": "Suspension 0",
+                  "tiles": [
+                    {
+                      "id": "suspension-0-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.0,
+                              -0.02,
+                              0.1
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.0,
+                              0.1,
+                              0.065
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.235,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          }
+                        ],
+                        "segments": 6
+                      }
+                    },
+                    {
+                      "id": "suspension-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "suspension-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "suspension-1",
+                  "label": "Suspension 1",
+                  "tiles": [
+                    {
+                      "id": "suspension-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.08660254037844388,
+                              -0.02,
+                              -0.04999999999999999
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.056291651245988526,
+                              0.1,
+                              -0.032499999999999994
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.235,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          }
+                        ],
+                        "segments": 6
+                      }
+                    },
+                    {
+                      "id": "suspension-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "suspension-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "suspension-2",
+                  "label": "Suspension 2",
+                  "tiles": [
+                    {
+                      "id": "suspension-2-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              -0.08660254037844384,
+                              -0.02,
+                              -0.050000000000000044
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.0562916512459885,
+                              0.1,
+                              -0.03250000000000003
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.235,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          }
+                        ],
+                        "segments": 6
+                      }
+                    },
+                    {
+                      "id": "suspension-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "suspension-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-0",
+                  "label": "Carry Ring 0",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.019000000000000003,
+                            0.0
+                          ],
+                          [
+                            0.025,
+                            0.0
+                          ],
+                          [
+                            0.02022542485937369,
+                            0.014694631307311828
+                          ],
+                          [
+                            0.015371322893124003,
+                            0.011167919793556991
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-1",
+                  "label": "Carry Ring 1",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.015371322893124003,
+                            0.011167919793556991
+                          ],
+                          [
+                            0.02022542485937369,
+                            0.014694631307311828
+                          ],
+                          [
+                            0.007725424859373687,
+                            0.02377641290737884
+                          ],
+                          [
+                            0.005871322893124003,
+                            0.01807007380960792
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-2",
+                  "label": "Carry Ring 2",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.005871322893124003,
+                            0.01807007380960792
+                          ],
+                          [
+                            0.007725424859373687,
+                            0.02377641290737884
+                          ],
+                          [
+                            -0.007725424859373684,
+                            0.023776412907378842
+                          ],
+                          [
+                            -0.005871322893124,
+                            0.01807007380960792
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-3",
+                  "label": "Carry Ring 3",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.005871322893124,
+                            0.01807007380960792
+                          ],
+                          [
+                            -0.007725424859373684,
+                            0.023776412907378842
+                          ],
+                          [
+                            -0.020225424859373686,
+                            0.014694631307311832
+                          ],
+                          [
+                            -0.015371322893124002,
+                            0.011167919793556993
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-4",
+                  "label": "Carry Ring 4",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.015371322893124002,
+                            0.011167919793556993
+                          ],
+                          [
+                            -0.020225424859373686,
+                            0.014694631307311832
+                          ],
+                          [
+                            -0.025,
+                            3.061616997868383e-18
+                          ],
+                          [
+                            -0.019000000000000003,
+                            2.3268289183799713e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-5",
+                  "label": "Carry Ring 5",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.019000000000000003,
+                            2.3268289183799713e-18
+                          ],
+                          [
+                            -0.025,
+                            3.061616997868383e-18
+                          ],
+                          [
+                            -0.02022542485937369,
+                            -0.014694631307311827
+                          ],
+                          [
+                            -0.015371322893124003,
+                            -0.01116791979355699
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-6",
+                  "label": "Carry Ring 6",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.015371322893124003,
+                            -0.01116791979355699
+                          ],
+                          [
+                            -0.02022542485937369,
+                            -0.014694631307311827
+                          ],
+                          [
+                            -0.007725424859373689,
+                            -0.02377641290737884
+                          ],
+                          [
+                            -0.0058713228931240044,
+                            -0.01807007380960792
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-7",
+                  "label": "Carry Ring 7",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.0058713228931240044,
+                            -0.01807007380960792
+                          ],
+                          [
+                            -0.007725424859373689,
+                            -0.02377641290737884
+                          ],
+                          [
+                            0.007725424859373681,
+                            -0.023776412907378842
+                          ],
+                          [
+                            0.005871322893123998,
+                            -0.01807007380960792
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-8",
+                  "label": "Carry Ring 8",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.005871322893123998,
+                            -0.01807007380960792
+                          ],
+                          [
+                            0.007725424859373681,
+                            -0.023776412907378842
+                          ],
+                          [
+                            0.020225424859373686,
+                            -0.014694631307311835
+                          ],
+                          [
+                            0.015371322893124002,
+                            -0.011167919793556996
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "carry-ring-9",
+                  "label": "Carry Ring 9",
+                  "tiles": [
+                    {
+                      "id": "carry-ring-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.015371322893124002,
+                            -0.011167919793556996
+                          ],
+                          [
+                            0.020225424859373686,
+                            -0.014694631307311835
+                          ],
+                          [
+                            0.025,
+                            -6.123233995736766e-18
+                          ],
+                          [
+                            0.019000000000000003,
+                            -4.653657836759943e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0072
+                      }
+                    },
+                    {
+                      "id": "carry-ring-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "carry-ring-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "carry-ring-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Ritual Censer assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "censer-bowl",
+                          "censer-foot",
+                          "censer-lid",
+                          "lid-vent-0",
+                          "lid-vent-1",
+                          "lid-vent-2",
+                          "lid-vent-3",
+                          "lid-vent-4",
+                          "lid-vent-5",
+                          "lid-vent-6",
+                          "lid-vent-7",
+                          "suspension-0",
+                          "suspension-1",
+                          "suspension-2",
+                          "carry-ring-0",
+                          "carry-ring-1",
+                          "carry-ring-2",
+                          "carry-ring-3",
+                          "carry-ring-4",
+                          "carry-ring-5",
+                          "carry-ring-6",
+                          "carry-ring-7",
+                          "carry-ring-8",
+                          "carry-ring-9"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0.265,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.265,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

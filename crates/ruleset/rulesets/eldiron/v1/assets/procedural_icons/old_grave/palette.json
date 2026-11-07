@@ -1,0 +1,42 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "mound-colors": {
+    "color0": 16,
+    "color1": 17,
+    "color2": 18,
+    "color3": 20
+  },
+  "mound-outline": {
+    "color": 1
+  },
+  "weed-color": {
+    "color": 36
+  },
+  "stone-colors": {
+    "color0": 3,
+    "color1": 5,
+    "color2": 6,
+    "color3": 7
+  },
+  "stone-outline": {
+    "color": 1
+  },
+  "face-colors": {
+    "color0": 4,
+    "color1": 5,
+    "color2": 6,
+    "color3": 9
+  },
+  "cross-color": {
+    "color": 3
+  },
+  "inscription-color": {
+    "color": 4
+  },
+  "date-color": {
+    "color": 5
+  }
+}

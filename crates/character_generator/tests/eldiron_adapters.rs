@@ -70,7 +70,7 @@ fn scenevm_accepts_posed_meshes_and_converted_material_tiles() {
         0.25,
     );
     for (a, b) in objects.iter().zip(&rotated) {
-        for (va, vb) in a.mesh_vertices.iter().zip(&b.mesh_vertices) {
+        for (va, vb) in a.mesh_vertices.iter().zip(b.mesh_vertices.iter()) {
             assert!((va.position.z - 4.0 - vb.position.x).abs() < 1e-5);
             assert!((va.position.x - 3.0 + vb.position.z).abs() < 1e-5);
         }
@@ -163,7 +163,7 @@ fn live_pixel_materials_are_opt_in_and_keep_authored_materials_and_rig() {
             assert!(!p.pixel_art);
             assert!(q.pixel_art);
             assert_eq!(p.mesh_indices, q.mesh_indices);
-            for (a, b) in p.mesh_vertices.iter().zip(q.mesh_vertices) {
+            for (a, b) in p.mesh_vertices.iter().zip(q.mesh_vertices.iter()) {
                 assert_eq!(a.position, b.position);
                 assert_eq!(a.normal, b.normal);
                 assert!(b.uv.x.is_finite() && b.uv.y.is_finite());

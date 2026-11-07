@@ -61,6 +61,31 @@ Default** can replace those frames from their current source on the next save.
 
 The internal layout is an interchange format, not a second project-authoring workflow. Normally, edit projects in Creator rather than changing `project.json` by hand.
 
+## Procedural assets
+
+Projects retain editable MZ material bundles and palette bindings, compositions
+and their map assignments, geometry/rig/motion documents, and saved bake data.
+Rendered pixels are derived data; do not delete the recipes when distributing
+an editable project. Linked project image tiles must travel with their consumers.
+Project-owned appearance edits remain authoritative when ruleset defaults refresh.
+
+Eldiron includes the Rust material core in `crates/materialz`. Building or opening
+a project does not require a sibling MaterialZ repository, the standalone Swift
+application or a network lookup for its source code. Fresh or invalidated bakes
+can still take time; continuous world materials can require larger coverage than
+self-contained repeating tiles.
+
+## Portable screens
+
+Screen import/export uses a self-contained `eldiron.screen` package. It carries
+the screen, referenced tiles, editable MZ recipes, composition dependencies,
+linked image tiles and source palette. Import allocates new identities, remaps
+references and maps colors into the receiving project's palette. The change is
+undoable. Screen names are made unique, but commands and navigation to other
+screens remain the receiving project's responsibility.
+
+See [Screens](/docs/screens/#procedural-screen-artwork).
+
 ## Ruleset Storage
 
 Projects save their complete current rules document, preserved original, and

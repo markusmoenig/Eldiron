@@ -1,3 +1,4 @@
+use crate::world::*;
 use serde::{Deserialize, Serialize};
 
 /// A command capability that an adapter can use for permissions and UI warnings.
@@ -150,13 +151,25 @@ pub struct RegionPlaceCharacter {
     pub layer: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RegionRenderPreview {
+    #[serde(default)]
+    pub editor_view: bool,
+    #[serde(default)]
+    pub camera: Option<PreviewCamera>,
+    /// Engine animation tick, using the project's normal tick cadence.
+    #[serde(default)]
+    pub animation_frame: Option<u32>,
+    /// Engine camera: 2d, iso, or 3d.
+    #[serde(default)]
+    pub view: Option<String>,
+    #[serde(default)]
+    pub size: Option<[u32; 2]>,
     pub region: RegionRef,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bounds: Option<GridRect>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub zoom: Option<u32>,
+    pub zoom: Option<f32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -179,7 +192,7 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TileList {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
@@ -418,10 +431,100 @@ pub struct GeometryCreateRoom {
     pub floor_tile: Option<TileSelector>,
 }
 
+/// Requests with edits must supply the context from project.describe and a unique ID.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ScepterRequest {
+    #[serde(default)]
+    pub request_id: Option<String>,
+    #[serde(default)]
+    pub session: Option<String>,
+    #[serde(default)]
+    pub revision: Option<String>,
+    #[serde(flatten)]
+    pub command: ScepterCommand,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "op", content = "params", rename_all = "snake_case")]
+pub enum EditOperation {
+    SectorCreate(SectorCreate),
+    EraseCells(EraseCells),
+    MapTransform(MapTransform),
+    MapCopy(MapTransform),
+    MapDelete(MapDelete),
+    GeometryCreate(GeometryCreate),
+    WallCreate(WallCreate),
+    WallUpdate(WallUpdate),
+    SectorUpdate(SectorUpdate),
+    OpeningPut(OpeningPut),
+    OpeningDelete(OpeningDelete),
+    RoomCreate(RoomCreate),
+    EntityPlace(EntityPlace),
+    EntityUpdate(EntityUpdate),
+    MaterialPut {
+        id: String,
+        bundle: String,
+    },
+    CompositionPut {
+        id: String,
+        composition: serde_json::Value,
+    },
+    CompositionCopy {
+        id: String,
+        source: String,
+    },
+    SurfaceApply {
+        region: RegionRef,
+        surface: serde_json::Value,
+        material: String,
+    },
+    PaintCells(RegionPaintCells),
+    PaintRect(RegionPaintRect),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Transaction {
+    pub operations: Vec<EditOperation>,
+    #[serde(default)]
+    pub dry_run: bool,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AssetId {
+    pub id: String,
+}
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MaterialValidate {
+    pub bundle: String,
+}
+
 /// Typed Scepter commands. The serialized command names are the stable protocol names.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "command", content = "params")]
 pub enum ScepterCommand {
+    #[serde(rename = "editor.context")]
+    EditorContext,
+    #[serde(rename = "editor.select")]
+    EditorSelect(EditorSelection),
+    #[serde(rename = "editor.focus")]
+    EditorFocus(EditorFocus),
+    #[serde(rename = "project.changes")]
+    ProjectChanges(ChangeQuery),
+    #[serde(rename = "entity.templates")]
+    EntityTemplates,
+    #[serde(rename = "region.entities")]
+    RegionEntities(RegionSnapshot),
+    #[serde(rename = "project.transaction")]
+    Transaction(Transaction),
+    #[serde(rename = "material.list")]
+    MaterialList,
+    #[serde(rename = "material.get")]
+    MaterialGet(AssetId),
+    #[serde(rename = "material.validate")]
+    MaterialValidate(MaterialValidate),
+    #[serde(rename = "composition.get")]
+    CompositionGet(AssetId),
+    #[serde(rename = "surface.list")]
+    SurfaceList(RegionSnapshot),
     #[serde(rename = "scepter.help")]
     ScepterHelp,
     #[serde(rename = "scepter.list_commands")]
@@ -505,6 +608,18 @@ pub enum ScepterCommand {
 impl ScepterCommand {
     pub fn name(&self) -> &'static str {
         match self {
+            Self::EditorContext => "editor.context",
+            Self::EditorSelect(_) => "editor.select",
+            Self::EditorFocus(_) => "editor.focus",
+            Self::ProjectChanges(_) => "project.changes",
+            Self::EntityTemplates => "entity.templates",
+            Self::RegionEntities(_) => "region.entities",
+            Self::Transaction(_) => "project.transaction",
+            Self::MaterialList => "material.list",
+            Self::MaterialGet(_) => "material.get",
+            Self::MaterialValidate(_) => "material.validate",
+            Self::CompositionGet(_) => "composition.get",
+            Self::SurfaceList(_) => "surface.list",
             Self::ScepterHelp => "scepter.help",
             Self::ScepterListCommands => "scepter.list_commands",
             Self::ScepterDescribeCommand { .. } => "scepter.describe_command",
@@ -546,4 +661,90 @@ impl ScepterCommand {
             Self::GeometryCreateRoom(_) => "geometry.create_room",
         }
     }
+}
+
+impl ScepterCommand {
+    pub fn is_mutation(&self) -> bool {
+        matches!(
+            self,
+            Self::Transaction(Transaction { dry_run: false, .. })
+                | Self::ProjectUndo
+                | Self::ProjectRedo
+                | Self::RegionPaintRect(_)
+                | Self::RegionPaintCells(_)
+                | Self::ScriptPatch(_)
+                | Self::AttributesPatch(_)
+                | Self::ActionRun(_)
+                | Self::ActionRunScript(_)
+                | Self::ToolSelect(_)
+                | Self::EditorSelect(_)
+                | Self::EditorFocus(_)
+                | Self::RegionCreateSector(_)
+                | Self::RegionPlaceItem(_)
+                | Self::RegionPlaceCharacter(_)
+                | Self::GeometryCreateRoom(_)
+        )
+    }
+}
+/// Adapter capabilities, including explicit status for historical proposals.
+pub fn creator_implements(name: &str) -> bool {
+    matches!(
+        name,
+        "editor.context"
+            | "editor.select"
+            | "editor.focus"
+            | "project.changes"
+            | "entity.templates"
+            | "region.entities"
+            | "region.create_sector"
+            | "region.place_item"
+            | "region.place_character"
+            | "geometry.create_room"
+            | "scepter.help"
+            | "scepter.list_commands"
+            | "scepter.describe_command"
+            | "project.describe"
+            | "project.undo"
+            | "project.redo"
+            | "project.transaction"
+            | "region.list"
+            | "region.snapshot"
+            | "region.summary"
+            | "region.render_preview"
+            | "region.paint_rect"
+            | "region.paint_cells"
+            | "tile.list"
+            | "script.get"
+            | "script.patch"
+            | "script.validate"
+            | "action.list"
+            | "action.run"
+            | "action.run_script"
+            | "tool.list"
+            | "tool.select"
+            | "attributes.get"
+            | "attributes.patch"
+            | "material.list"
+            | "material.get"
+            | "material.validate"
+            | "composition.get"
+            | "surface.list"
+    )
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PreviewCamera {
+    #[serde(default)]
+    pub azimuth: Option<f32>,
+    #[serde(default)]
+    pub elevation: Option<f32>,
+    #[serde(default)]
+    pub fov: Option<f32>,
+    #[serde(default)]
+    pub pitch: Option<f32>,
+    pub center: [f32; 3],
+    #[serde(default)]
+    pub position: Option<[f32; 3]>,
+    #[serde(default)]
+    pub scale: Option<f32>,
 }

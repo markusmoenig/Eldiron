@@ -72,6 +72,8 @@ pub enum CompositionShape {
     Strips,
     Road,
     Crossing,
+    /// Join matching road layers on neighbouring painted map cells.
+    AutoRoad,
 }
 fn default_wobble_scale() -> f32 {
     2.

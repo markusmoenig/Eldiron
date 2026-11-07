@@ -178,6 +178,222 @@ fn creator_dock_edits_undo_and_owner_switching() {
 }
 
 #[test]
+fn equipment_accepts_project_item_drops_with_zoom_history_and_saved_setup() {
+    let mut dock = NodesDock::new();
+    let mut ctx = TheContext::new(1200, 650, 1.);
+    let mut ui = TheUI::new();
+    ui.style.set_theme(Box::new(TheBrownTheme::new()));
+    ui.canvas = dock.setup(&mut ctx);
+    ui.get_render_view(VIEW)
+        .unwrap()
+        .set_dim(TheDim::new(0, 0, 1200, 650), &mut ctx);
+    let mut project = Project::new();
+    let mut character = shared::character::Character::new();
+    character.data =
+        "[attributes]\nrace='Human'\nclass='Warrior'\nstart_equipped_items=[]\n".into();
+    let character_id = character.id;
+    project.characters.insert(character_id, character);
+    let mut shirt = shared::item::Item::new();
+    shirt.name = "A renamed linen shirt".into();
+    shirt.data = "[attributes]\nruleset_id='linen_shirt'\nslot='torso'\ncategory='cloth'\n".into();
+    let item_id = shirt.id;
+    project.items.insert(item_id, shirt);
+    let mut server = ServerContext::default();
+    server.pc = ProjectContext::CharacterData(character_id);
+    dock.activate(&mut ui, &mut ctx, &project, &mut server);
+    dock.editor.viewport.pan = [75., 40.];
+    dock.editor.viewport.zoom_at([0., 0.], 0.75);
+    let node = dock
+        .doc
+        .nodes
+        .iter()
+        .find(|n| n.definition.as_deref() == Some("entity_equipment"))
+        .unwrap();
+    let point = dock
+        .editor
+        .viewport
+        .to_screen([node.position[0] + node.width / 2., node.position[1] + 20.]);
+    let point = Vec2::new(point[0] as i32, point[1] as i32);
+    // Exercise the actual item header's drag identity, rather than fabricating a source.
+    let mut header =
+        crate::undo::project_helper::gen_item_tree_node(&project.items[&item_id], &project);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let previous_sender = ctx.ui.state_events_sender.replace(sender);
+    header
+        .widget
+        .on_event(&TheEvent::MouseDown(Vec2::new(30, 10)), &mut ctx);
+    header
+        .widget
+        .on_event(&TheEvent::MouseDragged(Vec2::new(50, 10)), &mut ctx);
+    header
+        .widget
+        .on_event(&TheEvent::MouseUp(Vec2::new(50, 10)), &mut ctx);
+    ctx.ui.state_events_sender = previous_sender;
+    let source = receiver
+        .try_iter()
+        .find_map(|event| match event {
+            TheEvent::DragStarted(id, _, _) => Some(id),
+            _ => None,
+        })
+        .expect("project item header should be draggable");
+    assert_eq!(source.references, item_id);
+    let mut drop = TheDrop::new(source);
+    drop.set_text("text is never trusted as the equipment reference".into());
+    let event = TheEvent::RenderViewDrop(TheId::named(VIEW), point, drop.clone());
+    assert!(dock.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server));
+    let names = |p: &Project| {
+        p.characters[&character_id]
+            .data
+            .parse::<toml::Table>()
+            .unwrap()["attributes"]["start_equipped_items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap().to_string())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(names(&project), vec![item_id.to_string()]);
+    assert_eq!(server.pc, ProjectContext::CharacterData(character_id));
+    let display = dock.equipment_display_document();
+    assert!(
+        serde_json::to_string(&display)
+            .unwrap()
+            .contains("A renamed linen shirt")
+    );
+    assert!(
+        serde_json::to_string(&dock.doc)
+            .unwrap()
+            .contains(&item_id.to_string())
+    );
+
+    assert!(dock.handle_event(&event, &mut ui, &mut ctx, &mut project, &mut server));
+    assert_eq!(
+        names(&project),
+        vec![item_id.to_string()],
+        "duplicate drop must not add another item or undo entry"
+    );
+    dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert!(names(&project).is_empty());
+    dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(names(&project), vec![item_id.to_string()]);
+    let before = project.node_graphs.clone();
+    let root = dock
+        .doc
+        .nodes
+        .iter()
+        .find(|n| n.definition.as_deref() == Some("entity"))
+        .unwrap();
+    let screen = dock
+        .editor
+        .viewport
+        .to_screen([root.position[0] + 20., root.position[1] + 20.]);
+    assert!(!dock.handle_event(
+        &TheEvent::RenderViewDrop(
+            TheId::named(VIEW),
+            Vec2::new(screen[0] as i32, screen[1] as i32),
+            drop
+        ),
+        &mut ui,
+        &mut ctx,
+        &mut project,
+        &mut server
+    ));
+    assert!(!dock.handle_event(
+        &TheEvent::RenderViewDrop(
+            TheId::named(VIEW),
+            point,
+            TheDrop::new(TheId::named_with_reference("Item Item", Uuid::new_v4()))
+        ),
+        &mut ui,
+        &mut ctx,
+        &mut project,
+        &mut server
+    ));
+    assert_eq!(project.node_graphs, before);
+    let mut reopened: Project =
+        serde_json::from_str(&serde_json::to_string(&project).unwrap()).unwrap();
+    shared::entity_graph::synchronize(&mut reopened).unwrap();
+    assert_eq!(names(&reopened), vec![item_id.to_string()]);
+    // Same-slot drops replace atomically, and invalid gear does not add history.
+    let mut armor = shared::item::Item::new();
+    armor.name = "Custom armor".into();
+    armor.data = "[attributes]\nslot='torso'\ncategory='cloth'\n".into();
+    let armor_id = armor.id;
+    project.items.insert(armor_id, armor);
+    let armor_drop = TheEvent::RenderViewDrop(
+        TheId::named(VIEW),
+        point,
+        TheDrop::new(TheId::named_with_reference("Item Item", armor_id)),
+    );
+    assert!(dock.handle_event(&armor_drop, &mut ui, &mut ctx, &mut project, &mut server));
+    assert_eq!(names(&project), vec![armor_id.to_string()]);
+    let mut forbidden = shared::item::Item::new();
+    forbidden.name = "Not wearable".into();
+    let forbidden_id = forbidden.id;
+    forbidden.data = "[attributes]\ncategory='junk'\n".into();
+    project.items.insert(forbidden_id, forbidden);
+    let before = project.node_graphs.clone();
+    assert!(dock.handle_event(
+        &TheEvent::RenderViewDrop(
+            TheId::named(VIEW),
+            point,
+            TheDrop::new(TheId::named_with_reference("Item Item", forbidden_id))
+        ),
+        &mut ui,
+        &mut ctx,
+        &mut project,
+        &mut server
+    ));
+    assert!(
+        dock.configuration_error
+            .as_deref()
+            .unwrap()
+            .contains("no equipment slot")
+    );
+    assert_eq!(project.node_graphs, before);
+    dock.store(&mut project, false);
+    assert!(
+        dock.configuration_error.is_some(),
+        "feedback survives hover/pan refreshes"
+    );
+    if let Ok(path) = std::env::var("ELDIRON_EQUIPMENT_DROP_SNAPSHOT") {
+        dock.fit_branch(&mut ui);
+        dock.render(&mut ui, &mut ctx);
+        std::fs::write(
+            format!("{path}.error.png"),
+            ui.get_render_view(VIEW)
+                .unwrap()
+                .render_buffer_mut()
+                .to_png()
+                .unwrap(),
+        )
+        .unwrap();
+    }
+
+    dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(names(&project), vec![item_id.to_string()]);
+    dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+    assert_eq!(names(&project), vec![armor_id.to_string()]);
+    assert!(
+        dock.configuration_error.is_none(),
+        "undo/redo clears rejected-drop feedback"
+    );
+    dock.fit_branch(&mut ui);
+    dock.render(&mut ui, &mut ctx);
+    if let Ok(path) = std::env::var("ELDIRON_EQUIPMENT_DROP_SNAPSHOT") {
+        std::fs::write(
+            path,
+            ui.get_render_view(VIEW)
+                .unwrap()
+                .render_buffer_mut()
+                .to_png()
+                .unwrap(),
+        )
+        .unwrap();
+    }
+}
+
+#[test]
 fn catalog_drop_uses_viewport_and_global_dock_history() {
     let mut dock = NodesDock::new();
     let mut ctx = TheContext::new(1200, 650, 1.);

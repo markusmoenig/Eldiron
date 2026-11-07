@@ -7,6 +7,27 @@ use toml::*;
 
 const DEFAULT_GEOMETRY_TILE_ID: &str = "27826750-a9e7-4346-994b-fb318b238452";
 
+struct ItemAliasCache {
+    sources: Vec<(String, String)>,
+    aliases: FxHashMap<String, String>,
+}
+impl ItemAliasCache {
+    fn matches(&self, items: &FxHashMap<String, (String, String)>) -> bool {
+        self.sources.len() == items.len()
+            && self
+                .sources
+                .iter()
+                .all(|(name, data)| items.get(name).is_some_and(|(_, current)| current == data))
+    }
+}
+
+pub(crate) struct DisplayDefaults {
+    pub attributes: crate::ValueContainer,
+    pub equipped: indexmap::IndexMap<String, crate::Item>,
+    pub dirty_flags: u8,
+    pub dirty_attributes: FxHashSet<String>,
+}
+
 struct ParsedRulesCache {
     source: String,
     table: Option<Arc<Table>>,
@@ -53,6 +74,8 @@ pub struct Assets {
 
     pub entities: FxHashMap<String, (String, String)>,
     pub items: FxHashMap<String, (String, String)>,
+    /// Project item identities resolve to their current template name.
+    pub item_template_ids: FxHashMap<Uuid, String>,
     pub entity_authoring: FxHashMap<String, String>,
     pub item_authoring: FxHashMap<String, String>,
     /// Resolved bundled and project-owned item icon animation frames, keyed by
@@ -66,6 +89,12 @@ pub struct Assets {
     pub block_props: IndexMap<Uuid, BlockPropAsset>,
     pub materials: FxHashMap<Uuid, Tile>,
     pub textures: FxHashMap<String, Texture>,
+    /// Resolved ruleset MZ PBR maps shared by sprites and native meshes.
+    pub ruleset_materials: FxHashMap<String, Texture>,
+    /// Baked surface animation, in seconds; shared by 2D and 3D appearances.
+    pub material_animations: FxHashMap<String, (Vec<Texture>, f32)>,
+    pub item_models: FxHashMap<String, String>,
+    pub item_wearables: FxHashMap<String, Option<crate::procedural_avatar::Wearable>>,
 
     pub tile_list: Vec<Tile>,
     pub tile_indices: FxHashMap<Uuid, u16>,
@@ -91,6 +120,9 @@ pub struct Assets {
     pub world_source: String,
     pub rules: String,
     parsed_rules: Arc<RwLock<Option<ParsedRulesCache>>>,
+    animation_tick: Arc<RwLock<Option<(String, f32)>>>,
+    item_aliases: Arc<RwLock<Option<ItemAliasCache>>>,
+    pub(crate) display_defaults: Arc<RwLock<FxHashMap<u64, Arc<DisplayDefaults>>>>,
     pub default_avatar: Option<String>,
     pub locales_src: String,
     pub audio_fx_src: String,
@@ -112,7 +144,8 @@ pub struct Assets {
     pub locales: FxHashMap<String, FxHashMap<String, String>>,
 
     /// The avatars
-    pub avatars: FxHashMap<String, Avatar>,
+    pub avatars: super::avatar_assets::AvatarAssets,
+    pub procedural_avatars: FxHashMap<String, std::sync::Arc<crate::procedural_avatar::Appearance>>,
 }
 
 impl Default for Assets {
@@ -122,6 +155,106 @@ impl Default for Assets {
 }
 
 impl Assets {
+    /// Immutable appearance resources only; never clone maps, audio or fonts for
+    /// a preparation job. Resource changes replace the registered Appearance Arcs.
+    pub(crate) fn appearance_preparation_snapshot(&self) -> Self {
+        let mut snapshot = Self::default();
+        snapshot.palette = self.palette.clone();
+        snapshot.rules = self.rules.clone();
+        snapshot.default_avatar = self.default_avatar.clone();
+        snapshot.procedural_avatars = self.procedural_avatars.clone();
+        snapshot.item_models = self.item_models.clone();
+        snapshot.item_wearables = self.item_wearables.clone();
+        snapshot.item_template_ids = self.item_template_ids.clone();
+        snapshot.ruleset_materials = self.ruleset_materials.clone();
+        snapshot.material_animations = self.material_animations.clone();
+        snapshot.item_icons = self.item_icons.clone();
+        snapshot.textures = self.textures.clone();
+        snapshot.tiles = self.tiles.clone();
+        snapshot
+    }
+}
+
+impl Assets {
+    pub fn resolve_item_class_name(&self, requested: &str) -> Option<String> {
+        let requested = requested.trim();
+        if requested.is_empty() {
+            return None;
+        }
+
+        if let Ok(id) = Uuid::parse_str(requested) {
+            if let Some(name) = self
+                .item_template_ids
+                .get(&id)
+                .filter(|name| self.items.contains_key(*name))
+            {
+                return Some(name.clone());
+            }
+        }
+        if self.items.contains_key(requested) {
+            return Some(requested.to_string());
+        }
+
+        // Accept case-insensitive class/template ids.
+        if let Some((class_name, _)) = self
+            .items
+            .iter()
+            .find(|(class_name, _)| class_name.eq_ignore_ascii_case(requested))
+        {
+            return Some(class_name.clone());
+        }
+
+        // Equipment previews resolve the same display names every frame. Parse
+        // aliases once, checking public item data for in-place edits before reuse.
+        let requested = requested.to_ascii_lowercase();
+        if let Ok(cache) = self.item_aliases.read()
+            && let Some(cache) = cache.as_ref()
+            && cache.matches(&self.items)
+        {
+            return cache.aliases.get(&requested).cloned();
+        }
+        let mut cache = ItemAliasCache {
+            sources: vec![],
+            aliases: FxHashMap::default(),
+        };
+        for (class_name, (_, item_data)) in &self.items {
+            cache.sources.push((class_name.clone(), item_data.clone()));
+            let Ok(table) = item_data.parse::<toml::Table>() else {
+                continue;
+            };
+            let attrs = table.get("attributes").and_then(toml::Value::as_table);
+            for name in [
+                attrs
+                    .and_then(|a| a.get("name"))
+                    .and_then(toml::Value::as_str),
+                attrs
+                    .and_then(|a| a.get("ruleset_id"))
+                    .and_then(toml::Value::as_str),
+                attrs
+                    .and_then(|a| a.get("source_id"))
+                    .and_then(toml::Value::as_str),
+                attrs
+                    .and_then(|a| a.get("ruleset_path"))
+                    .and_then(toml::Value::as_str)
+                    .and_then(|p| p.rsplit('.').next()),
+                table.get("name").and_then(toml::Value::as_str),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                cache
+                    .aliases
+                    .entry(name.to_ascii_lowercase())
+                    .or_insert_with(|| class_name.clone());
+            }
+        }
+        let found = cache.aliases.get(&requested).cloned();
+        if let Ok(mut slot) = self.item_aliases.write() {
+            *slot = Some(cache);
+        }
+        found
+    }
+
     /// Return the effective ruleset as a shared parsed table.
     ///
     /// Rules source is public for editor compatibility, so the cache verifies
@@ -142,6 +275,34 @@ impl Assets {
             });
         }
         table
+    }
+
+    /// Keep presentation on the configured server tick without parsing the
+    /// entire project TOML for every 2D/3D redraw. Direct config edits and cloned
+    /// asset snapshots are checked against the source, rather than a stale flag.
+    pub(crate) fn animation_tick_seconds(&self) -> f32 {
+        if let Ok(cache) = self.animation_tick.read()
+            && let Some((source, seconds)) = &*cache
+            && source == &self.config
+        {
+            return *seconds;
+        }
+        let seconds = self
+            .config
+            .parse::<Table>()
+            .ok()
+            .and_then(|t| {
+                t.get("game")
+                    .and_then(|g| g.get("game_tick_ms"))
+                    .and_then(toml::Value::as_integer)
+            })
+            .unwrap_or(250)
+            .clamp(1, 10000) as f32
+            / 1000.;
+        if let Ok(mut cache) = self.animation_tick.write() {
+            *cache = Some((self.config.clone(), seconds));
+        }
+        seconds
     }
 
     pub fn ruleset_attribute_role(&self, role: &str) -> Option<String> {
@@ -185,6 +346,7 @@ impl Assets {
             maps: FxHashMap::default(),
             entities: FxHashMap::default(),
             items: FxHashMap::default(),
+            item_template_ids: FxHashMap::default(),
             entity_authoring: FxHashMap::default(),
             item_authoring: FxHashMap::default(),
             item_icons: FxHashMap::default(),
@@ -192,6 +354,10 @@ impl Assets {
             tiles: IndexMap::default(),
             block_props: IndexMap::default(),
             textures: FxHashMap::default(),
+            ruleset_materials: FxHashMap::default(),
+            material_animations: FxHashMap::default(),
+            item_models: FxHashMap::default(),
+            item_wearables: FxHashMap::default(),
             tile_list: vec![],
             tile_indices: FxHashMap::default(),
             materials: FxHashMap::default(),
@@ -205,6 +371,9 @@ impl Assets {
             world_source: String::new(),
             rules: String::new(),
             parsed_rules: Arc::new(RwLock::new(None)),
+            animation_tick: Default::default(),
+            item_aliases: Arc::new(RwLock::new(None)),
+            display_defaults: Default::default(),
             default_avatar: None,
             locales_src: String::new(),
             audio_fx_src: String::new(),
@@ -218,7 +387,8 @@ impl Assets {
             palette_materials: vec![[0.5, 0.0, 1.0, 0.0]; 256],
             palette_material_ids: vec![0; 256],
             locales: FxHashMap::default(),
-            avatars: FxHashMap::default(),
+            avatars: Default::default(),
+            procedural_avatars: FxHashMap::default(),
         }
     }
 
@@ -627,6 +797,40 @@ mod tests {
     }
 
     #[test]
+    fn equipment_alias_cache_tracks_renames_removals_and_cloned_asset_edits() {
+        let mut assets = Assets::default();
+        assets.items.insert(
+            "Shirt".into(),
+            (
+                String::new(),
+                "[attributes]\nname='Linen Shirt'\nruleset_path='clothing.linen'\n".into(),
+            ),
+        );
+        assert_eq!(
+            assets.resolve_item_class_name("linen shirt"),
+            Some("Shirt".into())
+        );
+        assert_eq!(
+            assets.resolve_item_class_name("LINEN"),
+            Some("Shirt".into())
+        );
+        let mut other = assets.clone();
+        other.items.get_mut("Shirt").unwrap().1 =
+            other.items["Shirt"].1.replace("Linen Shirt", "Chain Shirt");
+        assert_eq!(other.resolve_item_class_name("linen shirt"), None);
+        assert_eq!(
+            other.resolve_item_class_name("chain shirt"),
+            Some("Shirt".into())
+        );
+        assert_eq!(
+            assets.resolve_item_class_name("linen shirt"),
+            Some("Shirt".into())
+        );
+        assets.items.clear();
+        assert_eq!(assets.resolve_item_class_name("linen"), None);
+    }
+
+    #[test]
     fn parsed_rules_are_reused_and_invalidated_by_source_changes() {
         let mut assets = Assets::new();
         assets.rules = "[value]\nnumber = 1\n".into();
@@ -646,6 +850,28 @@ mod tests {
                 .and_then(toml::Value::as_integer),
             Some(2)
         );
+    }
+
+    #[test]
+    fn animation_tick_cache_tracks_config_edits_and_cloned_snapshots() {
+        let mut assets = Assets::default();
+        assert_eq!(assets.animation_tick_seconds(), 0.25);
+        assets.config = "[game]\ngame_tick_ms=500\n".into();
+        assert_eq!(assets.animation_tick_seconds(), 0.5);
+        assert_eq!(assets.animation_tick_seconds(), 0.5);
+        let mut edited = assets.clone();
+        edited.config = "[game]\ngame_tick_ms=50\n".into();
+        assert_eq!(edited.animation_tick_seconds(), 0.05);
+        assert_eq!(assets.animation_tick_seconds(), 0.5);
+        for (source, expected) in [
+            ("invalid = [", 0.25),
+            ("[game]\ngame_tick_ms='fast'", 0.25),
+            ("[game]\ngame_tick_ms=0", 0.001),
+            ("[game]\ngame_tick_ms=20000", 10.),
+        ] {
+            assets.config = source.into();
+            assert_eq!(assets.animation_tick_seconds(), expected);
+        }
     }
 
     #[test]

@@ -1,0 +1,45 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "glass-colors": {
+    "color0": 12,
+    "color1": 11,
+    "color2": 10,
+    "color3": 9
+  },
+  "glass-outline": {
+    "color": 1
+  },
+  "liquid-colors": {
+    "color0": 39,
+    "color1": 40,
+    "color2": 41,
+    "color3": 42
+  },
+  "liquid-bottom-colors": {
+    "color0": 39,
+    "color1": 40,
+    "color2": 41,
+    "color3": 42
+  },
+  "cork-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "cork-outline": {
+    "color": 1
+  },
+  "glass-glint-color": {
+    "color": 9
+  },
+  "crescent-color": {
+    "color": 9
+  },
+  "crescent-outline": {
+    "color": 1
+  }
+}

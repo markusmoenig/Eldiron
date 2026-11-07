@@ -64,6 +64,7 @@ fn cs_main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
                 col = textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, 0.0);
             }
+            if (U._pad0.x != 0u && (cmd.params.w & 0x100u) != 0u) { col = vec4<f32>(col.rgb * col.a, 1.0); }
             if (col.a < 0.01) { continue; }
             dyn_color = col;
             dyn_hit = true;

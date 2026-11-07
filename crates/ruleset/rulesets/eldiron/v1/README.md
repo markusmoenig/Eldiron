@@ -50,53 +50,59 @@ restrictions. The optional `equipment.avatar_anchors` table maps those
 rules-owned slot ids onto the avatar renderer's main/off-hand anchors without
 hardcoded slot aliases.
 
-The default visual avatars are stored at:
+The default procedural body recipes are:
 
 ```text
-assets/humanoid.eldiron_avatar
-assets/orc.eldiron_avatar
-assets/skeleton.eldiron_avatar
+assets/humanoid.mzgeometry.json
+assets/geometry/orc.mzgeometry.json
+assets/geometry/skeleton.mzgeometry.json
 ```
 
-The Skeleton file is a distinct copy of the humanoid avatar with its own id
-and name. It is intentionally ready for replacing its frames by importing a
-Skeleton atlas while keeping the stable ruleset asset id `skeleton`.
+They share the production MZ appearance evaluator: directional sprites in 2D,
+posed native meshes in 3D, fitted clothing, weapon grips and accessory sockets.
+The Orc and Skeleton have their own authored bodies and motions. Bitmap
+`.eldiron_avatar` assets remain supported as a separate image-based path.
+Explicit character `tile_id`, `avatar` or `avatar_id` choices override the default.
 
-Explicit character `tile_id`, `avatar`, or `avatar_id` values override the
-ruleset visual default. Explicit empty visual attributes can be used to disable
-the inherited default.
+Every official item has an editable 32×32 MZ icon under
+`assets/procedural_icons/`, with companion project-palette bindings. World and
+worn models live in `assets/geometry/`; surface recipes and their index bindings
+live in `assets/materials/`. Creator's item **Appearance** workspace opens
+**Icon On**, **Icon Off**, **Model On**, **Model Off**, worn models and materials.
+Project overrides survive refresh and save/reopen. Internal artwork swatches are
+excluded from the ordinary world Tile Picker.
 
-Bundled UI/item icons are authoritative full-color RGBA artwork stored in
-state/frame bundles:
+The project owns one editable palette, seeded with Endesga 64 for a new official
+project. MZ recipe colors, ramps and emission use its indices. Palette switches
+match target colors and preserve slot identities; they do not introduce a second
+rules-owned palette.
+
+Action and local interface-command icons still use the PNG library:
 
 ```text
-assets/icons/<id>/on/0.png       # default state
-assets/icons/<id>/on/1.png       # optional additional animation frame
+assets/icons/<id>/on/0.png
+assets/icons/<id>/on/1.png       # optional animation frame
 assets/icons/<id>/off/0.png      # optional inactive state
-assets/icons/<id>/<state>/material.png  # reserved optional packed material map
 ```
 
-Single-state icons contain only `on/0.png`. Creator still presents both the
-**Off** and **On** rows; the Off row remains empty until it is authored.
-The optional material map is reserved for the packed material workflow: red is
-roughness, blue is metallic, green is emission, and alpha is currently unused.
-It is not required for ordinary icons and is loaded only when present once the
-material-map phase is implemented.
+Bitmap item/state overrides are also supported. Bundled bitmap fallback artwork
+is fitted from canonical images when adapting the project palette; explicit
+project bitmap overrides retain their colors. A state-local `material.png` is
+reserved for future bitmap-map authoring, separate from current MZ-generated PBR
+maps.
 
-`icons.toml` records the upstream source and attribution for the
-Game-icons-derived subset. Eldiron-authored item PNGs are named after their
-ruleset item ids. To download only missing upstream icons without replacing
-artist edits, run:
+`icons.toml` and `assets/icons/ATTRIBUTION.md` retain the upstream attribution for
+the Game-icons-derived PNG subset. Its importer creates missing source artwork
+without replacing artist edits:
 
-```bash
+```sh
 cargo run -p eldiron-icon-builder -- crates/ruleset/rulesets/eldiron/v1/icons.toml crates/ruleset/rulesets/eldiron/v1/assets/icons
 ```
 
-The attribution file in `assets/icons/ATTRIBUTION.md` tracks the Game-icons.net
-sources and licenses. Existing PNG files are never regenerated or recolored by
-the importer. Runtime UI renders normal RGB values as authored, grays disabled
-icons, brightens hover, darkens pressed icons, and applies an in-icon warm
-selection tint without drawing an outline.
+See the geometry and procedural icon READMEs for review/export examples. Current
+Creator guides live in `docs/docs/characters_items/appearance.md`,
+`docs/docs/characters_items/rigging.md` and
+`docs/docs/building_maps/procedural_materials.md` at the repository root.
 
 Definitions do not each need their own icon or particle block. The official
 ruleset uses `ui.action_icon_fallbacks` and `ui.item_icon_fallbacks` for shared
@@ -108,9 +114,8 @@ The spell economy uses a deliberately small material vocabulary. Moonleaf,
 Sun Shards, Grave Dust, and Ember Resin come from placeable resource nodes.
 Recipes refine them into Moonwater, Consecrated Oil, Warding Salt, and Ember
 Beads. Spells consume those prepared reagents, while higher recipes can invest
-them in reusable Ritual Censers and Sunward Charms. Item and action presentation
-reuses shared RGBA icons, so this content expansion does not require a matching
-batch of one-off icon artwork.
+them in reusable Ritual Censers and Sunward Charms. Items use editable MZ icon/model recipes; actions retain semantic PNG
+fallbacks. This keeps gameplay definitions separate from the chosen artwork.
 
 Successful recipes also exercise the optional `[crafting.skill_gain]` loop.
 The official settings grant deterministic progress below a recipe's mastery
@@ -121,12 +126,12 @@ Every official spell also binds to the optional `words_of_power` invocation
 scheme. The lexicon and word meanings live in `invocations.toml`; exact
 sequences remain action-owned beside costs, targeting, and reagents.
 
-The torch's state bundle is also its world-tile source. Eldiron reconstructs
-the unlit tile from `icons/torch/off/0.png` and the four-frame lit animation
-from `icons/torch/on/*.png`, preserving the existing tile UUIDs used by its
-`off_tile_id` and `on_tile_id` attributes. Changing `active` automatically
-selects the matching tile, so the script does not repeat either UUID. There are
-no separate torch tile binaries to drift from the UI art.
+The torch demonstrates independent MZ icon/model states. Its lit icon bakes a
+four-frame flame loop; its 3D recipe can attach palette-linked particles to the
+model or rig. `active` selects On/Off bindings, while behavior owns light
+switching and fuel use. The Appearance workspace edits the two states separately.
+Bitmap-only state mappings through `on_tile_id` and `off_tile_id` remain available
+for custom items.
 
 The torch also demonstrates rules-owned durability. Its `[durability]` table
 drains `condition` while `active`, measured in game minutes, and removes the

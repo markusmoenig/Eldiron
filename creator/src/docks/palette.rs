@@ -421,21 +421,6 @@ impl PaletteDock {
         }
     }
 
-    fn normalize_palette(project: &mut Project) -> bool {
-        let mut changed = false;
-        project.ensure_palette_materials_len();
-        for (index, color) in project.palette.colors.iter_mut().enumerate() {
-            if !PaletteDockBoard::slot_is_occupied(color) && color.is_some() {
-                *color = None;
-                if let Some(material) = project.palette_materials.get_mut(index) {
-                    *material = PaletteMaterial::default();
-                }
-                changed = true;
-            }
-        }
-        changed
-    }
-
     fn append_index(project: &Project) -> Option<usize> {
         let end = project
             .palette
@@ -973,10 +958,8 @@ impl Dock for PaletteDock {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
-        if Self::normalize_palette(project) {
-            apply_palette(ui, ctx, server_ctx, project);
-            refresh_palette_runtime(project);
-        }
+        // Showing the palette must preserve its saved slots. Transparent colors
+        // already display as empty; only explicit edits change authored data.
         match event {
             TheEvent::Custom(id, _) if id.name == "Palette Changed" => {
                 self.sync_widgets(ui, ctx, project);

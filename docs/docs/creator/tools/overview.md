@@ -107,10 +107,14 @@ The **icons in the upper-right corner** of the HUD are **tool-specific** and all
 
 With the [Palette Tool](palette), the lower picker area shows the **Palette** dock instead:
 
-- a fixed project palette view
 - an editable project palette board
+- Lospec/local palette switching with a before/after preview
 - material and finish selectors for project palette entries
 - `Apply Color` and `Clear` actions for palette-based assignment
+
+World materials, MZ appearances and UI use this one project palette. For world
+tiles, **Make Proc** opens the [procedural material editor](/docs/building_maps/procedural_materials);
+the Rect tool's Compose mode edits layered material shapes on the map.
 
 With the [3D Paint Tool](iso_paint), the lower picker area shows the **3D Paint** dock instead:
 

@@ -20,7 +20,9 @@ fn default_rules() -> crate::rulesets::graph::RulesetState {
 // Older projects used names for retired procedural recipes. Current editable
 // materials are keyed by tile UUID; leave legacy sources in their archive and
 // load the baked tiles instead of treating their names as UUIDs.
-fn deserialize_tile_materials<'de, D>(deserializer: D) -> Result<IndexMap<Uuid, String>, D::Error>
+fn deserialize_tile_materials<'de, D>(
+    deserializer: D,
+) -> Result<crate::procedural_assets::ProceduralAssets, D::Error>
 where
     D: serde::Deserializer<'de>,
 {
@@ -359,7 +361,11 @@ pub struct Project {
         deserialize_with = "deserialize_tile_materials",
         skip_serializing_if = "IndexMap::is_empty"
     )]
-    pub procedural_materials: IndexMap<Uuid, String>,
+    pub procedural_materials: crate::procedural_assets::ProceduralAssets,
+
+    /// Portable, versioned MZ geometry recipes. Meshes/previews are derived caches.
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub procedural_appearances: crate::procedural_assets::ProceduralAssets,
 
     /// Ordered shape/blend layers referencing shared procedural picker tiles.
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
@@ -524,7 +530,8 @@ impl Project {
             tilemaps: vec![],
 
             tiles: IndexMap::default(),
-            procedural_materials: IndexMap::default(),
+            procedural_materials: Default::default(),
+            procedural_appearances: Default::default(),
             material_compositions: IndexMap::default(),
             map_material_bindings: IndexMap::default(),
             procedural_material_cache_keys: IndexMap::default(),
@@ -643,12 +650,40 @@ impl Project {
     }
 
     pub fn sync_ruleset_items(&mut self) -> Result<usize, String> {
-        let bundled_tiles = crate::rulesets::bundled_tiles_for_project(&self.config)?;
+        crate::ruleset_materials::install(self)?;
+        let procedural_states = crate::ruleset_materials::icon_state_tiles(self)?;
+        let bundled_tiles =
+            crate::rulesets::bundled_tiles_with_frames(&self.config, &procedural_states)?;
         let rules = self.rules_source()?;
         let templates = crate::rulesets::ruleset_item_templates_from_source(&rules)?;
         let mut changed = 0;
+        let selection = crate::rulesets::selected_ruleset_config(&self.config);
+        if selection.source != "project" {
+            for asset in crate::rulesets::bundled_appearance_assets_for_ruleset(
+                &selection.id,
+                &selection.version,
+            ) {
+                let id = Uuid::parse_str(asset.asset_id).map_err(|e| e.to_string())?;
+                if !self.procedural_appearances.contains_key(&id) {
+                    self.procedural_appearances.insert(id, asset.source.into());
+                }
+            }
+        }
 
-        for (id, tile) in bundled_tiles {
+        for (id, mut tile) in bundled_tiles {
+            if let Some(frames) = procedural_states.get(&id) {
+                tile.textures = frames.clone();
+                tile.baked_material_data = frames
+                    .iter()
+                    .map(rusterix::Texture::material_bytes)
+                    .collect();
+                // Texture persists normals with default material bytes; the tile
+                // owns the actual packed R/M/O/E maps. Match that saved form here
+                // so reopening does not cause another ruleset sync update.
+                for texture in &mut tile.textures {
+                    texture.set_materials_all(0.5, 0., 1., 0.);
+                }
+            }
             if self.tiles.get(&id) != Some(&tile) {
                 self.tiles.insert(id, tile);
                 changed += 1;
@@ -666,8 +701,9 @@ impl Project {
                     item.name = template.name.clone();
                     item_changed = true;
                 }
-                if item.data != template.data {
-                    item.data = template.data.clone();
+                let data = crate::item::merge_appearance_data(&item.data, &template.data);
+                if item.data != data {
+                    item.data = data;
                     item_changed = true;
                 }
                 if item.source != template.source {

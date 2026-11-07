@@ -95,19 +95,24 @@ impl TheDraw2D {
     }
 
     pub fn new() -> Self {
-        let mut fonts = vec![];
-        if let Some(font_bytes) = Embedded::get("fonts/Roboto-Bold.ttf") {
-            if let Ok(f) = Font::from_bytes(font_bytes.data, fontdue::FontSettings::default()) {
-                fonts.push(f);
-            }
-        }
-
-        let mut code_fonts = vec![];
-        if let Some(font_bytes) = Embedded::get("fonts/SourceCodePro-Bold.ttf") {
-            if let Ok(f) = Font::from_bytes(font_bytes.data, fontdue::FontSettings::default()) {
-                code_fonts.push(f);
-            }
-        }
+        // Parsing outlines is expensive in debug builds. Each painter still owns
+        // its mutable font list, but shares the one-time embedded font parsing.
+        static FONTS: std::sync::LazyLock<(Vec<Font>, Vec<Font>)> =
+            std::sync::LazyLock::new(|| {
+                let load = |path: &str| {
+                    Embedded::get(path)
+                        .and_then(|bytes| {
+                            Font::from_bytes(bytes.data, fontdue::FontSettings::default()).ok()
+                        })
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                };
+                (
+                    load("fonts/Roboto-Bold.ttf"),
+                    load("fonts/SourceCodePro-Bold.ttf"),
+                )
+            });
+        let (fonts, code_fonts) = FONTS.clone();
 
         Self {
             mask: None,
@@ -181,11 +186,14 @@ impl TheDraw2D {
         let rect = &s.rect(rect);
         let stride = s.u(stride);
 
-        for y in rect.1..rect.1 + rect.3 {
-            for x in rect.0..rect.0 + rect.2 {
-                let i = x * 4 + y * stride * 4;
-                frame[i..i + 4].copy_from_slice(color);
-            }
+        if rect.2 == 0 || rect.3 == 0 {
+            return;
+        }
+        let row = (rect.1 * stride + rect.0) * 4;
+        let bytes = rect.2 * 4;
+        crate::thergbabuffer::fill_rgba(&mut frame[row..row + bytes], color);
+        for y in rect.1 + 1..rect.1 + rect.3 {
+            frame.copy_within(row..row + bytes, (y * stride + rect.0) * 4);
         }
     }
 
@@ -2037,6 +2045,42 @@ impl TheDraw2D {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rectangle_bulk_fill_matches_pixels_at_native_and_fractional_density() {
+        let draw = TheDraw2D::default();
+        for scale in [1., 1.25, 1.5, 2.] {
+            for color in [[17, 89, 211, 0], [17, 89, 211, 113], [17, 89, 211, 255]] {
+                for rect in [(0, 0, 0, 0), (0, 0, 8, 7), (2, 1, 3, 4), (3, 3, 1, 1)] {
+                    let raster = RasterScale(scale);
+                    let stride = raster.u(8);
+                    let mut actual = vec![37; stride * raster.u(7) * 4];
+                    let mut expected = actual.clone();
+                    let physical = raster.rect(&rect);
+                    for y in physical.1..physical.1 + physical.3 {
+                        for x in physical.0..physical.0 + physical.2 {
+                            let i = (y * stride + x) * 4;
+                            expected[i..i + 4].copy_from_slice(&color);
+                        }
+                    }
+                    draw.rect(
+                        TheRasterTarget {
+                            pixels: &mut actual,
+                            scale,
+                        },
+                        &rect,
+                        8,
+                        &color,
+                    );
+                    assert_eq!(
+                        actual, expected,
+                        "scale={scale}, rect={rect:?}, alpha={}",
+                        color[3]
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn blend_rect_clips_to_the_frame() {

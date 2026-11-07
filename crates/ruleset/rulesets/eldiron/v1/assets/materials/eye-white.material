@@ -1,0 +1,13 @@
+# Authored eye-white: garment construction, not all-over noise. Colors use the companion palette indices.
+project 1
+result from material "surface"
+material "surface" called "Eye White"
+  mode pbr
+  tiling raw
+  default roughness to 0.4
+  default metallic to 0
+  default opacity to 1
+  default emission strength to 0
+  row "base" called "Main fabric"
+    use "Color" id "base"
+  output base color from row "base" xyz

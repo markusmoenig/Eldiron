@@ -1,0 +1,51 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "rock-colors": {
+    "color0": 3,
+    "color1": 4,
+    "color2": 5,
+    "color3": 6
+  },
+  "rock-outline": {
+    "color": 1
+  },
+  "left-shard-colors": {
+    "color0": 19,
+    "color1": 24,
+    "color2": 24,
+    "color3": 22
+  },
+  "left-shard-outline": {
+    "color": 1
+  },
+  "left-shard-facet-color": {
+    "color": 22
+  },
+  "right-shard-colors": {
+    "color0": 19,
+    "color1": 24,
+    "color2": 24,
+    "color3": 22
+  },
+  "right-shard-outline": {
+    "color": 1
+  },
+  "right-shard-facet-color": {
+    "color": 22
+  },
+  "main-shard-colors": {
+    "color0": 19,
+    "color1": 24,
+    "color2": 24,
+    "color3": 22
+  },
+  "main-shard-outline": {
+    "color": 1
+  },
+  "main-shard-facet-color": {
+    "color": 22
+  }
+}

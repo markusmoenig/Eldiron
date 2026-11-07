@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "id": "sun_shard",
+  "label": "Sun Shard",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Sun Shard",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Sun Shard",
+            "document": {
+              "version": 1,
+              "id": "sun_shard-construction",
+              "label": "Sun Shard construction",
+              "rows": [
+                {
+                  "id": "item-gold",
+                  "label": "Item-Gold",
+                  "tiles": [
+                    {
+                      "id": "item-gold-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 24,
+                        "roughness": 0.34,
+                        "metallic": 0.8
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "crystal",
+                  "label": "Crystal",
+                  "tiles": [
+                    {
+                      "id": "crystal-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.15,
+                              0
+                            ],
+                            "radius": [
+                              0.06,
+                              0.045
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.09,
+                              0
+                            ],
+                            "radius": [
+                              0.06,
+                              0.045
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.01,
+                              0.21,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 5
+                      }
+                    },
+                    {
+                      "id": "crystal-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "crystal-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Sun Shard assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "crystal"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0.12,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.12,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

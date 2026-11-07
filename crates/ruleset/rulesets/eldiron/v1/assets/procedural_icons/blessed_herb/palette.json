@@ -1,0 +1,60 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "stem-0-color": {
+    "color": 34
+  },
+  "stem-0-outline": {
+    "color": 1
+  },
+  "leaf-0-0-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-0-0-outline": {
+    "color": 1
+  },
+  "leaf-0-1-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-0-1-outline": {
+    "color": 1
+  },
+  "leaf-0-2-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-0-2-outline": {
+    "color": 1
+  },
+  "leaf-0-3-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-0-3-outline": {
+    "color": 1
+  },
+  "blossom-colors": {
+    "color0": 19,
+    "color1": 24,
+    "color2": 24,
+    "color3": 22
+  },
+  "blossom-outline": {
+    "color": 1
+  },
+  "pollen-color": {
+    "color": 23
+  }
+}

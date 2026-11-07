@@ -28,7 +28,9 @@ impl Edges {
     pub fn evaluate(&self, p: [f32; 2]) -> bool {
         for i in 0..3 {
             let result = self.a[i] * p[0] + self.b[i] * p[1] + self.c[i];
-            if result < 0.0 {
+            // Half-open coverage: exactly one triangle owns a shared edge.
+            let inclusive = self.a[i] > 0. || (self.a[i] == 0. && self.b[i] > 0.);
+            if result < 0.0 || (result == 0. && !inclusive) {
                 return false;
             }
         }

@@ -49,6 +49,14 @@ pub fn bundled_tile_ids_for_project(
 }
 
 pub fn bundled_tiles_for_project(config_src: &str) -> Result<Vec<(Uuid, rusterix::Tile)>, String> {
+    bundled_tiles_with_frames(config_src, &Default::default())
+}
+
+/// Reuse procedural state bakes instead of decoding discarded bitmap defaults.
+pub fn bundled_tiles_with_frames(
+    config_src: &str,
+    frames: &std::collections::HashMap<Uuid, Vec<rusterix::Texture>>,
+) -> Result<Vec<(Uuid, rusterix::Tile)>, String> {
     let selection = eldiron_ruleset::selected_ruleset_config(config_src);
     if selection.source == "project" {
         return Ok(Vec::new());
@@ -64,7 +72,11 @@ pub fn bundled_tiles_for_project(config_src: &str) -> Result<Vec<(Uuid, rusterix
                     asset.item_id, asset.state, err
                 )
             })?;
-            let textures = decode_icon_state_frames(asset)?;
+            let textures = if let Some(textures) = frames.get(&id) {
+                textures.clone()
+            } else {
+                decode_icon_state_frames(asset)?
+            };
             let mut tile = rusterix::Tile::from_textures(textures);
             tile.id = id;
             tile.alias = asset.tile_alias.to_string();
@@ -111,8 +123,17 @@ pub fn bundled_item_icon_states_for_project(
         return Ok(Vec::new());
     }
 
+    let native = eldiron_ruleset::bundled_icon_material_assets_for_ruleset(
+        &selection.id,
+        &selection.version,
+    );
     eldiron_ruleset::bundled_icon_state_assets_for_ruleset(&selection.id, &selection.version)
         .into_iter()
+        .filter(|a| {
+            !native
+                .iter()
+                .any(|d| d.id == format!("icon/{}/{}", a.item_id, a.state))
+        })
         .map(|asset| {
             decode_icon_state_frames(asset).map(|frames| (asset.item_id, asset.state, frames))
         })
@@ -127,8 +148,13 @@ pub fn bundled_textures_for_project(
         return Ok(Vec::new());
     }
 
+    let native = eldiron_ruleset::bundled_icon_material_assets_for_ruleset(
+        &selection.id,
+        &selection.version,
+    );
     eldiron_ruleset::bundled_texture_assets_for_ruleset(&selection.id, &selection.version)
         .into_iter()
+        .filter(|a| !native.iter().any(|d| d.id == format!("icon/{}/on", a.id)))
         .map(|asset| {
             rusterix::Texture::from_image_safe(asset.source)
                 .map(|texture| (asset.id, texture))

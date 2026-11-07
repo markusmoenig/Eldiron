@@ -4,10 +4,16 @@ pub mod project_undo;
 
 use crate::prelude::*;
 use project_undo::*;
+use std::sync::atomic::{AtomicU64, Ordering};
+static REVISION: AtomicU64 = AtomicU64::new(1);
+fn next_revision() -> u64 {
+    REVISION.fetch_add(1, Ordering::Relaxed)
+}
 
 #[derive(Clone, Debug)]
 pub struct UndoManager {
     pub max_undo: usize,
+    revision: u64,
 
     project: ProjectUndo,
 }
@@ -22,16 +28,22 @@ impl UndoManager {
     pub fn new() -> Self {
         Self {
             max_undo: 30,
+            revision: next_revision(),
 
             project: ProjectUndo::default(),
         }
     }
 
     pub fn add_undo(&mut self, atom: ProjectUndoAtom, ctx: &mut TheContext) {
+        self.revision = next_revision();
         self.project.add(atom);
         self.project.truncate_to_limit(self.max_undo);
         ctx.ui.set_enabled("Undo");
         self.can_save(ctx);
+    }
+
+    pub fn revision(&self) -> u64 {
+        self.revision
     }
 
     pub fn mark_saved(&mut self) {
@@ -61,6 +73,7 @@ impl UndoManager {
     ) {
         if self.project.has_undo() {
             self.project.undo(project, ui, ctx, server_ctx);
+            self.revision = next_revision();
         }
 
         self.set_undo_state_to_ui(ctx);
@@ -76,6 +89,7 @@ impl UndoManager {
     ) {
         if self.project.has_redo() {
             self.project.redo(project, ui, ctx, server_ctx);
+            self.revision = next_revision();
         }
 
         self.set_undo_state_to_ui(ctx);

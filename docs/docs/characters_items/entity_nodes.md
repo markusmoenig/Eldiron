@@ -16,6 +16,7 @@ The separate **Input Mapping** branch starts with an Input Mapping node. Connect
 | Entity | Ruleset race, class, and initial level. Empty race/class and level 0 inherit defaults. |
 | Set Tile | Assign a sprite tile using a scrollable grid of previews. Type to search aliases; no UUID entry is needed. Legacy module tiles are excluded. |
 | Appearance | Avatar, 2D size, and visibility. Visibility is independent of life/activity state. |
+| Equipment | Starting worn/held items. Drag project item headers onto the node; item names are shown and stable references are saved. |
 | Collision | Radius and blocking. |
 | Inventory | Slot count and starting wealth. |
 | Player | Whether the character is available for player selection. It does not spawn the character. |
@@ -32,6 +33,19 @@ Race and class choices come from the active ruleset. Ruleset stats, abilities, p
 Entity stays limited to race, class and level. Other authored settings use separate configuration nodes.
 
 Choice controls open compact, searchable, scrollable pickers. Inline text commits on Return. Edits use the global Undo/Redo system.
+
+## Equipment and visual appearance
+
+Connect **Equipment** to Entity to override the class outfit. A drop replaces an
+item in the same slot; invalid class or two-handed combinations report an error.
+No Equipment node inherits the class loadout; an empty list equips nothing.
+Names and ruleset IDs may also be entered manually, but are not required for
+drag-and-drop authoring.
+
+The character's **Appearance** tree entry previews the resolved outfit in 2D
+and 3D. MZ bodies, clothing materials and attached models follow the ruleset
+items you equip. See [Appearance](appearance) and [Rigging](rigging) before
+editing the underlying artwork or skeleton.
 
 ## Templates and instances
 

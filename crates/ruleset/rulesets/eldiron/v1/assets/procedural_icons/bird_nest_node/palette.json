@@ -1,0 +1,66 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "twigs-0-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "twigs-0-outline": {
+    "color": 1
+  },
+  "twigs-1-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "twigs-1-outline": {
+    "color": 1
+  },
+  "twigs-2-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "twigs-2-outline": {
+    "color": 1
+  },
+  "nest-hollow-color": {
+    "color": 17
+  },
+  "egg-0-colors": {
+    "color0": 10,
+    "color1": 9,
+    "color2": 23,
+    "color3": 8
+  },
+  "egg-0-outline": {
+    "color": 1
+  },
+  "egg-1-colors": {
+    "color0": 10,
+    "color1": 9,
+    "color2": 23,
+    "color3": 8
+  },
+  "egg-1-outline": {
+    "color": 1
+  },
+  "egg-2-colors": {
+    "color0": 10,
+    "color1": 9,
+    "color2": 23,
+    "color3": 8
+  },
+  "egg-2-outline": {
+    "color": 1
+  },
+  "straw-color": {
+    "color": 21
+  }
+}

@@ -2,7 +2,47 @@ use fontdue::Font;
 use fontdue::layout::{
     CoordinateSystem, HorizontalAlign, Layout, LayoutSettings, TextStyle, VerticalAlign,
 };
+use std::{cell::RefCell, sync::Arc};
 use vek::*;
+
+// Shared by widgets on the render thread. The fontdue key includes font content,
+// glyph and pixel size; colors, layout and live text remain uncached.
+#[derive(Default)]
+struct GlyphCache {
+    entries:
+        rustc_hash::FxHashMap<fontdue::layout::GlyphRasterConfig, (fontdue::Metrics, Arc<[u8]>)>,
+    bytes: usize,
+}
+impl GlyphCache {
+    fn rasterize(
+        &mut self,
+        font: &Font,
+        key: fontdue::layout::GlyphRasterConfig,
+    ) -> (fontdue::Metrics, Arc<[u8]>) {
+        if let Some(value) = self.entries.get(&key) {
+            return value.clone();
+        }
+        let (metrics, pixels) = font.rasterize_config(key);
+        let pixels: Arc<[u8]> = pixels.into();
+        // Bound both entry count and bitmap memory, including unusual user fonts/sizes.
+        if self.entries.len() >= 2048 || self.bytes + pixels.len() > 4 * 1024 * 1024 {
+            self.entries.clear();
+            self.bytes = 0;
+        }
+        if pixels.len() <= 4 * 1024 * 1024 {
+            self.bytes += pixels.len();
+            self.entries.insert(key, (metrics, pixels.clone()));
+        }
+        (metrics, pixels)
+    }
+}
+thread_local! { static GLYPHS: RefCell<GlyphCache> = RefCell::default(); }
+fn rasterize_glyph(
+    font: &Font,
+    key: fontdue::layout::GlyphRasterConfig,
+) -> (fontdue::Metrics, Arc<[u8]>) {
+    GLYPHS.with(|cache| cache.borrow_mut().rasterize(font, key))
+}
 
 #[derive(PartialEq, Clone, Eq)]
 pub enum TheHorizontalAlign {
@@ -68,11 +108,18 @@ impl Draw2D {
         stride: usize,
         color: &[u8; 4],
     ) {
-        for y in rect.1..rect.1 + rect.3 {
-            for x in rect.0..rect.0 + rect.2 {
-                let i = x * 4 + y * stride * 4;
-                frame[i..i + 4].copy_from_slice(color);
-            }
+        if rect.2 == 0 || rect.3 == 0 {
+            return;
+        }
+        let start = (rect.1 * stride + rect.0) * 4;
+        let end = start + rect.2 * 4;
+        // Establish one scanline, then copy its bytes for solid HUD panels.
+        // This avoids repeating per-pixel slicing on every row in debug builds.
+        for pixel in frame[start..end].chunks_exact_mut(4) {
+            pixel.copy_from_slice(color);
+        }
+        for y in rect.1 + 1..rect.1 + rect.3 {
+            frame.copy_within(start..end, (y * stride + rect.0) * 4);
         }
     }
 
@@ -130,7 +177,11 @@ impl Draw2D {
         let mut channels = [[0u8; 256]; 4];
         let alpha = color[3] as f32 / 255.0;
         for background in 0..256 {
-            let mixed = self.mix_color(&[background as u8; 4], color, alpha);
+            let mixed = self.mix_color(
+                &[background as u8, background as u8, background as u8, 255],
+                color,
+                alpha,
+            );
             for channel in 0..4 {
                 channels[channel][background] = mixed[channel];
             }
@@ -138,10 +189,14 @@ impl Draw2D {
         for y in rect.1..rect.1 + rect.3 {
             let start = (y * stride + rect.0) * 4;
             for pixel in frame[start..start + rect.2 * 4].chunks_exact_mut(4) {
-                pixel[0] = channels[0][pixel[0] as usize];
-                pixel[1] = channels[1][pixel[1] as usize];
-                pixel[2] = channels[2][pixel[2] as usize];
-                pixel[3] = channels[3][pixel[3] as usize];
+                if pixel[3] == 255 {
+                    pixel[0] = channels[0][pixel[0] as usize];
+                    pixel[1] = channels[1][pixel[1] as usize];
+                    pixel[2] = channels[2][pixel[2] as usize];
+                } else {
+                    let mixed = self.mix_color(&pixel.try_into().unwrap(), color, alpha);
+                    pixel.copy_from_slice(&mixed);
+                }
             }
         }
     }
@@ -389,7 +444,11 @@ impl Draw2D {
                     let mut mixed_color = self.mix_color(background, color, t);
 
                     let b = self.border_mask(d, border_size);
-                    mixed_color = self.mix_color(&mixed_color, border_color, b);
+                    mixed_color = self.mix_color(
+                        &mixed_color,
+                        border_color,
+                        b * border_color[3] as f32 / 255.,
+                    );
 
                     frame[i..i + 4].copy_from_slice(&mixed_color);
                 }
@@ -498,7 +557,11 @@ impl Draw2D {
                         self.mix_color(background, color, t * (color[3] as f32 / 255.0));
 
                     let b = self.border_mask(d, border_size);
-                    mixed_color = self.mix_color(&mixed_color, border_color, b);
+                    mixed_color = self.mix_color(
+                        &mixed_color,
+                        border_color,
+                        b * border_color[3] as f32 / 255.,
+                    );
 
                     frame[i..i + 4].copy_from_slice(&mixed_color);
                 }
@@ -544,7 +607,11 @@ impl Draw2D {
                         self.mix_color(background, color, t * (color[3] as f32 / 255.0));
 
                     let b = self.border_mask(d, border_size);
-                    mixed_color = self.mix_color(&mixed_color, border_color, b);
+                    mixed_color = self.mix_color(
+                        &mixed_color,
+                        border_color,
+                        b * border_color[3] as f32 / 255.,
+                    );
 
                     frame[i..i + 4].copy_from_slice(&mixed_color);
                 }
@@ -603,7 +670,11 @@ impl Draw2D {
                         self.mix_color(background, color, t * (color[3] as f32 / 255.0));
 
                     let b = self.border_mask(d, border_size);
-                    mixed_color = self.mix_color(&mixed_color, border_color, b);
+                    mixed_color = self.mix_color(
+                        &mixed_color,
+                        border_color,
+                        b * border_color[3] as f32 / 255.,
+                    );
 
                     frame[i..i + 4].copy_from_slice(&mixed_color);
                 }
@@ -694,7 +765,7 @@ impl Draw2D {
             },
         );
         for glyph in layout.glyphs() {
-            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            let (metrics, alphamap) = rasterize_glyph(font, glyph.key);
             //println!("Metrics: {:?}", glyph);
 
             for y in 0..metrics.height {
@@ -759,7 +830,7 @@ impl Draw2D {
             },
         );
         for glyph in layout.glyphs() {
-            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            let (metrics, alphamap) = rasterize_glyph(font, glyph.key);
 
             for y in 0..metrics.height {
                 for x in 0..metrics.width {
@@ -851,7 +922,7 @@ impl Draw2D {
             },
         );
         for glyph in layout.glyphs() {
-            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            let (metrics, alphamap) = rasterize_glyph(font, glyph.key);
             //println!("Metrics: {:?}", glyph);
 
             for y in 0..metrics.height {
@@ -931,7 +1002,7 @@ impl Draw2D {
             },
         );
         for glyph in layout.glyphs() {
-            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            let (metrics, alphamap) = rasterize_glyph(font, glyph.key);
 
             for y in 0..metrics.height {
                 if rect.1 + y as isize + glyph.y as isize >= safe_rect.1
@@ -1001,7 +1072,7 @@ impl Draw2D {
             },
         );
         for glyph in layout.glyphs() {
-            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            let (metrics, alphamap) = rasterize_glyph(font, glyph.key);
 
             for y in 0..metrics.height {
                 for x in 0..metrics.width {
@@ -1054,7 +1125,7 @@ impl Draw2D {
 
         let layout = self.get_text_layout(font, size, text, LayoutSettings::default());
         for glyph in layout.glyphs() {
-            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            let (metrics, alphamap) = rasterize_glyph(font, glyph.key);
             //println!("Metrics: {:?}", glyph);
 
             for y in 0..metrics.height {
@@ -1091,7 +1162,7 @@ impl Draw2D {
 
         let layout = self.get_text_layout(font, size, text, LayoutSettings::default());
         for glyph in layout.glyphs() {
-            let (metrics, alphamap) = font.rasterize(glyph.parent, glyph.key.px);
+            let (metrics, alphamap) = rasterize_glyph(font, glyph.key);
             //println!("Metrics: {:?}", glyph);
 
             for y in 0..metrics.height {
@@ -1480,14 +1551,9 @@ impl Draw2D {
         t * t * (3.0 - 2.0 * t)
     }
 
-    /// Mixes two colors based on v
+    /// Composite straight RGBA using effective source alpha `v`, including coverage.
     pub fn mix_color(&self, a: &[u8; 4], b: &[u8; 4], v: f32) -> [u8; 4] {
-        [
-            (((1.0 - v) * (a[0] as f32 / 255.0) + b[0] as f32 / 255.0 * v) * 255.0) as u8,
-            (((1.0 - v) * (a[1] as f32 / 255.0) + b[1] as f32 / 255.0 * v) * 255.0) as u8,
-            (((1.0 - v) * (a[2] as f32 / 255.0) + b[2] as f32 / 255.0 * v) * 255.0) as u8,
-            (((1.0 - v) * (a[3] as f32 / 255.0) + b[3] as f32 / 255.0 * v) * 255.0) as u8,
-        ]
+        theframework::thergbabuffer::source_over(*a, *b, v)
     }
 
     // Length of a 2d vector
@@ -1499,6 +1565,27 @@ impl Draw2D {
 #[cfg(test)]
 mod constant_blend_tests {
     use super::Draw2D;
+
+    #[test]
+    fn solid_rect_scanlines_preserve_pixels_outside_the_rect() {
+        let draw = Draw2D::new();
+        let mut pixels = vec![31; 8 * 6 * 4];
+        let color = [19, 57, 209, 81];
+        draw.rect(&mut pixels, &(2, 1, 3, 4), 8, &color);
+        draw.rect(&mut pixels, &(0, 0, 0, 6), 8, &color);
+        for y in 0..6 {
+            for x in 0..8 {
+                assert_eq!(
+                    &pixels[(y * 8 + x) * 4..(y * 8 + x + 1) * 4],
+                    if (2..5).contains(&x) && (1..5).contains(&y) {
+                        &color
+                    } else {
+                        &[31; 4]
+                    }
+                );
+            }
+        }
+    }
 
     #[test]
     fn rectangle_blending_preserves_all_alpha_and_background_values() {
@@ -1536,5 +1623,48 @@ mod constant_blend_tests {
                 assert_eq!(&pixels[(y * 6 + x) * 4..(y * 6 + x + 1) * 4], &expected);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod glyph_cache_tests {
+    use super::*;
+    #[test]
+    fn cached_glyphs_match_fontdue_across_fonts_sizes_and_reuse() {
+        let mut cache = GlyphCache::default();
+        for path in ["fonts/Roboto-Bold.ttf", "fonts/SourceCodePro-Bold.ttf"] {
+            let bytes = theframework::Embedded::get(path).unwrap();
+            let font = Font::from_bytes(bytes.data, fontdue::FontSettings::default()).unwrap();
+            for px in [10., 18., 32.] {
+                for ch in ['W', 'a', 'é', ' '] {
+                    let key = fontdue::layout::GlyphRasterConfig {
+                        glyph_index: font.lookup_glyph_index(ch),
+                        px,
+                        font_hash: font.file_hash(),
+                    };
+                    let expected = font.rasterize_config(key);
+                    let first = cache.rasterize(&font, key);
+                    let second = cache.rasterize(&font, key);
+                    assert_eq!(expected.0, first.0);
+                    assert_eq!(expected.1.as_slice(), &*first.1);
+                    assert!(Arc::ptr_eq(&first.1, &second.1));
+                }
+            }
+        }
+        // A full cache is evicted before the next miss; unbounded strings/sizes
+        // cannot retain an unbounded number of glyph images.
+        cache.bytes = 4 * 1024 * 1024;
+        let bytes = theframework::Embedded::get("fonts/Roboto-Bold.ttf").unwrap();
+        let font = Font::from_bytes(bytes.data, fontdue::FontSettings::default()).unwrap();
+        cache.rasterize(
+            &font,
+            fontdue::layout::GlyphRasterConfig {
+                glyph_index: font.lookup_glyph_index('Q'),
+                px: 50.,
+                font_hash: font.file_hash(),
+            },
+        );
+        assert_eq!(cache.entries.len(), 1);
+        assert!(cache.bytes < 4 * 1024 * 1024);
     }
 }

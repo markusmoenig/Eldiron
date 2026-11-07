@@ -1,0 +1,1381 @@
+{
+  "version": 1,
+  "id": "grave_dust",
+  "label": "Grave Dust",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Grave Dust",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Grave Dust",
+            "document": {
+              "version": 1,
+              "id": "grave_dust-construction",
+              "label": "Grave Dust construction",
+              "rows": [
+                {
+                  "id": "item-dust",
+                  "label": "Item-Dust",
+                  "tiles": [
+                    {
+                      "id": "item-dust-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 5,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "cloth-pouch",
+                  "label": "Cloth Pouch",
+                  "tiles": [
+                    {
+                      "id": "cloth-pouch-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.12,
+                              0
+                            ],
+                            "radius": [
+                              0.035,
+                              0.03
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.1,
+                              0
+                            ],
+                            "radius": [
+                              0.085,
+                              0.065
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.01,
+                              0
+                            ],
+                            "radius": [
+                              0.09,
+                              0.07
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.07,
+                              0
+                            ],
+                            "radius": [
+                              0.035,
+                              0.03
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.12,
+                              0
+                            ],
+                            "radius": [
+                              0.045,
+                              0.04
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "cloth-pouch-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "cloth-pouch-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-wrap",
+                  "label": "Weapon-Wrap",
+                  "tiles": [
+                    {
+                      "id": "weapon-wrap-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-0",
+                  "label": "Pouch Cord 0",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.028999999999999998,
+                            0.0
+                          ],
+                          [
+                            0.037,
+                            0.0
+                          ],
+                          [
+                            0.029933628791873054,
+                            0.021748054334821507
+                          ],
+                          [
+                            0.023461492836873474,
+                            0.01704577231648172
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-1",
+                  "label": "Pouch Cord 1",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.023461492836873474,
+                            0.01704577231648172
+                          ],
+                          [
+                            0.029933628791873054,
+                            0.021748054334821507
+                          ],
+                          [
+                            0.011433628791873054,
+                            0.03518909110292068
+                          ],
+                          [
+                            0.008961492836873475,
+                            0.02758063897255945
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-2",
+                  "label": "Pouch Cord 2",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.008961492836873475,
+                            0.02758063897255945
+                          ],
+                          [
+                            0.011433628791873054,
+                            0.03518909110292068
+                          ],
+                          [
+                            -0.011433628791873051,
+                            0.035189091102920685
+                          ],
+                          [
+                            -0.008961492836873473,
+                            0.027580638972559454
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-3",
+                  "label": "Pouch Cord 3",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.008961492836873473,
+                            0.027580638972559454
+                          ],
+                          [
+                            -0.011433628791873051,
+                            0.035189091102920685
+                          ],
+                          [
+                            -0.02993362879187305,
+                            0.02174805433482151
+                          ],
+                          [
+                            -0.02346149283687347,
+                            0.017045772316481723
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-4",
+                  "label": "Pouch Cord 4",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.02346149283687347,
+                            0.017045772316481723
+                          ],
+                          [
+                            -0.02993362879187305,
+                            0.02174805433482151
+                          ],
+                          [
+                            -0.037,
+                            4.531193156845207e-18
+                          ],
+                          [
+                            -0.028999999999999998,
+                            3.551475717527324e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-5",
+                  "label": "Pouch Cord 5",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.028999999999999998,
+                            3.551475717527324e-18
+                          ],
+                          [
+                            -0.037,
+                            4.531193156845207e-18
+                          ],
+                          [
+                            -0.029933628791873054,
+                            -0.0217480543348215
+                          ],
+                          [
+                            -0.023461492836873474,
+                            -0.017045772316481717
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-6",
+                  "label": "Pouch Cord 6",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.023461492836873474,
+                            -0.017045772316481717
+                          ],
+                          [
+                            -0.029933628791873054,
+                            -0.0217480543348215
+                          ],
+                          [
+                            -0.01143362879187306,
+                            -0.03518909110292068
+                          ],
+                          [
+                            -0.008961492836873478,
+                            -0.02758063897255945
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-7",
+                  "label": "Pouch Cord 7",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.008961492836873478,
+                            -0.02758063897255945
+                          ],
+                          [
+                            -0.01143362879187306,
+                            -0.03518909110292068
+                          ],
+                          [
+                            0.011433628791873048,
+                            -0.035189091102920685
+                          ],
+                          [
+                            0.00896149283687347,
+                            -0.027580638972559454
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-8",
+                  "label": "Pouch Cord 8",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.00896149283687347,
+                            -0.027580638972559454
+                          ],
+                          [
+                            0.011433628791873048,
+                            -0.035189091102920685
+                          ],
+                          [
+                            0.02993362879187305,
+                            -0.021748054334821514
+                          ],
+                          [
+                            0.02346149283687347,
+                            -0.017045772316481727
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-cord-9",
+                  "label": "Pouch Cord 9",
+                  "tiles": [
+                    {
+                      "id": "pouch-cord-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.02346149283687347,
+                            -0.017045772316481727
+                          ],
+                          [
+                            0.02993362879187305,
+                            -0.021748054334821514
+                          ],
+                          [
+                            0.037,
+                            -9.062386313690414e-18
+                          ],
+                          [
+                            0.028999999999999998,
+                            -7.102951435054648e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0096
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.075,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "pouch-cord-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-ivory",
+                  "label": "Item-Ivory",
+                  "tiles": [
+                    {
+                      "id": "item-ivory-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 9,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pouch-label",
+                  "label": "Pouch Label",
+                  "tiles": [
+                    {
+                      "id": "pouch-label-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.055,
+                              0.07
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.043,
+                              0.07
+                            ],
+                            "radius": [
+                              0.023039999999999998,
+                              0.0028799999999999997
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.015,
+                              0.07
+                            ],
+                            "radius": [
+                              0.032,
+                              0.004
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.012999999999999998,
+                              0.07
+                            ],
+                            "radius": [
+                              0.023039999999999998,
+                              0.0028799999999999997
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.025,
+                              0.07
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "pouch-label-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-ivory"
+                      }
+                    },
+                    {
+                      "id": "pouch-label-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-ivory",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-dark",
+                  "label": "Item-Dark",
+                  "tiles": [
+                    {
+                      "id": "item-dark-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 2,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "skull-eye--0.012",
+                  "label": "Skull Eye  0.012",
+                  "tiles": [
+                    {
+                      "id": "skull-eye--0.012-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.011,
+                          0.006
+                        ]
+                      }
+                    },
+                    {
+                      "id": "skull-eye--0.012-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.012,
+                          -0.01,
+                          0.075
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "skull-eye--0.012-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "skull-eye--0.012-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "skull-eye-0.012",
+                  "label": "Skull Eye 0.012",
+                  "tiles": [
+                    {
+                      "id": "skull-eye-0.012-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.011,
+                          0.006
+                        ]
+                      }
+                    },
+                    {
+                      "id": "skull-eye-0.012-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.012,
+                          -0.01,
+                          0.075
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "skull-eye-0.012-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dark"
+                      }
+                    },
+                    {
+                      "id": "skull-eye-0.012-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dark",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Grave Dust assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "cloth-pouch",
+                          "pouch-cord-0",
+                          "pouch-cord-1",
+                          "pouch-cord-2",
+                          "pouch-cord-3",
+                          "pouch-cord-4",
+                          "pouch-cord-5",
+                          "pouch-cord-6",
+                          "pouch-cord-7",
+                          "pouch-cord-8",
+                          "pouch-cord-9",
+                          "pouch-label",
+                          "skull-eye--0.012",
+                          "skull-eye-0.012"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0.085,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.085,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

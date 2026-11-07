@@ -23,6 +23,8 @@ pub struct DecoWidget {
     pub border_gradient_direction: BorderGradientDirection,
     pub border_radius: f32,
     pub border_painter: ThePainter,
+    pub artwork: super::artwork::ScreenArtwork,
+    pub animation_frame: usize,
     pub textures: Vec<Texture>,
     pub texture_slice: usize,
     pub separators: Vec<f32>,
@@ -60,6 +62,8 @@ impl DecoWidget {
             border_gradient_direction: BorderGradientDirection::Vertical,
             border_radius: 0.0,
             border_painter: ThePainter::new(),
+            artwork: Default::default(),
+            animation_frame: 0,
             textures: vec![],
             texture_slice: 0,
             separators: vec![],
@@ -135,6 +139,7 @@ impl DecoWidget {
             }
             self.table = table;
         }
+        self.artwork.slice = self.texture_slice;
     }
 
     pub fn update_draw(
@@ -142,7 +147,7 @@ impl DecoWidget {
         buffer: &mut TheRGBABuffer,
         _map: &Map,
         _currencies: &Currencies,
-        _assets: &Assets,
+        assets: &Assets,
     ) {
         let stride = buffer.stride();
 
@@ -158,7 +163,15 @@ impl DecoWidget {
             &self.color,
         );
 
-        if let Some(texture) = self.textures.first() {
+        if !self.artwork.draw(
+            buffer,
+            self.rect,
+            assets,
+            super::ButtonVisualState::Normal,
+            self.animation_frame,
+            &self.draw2d,
+        ) && let Some(texture) = self.textures.first()
+        {
             blend_texture_layer(buffer, self.rect, &self.draw2d, texture, self.texture_slice);
         }
 

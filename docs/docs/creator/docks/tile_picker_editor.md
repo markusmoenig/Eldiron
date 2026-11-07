@@ -8,6 +8,7 @@ sidebar_position: 3
 The **Tile Picker** dock is the main asset browser and assignment dock for map work. It is used to:
 
 - browse project tiles
+- create and select [procedural materials](/docs/building_maps/procedural_materials)
 - organize them in collections
 - preview and select the current tile source
 - copy the selected tile UUID from the dock toolbar
@@ -31,20 +32,15 @@ online package workflow have been removed.
 
 ## Empty Cells And New Tiles
 
-Click any vacant board cell to select it. The selected cell has a white outline
-and becomes the destination for the **New Tile** action. In a collection, the new
-tile is also added to that collection. Clicking an empty cell does not create a
-tile until you apply the creation action.
+Click any vacant board cell to select it, then use **Make Proc** to create a
+procedural material there. Selecting an existing tile and choosing Make Proc
+makes that tile procedural. The procedural sidebar opens automatically for
+procedural selections, and its texture preview uses the minimap.
 
-Use **New** in the picker toolbar to select the New Tile action and configure its
-size and animation frames. Existing fully transparent tiles remain selectable
-and editable. Click a tile to select an asset, or press Escape while the picker
-has focus to clear selection.
-
-Tile Groups and their nested editing and grouped placement workflows have been
-removed. Older projects convert groups to ordinary image tiles while keeping the
-original member tiles available individually. Existing per-cell surface
-assignments remain in place.
+The separate **New Tile** action still creates bitmap tiles with a chosen size
+and frame count. Fully transparent bitmap tiles remain selectable and editable.
+Press Escape while the picker has focus to clear selection. Tile Groups and
+the former Treasury workflow are no longer part of the picker.
 
 ## Applying Sources
 
@@ -72,6 +68,11 @@ Behavior:
 
 ## Opening The Integrated Editors
 
+Procedural tiles open the [MZ row editor](/docs/building_maps/procedural_materials)
+in the Procedural Materials sidebar. It includes Props, Sources, Row Input and
+Tile tabs. Compose individual placements directly on the map with the Rect
+tool's **Compose** mode; use **Save copy to Tilepicker** to reuse a composition.
+
 Select a tile and use the top-right **Edit / Maximize Dock** control (`Cmd/Ctrl + [`) to open the **pixel tile editor**.
 
 Use the adjacent **Restore Dock** control (`Cmd/Ctrl + ]`) to return to the normal editor/dock split.
@@ -92,7 +93,7 @@ If **Authoring** mode is enabled in the tool strip, the tile picker is replaced 
 ## Bitmap images inside procedural materials
 
 Choose **Make Proc** on a tile, open the procedural sidebar, and drag
-**Sources → Image → Image / Tile Source** into a row. Select the new node and use
+**Image / Tile Source** from Sources' Image category into a row. Select the node and use
 **Props → Source** to import an image or select an existing bitmap tile.
 
 The source includes transparency and preserves animation/material maps from

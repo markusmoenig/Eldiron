@@ -140,20 +140,20 @@ The goal is reached when:
 | Timed conditions | Typed definitions, apply/remove effects, permanent or timed duration, replace/refresh/stack/ignore policies, maximum stacks, active-state mirrors, expiry, deterministic stack-scaled additive/multiplicative/bounded modifiers, periodic damage/healing/numeric changes, stable source attribution, lifecycle events, apply/active/tick/remove particle phases, serialized timing/stack/source restoration, transient-FX rebuilding, validation, UI descriptions, and runtime tests are implemented | Functional | Add derived-stat expressions and an optional wall-clock/offline expiry policy |
 | Immunities and vulnerabilities | Race traits materialize as entity string lists; action predicates consume them and condition application checks `immune_traits` without race-specific code | Partial | Add trait-driven damage vulnerabilities/resistances and periodic-effect policies |
 | Creature type | Race/class attributes can approximate it | Missing | Add creature type/tags independently from race |
-| Undead/Skeleton | Official Skeleton selects a distinct bundled avatar copy and materializes `undead`/`skeletal`; level-4 Clerics can use the words/action-bar-compatible Turn Undead action, whose generic target predicate rejects living creatures transactionally and whose generic `turned` condition weakens POWER/SPEED with full particles | Functional vertical slice | Replace the copied atlas; add faction/template composition, loot, vulnerabilities, and localization |
+| Undead/Skeleton | Distinct editable MZ skeleton body, skeletal traits, fitted clothing and shared equipment sockets; generic Turn Undead predicate/condition remains ruleset data | Functional vertical slice | Expand gameplay composition, loot and vulnerabilities; validate more live scenes |
 
 ## Presentation, Assets, And Localization
 
 | Capability | Current evidence | Status | Required next step |
 | --- | --- | --- | --- |
-| Official avatar/icon/tile assets | Compile-time bundled avatars and state/frame icon directories load by official id/version; the torch world tile is reconstructed from its icon state frames, while optional typed `equipment.avatar_anchors` maps arbitrary ruleset slot names onto generic main/off avatar frame anchors | Complete for official | Move registration to package manifests |
-| Project asset override | Matching project avatars and assets can replace bundled defaults | Functional | Apply the same policy to third-party packages |
-| Item visual fallback | Project icon-state overrides and explicit tiles win; authored item-id On/Off PNGs precede semantic icons and validated `ui.item_icon_fallbacks`; avatar/template generation is the final missing-art path | Functional | Add optional icon composition and a presentation coverage report |
+| Official avatar/icon/tile assets | Bundled MZ bodies, clothing/item surfaces, 32×32 item icons and native world models; bitmap avatar/action/UI assets remain supported | Functional for official | Package manifest discovery and broader platform acceptance |
+| Project asset override | Project-owned MZ recipe/palette bindings and geometry edits survive synchronization/save/reopen; bitmap overrides remain supported | Functional | Apply equivalent discovery and override policy to third-party packages |
+| Item visual fallback | Explicit artwork and state bindings coexist with editable MZ item icons/models; semantic PNG and generated fallbacks remain available | Functional | Expand coverage diagnostics and third-party artwork tooling |
 | Action icon fallback | Rules actions resolve an explicit icon, a matching required ability/spell/action icon, then validated semantic healing/condition/kind/default mappings | Functional | Add optional icon composition and Creator previews |
 | Semantic procedural FX fallback | Explicit action/condition stages win; validated ruleset-authored role/stage mappings provide shared presets, state actions now spawn their action FX, and conditions rebuild persistent active particles | Functional | Add travel-path execution beyond the existing spell path and Creator previews |
-| Icon artwork and attribution | Artist-editable RGBA PNG state/frame directories are authoritative; On is the required default, Off is optional, `icons.toml` records attribution, and the importer only creates missing On files | Functional for official | Support aliases, composition, package output, material-map loading, and unresolved reports |
+| Icon artwork and attribution | Official item icons use editable MZ recipes and project-palette bindings; action/UI PNG libraries retain their attribution/import workflow | Functional for official | Convert remaining action/UI artwork where useful; retain image-source support |
 | Icon registration | Official textures are listed manually through compile-time macros | Partial | Generate the asset registry from the package manifest |
-| Ruleset palette | Official palette drives avatars and missing-art generated fallbacks, while authored icon PNGs remain palette-independent | Functional | Make palettes package-owned and optional |
+| Project palette | One editable project palette seeded with Endesga 64; MZ index bindings, Lospec/local switching, perceptual/ramp matching and canonical bitmap fitting | Functional | Broader authored-art review across very small/large target palettes |
 | Localized runtime messages | Official English defaults merge with project locale overrides | Functional | Package locale discovery and completeness reports |
 | Localized definition names/descriptions | Most names/descriptions are hardcoded English in rules TOML | Partial | Add locale keys with display fallbacks |
 
@@ -373,3 +373,34 @@ The audit is grounded primarily in:
 
 This document should be updated when a capability changes status. A feature is
 not complete merely because one table or code path exists.
+
+## MZ Documentation Coverage (2026-11-07)
+
+The public guides now describe implemented authoring/runtime behavior rather
+than treating MZ as only a future concept. Source checks covered the procedural
+host/widget, map-composition targets, appearance workspace, Equipment drops,
+settings controls, ruleset recipe library, runtime appearances and screen packages.
+
+| Area | Documentation entry points |
+| --- | --- |
+| Discovering MZ | Features, Architecture, Getting Started, Creator Introduction, repository READMEs |
+| World materials | [Procedural Materials](building_maps/procedural_materials), Working With Tiles, Tile Picker, Rect tool, 2D/3D maps and geometry |
+| Rows and preview | Execution order, row inputs/connections, PBR outputs, palette controls, source previews and saved tiling modes in Procedural Materials |
+| Map composition | Shape grid, road parts, wobble/soft edges, stacked layers, bitmap inputs and reusable copies |
+| Characters/items | [Appearance](characters_items/appearance), Project Tree, Entity Nodes, Attributes and [Rigging](characters_items/rigging) |
+| Settings | Material density and tile backgrounds separated from character/map-item 2D/3D pixelization in [Game Configuration](configuration/game#tile-and-appearance-settings) |
+| Palette/ruleset | Palette Tool, Official Rules, Rules in Eldiron and Ruleset Contract; removes separate fixed-palette and PNG-only item claims |
+| Screen artwork | Screens, Widgets and Project Files; color/opacity, animation, continuous coordinates and dependency-carrying screen export |
+| Developer orientation | Embedded-core README, official asset READMEs, examples and separate character-generator status |
+
+Bitmap tiles and avatars remain documented as supported paths. Historical blog
+posts, release notes and dated design/benchmark sections retain their historical
+meaning; imported upstream core docs are snapshots, not a claim of complete
+standalone MaterialZ UI parity. The new guides link the current workflows.
+
+The docs do not claim a live per-pixel material VM, automatic quadruped locomotion,
+physical bow projectiles, universal action-icon migration or an unconditional
+30 FPS guarantee. Native release idle benchmarks now clear the 30 FPS budget;
+their settings and limits are recorded in the unified appearance integration
+history. Browser/mobile interaction and broader live combat/equipment validation
+remain separate work.

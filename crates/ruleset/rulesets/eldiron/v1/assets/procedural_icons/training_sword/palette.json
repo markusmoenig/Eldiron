@@ -1,0 +1,48 @@
+{
+  "blade-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 20,
+    "color3": 21
+  },
+  "guard-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 20,
+    "color3": 21
+  },
+  "grip-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "pommel-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 20,
+    "color3": 21
+  },
+  "blade-outline": {
+    "color": 2
+  },
+  "guard-outline": {
+    "color": 2
+  },
+  "grip-outline": {
+    "color": 2
+  },
+  "pommel-outline": {
+    "color": 2
+  },
+  "fuller-color": {
+    "color": 5
+  },
+  "jewel-color": {
+    "color": 24
+  },
+  "@surface": {
+    "base color": 20,
+    "emission": 1
+  }
+}

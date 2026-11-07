@@ -5,12 +5,9 @@ sidebar_position: 1
 
 You can configure **Eldiron** by selecting the **Game -> Settings** item in the **project tree**.
 
-**Procedural Materials → Pixels per tile** in the settings navigation provides a
-slider with manual entry for the project-wide material resolution. The default
-is **16×16**; use **32** or **64** for finer detail. Baked tiles and world texture
-pages store that actual size. **0** uses smooth evaluation with 64×64 storage.
-Changing the value rebakes all procedural materials and supports undo/redo.
-The equivalent configuration is `[materials] pixels_per_tile = 16`.
+The settings navigation includes [Tile and Appearance Settings](#tile-and-appearance-settings)
+for world materials, transparent map tiles, and independent 2D/3D character and
+item pixelization.
 
 Other game-level documents are edited separately:
 
@@ -23,6 +20,36 @@ Other game-level documents are edited separately:
 For party-bound UI such as portraits, equipped hand slots, or member-specific inventory widgets, see [Screen Widgets](../screens/widgets) and the character [Attributes](../characters_items/attributes).
 
 ---
+
+## Tile and Appearance Settings
+
+These controls are in **Game → Settings**. Numeric fields support both sliding
+and manual entry. Their changes participate in Undo/Redo.
+
+| Settings group / control | Configuration | Meaning |
+| --- | --- | --- |
+| Procedural Materials / Pixels per tile | `[materials] pixels_per_tile = 16` | Global world-material bake resolution, 1–64. The default is 16×16; 0 uses smooth evaluation with 64×64 storage. Changing it rebakes affected materials at their actual storage size. |
+| Procedural Materials / Tile background | `[materials] background_2d = "transparent"` | Show terrain through cutout map tiles and map-item icons. Choose `"black"` to draw black tile backgrounds instead. Character sprites, inventory icons and 3D meshes keep their alpha. |
+| Characters & Map Items / 2D sprite pixels | `[appearance] sprite_pixels_2d = 0` | Sampling grid for map characters and items, 0–128. 0 retains source detail; 32 gives a 32-pixel grid. Lower values look chunkier. |
+| Characters & Map Items / 3D pixel size | `[appearance] pixel_size_3d = 1` | Crisp screen-pixel blocks for character and item shapes/shading, 1–16. 1 retains native detail; 4 gives four-pixel blocks. |
+
+```toml
+[materials]
+pixels_per_tile = 16
+background_2d = "transparent"
+
+[appearance]
+sprite_pixels_2d = 32
+pixel_size_3d = 4
+```
+
+World texture resolution, map-entity pixelization and inventory icon resolution
+are independent. MZ item icons use their own 32×32 output. Lowering the game
+widget's overall render resolution with `upscale` is a different operation from
+pixelizing characters and items.
+
+See [Procedural Materials](../building_maps/procedural_materials) for baking and
+tiling, and [Appearance](../characters_items/appearance) for ruleset models/icons.
 
 ## Game Configuration
 
@@ -317,7 +344,7 @@ target_rect_color = "" # Optional target rectangle color for the current leader 
     If omitted, it falls back to `background_color_2d`.
 
 - **`cursor_id`**
-    The [tile id](/docs/what_is/#tile-id) for the default mouse cursor.
+    The [tile id](/docs/characters_items/attributes#tile_id) for the default mouse cursor.
 
 - **`target_rect_color`**
     Optional rectangle color for drawing the current leader target in 2D game widgets.

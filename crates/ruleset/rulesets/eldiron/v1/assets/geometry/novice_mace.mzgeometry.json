@@ -1,0 +1,1151 @@
+{
+  "version": 1,
+  "id": "novice_mace",
+  "label": "Novice Mace",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Novice Mace",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Novice Mace",
+            "document": {
+              "version": 1,
+              "id": "novice_mace-construction",
+              "label": "Novice Mace construction",
+              "rows": [
+                {
+                  "id": "iron",
+                  "label": "Iron",
+                  "tiles": [
+                    {
+                      "id": "iron-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.3,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "wood",
+                  "label": "Wood",
+                  "tiles": [
+                    {
+                      "id": "wood-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 20,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "leather",
+                  "label": "Leather",
+                  "tiles": [
+                    {
+                      "id": "leather-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-haft",
+                  "label": "Ash haft",
+                  "tiles": [
+                    {
+                      "id": "mace-haft-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.26,
+                              0
+                            ],
+                            "radius": [
+                              0.019,
+                              0.019
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.2,
+                              0
+                            ],
+                            "radius": [
+                              0.024,
+                              0.024
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.26,
+                              0
+                            ],
+                            "radius": [
+                              0.021,
+                              0.021
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.3,
+                              0
+                            ],
+                            "radius": [
+                              0.016,
+                              0.016
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "mace-haft-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "wood"
+                      }
+                    },
+                    {
+                      "id": "mace-haft-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-wrap",
+                  "label": "Wrapped grip",
+                  "tiles": [
+                    {
+                      "id": "mace-wrap-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.235,
+                              0
+                            ],
+                            "radius": [
+                              0.028,
+                              0.028
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.22,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.03
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.055,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.03
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.04,
+                              0
+                            ],
+                            "radius": [
+                              0.026,
+                              0.026
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "mace-wrap-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "leather"
+                      }
+                    },
+                    {
+                      "id": "mace-wrap-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-core",
+                  "label": "Iron core",
+                  "tiles": [
+                    {
+                      "id": "mace-core-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.16,
+                              0
+                            ],
+                            "radius": [
+                              0.034,
+                              0.034
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.18,
+                              0
+                            ],
+                            "radius": [
+                              0.055,
+                              0.055
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.38,
+                              0
+                            ],
+                            "radius": [
+                              0.055,
+                              0.055
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.405,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.03
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "mace-core-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "mace-core-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-fin-0",
+                  "label": "Iron flange 1",
+                  "tiles": [
+                    {
+                      "id": "mace-fin-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.025,
+                            0.17
+                          ],
+                          [
+                            0.085,
+                            0.18
+                          ],
+                          [
+                            0.125,
+                            0.255
+                          ],
+                          [
+                            0.11,
+                            0.36
+                          ],
+                          [
+                            0.075,
+                            0.405
+                          ],
+                          [
+                            0.025,
+                            0.4
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.018
+                      }
+                    },
+                    {
+                      "id": "mace-fin-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "mace-fin-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-fin-1",
+                  "label": "Iron flange 2",
+                  "tiles": [
+                    {
+                      "id": "mace-fin-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.025,
+                            0.17
+                          ],
+                          [
+                            0.085,
+                            0.18
+                          ],
+                          [
+                            0.125,
+                            0.255
+                          ],
+                          [
+                            0.11,
+                            0.36
+                          ],
+                          [
+                            0.075,
+                            0.405
+                          ],
+                          [
+                            0.025,
+                            0.4
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.018
+                      }
+                    },
+                    {
+                      "id": "mace-fin-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          60,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "mace-fin-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-fin-2",
+                  "label": "Iron flange 3",
+                  "tiles": [
+                    {
+                      "id": "mace-fin-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.025,
+                            0.17
+                          ],
+                          [
+                            0.085,
+                            0.18
+                          ],
+                          [
+                            0.125,
+                            0.255
+                          ],
+                          [
+                            0.11,
+                            0.36
+                          ],
+                          [
+                            0.075,
+                            0.405
+                          ],
+                          [
+                            0.025,
+                            0.4
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.018
+                      }
+                    },
+                    {
+                      "id": "mace-fin-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          120,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "mace-fin-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-fin-3",
+                  "label": "Iron flange 4",
+                  "tiles": [
+                    {
+                      "id": "mace-fin-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.025,
+                            0.17
+                          ],
+                          [
+                            0.085,
+                            0.18
+                          ],
+                          [
+                            0.125,
+                            0.255
+                          ],
+                          [
+                            0.11,
+                            0.36
+                          ],
+                          [
+                            0.075,
+                            0.405
+                          ],
+                          [
+                            0.025,
+                            0.4
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.018
+                      }
+                    },
+                    {
+                      "id": "mace-fin-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          180,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "mace-fin-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-fin-4",
+                  "label": "Iron flange 5",
+                  "tiles": [
+                    {
+                      "id": "mace-fin-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.025,
+                            0.17
+                          ],
+                          [
+                            0.085,
+                            0.18
+                          ],
+                          [
+                            0.125,
+                            0.255
+                          ],
+                          [
+                            0.11,
+                            0.36
+                          ],
+                          [
+                            0.075,
+                            0.405
+                          ],
+                          [
+                            0.025,
+                            0.4
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.018
+                      }
+                    },
+                    {
+                      "id": "mace-fin-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          240,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "mace-fin-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-fin-5",
+                  "label": "Iron flange 6",
+                  "tiles": [
+                    {
+                      "id": "mace-fin-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.025,
+                            0.17
+                          ],
+                          [
+                            0.085,
+                            0.18
+                          ],
+                          [
+                            0.125,
+                            0.255
+                          ],
+                          [
+                            0.11,
+                            0.36
+                          ],
+                          [
+                            0.075,
+                            0.405
+                          ],
+                          [
+                            0.025,
+                            0.4
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.018
+                      }
+                    },
+                    {
+                      "id": "mace-fin-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          300,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "mace-fin-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "mace-fin-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "mace-pommel",
+                  "label": "Iron pommel",
+                  "tiles": [
+                    {
+                      "id": "mace-pommel-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.285,
+                              0
+                            ],
+                            "radius": [
+                              0.02,
+                              0.02
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.27,
+                              0
+                            ],
+                            "radius": [
+                              0.035,
+                              0.035
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.24,
+                              0
+                            ],
+                            "radius": [
+                              0.027,
+                              0.027
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "mace-pommel-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "mace-pommel-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Novice Mace assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "mace-haft",
+                          "mace-wrap",
+                          "mace-core",
+                          "mace-fin-0",
+                          "mace-fin-1",
+                          "mace-fin-2",
+                          "mace-fin-3",
+                          "mace-fin-4",
+                          "mace-fin-5",
+                          "mace-pommel"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          -0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "length",
+                "label": "Overall length",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 0.69,
+                "reference": 0.69,
+                "min": 0.52,
+                "max": 0.85,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      -0.14,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      1.4492753623188408,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              },
+              {
+                "id": "head-size",
+                "label": "Head size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.75,
+                "max": 1.25,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "mace-core",
+                      "mace-fin-0",
+                      "mace-fin-1",
+                      "mace-fin-2",
+                      "mace-fin-3",
+                      "mace-fin-4",
+                      "mace-fin-5"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.285,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ]
+              },
+              {
+                "id": "grip-width",
+                "label": "Grip width",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.8,
+                "max": 1.3,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "mace-haft",
+                      "mace-wrap",
+                      "mace-pommel"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      -0.14,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      0,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

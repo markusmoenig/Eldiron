@@ -1,0 +1,114 @@
+# Authored clothing construction. All colors use the companion project palette indices.
+project 1
+result from material "surface"
+material "surface" called "Leather Vest"
+  mode pbr
+  tiling raw
+  default roughness to 0.76
+  default metallic to 0
+  default opacity to 1
+  default emission strength to 0
+  row "base" called "Tanned leather panels"
+    use "Color" id "base"
+  row "shade" called "Panel seams"
+    use "Color" id "shade"
+  row "trim" called "Bound edges and stitching"
+    use "Color" id "trim"
+  row "button" called "Brass buckles"
+    use "Color" id "button"
+  row "panel-mask" called "Front opening and side panels"
+    use "Rounded Rectangle" id "panel-mask-0"
+      set "center" to -0.25 0
+      set "halfSize" to 0.024 0.5
+      set "radius" to 0.004
+    use "Rounded Rectangle" id "panel-mask-1"
+      combine union
+      set "center" to -0.47 0
+      set "halfSize" to 0.012 0.5
+      set "radius" to 0
+    use "Rounded Rectangle" id "panel-mask-2"
+      combine union
+      set "center" to -0.03 0
+      set "halfSize" to 0.012 0.5
+      set "radius" to 0
+    use "Rounded Rectangle" id "panel-mask-3"
+      combine union
+      set "center" to 0.25 0
+      set "halfSize" to 0.01 0.5
+      set "radius" to 0
+  row "panels" called "Leather panel seams"
+    use "Mix" id "panels-mix"
+      input from row "panel-mask" www
+      set "color1" from row "base" xyzw
+      set "color2" from row "shade" xyzw
+      set "factor" to 1 1 1
+  row "edging-mask" called "Bound neckline and hems"
+    use "Circle" id "edging-mask-0"
+      set "center" to -0.25 -0.5
+      set "radius" to 0.11
+    use "Circle" id "edging-mask-1"
+      combine subtract
+      set "center" to -0.25 -0.5
+      set "radius" to 0.078
+    use "Circle" id "edging-mask-2"
+      combine union
+      set "center" to 0.25 -0.5
+      set "radius" to 0.085
+    use "Circle" id "edging-mask-3"
+      combine subtract
+      set "center" to 0.25 -0.5
+      set "radius" to 0.06
+    use "Rounded Rectangle" id "edging-mask-4"
+      combine union
+      set "center" to 0 0.45
+      set "halfSize" to 0.5 0.022
+      set "radius" to 0
+  row "edging" called "Bound neckline and hems"
+    use "Mix" id "edging-mix"
+      input from row "edging-mask" www
+      set "color1" from row "panels" xyzw
+      set "color2" from row "trim" xyzw
+      set "factor" to 1 1 1
+  row "buckle-mask" called "Three buckle closures"
+    use "Rounded Rectangle" id "buckle-mask-0"
+      set "center" to -0.25 -0.24
+      set "halfSize" to 0.044 0.026
+      set "radius" to 0.008
+    use "Rounded Rectangle" id "buckle-mask-1"
+      combine union
+      set "center" to -0.25 -0.02
+      set "halfSize" to 0.044 0.026
+      set "radius" to 0.008
+    use "Rounded Rectangle" id "buckle-mask-2"
+      combine union
+      set "center" to -0.25 0.2
+      set "halfSize" to 0.044 0.026
+      set "radius" to 0.008
+  row "buckles" called "Brass buckle closures"
+    use "Mix" id "buckles-mix"
+      input from row "buckle-mask" www
+      set "color1" from row "edging" xyzw
+      set "color2" from row "button" xyzw
+      set "factor" to 1 1 1
+  row "tongue-mask" called "Dark buckle tongues"
+    use "Rounded Rectangle" id "tongue-mask-0"
+      set "center" to -0.25 -0.24
+      set "halfSize" to 0.025 0.009
+      set "radius" to 0.003
+    use "Rounded Rectangle" id "tongue-mask-1"
+      combine union
+      set "center" to -0.25 -0.02
+      set "halfSize" to 0.025 0.009
+      set "radius" to 0.003
+    use "Rounded Rectangle" id "tongue-mask-2"
+      combine union
+      set "center" to -0.25 0.2
+      set "halfSize" to 0.025 0.009
+      set "radius" to 0.003
+  row "tongues" called "Buckle tongues"
+    use "Mix" id "tongues-mix"
+      input from row "tongue-mask" www
+      set "color1" from row "buckles" xyzw
+      set "color2" from row "shade" xyzw
+      set "factor" to 1 1 1
+  output base color from row "tongues" xyz

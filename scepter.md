@@ -1,5 +1,164 @@
 # Eldiron Scepter
 
+## Implemented foundation and material workflow — 2026-11-07
+
+Scepter now has bounded complete HTTP framing, concurrent connections, uniform
+errors and truthful `implemented` catalog entries. Mutations require a request
+ID and current session/revision. Requests retain results for safe retries;
+pending work returns HTTP 202 with a pollable/cancellable job rather than a
+misleading timeout failure.
+
+`project.transaction` stages material bundles, nested shape/blend compositions,
+copy/apply operations and painting, validates them together and commits one undo
+record. The legacy paint endpoint also stages its map before publication.
+`material.list/get/validate`, `composition.get` and `surface.list` expose current
+MZ assets, palette indices, geometry and bindings. The editor and Scepter share
+the composition/world-UV preparation and GPU bake worker.
+
+`region.render_preview` now renders isolated project snapshots through the
+actual SceneVM/GameWidget paths in 2D, isometric or perspective 3D. It waits for
+bakes and chunks, preserves the user's camera/selection and reuses its offscreen
+renderer/bakes. See `docs/docs/creator/scepter_remote_editing.md` for request
+schemas, budgets, retry semantics and the surface/composition workflow.
+
+## Shared map authoring milestone — 2026-11-07
+
+Implemented `editor.context/select/focus`, `project.changes`, `entity.templates`
+and `region.entities`. Transactions now create/edit/copy/transform/delete 2D
+sectors, 3D primitives, wall graphs/openings, rooms and placed project/ruleset
+characters/items. Copies retain material bindings, setup/equipment and on/off
+states. Explicit editor-camera previews match the current viewport.
+
+Preparation runs away from the UI, with a second revision check at publication.
+Human view/selection changes and completed unchanged bakes survive preparation;
+authored conflicts reject the staged edit. The bounded coalesced change feed
+lets a client follow human map work without rescanning every project asset.
+
+The native acceptance workflow uses temporary copies of Hideout2D-MZ and
+3D Starter for a room, composed road, doorway, ruleset NPC and torch; it checks
+2D/3D previews, save/reopen, and one-step undo/redo. See the public Scepter guide
+for operation schemas and how to run it.
+
+Direct appearance/rig and arbitrary node-graph authoring remain separate work;
+placement uses the existing ruleset/project assets and normal instance TOML.
+
+## Audit baseline — before this implementation
+
+Scepter remains the right integration point for an assistant and a person working
+in the same Creator project. The current adapter can inspect legacy map data,
+paint basic 2D cells, edit Eldrin source/attribute tables and invoke Creator's
+stable actions/tools. It is not yet a complete interface to the current MZ-based
+world, and the design below includes commands that are still only proposals.
+The findings below record the baseline that motivated the implementation above;
+they are not a description of the upgraded adapter.
+
+### Findings
+
+1. **P1: the live catalog does not distinguish implemented commands.**
+   `crates/scepter/src/command.rs::ScepterCommand` declares 39 commands, but
+   `creator/src/scepter.rs::handle_command` handles 22. The other 17 return HTTP
+   501, including `region.list`, item/character placement, room creation, tile
+   contact sheets, metadata changes and tileset import. `ScepterCommandMeta` has
+   no execution-status field. Report `implemented` / `planned` explicitly, or
+   advertise only executable commands. Reconcile this with the local API docs
+   and remove the obsolete multi-tile-group direction from the future catalog.
+
+2. **P1: previews cannot establish visual parity with Creator.**
+   `Editor::scepter_region_render_preview` paints sector bounding rectangles
+   using each tile's first saved texture. It does not use the current world
+   renderer, polygon coverage, MZ composition bindings, continuous UVs, animated
+   frames, character/item appearances or 3D cameras/geometry. It rejects a map
+   with no legacy vertices even if it contains 3D geometry objects. A saved MZ
+   bake may appear, but that is not an authoritative preview of the recipe in
+   the map. Route preview requests through the same scene/render preparation as
+   the editor, with explicit camera, dimensions, animation time and readiness.
+
+3. **P1: MZ assets and surface bindings are absent from the authoring protocol.**
+   Project/tile snapshots omit `procedural_materials`, `material_compositions`,
+   `map_material_bindings`, `procedural_appearances` and the project palette.
+   The tile snapshot's `procedural.style/kind/weight` fields are legacy metadata,
+   not MZ rows. `scepter_source_summary` does recognize `ProceduralTile`, but
+   painting always creates `PixelSource::TileId`; it never goes through the
+   current procedural placement/composition workflow. There are no commands to
+   read/validate/edit a material, select repeat/world-UV mode, apply a shape/blend
+   stack, or copy a composed surface. Reuse the same authoring services as the
+   procedural editor and Rect tool rather than add a second material evaluator.
+
+4. **P1: safe shared editing needs revisions and atomic operations.**
+   Commands do not carry an expected project/session revision or idempotency key.
+   `ScepterPlan` is a serializable list, not an executable transaction endpoint.
+   `scepter_apply_region_paint_cells_batch` modifies the live map cell by cell;
+   if sector creation fails, it returns before adding the undo record and does
+   not restore earlier modifications. A request that times out remains queued
+   for Creator and can still execute later, making blind retries unsafe. Validate
+   and stage an entire edit, commit once with one undo record and revision, and
+   expose request/job status before supporting long material/bake operations.
+
+5. **P1: the HTTP reader cannot reliably carry MZ documents.**
+   `handle_stream` performs one read into a 16 KiB buffer and treats it as the
+   complete request; it does not read the declared Content-Length. Larger bundles
+   are truncated, and split TCP delivery can break even small requests. Accepted
+   connections are processed serially with no read deadline, so a stalled client
+   can block the listener. Use a complete bounded HTTP request parser, read
+   deadlines, explicit payload/image limits and a non-blocking job/result path.
+   Preserve the current loopback-only deployment for local collaboration.
+
+6. **P2: 3D and appearance inspection are incomplete.**
+   Region snapshots count geometry objects and lights without exposing their
+   editable records, faces, transforms or bindings. `geometry.create_room` is a
+   stub. `action.run` provides a useful partial route to existing mesh actions,
+   but reliable automation also needs selection and camera read/write operations
+   and explicit target IDs. Character/item snapshots expose source/data lengths,
+   not MZ appearance bindings. Eldrin source and `[attributes]` editing do not
+   expose startup/entity node graphs, editable rigs, attachments, outfit choices
+   or independent on/off icon/model states.
+
+7. **P2: discovery and errors need a stricter contract.**
+   `tile.list` ignores its role/kind/style parameters in the HTTP dispatcher.
+   `request_creator_snapshot_with_timeout` wraps handler failures in an outer
+   `ok: true` / HTTP 200 response, leaving a nested `result.ok: false` or error.
+   Clients need a single success/error envelope, typed validation failures and
+   target/result revisions. The current core tests exercise serialization and
+   catalog entries, rather than adapter execution, render parity or rollback.
+
+### Recommended implementation sequence
+
+1. **Reliable discovery and editing foundation:** truthful live catalog, complete
+   HTTP framing, uniform errors, project/session UUID plus revision, request IDs,
+   atomic undoable transactions and job progress/cancellation semantics. Add
+   integration tests for partial failure, stale reads, timeout/retry and tab
+   switching. Keep stable dotted action IDs and Creator ownership of edits.
+2. **One complete material/map workflow:** list/read MZ assets and palette;
+   validate/update a whole material recipe; apply it to explicitly identified
+   2D cells and 3D floors/walls/faces; render through the actual engine; undo.
+   Support Color, Roughness, Metallic, Opacity and Emission, palette indices,
+   image/tile sources, repeat/world UVs and existing global pixelization settings.
+   Operations should call the editor's existing services and cache invalidation.
+3. **Composition and world construction:** inspect/create/edit/copy shape/blend
+   composition stacks, including nested mixes, road presets, soft edges and
+   wobble. Expose world geometry objects, surface IDs, transforms, selections and
+   cameras; implement item/character placement through existing ruleset templates.
+4. **Appearance and behavior authoring:** MZ material/geometry asset references,
+   on/off states, rig/joint/socket inspection, attachments and animation preview;
+   ruleset outfit/equipment selection and startup/entity node graph editing.
+   Keep ruleset defaults and project-owned overrides explicit, using project
+   palette indices throughout. Avoid reintroducing long ad hoc appearance lists.
+
+Candidate command families are `material.*`, `surface.*`, `composition.*`,
+`geometry.*`, `selection.*`, `camera.*`, `appearance.*`, `entity_graph.*` and
+`job.*`. These are proposals, not existing callable commands. Material recipes
+can initially be exchanged as validated MZ documents; a granular row-editing API
+can follow without duplicating the evaluator or widget's business rules.
+
+The first acceptance test should use Hideout-MZ: inspect an existing material,
+change a palette-index parameter, paint/copy a road composition, apply the same
+material to a 3D floor/wall, inspect authoritative 2D and 3D previews, then undo
+the whole change. Human edits between inspection and commit must produce a clear
+revision conflict rather than overwrite newer work. This provides a practical
+collaboration milestone before a full character/rig automation interface.
+
+The rest of this document records the broader original design.
+
 Eldiron Scepter is a proposed automation and remote-control layer for Eldiron
 Creator. The goal is to make Creator programmable by AI assistants, scripts,
 command-line tools, platform automation systems, and advanced users without

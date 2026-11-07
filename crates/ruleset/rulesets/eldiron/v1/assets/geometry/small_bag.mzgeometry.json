@@ -1,0 +1,3084 @@
+{
+  "version": 1,
+  "id": "small_bag",
+  "label": "Small Bag",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Small Bag",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Small Bag",
+            "document": {
+              "version": 1,
+              "id": "small_bag-construction",
+              "label": "Small Bag construction",
+              "rows": [
+                {
+                  "id": "item-leather",
+                  "label": "Plain leather",
+                  "tiles": [
+                    {
+                      "id": "item-leather-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-body",
+                  "label": "Bag Body",
+                  "tiles": [
+                    {
+                      "id": "bag-body-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.16,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.11199999999999999,
+                              0
+                            ],
+                            "radius": [
+                              0.1008,
+                              0.0468
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "radius": [
+                              0.14,
+                              0.065
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.11199999999999999,
+                              0
+                            ],
+                            "radius": [
+                              0.1008,
+                              0.0468
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.16,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "bag-body-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-leather"
+                      }
+                    },
+                    {
+                      "id": "bag-body-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-leather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-ash",
+                  "label": "Weapon-Ash",
+                  "tiles": [
+                    {
+                      "id": "weapon-ash-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "front-panel",
+                  "label": "Front Panel",
+                  "tiles": [
+                    {
+                      "id": "front-panel-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.19,
+                          0.2,
+                          0.018
+                        ]
+                      }
+                    },
+                    {
+                      "id": "front-panel-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.02,
+                          0.059
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "front-panel-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "front-panel-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-flap",
+                  "label": "Bag Flap",
+                  "tiles": [
+                    {
+                      "id": "bag-flap-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.125,
+                            0.11
+                          ],
+                          [
+                            0.125,
+                            0.11
+                          ],
+                          [
+                            0.12,
+                            0.02
+                          ],
+                          [
+                            0,
+                            -0.035
+                          ],
+                          [
+                            -0.12,
+                            0.02
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-flap-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.014
+                      }
+                    },
+                    {
+                      "id": "bag-flap-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0.076
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-flap-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-flap-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-wrap",
+                  "label": "Weapon-Wrap",
+                  "tiles": [
+                    {
+                      "id": "weapon-wrap-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-strap",
+                  "label": "Bag Strap",
+                  "tiles": [
+                    {
+                      "id": "bag-strap-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.025,
+                          0.17,
+                          0.009
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-strap-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.02,
+                          0.088
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-strap-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bag-strap-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-gold",
+                  "label": "Item-Gold",
+                  "tiles": [
+                    {
+                      "id": "item-gold-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 24,
+                        "roughness": 0.34,
+                        "metallic": 0.8
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-buckle-0",
+                  "label": "Bag Buckle 0",
+                  "tiles": [
+                    {
+                      "id": "bag-buckle-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.013999999999999999,
+                            0.0
+                          ],
+                          [
+                            0.019,
+                            0.0
+                          ],
+                          [
+                            0.013435028842544404,
+                            0.013435028842544402
+                          ],
+                          [
+                            0.009899494936611665,
+                            0.009899494936611663
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.005,
+                          0.1
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-buckle-1",
+                  "label": "Bag Buckle 1",
+                  "tiles": [
+                    {
+                      "id": "bag-buckle-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.009899494936611665,
+                            0.009899494936611663
+                          ],
+                          [
+                            0.013435028842544404,
+                            0.013435028842544402
+                          ],
+                          [
+                            1.1634144591899855e-18,
+                            0.019
+                          ],
+                          [
+                            8.572527594031472e-19,
+                            0.013999999999999999
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.005,
+                          0.1
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-buckle-2",
+                  "label": "Bag Buckle 2",
+                  "tiles": [
+                    {
+                      "id": "bag-buckle-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            8.572527594031472e-19,
+                            0.013999999999999999
+                          ],
+                          [
+                            1.1634144591899855e-18,
+                            0.019
+                          ],
+                          [
+                            -0.013435028842544402,
+                            0.013435028842544404
+                          ],
+                          [
+                            -0.009899494936611663,
+                            0.009899494936611665
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.005,
+                          0.1
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-buckle-3",
+                  "label": "Bag Buckle 3",
+                  "tiles": [
+                    {
+                      "id": "bag-buckle-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.009899494936611663,
+                            0.009899494936611665
+                          ],
+                          [
+                            -0.013435028842544402,
+                            0.013435028842544404
+                          ],
+                          [
+                            -0.019,
+                            2.326828918379971e-18
+                          ],
+                          [
+                            -0.013999999999999999,
+                            1.7145055188062944e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.005,
+                          0.1
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-buckle-4",
+                  "label": "Bag Buckle 4",
+                  "tiles": [
+                    {
+                      "id": "bag-buckle-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.013999999999999999,
+                            1.7145055188062944e-18
+                          ],
+                          [
+                            -0.019,
+                            2.326828918379971e-18
+                          ],
+                          [
+                            -0.013435028842544406,
+                            -0.013435028842544402
+                          ],
+                          [
+                            -0.009899494936611667,
+                            -0.009899494936611663
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.005,
+                          0.1
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-buckle-5",
+                  "label": "Bag Buckle 5",
+                  "tiles": [
+                    {
+                      "id": "bag-buckle-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.009899494936611667,
+                            -0.009899494936611663
+                          ],
+                          [
+                            -0.013435028842544406,
+                            -0.013435028842544402
+                          ],
+                          [
+                            -3.490243377569957e-18,
+                            -0.019
+                          ],
+                          [
+                            -2.5717582782094414e-18,
+                            -0.013999999999999999
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.005,
+                          0.1
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-buckle-6",
+                  "label": "Bag Buckle 6",
+                  "tiles": [
+                    {
+                      "id": "bag-buckle-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -2.5717582782094414e-18,
+                            -0.013999999999999999
+                          ],
+                          [
+                            -3.490243377569957e-18,
+                            -0.019
+                          ],
+                          [
+                            0.013435028842544399,
+                            -0.013435028842544406
+                          ],
+                          [
+                            0.009899494936611661,
+                            -0.009899494936611667
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.005,
+                          0.1
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-buckle-7",
+                  "label": "Bag Buckle 7",
+                  "tiles": [
+                    {
+                      "id": "bag-buckle-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.009899494936611661,
+                            -0.009899494936611667
+                          ],
+                          [
+                            0.013435028842544399,
+                            -0.013435028842544406
+                          ],
+                          [
+                            0.019,
+                            -4.653657836759942e-18
+                          ],
+                          [
+                            0.013999999999999999,
+                            -3.4290110376125887e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.005,
+                          0.1
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "bag-buckle-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-0",
+                  "label": "Bag Handle 0",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.037,
+                            0.0
+                          ],
+                          [
+                            0.047,
+                            0.0
+                          ],
+                          [
+                            0.04070319397786862,
+                            0.023499999999999997
+                          ],
+                          [
+                            0.03204293994002423,
+                            0.018499999999999996
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-1",
+                  "label": "Bag Handle 1",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.03204293994002423,
+                            0.018499999999999996
+                          ],
+                          [
+                            0.04070319397786862,
+                            0.023499999999999997
+                          ],
+                          [
+                            0.023500000000000007,
+                            0.04070319397786861
+                          ],
+                          [
+                            0.018500000000000003,
+                            0.032042939940024225
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-2",
+                  "label": "Bag Handle 2",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.018500000000000003,
+                            0.032042939940024225
+                          ],
+                          [
+                            0.023500000000000007,
+                            0.04070319397786861
+                          ],
+                          [
+                            2.8779199779962802e-18,
+                            0.047
+                          ],
+                          [
+                            2.2655965784226034e-18,
+                            0.037
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-3",
+                  "label": "Bag Handle 3",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            2.2655965784226034e-18,
+                            0.037
+                          ],
+                          [
+                            2.8779199779962802e-18,
+                            0.047
+                          ],
+                          [
+                            -0.023499999999999993,
+                            0.04070319397786862
+                          ],
+                          [
+                            -0.018499999999999992,
+                            0.03204293994002423
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-4",
+                  "label": "Bag Handle 4",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.018499999999999992,
+                            0.03204293994002423
+                          ],
+                          [
+                            -0.023499999999999993,
+                            0.04070319397786862
+                          ],
+                          [
+                            -0.04070319397786862,
+                            0.023499999999999997
+                          ],
+                          [
+                            -0.03204293994002423,
+                            0.018499999999999996
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-5",
+                  "label": "Bag Handle 5",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.03204293994002423,
+                            0.018499999999999996
+                          ],
+                          [
+                            -0.04070319397786862,
+                            0.023499999999999997
+                          ],
+                          [
+                            -0.047,
+                            5.7558399559925604e-18
+                          ],
+                          [
+                            -0.037,
+                            4.531193156845207e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-6",
+                  "label": "Bag Handle 6",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.037,
+                            4.531193156845207e-18
+                          ],
+                          [
+                            -0.047,
+                            5.7558399559925604e-18
+                          ],
+                          [
+                            -0.040703193977868625,
+                            -0.02349999999999999
+                          ],
+                          [
+                            -0.03204293994002423,
+                            -0.018499999999999992
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-7",
+                  "label": "Bag Handle 7",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.03204293994002423,
+                            -0.018499999999999992
+                          ],
+                          [
+                            -0.040703193977868625,
+                            -0.02349999999999999
+                          ],
+                          [
+                            -0.02350000000000002,
+                            -0.040703193977868604
+                          ],
+                          [
+                            -0.018500000000000016,
+                            -0.03204293994002422
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-8",
+                  "label": "Bag Handle 8",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.018500000000000016,
+                            -0.03204293994002422
+                          ],
+                          [
+                            -0.02350000000000002,
+                            -0.040703193977868604
+                          ],
+                          [
+                            -8.63375993398884e-18,
+                            -0.047
+                          ],
+                          [
+                            -6.79678973526781e-18,
+                            -0.037
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-9",
+                  "label": "Bag Handle 9",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -6.79678973526781e-18,
+                            -0.037
+                          ],
+                          [
+                            -8.63375993398884e-18,
+                            -0.047
+                          ],
+                          [
+                            0.023500000000000007,
+                            -0.04070319397786861
+                          ],
+                          [
+                            0.018500000000000003,
+                            -0.032042939940024225
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-10",
+                  "label": "Bag Handle 10",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.018500000000000003,
+                            -0.032042939940024225
+                          ],
+                          [
+                            0.023500000000000007,
+                            -0.04070319397786861
+                          ],
+                          [
+                            0.040703193977868604,
+                            -0.02350000000000002
+                          ],
+                          [
+                            0.03204293994002422,
+                            -0.018500000000000016
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bag-handle-11",
+                  "label": "Bag Handle 11",
+                  "tiles": [
+                    {
+                      "id": "bag-handle-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.03204293994002422,
+                            -0.018500000000000016
+                          ],
+                          [
+                            0.040703193977868604,
+                            -0.02350000000000002
+                          ],
+                          [
+                            0.047,
+                            -1.1511679911985121e-17
+                          ],
+                          [
+                            0.037,
+                            -9.062386313690414e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bag-handle-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bag-handle-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "bag-handle-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-stitch",
+                  "label": "Item-Stitch",
+                  "tiles": [
+                    {
+                      "id": "item-stitch-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 22,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch--1-0",
+                  "label": "Stitch  1 0",
+                  "tiles": [
+                    {
+                      "id": "stitch--1-0-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-0-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.085,
+                          -0.1,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch--1-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch--1-1",
+                  "label": "Stitch  1 1",
+                  "tiles": [
+                    {
+                      "id": "stitch--1-1-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.085,
+                          -0.07100000000000001,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch--1-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch--1-2",
+                  "label": "Stitch  1 2",
+                  "tiles": [
+                    {
+                      "id": "stitch--1-2-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-2-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.085,
+                          -0.042,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch--1-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch--1-3",
+                  "label": "Stitch  1 3",
+                  "tiles": [
+                    {
+                      "id": "stitch--1-3-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-3-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.085,
+                          -0.012999999999999998,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch--1-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch--1-4",
+                  "label": "Stitch  1 4",
+                  "tiles": [
+                    {
+                      "id": "stitch--1-4-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-4-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.085,
+                          0.016,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch--1-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch--1-5",
+                  "label": "Stitch  1 5",
+                  "tiles": [
+                    {
+                      "id": "stitch--1-5-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-5-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.085,
+                          0.04500000000000001,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch--1-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch--1-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch-1-0",
+                  "label": "Stitch 1 0",
+                  "tiles": [
+                    {
+                      "id": "stitch-1-0-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-0-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.085,
+                          -0.1,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch-1-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch-1-1",
+                  "label": "Stitch 1 1",
+                  "tiles": [
+                    {
+                      "id": "stitch-1-1-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.085,
+                          -0.07100000000000001,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch-1-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch-1-2",
+                  "label": "Stitch 1 2",
+                  "tiles": [
+                    {
+                      "id": "stitch-1-2-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-2-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.085,
+                          -0.042,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch-1-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch-1-3",
+                  "label": "Stitch 1 3",
+                  "tiles": [
+                    {
+                      "id": "stitch-1-3-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-3-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.085,
+                          -0.012999999999999998,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch-1-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch-1-4",
+                  "label": "Stitch 1 4",
+                  "tiles": [
+                    {
+                      "id": "stitch-1-4-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-4-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.085,
+                          0.016,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch-1-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stitch-1-5",
+                  "label": "Stitch 1 5",
+                  "tiles": [
+                    {
+                      "id": "stitch-1-5-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.009,
+                          0.005,
+                          0.004
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-5-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.085,
+                          0.04500000000000001,
+                          0.071
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stitch-1-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-stitch"
+                      }
+                    },
+                    {
+                      "id": "stitch-1-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-stitch",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Small Bag assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "bag-body",
+                          "front-panel",
+                          "bag-flap",
+                          "bag-strap",
+                          "bag-buckle-0",
+                          "bag-buckle-1",
+                          "bag-buckle-2",
+                          "bag-buckle-3",
+                          "bag-buckle-4",
+                          "bag-buckle-5",
+                          "bag-buckle-6",
+                          "bag-buckle-7",
+                          "bag-handle-0",
+                          "bag-handle-1",
+                          "bag-handle-2",
+                          "bag-handle-3",
+                          "bag-handle-4",
+                          "bag-handle-5",
+                          "bag-handle-6",
+                          "bag-handle-7",
+                          "bag-handle-8",
+                          "bag-handle-9",
+                          "bag-handle-10",
+                          "bag-handle-11",
+                          "stitch--1-0",
+                          "stitch--1-1",
+                          "stitch--1-2",
+                          "stitch--1-3",
+                          "stitch--1-4",
+                          "stitch--1-5",
+                          "stitch-1-0",
+                          "stitch-1-1",
+                          "stitch-1-2",
+                          "stitch-1-3",
+                          "stitch-1-4",
+                          "stitch-1-5"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0.2,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.2,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

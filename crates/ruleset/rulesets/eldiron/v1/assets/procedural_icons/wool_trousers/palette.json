@@ -1,0 +1,24 @@
+{
+  "base": {
+    "color": 19
+  },
+  "shade": {
+    "color": 17
+  },
+  "@surface": {
+    "base color": 19,
+    "emission": 1
+  },
+  "icon-outline": {
+    "color": 2
+  },
+  "icon-leg-seams-color": {
+    "color": 18
+  },
+  "icon-belt-color": {
+    "color": 17
+  },
+  "icon-buckle-color": {
+    "color": 24
+  }
+}

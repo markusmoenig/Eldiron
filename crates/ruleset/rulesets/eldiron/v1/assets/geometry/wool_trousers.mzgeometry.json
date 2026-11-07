@@ -1,0 +1,490 @@
+{
+  "version": 1,
+  "id": "wool_trousers",
+  "label": "Wool Trousers",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Wool Trousers",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Wool Trousers",
+            "document": {
+              "version": 1,
+              "id": "wool_trousers-construction",
+              "label": "Wool Trousers construction",
+              "rows": [
+                {
+                  "id": "wool-trousers",
+                  "label": "Wool-Trousers",
+                  "tiles": [
+                    {
+                      "id": "wool-trousers-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "waist",
+                  "label": "Waist",
+                  "tiles": [
+                    {
+                      "id": "waist-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.24,
+                          0.07,
+                          0.065
+                        ]
+                      }
+                    },
+                    {
+                      "id": "waist-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.13,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "waist-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "wool-trousers"
+                      }
+                    },
+                    {
+                      "id": "waist-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/wool-trousers",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "trouser-leg--0.065",
+                  "label": "Trouser Leg  0.065",
+                  "tiles": [
+                    {
+                      "id": "trouser-leg--0.065-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.105,
+                          0.28,
+                          0.06
+                        ]
+                      }
+                    },
+                    {
+                      "id": "trouser-leg--0.065-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.065,
+                          -0.025,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "trouser-leg--0.065-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "wool-trousers"
+                      }
+                    },
+                    {
+                      "id": "trouser-leg--0.065-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/wool-trousers",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "trouser-leg-0.065",
+                  "label": "Trouser Leg 0.065",
+                  "tiles": [
+                    {
+                      "id": "trouser-leg-0.065-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.105,
+                          0.28,
+                          0.06
+                        ]
+                      }
+                    },
+                    {
+                      "id": "trouser-leg-0.065-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.065,
+                          -0.025,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "trouser-leg-0.065-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "wool-trousers"
+                      }
+                    },
+                    {
+                      "id": "trouser-leg-0.065-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/wool-trousers",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-wrap",
+                  "label": "Weapon-Wrap",
+                  "tiles": [
+                    {
+                      "id": "weapon-wrap-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "belt",
+                  "label": "Belt",
+                  "tiles": [
+                    {
+                      "id": "belt-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.245,
+                          0.024,
+                          0.07
+                        ]
+                      }
+                    },
+                    {
+                      "id": "belt-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0.002
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "belt-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "belt-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-gold",
+                  "label": "Item-Gold",
+                  "tiles": [
+                    {
+                      "id": "item-gold-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 24,
+                        "roughness": 0.34,
+                        "metallic": 0.8
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "buckle",
+                  "label": "Buckle",
+                  "tiles": [
+                    {
+                      "id": "buckle-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.035,
+                          0.03,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "buckle-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0.044
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "buckle-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "buckle-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Wool Trousers assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "waist",
+                          "trouser-leg--0.065",
+                          "trouser-leg-0.065",
+                          "belt",
+                          "buckle"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

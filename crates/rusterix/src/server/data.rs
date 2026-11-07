@@ -10,6 +10,32 @@ use toml::Table;
 static TILE_ALIAS_LOOKUP: LazyLock<RwLock<FxHashMap<String, PixelSource>>> =
     LazyLock::new(|| RwLock::new(FxHashMap::default()));
 
+thread_local! {
+    static SCOPED_TILE_ALIASES: std::cell::RefCell<Option<FxHashMap<String, PixelSource>>> = const {std::cell::RefCell::new(None)};
+}
+/// Offscreen snapshots must not overwrite the live server's alias table.
+/// Nested scopes restore the caller's lookup even if rendering unwinds.
+pub struct TileAliasScope {
+    previous: Option<FxHashMap<String, PixelSource>>,
+    same_thread: std::marker::PhantomData<std::rc::Rc<()>>,
+}
+impl TileAliasScope {
+    pub fn new(tiles: &IndexMap<Uuid, crate::Tile>) -> Self {
+        let previous =
+            SCOPED_TILE_ALIASES.with(|lookup| lookup.replace(Some(FxHashMap::default())));
+        rebuild_tile_alias_lookup(tiles);
+        Self {
+            previous,
+            same_thread: std::marker::PhantomData,
+        }
+    }
+}
+impl Drop for TileAliasScope {
+    fn drop(&mut self) {
+        SCOPED_TILE_ALIASES.with(|lookup| *lookup.borrow_mut() = self.previous.take());
+    }
+}
+
 pub fn rebuild_tile_alias_lookup(tiles: &IndexMap<Uuid, crate::Tile>) {
     let mut lookup = FxHashMap::default();
 
@@ -22,10 +48,27 @@ pub fn rebuild_tile_alias_lookup(tiles: &IndexMap<Uuid, crate::Tile>) {
         }
     }
 
-    *TILE_ALIAS_LOOKUP.write().unwrap() = lookup;
+    let scoped = SCOPED_TILE_ALIASES.with(|current| {
+        let mut current = current.borrow_mut();
+        if current.is_some() {
+            *current = Some(lookup.clone());
+            true
+        } else {
+            false
+        }
+    });
+    if !scoped {
+        *TILE_ALIAS_LOOKUP.write().unwrap() = lookup;
+    }
 }
 
 fn lookup_tile_alias(value: &str) -> Option<PixelSource> {
+    let key = value.trim().to_ascii_lowercase();
+    if let Some(result) = SCOPED_TILE_ALIASES
+        .with(|lookup| lookup.borrow().as_ref().map(|map| map.get(&key).cloned()))
+    {
+        return result;
+    }
     TILE_ALIAS_LOOKUP
         .read()
         .unwrap()
@@ -548,5 +591,256 @@ decal_scale = [2.0, 3.0]
 
         assert_eq!(item.attributes.get_str("dye_color"), Some("linen"));
         assert_eq!(item.attributes.get_vec2("decal_scale"), Some([2.0, 3.0]));
+    }
+
+    #[test]
+    fn display_defaults_cache_preserves_live_state_and_tracks_authoring_edits() {
+        let mut assets = crate::Assets::default();
+        assets.rules = eldiron_ruleset::latest_official_ruleset().into();
+        for template in eldiron_ruleset::ruleset_item_templates_from_source(&assets.rules).unwrap()
+        {
+            assets
+                .items
+                .insert(template.name, (template.source, template.data));
+        }
+        let mut entity = Entity::default();
+        entity.set_attribute(
+            "start_equipped_items",
+            Value::StrArray(vec!["Linen Shirt".into()]),
+        );
+        fn serialized(entity: &Entity) -> serde_json::Value {
+            fn normalize(value: &mut serde_json::Value) {
+                match value {
+                    serde_json::Value::Object(fields) => {
+                        for (key, value) in fields {
+                            if key == "dirty_attributes" {
+                                // These serialize from unordered sets.
+                                value.as_array_mut().unwrap().sort_by_key(|v| v.to_string());
+                            } else {
+                                normalize(value);
+                            }
+                        }
+                    }
+                    serde_json::Value::Array(values) => values.iter_mut().for_each(normalize),
+                    _ => {}
+                }
+            }
+            let mut value = serde_json::to_value(entity).unwrap();
+            normalize(&mut value);
+            value
+        }
+        let check = |entity: &Entity, assets: &crate::Assets| {
+            let actual = character_for_display(entity, assets);
+            let expected = prepare_character_for_display(entity, assets);
+            assert_eq!(serialized(&actual), serialized(&expected));
+            assert_eq!(actual.interp_target_position, entity.interp_target_position);
+            assert_eq!(actual.interp_remaining, entity.interp_remaining);
+            assert!(matches!(actual.action, crate::EntityAction::Forward));
+            actual
+        };
+        entity.action = crate::EntityAction::Forward;
+        let first = check(&entity, &assets);
+        assert!(
+            !first.equipped.is_empty(),
+            "Exercise actual default equipment"
+        );
+        assert_eq!(assets.display_defaults.read().unwrap().len(), 1);
+        entity.position.x = 8.;
+        entity.orientation = vek::Vec2::new(0., -1.);
+        entity.interp_target_position = Some(vek::Vec3::new(9., 1., 0.));
+        entity.interp_remaining = 0.2;
+        entity.inventory.push(Some(Item::default()));
+        entity.dirty_flags = 1;
+        entity.dirty_attributes.insert("runtime".into());
+        check(&entity, &assets);
+        assert_eq!(
+            assets.display_defaults.read().unwrap().len(),
+            1,
+            "Motion must reuse setup"
+        );
+        entity.set_attribute("race", Value::Str("orc".into()));
+        check(&entity, &assets);
+        entity.equipped = first.equipped;
+        check(&entity, &assets);
+        // Assets clones share caches, but their edited data must never reuse
+        // another snapshot's equipment or ruleset defaults.
+        let mut edited = assets.clone();
+        edited
+            .items
+            .get_mut("Linen Shirt")
+            .unwrap()
+            .1
+            .push_str("\n[cache_test]\nvalue = 1\n");
+        entity.equipped.clear();
+        check(&entity, &edited);
+        edited
+            .item_template_ids
+            .insert(uuid::Uuid::new_v4(), "Linen Shirt".into());
+        check(&entity, &edited);
+        edited
+            .rules
+            .push_str("\n[attributes.defaults.cache_test]\nvalue = 2\n");
+        check(&entity, &edited);
+        check(&entity, &assets);
+        assert_eq!(assets.display_defaults.read().unwrap().len(), 6);
+    }
+}
+
+/// Resolve the character setup for an editor display without spawning gameplay items.
+/// The same class defaults, template lookup, permissions and occupied slots are used at startup.
+pub fn character_for_display(entity: &Entity, assets: &crate::Assets) -> Entity {
+    use super::assets::DisplayDefaults;
+    use std::sync::Arc;
+    let key = crate::procedural_avatar::fingerprint(&(
+        serde_json::to_vec(&(&entity.attributes, &entity.equipped)).unwrap_or_default(),
+        &assets.rules,
+        assets
+            .items
+            .iter()
+            .map(|(name, (_, data))| (name, data))
+            .collect::<Vec<_>>(),
+        assets.item_template_ids.iter().collect::<Vec<_>>(),
+    ));
+    let cached = assets
+        .display_defaults
+        .read()
+        .ok()
+        .and_then(|cache| cache.get(&key).cloned());
+    let defaults = cached.unwrap_or_else(|| {
+        // Cache only setup-derived fields. Motion, position, inventory, actions
+        // and current equipment remain owned by the caller on every display.
+        let mut clean = entity.clone();
+        clean.dirty_flags = 0;
+        clean.dirty_attributes.clear();
+        let prepared = prepare_character_for_display(&clean, assets);
+        let defaults = Arc::new(DisplayDefaults {
+            attributes: prepared.attributes,
+            equipped: prepared
+                .equipped
+                .into_iter()
+                .filter(|(slot, _)| !entity.equipped.contains_key(slot))
+                .collect(),
+            dirty_flags: prepared.dirty_flags,
+            dirty_attributes: prepared.dirty_attributes,
+        });
+        if let Ok(mut cache) = assets.display_defaults.write() {
+            if cache.len() >= 128 {
+                cache.clear();
+            }
+            cache.insert(key, defaults.clone());
+        }
+        defaults
+    });
+    let mut displayed = entity.clone();
+    displayed.attributes = defaults.attributes.clone();
+    displayed.equipped.extend(defaults.equipped.clone());
+    displayed.dirty_flags |= defaults.dirty_flags;
+    displayed
+        .dirty_attributes
+        .extend(defaults.dirty_attributes.iter().cloned());
+    displayed
+}
+
+fn prepare_character_for_display(entity: &Entity, assets: &crate::Assets) -> Entity {
+    let mut entity = entity.clone();
+    let Some(rules) = assets.rules_table() else {
+        return entity;
+    };
+    super::region::apply_ruleset_character_defaults(&rules, &mut entity);
+    let policy = eldiron_ruleset::resolve_equipment_policy(&rules).unwrap_or_default();
+    let names = match entity.attributes.get("start_equipped_items") {
+        Some(Value::StrArray(names)) => names.clone(),
+        Some(Value::Str(name)) => vec![name.clone()],
+        _ => Vec::new(),
+    };
+    for (index, name) in names.iter().enumerate() {
+        let Some(class) = assets.resolve_item_class_name(name) else {
+            continue;
+        };
+        let mut item = Item {
+            id: index as u32 + 1,
+            creator_id: assets
+                .item_template_ids
+                .iter()
+                .find_map(|(id, name)| (name == &class).then_some(*id))
+                .unwrap_or_default(),
+            item_type: class.clone(),
+            ..Default::default()
+        };
+        item.set_attribute("name", Value::Str(class.clone()));
+        item.set_attribute("class_name", Value::Str(class.clone()));
+        apply_item_data(&mut item, &assets.items[&class].1);
+        let Some(slot) = item.attributes.get_str("slot").map(str::to_string) else {
+            continue;
+        };
+        let kind = super::region::equipment_item_kind(&policy, &item);
+        let category = item.attributes.get_str("category");
+        if policy
+            .check_item(entity.attributes.get_str("class"), &kind, category, &slot)
+            .is_err()
+        {
+            continue;
+        }
+        let occupied = policy.occupied_slots(&kind, category, &slot);
+        if entity.equipped.iter().any(|(other_slot, other)| {
+            let kind = super::region::equipment_item_kind(&policy, other);
+            !occupied.is_disjoint(&policy.occupied_slots(
+                &kind,
+                other.attributes.get_str("category"),
+                other_slot,
+            ))
+        }) {
+            continue;
+        }
+        entity.equipped.insert(slot, item);
+    }
+    entity
+}
+
+#[cfg(test)]
+mod tile_alias_scope_tests {
+    use super::*;
+    #[test]
+    fn scepter_offscreen_tile_alias_scopes_are_thread_local_and_restore_after_unwind() {
+        let tiles = |id| {
+            let mut tiles = IndexMap::default();
+            tiles.insert(
+                id,
+                crate::Tile {
+                    id,
+                    alias: "scepter-isolation-test".into(),
+                    ..Default::default()
+                },
+            );
+            tiles
+        };
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let _outer = TileAliasScope::new(&tiles(a));
+        assert_eq!(
+            lookup_tile_alias("scepter-isolation-test"),
+            Some(PixelSource::TileId(a))
+        );
+        std::thread::spawn(move || {
+            assert_eq!(lookup_tile_alias("scepter-isolation-test"), None);
+            {
+                let _scope = TileAliasScope::new(&tiles(b));
+                assert_eq!(
+                    lookup_tile_alias("scepter-isolation-test"),
+                    Some(PixelSource::TileId(b))
+                );
+            }
+            assert_eq!(lookup_tile_alias("scepter-isolation-test"), None);
+        })
+        .join()
+        .unwrap();
+        let _ = std::panic::catch_unwind(|| {
+            let _nested = TileAliasScope::new(&tiles(b));
+            panic!("Test scope cleanup");
+        });
+        assert_eq!(
+            lookup_tile_alias("scepter-isolation-test"),
+            Some(PixelSource::TileId(a))
+        );
     }
 }

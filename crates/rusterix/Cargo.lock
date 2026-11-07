@@ -3019,7 +3019,7 @@ dependencies = [
 
 [[package]]
 name = "rusterix"
-version = "0.95.6"
+version = "0.96.0"
 dependencies = [
  "bincode",
  "bvh",
@@ -3107,7 +3107,7 @@ dependencies = [
 
 [[package]]
 name = "scenevm"
-version = "0.95.6"
+version = "0.96.0"
 dependencies = [
  "bytemuck",
  "getrandom 0.3.4",
@@ -3440,7 +3440,7 @@ dependencies = [
 
 [[package]]
 name = "theframework"
-version = "0.95.6"
+version = "0.96.0"
 dependencies = [
  "arboard",
  "console_error_panic_hook",

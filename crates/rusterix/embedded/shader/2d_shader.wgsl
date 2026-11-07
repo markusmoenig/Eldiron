@@ -15,14 +15,22 @@ fn sv_shade_one(px: u32, py: u32, p: vec2<f32>) -> ShadeOut {
     if (dyn_count > 0u) {
         for (var di: u32 = 0u; di < dyn_count; di = di + 1u) {
             let cmd = sd_billboard_cmd(di);
-            if (cmd.params.y != DYNAMIC_KIND_BILLBOARD_TILE) {
+            if (cmd.params.y != DYNAMIC_KIND_BILLBOARD_TILE && cmd.params.y != DYNAMIC_KIND_BILLBOARD_AVATAR) {
                 continue;
             }
             let bh = sd_billboard_hit_screen(p, cmd);
             if (!bh.hit) { continue; }
-            let frame = sv_tile_frame(bh.tile_index);
-            let uv = frame.ofs + bh.uv * frame.scale;
-            let col = textureSampleLevel(atlas_tex, atlas_smp, uv, 0.0);
+            var col = vec4<f32>(0.0);
+            if (cmd.params.y == DYNAMIC_KIND_BILLBOARD_AVATAR) {
+                col = sd_sample_avatar(cmd.params.x, bh.uv);
+            } else {
+                let frame = sv_tile_frame(bh.tile_index, bh.uv);
+                let uv = frame.ofs + fract(sv_tile_uv(bh.tile_index, bh.uv)) * frame.scale;
+                col = textureSampleLevel(atlas_tex, atlas_smp, uv, 0.0);
+            }
+            if (U._pad0.x != 0u && (cmd.params.w & 0x100u) != 0u) {
+                col = vec4<f32>(col.rgb * col.a, 1.0);
+            }
             if (col.a < 0.01) { continue; }
             base = col;
             base_rgb = col.xyz;

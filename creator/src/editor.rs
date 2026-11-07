@@ -1,5 +1,18 @@
 use crate::Embedded;
 use crate::prelude::*;
+#[cfg(test)]
+#[path = "editor/benchmark_stress.rs"]
+mod benchmark_stress;
+#[cfg(not(target_arch = "wasm32"))]
+mod scepter_authoring;
+#[cfg(not(target_arch = "wasm32"))]
+mod scepter_map;
+#[cfg(not(target_arch = "wasm32"))]
+mod scepter_context;
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod scepter_staging;
+#[cfg(not(target_arch = "wasm32"))]
+mod scepter_preview;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::scepter::{ScepterEvent, ScepterRegionRequest, ScepterService};
 #[cfg(all(
@@ -126,18 +139,21 @@ impl CreatorTheme {
         menu
     }
     fn apply(self, ui: &mut TheUI, ctx: &mut TheContext) {
+        let mut profile = crate::misc::FrameProfile::new();
         let theme: Box<dyn TheTheme> = match self {
             Self::Brown => Box::new(TheBrownTheme::new()),
             Self::Black => Box::new(TheBlackBlueTheme::new()),
             Self::Light => Box::new(TheLightTheme::new()),
         };
         ui.set_theme(theme, ctx);
+        profile.lap("theme_widgets");
         RUSTERIX.write().unwrap().client.editor_canvas_colors = Some([
             *ui.style.theme().color(EditorCanvasBackground),
             *ui.style.theme().color(EditorGrid),
             *ui.style.theme().color(EditorSubGrid),
         ]);
 
+        profile.lap("theme_runtime");
         if let Some(menu) = ui.get_menu("Menu") {
             menu.replace_context_menu(self.view_menu());
         }
@@ -145,11 +161,13 @@ impl CreatorTheme {
             .write()
             .unwrap()
             .set_overlay_theme(ui.style.theme().as_ref());
+        profile.lap("theme_tools");
         crate::hud::set_theme(ui.style.theme().as_ref());
         crate::procedural_material::register_preview_icons(ctx, ui.style.theme().as_ref());
         let icon_color = *ui.style.theme().color(SectionbarNormalTextColor);
         register_themed_bitmap_icons(ctx, icon_color);
         register_compact_navigation_icons_with_color(ctx, icon_color);
+        profile.lap("theme_icons");
         ctx.ui.relayout = true;
         ctx.ui.send(TheEvent::Custom(
             TheId::named("Creator Theme Changed"),
@@ -337,6 +355,7 @@ pub static TEXTGAME: LazyLock<RwLock<TextGameState>> =
 
 #[derive(Clone)]
 struct ProjectSession {
+    id: Uuid,
     project: Project,
     project_path: Option<PathBuf>,
     undo: UndoManager,
@@ -451,6 +470,13 @@ pub struct Editor {
     sidebar: Sidebar,
     procedural_material: crate::procedural_material::ProceduralMaterialEditor,
     palette_switch: crate::palette_switch::PaletteSwitchController,
+    geometry_editor: crate::geometry_editor::GeometryEditor,
+    appearance_workspace: crate::appearance_workspace::AppearanceWorkspace,
+    procedural_appearance_revision: u64,
+    procedural_geometry_revision: Option<(u64, u64)>,
+    procedural_material_revision: Option<(u64, u64, u64)>,
+    procedural_wearable_revision: u64,
+    procedural_wearable_materials: std::collections::BTreeSet<Uuid>,
     mapeditor: MapEditor,
 
     server_ctx: ServerContext,
@@ -459,6 +485,10 @@ pub struct Editor {
     event_receiver: Option<Receiver<TheEvent>>,
     #[cfg(not(target_arch = "wasm32"))]
     scepter_receiver: Option<Receiver<ScepterEvent>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    scepter_sender: Option<std::sync::mpsc::Sender<ScepterEvent>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    scepter_tracking: scepter_context::Tracking,
     last_3d_hover_redraw_at: Option<std::time::Instant>,
     last_authoring_input_at: Option<std::time::Instant>,
 
@@ -4602,10 +4632,14 @@ impl Editor {
     }
 
     fn load_project_from_bytes(bytes: &[u8]) -> Result<Project, String> {
+        let mut profile = crate::misc::FrameProfile::new();
         let mut loaded = shared::project_io::decode_project(bytes)?;
+        profile.lap("load_decode");
         loaded.migrate_default_ruleset();
         loaded.migrate_button_commands();
+        profile.lap("load_config");
         let _ = loaded.sync_ruleset_items();
+        profile.lap("load_ruleset_items");
         loaded.palette.current_index = 0;
         Ok(loaded)
     }
@@ -4666,9 +4700,39 @@ impl Editor {
         {
             project.authoring = source.to_string();
         }
+        static DEFAULT_BAKES: std::sync::OnceLock<Option<Project>> = std::sync::OnceLock::new();
+        let cache = DEFAULT_BAKES.get_or_init(|| {
+            crate::Embedded::get("materials/default-bakes.eldiron")
+                .and_then(|bytes| shared::project_io::decode_project(bytes.data.as_ref()).ok())
+        });
+        if let Some(cache) = cache {
+            if let Err(error) = shared::ruleset_materials::seed_bakes(&mut project, cache) {
+                eprintln!("Default material cache: {error}");
+            }
+        }
         let _ = project.sync_ruleset_items();
         if let Err(error) = crate::procedural_material::starters::install(&mut project) {
             eprintln!("Starter materials: {error}");
+        }
+        if let Some(cache) = cache {
+            for (id, bundle) in &project.procedural_materials {
+                let key = crate::procedural_material::pixel_style::bake_key(
+                    bundle,
+                    crate::procedural_material::pixel_style::density(&project.config),
+                );
+                if !shared::ruleset_materials::is_library_tile(&project.config, id)
+                    && cache.procedural_materials.get(id) == Some(bundle)
+                    && cache.procedural_material_cache_keys.get(id) == Some(&key)
+                    && let Some(tile) = cache.tiles.get(id)
+                {
+                    if let Some(target) = project.tiles.get_mut(id) {
+                        target.textures = tile.textures.clone();
+                        target.baked_material_data = tile.baked_material_data.clone();
+                        target.uv_pages = tile.uv_pages.clone();
+                    }
+                    project.procedural_material_cache_keys.insert(*id, key);
+                }
+            }
         }
         project
     }
@@ -4874,6 +4938,10 @@ impl Editor {
 
     fn deactivate_project_for_switch(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
         self.procedural_material.reset(ui, ctx);
+        self.geometry_editor
+            .finish_drag(&mut self.project, ctx, false);
+        self.geometry_editor.reset(ui, ctx);
+        self.appearance_workspace.reset(ui, ctx);
         self.palette_switch.reset();
         // Finish editor-local interactions while the outgoing project is still
         // installed, then snapshot it before clearing global UI state.
@@ -5228,7 +5296,8 @@ impl Editor {
             && let Err(error) = crate::procedural_material::starters::install(&mut project)
         {
             ctx.ui.send(TheEvent::SetStatusText(
-                TheId::empty(), format!("Starter materials: {error}"),
+                TheId::empty(),
+                format!("Starter materials: {error}"),
             ));
         }
         Self::sanitize_loaded_project(&mut project);
@@ -5236,6 +5305,7 @@ impl Editor {
         self.deactivate_project_for_switch(ui, ctx);
         let new_index = if self.replace_next_project_load_in_active_tab {
             self.sessions[self.active_session] = ProjectSession {
+                id: Uuid::new_v4(),
                 project,
                 project_path,
                 undo: UndoManager::default(),
@@ -5246,6 +5316,7 @@ impl Editor {
             self.active_session
         } else {
             self.sessions.push(ProjectSession {
+                id: Uuid::new_v4(),
                 project,
                 project_path,
                 undo: UndoManager::default(),
@@ -5258,6 +5329,76 @@ impl Editor {
         self.sync_editor_from_active_session();
         self.activate_loaded_project(ui, ctx, update_server_icons, redraw);
         self.rebuild_project_tabs(ui);
+    }
+
+    /// Cheap on unchanged recipes; dependency contents are hashed only after edits.
+    fn current_procedural_appearance_revision(&mut self) -> u64 {
+        let revision = self.project.procedural_appearances.revision();
+        if self.procedural_geometry_revision.map(|(r, _)| r) != Some(revision) {
+            self.procedural_geometry_revision = Some((
+                revision,
+                rusterix::procedural_avatar::fingerprint(
+                    &self
+                        .project
+                        .procedural_appearances
+                        .iter()
+                        .collect::<Vec<_>>(),
+                ),
+            ));
+        }
+        let geometry_key = self.procedural_geometry_revision.unwrap().1;
+        let selection = shared::rulesets::selected_ruleset_config(&self.project.config);
+        let wearable_revision = rusterix::procedural_avatar::fingerprint(&(
+            self.project
+                .items
+                .iter()
+                .map(|(id, item)| (id, &item.data))
+                .collect::<Vec<_>>(),
+            geometry_key,
+        ));
+        if wearable_revision != self.procedural_wearable_revision {
+            self.procedural_wearable_revision = wearable_revision;
+            self.procedural_wearable_materials = self
+                .project
+                .items
+                .values()
+                .flat_map(|item| {
+                    shared::ruleset_materials::worn_material_sources(&self.project, &item.data)
+                })
+                .filter_map(|source| Uuid::parse_str(&source).ok())
+                .collect();
+        }
+        let material_revision = (
+            self.project.procedural_materials.revision(),
+            wearable_revision,
+        );
+        if self.procedural_material_revision.map(|(a, b, _)| (a, b)) != Some(material_revision) {
+            let key = rusterix::procedural_avatar::fingerprint(
+                &self
+                    .project
+                    .procedural_materials
+                    .iter()
+                    .filter(|(id, _)| {
+                        shared::ruleset_materials::is_library_tile(&self.project.config, id)
+                            || self.procedural_wearable_materials.contains(id)
+                    })
+                    .collect::<Vec<_>>(),
+            );
+            self.procedural_material_revision =
+                Some((material_revision.0, material_revision.1, key));
+        }
+        rusterix::procedural_avatar::fingerprint(&(
+            self.project
+                .characters
+                .iter()
+                .map(|(id, c)| (id, &c.data))
+                .collect::<Vec<_>>(),
+            geometry_key,
+            wearable_revision,
+            self.procedural_material_revision.map(|(_, _, key)| key),
+            serde_json::to_string(&self.project.palette.colors).unwrap_or_default(),
+            (&selection.id, &selection.version, &selection.source),
+        ))
     }
 
     fn activate_loaded_project(
@@ -5289,6 +5430,9 @@ impl Editor {
             }
         }
 
+        // Activation already published these assets. Do not compile the same
+        // icon/model library again on the first redraw.
+        self.procedural_appearance_revision = self.current_procedural_appearance_revision();
         self.server_ctx.clear();
         self.server_ctx.text_game_mode = TOOLLIST.read().unwrap().text_game_mode;
         TEXTGAME.write().unwrap().reset();
@@ -5471,6 +5615,7 @@ impl Editor {
         if self.sessions.is_empty() {
             let project = Self::load_empty_project_template();
             self.sessions.push(ProjectSession {
+                id: Uuid::new_v4(),
                 project,
                 project_path: None,
                 undo: UndoManager::default(),
@@ -5572,6 +5717,8 @@ impl Editor {
             .collect::<Vec<_>>();
 
         serde_json::json!({
+            "session": self.scepter_session(),
+            "revision": self.scepter_revision(),
             "name": self.project.name,
             "path": self.project_path.as_ref().map(|path| path.display().to_string()),
             "dirty": self.active_session_has_changes(),
@@ -6279,193 +6426,6 @@ impl Editor {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn scepter_region_render_preview(&self, command: &RegionRenderPreview) -> serde_json::Value {
-        let region_index = match self.scepter_resolve_region_index(&command.region) {
-            Ok(index) => index,
-            Err(error) => return serde_json::json!({ "ok": false, "error": error }),
-        };
-        let region = &self.project.regions[region_index];
-        let map = &region.map;
-
-        let (min_x, max_x, min_y, max_y) = if let Some([x, y, width, height]) = command.bounds {
-            if width == 0 || height == 0 {
-                return serde_json::json!({
-                    "ok": false,
-                    "error": "region.render_preview bounds require non-zero width and height",
-                });
-            }
-            (
-                x.min(x + width),
-                x.max(x + width),
-                y.min(y + height),
-                y.max(y + height),
-            )
-        } else if map.vertices.is_empty() {
-            return serde_json::json!({
-                "ok": false,
-                "error": "region has no geometry to render",
-            });
-        } else {
-            let min_x = map
-                .vertices
-                .iter()
-                .map(|vertex| vertex.x)
-                .fold(f32::INFINITY, f32::min)
-                .floor() as i32;
-            let max_x = map
-                .vertices
-                .iter()
-                .map(|vertex| vertex.x)
-                .fold(f32::NEG_INFINITY, f32::max)
-                .ceil() as i32;
-            let min_y = map
-                .vertices
-                .iter()
-                .map(|vertex| vertex.y)
-                .fold(f32::INFINITY, f32::min)
-                .floor() as i32;
-            let max_y = map
-                .vertices
-                .iter()
-                .map(|vertex| vertex.y)
-                .fold(f32::NEG_INFINITY, f32::max)
-                .ceil() as i32;
-            (min_x, max_x, min_y, max_y)
-        };
-
-        let grid_width = (max_x - min_x).max(0) as usize;
-        let grid_height = (max_y - min_y).max(0) as usize;
-        if grid_width == 0 || grid_height == 0 {
-            return serde_json::json!({
-                "ok": false,
-                "error": "region.render_preview resolved empty bounds",
-            });
-        }
-        if grid_width > 128 || grid_height > 128 {
-            return serde_json::json!({
-                "ok": false,
-                "error": "region.render_preview bounds exceed 128x128 cells",
-                "bounds": {
-                    "min": [min_x, min_y],
-                    "max": [max_x, max_y],
-                    "size": [grid_width, grid_height],
-                }
-            });
-        }
-
-        let zoom = command.zoom.unwrap_or(2).clamp(1, 8) as usize;
-        let cell_pixels = 16usize * zoom;
-        let width = grid_width * cell_pixels;
-        let height = grid_height * cell_pixels;
-        let mut rgb = vec![16u8; width * height * 3];
-
-        for sector in &map.sectors {
-            let Some(source) = sector
-                .properties
-                .get("source")
-                .and_then(|value| value.to_source())
-            else {
-                continue;
-            };
-            let Some(tile_id) = self.scepter_resolved_tile_id(source) else {
-                continue;
-            };
-            let Some(tile) = self.project.tiles.get(&tile_id) else {
-                continue;
-            };
-            let Some(texture) = tile.textures.first() else {
-                continue;
-            };
-
-            let bbox = sector.bounding_box(map);
-            let sx0 = (bbox.min.x.floor() as i32).max(min_x);
-            let sx1 = (bbox.max.x.ceil() as i32).min(max_x);
-            let sy0 = (bbox.min.y.floor() as i32).max(min_y);
-            let sy1 = (bbox.max.y.ceil() as i32).min(max_y);
-
-            for cell_y in sy0..sy1 {
-                for cell_x in sx0..sx1 {
-                    let cell_origin_x = (cell_x - min_x) as usize * cell_pixels;
-                    let cell_origin_y = (cell_y - min_y) as usize * cell_pixels;
-
-                    for py in 0..cell_pixels {
-                        let ty = py * texture.height / cell_pixels;
-                        for px in 0..cell_pixels {
-                            let tx = px * texture.width / cell_pixels;
-                            let source_index = (ty * texture.width + tx) * 4;
-                            if source_index + 3 >= texture.data.len() {
-                                continue;
-                            }
-
-                            let alpha = texture.data[source_index + 3] as u16;
-                            if alpha == 0 {
-                                continue;
-                            }
-                            let image_x = cell_origin_x + px;
-                            let image_y = cell_origin_y + py;
-                            let target_index = (image_y * width + image_x) * 3;
-                            for channel in 0..3 {
-                                let src = texture.data[source_index + channel] as u16;
-                                let dst = rgb[target_index + channel] as u16;
-                                rgb[target_index + channel] =
-                                    ((src * alpha + dst * (255 - alpha)) / 255) as u8;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        let mut png_data = Vec::new();
-        {
-            let mut encoder = png::Encoder::new(&mut png_data, width as u32, height as u32);
-            encoder.set_color(png::ColorType::Rgb);
-            encoder.set_depth(png::BitDepth::Eight);
-            match encoder.write_header() {
-                Ok(mut writer) => {
-                    if let Err(error) = writer.write_image_data(&rgb) {
-                        return serde_json::json!({
-                            "ok": false,
-                            "error": format!("could not encode preview PNG: {error}"),
-                        });
-                    }
-                }
-                Err(error) => {
-                    return serde_json::json!({
-                        "ok": false,
-                        "error": format!("could not write preview PNG header: {error}"),
-                    });
-                }
-            }
-        }
-
-        serde_json::json!({
-            "ok": true,
-            "region": {
-                "id": region.id.to_string(),
-                "name": region.name,
-            },
-            "bounds": {
-                "min": [min_x, min_y],
-                "max": [max_x, max_y],
-                "size": [grid_width, grid_height],
-                "coordinate_system": "x right, negative y up; first image row is min_y/up",
-            },
-            "image": {
-                "mime": "image/png",
-                "encoding": "base64",
-                "data": Self::scepter_base64_encode(&png_data),
-                "width": width,
-                "height": height,
-                "grid_width": grid_width,
-                "grid_height": grid_height,
-                "cell_pixels": cell_pixels,
-                "bytes": png_data.len(),
-            }
-        })
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
     fn scepter_region_summary(&self, request: &ScepterRegionRequest) -> serde_json::Value {
         let region = if let Some(id) = &request.id {
             Uuid::from_str(id)
@@ -7071,24 +7031,34 @@ impl Editor {
             Err(error) => return serde_json::json!({ "ok": false, "error": error }),
         };
 
-        if cells.is_empty() {
+        if cells.is_empty() || cells.len() > 4096 {
             return serde_json::json!({
                 "ok": false,
-                "error": format!("{command_name} requires at least one cell"),
+                "error": format!("{command_name} requires 1..4096 cells"),
             });
         }
 
-        let layer = layer
-            .and_then(|layer| layer.parse::<u8>().ok())
-            .unwrap_or(1);
+        let layer = match layer.unwrap_or("1").parse::<u8>() {
+            Ok(layer) => layer,
+            Err(_) => {
+                return serde_json::json!({"ok":false,"error":"Layer must be an integer from 0 to 255"});
+            }
+        };
+        if cells
+            .iter()
+            .any(|[x, y]| x.abs_diff(0) > 1_000_000 || y.abs_diff(0) > 1_000_000)
+        {
+            return serde_json::json!({"ok":false,"error":"Cell outside supported coordinate range"});
+        }
         let source = rusterix::PixelSource::TileId(tile_id);
         let region_id = self.project.regions[region_index].id;
         let old_map = self.project.regions[region_index].map.clone();
 
+        let mut staged_map = old_map.clone();
         let mut created_sector_ids = Vec::new();
         let mut replaced_sector_ids = Vec::new();
         {
-            let map = &mut self.project.regions[region_index].map;
+            let map = &mut staged_map;
 
             for [x, y] in cells {
                 if replace_existing {
@@ -7125,6 +7095,7 @@ impl Editor {
             map.changed = map.changed.saturating_add(created_sector_ids.len() as u32);
         }
 
+        self.project.regions[region_index].map = staged_map;
         let new_map = self.project.regions[region_index].map.clone();
         let undo_atom = ProjectUndoAtom::MapEdit(
             ProjectContext::Region(region_id),
@@ -7163,10 +7134,16 @@ impl Editor {
             });
         }
 
-        let x0 = x.min(x + width);
-        let x1 = x.max(x + width);
-        let y0 = y.min(y + height);
-        let y1 = y.max(y + height);
+        let (Some(end_x), Some(end_y)) = (x.checked_add(width), y.checked_add(height)) else {
+            return serde_json::json!({"ok":false,"error":"Rectangle coordinates overflow"});
+        };
+        if i64::from(width).abs() * i64::from(height).abs() > 4096 {
+            return serde_json::json!({"ok":false,"error":"Maximum 4096 cells per paint"});
+        }
+        let x0 = x.min(end_x);
+        let x1 = x.max(end_x);
+        let y0 = y.min(end_y);
+        let y1 = y.max(end_y);
         let mut cells = Vec::new();
         for y in y0..y1 {
             for x in x0..x1 {
@@ -7911,8 +7888,11 @@ impl Editor {
     }
 
     fn authoring_is_interacting(&self) -> bool {
-        self.last_authoring_input_at
-            .is_some_and(|at| at.elapsed() < std::time::Duration::from_millis(250))
+        self.appearance_workspace.wants_realtime()
+            || self.geometry_editor.wants_realtime()
+            || self
+                .last_authoring_input_at
+                .is_some_and(|at| at.elapsed() < std::time::Duration::from_millis(250))
     }
 
     fn presentation_fps(game_mode: bool, interacting: bool, game_target_fps: i32) -> i32 {
@@ -7956,6 +7936,7 @@ impl TheTrait for Editor {
         let self_updater = SelfUpdater::github_creator();
 
         let initial_session = ProjectSession {
+            id: Uuid::new_v4(),
             project: project.clone(),
             project_path: None,
             undo: UndoManager::default(),
@@ -7974,6 +7955,13 @@ impl TheTrait for Editor {
             sidebar: Sidebar::new(),
             procedural_material: Default::default(),
             palette_switch: Default::default(),
+            geometry_editor: Default::default(),
+            appearance_workspace: Default::default(),
+            procedural_appearance_revision: 0,
+            procedural_geometry_revision: None,
+            procedural_material_revision: None,
+            procedural_wearable_revision: 0,
+            procedural_wearable_materials: Default::default(),
             mapeditor: MapEditor::new(),
 
             server_ctx: ServerContext::default(),
@@ -7982,6 +7970,10 @@ impl TheTrait for Editor {
             event_receiver: None,
             #[cfg(not(target_arch = "wasm32"))]
             scepter_receiver: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            scepter_sender: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            scepter_tracking: Default::default(),
             last_3d_hover_redraw_at: None,
             last_authoring_input_at: None,
 
@@ -8026,6 +8018,7 @@ impl TheTrait for Editor {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let (service, receiver) = ScepterService::start();
+            self.scepter_sender=service.sender();
             self.scepter_receiver = Some(receiver);
             println!("{}", service.status_line());
         }
@@ -8109,8 +8102,10 @@ impl TheTrait for Editor {
     }
 
     fn init_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) {
+        let mut init_profile = crate::misc::FrameProfile::new();
         CreatorTheme::load().apply(ui, ctx);
         RUSTERIX.write().unwrap().client.messages_font = ctx.ui.font.clone();
+        init_profile.lap("init_theme_gpu");
 
         // Embedded Icons
         for file in Embedded::iter() {
@@ -8150,6 +8145,7 @@ impl TheTrait for Editor {
             *ui.style.theme().color(SectionbarNormalTextColor),
         );
 
+        init_profile.lap("init_icons");
         // ---
 
         let mut top_canvas = TheCanvas::new();
@@ -8447,11 +8443,14 @@ impl TheTrait for Editor {
         top_canvas.set_layout(hlayout);
         ui.canvas.set_top(top_canvas);
 
+        init_profile.lap("init_icons_toolbar");
         // Sidebar
         self.sidebar.init_ui(ui, ctx, &mut self.server_ctx);
+        init_profile.lap("init_sidebar");
 
         // Docks
         let mut bottom_panels = DOCKMANAGER.write().unwrap().init_docks(ctx);
+        init_profile.lap("init_docks");
         bottom_panels.limiter_mut().set_min_height(140);
 
         let mut editor_canvas: TheCanvas = TheCanvas::new();
@@ -8468,6 +8467,7 @@ impl TheTrait for Editor {
             .add_editors_to_stack(&mut editor_stack, ctx);
 
         editor_canvas.set_layout(editor_stack);
+        init_profile.lap("init_editors");
 
         // Main V Layout
         let mut vsplitlayout = TheSharedVLayout::new(TheId::named("Shared VLayout"));
@@ -8564,7 +8564,10 @@ impl TheTrait for Editor {
         tool_list_canvas.set_right(tool_list_border_canvas);
         shared_canvas.set_left(tool_list_canvas);
 
-        ui.canvas.set_center(shared_canvas);
+        ui.canvas
+            .set_center(crate::appearance_workspace::main_canvas(
+                crate::geometry_editor::main_canvas(shared_canvas),
+            ));
         // The active tool can select its dock while the UI is still being
         // assembled. Synchronize once more now that these controls are part of
         // the live canvas, so their widget-local disabled state is updated too.
@@ -8577,6 +8580,7 @@ impl TheTrait for Editor {
         ctx.ui.set_disabled("Undo");
         ctx.ui.set_disabled("Redo");
 
+        init_profile.lap("init_widgets");
         // Init Rusterix
 
         if let Some(icon) = ctx.ui.icon("light_on") {
@@ -8610,6 +8614,7 @@ impl TheTrait for Editor {
             .set_apply_preview_filters(true);
         SCENEMANAGER.write().unwrap().startup();
 
+        init_profile.lap("init_scene");
         self.event_receiver = Some(ui.add_state_listener("Main Receiver".into()));
         self.rebuild_project_tabs(ui);
     }
@@ -8645,12 +8650,16 @@ impl TheTrait for Editor {
 
     /// Handle UI events and UI state
     fn update_ui(&mut self, ui: &mut TheUI, ctx: &mut TheContext) -> bool {
+        let mut profile = crate::misc::FrameProfile::new();
         let mut redraw = false;
         let mut update_server_icons = false;
         redraw |= self.palette_switch.update(ctx);
         redraw |= self
             .procedural_material
             .update(ui, ctx, &mut self.project, &mut self.server_ctx);
+        profile.lap("materials");
+        #[cfg(not(target_arch = "wasm32"))]
+        self.scepter_observe(false,ui);
 
         #[cfg(not(target_arch = "wasm32"))]
         let mut scepter_events = Vec::new();
@@ -8663,6 +8672,14 @@ impl TheTrait for Editor {
         #[cfg(not(target_arch = "wasm32"))]
         for event in scepter_events {
             match event {
+                ScepterEvent::PreparedEdit(edit) => {redraw |= self.scepter_finish_staged(edit,ui,ctx);}
+                ScepterEvent::Execute { request, job } => {
+                    if job.begin() {
+                        let mutation = request.command.is_mutation();
+                        self.scepter_execute(request, job, ui, ctx);
+                        redraw |= mutation;
+                    }
+                }
                 ScepterEvent::Ping { message, peer } => {
                     let status = if message.trim().is_empty() {
                         format!("Scepter ping received from {peer}.")
@@ -8678,285 +8695,6 @@ impl TheTrait for Editor {
                     println!("{status}");
                     ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
                     redraw = true;
-                }
-                ScepterEvent::ProjectSnapshot { reply } => {
-                    let _ = reply.send(self.scepter_project_snapshot());
-                }
-                ScepterEvent::ProjectUndo { reply } => {
-                    let had_undo = UNDOMANAGER.read().unwrap().has_undo();
-                    if had_undo {
-                        UNDOMANAGER.write().unwrap().undo(
-                            &mut self.server_ctx,
-                            &mut self.project,
-                            ui,
-                            ctx,
-                        );
-                    }
-                    let result = serde_json::json!({
-                        "ok": had_undo,
-                        "command": "project.undo",
-                        "dirty": self.active_session_has_changes(),
-                        "message": if had_undo { "undo applied" } else { "nothing to undo" },
-                    });
-                    ctx.ui.send(TheEvent::SetStatusText(
-                        TheId::empty(),
-                        "Scepter undo.".into(),
-                    ));
-                    let _ = reply.send(result);
-                    redraw = true;
-                }
-                ScepterEvent::ProjectRedo { reply } => {
-                    let had_redo = UNDOMANAGER.read().unwrap().has_redo();
-                    if had_redo {
-                        UNDOMANAGER.write().unwrap().redo(
-                            &mut self.server_ctx,
-                            &mut self.project,
-                            ui,
-                            ctx,
-                        );
-                    }
-                    let result = serde_json::json!({
-                        "ok": had_redo,
-                        "command": "project.redo",
-                        "dirty": self.active_session_has_changes(),
-                        "message": if had_redo { "redo applied" } else { "nothing to redo" },
-                    });
-                    ctx.ui.send(TheEvent::SetStatusText(
-                        TheId::empty(),
-                        "Scepter redo.".into(),
-                    ));
-                    let _ = reply.send(result);
-                    redraw = true;
-                }
-                ScepterEvent::RegionSnapshot { request, reply } => {
-                    let _ = reply.send(self.scepter_region_snapshot(&request));
-                }
-                ScepterEvent::RegionSummary { request, reply } => {
-                    let _ = reply.send(self.scepter_region_summary(&request));
-                }
-                ScepterEvent::RegionRenderPreview { command, reply } => {
-                    let _ = reply.send(self.scepter_region_render_preview(&command));
-                }
-                ScepterEvent::RegionPaintRect { command, reply } => {
-                    let result = self.scepter_apply_region_paint_rect(command, ctx);
-                    let ok = result
-                        .get("ok")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false);
-                    let status = if ok {
-                        format!(
-                            "Scepter painted {} region cells.",
-                            result
-                                .get("cell_count")
-                                .and_then(|value| value.as_u64())
-                                .unwrap_or_default()
-                        )
-                    } else {
-                        format!(
-                            "Scepter paint failed: {}",
-                            result
-                                .get("error")
-                                .and_then(|value| value.as_str())
-                                .unwrap_or("unknown error")
-                        )
-                    };
-                    println!("{status}");
-                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
-                    let _ = reply.send(result);
-                    redraw = true;
-                }
-                ScepterEvent::RegionPaintCells { command, reply } => {
-                    let result = self.scepter_apply_region_paint_cells(command, ctx);
-                    let ok = result
-                        .get("ok")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false);
-                    let status = if ok {
-                        format!(
-                            "Scepter painted {} region cells.",
-                            result
-                                .get("cell_count")
-                                .and_then(|value| value.as_u64())
-                                .unwrap_or_default()
-                        )
-                    } else {
-                        format!(
-                            "Scepter paint failed: {}",
-                            result
-                                .get("error")
-                                .and_then(|value| value.as_str())
-                                .unwrap_or("unknown error")
-                        )
-                    };
-                    println!("{status}");
-                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
-                    let _ = reply.send(result);
-                    redraw = true;
-                }
-                ScepterEvent::ActionList { command, reply } => {
-                    let _ = reply.send(self.scepter_action_catalog(&command, ctx));
-                }
-                ScepterEvent::ActionRun { command, reply } => {
-                    let result = self.scepter_run_action(command, ui, ctx);
-                    let ok = result
-                        .get("ok")
-                        .and_then(serde_json::Value::as_bool)
-                        .unwrap_or(false);
-                    let status = if ok {
-                        format!(
-                            "Scepter ran action {}.",
-                            result
-                                .get("action")
-                                .and_then(serde_json::Value::as_str)
-                                .unwrap_or("unknown")
-                        )
-                    } else {
-                        format!(
-                            "Scepter action failed: {}",
-                            result
-                                .get("error")
-                                .and_then(serde_json::Value::as_str)
-                                .unwrap_or("unknown error")
-                        )
-                    };
-                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
-                    let _ = reply.send(result);
-                    redraw = true;
-                }
-                ScepterEvent::ActionRunScript { command, reply } => {
-                    let result = self.scepter_run_action_script(command, ui, ctx);
-                    let ok = result
-                        .get("ok")
-                        .and_then(serde_json::Value::as_bool)
-                        .unwrap_or(false);
-                    let status = if ok {
-                        format!(
-                            "Scepter ran {} scripted action(s).",
-                            result
-                                .get("executed")
-                                .and_then(serde_json::Value::as_u64)
-                                .unwrap_or_default()
-                        )
-                    } else {
-                        format!(
-                            "Scepter action script failed: {}",
-                            result
-                                .get("error")
-                                .and_then(serde_json::Value::as_str)
-                                .unwrap_or("unknown error")
-                        )
-                    };
-                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
-                    let _ = reply.send(result);
-                    redraw = true;
-                }
-                ScepterEvent::ToolList { command, reply } => {
-                    let _ = reply.send(self.scepter_tool_catalog(&command));
-                }
-                ScepterEvent::ToolSelect { command, reply } => {
-                    let result = self.scepter_select_tool(command, ui, ctx);
-                    let ok = result
-                        .get("ok")
-                        .and_then(serde_json::Value::as_bool)
-                        .unwrap_or(false);
-                    let status = if ok {
-                        format!(
-                            "Scepter selected tool {}.",
-                            result
-                                .get("tool")
-                                .and_then(serde_json::Value::as_str)
-                                .unwrap_or("unknown")
-                        )
-                    } else {
-                        format!(
-                            "Scepter tool selection failed: {}",
-                            result
-                                .get("error")
-                                .and_then(serde_json::Value::as_str)
-                                .unwrap_or("unknown error")
-                        )
-                    };
-                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
-                    let _ = reply.send(result);
-                    redraw = true;
-                }
-                ScepterEvent::ScriptGet { command, reply } => {
-                    let _ = reply.send(self.scepter_get_script(&command));
-                }
-                ScepterEvent::ScriptValidate { command, reply } => {
-                    let _ = reply.send(
-                        self.scepter_validate_eldrin_source(&command.target, &command.source),
-                    );
-                }
-                ScepterEvent::ScriptPatch { command, reply } => {
-                    let result = self.scepter_apply_script_patch(command, ctx);
-                    let ok = result
-                        .get("ok")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false);
-                    let status = if ok {
-                        format!(
-                            "Scepter edited {} script: {}.",
-                            result
-                                .get("kind")
-                                .and_then(|value| value.as_str())
-                                .unwrap_or("target"),
-                            result
-                                .get("name")
-                                .and_then(|value| value.as_str())
-                                .unwrap_or("unknown")
-                        )
-                    } else {
-                        format!(
-                            "Scepter script edit failed: {}",
-                            result
-                                .get("error")
-                                .and_then(|value| value.as_str())
-                                .unwrap_or("unknown error")
-                        )
-                    };
-                    println!("{status}");
-                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
-                    let _ = reply.send(result);
-                    redraw = true;
-                }
-                ScepterEvent::AttributesGet { command, reply } => {
-                    let _ = reply.send(self.scepter_get_attributes(&command));
-                }
-                ScepterEvent::AttributesPatch { command, reply } => {
-                    let result = self.scepter_apply_attributes_patch(command, ctx);
-                    let ok = result
-                        .get("ok")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false);
-                    let status = if ok {
-                        format!(
-                            "Scepter edited {} attributes: {}.",
-                            result
-                                .get("kind")
-                                .and_then(|value| value.as_str())
-                                .unwrap_or("target"),
-                            result
-                                .get("name")
-                                .and_then(|value| value.as_str())
-                                .unwrap_or("unknown")
-                        )
-                    } else {
-                        format!(
-                            "Scepter attribute edit failed: {}",
-                            result
-                                .get("error")
-                                .and_then(|value| value.as_str())
-                                .unwrap_or("unknown error")
-                        )
-                    };
-                    println!("{status}");
-                    ctx.ui.send(TheEvent::SetStatusText(TheId::empty(), status));
-                    let _ = reply.send(result);
-                    redraw = true;
-                }
-                ScepterEvent::TilesSnapshot { reply } => {
-                    let _ = reply.send(self.scepter_tiles_snapshot());
                 }
             }
         }
@@ -9249,6 +8987,7 @@ impl TheTrait for Editor {
             redraw = true;
         }
 
+        profile.lap("input_setup");
         if tick_update {
             {
                 let mut rusterix = RUSTERIX.write().unwrap();
@@ -9294,6 +9033,7 @@ impl TheTrait for Editor {
             }
         }
 
+        profile.lap("tick");
         if redraw_update && !self.project.regions.is_empty() {
             SCENEMANAGER.write().unwrap().tick_batch(8);
 
@@ -9314,6 +9054,8 @@ impl TheTrait for Editor {
             // Update entities when the server is running
             {
                 let rusterix = &mut RUSTERIX.write().unwrap();
+                rusterix.scene_handler.preview_character_setup =
+                    rusterix.server.state == rusterix::ServerState::Off;
                 if is_running {
                     // Send a game tick to all servers
                     if tick_update {
@@ -9469,7 +9211,9 @@ impl TheTrait for Editor {
             } else {
                 "PolyView"
             };
-            if let Some(render_view) = ui.get_render_view(render_view_name) {
+            if !crate::geometry_editor::is_visible(ui)
+                && let Some(render_view) = ui.get_render_view(render_view_name)
+            {
                 let dim = *render_view.dim();
 
                 let buffer = render_view.render_buffer_mut();
@@ -9760,6 +9504,7 @@ impl TheTrait for Editor {
                                 // leaving the whole Creator permanently jerky.
                                 let animation_frame = rusterix.client.animation_frame;
                                 rusterix.build_dynamics_3d(&region.map, animation_frame);
+                                profile.lap("scene_dynamics_3d");
                                 let editor_neutral_background = !is_running;
                                 region.iso_paint.ensure_baked_paint_current();
                                 let mut combined_iso_paint = region.iso_paint.clone();
@@ -9836,6 +9581,7 @@ impl TheTrait for Editor {
                                     dim.height as usize,
                                     editor_neutral_background,
                                 );
+                                profile.lap("scene_draw_3d");
                                 if let Some(persisted) =
                                     rusterix.take_orthographic_bake_persisted_update()
                                 {
@@ -9913,6 +9659,7 @@ impl TheTrait for Editor {
                                     );
                                 }
 
+                                profile.lap("scene_prepare");
                                 // Prepare the messages for the region for drawing
                                 rusterix.process_messages(&region.map, says);
 
@@ -9943,6 +9690,7 @@ impl TheTrait for Editor {
                                     dim.width as usize,
                                     dim.height as usize,
                                 );
+                                profile.lap("scene_draw");
                             }
                         } else if self.server_ctx.get_map_context() == MapContext::Region
                             && self.server_ctx.editing_surface.is_some()
@@ -10157,7 +9905,26 @@ impl TheTrait for Editor {
             redraw = true;
         }
 
+        profile.lap("scene");
+        let sync_geometry_recipes = !pending_events.is_empty();
         for event in pending_events {
+            if self.appearance_workspace.handle_event(
+                &event,
+                &mut self.project,
+                ui,
+                ctx,
+                &mut self.server_ctx,
+            ) {
+                redraw = true;
+                continue;
+            }
+            if self
+                .geometry_editor
+                .handle_event(&event, &mut self.project, ui, ctx)
+            {
+                redraw = true;
+                continue;
+            }
             if self.palette_switch.handle_event(
                 &event,
                 &mut self.project,
@@ -11477,6 +11244,50 @@ impl TheTrait for Editor {
             }
         }
 
+        // Apply committed input before synchronizing geometry controls or rendering.
+        // Otherwise a per-frame refresh briefly restores the previous button state.
+        profile.lap("events");
+        if sync_geometry_recipes {
+            let (changed, _) = shared::geometry_recipe::synchronize(&mut self.project);
+            if changed {
+                if let ProjectContext::Prefab(id) = self.server_ctx.pc {
+                    let _ = crate::block_props::sync_prefab_editor(&mut self.project, id);
+                }
+                crate::utils::editor_scene_full_rebuild(&self.project, &self.server_ctx);
+                redraw = true;
+            }
+        }
+        redraw |= self.geometry_editor.update(&self.project, ui, ctx);
+        profile.lap("geometry");
+        let appearance_revision = self.current_procedural_appearance_revision();
+        profile.lap("appearance_keys");
+        if appearance_revision != self.procedural_appearance_revision {
+            self.procedural_appearance_revision = appearance_revision;
+            let mut runtime = RUSTERIX.write().unwrap();
+            shared::rusterix_utils::sync_item_icon_assets(&mut runtime, &self.project);
+            profile.lap("appearance_icons");
+            shared::rusterix_utils::sync_procedural_avatar_assets(
+                &mut runtime.assets,
+                &self.project,
+            );
+            profile.lap("appearance_models");
+            runtime.scene_handler.mark_dynamics_dirty();
+            runtime.set_dirty();
+            ctx.ui.send(TheEvent::Custom(
+                TheId::named("MZ Item Appearance Updated"),
+                TheValue::Empty,
+            ));
+            redraw = true;
+        }
+
+        profile.lap("appearances");
+        redraw |= self.appearance_workspace.update(
+            &self.project,
+            ui,
+            ctx,
+            self.procedural_appearance_revision,
+        );
+
         #[cfg(all(
             feature = "self-update",
             any(target_os = "windows", target_os = "linux", target_os = "macos")
@@ -11588,6 +11399,7 @@ impl TheTrait for Editor {
             redraw = true;
         }
 
+        profile.lap("background");
         let active_dirty = self.active_session_has_changes();
         if self.active_session < self.sessions.len()
             && self.sessions[self.active_session].dirty != active_dirty
@@ -11602,6 +11414,7 @@ impl TheTrait for Editor {
             redraw = true;
         }
 
+        profile.lap("dirty");
         self.update_counter += 1;
         if self.update_counter > 2 {
             self.sidebar.startup = false;
@@ -11703,11 +11516,166 @@ mod tests {
     use super::*;
 
     #[test]
+    fn appearance_invalidation_follows_content_across_undo_and_unrelated_settings() {
+        let mut editor = Editor::new();
+        let original = editor.current_procedural_appearance_revision();
+        let project = editor.project.clone();
+        editor.project = project.clone();
+        assert_eq!(
+            editor.current_procedural_appearance_revision(),
+            original,
+            "Switching to identical content must reuse runtime appearances"
+        );
+        let mut config = editor.project.config.parse::<toml::Table>().unwrap();
+        config.insert("benchmark_unrelated".into(), toml::Value::Integer(7));
+        editor.project.config = toml::to_string_pretty(&config).unwrap();
+        assert_eq!(
+            editor.current_procedural_appearance_revision(),
+            original,
+            "Presentation settings must not rebuild icons and models"
+        );
+        let id = *editor.project.procedural_appearances.keys().next().unwrap();
+        let source = editor.project.procedural_appearances.get_mut(&id).unwrap();
+        let at = source.find('\n').expect("Pretty JSON geometry");
+        source.replace_range(at..at + 1, " ");
+        assert_ne!(
+            editor.current_procedural_appearance_revision(),
+            original,
+            "Even a same-length geometry edit must invalidate"
+        );
+        editor.project = project;
+        assert_eq!(
+            editor.current_procedural_appearance_revision(),
+            original,
+            "Undo must restore the matching cached appearance"
+        );
+        editor.project.config = "[ruleset]\nsource='project'\n".into();
+        assert_ne!(editor.current_procedural_appearance_revision(), original);
+    }
+
+    #[test]
+    fn integration_pass_new_projects_reuse_validated_embedded_bakes() {
+        let archive = crate::Embedded::get("materials/default-bakes.eldiron").unwrap();
+        let cached = shared::project_io::decode_project(archive.data.as_ref()).unwrap();
+        let started = std::time::Instant::now();
+        let project = Editor::load_empty_project_template();
+        eprintln!(
+            "Embedded default project: {:.2}ms",
+            started.elapsed().as_secs_f64() * 1000.
+        );
+        assert!(cached.config.contains("embedded_material_bakes"));
+        let definitions = shared::ruleset_materials::definitions(&project.config);
+        for def in &definitions {
+            let id = shared::rulesets::material_asset_id(def.id);
+            assert_eq!(
+                project.procedural_material_cache_keys.get(&id),
+                cached.procedural_material_cache_keys.get(&id),
+                "{} must use its validated startup bake",
+                def.id
+            );
+            assert!(project.procedural_material_cache_keys.contains_key(&id));
+        }
+        let mut altered = Project::new();
+        altered.config = project.config.clone();
+        altered.palette = project.palette.clone();
+        altered.palette.colors.swap(0, 1);
+        assert_eq!(
+            shared::ruleset_materials::seed_bakes(&mut altered, &cached).unwrap(),
+            0
+        );
+        assert!(altered.procedural_materials.is_empty());
+        let id = shared::rulesets::material_asset_id(definitions[0].id);
+        let mut metadata = Project::new();
+        metadata.config = project.config.clone();
+        metadata.palette = project.palette.clone();
+        let mut tile = cached.tiles[&id].clone();
+        tile.alias = "Authored metadata".into();
+        metadata.tiles.insert(id, tile);
+        shared::ruleset_materials::seed_bakes(&mut metadata, &cached).unwrap();
+        assert_eq!(metadata.tiles[&id].alias, "Authored metadata");
+        let mut authored = Project::new();
+        authored.config = project.config.clone();
+        authored.palette = project.palette.clone();
+        let id = shared::rulesets::material_asset_id(definitions[0].id);
+        let mut asset = denrim_materials::integration::EditableMaterialAsset::reopen(
+            &project.procedural_materials[&id],
+        )
+        .unwrap();
+        asset.root.project.materials[0].label.push_str(" edited");
+        let source = asset.save().unwrap();
+        authored.procedural_materials.insert(id, source.clone());
+        shared::ruleset_materials::seed_bakes(&mut authored, &cached).unwrap();
+        assert_eq!(authored.procedural_materials[&id], source);
+        assert!(
+            !authored.procedural_material_cache_keys.contains_key(&id),
+            "Authored edits must not inherit unrelated bakes"
+        );
+    }
+
+    #[test]
+    #[ignore = "maintainer command; ELDIRON_PREPARE_MZ_CACHE selects the output archive"]
+    fn prepare_embedded_material_bakes() {
+        let path = std::env::var("ELDIRON_PREPARE_MZ_CACHE").expect("Set an output path");
+        let mut project = Editor::load_empty_project_template();
+        let density = crate::procedural_material::pixel_style::density(&project.config);
+        let ids = project
+            .procedural_materials
+            .keys()
+            .copied()
+            .filter(|id| !shared::ruleset_materials::is_library_tile(&project.config, id))
+            .collect::<Vec<_>>();
+        for id in ids {
+            let bundle = &project.procedural_materials[&id];
+            let asset =
+                denrim_materials::integration::EditableMaterialAsset::reopen(bundle).unwrap();
+            let animation = &asset
+                .root
+                .project
+                .materials
+                .iter()
+                .find(|m| m.id == asset.selected_material)
+                .unwrap()
+                .animation;
+            let frames = (0..animation.frames)
+                .map(|frame| {
+                    rusterix::ruleset_material::bake_at_time(
+                        &asset,
+                        &project.palette,
+                        density,
+                        frame as f32 / animation.frames as f32,
+                    )
+                    .unwrap()
+                })
+                .collect::<Vec<_>>();
+            let tile = project.tiles.get_mut(&id).unwrap();
+            tile.baked_material_data = frames
+                .iter()
+                .map(rusterix::Texture::material_bytes)
+                .collect();
+            tile.textures = frames;
+            for texture in &mut tile.textures {
+                texture.set_materials_all(0.5, 0., 1., 0.);
+            }
+            project.procedural_material_cache_keys.insert(
+                id,
+                crate::procedural_material::pixel_style::bake_key(bundle, density),
+            );
+        }
+        shared::ruleset_materials::stamp_seed_sources(&mut project).unwrap();
+        std::fs::write(path, shared::project_io::encode_project(&project).unwrap()).unwrap();
+    }
+
+    #[test]
     #[ignore = "requires a native GPU and ELDIRON_BENCH_PROJECT_PATH"]
     fn benchmark_u5_creator_redraw() {
         let path = std::env::var("ELDIRON_BENCH_PROJECT_PATH").unwrap();
         let stage = std::time::Instant::now();
-        let project = Editor::load_project_from_path(std::path::Path::new(&path)).unwrap();
+        let mut project = Editor::load_project_from_path(std::path::Path::new(&path)).unwrap();
+        if std::env::var_os("ELDIRON_BENCH_GAME_TIMINGS").is_some() {
+            let mut config = project.config.parse::<toml_edit::DocumentMut>().unwrap();
+            config["debug"]["frame_timings"] = toml_edit::value(true);
+            project.config = config.to_string();
+        }
         println!(
             "Creator load decode={:.2}ms",
             stage.elapsed().as_secs_f64() * 1000.
@@ -11721,6 +11689,7 @@ mod tests {
                 region.map.sectors.len()
             );
         }
+        let saved_palette = serde_json::to_string(&project.palette).unwrap();
         let stage = std::time::Instant::now();
         let mut editor = Editor::new();
         let scale = std::env::var("ELDIRON_BENCH_UI_SCALE")
@@ -11741,11 +11710,25 @@ mod tests {
             stage.elapsed().as_secs_f64() * 1000.
         );
         let stage = std::time::Instant::now();
-        editor.open_project_as_session(project, None, &mut ui, &mut ctx, &mut false, &mut false);
+        editor.open_project_as_session(
+            project,
+            Some(PathBuf::from(&path)),
+            &mut ui,
+            &mut ctx,
+            &mut false,
+            &mut false,
+        );
         println!(
             "Creator load activate={:.2}ms",
             stage.elapsed().as_secs_f64() * 1000.
         );
+        if std::env::var_os("ELDIRON_BENCH_VERIFY_MATERIALS").is_some() {
+            assert_eq!(
+                serde_json::to_string(&editor.project.palette).unwrap(),
+                saved_palette,
+                "Activation must preserve the saved palette"
+            );
+        }
         editor.server_ctx.editor_view_mode = EditorViewMode::D2;
         {
             let mut tools = TOOLLIST.write().unwrap();
@@ -11763,10 +11746,71 @@ mod tests {
                 &mut editor.server_ctx,
             );
         }
+        if std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d") {
+            ctx.ui.send(TheEvent::IndexChanged(
+                TheId::named("Editor View Switch"),
+                2,
+            ));
+        }
         ui.canvas.layout(1600, 1000, &mut ctx);
         let mut frame = vec![0; ctx.framebuffer_width * ctx.framebuffer_height * 4];
+        let verify_materials = std::env::var_os("ELDIRON_BENCH_VERIFY_MATERIALS").is_some();
+        let initial_materials = verify_materials.then(|| {
+            (
+                editor.project.procedural_materials.clone(),
+                editor.project.procedural_material_cache_keys.clone(),
+                editor.project.tiles.clone(),
+                editor.project.tile_board_tiles.clone(),
+                serde_json::to_string(&editor.project.palette).unwrap(),
+            )
+        });
         let stage = std::time::Instant::now();
-        for _ in 0..10 {
+        for warmup in 0..10 {
+            if warmup == 2 && std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d") {
+                // Frame authored geometry instead of an unrelated saved camera.
+                // A close view around the player also exercises visible actors.
+                let region = &mut editor.project.regions[0];
+                let mut lo = Vec3::broadcast(f32::INFINITY);
+                let mut hi = Vec3::broadcast(f32::NEG_INFINITY);
+                for p in region
+                    .map
+                    .vertices
+                    .iter()
+                    .map(|v| Vec3::new(v.x, 0., v.y))
+                    .chain(
+                        region
+                            .map
+                            .geometry_objects
+                            .iter()
+                            .flat_map(|o| o.vertices.iter().map(|p| o.transform_point(*p))),
+                    )
+                {
+                    lo = lo.map2(p, f32::min);
+                    hi = hi.map2(p, f32::max);
+                }
+                if lo.x.is_finite() && hi.x.is_finite() {
+                    let center = (lo + hi) * 0.5;
+                    let span = hi - lo;
+                    region.editing_position_3d = center;
+                    region.editing_look_at_3d = center;
+                    EDITCAMERA.write().unwrap().iso_camera.scale =
+                        ((span.x + span.z) * 0.45 + span.y * 0.5).max(4.);
+                }
+                if std::env::var_os("ELDIRON_BENCH_FOCUS_PLAYER").is_some() {
+                    let player = region
+                        .map
+                        .entities
+                        .iter()
+                        .find(|entity| {
+                            entity.attributes.get_bool_default("player", false)
+                                || entity.attributes.get_str("name") == Some("Player")
+                        })
+                        .expect("The focused 3D benchmark needs a player placement");
+                    region.editing_position_3d = player.position;
+                    region.editing_look_at_3d = player.position;
+                    EDITCAMERA.write().unwrap().iso_camera.scale = 6.;
+                }
+            }
             editor.update_tracker = crate::misc::UpdateTracker::new();
             ui.update(&mut ctx);
             editor.update_ui(&mut ui, &mut ctx);
@@ -11776,6 +11820,42 @@ mod tests {
             "Creator load first_10_frames={:.2}ms",
             stage.elapsed().as_secs_f64() * 1000.
         );
+        if let Some((materials, keys, tiles, board, palette)) = initial_materials {
+            assert_eq!(
+                editor.project.procedural_materials, materials,
+                "Loading must not rewrite materials"
+            );
+            assert_eq!(
+                editor.project.procedural_material_cache_keys, keys,
+                "Loading must not schedule replacement bakes"
+            );
+            assert_eq!(
+                editor.project.tiles, tiles,
+                "Saved tile pixels must stay unchanged during loading"
+            );
+            assert_eq!(
+                editor.project.tile_board_tiles, board,
+                "Loading must not rearrange the tilepicker"
+            );
+            assert_eq!(
+                serde_json::to_string(&editor.project.palette).unwrap(),
+                palette,
+                "Loading must not rewrite palette slots"
+            );
+        }
+        if let Ok(path) = std::env::var("ELDIRON_BENCH_SNAPSHOT") {
+            std::fs::write(
+                path,
+                TheRGBABuffer::from(
+                    frame.clone(),
+                    ctx.framebuffer_width as u32,
+                    ctx.framebuffer_height as u32,
+                )
+                .to_png()
+                .unwrap(),
+            )
+            .unwrap();
+        }
         if std::env::var_os("ELDIRON_BENCH_GAME").is_some() {
             println!("Creator game benchmark pid={}", std::process::id());
             let start = std::time::Instant::now();
@@ -11830,12 +11910,40 @@ mod tests {
                     }
                 }
             }
+            // Toolbar Play may open character creation. Enter the world through
+            // the public quick-play route before claiming gameplay measurements.
+            {
+                let mut runtime = RUSTERIX.write().unwrap();
+                if runtime.client.active_game_widget_camera_mode().is_none() {
+                    let commands = runtime.start_with_entity_defaults();
+                    assert!(!commands.is_empty(), "The benchmark must create a player");
+                    runtime.server.process_client_commands(commands);
+                    warmup_runtime(&mut runtime, &mut editor.project, 3);
+                }
+                assert!(
+                    runtime.client.active_game_widget_camera_mode().is_some(),
+                    "The benchmark needs a world viewport, not a menu"
+                );
+            }
             let teleport = std::env::var("ELDIRON_BENCH_GAME_TELEPORT").ok();
             let game_frames = std::env::var("ELDIRON_BENCH_GAME_FRAMES")
                 .ok()
                 .and_then(|value| value.parse::<usize>().ok())
-                .unwrap_or(if teleport.is_some() { 40 } else { 10 });
+                .unwrap_or(if std::env::var_os("ELDIRON_BENCH_GAME_STRESS").is_some() {
+                    benchmark_stress::DEFAULT_FRAMES
+                } else if teleport.is_some() {
+                    40
+                } else {
+                    10
+                });
+            let mut game_samples = Vec::new();
+            let mut stress = std::env::var_os("ELDIRON_BENCH_GAME_STRESS")
+                .map(|_| benchmark_stress::StressRun::new(&RUSTERIX.read().unwrap()));
             for i in 0..game_frames {
+                let frame_started = std::time::Instant::now();
+                if let Some(stress) = &mut stress {
+                    stress.before_frame(i);
+                }
                 if i == 10 {
                     if let Some(destination) = &teleport {
                         let mut rusterix = RUSTERIX.write().unwrap();
@@ -11847,15 +11955,79 @@ mod tests {
                 }
                 let start = std::time::Instant::now();
                 ui.update(&mut ctx);
-                editor.update_tracker = crate::misc::UpdateTracker::new();
+                if stress.is_some() {
+                    editor.update_tracker.force_redraw();
+                } else {
+                    editor.update_tracker = crate::misc::UpdateTracker::new();
+                }
                 editor.update_ui(&mut ui, &mut ctx);
                 ui.draw(&mut frame, &mut ctx);
+                let elapsed = start.elapsed().as_secs_f64() * 1000.;
+                if i >= 20 {
+                    game_samples.push(elapsed);
+                }
+                println!("Creator game frame {i}={elapsed:.2}ms");
+                if let Some(stress) = &mut stress {
+                    stress.after_frame(i, elapsed);
+                    // Keep simulation and cooldowns on their real clock. Sleep
+                    // is deliberately outside the measured UI/render interval.
+                    if let Some(left) = std::time::Duration::from_secs_f64(1. / 30.)
+                        .checked_sub(frame_started.elapsed())
+                    {
+                        std::thread::sleep(left);
+                    }
+                }
+            }
+            if let Some(stress) = stress {
+                stress.finish();
+            }
+            if !game_samples.is_empty() {
+                game_samples.sort_by(f64::total_cmp);
                 println!(
-                    "Creator game frame {i}={:.2}ms",
-                    start.elapsed().as_secs_f64() * 1000.
+                    "Creator game steady frames={} mean={:.2}ms p50={:.2}ms p95={:.2}ms",
+                    game_samples.len(),
+                    game_samples.iter().sum::<f64>() / game_samples.len() as f64,
+                    game_samples[game_samples.len() / 2],
+                    game_samples[(game_samples.len() * 95 / 100).min(game_samples.len() - 1)]
                 );
             }
+            if let Ok(path) = std::env::var("ELDIRON_BENCH_GAME_SNAPSHOT") {
+                std::fs::write(
+                    path,
+                    TheRGBABuffer::from(
+                        frame.clone(),
+                        ctx.framebuffer_width as u32,
+                        ctx.framebuffer_height as u32,
+                    )
+                    .to_png()
+                    .unwrap(),
+                )
+                .unwrap();
+            }
             let rusterix = RUSTERIX.read().unwrap();
+            assert!(
+                rusterix
+                    .server
+                    .entities
+                    .values()
+                    .flatten()
+                    .any(|e| e.is_player()),
+                "The benchmark must render a running player"
+            );
+            for (region, entities) in &rusterix.server.entities {
+                println!(
+                    "Creator game actors region={region} total={} procedural={}",
+                    entities.len(),
+                    entities
+                        .iter()
+                        .filter(|e| rusterix::procedural_avatar::Runtime::resolve(
+                            e,
+                            &rusterix.assets
+                        )
+                        .is_some())
+                        .count()
+                );
+            }
             assert!(rusterix.server.state == rusterix::ServerState::Running);
             if let Some(destination) = teleport {
                 assert_eq!(rusterix.client.current_map, destination);
@@ -11872,6 +12044,10 @@ mod tests {
             return;
         }
         let initial_offset = editor.project.regions[0].map.offset;
+        let initial_position_3d = editor.project.regions[0].editing_position_3d;
+        let initial_look_at_3d = editor.project.regions[0].editing_look_at_3d;
+        let initial_scale_3d = EDITCAMERA.read().unwrap().iso_camera.scale;
+        let is_3d = std::env::var("ELDIRON_BENCH_VIEW").is_ok_and(|v| v == "3d");
         let minimap_cache_key = *crate::minimap::MINIMAPCACHEKEY.read().unwrap();
         let map_changed = editor.project.regions[0].map.changed;
         let frames = std::env::var("ELDIRON_BENCH_FRAMES")
@@ -11890,12 +12066,23 @@ mod tests {
             let mut update = Vec::new();
             let mut composition = Vec::new();
             for i in 0..frames {
-                let map = &mut editor.project.regions[0].map;
-                if mode == "pan" {
-                    map.offset.x = initial_offset.x + i as f32 * 2.;
-                }
-                if mode == "zoom" {
-                    map.grid_size = 24. + i as f32 * 0.3;
+                let region = &mut editor.project.regions[0];
+                if is_3d {
+                    let shift = if mode == "pan" { i as f32 * 0.05 } else { 0. };
+                    region.editing_position_3d = initial_position_3d + Vec3::new(shift, 0., 0.);
+                    region.editing_look_at_3d = initial_look_at_3d + Vec3::new(shift, 0., 0.);
+                    EDITCAMERA.write().unwrap().iso_camera.scale = if mode == "zoom" {
+                        initial_scale_3d / (1. + i as f32 * 0.01)
+                    } else {
+                        initial_scale_3d
+                    };
+                } else {
+                    if mode == "pan" {
+                        region.map.offset.x = initial_offset.x + i as f32 * 2.;
+                    }
+                    if mode == "zoom" {
+                        region.map.grid_size = 24. + i as f32 * 0.3;
+                    }
                 }
                 editor.server_ctx.hover_cursor = Some(Vec2::new(12. + i as f32 * 0.1, 12.));
                 editor.update_tracker = crate::misc::UpdateTracker::new();
@@ -11967,6 +12154,19 @@ mod tests {
                 mean(&composition),
                 mean(&update) + mean(&composition)
             );
+            let mut totals = update
+                .iter()
+                .zip(&composition)
+                .map(|(a, b)| a + b)
+                .collect::<Vec<_>>();
+            totals.sort_by(f64::total_cmp);
+            let percentile = |p: f64| totals[((totals.len() - 1) as f64 * p).ceil() as usize];
+            println!(
+                "Creator {mode} frames={} p50={:.2}ms p95={:.2}ms",
+                totals.len(),
+                percentile(0.5),
+                percentile(0.95)
+            );
         }
         assert!(frame.chunks_exact(4).any(|p| p[0] > 0));
     }
@@ -11987,9 +12187,16 @@ mod tests {
     #[test]
     fn empty_project_template_includes_editable_starter_materials() {
         let project = Editor::load_empty_project_template();
-        let labels: Vec<_> = project.procedural_materials.keys()
-            .map(|id| project.tiles[id].alias.as_str()).collect();
-        assert_eq!(labels, ["Grass", "Rock", "Hills", "Street", "Walls", "Water"]);
+        let labels: Vec<_> = project
+            .procedural_materials
+            .keys()
+            .filter(|id| !shared::ruleset_materials::is_library_tile(&project.config, id))
+            .map(|id| project.tiles[id].alias.as_str())
+            .collect();
+        assert_eq!(
+            labels,
+            ["Grass", "Rock", "Hills", "Street", "Walls", "Water"]
+        );
     }
 
     #[test]
@@ -12057,7 +12264,9 @@ mod tests {
                     assert_eq!(bounds.size(), Vec2::new(1.0, 1.0));
                     assert!(cell.properties.get_bool_default("rect", false));
                     assert_eq!(cell.layer, Some(1));
-                    let Some(rusterix::PixelSource::TileId(id)) = cell.properties.get_default_source() else {
+                    let Some(rusterix::PixelSource::TileId(id)) =
+                        cell.properties.get_default_source()
+                    else {
                         panic!("starter ground must use painted tiles");
                     };
                     let tile = &project.tiles[id];

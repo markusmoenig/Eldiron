@@ -5,7 +5,8 @@ sidebar_position: 6
 
 The **Rect Tool** (keyboard shortcut **'R'**) allows you to **directly draw tiles** onto the map.
 
-Unlike other map-based tools, the **Rect Tool does not edit geometry**—instead, it **instantly places selected the selected tile* into the map grid by creating a rectangular sector.
+The Rect tool paints the selected tile into the map grid by creating or updating
+rectangular placements. The source can be a bitmap or a procedural material.
 
 ### How It Works
 
@@ -17,7 +18,19 @@ Unlike other map-based tools, the **Rect Tool does not edit geometry**—instead
 
 The picker works in both **2D** and **3D** Rect workflows. When possible, the picked source is also revealed in the **Tiles** dock.
 
-## When to Use the Rect Tool
+## Compose Mode
+
+Switch the viewport's **Paint / Compose** control to **Compose**, then click a
+painted cell to edit its material layers. Choose a background and an added
+material, then select a shape thumbnail such as Road H, Road V, a curved corner,
+crossing or Blend. **Soft edge** blends the boundary and **Wobble** varies it.
+Bitmap and procedural sources can be combined; additional layers build on the
+previous result. This works per tile in 2D and per painted surface cell in 3D.
+
+**Save copy to Tilepicker** creates a reusable composition for further painting.
+See [Procedural Materials](/docs/building_maps/procedural_materials#compose-directly-on-the-map).
+
+## Painting in 2D and 3D
 
 - **2D Camera**: The **Rect Tool is the primary tool** for drawing tiles.
 

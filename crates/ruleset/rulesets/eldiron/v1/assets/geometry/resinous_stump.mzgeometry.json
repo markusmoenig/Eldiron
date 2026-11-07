@@ -1,0 +1,2811 @@
+{
+  "version": 1,
+  "id": "resinous_stump",
+  "label": "Resinous Stump",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Resinous Stump",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Resinous Stump",
+            "document": {
+              "version": 1,
+              "id": "resinous_stump-construction",
+              "label": "Resinous Stump construction",
+              "rows": [
+                {
+                  "id": "weapon-ash",
+                  "label": "Weapon-Ash",
+                  "tiles": [
+                    {
+                      "id": "weapon-ash-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "roots",
+                  "label": "Roots",
+                  "tiles": [
+                    {
+                      "id": "roots-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.035,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.010999999999999996,
+                              0
+                            ],
+                            "radius": [
+                              0.17279999999999998,
+                              0.15839999999999999
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.045,
+                              0
+                            ],
+                            "radius": [
+                              0.24,
+                              0.22
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.10099999999999999,
+                              0
+                            ],
+                            "radius": [
+                              0.17279999999999998,
+                              0.15839999999999999
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.125,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "roots-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "roots-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-bark",
+                  "label": "Stump Bark",
+                  "tiles": [
+                    {
+                      "id": "stump-bark-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.04,
+                              0
+                            ],
+                            "radius": [
+                              0.15300000000000002,
+                              0.15300000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.36,
+                              0
+                            ],
+                            "radius": [
+                              0.17,
+                              0.17
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "stump-bark-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "stump-bark-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-cutwood",
+                  "label": "Item-Cutwood",
+                  "tiles": [
+                    {
+                      "id": "item-cutwood-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 21,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-cut",
+                  "label": "Stump Cut",
+                  "tiles": [
+                    {
+                      "id": "stump-cut-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.36,
+                              0
+                            ],
+                            "radius": [
+                              0.1547,
+                              0.1547
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.364,
+                              0
+                            ],
+                            "radius": [
+                              0.1547,
+                              0.1547
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "stump-cut-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-cutwood"
+                      }
+                    },
+                    {
+                      "id": "stump-cut-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-cutwood",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-wrap",
+                  "label": "Weapon-Wrap",
+                  "tiles": [
+                    {
+                      "id": "weapon-wrap-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-0",
+                  "label": "Stump Ring 0 0",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.056499999999999995,
+                            0.0
+                          ],
+                          [
+                            0.0595,
+                            0.0
+                          ],
+                          [
+                            0.0515285115251741,
+                            0.029749999999999995
+                          ],
+                          [
+                            0.04893043531382078,
+                            0.028249999999999994
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-1",
+                  "label": "Stump Ring 0 1",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.04893043531382078,
+                            0.028249999999999994
+                          ],
+                          [
+                            0.0515285115251741,
+                            0.029749999999999995
+                          ],
+                          [
+                            0.029750000000000006,
+                            0.05152851152517409
+                          ],
+                          [
+                            0.028250000000000004,
+                            0.048930435313820776
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-2",
+                  "label": "Stump Ring 0 2",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.028250000000000004,
+                            0.048930435313820776
+                          ],
+                          [
+                            0.029750000000000006,
+                            0.05152851152517409
+                          ],
+                          [
+                            3.6433242274633754e-18,
+                            0.0595
+                          ],
+                          [
+                            3.4596272075912725e-18,
+                            0.056499999999999995
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-3",
+                  "label": "Stump Ring 0 3",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            3.4596272075912725e-18,
+                            0.056499999999999995
+                          ],
+                          [
+                            3.6433242274633754e-18,
+                            0.0595
+                          ],
+                          [
+                            -0.029749999999999988,
+                            0.0515285115251741
+                          ],
+                          [
+                            -0.028249999999999987,
+                            0.04893043531382078
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-4",
+                  "label": "Stump Ring 0 4",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.028249999999999987,
+                            0.04893043531382078
+                          ],
+                          [
+                            -0.029749999999999988,
+                            0.0515285115251741
+                          ],
+                          [
+                            -0.0515285115251741,
+                            0.029749999999999995
+                          ],
+                          [
+                            -0.04893043531382078,
+                            0.028249999999999994
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-5",
+                  "label": "Stump Ring 0 5",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.04893043531382078,
+                            0.028249999999999994
+                          ],
+                          [
+                            -0.0515285115251741,
+                            0.029749999999999995
+                          ],
+                          [
+                            -0.0595,
+                            7.286648454926751e-18
+                          ],
+                          [
+                            -0.056499999999999995,
+                            6.919254415182545e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-6",
+                  "label": "Stump Ring 0 6",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.056499999999999995,
+                            6.919254415182545e-18
+                          ],
+                          [
+                            -0.0595,
+                            7.286648454926751e-18
+                          ],
+                          [
+                            -0.051528511525174105,
+                            -0.029749999999999985
+                          ],
+                          [
+                            -0.04893043531382079,
+                            -0.028249999999999983
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-7",
+                  "label": "Stump Ring 0 7",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.04893043531382079,
+                            -0.028249999999999983
+                          ],
+                          [
+                            -0.051528511525174105,
+                            -0.029749999999999985
+                          ],
+                          [
+                            -0.029750000000000026,
+                            -0.051528511525174084
+                          ],
+                          [
+                            -0.02825000000000002,
+                            -0.04893043531382076
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-8",
+                  "label": "Stump Ring 0 8",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.02825000000000002,
+                            -0.04893043531382076
+                          ],
+                          [
+                            -0.029750000000000026,
+                            -0.051528511525174084
+                          ],
+                          [
+                            -1.0929972682390126e-17,
+                            -0.0595
+                          ],
+                          [
+                            -1.0378881622773817e-17,
+                            -0.056499999999999995
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-9",
+                  "label": "Stump Ring 0 9",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -1.0378881622773817e-17,
+                            -0.056499999999999995
+                          ],
+                          [
+                            -1.0929972682390126e-17,
+                            -0.0595
+                          ],
+                          [
+                            0.029750000000000006,
+                            -0.05152851152517409
+                          ],
+                          [
+                            0.028250000000000004,
+                            -0.048930435313820776
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-10",
+                  "label": "Stump Ring 0 10",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.028250000000000004,
+                            -0.048930435313820776
+                          ],
+                          [
+                            0.029750000000000006,
+                            -0.05152851152517409
+                          ],
+                          [
+                            0.051528511525174084,
+                            -0.029750000000000026
+                          ],
+                          [
+                            0.04893043531382076,
+                            -0.02825000000000002
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-0-11",
+                  "label": "Stump Ring 0 11",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-0-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.04893043531382076,
+                            -0.02825000000000002
+                          ],
+                          [
+                            0.051528511525174084,
+                            -0.029750000000000026
+                          ],
+                          [
+                            0.0595,
+                            -1.4573296909853502e-17
+                          ],
+                          [
+                            0.056499999999999995,
+                            -1.383850883036509e-17
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-0-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-0",
+                  "label": "Stump Ring 1 0",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.11260000000000002,
+                            0.0
+                          ],
+                          [
+                            0.11560000000000002,
+                            0.0
+                          ],
+                          [
+                            0.10011253667748113,
+                            0.057800000000000004
+                          ],
+                          [
+                            0.09751446046612781,
+                            0.0563
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-1",
+                  "label": "Stump Ring 1 1",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.09751446046612781,
+                            0.0563
+                          ],
+                          [
+                            0.10011253667748113,
+                            0.057800000000000004
+                          ],
+                          [
+                            0.057800000000000025,
+                            0.10011253667748111
+                          ],
+                          [
+                            0.056300000000000024,
+                            0.0975144604661278
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-2",
+                  "label": "Stump Ring 1 2",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.056300000000000024,
+                            0.0975144604661278
+                          ],
+                          [
+                            0.057800000000000025,
+                            0.10011253667748111
+                          ],
+                          [
+                            7.078458499071703e-18,
+                            0.11560000000000002
+                          ],
+                          [
+                            6.8947614791996e-18,
+                            0.11260000000000002
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-3",
+                  "label": "Stump Ring 1 3",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            6.8947614791996e-18,
+                            0.11260000000000002
+                          ],
+                          [
+                            7.078458499071703e-18,
+                            0.11560000000000002
+                          ],
+                          [
+                            -0.05779999999999999,
+                            0.10011253667748113
+                          ],
+                          [
+                            -0.05629999999999999,
+                            0.09751446046612781
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-4",
+                  "label": "Stump Ring 1 4",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.05629999999999999,
+                            0.09751446046612781
+                          ],
+                          [
+                            -0.05779999999999999,
+                            0.10011253667748113
+                          ],
+                          [
+                            -0.10011253667748113,
+                            0.057800000000000004
+                          ],
+                          [
+                            -0.09751446046612781,
+                            0.0563
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-5",
+                  "label": "Stump Ring 1 5",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.09751446046612781,
+                            0.0563
+                          ],
+                          [
+                            -0.10011253667748113,
+                            0.057800000000000004
+                          ],
+                          [
+                            -0.11560000000000002,
+                            1.4156916998143405e-17
+                          ],
+                          [
+                            -0.11260000000000002,
+                            1.37895229583992e-17
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-6",
+                  "label": "Stump Ring 1 6",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.11260000000000002,
+                            1.37895229583992e-17
+                          ],
+                          [
+                            -0.11560000000000002,
+                            1.4156916998143405e-17
+                          ],
+                          [
+                            -0.10011253667748114,
+                            -0.05779999999999998
+                          ],
+                          [
+                            -0.09751446046612783,
+                            -0.05629999999999998
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-7",
+                  "label": "Stump Ring 1 7",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.09751446046612783,
+                            -0.05629999999999998
+                          ],
+                          [
+                            -0.10011253667748114,
+                            -0.05779999999999998
+                          ],
+                          [
+                            -0.05780000000000006,
+                            -0.1001125366774811
+                          ],
+                          [
+                            -0.05630000000000006,
+                            -0.09751446046612777
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-8",
+                  "label": "Stump Ring 1 8",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.05630000000000006,
+                            -0.09751446046612777
+                          ],
+                          [
+                            -0.05780000000000006,
+                            -0.1001125366774811
+                          ],
+                          [
+                            -2.1235375497215108e-17,
+                            -0.11560000000000002
+                          ],
+                          [
+                            -2.0684284437598797e-17,
+                            -0.11260000000000002
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-9",
+                  "label": "Stump Ring 1 9",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -2.0684284437598797e-17,
+                            -0.11260000000000002
+                          ],
+                          [
+                            -2.1235375497215108e-17,
+                            -0.11560000000000002
+                          ],
+                          [
+                            0.057800000000000025,
+                            -0.10011253667748111
+                          ],
+                          [
+                            0.056300000000000024,
+                            -0.0975144604661278
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-10",
+                  "label": "Stump Ring 1 10",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.056300000000000024,
+                            -0.0975144604661278
+                          ],
+                          [
+                            0.057800000000000025,
+                            -0.10011253667748111
+                          ],
+                          [
+                            0.1001125366774811,
+                            -0.05780000000000006
+                          ],
+                          [
+                            0.09751446046612777,
+                            -0.05630000000000006
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "stump-ring-1-11",
+                  "label": "Stump Ring 1 11",
+                  "tiles": [
+                    {
+                      "id": "stump-ring-1-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.09751446046612777,
+                            -0.05630000000000006
+                          ],
+                          [
+                            0.1001125366774811,
+                            -0.05780000000000006
+                          ],
+                          [
+                            0.11560000000000002,
+                            -2.831383399628681e-17
+                          ],
+                          [
+                            0.11260000000000002,
+                            -2.75790459167984e-17
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.366,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "stump-ring-1-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-gold",
+                  "label": "Item-Gold",
+                  "tiles": [
+                    {
+                      "id": "item-gold-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 24,
+                        "roughness": 0.34,
+                        "metallic": 0.8
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sap-0",
+                  "label": "Sap 0",
+                  "tiles": [
+                    {
+                      "id": "sap-0-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.14,
+                              0.22500000000000003,
+                              0.07
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.23850000000000002,
+                              0.07
+                            ],
+                            "radius": [
+                              0.0252,
+                              0.018
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.27,
+                              0.07
+                            ],
+                            "radius": [
+                              0.035,
+                              0.025
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.3015,
+                              0.07
+                            ],
+                            "radius": [
+                              0.0252,
+                              0.018
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.315,
+                              0.07
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "sap-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "sap-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sap-1",
+                  "label": "Sap 1",
+                  "tiles": [
+                    {
+                      "id": "sap-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.14,
+                              0.16500000000000004,
+                              0.07
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.17850000000000002,
+                              0.07
+                            ],
+                            "radius": [
+                              0.0252,
+                              0.018
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.21000000000000002,
+                              0.07
+                            ],
+                            "radius": [
+                              0.035,
+                              0.025
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.24150000000000002,
+                              0.07
+                            ],
+                            "radius": [
+                              0.0252,
+                              0.018
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.255,
+                              0.07
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "sap-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "sap-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sap-2",
+                  "label": "Sap 2",
+                  "tiles": [
+                    {
+                      "id": "sap-2-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.14,
+                              0.10500000000000002,
+                              0.07
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.11850000000000002,
+                              0.07
+                            ],
+                            "radius": [
+                              0.0252,
+                              0.018
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.15000000000000002,
+                              0.07
+                            ],
+                            "radius": [
+                              0.035,
+                              0.025
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.18150000000000002,
+                              0.07
+                            ],
+                            "radius": [
+                              0.0252,
+                              0.018
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.14,
+                              0.195,
+                              0.07
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "sap-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-gold"
+                      }
+                    },
+                    {
+                      "id": "sap-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-gold",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Resinous Stump assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "roots",
+                          "stump-bark",
+                          "stump-cut",
+                          "stump-ring-0-0",
+                          "stump-ring-0-1",
+                          "stump-ring-0-2",
+                          "stump-ring-0-3",
+                          "stump-ring-0-4",
+                          "stump-ring-0-5",
+                          "stump-ring-0-6",
+                          "stump-ring-0-7",
+                          "stump-ring-0-8",
+                          "stump-ring-0-9",
+                          "stump-ring-0-10",
+                          "stump-ring-0-11",
+                          "stump-ring-1-0",
+                          "stump-ring-1-1",
+                          "stump-ring-1-2",
+                          "stump-ring-1-3",
+                          "stump-ring-1-4",
+                          "stump-ring-1-5",
+                          "stump-ring-1-6",
+                          "stump-ring-1-7",
+                          "stump-ring-1-8",
+                          "stump-ring-1-9",
+                          "stump-ring-1-10",
+                          "stump-ring-1-11",
+                          "sap-0",
+                          "sap-1",
+                          "sap-2"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

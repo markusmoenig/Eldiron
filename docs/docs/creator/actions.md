@@ -583,13 +583,17 @@ Tile actions operate from the **Tiles** dock when they need a selected tile or p
 
 ### Clear Palette
 
-Empty the editable project palette and reapply it project-wide. The project palette is not changed. Undo is supported.
+Empty the editable project palette and reapply it project-wide. World sources,
+procedural recipes, appearances and UI share this palette. Undo is supported.
 
 Options: none.
 
 ### Load Palette
 
-Open a file requester for Paint.NET `.txt` palettes; load colors into the project palette at the currently selected palette index. The project palette is not changed. Undo is supported.
+Open a file requester for Paint.NET `.txt` palettes; load colors into the shared
+project palette at the selected index. Undo is supported. For a previewed
+project-wide switch, including Lospec names/URLs, use the
+[Palette dock's switching workflow](tools/palette#switching-palettes).
 
 Options: none.
 
@@ -658,6 +662,11 @@ Options:
 * `gameplay_tags`: behavior tags that trigger `entered_tile` and `left_tile` events for characters on painted 2D tile placements.
 
 ### New Tile
+
+The picker toolbar now offers **Make Proc** as a direct control for procedural
+tiles. It opens the [MZ workflow](../building_maps/procedural_materials); it is
+not the bitmap New Tile action described below. Use the Rect tool's Compose
+mode for per-placement material mixing.
 
 Create a square tile sized 8-64 px with 1-8 frames, filled with the currently selected project palette color.
 

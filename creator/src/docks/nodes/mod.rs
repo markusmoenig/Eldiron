@@ -79,6 +79,7 @@ pub struct NodesDock {
     branches_dirty: bool,
     initial_layouts: HashMap<(String, GraphId), (GraphDocument, GraphDocument)>,
     rules_error: Option<String>,
+    configuration_error: Option<String>,
     branch_filter: String,
     particle_preview_started: Instant,
     particle_preview_updated: Option<Instant>,
@@ -279,7 +280,11 @@ impl NodesDock {
             buffer.render_scale(),
         );
         let configuration = self.is_configuration();
-        let rules_error = self.rules_error.clone();
+        let rules_error = self
+            .rules_error
+            .clone()
+            .or_else(|| self.configuration_error.clone());
+        let display_doc = configuration.then(|| self.equipment_display_document());
         let mut painter = RasterGraphPainter::new(
             buffer.pixels_mut(),
             width,
@@ -289,7 +294,7 @@ impl NodesDock {
             &self.tiles,
         );
         self.editor.paint(
-            &self.doc,
+            display_doc.as_ref().unwrap_or(&self.doc),
             &live::LiveContext {
                 definitions: &self.definitions,
                 live: &self.live,
@@ -326,7 +331,7 @@ impl NodesDock {
                 },
                 &error.lines().next().unwrap_or("Invalid rules").to_string(),
                 12.,
-                [255, 150, 120, 255],
+                graph_theme.active,
             );
         }
         if let Some((picker, _)) = &mut self.popup {
@@ -1201,6 +1206,7 @@ impl Dock for NodesDock {
             branches_dirty: true,
             initial_layouts: HashMap::new(),
             rules_error: None,
+            configuration_error: None,
             branch_filter: String::new(),
             particle_preview_started: Instant::now(),
             particle_preview_updated: None,
@@ -1268,6 +1274,7 @@ impl Dock for NodesDock {
             self.choice_target = None;
         }
         self.load_error = None;
+        self.configuration_error = None;
         self.rules_error = if self.is_rules() {
             project.rules_source().err()
         } else {
@@ -1391,6 +1398,7 @@ impl Dock for NodesDock {
     }
     fn reset_for_project_switch(&mut self) {
         self.rules_error = None;
+        self.configuration_error = None;
         self.branch_filter.clear();
         self.histories.clear();
         self.branch_graphs.clear();
@@ -1437,6 +1445,7 @@ impl Dock for NodesDock {
         _: &mut ServerContext,
     ) {
         self.finish(project);
+        self.configuration_error = None;
         let key = self.history_key();
         if let Some(h) = key.as_ref().and_then(|k| self.histories.get_mut(k)) {
             if let Some(doc) = h.undo.pop() {
@@ -1461,6 +1470,7 @@ impl Dock for NodesDock {
         _: &mut ServerContext,
     ) {
         self.finish(project);
+        self.configuration_error = None;
         let key = self.history_key();
         if let Some(h) = key.as_ref().and_then(|k| self.histories.get_mut(k)) {
             if let Some(doc) = h.redo.pop() {
@@ -1578,47 +1588,63 @@ impl Dock for NodesDock {
         let mut checkpoint = false;
         match event {
             TheEvent::RenderViewDrop(id, point, drop) if id.name == VIEW => {
-                let Some(key) = drop.id.name.strip_prefix("Node Catalog/") else {
-                    return false;
-                };
-                if key != drop.data || !node_available(server.pc, key) {
-                    return false;
-                }
-                self.finish(project);
-                let position = self
-                    .editor
-                    .viewport
-                    .to_graph([point.x as f32, point.y as f32]);
-                if let Ok(mut node) = self.definitions.instantiate(key, position) {
-                    let trigger = is_branch_trigger(&node, &self.definitions);
-                    if trigger {
-                        self.begin_branch();
+                if drop.id.name == "Item Item" {
+                    if !matches!(server.pc, ProjectContext::CharacterData(_)) {
+                        return false;
                     }
-                    node.branch = if trigger {
-                        Some(node.id)
-                    } else {
-                        self.active_branch
+                    match self.drop_equipment_item(project, drop, *point) {
+                        Ok(false) => return false,
+                        Ok(true) => checkpoint = true,
+                        Err(error) => {
+                            self.configuration_error = Some(error.clone());
+                            ctx.ui.send(TheEvent::SetStatusText(id.clone(), error));
+                            self.render(ui, ctx);
+                            return true;
+                        }
+                    }
+                } else {
+                    let Some(key) = drop.id.name.strip_prefix("Node Catalog/") else {
+                        return false;
                     };
-                    if trigger {
-                        self.active_branch = Some(node.id);
+                    if key != drop.data || !node_available(server.pc, key) {
+                        return false;
                     }
-                    if key == "event"
-                        && !matches!(
-                            server.pc,
-                            ProjectContext::Character(_)
-                                | ProjectContext::CharacterCode(_)
-                                | ProjectContext::RegionCharacterInstance(_, _)
-                        )
-                    {
-                        node.rows[0].value = GraphControlValue::Custom {
-                            kind: "event".into(),
-                            data: "startup".into(),
+                    self.finish(project);
+                    let position = self
+                        .editor
+                        .viewport
+                        .to_graph([point.x as f32, point.y as f32]);
+                    if let Ok(mut node) = self.definitions.instantiate(key, position) {
+                        let trigger = is_branch_trigger(&node, &self.definitions);
+                        if trigger {
+                            self.begin_branch();
+                        }
+                        node.branch = if trigger {
+                            Some(node.id)
+                        } else {
+                            self.active_branch
                         };
+                        if trigger {
+                            self.active_branch = Some(node.id);
+                        }
+                        if key == "event"
+                            && !matches!(
+                                server.pc,
+                                ProjectContext::Character(_)
+                                    | ProjectContext::CharacterCode(_)
+                                    | ProjectContext::RegionCharacterInstance(_, _)
+                            )
+                        {
+                            node.rows[0].value = GraphControlValue::Custom {
+                                kind: "event".into(),
+                                data: "startup".into(),
+                            };
+                        }
+                        self.editor.selected = Some(node.id);
+                        self.doc.nodes.push(node);
+                        catalog::sync_fields(&mut self.doc, &self.definitions);
+                        checkpoint = true;
                     }
-                    self.editor.selected = Some(node.id);
-                    self.doc.nodes.push(node);
-                    catalog::sync_fields(&mut self.doc, &self.definitions);
-                    checkpoint = true;
                 }
                 if let Some(view) = ui.get_render_view(VIEW) {
                     ctx.ui.set_focus(view.id());
@@ -1644,7 +1670,19 @@ impl Dock for NodesDock {
                     .rev()
                     .find(|n| n.rect(&self.doc.metrics()).contains(p))
                     .and_then(|n| n.definition.as_deref())
-                    .map(list::node_help)
+                    .map(|key| {
+                        if key == "entity_equipment"
+                            && ctx
+                                .ui
+                                .drop
+                                .as_ref()
+                                .is_some_and(|d| d.id.name == "Item Item")
+                        {
+                            fl!("entity_equipment_drop_hint")
+                        } else {
+                            list::node_help(key)
+                        }
+                    })
                     .unwrap_or_default();
                 ctx.ui.send(TheEvent::SetStatusText(id.clone(), help));
                 return false;

@@ -1,0 +1,1226 @@
+{
+  "version": 1,
+  "id": "wooden_arrows",
+  "label": "Wooden Arrows",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Wooden Arrows",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Wooden Arrows",
+            "document": {
+              "version": 1,
+              "id": "wooden_arrows-construction",
+              "label": "Wooden Arrows construction",
+              "rows": [
+                {
+                  "id": "arrow-shaft",
+                  "label": "Arrow-Shaft",
+                  "tiles": [
+                    {
+                      "id": "arrow-shaft-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 21,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "arrow-0",
+                  "label": "Arrow 0",
+                  "tiles": [
+                    {
+                      "id": "arrow-0-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.3,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.3,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          }
+                        ],
+                        "segments": 6
+                      }
+                    },
+                    {
+                      "id": "arrow-0-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.042,
+                          -0.010000000000000009,
+                          0.0
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          -0.0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "arrow-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-shaft"
+                      }
+                    },
+                    {
+                      "id": "arrow-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-shaft",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-iron",
+                  "label": "Weapon-Iron",
+                  "tiles": [
+                    {
+                      "id": "weapon-iron-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.3,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "arrowhead-0",
+                  "label": "Arrowhead 0",
+                  "tiles": [
+                    {
+                      "id": "arrowhead-0-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              -0.042,
+                              0.27,
+                              0
+                            ],
+                            "radius": [
+                              0.018,
+                              0.008
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.042,
+                              0.34,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "arrowhead-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "arrowhead-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "arrow-feather",
+                  "label": "Arrow-Feather",
+                  "tiles": [
+                    {
+                      "id": "arrow-feather-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 9,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "flight-0--1",
+                  "label": "Flight 0  1",
+                  "tiles": [
+                    {
+                      "id": "flight-0--1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.042,
+                            -0.26
+                          ],
+                          [
+                            -0.069,
+                            -0.29
+                          ],
+                          [
+                            -0.069,
+                            -0.22
+                          ],
+                          [
+                            -0.042,
+                            -0.19
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-0--1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.004
+                      }
+                    },
+                    {
+                      "id": "flight-0--1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-0--1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "flight-0--1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "flight-0-1",
+                  "label": "Flight 0 1",
+                  "tiles": [
+                    {
+                      "id": "flight-0-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.042,
+                            -0.26
+                          ],
+                          [
+                            -0.015000000000000003,
+                            -0.29
+                          ],
+                          [
+                            -0.015000000000000003,
+                            -0.22
+                          ],
+                          [
+                            -0.042,
+                            -0.19
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-0-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.004
+                      }
+                    },
+                    {
+                      "id": "flight-0-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-0-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "flight-0-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "arrow-1",
+                  "label": "Arrow 1",
+                  "tiles": [
+                    {
+                      "id": "arrow-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.3,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.3,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          }
+                        ],
+                        "segments": 6
+                      }
+                    },
+                    {
+                      "id": "arrow-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.0,
+                          0.015000000000000013,
+                          0.0
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          -0.0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "arrow-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-shaft"
+                      }
+                    },
+                    {
+                      "id": "arrow-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-shaft",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "arrowhead-1",
+                  "label": "Arrowhead 1",
+                  "tiles": [
+                    {
+                      "id": "arrowhead-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.0,
+                              0.29500000000000004,
+                              0
+                            ],
+                            "radius": [
+                              0.018,
+                              0.008
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.0,
+                              0.36500000000000005,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "arrowhead-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "arrowhead-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "flight-1--1",
+                  "label": "Flight 1  1",
+                  "tiles": [
+                    {
+                      "id": "flight-1--1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.0,
+                            -0.23500000000000001
+                          ],
+                          [
+                            -0.027,
+                            -0.26499999999999996
+                          ],
+                          [
+                            -0.027,
+                            -0.195
+                          ],
+                          [
+                            0.0,
+                            -0.165
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-1--1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.004
+                      }
+                    },
+                    {
+                      "id": "flight-1--1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-1--1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "flight-1--1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "flight-1-1",
+                  "label": "Flight 1 1",
+                  "tiles": [
+                    {
+                      "id": "flight-1-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.0,
+                            -0.23500000000000001
+                          ],
+                          [
+                            0.027,
+                            -0.26499999999999996
+                          ],
+                          [
+                            0.027,
+                            -0.195
+                          ],
+                          [
+                            0.0,
+                            -0.165
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-1-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.004
+                      }
+                    },
+                    {
+                      "id": "flight-1-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-1-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "flight-1-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "arrow-2",
+                  "label": "Arrow 2",
+                  "tiles": [
+                    {
+                      "id": "arrow-2-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.3,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.3,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          }
+                        ],
+                        "segments": 6
+                      }
+                    },
+                    {
+                      "id": "arrow-2-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.042,
+                          -0.010000000000000009,
+                          0.0
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          -0.0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "arrow-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-shaft"
+                      }
+                    },
+                    {
+                      "id": "arrow-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-shaft",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "arrowhead-2",
+                  "label": "Arrowhead 2",
+                  "tiles": [
+                    {
+                      "id": "arrowhead-2-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.042,
+                              0.27,
+                              0
+                            ],
+                            "radius": [
+                              0.018,
+                              0.008
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.042,
+                              0.34,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "arrowhead-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "arrowhead-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "flight-2--1",
+                  "label": "Flight 2  1",
+                  "tiles": [
+                    {
+                      "id": "flight-2--1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.042,
+                            -0.26
+                          ],
+                          [
+                            0.015000000000000003,
+                            -0.29
+                          ],
+                          [
+                            0.015000000000000003,
+                            -0.22
+                          ],
+                          [
+                            0.042,
+                            -0.19
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-2--1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.004
+                      }
+                    },
+                    {
+                      "id": "flight-2--1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-2--1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "flight-2--1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "flight-2-1",
+                  "label": "Flight 2 1",
+                  "tiles": [
+                    {
+                      "id": "flight-2-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.042,
+                            -0.26
+                          ],
+                          [
+                            0.069,
+                            -0.29
+                          ],
+                          [
+                            0.069,
+                            -0.22
+                          ],
+                          [
+                            0.042,
+                            -0.19
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-2-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.004
+                      }
+                    },
+                    {
+                      "id": "flight-2-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "flight-2-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "flight-2-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-wrap",
+                  "label": "Weapon-Wrap",
+                  "tiles": [
+                    {
+                      "id": "weapon-wrap-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bundle-tie",
+                  "label": "Bundle Tie",
+                  "tiles": [
+                    {
+                      "id": "bundle-tie-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.115,
+                          0.022,
+                          0.024
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bundle-tie-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.07,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bundle-tie-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bundle-tie-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Wooden Arrows assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "arrow-0",
+                          "arrowhead-0",
+                          "flight-0--1",
+                          "flight-0-1",
+                          "arrow-1",
+                          "arrowhead-1",
+                          "flight-1--1",
+                          "flight-1-1",
+                          "arrow-2",
+                          "arrowhead-2",
+                          "flight-2--1",
+                          "flight-2-1",
+                          "bundle-tie"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          -0.07,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      -0.07,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

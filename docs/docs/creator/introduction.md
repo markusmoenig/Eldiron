@@ -20,6 +20,7 @@ The right sidebar has compact tabs for the main working contexts:
 - **Console** provides concise live-game inspection plus action, tool, and editor automation commands. See [Console](console).
 - **Debug** displays live runtime diagnostics, warnings, errors, and server startup messages without mixing them into the Console command history. During play, the Nodes dock visualizes executed nodes, connections, and event values. See [Debug](debug).
 - **Help** provides a wrapped, read-only response area above a question field. Ask questions about the current project ruleset; valid rules edits refresh its answers.
+- **Procedural Materials** opens the MZ row workflow for a selected procedural tile. Its texture preview uses the minimap. Model/rig editing opens the full central viewport instead.
 
 The minimap remains visible below the active sidebar page and automatically adjusts to the current context, such as regions or tiles. Use `Tab` to move to the next sidebar page and `Shift+Tab` to move to the previous one. These shortcuts also work from the Console, Debug, and Help fields so you can leave any of those pages without reaching for the mouse.
 
@@ -36,6 +37,12 @@ Frequently used camera actions are also available as right-aligned icon shortcut
 After the camera shortcuts, a separator marks two dock controls. The frame-corners button opens or maximizes the editor for the current dock (`Cmd/Ctrl + [`), while the down-caret button restores the normal editor/dock split (`Cmd/Ctrl + ]`). These are direct controls and do not appear in the Actions page.
 
 At the bottom of the screen you see the currently active **dock**, in this screenshot the tile picker. The tile picker is both a source browser and an entry point into Eldiron’s integrated pixel editor for individual tiles.
+
+**Make Proc** creates procedural artwork for the selected tile or vacant cell.
+The Rect tool's Compose mode combines materials on the map. Characters and items
+have a consolidated **Appearance** entry in the project tree for previewing and
+editing their ruleset-driven artwork. See [Procedural Materials](../building_maps/procedural_materials)
+and [Appearance](../characters_items/appearance).
 
 The lower dock is reserved for the active content editor or picker. See [Dock Controls](actions#dock-controls) for opening and restoring dock editors, and [Actions](actions/) for details about the contextual action list in the right sidebar.
 

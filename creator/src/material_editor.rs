@@ -67,6 +67,10 @@ impl MaterialEditorChrome {
 
 #[derive(Clone, Debug, Default)]
 pub struct MaterialEditorView {
+    /// Geometry resources use this same row widget without surface-only controls.
+    pub geometry: bool,
+    /// Resource types keyed by row identity; never infer types from display labels.
+    pub row_types: Vec<(String, String)>,
     pub title: String,
     pub image_sources: Vec<(String, String)>,
     pub image_bindings: Vec<(String, String)>,
@@ -394,7 +398,7 @@ struct Layout {
     content_bottom: f32,
 }
 impl Layout {
-    fn new(size: [f32; 2], parameters: usize, rows: &[MaterialRowView]) -> Self {
+    fn new(size: [f32; 2], parameters: usize, rows: &[MaterialRowView], geometry: bool) -> Self {
         let _ = parameters;
         let properties = 124.;
         let editor_bottom = (size[1] - properties - 190.).max(216.).min(size[1] * 0.6);
@@ -404,6 +408,9 @@ impl Layout {
         let rows = rows
             .iter()
             .map(|row| {
+                if geometry {
+                    top += 18.;
+                }
                 let count = row.operations.len();
                 let height = 6. + (count + 1).div_ceil(COLUMNS) as f32 * LINE;
                 let result = (top, height);
@@ -711,6 +718,31 @@ pub struct MaterialEditorWidget {
     color_property: Option<usize>,
 }
 impl MaterialEditorWidget {
+    /// Preserve the active native numeric edit during a geometry source refresh.
+    /// Selection and undo use `set_view` to replace the controls completely.
+    pub fn refresh_geometry_view(&mut self, view: MaterialEditorView) {
+        let edits = std::mem::take(&mut self.number_edits);
+        let focus = self.number_focus;
+        let dragging = self.number_drag;
+        self.set_view(view);
+        self.number_edits = edits;
+        self.number_focus = focus;
+        self.number_drag = dragging;
+        for (i, (owner, key, edit)) in self.number_edits.iter_mut().enumerate() {
+            if focus != Some(i) {
+                if let Some(n) = self
+                    .view
+                    .rows
+                    .iter()
+                    .flat_map(|r| &r.operations)
+                    .find(|o| &o.id == owner)
+                    .and_then(|o| o.parameters.iter().find(|n| &n.id == key))
+                {
+                    edit.set_value(TheValue::Float(n.value));
+                }
+            }
+        }
+    }
     pub fn set_view(&mut self, view: MaterialEditorView) {
         self.gesture = None;
         self.source_edit = None;
@@ -765,7 +797,42 @@ impl MaterialEditorWidget {
     fn input_owner(input: &MaterialInputView) -> String {
         format!("@row-input:{:?}", input.target)
     }
+    fn geometry_input_sources(&self) -> Vec<&MaterialRowView> {
+        let end = self
+            .view
+            .rows
+            .iter()
+            .position(|r| Some(&r.id) == self.selected_row.as_ref())
+            .unwrap_or(0);
+        let kind = self.active_input().and_then(|i| match &i.binding {
+            MaterialInputBinding::Row(reference) => self
+                .view
+                .row_types
+                .iter()
+                .find(|(id, _)| id == &reference.row)
+                .map(|(_, kind)| kind),
+            _ => None,
+        });
+        self.view.rows[..end]
+            .iter()
+            .filter(|r| {
+                kind.is_none_or(|kind| {
+                    self.view
+                        .row_types
+                        .iter()
+                        .any(|(id, k)| id == &r.id && k == kind)
+                })
+            })
+            .collect()
+    }
     fn input_options(&self, control: usize) -> Vec<String> {
+        if self.view.geometry && control == 2 {
+            return self
+                .geometry_input_sources()
+                .iter()
+                .map(|r| r.label.clone())
+                .collect();
+        }
         if control >= 1000 {
             return self.property_options(control - 1000);
         }
@@ -898,6 +965,26 @@ impl MaterialEditorWidget {
                 self.selected_input = index;
             }
             2 => {
+                if self.view.geometry {
+                    let source = self
+                        .geometry_input_sources()
+                        .get(index)
+                        .map(|r| r.id.clone());
+                    let target = self.active_input().map(|i| i.target.clone());
+                    if let (Some(target), Some(row)) = (target, source) {
+                        self.commands.push(MaterialEditorCommand::SetInput {
+                            target,
+                            binding: MaterialInputBinding::Row(MaterialReferenceView {
+                                row,
+                                components: "x".into(),
+                                mapping: None,
+                            }),
+                        });
+                    }
+                    self.input_popup = None;
+                    self.dirty = true;
+                    return;
+                }
                 if let Some(input) = self.active_input() {
                     let target = input.target.clone();
                     let is_image = matches!(target, MaterialInputTarget::Image { .. });
@@ -1002,6 +1089,11 @@ impl MaterialEditorWidget {
         }
     }
     fn sync_input_edits(&mut self, ctx: &mut TheContext) {
+        if self.view.geometry {
+            self.number_edits.clear();
+            self.number_focus = None;
+            return;
+        }
         let Some(input) = self.active_input() else {
             self.number_edits.clear();
             self.number_focus = None;
@@ -1213,7 +1305,7 @@ impl MaterialEditorWidget {
         let l = self.layout();
         let card = l.card(index, 0, self.pan);
         if card.origin[1] < HEADER || card.origin[1] + card.size[1] > l.editor_bottom {
-            self.pan[1] = l.rows[index].0 - 8.;
+            self.pan[1] = l.rows[index].0 - if self.view.geometry { 26. } else { 8. };
         }
         self.clamp_scroll();
         self.commands.push(
@@ -1398,6 +1490,22 @@ impl MaterialEditorWidget {
     pub fn selected_operation(&self) -> Option<&str> {
         self.selected.as_deref()
     }
+    /// Select and reveal a resource without editing its recipe.
+    pub fn select_operation(&mut self, operation: &str) {
+        let row = self
+            .view
+            .rows
+            .iter()
+            .find(|r| r.operations.iter().any(|o| o.id == operation))
+            .map(|r| r.id.clone());
+        if let Some(row) = row {
+            let queued = self.commands.len();
+            self.focus_connection_source(&row);
+            self.selected = Some(operation.into());
+            self.commands.truncate(queued);
+            self.dirty = true;
+        }
+    }
     pub fn selected_source(&self) -> Option<&str> {
         if self.pane == MaterialPane::Sources {
             self.selected_source.as_deref()
@@ -1460,7 +1568,15 @@ impl MaterialEditorWidget {
                     },
                 )
             })
-            .unwrap_or(("@surface", "Material", &self.view.defaults))
+            .unwrap_or((
+                "@surface",
+                if self.view.geometry {
+                    "Geometry"
+                } else {
+                    "Material"
+                },
+                &self.view.defaults,
+            ))
     }
     fn property_lines(&self) -> Vec<PropertyLine> {
         let mut lines = Vec::new();
@@ -1476,7 +1592,7 @@ impl MaterialEditorWidget {
             if op.palette.is_some() {
                 return lines;
             }
-            if op.label == "Image / Tile Source" {
+            if op.label == "Image / Tile Source" || op.label == "Model Render" {
                 let current = self
                     .view
                     .image_bindings
@@ -1491,7 +1607,7 @@ impl MaterialEditorWidget {
                         .iter()
                         .map(|(_, label)| label.clone()),
                 );
-                lines.push(PropertyLine::Choice {owner:op.id.clone(),parameter:"@image".into(),label:"Source".into(),value:0,choices,tooltip:"Choose an existing bitmap tile or import an image. Linked tile edits update the material.".into()});
+                lines.push(PropertyLine::Choice {owner:op.id.clone(),parameter:"@image".into(),label:"Source".into(),value:0,choices,tooltip:"Choose a bitmap tile, a model render or import an image. Linked asset edits update the material.".into()});
             }
             if let Some(mode) = &op.combine {
                 let modes = ["replace", "union", "subtract", "intersect", "smooth union"];
@@ -1582,6 +1698,9 @@ impl MaterialEditorWidget {
                     color: Some(name.into()),
                     tooltip: "Choose a project palette color".into(),
                 });
+            }
+            if self.view.geometry {
+                return lines;
             }
             lines.push(PropertyLine::Section("Tiling".into()));
             let modes = ["raw", "repeat", "seamless"];
@@ -1711,6 +1830,7 @@ impl MaterialEditorWidget {
             [self.dim.width as f32, self.dim.height as f32],
             self.parameters().2.len(),
             &self.view.rows,
+            self.view.geometry,
         )
     }
     fn sources(&self) -> Vec<&MaterialSourceView> {
@@ -1834,6 +1954,9 @@ impl MaterialEditorWidget {
         }
         if self.pane == MaterialPane::RowInput {
             for control in 0..8 {
+                if self.view.geometry && control >= 3 {
+                    continue;
+                }
                 if control == 7
                     && !matches!(
                         self.active_input().map(|i| &i.target),
@@ -2501,6 +2624,7 @@ impl MaterialEditorWidget {
             [buffer.dim().width as f32, buffer.dim().height as f32],
             self.parameters().2.len(),
             &self.view.rows,
+            self.view.geometry,
         );
         let (_, label, values) = self.parameters();
         let parameters = Some((label.to_owned(), values.to_vec()));
@@ -2561,6 +2685,14 @@ impl MaterialEditorWidget {
             let r = l.row(i, self.pan);
             if r.origin[1] + r.size[1] < HEADER || r.origin[1] > l.editor_bottom {
                 continue;
+            }
+            if self.view.geometry {
+                p.text(
+                    rect(CARD_LEFT, r.origin[1] - 18., l.width - CARD_LEFT - 18., 16.),
+                    &row.label,
+                    10.5,
+                    theme.text,
+                );
             }
             let input = l.row_input(i, self.pan);
             p.round_rect(
@@ -2745,9 +2877,18 @@ impl MaterialEditorWidget {
             theme.body,
         );
         p.round_rect(rect(0., l.editor_bottom, l.width, 1.), 0., theme.control);
-        for (index, label) in ["Props", "Sources", "Row Input", "Tile"]
-            .into_iter()
-            .enumerate()
+        for (index, label) in [
+            "Props",
+            "Sources",
+            if self.view.geometry {
+                "Inputs"
+            } else {
+                "Row Input"
+            },
+            "Tile",
+        ]
+        .into_iter()
+        .enumerate()
         {
             let selected = (index == 0 && self.pane == MaterialPane::Properties)
                 || (index == 1 && self.pane == MaterialPane::Sources)
@@ -3033,6 +3174,9 @@ impl MaterialEditorWidget {
             }
         } else if self.pane == MaterialPane::RowInput {
             for control in 0..8 {
+                if self.view.geometry && control >= 3 {
+                    continue;
+                }
                 if control == 7
                     && !matches!(
                         active_input.as_ref().map(|i| &i.target),
@@ -3568,7 +3712,101 @@ impl TheWidget for MaterialEditorWidget {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn geometry_native_values_reach_the_host_and_keep_the_active_control() {
+        use denrim_materials::geometry::{Document, Operation};
+        let mut w = widget();
+        w.id = TheId::named("MZ Geometry Rows");
+        w.view.geometry = true;
+        w.view.rows[0].operations[0].id = "body-op-0".into();
+        w.view.rows[0].operations[0].properties.clear();
+        w.view.rows[0].operations[0].palette = None;
+        w.view.rows[0].operations[0].parameters = vec![MaterialNumberView {
+            id: "control:height".into(),
+            label: "Width".into(),
+            value: 1.8,
+            min: 1.35,
+            max: 2.2,
+        }];
+        w.selected = Some("body-op-0".into());
+        w.pane = MaterialPane::Properties;
+        let mut ctx = TheContext::new(380, 800, 1.);
+        w.sync_number_edits(&mut ctx);
+        w.number_focus = Some(0);
+        w.number_drag = true;
+        let id = w.number_edits[0].2.id().clone();
+        let view = w.view.clone();
+        w.refresh_geometry_view(view);
+        assert_eq!(w.number_edits[0].2.id(), &id);
+        assert_eq!(w.number_focus, Some(0));
+        assert!(w.number_drag);
+        let mut ui = TheUI::new();
+        ui.canvas.set_widget(w);
+        let mut project = Project::default();
+        let mut host = crate::geometry_editor::GeometryEditor::default();
+        assert!(host.handle_event(
+            &TheEvent::IndexChanged(TheId::named(crate::geometry_editor::MODE), 1),
+            &mut project,
+            &mut ui,
+            &mut ctx
+        ));
+        assert!(host.handle_event(
+            &TheEvent::StateChanged(TheId::named("MZ New Human"), TheWidgetState::Clicked),
+            &mut project,
+            &mut ui,
+            &mut ctx
+        ));
+        assert!(host.handle_event(
+            &TheEvent::ValueChanged(id, TheValue::Float(2.0)),
+            &mut project,
+            &mut ui,
+            &mut ctx
+        ));
+        let doc = Document::load(project.procedural_appearances.values().next().unwrap()).unwrap();
+        let Operation::Group { controls, .. } = &doc.rows[0].tiles[0].op else {
+            panic!()
+        };
+        assert_eq!(
+            controls.iter().find(|c| c.id == "height").unwrap().value,
+            2.0
+        );
+    }
     use super::*;
+    #[test]
+    fn geometry_inputs_offer_earlier_compatible_resources_without_channel_edits() {
+        let mut w = widget();
+        w.view.geometry = true;
+        w.view.row_types = vec![
+            ("grain".into(), "Material".into()),
+            ("color".into(), "Mesh".into()),
+        ];
+        w.view.rows[1].inputs = vec![MaterialInputView {
+            target: MaterialInputTarget::RowLink {
+                row: "color".into(),
+                connection: "b:0".into(),
+            },
+            label: "Material".into(),
+            components: "x".into(),
+            binding: MaterialInputBinding::Row(MaterialReferenceView {
+                row: "grain".into(),
+                components: "x".into(),
+                mapping: None,
+            }),
+        }];
+        w.selected_row = Some("color".into());
+        w.selected_input = 0;
+        w.pane = MaterialPane::RowInput;
+        assert_eq!(w.input_options(2), ["Grain"]);
+        w.choose_input_option(2, 0);
+        assert!(
+            matches!(w.take_commands().as_slice(),[MaterialEditorCommand::SetInput{binding:MaterialInputBinding::Row(reference),..}] if reference.row=="grain")
+        );
+        let mut ctx = TheContext::new(380, 800, 1.);
+        w.sync_input_edits(&mut ctx);
+        assert!(w.number_edits.is_empty());
+        let no_channel = w.layout().input_control(3);
+        assert!(w.hit(center(no_channel)).is_none());
+    }
     #[test]
     fn every_visible_pbr_output_connects_by_label_and_by_row_drop() {
         let mut w = widget();
@@ -3687,6 +3925,8 @@ mod tests {
             }],
         };
         w.set_view(MaterialEditorView {
+            geometry: false,
+            row_types: vec![],
             title: "Material".into(),
             image_sources: vec![],
             image_bindings: vec![],

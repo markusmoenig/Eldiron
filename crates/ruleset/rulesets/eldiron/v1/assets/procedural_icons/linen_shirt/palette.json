@@ -1,0 +1,30 @@
+{
+  "base": {
+    "color": 23
+  },
+  "shade": {
+    "color": 21
+  },
+  "trim": {
+    "color": 22
+  },
+  "button": {
+    "color": 19
+  },
+  "@surface": {
+    "base color": 23,
+    "emission": 1
+  },
+  "icon-outline": {
+    "color": 2
+  },
+  "icon-placket-color": {
+    "color": 21
+  },
+  "icon-buttons-color": {
+    "color": 19
+  },
+  "icon-hem-color": {
+    "color": 22
+  }
+}

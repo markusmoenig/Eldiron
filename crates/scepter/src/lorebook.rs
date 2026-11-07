@@ -31,6 +31,8 @@ impl ScepterParamMeta {
 /// Machine-readable help for a single Scepter command.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ScepterCommandMeta {
+    #[serde(default)]
+    pub implemented: bool,
     pub name: String,
     pub description: String,
     #[serde(default)]
@@ -49,6 +51,7 @@ impl ScepterCommandMeta {
     pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
         Self {
             name: name.into(),
+            implemented: false,
             description: description.into(),
             params: Vec::new(),
             previewable: false,
@@ -93,8 +96,151 @@ pub struct ScepterLorebook {
 impl ScepterLorebook {
     pub fn built_in() -> Self {
         let mut lorebook = Self::default();
-        for command in built_in_commands() {
+        for mut command in built_in_commands() {
+            command.implemented = crate::creator_implements(&command.name);
             lorebook.commands.insert(command.name.clone(), command);
+        }
+        for (name, description) in [
+            (
+                "editor.context",
+                "Read current region, viewport, tool, camera, selection, stream and change cursor.",
+            ),
+            (
+                "editor.select",
+                "Select explicit map target IDs. Requires request_id, session and revision. params: {region?,targets,vertices?,linedefs?,faces?,geometry_vertices?,wall_spans?,wall_opening?,wall_surface?}.",
+            ),
+            (
+                "editor.focus",
+                "Focus a region and camera. params: {region?,view?,center:[x,y,z],position?,scale?}. Requires edit context.",
+            ),
+            (
+                "project.changes",
+                "Bounded change feed. params: {after:sequence,stream?:UUID,limit?:64}. Handle reset_required by reading context/snapshots.",
+            ),
+            (
+                "entity.templates",
+                "List project/ruleset item and character templates and setup TOML.",
+            ),
+            (
+                "region.entities",
+                "Read placed character/item instances with positions, template IDs and TOML. params: {region?}.",
+            ),
+            (
+                "project.transaction",
+                "Atomic material, composition, surface, sector, geometry, wall/opening, room, entity and paint operations. Prepares off the UI thread, rechecks revision, one undo. Requires request_id, session and revision. params: {operations:[{op,params}],dry_run:false}.",
+            ),
+            (
+                "material.list",
+                "Project palette and material/composition IDs.",
+            ),
+            (
+                "material.get",
+                "Read editable MZ bundle, composition and map binding. params: {id:UUID}.",
+            ),
+            (
+                "material.validate",
+                "Validate an MZ PBR bundle against the project palette. params: {bundle:string}.",
+            ),
+            (
+                "composition.get",
+                "Read layered composition and map binding. params: {id:UUID}.",
+            ),
+            (
+                "surface.list",
+                "Read map geometry and material bindings. params: {region:{id:UUID}}.",
+            ),
+        ] {
+            let mut meta = ScepterCommandMeta::new(name, description);
+            meta.implemented = true;
+            meta.capabilities = if matches!(
+                name,
+                "project.transaction" | "editor.select" | "editor.focus"
+            ) {
+                if name == "project.transaction" {
+                    vec![
+                        ScepterCapability::ProjectWrite,
+                        ScepterCapability::RegionWrite,
+                        ScepterCapability::Undo,
+                    ]
+                } else {
+                    vec![ScepterCapability::ProjectWrite]
+                }
+            } else {
+                vec![ScepterCapability::ProjectRead]
+            };
+            meta.undoable = name == "project.transaction";
+            meta.params = match name {
+                "project.transaction" => vec![
+                    ScepterParamMeta::new(
+                        "operations",
+                        "1–128 typed {op,params} operations. Ops: material_put, composition_put/copy, surface_apply, paint_cells/rect, erase_cells, sector_create/update, geometry_create, wall_create/update, opening_put/delete, room_create, entity_place/update, map_copy/transform/delete. Map targets: sectors(integer IDs), geometry/walls/characters/items(UUIDs). 3D uses X/Y/Z, 2D X/Z; rotation_y is degrees.",
+                        true,
+                        "array",
+                    ),
+                    ScepterParamMeta::new(
+                        "dry_run",
+                        "Validate without publishing or undo",
+                        false,
+                        "boolean",
+                    ),
+                ],
+                "project.changes" => vec![
+                    ScepterParamMeta::new("after", "Last consumed sequence", false, "integer"),
+                    ScepterParamMeta::new(
+                        "stream",
+                        "Stream UUID from editor.context; handle reset_required",
+                        false,
+                        "string",
+                    ),
+                    ScepterParamMeta::new("limit", "1–128 events (default 64)", false, "integer"),
+                ],
+                "editor.select" => vec![
+                    ScepterParamMeta::new(
+                        "targets",
+                        "Region map targets: sectors, geometry, walls, characters, items",
+                        true,
+                        "object",
+                    ),
+                    ScepterParamMeta::new(
+                        "region",
+                        "{id:UUID} or {name:unique name}; active region by default",
+                        false,
+                        "object",
+                    ),
+                    ScepterParamMeta::new(
+                        "faces",
+                        "[object UUID, face index] pairs; also supports geometry_vertices, wall_spans/opening/surface and vertices/linedefs",
+                        false,
+                        "array",
+                    ),
+                ],
+                "editor.focus" => vec![
+                    ScepterParamMeta::new(
+                        "center",
+                        "World X/Y/Z focus",
+                        true,
+                        "[number,number,number]",
+                    ),
+                    ScepterParamMeta::new("view", "2d, iso, orbit or firstp", false, "string"),
+                    ScepterParamMeta::new("region", "Region reference", false, "object"),
+                    ScepterParamMeta::new(
+                        "position",
+                        "3D camera anchor",
+                        false,
+                        "[number,number,number]",
+                    ),
+                    ScepterParamMeta::new("scale", "2D zoom or isometric scale", false, "number"),
+                ],
+                "region.entities" | "surface.list" => vec![ScepterParamMeta::new(
+                    "region",
+                    "Region reference",
+                    true,
+                    "object",
+                )],
+                _ => vec![],
+            };
+
+            lorebook.commands.insert(name.into(), meta);
         }
         lorebook
     }

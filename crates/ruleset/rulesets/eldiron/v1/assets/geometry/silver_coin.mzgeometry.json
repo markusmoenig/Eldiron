@@ -1,0 +1,1173 @@
+{
+  "version": 1,
+  "id": "silver_coin",
+  "label": "Silver Coin",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Silver Coin",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Silver Coin",
+            "document": {
+              "version": 1,
+              "id": "silver_coin-construction",
+              "label": "Silver Coin construction",
+              "rows": [
+                {
+                  "id": "weapon-iron",
+                  "label": "Weapon-Iron",
+                  "tiles": [
+                    {
+                      "id": "weapon-iron-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.3,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "coin-rim",
+                  "label": "Coin Rim",
+                  "tiles": [
+                    {
+                      "id": "coin-rim-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.008,
+                              0
+                            ],
+                            "radius": [
+                              0.11,
+                              0.11
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.008,
+                              0
+                            ],
+                            "radius": [
+                              0.11,
+                              0.11
+                            ]
+                          }
+                        ],
+                        "segments": 24
+                      }
+                    },
+                    {
+                      "id": "coin-rim-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "coin-rim-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "coin-face",
+                  "label": "Coin Face",
+                  "tiles": [
+                    {
+                      "id": "coin-face-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.008,
+                              0
+                            ],
+                            "radius": [
+                              0.093,
+                              0.093
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.011,
+                              0
+                            ],
+                            "radius": [
+                              0.093,
+                              0.093
+                            ]
+                          }
+                        ],
+                        "segments": 24
+                      }
+                    },
+                    {
+                      "id": "coin-face-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "coin-face-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-0",
+                  "label": "Rim Notch 0",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-0-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-0-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.0,
+                          0.011,
+                          0.102
+                        ],
+                        "rotation": [
+                          0,
+                          0.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-1",
+                  "label": "Rim Notch 1",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-1-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.05099999999999999,
+                          0.011,
+                          0.08833459118601274
+                        ],
+                        "rotation": [
+                          0,
+                          29.999999999999996,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-2",
+                  "label": "Rim Notch 2",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-2-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-2-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.08833459118601274,
+                          0.011,
+                          0.05100000000000001
+                        ],
+                        "rotation": [
+                          0,
+                          59.99999999999999,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-3",
+                  "label": "Rim Notch 3",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-3-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-3-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.102,
+                          0.011,
+                          6.245698675651501e-18
+                        ],
+                        "rotation": [
+                          0,
+                          90.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-4",
+                  "label": "Rim Notch 4",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-4-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-4-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.08833459118601274,
+                          0.011,
+                          -0.05099999999999998
+                        ],
+                        "rotation": [
+                          0,
+                          119.99999999999999,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-5",
+                  "label": "Rim Notch 5",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-5-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-5-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.05099999999999999,
+                          0.011,
+                          -0.08833459118601274
+                        ],
+                        "rotation": [
+                          0,
+                          150.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-6",
+                  "label": "Rim Notch 6",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-6-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-6-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          1.2491397351303001e-17,
+                          0.011,
+                          -0.102
+                        ],
+                        "rotation": [
+                          0,
+                          180.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-7",
+                  "label": "Rim Notch 7",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-7-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-7-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.050999999999999976,
+                          0.011,
+                          -0.08833459118601275
+                        ],
+                        "rotation": [
+                          0,
+                          210.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-8",
+                  "label": "Rim Notch 8",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-8-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-8-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.08833459118601271,
+                          0.011,
+                          -0.051000000000000045
+                        ],
+                        "rotation": [
+                          0,
+                          239.99999999999997,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-9",
+                  "label": "Rim Notch 9",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-9-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-9-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.102,
+                          0.011,
+                          -1.8737096026954503e-17
+                        ],
+                        "rotation": [
+                          0,
+                          270.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-10",
+                  "label": "Rim Notch 10",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-10-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-10-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.08833459118601274,
+                          0.011,
+                          0.05100000000000001
+                        ],
+                        "rotation": [
+                          0,
+                          300.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "rim-notch-11",
+                  "label": "Rim Notch 11",
+                  "tiles": [
+                    {
+                      "id": "rim-notch-11-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.003,
+                          0.003,
+                          0.008
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-11-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.051000000000000045,
+                          0.011,
+                          0.08833459118601271
+                        ],
+                        "rotation": [
+                          0,
+                          330.0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "rim-notch-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "rim-notch-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "arrow-feather",
+                  "label": "Arrow-Feather",
+                  "tiles": [
+                    {
+                      "id": "arrow-feather-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 9,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "diamond",
+                  "label": "Diamond",
+                  "tiles": [
+                    {
+                      "id": "diamond-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            -0.05
+                          ],
+                          [
+                            0.035,
+                            0
+                          ],
+                          [
+                            0,
+                            0.05
+                          ],
+                          [
+                            -0.035,
+                            0
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "diamond-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.004
+                      }
+                    },
+                    {
+                      "id": "diamond-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.014,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "diamond-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "arrow-feather"
+                      }
+                    },
+                    {
+                      "id": "diamond-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Silver Coin assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "coin-rim",
+                          "coin-face",
+                          "rim-notch-0",
+                          "rim-notch-1",
+                          "rim-notch-2",
+                          "rim-notch-3",
+                          "rim-notch-4",
+                          "rim-notch-5",
+                          "rim-notch-6",
+                          "rim-notch-7",
+                          "rim-notch-8",
+                          "rim-notch-9",
+                          "rim-notch-10",
+                          "rim-notch-11",
+                          "diamond"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

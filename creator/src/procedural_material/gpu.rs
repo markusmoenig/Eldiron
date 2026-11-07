@@ -243,7 +243,7 @@ impl Worker {
                                 .instances
                                 .iter()
                                 .find(|r| r.id == super::composition::SURFACE_DOMAIN)
-                                .map_or([0.; 2], |r| [r.uv_transform[4], r.uv_transform[5]]);
+                                .map_or([-0.5; 2], |r| [r.uv_transform[4], r.uv_transform[5]]);
                             let tile_size = super::pixel_style::bake_size(job.pixels_per_tile);
                             let single = render_styled_domain_time(
                                 runtime,
@@ -257,7 +257,10 @@ impl Worker {
                                 time,
                             )?;
                             let tile = bake(&single, tile_size);
-                            let size = 384;
+                            // Background bakes are never shown in the minimap.
+                            // Keep them at bake resolution instead of shading a
+                            // second 384px image for every tile during a batch.
+                            let size = if job.revision == 0 { tile_size } else { 384 };
                             let span = if job.continuous {
                                 [2. * job.preview_aspect.max(0.1), 2.]
                             } else {
@@ -338,7 +341,7 @@ impl Worker {
                             {
                                 if let Some(period) = repeat {
                                     let dimensions = repeat_size.unwrap();
-                                    let maps = render_styled_rect_time(runtime, instance, &device, &queue, dimensions, period, [0.;2], job.pixels_per_tile, time)?;
+                                    let maps = render_styled_rect_time(runtime, instance, &device, &queue, dimensions, period, period.map(|v| -0.5 * v), job.pixels_per_tile, time)?;
                                     Some(std::sync::Arc::new(SurfacePages { layout, textures: vec![bake_rect(&maps, dimensions)] }))
                                 } else {
                                 let mut textures: Vec<Option<rusterix::Texture>> =
@@ -526,7 +529,15 @@ fn render_domain(
     size: usize,
     span: [f32; 2],
 ) -> Result<Maps, String> {
-    render_domain_at(runtime, instance, device, queue, size, span, [0.; 2])
+    render_domain_at(
+        runtime,
+        instance,
+        device,
+        queue,
+        size,
+        span,
+        span.map(|v| -0.5 * v),
+    )
 }
 fn render_domain_at(
     runtime: &MaterialZ,
@@ -565,7 +576,7 @@ fn render_styled_domain_at(
         runtime, instance, device, queue, size, span, origin, pixels, 0.,
     )
 }
-fn render_grid_time(
+pub(crate) fn render_grid_time(
     runtime: &MaterialZ,
     instance: &MaterialInstance,
     device: &wgpu::Device,
@@ -762,7 +773,7 @@ fn srgb(v: f32) -> u8 {
 fn unit(v: f32) -> u8 {
     (v.clamp(0., 1.) * 255.).round() as u8
 }
-fn preview_images<const N: usize>(maps: &[Vec<[f32; 4]>; N]) -> [Vec<u8>; N] {
+pub(crate) fn preview_images<const N: usize>(maps: &[Vec<[f32; 4]>; N]) -> [Vec<u8>; N] {
     std::array::from_fn(|channel| {
         maps[channel]
             .iter()
@@ -835,6 +846,80 @@ material "surface" called "Initial thumbnails"
   output base color from row "color" xyz
   output roughness from row "roughness" x
 "#;
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn hideout_terrain_keeps_complete_ground_in_gpu_edit_bakes() {
+        let bytes = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../test_projects/Hideout2D-MZ.eldiron"
+        ))
+        .unwrap();
+        let project = shared::project_io::decode_project(&bytes).unwrap();
+        let ids: Vec<String> = serde_json::from_str(include_str!(
+            "../../../test_projects/Hideout2D-MZ/reference-tiles.json"
+        ))
+        .unwrap();
+        let (device, queue) = pollster::block_on(async {
+            let adapter = wgpu::Instance::default()
+                .request_adapter(&Default::default())
+                .await
+                .unwrap();
+            adapter.request_device(&Default::default()).await.unwrap()
+        });
+        let worker = Worker::new(device, queue);
+        for index in [23, 54, 55, 81, 82, 83, 105, 106, 34, 37, 52] {
+            let id = theframework::prelude::Uuid::parse_str(&ids[index]).unwrap();
+            worker.send(Job {
+                pixels_per_tile: 16,
+                tile: id,
+                revision: 0,
+                bundle: project.procedural_materials[&id].clone(),
+                continuous: false,
+                selection: None,
+                preview_aspect: 1.,
+            });
+            let frame = worker
+                .results
+                .recv_timeout(Duration::from_secs(60))
+                .unwrap()
+                .frame
+                .unwrap();
+            let expected = &project.tiles[&id].textures[0];
+            let mismatch = expected
+                .data
+                .chunks_exact(4)
+                .zip(frame.tile.data.chunks_exact(4))
+                .filter(|(a, b)| (a[3] > 127) != (b[3] > 127))
+                .count();
+            std::fs::write(
+                format!("/tmp/hideout-gpu-{index}.png"),
+                theframework::prelude::TheRGBABuffer::from(frame.tile.data.clone(), 16, 16)
+                    .to_png()
+                    .unwrap(),
+            )
+            .unwrap();
+            assert!(
+                mismatch <= 8,
+                "Tile {index}: GPU silhouette differs from the saved CPU bake at {mismatch}/256 pixels"
+            );
+            assert!(frame.tile.data.chunks_exact(4).any(|p| p[3] > 0));
+            if expected.data.chunks_exact(4).all(|p| p[3] == 255) {
+                assert!(
+                    frame.tile.data.chunks_exact(4).all(|p| p[3] == 255),
+                    "GPU edit must retain opaque ground in tile {index}"
+                );
+                if let Some(pages) = &frame.surface_pages {
+                    assert!(
+                        pages
+                            .textures
+                            .iter()
+                            .all(|t| t.data.chunks_exact(4).all(|p| p[3] == 255)),
+                        "All animation phases need complete ground in tile {index}"
+                    );
+                }
+            }
+        }
+    }
     #[test]
     #[ignore = "renders a palette/material contact sheet on a native GPU"]
     fn embedded_starter_palette_contact_sheet() {
@@ -1369,13 +1454,17 @@ material "surface" called "Initial thumbnails"
             let maps = render(&runtime, &instance, &device, &queue, 8, 1.).unwrap();
             let original = maps[0][0][0];
             let continuous = render(&runtime, &instance, &device, &queue, 24, 3.).unwrap();
+            // Both render helpers center their domain: the unit tile occupies
+            // the middle 8x8 pixels of the 24x24 three-unit surface.
+            let offset = (24 - 8) / 2;
             for y in 0..8 {
                 for x in 0..8 {
                     for channel in 0..5 {
                         for component in 0..4 {
                             assert!(
                                 (maps[channel][y * 8 + x][component]
-                                    - continuous[channel][y * 24 + x][component])
+                                    - continuous[channel][(y + offset) * 24 + x + offset]
+                                        [component])
                                     .abs()
                                     < 0.002
                             );

@@ -106,6 +106,7 @@ impl Sidebar {
             changed |= stack.index() != preview;
             stack.set_index(preview);
         }
+        changed |= crate::geometry_editor::sync_workspace(ui, ctx);
         if changed {
             ctx.ui.clear_focus();
             ctx.ui.keyboard_focus = None;
@@ -610,6 +611,9 @@ impl Sidebar {
         project: &mut Project,
         server_ctx: &mut ServerContext,
     ) -> bool {
+        if crate::item_appearance::handle_event(event, project, ctx) {
+            return true;
+        }
         let mut redraw = self
             .console
             .handle_event(event, ui, ctx, project, server_ctx);
@@ -792,6 +796,19 @@ impl Sidebar {
                     let item_id = id.references;
                     let on = id.name == "Item Icon Frames On";
                     let frame_index = *index as usize;
+                    let defaults = project.items.get(&item_id);
+                    if let Some(asset) = defaults.and_then(|i| {
+                        shared::ruleset_materials::icon_id_for_state(&i.data, on).filter(|id| {
+                            i.icon_frames_for_state(on).is_empty()
+                                || id.as_u128() >> 64 == 0x4d5a49434f4e4544
+                        })
+                    }) {
+                        ctx.ui.send(TheEvent::Custom(
+                            TheId::named("Open Procedural Tile"),
+                            TheValue::Id(asset),
+                        ));
+                        return true;
+                    }
                     let defaults = project
                         .items
                         .get(&item_id)
@@ -1010,6 +1027,11 @@ impl Sidebar {
                 }
             }
             TheEvent::Custom(id, value) => {
+                if id.name == "MZ Item Appearance Updated" {
+                    // Appearance thumbnails are rendered lazily by the active workspace.
+                    ctx.ui.redraw_all = true;
+                    return true;
+                }
                 let editing_item_icon =
                     matches!(server_ctx.editing_ctx, PixelEditingContext::ItemIcon(..));
                 if id.name == "Item Icon Frames Changed"
@@ -1543,9 +1565,15 @@ impl Sidebar {
                     ui.style.create_drop_image(&mut drop, ctx);
                     ctx.ui.set_drop(drop);
                 } else if id.name == "Item Item" {
+                    let text = project
+                        .items
+                        .get(&id.references)
+                        .map(|item| item.name.as_str())
+                        .unwrap_or(text);
                     let mut drop = TheDrop::new(id.clone());
+                    drop.operation = TheDropOperation::Copy;
                     drop.set_title(format!("Item: {text}"));
-                    drop.set_text(text.clone());
+                    drop.set_text(text.to_string());
                     drop.set_offset(*offset);
                     ui.style.create_drop_image(&mut drop, ctx);
                     ctx.ui.set_drop(drop);
@@ -2211,34 +2239,55 @@ impl Sidebar {
                     }
                 } else if id.name == "Screen Import" {
                     for p in paths {
-                        let contents = std::fs::read_to_string(p).unwrap_or("".to_string());
-                        let mut screen: Screen =
-                            serde_json::from_str(&contents).unwrap_or(Screen::default());
-
-                        screen.id = Uuid::new_v4();
-
-                        let atom = ProjectUndoAtom::AddScreen(screen);
-                        atom.redo(project, ui, ctx, server_ctx);
-                        UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                        let result = std::fs::read_to_string(p)
+                            .map_err(|e| e.to_string())
+                            .and_then(|text| {
+                                serde_json::from_str::<shared::screen_package::ScreenPackage>(&text)
+                                    .map_err(|e| e.to_string())
+                            })
+                            .and_then(|package| package.imported_project(project));
+                        match result {
+                            Ok((next, screen_id)) => {
+                                let screen = next.screens[&screen_id].clone();
+                                let atom = ProjectUndoAtom::ImportScreen(
+                                    Box::new(project.clone()),
+                                    Box::new(next),
+                                    screen,
+                                    server_ctx.pc,
+                                );
+                                atom.redo(project, ui, ctx, server_ctx);
+                                UNDOMANAGER.write().unwrap().add_undo(atom, ctx);
+                            }
+                            Err(error) => ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                format!("Unable to import screen: {error}"),
+                            )),
+                        }
                     }
                 } else if id.name == "Screen Export" {
                     if let Some(screen) = project.screens.get(&id.uuid) {
-                        let mut screen = screen.clone();
-                        for p in paths {
-                            screen.id = Uuid::new_v4();
-                            if let Ok(json) = serde_json::to_string(&screen) {
-                                if std::fs::write(p, json).is_ok() {
-                                    ctx.ui.send(TheEvent::SetStatusText(
-                                        TheId::empty(),
-                                        "Screen saved successfully.".to_string(),
-                                    ))
-                                } else {
-                                    ctx.ui.send(TheEvent::SetStatusText(
-                                        TheId::empty(),
-                                        "Unable to save Screen!".to_string(),
-                                    ))
+                        let result =
+                            shared::screen_package::ScreenPackage::capture(project, screen)
+                                .and_then(|package| {
+                                    serde_json::to_string(&package).map_err(|e| e.to_string())
+                                });
+                        match result {
+                            Ok(json) => {
+                                for p in paths {
+                                    let message = match std::fs::write(p, &json) {
+                                        Ok(()) => {
+                                            "Screen and material assets saved successfully.".into()
+                                        }
+                                        Err(error) => format!("Unable to save screen: {error}"),
+                                    };
+                                    ctx.ui
+                                        .send(TheEvent::SetStatusText(TheId::empty(), message));
                                 }
                             }
+                            Err(error) => ctx.ui.send(TheEvent::SetStatusText(
+                                TheId::empty(),
+                                format!("Unable to export screen: {error}"),
+                            )),
                         }
                     }
                 } else if id.name == "Font Asset Import" {
@@ -2476,9 +2525,7 @@ impl Sidebar {
                     && (focus_id.name == "Palette Picker" || focus_id.name == "Palette Item")
                 {
                     let index = project.palette.current_index as usize;
-                    if index < project.palette.colors.len()
-                        && project.palette[index].is_some()
-                    {
+                    if index < project.palette.colors.len() && project.palette[index].is_some() {
                         let prev = project.palette.clone();
                         let prev_materials = project.palette_materials.clone();
                         project.palette[index] = None;
@@ -2649,7 +2696,9 @@ impl Sidebar {
                                 "txt".to_string(),
                                 "TXT".to_string(),
                                 "hex".to_string(),
-                                "HEX".to_string(),"gpl".into(),"pal".into(),
+                                "HEX".to_string(),
+                                "gpl".into(),
+                                "pal".into(),
                             ],
                         ),
                     );
@@ -3100,9 +3149,7 @@ impl Sidebar {
                                 && let Some(items_node) =
                                     tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
                             {
-                                let mut node = gen_item_tree_node(&duplicated, project);
-                                node.set_open(true);
-                                items_node.add_child(node);
+                                append_item_tree(items_node, &duplicated, project, true);
                             }
                             set_project_context(
                                 ctx,
@@ -4039,12 +4086,7 @@ impl Sidebar {
     ) {
         if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
             if let Some(items_node) = tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id) {
-                items_node.clear();
-
-                for (_, item) in project.items.iter() {
-                    let node = gen_item_tree_node(item, project);
-                    items_node.add_child(node);
-                }
+                populate_item_tree(items_node, project);
             }
         }
     }

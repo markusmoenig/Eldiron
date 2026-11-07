@@ -1,0 +1,45 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "haft-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "haft-outline": {
+    "color": 1
+  },
+  "wrap-colors": {
+    "color0": 4,
+    "color1": 5,
+    "color2": 6,
+    "color3": 7
+  },
+  "wrap-outline": {
+    "color": 1
+  },
+  "bands-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "bands-outline": {
+    "color": 1
+  },
+  "flame-colors": {
+    "color0": 28,
+    "color1": 29,
+    "color2": 30,
+    "color3": 31
+  },
+  "core-colors": {
+    "color0": 31,
+    "color1": 32,
+    "color2": 8,
+    "color3": 23
+  }
+}

@@ -103,3 +103,97 @@ impl Item {
         }
     }
 }
+
+/// Rules refresh gameplay templates; appearance links remain project-owned edits.
+pub fn merge_appearance_data(existing: &str, template: &str) -> String {
+    let (Ok(old), Ok(mut next)) = (
+        existing.parse::<toml::Table>(),
+        template.parse::<toml::Table>(),
+    ) else {
+        return template.into();
+    };
+    let keys = [
+        "appearance_icon",
+        "appearance_icon_off",
+        "appearance_geometry",
+        "appearance_geometry_off",
+        "appearance_ground_flat",
+        "appearance_materials",
+        "appearance_padding",
+        "appearance_worn_geometry",
+        "appearance_idle",
+        "appearance_walk",
+        "appearance_attack",
+        "appearance_attack_time",
+        "appearance_hold_joint",
+        "appearance_two_handed",
+    ];
+    let old_attrs = old.get("attributes").and_then(toml::Value::as_table);
+    let overrides = keys
+        .into_iter()
+        .filter_map(|key| {
+            old_attrs
+                .and_then(|attrs| attrs.get(key))
+                .or_else(|| old.get(key))
+                .map(|value| (key, value.clone()))
+        })
+        .collect::<Vec<_>>();
+    if overrides.is_empty() {
+        return template.into();
+    }
+    let Some(attrs) = next
+        .entry("attributes")
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()))
+        .as_table_mut()
+    else {
+        return template.into();
+    };
+    let mut changed = false;
+    for (key, value) in overrides {
+        if attrs.get(key) != Some(&value) {
+            attrs.insert(key.into(), value);
+            changed = true;
+        }
+    }
+    if changed {
+        toml::to_string_pretty(&next).unwrap_or_else(|_| template.into())
+    } else {
+        template.into()
+    }
+}
+
+#[cfg(test)]
+mod appearance_tests {
+    #[test]
+    fn rules_refresh_preserves_appearance_links_and_updates_gameplay() {
+        let data = super::merge_appearance_data(
+            "[attributes]\nappearance_icon = 'custom-icon'\nappearance_geometry = 'custom-model'\nDMG = 999\n",
+            "[attributes]\nname = 'Updated'\nDMG = 2\n",
+        );
+        let root = data.parse::<toml::Table>().unwrap();
+        let attrs = root["attributes"].as_table().unwrap();
+        assert_eq!(attrs["appearance_icon"].as_str(), Some("custom-icon"));
+        assert_eq!(attrs["appearance_geometry"].as_str(), Some("custom-model"));
+        assert_eq!(attrs["DMG"].as_integer(), Some(2));
+    }
+
+    #[test]
+    fn appearance_links_are_canonical_and_rules_refresh_is_idempotent() {
+        let template = "[attributes]\nname = 'Item'\nappearance_geometry = 'model'\n";
+        assert_eq!(super::merge_appearance_data(template, template), template);
+        let changed = super::merge_appearance_data(
+            "appearance_icon = 'icon'\n[attributes]\nappearance_geometry = 'custom'\n",
+            "name = 'Item'\n",
+        );
+        let root = changed.parse::<toml::Table>().unwrap();
+        assert_eq!(root["attributes"]["appearance_icon"].as_str(), Some("icon"));
+        assert_eq!(
+            root["attributes"]["appearance_geometry"].as_str(),
+            Some("custom")
+        );
+        assert_eq!(
+            super::merge_appearance_data(template, "attributes = 1\n"),
+            "attributes = 1\n"
+        );
+    }
+}

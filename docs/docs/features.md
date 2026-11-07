@@ -85,6 +85,22 @@ You can:
 
 This makes it possible to work visually while still keeping the project data flexible enough for non-visual clients too.
 
+## Procedural Materials and Appearances
+
+The embedded **MaterialZ (MZ)** workflow adds editable row-based materials, shape
+composition, geometry, rigs and item icons. Create a tile with **Make Proc**,
+edit its rows in the sidebar and preview its output in the minimap. Compose
+roads, corners, strips and layered blends directly on map placements.
+
+Ruleset characters wear ruleset clothing and equipment. Their shared MZ bodies,
+surfaces and grips produce directional sprites in 2D and posed meshes in 3D.
+Items have separately editable icons, world models and optional inactive states.
+Recipe colors use the project's palette, including after a palette switch.
+Bitmap tiles and avatars remain supported.
+
+See [Procedural Materials](building_maps/procedural_materials),
+[Appearance](characters_items/appearance) and [Rigging](characters_items/rigging).
+
 ## Procedural 3D Building Tools
 
 Eldiron also includes non-destructive 3D building tools that let you create structures and details directly from map geometry.

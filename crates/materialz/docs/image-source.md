@@ -19,7 +19,9 @@ the embedded pixels remain available. Importing does not create a Tilepicker til
 ## Sampling and composition
 
 - **UV Domain:** Centered samples -0.5…0.5 (standalone default, useful for icons);
-  Tile samples 0…1 (assigned by Eldiron for world materials).
+  Tile samples 0…1. Eldiron imports images in centered coordinates to match its
+  tile previews and baked icon domain; world-composition bitmap inputs explicitly
+  use Tile coordinates.
 - **Edges:** Transparent (default), Clamp or Repeat. Material-level Repeat and
   Seamless settings continue to apply to the complete recipe.
 - **Filtering:** Nearest (default) or Linear. Linear filtering interpolates

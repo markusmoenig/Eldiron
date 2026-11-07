@@ -969,18 +969,24 @@ visual layer.
 
 | Visual rule | Value |
 | --- | --- |
-| Default avatar | `humanoid` |
-| Avatar assets | `assets/humanoid.eldiron_avatar`, `assets/orc.eldiron_avatar`, `assets/skeleton.eldiron_avatar` |
-| project palette | fixed rules-owned mood palette based on Lospec's "31" palette |
-| Explicit override | project `tile_id`, `avatar`, or empty visual fields win |
+| Default body | `humanoid`, with distinct Orc and Skeleton MZ recipes selected by race |
+| Body sources | `assets/humanoid.mzgeometry.json`, `assets/geometry/orc.mzgeometry.json`, `assets/geometry/skeleton.mzgeometry.json` |
+| Item icons | Editable 32×32 recipes under `assets/procedural_icons/`, including independent torch On/Off states |
+| Item and worn models | Editable recipes under `assets/geometry/` with grips, fitted clothing and accessory attachments |
+| Materials | Shared MZ surface recipes under `assets/materials/` |
+| Colors | One project-owned palette, initially Endesga 64; recipe colors are palette-index bindings |
+| Bitmap artwork | Supported for explicit project images, bitmap avatars and PNG action/UI icons |
 
-On load, Eldiron resolves the effective ruleset palette into the project's
-project palette. This keeps avatar channels, UI color defaults, and generated
-missing-art fallbacks on stable rules-owned indices. Authored icon PNGs retain
-their own RGBA colors and are not palette-remapped at runtime.
+The same body, rig, clothing and materials generate directional 2D sprites and
+native 3D meshes. The Appearance workspace previews icons, models, equipment and
+animation; everyday outfit changes belong in character setup's Equipment node.
+See [Appearance](characters_items/appearance) and [Rigging](characters_items/rigging).
 
-The editable project palette remains separate for tiles, drawing, palette-index
-geometry sources, and 3D Paint.
+Ruleset refreshes preserve the project's palette and authored MZ overrides.
+[Palette switching](creator/tools/palette) adapts recipe colors and shading ramps
+to the chosen target colors. Bundled bitmap fallback artwork is palette-fitted
+from its canonical image; explicit project bitmap overrides retain their colors.
+There is no separate fixed ruleset palette.
 
 ## Tools And Testing
 
@@ -1013,7 +1019,7 @@ Already present or underway:
 - physical, arcane, spell, and fire damage kinds
 - cloth, leather, chain, and shield armor families
 - starter weapons, armor, clothing, abilities, and spells
-- default humanoid avatar and rules-owned palette
+- editable MZ bodies, item artwork and project-palette defaults
 - stackable materials, reagents, ammunition, and first crafting recipes
 - skill-gated crafting with open profession growth
 - first item container, `small_bag`, with text transfer commands

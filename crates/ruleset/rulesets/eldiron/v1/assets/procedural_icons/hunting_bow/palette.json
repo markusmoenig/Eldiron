@@ -1,0 +1,42 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "limbs-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "limbs-outline": {
+    "color": 1
+  },
+  "string-color": {
+    "color": 23
+  },
+  "grip-colors": {
+    "color0": 16,
+    "color1": 17,
+    "color2": 18,
+    "color3": 20
+  },
+  "grip-outline": {
+    "color": 1
+  },
+  "arrow-color": {
+    "color": 21
+  },
+  "point-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "point-outline": {
+    "color": 1
+  },
+  "fletching-color": {
+    "color": 9
+  }
+}

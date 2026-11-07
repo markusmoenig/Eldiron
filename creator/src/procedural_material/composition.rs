@@ -1,5 +1,6 @@
 //! Tile composition authoring and lowering to ordinary whole-material mixers.
 use super::*;
+mod neighbours;
 pub(super) mod raster_source;
 mod shape_picker;
 pub(super) mod surface_pages;
@@ -42,7 +43,7 @@ const LEVELS: [&str; 3] = [
     "Composition UV Level 3",
 ];
 const EXTRAS: [&str; 2] = ["Composition Material 3", "Composition Material 4"];
-const SHAPES: [(CompositionShape, &str); 10] = [
+const SHAPES: [(CompositionShape, &str); 11] = [
     (CompositionShape::Split, "Split"),
     (CompositionShape::Blend, "Blend"),
     (CompositionShape::Mask, "Mask"),
@@ -53,6 +54,7 @@ const SHAPES: [(CompositionShape, &str); 10] = [
     (CompositionShape::Strips, "Edge strips"),
     (CompositionShape::Road, "Road"),
     (CompositionShape::Crossing, "Crossing"),
+    (CompositionShape::AutoRoad, "Auto road"),
 ];
 const CHANNELS: [&str; 6] = ["xxx", "yyy", "zzz", "www", "xyz", "distance"];
 
@@ -90,9 +92,12 @@ fn append_mask_row(
     Ok(())
 }
 
-fn shape_code(layer: &CompositionLayer) -> String {
+fn shape_code_with_distance(layer: &CompositionLayer, distance: Option<String>) -> String {
     let a = layer.angle.to_radians();
     let d = match layer.shape {
+        CompositionShape::AutoRoad => {
+            distance.unwrap_or_else(|| format!("{} - min(abs(p.x), abs(p.y))", layer.position / 2.))
+        }
         CompositionShape::Split => format!(
             "p.x * {} + p.y * {} + {}",
             a.cos(),
@@ -189,7 +194,7 @@ fn material_label(project: &Project, id: Uuid) -> String {
 /// Lower references afresh. Shared materials never become private editable copies.
 /// The resulting bundle is self contained, so the existing worker and runtime bake
 /// paths need no composition-specific rendering or blend math.
-pub(super) fn bundle(
+pub(crate) fn bundle(
     id: Uuid,
     project: &Project,
     candidate: Option<&MaterialComposition>,
@@ -204,17 +209,36 @@ pub(super) fn bundle(
     if let Some(binding) = project.map_material_bindings.get(&id) {
         set_surface_domain(&mut asset, project, binding);
     }
-    let pages = project
-        .map_material_bindings
-        .get(&id)
-        .and_then(|binding| surface_pages::for_surface(project, binding))
-        .or_else(|| {
-            if project.map_material_bindings.contains_key(&id) {
-                None
-            } else {
-                surface_pages::for_template(project, id)
-            }
+    // Neighbour fields vary by world cell, even when eyedropper copies share
+    // one cache identity. Bake their complete placement coverage, not only the
+    // owner's single tile; SceneVM then selects the matching world page.
+    let automatic = candidate
+        .or_else(|| project.material_compositions.get(&id))
+        .is_some_and(|c| {
+            c.layers
+                .iter()
+                .any(|l| l.shape == CompositionShape::AutoRoad)
         });
+    if automatic {
+        if let Some(binding) = neighbours::binding(project, id)? {
+            set_surface_domain(&mut asset, project, &binding);
+        }
+    }
+    let pages = if automatic {
+        surface_pages::for_template(project, id)
+    } else {
+        project
+            .map_material_bindings
+            .get(&id)
+            .and_then(|binding| surface_pages::for_surface(project, binding))
+            .or_else(|| {
+                if project.map_material_bindings.contains_key(&id) {
+                    None
+                } else {
+                    surface_pages::for_template(project, id)
+                }
+            })
+    };
     surface_pages::apply(&mut asset, pages.as_ref());
     asset.save().map_err(|e| e.to_string())
 }
@@ -231,10 +255,12 @@ fn surface_origin(
         CompositionSurface::RectTile { sector } => project
             .regions
             .iter()
-            .find(|r| r.map.id == binding.map)
-            .and_then(|r| {
-                r.map.find_sector(sector).map(|s| {
-                    let b = s.bounding_box(&r.map);
+            .map(|r| &r.map)
+            .chain(project.screens.values().map(|s| &s.map))
+            .find(|map| map.id == binding.map)
+            .and_then(|map| {
+                map.find_sector(sector).map(|s| {
+                    let b = s.bounding_box(map);
                     if b.min.x.is_finite() && b.min.y.is_finite() {
                         [b.min.x, b.min.y]
                     } else {
@@ -269,9 +295,72 @@ pub(super) fn bundle_for_surface(
     set_surface_domain(&mut asset, project, binding);
     surface_pages::apply(
         &mut asset,
-        surface_pages::for_surface(project, binding).as_ref(),
+        if composition
+            .layers
+            .iter()
+            .any(|l| l.shape == CompositionShape::AutoRoad)
+        {
+            surface_pages::for_template(project, id)
+        } else {
+            surface_pages::for_surface(project, binding)
+        }
+        .as_ref(),
     );
     asset.save().map_err(|e| e.to_string())
+}
+
+/// Refresh world UV coverage and dependent bundles for both UI and Scepter.
+pub(crate) fn prepare_project(project: &mut Project) -> Vec<String> {
+    let mut errors = vec![];
+    let sources: Vec<_> = project
+        .procedural_materials
+        .keys()
+        .filter(|id| {
+            !project.material_compositions.contains_key(*id)
+                && !shared::ruleset_materials::is_library_tile(&project.config, id)
+        })
+        .copied()
+        .collect();
+    for id in sources {
+        if let Ok(mut asset) = EditableMaterialAsset::reopen(&project.procedural_materials[&id]) {
+            // Bounded, repeating drawings need no world coverage scan.
+            // Only persist an actual domain change; opening a project is
+            // not a material edit and must preserve its saved bake keys.
+            let repeating = material(&asset)
+                .is_ok_and(|m| m.tiling.mode != denrim_materials::periodic::Mode::Raw);
+            let pages = if repeating {
+                None
+            } else {
+                surface_pages::for_template(project, id)
+            };
+            let before = asset.instances.clone();
+            surface_pages::apply(&mut asset, pages.as_ref());
+            if asset.instances == before {
+                continue;
+            }
+            if let Ok(bundle) = asset.save() {
+                if project.procedural_materials.get(&id) != Some(&bundle) {
+                    project.procedural_materials.insert(id, bundle);
+                }
+            }
+        }
+    }
+    let updates: Vec<_> = project
+        .material_compositions
+        .keys()
+        .map(|id| (*id, bundle(*id, project, None)))
+        .collect();
+    for (id, result) in updates {
+        match result {
+            Ok(bundle) => {
+                if project.procedural_materials.get(&id) != Some(&bundle) {
+                    project.procedural_materials.insert(id, bundle);
+                }
+            }
+            Err(error) => errors.push(error),
+        }
+    }
+    errors
 }
 
 struct Builder<'a> {
@@ -409,7 +498,8 @@ impl Builder<'_> {
                     | CompositionShape::Corner
                     | CompositionShape::Strips
                     | CompositionShape::Road
-                    | CompositionShape::Crossing => "Mask",
+                    | CompositionShape::Crossing
+                    | CompositionShape::AutoRoad => "Mask",
                     CompositionShape::Height => "Bump Height",
                     CompositionShape::Overlay => "Overlay",
                     CompositionShape::UvPosition => unreachable!(),
@@ -429,12 +519,16 @@ impl Builder<'_> {
                     | CompositionShape::Corner
                     | CompositionShape::Strips
                     | CompositionShape::Road
-                    | CompositionShape::Crossing => {
+                    | CompositionShape::Crossing
+                    | CompositionShape::AutoRoad => {
                         append_mask_row(
                             &mut recipe,
                             "shape",
                             &format!("shape-{}", layer.id),
-                            &shape_code(layer),
+                            &shape_code_with_distance(
+                                layer,
+                                neighbours::distance(self.project, id, layer)?,
+                            ),
                         )?;
                     }
                 }
@@ -489,8 +583,16 @@ impl Builder<'_> {
                 .find(|m| m.id == root)
                 .ok_or("Composition output is missing")?
                 .tiling = denrim_materials::periodic::Tiling {
-                mode: denrim_materials::periodic::Mode::parse(&composition.tiling.mode)
-                    .map_err(|e| e.to_string())?,
+                mode: if composition
+                    .layers
+                    .iter()
+                    .any(|l| l.shape == CompositionShape::AutoRoad)
+                {
+                    denrim_materials::periodic::Mode::Raw
+                } else {
+                    denrim_materials::periodic::Mode::parse(&composition.tiling.mode)
+                        .map_err(|e| e.to_string())?
+                },
                 period: composition.tiling.period,
                 blend: composition.tiling.blend,
             }
@@ -583,14 +685,38 @@ fn mask_rows(project: &Project, source: Uuid) -> Vec<(String, String, String)> {
         .collect()
 }
 
+fn requires_world_coordinates(project: &Project) -> bool {
+    if !project.material_compositions.is_empty() {
+        return true;
+    }
+    thread_local! { static WORLD: std::cell::Cell<(u64,bool)> = const {std::cell::Cell::new((0,false))}; }
+    WORLD.with(|cache| {
+        let revision = project.procedural_materials.revision();
+        if cache.get().0 == revision {
+            return cache.get().1;
+        }
+        let world = project
+            .procedural_materials
+            .iter()
+            .filter(|(id, _)| !shared::ruleset_materials::is_library_tile(&project.config, id))
+            .any(|(_, bundle)| {
+                EditableMaterialAsset::reopen(bundle)
+                    .ok()
+                    .and_then(|a| {
+                        material(&a)
+                            .ok()
+                            .map(|m| m.tiling.mode == denrim_materials::periodic::Mode::Raw)
+                    })
+                    .unwrap_or(true)
+            });
+        cache.set((revision, world));
+        world
+    })
+}
+
 pub(super) fn input_key(project: &Project) -> u64 {
     let mut text = serde_json::to_string(&project.material_compositions).unwrap_or_default();
-    for (id, bundle) in &project.procedural_materials {
-        if !project.material_compositions.contains_key(id) {
-            text.push_str(&id.to_string());
-            text.push_str(bundle);
-        }
-    }
+    text.push_str(&project.procedural_materials.revision().to_string());
     // Removing an asset invalidates dependent compositions as well.
     for (id, tile) in &project.tiles {
         text.push_str(&id.to_string());
@@ -612,9 +738,13 @@ pub(super) fn input_key(project: &Project) -> u64 {
     text.push_str(&serde_json::to_string(&project.map_material_bindings).unwrap_or_default());
     // Hash authored geometry once. Calculating page layouts here would rebuild
     // wall assembly meshes for every material on every editor update.
-    if !project.procedural_materials.is_empty() {
-        for region in &project.regions {
-            let map = &region.map;
+    if requires_world_coordinates(project) {
+        for map in project
+            .regions
+            .iter()
+            .map(|r| &r.map)
+            .chain(project.screens.values().map(|s| &s.map))
+        {
             text.push_str(
                 &serde_json::to_string(&(
                     map.id,
@@ -630,7 +760,7 @@ pub(super) fn input_key(project: &Project) -> u64 {
             );
         }
     }
-    cache_key(&text)
+    rusterix::procedural_avatar::fingerprint(&text)
 }
 
 /// Only changes to the inspector's structure replace its native controls.
@@ -677,40 +807,12 @@ impl ProceduralMaterialEditor {
             return;
         }
         self.composition_key = Some(key);
-        let sources: Vec<_> = project
-            .procedural_materials
-            .keys()
-            .filter(|id| !project.material_compositions.contains_key(*id))
-            .copied()
-            .collect();
-        for id in sources {
-            if let Ok(mut asset) = EditableMaterialAsset::reopen(&project.procedural_materials[&id])
-            {
-                surface_pages::apply(
-                    &mut asset,
-                    surface_pages::for_template(project, id).as_ref(),
-                );
-                if let Ok(bundle) = asset.save() {
-                    project.procedural_materials.insert(id, bundle);
-                }
-            }
-        }
-        let updates: Vec<_> = project
-            .material_compositions
-            .keys()
-            .map(|id| (*id, bundle(*id, project, None)))
-            .collect();
-        for (id, result) in updates {
-            match result {
-                Ok(bundle) => {
-                    project.procedural_materials.insert(id, bundle);
-                }
-                Err(error) => Self::status(
-                    ui,
-                    ctx,
-                    format!("Composition: {error}. Keeping the last working preview."),
-                ),
-            }
+        for error in prepare_project(project) {
+            Self::status(
+                ui,
+                ctx,
+                format!("Composition: {error}. Keeping the last working preview."),
+            );
         }
         self.composition_key = Some(input_key(project));
     }
@@ -723,6 +825,15 @@ impl ProceduralMaterialEditor {
         let composition = self
             .tile
             .and_then(|id| project.material_compositions.get(&id));
+        let automatic = composition.is_some_and(|c| {
+            c.layers
+                .iter()
+                .any(|l| l.shape == CompositionShape::AutoRoad)
+        });
+        if let Some(w) = ui.get_widget("Material Tiling") {
+            w.set_disabled(automatic);
+        }
+
         if let Some(stack) = ui.get_stack_layout(STACK) {
             stack.set_index(usize::from(composition.is_some()));
         }
@@ -883,7 +994,9 @@ impl ProceduralMaterialEditor {
                     (FEATHER, "Soft edge", layer.feather, 0., 1.),
                 ],
                 CompositionShape::Blend => vec![(AMOUNT, "Amount", layer.amount, 0., 1.)],
-                CompositionShape::Road | CompositionShape::Crossing => vec![
+                CompositionShape::Road
+                | CompositionShape::Crossing
+                | CompositionShape::AutoRoad => vec![
                     (POSITION, "Road width", layer.position, 0., 1.),
                     (FEATHER, "Soft edge", layer.feather, 0., 1.),
                 ],
@@ -907,6 +1020,7 @@ impl ProceduralMaterialEditor {
                     | CompositionShape::Strips
                     | CompositionShape::Road
                     | CompositionShape::Crossing
+                    | CompositionShape::AutoRoad
             ) {
                 fields.push((WOBBLE, "Uneven edge", layer.wobble, 0., 0.25));
                 if self.composition_advanced {
@@ -1104,6 +1218,19 @@ impl ProceduralMaterialEditor {
                 let Some(mode) = ["raw", "repeat", "seamless"].get(*index) else {
                     return true;
                 };
+                if after
+                    .layers
+                    .iter()
+                    .any(|l| l.shape == CompositionShape::AutoRoad)
+                    && *mode != "raw"
+                {
+                    Self::status(
+                        ui,
+                        ctx,
+                        "Auto roads use world UVs. Set repeating patterns on the source materials.",
+                    );
+                    return true;
+                }
                 after.tiling.mode = (*mode).into();
                 name = "";
             }
@@ -1402,6 +1529,55 @@ mod tests {
             .procedural_materials
             .insert(id, asset.save().unwrap());
         id
+    }
+    #[test]
+    fn repeating_materials_ignore_world_edits_but_continuous_and_composed_materials_follow_them() {
+        let mut project = Project::default();
+        let id = source(&mut project, [0.2, 0.3, 0.1], 0.8);
+        let mut asset = EditableMaterialAsset::reopen(&project.procedural_materials[&id]).unwrap();
+        asset.root.project.materials[0].tiling.mode = denrim_materials::periodic::Mode::Repeat;
+        project
+            .procedural_materials
+            .insert(id, asset.save().unwrap());
+        let mut region = shared::region::Region::new();
+        region.map.add_vertex_at(0., 0.);
+        project.regions.clear();
+        project.regions.push(region);
+        let before = input_key(&project);
+        project.regions[0].map.vertices[0].x = 2.;
+        assert_eq!(
+            input_key(&project),
+            before,
+            "Repeating bakes do not depend on world bounds"
+        );
+        asset.root.project.materials[0].tiling.mode = denrim_materials::periodic::Mode::Raw;
+        project
+            .procedural_materials
+            .insert(id, asset.save().unwrap());
+        let before = input_key(&project);
+        project.regions[0].map.vertices[0].x = 3.;
+        assert_ne!(
+            input_key(&project),
+            before,
+            "Continuous pages must expand with the world"
+        );
+        asset.root.project.materials[0].tiling.mode = denrim_materials::periodic::Mode::Repeat;
+        project
+            .procedural_materials
+            .insert(id, asset.save().unwrap());
+        let composition = MaterialComposition {
+            base: id,
+            layers: vec![],
+            tiling: Default::default(),
+        };
+        composition_tile(&mut project, composition);
+        let before = input_key(&project);
+        project.regions[0].map.vertices[0].x = 4.;
+        assert_ne!(
+            input_key(&project),
+            before,
+            "World-aware composition masks still follow geometry edits"
+        );
     }
     fn composition_tile(project: &mut Project, c: MaterialComposition) -> Uuid {
         let tile = rusterix::Tile::from_textures(vec![rusterix::Texture::alloc(4, 4)]);

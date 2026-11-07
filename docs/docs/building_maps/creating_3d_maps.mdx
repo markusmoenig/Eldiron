@@ -163,6 +163,7 @@ Use **Edit Vertex** with one selected 3D vertex to enter exact world coordinates
 3D faces can use the same visual sources as the rest of Eldiron:
 
 - tiles from the Tile Picker
+- [MZ procedural tiles](procedural_materials), including layered compositions
 - Art Palette colors from the Palette dock
 
 Art Palette colors keep their own material preset and finish metadata, so changing an Art Palette entry's material updates 3D surfaces that use that palette index.
@@ -170,6 +171,13 @@ Art Palette colors keep their own material preset and finish metadata, so changi
 Select one or more faces with the **Sector / Face Tool** and press **T**, or use the relevant dock apply button.
 
 Faces can either repeat a tile in 1x1 world units or scale the source across the selected face, depending on the active tile application mode. Applying or clearing tile and palette sources uses selected faces first; if no individual faces are selected, selected objects apply to all of their faces.
+
+For MZ materials, the saved **Continuous / Repeat / Seamless** setting controls
+the material pattern itself. Continuous surface coordinates can vary a whole
+floor or wall; Repeat shares a wrapped pattern. These settings are distinct from
+face texture scaling. Rect **Compose** edits painted surface cells, and whole
+floor/wall compositions can combine several shape-based layers. See
+[Procedural Materials](procedural_materials#compose-directly-on-the-map).
 
 Use **Edit Face Texture** on selected faces, or on a selected object, to adjust texture offset, scale, and rotation. Explicit face selections take priority, so selecting one face on an object edits only that face; selecting the object edits every face. Parameter changes update the 3D view immediately. Texture scale follows the old 3D path convention: larger scale values make the source cover a larger area, while smaller values repeat it more tightly. For selected textured faces, the arrow shortcuts can also adjust offset, rotation, and scale without opening the action parameters.
 

@@ -5,6 +5,7 @@ mod macros;
 pub mod actionlist;
 pub mod actions;
 pub mod actionscript;
+pub mod appearance_workspace;
 pub mod avatar_atlas;
 pub mod block_props;
 pub mod blocks;
@@ -15,15 +16,17 @@ pub mod editcamera;
 pub mod editor;
 pub mod editor_display;
 pub mod editor_tools;
+mod geometry_editor;
 pub mod hud;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod i18n;
+mod item_appearance;
 pub mod mapeditor;
 pub mod material_editor;
 pub mod minimap;
 pub mod misc;
-mod procedural_material;
 mod palette_switch;
+mod procedural_material;
 mod project_templates;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod scepter;

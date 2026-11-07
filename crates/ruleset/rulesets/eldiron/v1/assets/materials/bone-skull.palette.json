@@ -1,0 +1,12 @@
+{
+  "base": {
+    "color": 23
+  },
+  "cavity": {
+    "color": 2
+  },
+  "@surface": {
+    "base color": 23,
+    "emission": 1
+  }
+}

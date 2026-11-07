@@ -69,6 +69,7 @@ pub struct SharedAtlasInner {
     pub atlas_map: FxHashMap<Uuid, Vec<AtlasEntry>>,
     pub auto_size: bool,
     pub content_version: u64,
+    translucency: FxHashMap<Uuid, (u64, bool)>,
 }
 
 #[derive(Clone)]
@@ -91,6 +92,7 @@ impl SharedAtlas {
                 atlas_map: FxHashMap::default(),
                 auto_size: true,
                 content_version: 0,
+                translucency: FxHashMap::default(),
             })),
         }
     }
@@ -184,32 +186,32 @@ impl SharedAtlas {
 
     /// Returns true if the tile at `tile_index` has any non-opaque texels/material opacity.
     pub fn tile_index_has_translucency(&self, tile_index: u32) -> bool {
-        let guard = self.inner.lock().unwrap();
-        let Some(id) = guard.tiles_order.get(tile_index as usize) else {
+        let mut guard = self.inner.lock().unwrap();
+        let Some(id) = guard.tiles_order.get(tile_index as usize).copied() else {
             return false;
         };
-        let Some(tile) = guard.tiles_map.get(id) else {
+        let version = guard.content_version;
+        if let Some((cached_version, result)) = guard.translucency.get(&id)
+            && *cached_version == version
+        {
+            return *result;
+        }
+        let Some(tile) = guard.tiles_map.get(&id) else {
             return false;
         };
-
-        // Color alpha channel.
-        if tile
+        // Scan color and packed material opacity once per content revision,
+        // rather than once per material on every raster frame.
+        let result = tile
             .frames
             .iter()
             .any(|frame| frame.chunks_exact(4).any(|px| px[3] < 255))
-        {
-            return true;
-        }
-
-        if tile.material_frames.iter().any(|frame| {
-            frame
-                .chunks_exact(4)
-                .any(|px| material_opacity_emissive(px).0 < 0.999)
-        }) {
-            return true;
-        }
-
-        false
+            || tile.material_frames.iter().any(|frame| {
+                frame
+                    .chunks_exact(4)
+                    .any(|px| material_opacity_emissive(px).0 < 0.999)
+            });
+        guard.translucency.insert(id, (version, result));
+        result
     }
 
     /// Get the raw tile data (width, height, and first frame RGBA pixels)
@@ -288,6 +290,7 @@ impl SharedAtlas {
     pub fn remove_tile(&self, id: &Uuid) {
         let mut guard = self.inner.lock().unwrap();
         guard.tiles_map.remove(id);
+        guard.translucency.remove(id);
         guard.tiles_order.retain(|tid| tid != id);
         guard.atlas_map.remove(id);
         guard.atlas_dirty = true;
@@ -298,6 +301,7 @@ impl SharedAtlas {
     pub fn clear(&self) {
         let mut guard = self.inner.lock().unwrap();
         guard.tiles_map.clear();
+        guard.translucency.clear();
         guard.tiles_order.clear();
         guard.atlas.data.fill(0);
         fill_default_material_pixels(&mut guard.atlas_material.data);
@@ -453,6 +457,8 @@ impl SharedAtlas {
         guard.auto_size = false;
     }
 
+    /// Raw access: content edits must advance `content_version` and set the
+    /// appropriate dirty flags. Prefer `with_tile_mut` for ordinary tile edits.
     pub fn inner_arc(&self) -> Arc<Mutex<SharedAtlasInner>> {
         Arc::clone(&self.inner)
     }
@@ -1112,6 +1118,45 @@ mod tests {
         );
         assert_eq!(guard.atlas_map[&ids[0]][1], guard.atlas_map[&ids[1]][1]);
         assert_eq!(guard.atlas_map[&ids[0]], guard.atlas_map[&ids[999]]);
+    }
+
+    #[test]
+    fn translucency_cache_follows_shared_color_material_animation_and_identity_edits() {
+        let atlas = SharedAtlas::new(16, 16);
+        let first = Uuid::new_v4();
+        let second = Uuid::new_v4();
+        for id in [first, second] {
+            atlas.add_tile(id, 1, 1, vec![vec![255, 128, 64, 255]], vec![]);
+        }
+        assert!(!atlas.tile_index_has_translucency(0));
+        assert!(!atlas.tile_index_has_translucency(0));
+        let clone = atlas.clone();
+        clone.with_tile_mut(&first, |tile| tile.frames[0][3] = 0);
+        assert!(atlas.tile_index_has_translucency(0));
+        atlas.with_tile_mut(&first, |tile| {
+            tile.frames[0][3] = 255;
+            tile.material_frames = vec![vec![SEMANTIC_MATERIAL_MARKER, 20, 128, 128]];
+        });
+        assert!(clone.tile_index_has_translucency(0));
+        atlas.with_tile_mut(&first, |tile| tile.material_frames[0][1] = 4);
+        assert!(!clone.tile_index_has_translucency(0));
+        // Any animated frame can make the tile translucent, including PBR alpha.
+        atlas.add_tile(
+            first,
+            1,
+            1,
+            vec![vec![255; 4], vec![255, 128, 64, 100]],
+            vec![],
+        );
+        assert!(atlas.tile_index_has_translucency(0));
+        atlas.add_tile(second, 1, 1, vec![vec![255; 4]], vec![vec![7, 3, 128, 128]]);
+        assert!(atlas.tile_index_has_translucency(1));
+        atlas.remove_tile(&first);
+        assert!(atlas.tile_index_has_translucency(0));
+        atlas.clear();
+        assert!(!atlas.tile_index_has_translucency(0));
+        atlas.add_tile(second, 1, 1, vec![vec![255; 4]], vec![]);
+        assert!(!atlas.tile_index_has_translucency(0));
     }
 
     #[test]

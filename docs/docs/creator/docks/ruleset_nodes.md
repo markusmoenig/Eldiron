@@ -32,6 +32,14 @@ List entries have individual **Remove**, **Move Up**, and **Move Down** controls
 
 Icon fields show a preview and an artwork grid containing bundled icons and project tiles. Select a thumbnail to change the icon reference. Under **fx / presets**, particle definitions show an animated preview and editable emitter properties. The preview refreshes after a committed edit.
 
+To edit an item's actual MZ artwork, open its **Appearance** entry in the project
+tree rather than replacing its icon reference in a rule form. The workspace
+separates Icon On/Off, world models, worn models and materials. Character outfits
+come from ruleset equipment chosen in character setup. See
+[Appearance](../../characters_items/appearance). Particle effects attached to an
+MZ model/rig use the shared emitter system; item behavior still owns state,
+light switching and fuel rules.
+
 ## Recovery and validation
 
 - **Checkpoint** records the current rules as a recovery snapshot.

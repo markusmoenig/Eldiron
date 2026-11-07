@@ -179,3 +179,19 @@ material "surface" called "Surface"
         vec![0.2, 0.3, 0.4]
     );
 }
+
+#[test]
+fn release_numbers_do_not_invalidate_unchanged_material_definitions() {
+    let asset = EditableMaterialAsset::parse("version-test", SOURCE, "grass").unwrap();
+    let mut bundle: serde_json::Value = serde_json::from_str(&asset.save().unwrap()).unwrap();
+    let library = source_library_version();
+    let hash = library.rsplit('-').next().unwrap();
+    bundle["source_library"] = format!("materialz-999.0.0-{hash}").into();
+    let reopened = EditableMaterialAsset::reopen(&bundle.to_string()).unwrap();
+    assert_eq!(reopened.root.project, asset.root.project);
+    bundle["source_library"] = "materialz-999.0.0-different-definitions".into();
+    assert!(EditableMaterialAsset::reopen(&bundle.to_string()).is_err());
+    bundle["source_library"] = library.into();
+    bundle["version"] = 999.into();
+    assert!(EditableMaterialAsset::reopen(&bundle.to_string()).is_err());
+}

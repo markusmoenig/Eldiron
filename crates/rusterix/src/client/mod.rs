@@ -607,6 +607,7 @@ struct ClientDrawDebugTiming {
     total: Duration,
     setup: Duration,
     game_prepare: Duration,
+    game_entities: Duration,
     game_render: Duration,
     game_composite: Duration,
     screen_base: Duration,
@@ -631,6 +632,7 @@ struct ClientDrawDebugSample {
     total: Duration,
     setup: Duration,
     game_prepare: Duration,
+    game_entities: Duration,
     game_render: Duration,
     game_composite: Duration,
     screen_base: Duration,
@@ -652,12 +654,31 @@ struct ClientDrawDebugSample {
 
 impl ClientDrawDebugTiming {
     fn record(&mut self, sample: ClientDrawDebugSample) {
+        static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if *TRACE.get_or_init(|| std::env::var_os("ELDIRON_TRACE_FRAME_TIMINGS").is_some()) {
+            let ms = |d: Duration| d.as_secs_f64() * 1000.;
+            eprintln!(
+                "[FrameTrace][ClientDraw] total={:.3} prepare={:.3} entities={:.3} render={:.3} composite={:.3} hud={:.3}",
+                ms(sample.total),
+                ms(sample.game_prepare),
+                ms(sample.game_entities),
+                ms(sample.game_render),
+                ms(sample.game_composite),
+                ms(sample.total.saturating_sub(
+                    sample.game_prepare
+                        + sample.game_entities
+                        + sample.game_render
+                        + sample.game_composite
+                ))
+            );
+        }
         let now = Instant::now();
         let window_started = *self.window_started.get_or_insert(now);
         self.frames = self.frames.saturating_add(1);
         self.total += sample.total;
         self.setup += sample.setup;
         self.game_prepare += sample.game_prepare;
+        self.game_entities += sample.game_entities;
         self.game_render += sample.game_render;
         self.game_composite += sample.game_composite;
         self.screen_base += sample.screen_base;
@@ -684,11 +705,12 @@ impl ClientDrawDebugTiming {
         let frames = self.frames.max(1) as f64;
         let avg_ms = |duration: Duration| duration.as_secs_f64() * 1000.0 / frames;
         eprintln!(
-            "[RenderDebug][ClientDraw] frames={} avg_ms total={:.2} setup={:.2} game_prepare={:.2} game_render={:.2} game_composite={:.2} screen_base={:.2} text={:.2} avatars={:.2} profiles={:.2} stats={:.2} foreground={:.2} messages={:.2} inputs={:.2} buttons={:.2} button_resolve={:.2} button_state={:.2} button_draw={:.2} button_overlay={:.2} misc={:.2}",
+            "[RenderDebug][ClientDraw] frames={} avg_ms total={:.2} setup={:.2} game_prepare={:.2} game_entities={:.2} game_render={:.2} game_composite={:.2} screen_base={:.2} text={:.2} avatars={:.2} profiles={:.2} stats={:.2} foreground={:.2} messages={:.2} inputs={:.2} buttons={:.2} button_resolve={:.2} button_state={:.2} button_draw={:.2} button_overlay={:.2} misc={:.2}",
             self.frames,
             avg_ms(self.total),
             avg_ms(self.setup),
             avg_ms(self.game_prepare),
+            avg_ms(self.game_entities),
             avg_ms(self.game_render),
             avg_ms(self.game_composite),
             avg_ms(self.screen_base),
@@ -1650,6 +1672,12 @@ impl Client {
     /// Increase the anim counter.
     pub fn inc_animation_frame(&mut self) {
         self.animation_frame += 1;
+        for widget in self.deco_widgets.values_mut() {
+            widget.animation_frame = self.animation_frame;
+        }
+        for widget in self.profile_widgets.values_mut() {
+            widget.animation_frame = self.animation_frame;
+        }
 
         for widget in self.game_widgets.values_mut() {
             widget.scene.animation_frame += 1;
@@ -3376,6 +3404,7 @@ impl Client {
         let debug_total_started = Instant::now();
         let debug_setup_started = Instant::now();
         let mut debug_game_prepare = Duration::ZERO;
+        let mut debug_game_entities = Duration::ZERO;
         let mut debug_game_render = Duration::ZERO;
         let mut debug_game_composite = Duration::ZERO;
         let mut debug_screen_base = Duration::ZERO;
@@ -3424,6 +3453,8 @@ impl Client {
             widget.firstp_eye_level = self.firstp_eye_level;
             widget.mouse_look_pitch = self.mouse_look.pitch;
             widget.apply_entities(map, assets, self.animation_frame, scene_handler);
+            debug_game_entities += stage_started.elapsed();
+            let stage_started = Instant::now();
             widget.prepare_frame(
                 map,
                 &self.server_time,
@@ -3622,13 +3653,22 @@ impl Client {
                 let base_screen = Self::screen_base_render_map(screen);
                 screen_widget.build(&base_screen, assets);
                 screen_widget.draw(&base_screen, &self.server_time, assets);
-                Self::punch_game_widget_holes(
-                    &mut screen_widget.buffer,
-                    screen_widget.background_color,
-                    self.game_widgets.values(),
-                );
-
-                self.target.blend_into(0, 0, &screen_widget.buffer);
+                let background = screen_widget.background_color;
+                let holes: Vec<_> = self
+                    .game_widgets
+                    .values()
+                    .map(|w| {
+                        (
+                            w.rect.x as i32,
+                            w.rect.y as i32,
+                            w.buffer.dim().width,
+                            w.buffer.dim().height,
+                        )
+                    })
+                    .collect();
+                screen_widget.composite_cached(&mut self.target, assets, &holes, |buffer| {
+                    Self::punch_game_widget_holes(buffer, background, self.game_widgets.values());
+                });
             }
         }
         debug_screen_base += stage_started.elapsed();
@@ -3875,6 +3915,7 @@ impl Client {
                             resolved_command.as_deref(),
                             visual_state,
                             widget.show_icon,
+                            self.animation_frame,
                         );
                         if !widget.show_icon {
                             widget.draw_label(&mut self.target, assets, &self.draw2d, visual_state);
@@ -3962,6 +4003,7 @@ impl Client {
                 total: debug_total_started.elapsed(),
                 setup: debug_setup,
                 game_prepare: debug_game_prepare,
+                game_entities: debug_game_entities,
                 game_render: debug_game_render,
                 game_composite: debug_game_composite,
                 screen_base: debug_screen_base,
@@ -4560,6 +4602,7 @@ impl Client {
                             resolved_command.as_deref(),
                             visual_state,
                             widget.show_icon,
+                            self.animation_frame,
                         );
                         if !widget.show_icon {
                             widget.draw_label(
@@ -9132,6 +9175,41 @@ impl Client {
             .unwrap_or_default()
     }
 
+    fn action_bar_artwork(table: &toml::Table, slice: usize) -> widget::artwork::ScreenArtwork {
+        let source = |key: &str| {
+            table
+                .get(key)
+                .and_then(toml::Value::as_str)
+                .and_then(|s| Uuid::parse_str(s.trim()).ok())
+                .map(PixelSource::TileId)
+        };
+        let normal = [
+            "normal_tile",
+            "tile",
+            "hover_tile",
+            "selected_tile",
+            "pressed_tile",
+            "disabled_tile",
+        ]
+        .iter()
+        .find_map(|key| source(key));
+        let Some(normal) = normal else {
+            return Default::default();
+        };
+        let selected = source("selected_tile").unwrap_or_else(|| normal.clone());
+        widget::artwork::ScreenArtwork {
+            sources: vec![
+                normal.clone(),
+                selected.clone(),
+                source("pressed_tile").unwrap_or(selected),
+                source("disabled_tile").unwrap_or_else(|| normal.clone()),
+                source("hover_tile").unwrap_or(normal),
+            ],
+            slice,
+            ..Default::default()
+        }
+    }
+
     fn next_action_bar_button_id(&self, screen: &Map) -> u32 {
         let mut id = u32::MAX;
         while self.button_widgets.contains_key(&id)
@@ -9151,7 +9229,7 @@ impl Client {
         name: &str,
         rect: Rect,
         table: &toml::Table,
-        assigned_textures: &[Texture],
+        assigned_artwork: &widget::artwork::ScreenArtwork,
         assets: &Assets,
     ) {
         let ui = table.get("ui").and_then(toml::Value::as_table);
@@ -9206,11 +9284,13 @@ impl Client {
             self.toolbar_actions_panel_config = config;
         }
 
-        let mut frame_textures = frame
-            .and_then(|frame| Self::action_bar_tile_texture(frame, "tile", assets))
-            .map(|texture| vec![texture])
-            .unwrap_or_else(|| assigned_textures.first().cloned().into_iter().collect());
-        frame_textures.truncate(1);
+        let frame_textures = Vec::new();
+        let mut frame_artwork = frame
+            .map(|f| Self::action_bar_artwork(f, 0))
+            .unwrap_or_default();
+        if frame_artwork.sources.is_empty() {
+            frame_artwork = assigned_artwork.clone();
+        }
         let frame_color = frame
             .and_then(|frame| {
                 Self::color_from_table(frame, "background_color")
@@ -9300,6 +9380,12 @@ impl Client {
                 border_gradient_color: frame_border_gradient_color,
                 border_gradient_direction: frame_border_gradient_direction,
                 border_radius: frame_border_radius,
+                artwork: {
+                    let mut a = frame_artwork;
+                    a.slice = frame_slice;
+                    a
+                },
+                animation_frame: self.animation_frame,
                 textures: frame_textures,
                 texture_slice: frame_slice,
                 separators,
@@ -9442,6 +9528,12 @@ impl Client {
                     command: config.command,
                     command_slot: config.command_slot,
                     party: party.clone(),
+                    chrome_artwork: slot
+                        .map(|s| Self::action_bar_artwork(s, slot_slice))
+                        .unwrap_or_default(),
+                    frame_artwork: slot_frame
+                        .map(|s| Self::action_bar_artwork(s, slot_frame_slice))
+                        .unwrap_or_default(),
                     chrome_textures: slot_textures.clone(),
                     chrome_slice: slot_slice,
                     frame_textures: slot_frame_textures.clone(),
@@ -9754,15 +9846,14 @@ impl Client {
         self.target = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
         self.overlay = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
 
-        self.screen_widget = Some(ScreenWidget {
-            buffer: TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y)),
-            background_color: Self::hex_to_rgba_u8(&self.get_config_string_default(
-                "viewport",
-                "screen_background",
-                &self.get_config_string_default("viewport", "background_color_2d", "#000000"),
-            )),
-            ..Default::default()
-        });
+        let mut screen_widget = ScreenWidget::new();
+        screen_widget.buffer = TheRGBABuffer::new(TheDim::sized(self.viewport.x, self.viewport.y));
+        screen_widget.background_color = Self::hex_to_rgba_u8(&self.get_config_string_default(
+            "viewport",
+            "screen_background",
+            &self.get_config_string_default("viewport", "background_color_2d", "#000000"),
+        ));
+        self.screen_widget = Some(screen_widget);
 
         // Iterate sectors and apply layer property for sorted drawing
         if let Some(screen) = assets.screens.get_mut(&screen_name) {
@@ -9798,19 +9889,24 @@ impl Client {
                     bb.size().y * self.grid_size,
                 );
 
-                let mut textures = Vec::new();
-                if let Some(source) = widget.properties.get_default_source()
-                    && let Some(tile) = source.tile_from_tile_list(assets)
-                    && let Some(texture) = tile.textures.first()
-                {
-                    textures.push(texture.clone());
-                }
-                if let Some(source) = widget.properties.get_source("ceiling_source")
-                    && let Some(tile) = source.tile_from_tile_list(assets)
-                    && let Some(texture) = tile.textures.first()
-                {
-                    textures.push(texture.clone());
-                }
+                let source = widget
+                    .properties
+                    .get_default_source()
+                    .cloned()
+                    .unwrap_or(PixelSource::Off);
+                let active = widget
+                    .properties
+                    .get_source("ceiling_source")
+                    .cloned()
+                    .unwrap_or_else(|| source.clone());
+                let artwork = widget::artwork::ScreenArtwork {
+                    sources: vec![source, active],
+                    repeat: widget.properties.get_int_default("tile_mode", 0) != 0,
+                    origin: [bb.min.x, bb.min.y],
+                    units_per_pixel: 1. / self.grid_size.max(1.),
+                    ..Default::default()
+                };
+                let textures = Vec::new();
 
                 if let Some(crate::Value::Str(data)) = widget.properties.get("data") {
                     if let Ok(table) = data.parse::<Table>() {
@@ -9830,6 +9926,14 @@ impl Client {
                         }
                         let rect = self.resolve_screen_element_rect(authored_rect, role, &table);
                         let (x, y, width, height) = (rect.x, rect.y, rect.width, rect.height);
+                        let mut artwork = artwork.clone();
+                        artwork.slice = table
+                            .get("ui")
+                            .and_then(toml::Value::as_table)
+                            .and_then(|ui| ui.get("slice"))
+                            .and_then(toml::Value::as_integer)
+                            .unwrap_or(0)
+                            .max(0) as usize;
 
                         if role == "game" {
                             let mut game_widget = GameWidget {
@@ -10262,6 +10366,9 @@ impl Client {
                                 frame_textures: vec![],
                                 frame_slice: 0,
                                 icon_inset: None,
+                                artwork: artwork.clone(),
+                                chrome_artwork: Default::default(),
+                                frame_artwork: Default::default(),
                                 textures,
                                 entity_cursor_id,
                                 entity_clicked_cursor_id,
@@ -10294,7 +10401,7 @@ impl Client {
                                 &widget.name,
                                 rect,
                                 &table,
-                                &textures,
+                                &artwork,
                                 assets,
                             );
                         } else if role == "spellbook" || role == "actions" {
@@ -10463,6 +10570,7 @@ impl Client {
                             self.avatar_widgets.insert(widget.creator_id, avatar_widget);
                         } else if role == "profile" {
                             let mut profile_widget = ProfileWidget::new();
+                            profile_widget.animation_frame = self.animation_frame;
                             profile_widget.name = widget.name.clone();
                             profile_widget.rect = Rect::new(x, y, width, height);
                             profile_widget.toml_str = data.clone();
@@ -10495,6 +10603,17 @@ impl Client {
                             self.text_widgets.insert(widget.creator_id, text_widget);
                         } else if role == "deco" {
                             let mut deco_widget = DecoWidget {
+                                color: if artwork
+                                    .sources
+                                    .iter()
+                                    .any(|s| !matches!(s, PixelSource::Off))
+                                {
+                                    [0; 4]
+                                } else {
+                                    crate::BLACK
+                                },
+                                artwork: artwork.clone(),
+                                animation_frame: self.animation_frame,
                                 rect: Rect::new(x, y, width, height),
                                 toml_str: data.clone(),
                                 buffer: TheRGBABuffer::new(TheDim::sized(
@@ -10574,6 +10693,7 @@ impl Client {
         command: Option<&str>,
         visual_state: ButtonVisualState,
         show_icon: bool,
+        animation_frame: usize,
     ) {
         let stride = target.stride();
         let safe = (
@@ -10595,7 +10715,8 @@ impl Client {
         };
 
         if show_icon
-            && let Some(texture) = Widget::command_icon_texture(assets, command, visual_state)
+            && let Some(texture) =
+                Widget::command_icon_texture(assets, command, visual_state, animation_frame)
             && Self::draw_alpha_masked_command_overlay(target, rect, texture, alpha)
         {
             return;
@@ -12789,6 +12910,7 @@ impl Client {
                     Some(&entry.command),
                     visual_state,
                     true,
+                    self.animation_frame,
                 );
             }
 
@@ -14675,3 +14797,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "tests/screen_materials.rs"]
+mod screen_material_tests;

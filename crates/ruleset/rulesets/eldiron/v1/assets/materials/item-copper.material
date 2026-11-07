@@ -1,0 +1,25 @@
+# Palette-bound item surface shared by 2D sprites and native 3D models.
+project 1
+result from material "surface"
+material "surface" called "Item Copper"
+  mode pbr
+  tiling raw
+  default roughness to 0.4
+  default metallic to 0.75
+  default opacity to 1
+  default emission strength to 0
+  row "profile" called "Across the surface"
+    use "Rounded Rectangle" id "surface-domain"
+      set "halfSize" to 0.5 0.5
+      set "radius" to 0
+    use "Directional Gradient" id "surface-gradient"
+      set "angle" to 0
+      set "scale" to 1
+      set "offset" to 0.5
+    use "Color Ramp" id "surface-colors"
+      set "position0" to 0
+      set "position1" to 0.25
+      set "position2" to 0.5
+      set "position3" to 0.8
+      set "interpolation" to 0
+  output base color from row "profile" xyz

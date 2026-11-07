@@ -1,0 +1,75 @@
+# 32px ruleset inventory artwork. Stock MZ rows; authored colors are project palette indices.
+project 1
+result from material "icon"
+material "icon" called "Ember Resin"
+  mode pbr
+  tiling raw
+  default roughness to 0.8
+  default metallic to 0
+  default opacity to 0
+  default emission strength to 1
+  row "resin" called "Amber resin lump"
+    use "Polygon" id "resin-shape-0"
+      set "center" to 0 0.055
+      set "radius" to 0.31
+      set "sides" to 7
+      set "rotation" to -15
+    use "Directional Gradient" id "resin-gradient"
+      set "angle" to 0
+      set "scale" to 2.5
+      set "offset" to 0.5
+    use "Color Ramp" id "resin-colors"
+      set "position0" to 0
+      set "position1" to 0.3
+      set "position2" to 0.58
+      set "position3" to 0.85
+      set "interpolation" to 0
+    use "Border" id "resin-outline"
+      set "width" to 0.018
+  row "inclusion" called "Trapped dark inclusion"
+    use "Polygon" id "inclusion-shape-0"
+      set "center" to -0.035 0.07
+      set "radius" to 0.095
+      set "sides" to 4
+      set "rotation" to 25
+    use "Color" id "inclusion-color"
+  row "fracture" called "Amber fracture"
+    use "Rounded Rectangle" id "fracture-shape-0"
+      set "center" to 0 0
+      set "halfSize" to 0.014 0.174141
+      set "radius" to 0.00933333
+    use "Color" id "fracture-color"
+    use "Transform" id "fracture-placement"
+      set "offset" to -0.01 0.005
+      set "localScale" to 1 1
+      set "rot" to -39.1737
+  row "glint" called "Resin glint"
+    use "Rounded Rectangle" id "glint-shape-0"
+      set "center" to -0.07 -0.13
+      set "halfSize" to 0.05 0.02
+      set "radius" to 0.01
+    use "Color" id "glint-color"
+  row "composite-1" called "Inclusion over previous layers"
+    use "Alpha Over" id "composite-1"
+      input from row "resin" xyz
+      set "foreground" from row "inclusion" xyzw
+  row "composite-2" called "Fracture over previous layers"
+    use "Alpha Over" id "composite-2"
+      input from row "composite-1" xyz
+      set "foreground" from row "fracture" xyzw
+  row "composite-3" called "Glint over previous layers"
+    use "Alpha Over" id "composite-3"
+      input from row "composite-2" xyz
+      set "foreground" from row "glint" xyzw
+  row "pixel-alpha" called "Crisp 32px silhouette"
+    use "Compare/Select" id "pixel-alpha"
+      input from row "composite-3" www
+      set "comparison" to 2
+      set "reference" to 0.5 0.5 0.5
+  row "glow" called "Emissive detail only"
+    use "Multiply" id "glow-mask"
+      input from row "fracture" xyz
+      set "localValue" from row "fracture" www
+  output base color from row "composite-3" xyz
+  output opacity from row "pixel-alpha" x
+  output emission from row "glow" xyz

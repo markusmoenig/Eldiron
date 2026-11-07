@@ -394,6 +394,7 @@ fn sv_tri_color(p: vec2<f32>, i0: u32, i1: u32, i2: u32) -> ColorHit {
     let out_a = max(col0.a, overlay_a);
     col = vec4<f32>(out_rgb, out_a);
   }
+  if (U._pad0.x != 0u && (verts.data[i0]._pad0 & 2u) != 0u) { col = vec4<f32>(col.rgb * col.a, 1.0); }
   if (col.a < 0.01) { return ColorHit(false, 0u, 0u, 0u, vec4<f32>(0.0), 0u, 0u, vec2<f32>(0.0), 0u, 0u); }
 
   // --- Analytic edge AA ---

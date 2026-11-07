@@ -1,0 +1,45 @@
+{
+  "rim-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "boss-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "face-colors": {
+    "color0": 39,
+    "color1": 40,
+    "color2": 41,
+    "color3": 42
+  },
+  "outer-outline": {
+    "color": 2
+  },
+  "face-outline": {
+    "color": 2
+  },
+  "emblem-outline": {
+    "color": 2
+  },
+  "boss-outline": {
+    "color": 2
+  },
+  "rivet-outline": {
+    "color": 2
+  },
+  "emblem-color": {
+    "color": 24
+  },
+  "rivet-color": {
+    "color": 9
+  },
+  "@surface": {
+    "base color": 9,
+    "emission": 1
+  }
+}

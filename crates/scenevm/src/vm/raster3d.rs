@@ -5,7 +5,8 @@ use wgpu::util::DeviceExt;
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Vert3DPod {
     pub pos: [f32; 3],
-    pub _pad0: f32,
+    /// CPU-only classification for character/item pixelization. Not a shader attribute.
+    pub entity_pixel_target: f32,
     pub uv: [f32; 2],
     pub _pad1: [f32; 2],
     pub tile_index: u32,
@@ -97,6 +98,7 @@ pub struct Raster3DUniforms {
     pub post_style0: [f32; 4],
     pub post_style1: [f32; 4],
     pub avatar_highlight_params: [f32; 4],
+    /// x: entity screen-pixel block (zero disables); yzw reserved.
     pub _pad_tail: [u32; 4],
     pub palette: [[f32; 4]; 256],
     pub palette_tile_indices: [[u32; 4]; 64],
@@ -220,7 +222,8 @@ impl super::VMGpu {
                 sample_count: raster_samples,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Depth32Float,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             });
             let depth_view = depth_tex.create_view(&wgpu::TextureViewDescriptor::default());
@@ -321,6 +324,13 @@ pub(super) fn record_raster3d_debug_timing(
 ) {
     if !crate::render_debug_enabled() {
         return;
+    }
+
+    static TRACE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *TRACE.get_or_init(|| std::env::var_os("ELDIRON_TRACE_FRAME_TIMINGS").is_some()) {
+        eprintln!(
+            "[FrameTrace][Raster3D] init={init_ms:.3} prepare={prepare_ms:.3} geometry={geometry_ms:.3} visibility={visibility_ms:.3} upload={upload_ms:.3} encode={encode_ms:.3} submit={submit_ms:.3} total={total_ms:.3} rebuilt={geometry_rebuilt} verts={verts} visible={visible_indices}"
+        );
     }
 
     let mut timing = RASTER3D_DEBUG_TIMING

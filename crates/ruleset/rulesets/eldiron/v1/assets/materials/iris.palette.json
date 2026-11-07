@@ -1,0 +1,15 @@
+{
+  "base": {
+    "color": 41
+  },
+  "shade": {
+    "color": 1
+  },
+  "glint": {
+    "color": 8
+  },
+  "@surface": {
+    "base color": 41,
+    "emission": 1
+  }
+}

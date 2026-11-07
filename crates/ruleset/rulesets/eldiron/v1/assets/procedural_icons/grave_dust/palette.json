@@ -1,0 +1,33 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "sack-colors": {
+    "color0": 3,
+    "color1": 4,
+    "color2": 5,
+    "color3": 7
+  },
+  "sack-outline": {
+    "color": 1
+  },
+  "tie-color": {
+    "color": 17
+  },
+  "tie-outline": {
+    "color": 1
+  },
+  "label-colors": {
+    "color0": 6,
+    "color1": 7,
+    "color2": 9,
+    "color3": 23
+  },
+  "label-outline": {
+    "color": 1
+  },
+  "eyes-color": {
+    "color": 2
+  }
+}

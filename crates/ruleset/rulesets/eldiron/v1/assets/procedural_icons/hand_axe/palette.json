@@ -1,0 +1,45 @@
+{
+  "wood-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 20,
+    "color3": 21
+  },
+  "grip-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "steel-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "socket-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "wood-outline": {
+    "color": 2
+  },
+  "grip-outline": {
+    "color": 2
+  },
+  "head-outline": {
+    "color": 2
+  },
+  "socket-outline": {
+    "color": 2
+  },
+  "rivet-color": {
+    "color": 9
+  },
+  "@surface": {
+    "base color": 9,
+    "emission": 1
+  }
+}

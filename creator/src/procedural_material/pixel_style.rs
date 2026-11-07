@@ -36,8 +36,9 @@ pub(crate) fn set_density(config: &str, pixels: u32) -> Result<String, String> {
     }
     Ok(document.to_string())
 }
-pub(super) fn bake_key(bundle: &str, pixels: u32) -> u64 {
-    super::cache_key(&format!("palette-tick-v3:{pixels}\n{bundle}"))
+// v4 fixes the centered UV domain used by bounded GPU tile bakes.
+pub(crate) fn bake_key(bundle: &str, pixels: u32) -> u64 {
+    super::cache_key(&format!("palette-tick-v4:{pixels}\n{bundle}"))
 }
 #[cfg(test)]
 mod tests {

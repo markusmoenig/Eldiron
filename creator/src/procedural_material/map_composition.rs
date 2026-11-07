@@ -92,7 +92,7 @@ fn tile_override(properties: &ValueContainer, cell: [i32; 2]) -> Option<PixelSou
     }
     None
 }
-fn set_tile_override(properties: &mut ValueContainer, cell: [i32; 2], source: PixelSource) {
+pub(crate) fn set_tile_override(properties: &mut ValueContainer, cell: [i32; 2], source: PixelSource) {
     let key = (cell[0], cell[1]);
     if let Some(Value::TileOverrides(tiles)) = properties.get_mut("tiles")
         && tiles.contains_key(&key)
@@ -292,7 +292,7 @@ pub(crate) fn source(map: &Map, binding: &MapMaterialBinding) -> Option<PixelSou
         }
     }
 }
-fn set_source(map: &mut Map, binding: &MapMaterialBinding, id: Uuid) -> bool {
+pub(crate) fn set_source(map: &mut Map, binding: &MapMaterialBinding, id: Uuid) -> bool {
     if map.id != binding.map {
         return false;
     }

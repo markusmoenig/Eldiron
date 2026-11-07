@@ -12,8 +12,8 @@ pub use editor::*;
 pub use model::*;
 pub use paint::*;
 mod raster;
-pub use raster::*;
 pub use branch::*;
+pub use raster::*;
 #[cfg(test)]
 mod tests;
 

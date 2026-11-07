@@ -1,0 +1,35 @@
+# Skull face in the same surface UVs used by 2D sprites and the 3D mesh.
+project 1
+result from material "surface"
+material "surface" called "Bone skull"
+  mode pbr
+  tiling raw
+  default roughness to 0.85
+  default metallic to 0
+  default opacity to 1
+  default emission strength to 0
+  row "bone" called "Ivory bone"
+    use "Color" id "base"
+  row "cavity-color" called "Dark socket palette color"
+    use "Color" id "cavity"
+  row "sockets" called "Eye and nose sockets"
+    use "Circle" id "left-socket"
+      set "center" to -0.322 0
+      set "radius" to 0.052
+    use "Circle" id "right-socket"
+      combine union
+      set "center" to -0.178 0
+      set "radius" to 0.052
+    use "Polygon" id "nose-socket"
+      combine union
+      set "sides" to 3
+      set "radius" to 0.035
+      set "rotation" to 90
+      set "center" to -0.25 0.18
+  row "face" called "Sockets on bone"
+    use "Mix" id "face"
+      input from row "sockets" www
+      set "color1" from row "bone" xyzw
+      set "color2" from row "cavity-color" xyzw
+      set "factor" to 1 1 1
+  output base color from row "face" xyz

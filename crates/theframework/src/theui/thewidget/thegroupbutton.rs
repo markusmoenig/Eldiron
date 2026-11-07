@@ -58,7 +58,9 @@ impl TheWidget for TheGroupButton {
     #[allow(clippy::single_match)]
     fn on_event(&mut self, event: &TheEvent, ctx: &mut TheContext) -> bool {
         let mut redraw = false;
-        // println!("event ({}): {:?}", self.widget_id.name, event);
+        if self.is_disabled {
+            return false;
+        }
         match event {
             TheEvent::MouseDown(coord) => {
                 if self.state != TheWidgetState::Selected {

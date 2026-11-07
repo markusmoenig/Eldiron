@@ -9,7 +9,21 @@ The *Rect* tool in action.
 
 ![Rect Tool](rect_tool.png)
 
-The *Rect* tool does not layer tiles. When you draw over an existing tile, the tile will be replaced with the new tile. Hold *Shift* while drawing to erase, and hold *Cmd/Ctrl* to draw straight lines.
+In **Paint** mode, drawing over an existing tile replaces its source. Hold
+*Shift* while drawing to erase, and hold *Cmd/Ctrl* to draw straight lines.
+
+## Procedural Tiles and Layered Materials
+
+**Make Proc** in the Tile Picker creates an editable MZ source. Its row editor
+opens in the sidebar and its preview uses the minimap. Use Continuous for varied
+world-coordinate patterns or Repeat for a shared repeating tile.
+
+Switch the Rect tool to **Compose** and click a painted cell to combine a
+background with shape-based layers. The visual presets include road strips,
+corners, crossings and blends. Soft edge blends the materials; wobble makes an
+uneven boundary. Save a copy to the picker to paint the same composition again.
+These are layers within a material composition, not an extra stack of map sectors.
+See [Procedural Materials](procedural_materials).
 
 ## Blocking Tiles
 

@@ -201,6 +201,15 @@ fn default_control(key: &str, rules: &Table) -> GraphControlValue {
                 selected: 0,
             }
         }
+        "start_equipped_items" => GraphControlValue::List {
+            row_ids: vec![],
+            columns: vec![GraphListColumn {
+                id: "item".into(),
+                label: "Ruleset item name or ID".into(),
+                control: GraphControlValue::Text(String::new()),
+            }],
+            rows: vec![],
+        },
         "tile_id" => GraphControlValue::Custom {
             kind: "tile".into(),
             data: serde_json::Value::String(String::new()),
@@ -519,6 +528,12 @@ pub fn builtin_registry() -> ConfigurationRegistry {
         },
         Fields {
             section: "attributes",
+            id: "entity_equipment",
+            title: "Equipment",
+            keys: &["start_equipped_items"],
+        },
+        Fields {
+            section: "attributes",
             id: "entity_inventory",
             title: "Inventory",
             keys: &["inventory_slots", "wealth"],
@@ -715,6 +730,7 @@ pub fn import(data: &str, rules: &Table) -> Result<GraphDocument, String> {
                 key if Some(key) == level_key.as_deref() => ("entity_identity", "Identity"),
                 "tile_id" => ("entity_set_tile", "Set Tile"),
                 "avatar" | "size_2d" | "visible" => ("entity_appearance", "Appearance"),
+                "start_equipped_items" => ("entity_equipment", "Equipment"),
                 "radius" | "blocking" => ("entity_body", "Collision"),
                 "inventory_slots" | "wealth" => ("entity_inventory", "Inventory"),
                 "player" => ("entity_player", "Player"),
@@ -1101,6 +1117,7 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
         rules: &Table,
         character_template: bool,
         item_template: bool,
+        equipment: Option<&crate::equipment::EquipmentCatalog>,
     ) -> Result<(), String> {
         if !graphs.contains_key(&key) {
             graphs.insert(
@@ -1125,27 +1142,21 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
             key.clone(),
             serde_json::to_value(&doc).map_err(|e| e.to_string())?,
         );
-        *data = (if item_template {
+        let generated = (if item_template {
             project_item_data(&doc, data, rules)
         } else {
             project_data(&doc, data, rules)
         })
         .map_err(|e| format!("{key}: {e}"))?;
+        if let Some(equipment) = equipment {
+            equipment
+                .validate_explicit(&generated)
+                .map_err(|e| format!("{key}: {e}"))?;
+        }
+        *data = generated;
         Ok(())
     }
     let mut errors = vec![];
-    for c in project.characters.values_mut() {
-        if let Err(e) = sync(
-            &mut project.node_graphs,
-            character_key(c.id),
-            &mut c.data,
-            &rules,
-            true,
-            false,
-        ) {
-            errors.push(e);
-        }
-    }
     for i in project.items.values_mut() {
         if let Err(e) = sync(
             &mut project.node_graphs,
@@ -1154,6 +1165,21 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
             &rules,
             false,
             true,
+            None,
+        ) {
+            errors.push(e);
+        }
+    }
+    let equipment = crate::equipment::EquipmentCatalog::new(project)?;
+    for c in project.characters.values_mut() {
+        if let Err(e) = sync(
+            &mut project.node_graphs,
+            character_key(c.id),
+            &mut c.data,
+            &rules,
+            true,
+            false,
+            Some(&equipment),
         ) {
             errors.push(e);
         }
@@ -1173,6 +1199,7 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
                     &rules,
                     false,
                     false,
+                    None,
                 ) {
                     errors.push(e);
                 }
@@ -1191,6 +1218,7 @@ pub fn synchronize(project: &mut Project) -> Result<(), String> {
                     &rules,
                     false,
                     false,
+                    None,
                 ) {
                     errors.push(e);
                 }
@@ -1216,6 +1244,11 @@ pub fn update_owner(project: &mut Project, owner: &str, doc: &GraphDocument) -> 
         .and_then(|s| Uuid::parse_str(s).ok())
         .ok_or("Invalid Entity owner")?;
     let is_character = owner.starts_with("entity/character/");
+    let equipment = if is_character && project.characters.contains_key(&id) {
+        Some(crate::equipment::EquipmentCatalog::new(project)?)
+    } else {
+        None
+    };
     let item_template = !is_character && project.items.contains_key(&id);
     let data = if is_character {
         if let Some(c) = project.characters.get_mut(&id) {
@@ -1242,9 +1275,105 @@ pub fn update_owner(project: &mut Project, owner: &str, doc: &GraphDocument) -> 
     } else {
         project_data(doc, data, &rules)?
     };
+    if let Some(equipment) = equipment {
+        equipment.validate_explicit(&generated)?;
+    }
     *data = generated;
     Ok(())
 }
+/// Update an authoring binding without replacing the user's setup graph or its layout.
+pub fn set_owner_attribute(
+    project: &mut Project,
+    owner: &str,
+    key: &str,
+    value: serde_json::Value,
+) -> Result<(), String> {
+    let rules = project
+        .rules_source()?
+        .parse::<Table>()
+        .map_err(|e| e.to_string())?;
+    let previous = owner_data(project, owner).ok_or("Entity owner no longer exists")?;
+    let mut doc = if let Some(saved) = project.node_graphs.get(owner) {
+        serde_json::from_value::<GraphDocument>(saved.clone()).map_err(|e| e.to_string())?
+    } else if owner.starts_with("entity/character/") {
+        import_character(previous, &rules)?
+    } else {
+        import_item(previous, &rules)?
+    };
+    normalize(&mut doc);
+    let value: Value = serde_json::from_value(value).map_err(|e| e.to_string())?;
+    let control = toml_control(&value);
+    let existing = doc.nodes.iter().position(|n| {
+        n.definition.as_deref() == Some("entity_attribute")
+            && n.rows.iter().any(|r| {
+                r.key.as_deref() == Some("attribute")
+                    && matches!(&r.value, GraphControlValue::Text(s) if s == key)
+            })
+    });
+    if let Some(index) = existing {
+        let node = &mut doc.nodes[index];
+        let target = node
+            .rows
+            .iter_mut()
+            .find(|r| r.key.as_deref() == Some("value"))
+            .ok_or("Missing attribute value")?;
+        target.value = control;
+    } else if let Some(target) = doc
+        .nodes
+        .iter_mut()
+        .flat_map(|n| &mut n.rows)
+        .find(|r| r.key.as_deref() == Some(key))
+    {
+        target.value = control;
+    } else {
+        let mut tail = doc
+            .nodes
+            .iter()
+            .find(|n| n.definition.as_deref() == Some("entity"))
+            .map(|n| n.id)
+            .ok_or("Missing Entity node")?;
+        for _ in 0..doc.nodes.len() {
+            let next = doc.connections.iter().find_map(|c| {
+                (doc.port(c.from)?.0.id == tail)
+                    .then(|| doc.port(c.to).map(|(n, _)| n.id))
+                    .flatten()
+            });
+            if let Some(next) = next {
+                tail = next;
+            } else {
+                break;
+            }
+        }
+        let tail = doc
+            .nodes
+            .iter()
+            .find(|n| n.id == tail)
+            .ok_or("Missing setup node")?;
+        let from = tail
+            .ports
+            .iter()
+            .find(|p| p.direction == PortDirection::Output)
+            .ok_or("Missing setup output")?
+            .id;
+        let mut node = prototype("entity_attribute", "Appearance binding");
+        node.position = [tail.position[0] + tail.width + 40., tail.position[1]];
+        row(&mut node, "attribute", GraphControlValue::Text(key.into()));
+        row(&mut node, "value", control);
+        doc.connections.push(GraphConnection {
+            id: Uuid::new_v4(),
+            from,
+            to: node.ports[0].id,
+        });
+        doc.nodes.push(node);
+    }
+    update_owner(project, owner, &doc)?;
+    project.node_graphs.insert(
+        owner.into(),
+        serde_json::to_value(doc).map_err(|e| e.to_string())?,
+    );
+    Ok(())
+}
+
 /// Read-only resolved character values. Provenance distinguishes explicit and
 /// inherited configuration; runtime health and other transient state are separate.
 pub fn effective_character(
@@ -1478,6 +1607,56 @@ mod tests {
             assert_eq!(keys.len(), definition.ports.len(), "{}", definition.id);
         }
     }
+    #[test]
+    fn equipment_node_is_the_single_saved_outfit_for_preview_and_game() {
+        let source = r#"[attributes]
+            race = "Orc"
+            class = "Warrior"
+            start_equipped_items = ["Linen Shirt", "Training Sword"]
+        "#;
+        let rules = rules();
+        let mut doc = import_character(source, &rules).unwrap();
+        let node = doc
+            .nodes
+            .iter_mut()
+            .find(|n| n.definition.as_deref() == Some("entity_equipment"))
+            .unwrap();
+        let GraphControlValue::List { rows, .. } = &mut node.rows[0].value else {
+            panic!("equipment list");
+        };
+        rows.push(vec![GraphControlValue::Text("Round Shield".into())]);
+        let generated = project_data(&doc, source, &rules).unwrap();
+        let table: Table = generated.parse().unwrap();
+        assert_eq!(
+            table["attributes"]["start_equipped_items"]
+                .as_array()
+                .unwrap()
+                .len(),
+            3
+        );
+        let reopened: GraphDocument =
+            serde_json::from_str(&serde_json::to_string(&doc).unwrap()).unwrap();
+        assert_eq!(project_data(&reopened, source, &rules).unwrap(), generated);
+        let node = doc
+            .nodes
+            .iter_mut()
+            .find(|n| n.definition.as_deref() == Some("entity_equipment"))
+            .unwrap();
+        let GraphControlValue::List { rows, .. } = &mut node.rows[0].value else {
+            unreachable!();
+        };
+        rows.clear();
+        assert!(
+            project_data(&doc, source, &rules)
+                .unwrap()
+                .parse::<Table>()
+                .unwrap()["attributes"]["start_equipped_items"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
+    }
+
     #[test]
     fn npc_custom_configuration_uses_separate_nodes_without_losing_values() {
         let source = r##"[attributes]

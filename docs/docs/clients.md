@@ -44,3 +44,14 @@ For the **Web**, rename your **.eldiron** file to **game.eldiron** and put it in
 Creator and every Eldiron client use the same **.eldiron** project file. New files are compressed, versioned containers, so even projects with embedded pixel art remain practical to store and transfer. A project saved by Creator can be opened again in Creator or passed directly to a client; there is no separate client-only export.
 
 Older **.eldiron** files that contain plain JSON remain supported. Opening and saving one in Creator upgrades it to the compressed container automatically. See [Project Files](creator/project_files.md) for the format and compatibility details.
+
+Projects also carry their editable MZ material/appearance assets and baked render
+data. Graphical clients consume the same palette bindings, item states, clothing
+and animation data as Creator: procedural characters use sprites in 2D and posed
+meshes in 3D. The terminal client continues to use gameplay and descriptive data
+rather than requiring graphical artwork. A standalone MaterialZ checkout is not
+a runtime dependency.
+
+Material recipes are baked textures/pages rather than a live per-pixel graph VM.
+Keep recipes and linked images with an editable project. See
+[Appearance](characters_items/appearance) and [Procedural Materials](building_maps/procedural_materials).

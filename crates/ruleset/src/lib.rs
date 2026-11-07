@@ -7,15 +7,16 @@ use toml::{Table, Value};
 
 pub mod behavior;
 pub mod cli;
+pub mod document;
 mod formula;
 pub mod graph;
 pub mod graph_authoring;
-pub mod document;
 mod help;
 pub mod particle_graph;
 pub use formula::{evaluate_formula, formula_identifiers, formula_is_valid};
 pub use help::{RulesetHelpCommand, RulesetHelpResponse, execute_ruleset_help, ruleset_help_intro};
 
+pub const HUMANOID_APPEARANCE_ASSET_ID: &str = "ce832ab5-31d8-4fc7-994c-b733fcd16f12";
 pub const OFFICIAL_RULESET_ID: &str = "eldiron.official";
 pub const OFFICIAL_RULESET_VERSION: &str = "1.0.0";
 pub const OFFICIAL_RULESET_SCHEMA_VERSION: &str = "1";
@@ -334,6 +335,644 @@ pub struct BundledAvatarAsset {
     pub ruleset_version: &'static str,
     pub path: &'static str,
     pub source: &'static str,
+}
+
+/// Portable MZ recipe and authoritative project-palette references.
+#[derive(Clone, Debug)]
+pub struct BundledMaterialAsset {
+    pub id: &'static str,
+    pub source: &'static str,
+    pub palette: &'static str,
+    pub resolution: u32,
+    pub output: &'static str,
+}
+pub fn bundled_material_assets_for_ruleset(id: &str, version: &str) -> Vec<BundledMaterialAsset> {
+    if id != OFFICIAL_RULESET_ID || version != OFFICIAL_RULESET_VERSION {
+        return vec![];
+    }
+    macro_rules! mat {
+        ($name:literal) => {
+            BundledMaterialAsset {
+                id: $name,
+                source: include_str!(concat!(
+                    "../rulesets/eldiron/v1/assets/materials/",
+                    $name,
+                    ".material"
+                )),
+                palette: include_str!(concat!(
+                    "../rulesets/eldiron/v1/assets/materials/",
+                    $name,
+                    ".palette.json"
+                )),
+                resolution: 64,
+                output: "surface",
+            }
+        };
+    }
+    vec![
+        mat!("skin"),
+        mat!("orc-skin"),
+        mat!("bone"),
+        mat!("bone-skull"),
+        mat!("bone-shadow"),
+        mat!("fitting-guide"),
+        mat!("hair"),
+        mat!("tunic"),
+        mat!("tunic-sleeve"),
+        mat!("trousers"),
+        mat!("trouser-waist"),
+        mat!("leather"),
+        mat!("eye-white"),
+        mat!("iris"),
+        mat!("lips"),
+        mat!("steel"),
+        mat!("weapon-iron"),
+        mat!("weapon-ash"),
+        mat!("weapon-wrap"),
+        mat!("bow-string"),
+        mat!("bow-grip"),
+        mat!("spear-binding"),
+        mat!("arrow-shaft"),
+        mat!("arrow-feather"),
+        mat!("wood"),
+        mat!("linen-shirt"),
+        mat!("linen-sleeve"),
+        mat!("wool-trousers"),
+        mat!("wool-waist"),
+        mat!("leather-shoes"),
+        mat!("padded-armor"),
+        mat!("padded-sleeve"),
+        mat!("cleric-vestments"),
+        mat!("cleric-sleeve"),
+        mat!("cleric-tabard"),
+        mat!("leather-vest"),
+        mat!("chainmail"),
+        mat!("chainmail-sleeve"),
+        mat!("item-gold"),
+        mat!("item-copper"),
+        mat!("item-blue"),
+        mat!("item-glass"),
+        mat!("item-green"),
+        mat!("item-violet"),
+        mat!("item-ivory"),
+        mat!("item-stone"),
+        mat!("item-dust"),
+        mat!("item-earth"),
+        mat!("item-leather"),
+        mat!("item-salt"),
+        mat!("item-ember"),
+        mat!("item-cutwood"),
+        mat!("item-flame"),
+        mat!("item-flame-core"),
+        mat!("item-dark"),
+        mat!("item-stitch"),
+    ]
+}
+pub fn material_asset_id(id: &str) -> theframework::prelude::Uuid {
+    let hash = id.bytes().fold(0xcbf29ce484222325u64, |h, b| {
+        (h ^ b as u64).wrapping_mul(0x100000001b3)
+    });
+    theframework::prelude::Uuid::from_u128((0x52554c454d415453u128 << 64) | hash as u128)
+}
+
+/// Editable, palette-bound artwork for every official item, including torch states.
+pub fn bundled_icon_material_assets_for_ruleset(
+    id: &str,
+    version: &str,
+) -> Vec<BundledMaterialAsset> {
+    if id != OFFICIAL_RULESET_ID || version != OFFICIAL_RULESET_VERSION {
+        return vec![];
+    }
+    macro_rules! icon {
+        ($name:literal, $output:literal) => {
+            icon!($name, "on", "icon.material", "palette.json", $output)
+        };
+        ($name:literal, $state:literal, $source:literal, $palette:literal, $output:literal) => {
+            BundledMaterialAsset {
+                id: concat!("icon/", $name, "/", $state),
+                source: include_str!(concat!(
+                    "../rulesets/eldiron/v1/assets/procedural_icons/",
+                    $name,
+                    "/",
+                    $source
+                )),
+                palette: include_str!(concat!(
+                    "../rulesets/eldiron/v1/assets/procedural_icons/",
+                    $name,
+                    "/",
+                    $palette
+                )),
+                resolution: 32,
+                output: $output,
+            }
+        };
+    }
+    vec![
+        icon!("training_sword", "sword"),
+        icon!("round_shield", "shield"),
+        icon!("hand_axe", "axe"),
+        icon!("linen_shirt", "surface"),
+        icon!("wool_trousers", "surface"),
+        icon!("leather_shoes", "surface"),
+        icon!("padded_armor", "surface"),
+        icon!("leather_vest", "surface"),
+        icon!("chain_shirt", "surface"),
+        icon!("cleric_vestments", "surface"),
+        icon!("novice_mace", "icon"),
+        icon!("hunting_bow", "icon"),
+        icon!("training_spear", "icon"),
+        icon!("ritual_censer", "icon"),
+        icon!("sunward_charm", "icon"),
+        icon!("small_bag", "icon"),
+        icon!("loot_corpse", "icon"),
+        icon!("wooden_arrows", "icon"),
+        icon!("blessed_herb", "icon"),
+        icon!("moonwater", "icon"),
+        icon!("consecrated_oil", "icon"),
+        icon!("warding_salt", "icon"),
+        icon!("ember_bead", "icon"),
+        icon!("green_wood", "icon"),
+        icon!("feather", "icon"),
+        icon!("wild_herb", "icon"),
+        icon!("moonleaf", "icon"),
+        icon!("sun_shard", "icon"),
+        icon!("grave_dust", "icon"),
+        icon!("ember_resin", "icon"),
+        icon!("wild_herb_node", "icon"),
+        icon!("green_wood_node", "icon"),
+        icon!("bird_nest_node", "icon"),
+        icon!("moonleaf_patch", "icon"),
+        icon!("sunstone_outcrop", "icon"),
+        icon!("old_grave", "icon"),
+        icon!("resinous_stump", "icon"),
+        icon!("copper_coin", "icon"),
+        icon!("silver_coin", "icon"),
+        icon!("gold_coin", "icon"),
+        icon!("torch", "icon"),
+        icon!("torch", "off", "off.material", "off.palette.json", "icon"),
+    ]
+}
+
+pub fn geometry_asset_id(id: &str) -> theframework::prelude::Uuid {
+    let hash = id.bytes().fold(0xcbf29ce484222325u64, |h, b| {
+        (h ^ b as u64).wrapping_mul(0x100000001b3)
+    });
+    theframework::prelude::Uuid::from_u128((0x4d5a47454f4d4554u128 << 64) | hash as u128)
+}
+
+/// Editable geometry shared by the 2D sprite and native 3D character renderers.
+#[derive(Clone, Debug)]
+pub struct BundledAppearanceAsset {
+    pub id: &'static str,
+    pub asset_id: &'static str,
+    pub source: &'static str,
+    /// Geometry attachment operation, equipment slot, item category.
+    pub equipment: &'static [(&'static str, &'static str, &'static str)],
+}
+pub fn bundled_appearance_assets_for_ruleset(
+    id: &str,
+    version: &str,
+) -> Vec<BundledAppearanceAsset> {
+    if id != OFFICIAL_RULESET_ID || version != OFFICIAL_RULESET_VERSION {
+        return vec![];
+    }
+    vec![
+        BundledAppearanceAsset {
+            id: "humanoid",
+            asset_id: HUMANOID_APPEARANCE_ASSET_ID,
+            source: include_str!("../rulesets/eldiron/v1/assets/humanoid.mzgeometry.json"),
+            equipment: &[
+                ("sword-op-1", "main_hand", "sword"),
+                ("shield-op-1", "off_hand", "shield"),
+            ],
+        },
+        BundledAppearanceAsset {
+            id: "training_sword",
+            asset_id: "4d5a4745-4f4d-4554-04e6-38544b1dc491",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/training_sword.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "round_shield",
+            asset_id: "4d5a4745-4f4d-4554-3d36-18032251ffbd",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/round_shield.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "hand_axe",
+            asset_id: "4d5a4745-4f4d-4554-ebfc-fb5bf5c28123",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/hand_axe.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_linen_shirt",
+            asset_id: "4d5a4745-4f4d-4554-15a0-d33171430a4d",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_linen_shirt.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_wool_trousers",
+            asset_id: "4d5a4745-4f4d-4554-1d77-8a05583865c5",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_wool_trousers.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_leather_shoes",
+            asset_id: "4d5a4745-4f4d-4554-0624-1cef5c4af7a4",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_leather_shoes.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_padded_armor",
+            asset_id: "4d5a4745-4f4d-4554-73a6-2a47c586047c",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_padded_armor.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_leather_vest",
+            asset_id: "4d5a4745-4f4d-4554-4d63-c19e762486e6",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_leather_vest.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_chain_shirt",
+            asset_id: "4d5a4745-4f4d-4554-eae0-5caa9c37a094",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_chain_shirt.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "garment_cleric_vestments",
+            asset_id: "4d5a4745-4f4d-4554-3703-5674451e054e",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/garment_cleric_vestments.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "orc",
+            asset_id: "4d5a4745-4f4d-4554-19fb-901921bfa625",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/orc.mzgeometry.json"),
+            equipment: &[
+                ("sword-op-1", "main_hand", "sword"),
+                ("shield-op-1", "off_hand", "shield"),
+            ],
+        },
+        BundledAppearanceAsset {
+            id: "skeleton",
+            asset_id: "4d5a4745-4f4d-4554-5e63-c34c407a956e",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/skeleton.mzgeometry.json"),
+            equipment: &[
+                ("sword-op-1", "main_hand", "sword"),
+                ("shield-op-1", "off_hand", "shield"),
+            ],
+        },
+        BundledAppearanceAsset {
+            id: "novice_mace",
+            asset_id: "4d5a4745-4f4d-4554-004a-b397045458be",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/novice_mace.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "hunting_bow",
+            asset_id: "4d5a4745-4f4d-4554-7f3a-6c7fb0d75f7f",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/hunting_bow.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "training_spear",
+            asset_id: "4d5a4745-4f4d-4554-9eaf-4c2a73f2bc11",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/training_spear.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "ritual_censer",
+            asset_id: "4d5a4745-4f4d-4554-9abf-893872d3e343",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/ritual_censer.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "sunward_charm",
+            asset_id: "4d5a4745-4f4d-4554-1173-29a016480ef3",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/sunward_charm.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "small_bag",
+            asset_id: "4d5a4745-4f4d-4554-6615-bbdfe285f8b5",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/small_bag.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "linen_shirt",
+            asset_id: "4d5a4745-4f4d-4554-c7f2-c75224be8b7c",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/linen_shirt.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "padded_armor",
+            asset_id: "4d5a4745-4f4d-4554-8c8c-79aa7eeb14ab",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/padded_armor.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "leather_vest",
+            asset_id: "4d5a4745-4f4d-4554-2db5-e5e4fac14731",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/leather_vest.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "chain_shirt",
+            asset_id: "4d5a4745-4f4d-4554-44a7-11b51846823d",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/chain_shirt.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "cleric_vestments",
+            asset_id: "4d5a4745-4f4d-4554-b59d-61f6f062dfe5",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/cleric_vestments.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "wool_trousers",
+            asset_id: "4d5a4745-4f4d-4554-9454-7338181b1064",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/wool_trousers.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "leather_shoes",
+            asset_id: "4d5a4745-4f4d-4554-e35a-0e2ced1fe4b1",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/leather_shoes.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "wooden_arrows",
+            asset_id: "4d5a4745-4f4d-4554-6961-5b53405b6bba",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/wooden_arrows.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "moonwater",
+            asset_id: "4d5a4745-4f4d-4554-71e5-ab9b6777ba2f",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/moonwater.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "consecrated_oil",
+            asset_id: "4d5a4745-4f4d-4554-217b-ce213bea1831",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/consecrated_oil.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "warding_salt",
+            asset_id: "4d5a4745-4f4d-4554-88f2-7bd487a02c6a",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/warding_salt.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "grave_dust",
+            asset_id: "4d5a4745-4f4d-4554-2b59-c2aec0016a03",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/grave_dust.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "blessed_herb",
+            asset_id: "4d5a4745-4f4d-4554-9f1c-2e02f784d701",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/blessed_herb.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "wild_herb",
+            asset_id: "4d5a4745-4f4d-4554-0553-dbed6812ba15",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/wild_herb.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "moonleaf",
+            asset_id: "4d5a4745-4f4d-4554-42c7-4ed4ee4f1e70",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/moonleaf.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "wild_herb_node",
+            asset_id: "4d5a4745-4f4d-4554-d980-835d21e7dd6a",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/wild_herb_node.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "moonleaf_patch",
+            asset_id: "4d5a4745-4f4d-4554-50d5-4d338efd43a1",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/moonleaf_patch.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "feather",
+            asset_id: "4d5a4745-4f4d-4554-c026-d7306f17b248",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/feather.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "sun_shard",
+            asset_id: "4d5a4745-4f4d-4554-7395-d4ef5daf5d1e",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/sun_shard.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "ember_resin",
+            asset_id: "4d5a4745-4f4d-4554-9d63-a8a861ffe7ee",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/ember_resin.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "ember_bead",
+            asset_id: "4d5a4745-4f4d-4554-d26d-5fc4a9ce4051",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/ember_bead.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "green_wood",
+            asset_id: "4d5a4745-4f4d-4554-b91f-5448356548dc",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/green_wood.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "green_wood_node",
+            asset_id: "4d5a4745-4f4d-4554-d088-324049bff061",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/green_wood_node.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "resinous_stump",
+            asset_id: "4d5a4745-4f4d-4554-9efb-d0d9e3294ecb",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/resinous_stump.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "bird_nest_node",
+            asset_id: "4d5a4745-4f4d-4554-af97-adb8dbc33b62",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/bird_nest_node.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "sunstone_outcrop",
+            asset_id: "4d5a4745-4f4d-4554-5fbb-cc57ba6ffaa7",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/sunstone_outcrop.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "loot_corpse",
+            asset_id: "4d5a4745-4f4d-4554-1856-d10ab25c862c",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/loot_corpse.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "old_grave",
+            asset_id: "4d5a4745-4f4d-4554-85ef-becc054f1aa8",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/old_grave.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "copper_coin",
+            asset_id: "4d5a4745-4f4d-4554-ec69-1468e978e9c8",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/copper_coin.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "silver_coin",
+            asset_id: "4d5a4745-4f4d-4554-2137-070a8078c524",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/silver_coin.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "gold_coin",
+            asset_id: "4d5a4745-4f4d-4554-4cdb-ef4191abee81",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/gold_coin.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "torch",
+            asset_id: "4d5a4745-4f4d-4554-6373-f07d73160f61",
+            source: include_str!("../rulesets/eldiron/v1/assets/geometry/torch.mzgeometry.json"),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "torch_off",
+            asset_id: "4d5a4745-4f4d-4554-f816-6d31aa019817",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/torch_off.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "worn_sunward_charm",
+            asset_id: "4d5a4745-4f4d-4554-06f7-5837f7280f18",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/worn_sunward_charm.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "worn_small_bag",
+            asset_id: "4d5a4745-4f4d-4554-29f6-20cb0e295fae",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/worn_small_bag.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+        BundledAppearanceAsset {
+            id: "worn_ritual_censer",
+            asset_id: "4d5a4745-4f4d-4554-c541-840bbf934454",
+            source: include_str!(
+                "../rulesets/eldiron/v1/assets/geometry/worn_ritual_censer.mzgeometry.json"
+            ),
+            equipment: &[],
+        },
+    ]
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3536,6 +4175,15 @@ impl ResolvedEquipmentPolicy {
         let kind = kind.trim().to_ascii_lowercase();
         let category = category.map(|value| value.trim().to_ascii_lowercase());
         let mut occupied = BTreeSet::from([slot.trim().to_ascii_lowercase()]);
+        if let Some(anchor) = self.avatar_anchors.get(&slot.trim().to_ascii_lowercase()) {
+            occupied.insert(
+                match anchor {
+                    ResolvedEquipmentAvatarAnchor::MainHand => "main_hand",
+                    ResolvedEquipmentAvatarAnchor::OffHand => "off_hand",
+                }
+                .into(),
+            );
+        }
         let definition = match kind.as_str() {
             "weapon" | "weapons" => category
                 .as_ref()
@@ -5608,6 +6256,20 @@ fn ruleset_item_template_data(
 
     for key in [
         "icon",
+        "appearance_icon",
+        "appearance_icon_off",
+        "appearance_geometry",
+        "appearance_geometry_off",
+        "appearance_ground_flat",
+        "appearance_materials",
+        "appearance_padding",
+        "appearance_worn_geometry",
+        "appearance_idle",
+        "appearance_walk",
+        "appearance_attack",
+        "appearance_attack_time",
+        "appearance_hold_joint",
+        "appearance_two_handed",
         "visual_template",
         "container_template",
         "icon_template",

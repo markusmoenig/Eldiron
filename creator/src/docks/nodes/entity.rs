@@ -54,6 +54,7 @@ pub(super) fn title(id: &str) -> String {
         "entity_set_tile" => fl!("entity_set_tile"),
         "entity_body" => fl!("entity_body"),
         "entity_inventory" => fl!("entity_inventory"),
+        "entity_equipment" => fl!("entity_equipment"),
         "entity_player" => fl!("entity_player"),
         "entity_attribute" => fl!("entity_attribute"),
         "entity_input" => fl!("entity_input"),
@@ -76,6 +77,8 @@ pub(super) fn label(key: &str) -> String {
         "radius" => fl!("entity_radius"),
         "blocking" => fl!("entity_blocking"),
         "inventory_slots" => fl!("entity_slots"),
+        "start_equipped_items" => fl!("entity_equipment_items"),
+        "item" => fl!("entity_equipment_item"),
         "wealth" => fl!("entity_wealth"),
         "player" => fl!("entity_player_eligible"),
         "attribute" => fl!("entity_attribute_name"),
@@ -106,6 +109,7 @@ pub(super) fn help(id: &str) -> String {
         "entity_set_tile" => fl!("entity_set_tile_help"),
         "entity_input" => fl!("entity_input_help"),
         "entity_attribute" => fl!("entity_attribute_help"),
+        "entity_equipment" => fl!("entity_equipment_help"),
         _ => fl!("entity_configuration_help"),
     }
 }
@@ -114,6 +118,123 @@ impl NodesDock {
         self.owner
             .as_ref()
             .is_some_and(|key| key.starts_with(shared::entity_graph::PREFIX))
+    }
+    /// Drops replace the same declared slot, while gameplay policy checks other slots.
+    pub(super) fn drop_equipment_item(
+        &mut self,
+        project: &mut Project,
+        drop: &TheDrop,
+        point: Vec2<i32>,
+    ) -> Result<bool, String> {
+        if !self
+            .owner
+            .as_ref()
+            .is_some_and(|o| o.starts_with("entity/character/"))
+            || !project.items.contains_key(&drop.id.references)
+        {
+            return Ok(false);
+        }
+        let p = self
+            .editor
+            .viewport
+            .to_graph([point.x as f32, point.y as f32]);
+        let Some(target) = self
+            .doc
+            .nodes
+            .iter()
+            .rev()
+            .find(|n| self.editor.node_visible(n.id) && n.rect(&self.doc.metrics()).contains(p))
+            .filter(|n| n.definition.as_deref() == Some("entity_equipment"))
+            .map(|n| n.id)
+        else {
+            return Ok(false);
+        };
+        self.finish(project);
+        let rules = project
+            .rules_source()?
+            .parse::<shared::entity_graph::RulesTable>()
+            .map_err(|e| e.to_string())?;
+        let owner = self.owner.as_deref().unwrap();
+        let data = shared::entity_graph::project_data(
+            &self.doc,
+            shared::entity_graph::owner_data(project, owner).unwrap_or(""),
+            &rules,
+        )?;
+        let catalog = shared::equipment::EquipmentCatalog::new(project)?;
+        let Some(row) = self
+            .doc
+            .nodes
+            .iter_mut()
+            .find(|n| n.id == target)
+            .and_then(|n| {
+                n.rows
+                    .iter_mut()
+                    .find(|r| r.key.as_deref() == Some("start_equipped_items"))
+            })
+        else {
+            return Ok(false);
+        };
+        let GraphControlValue::List { rows, row_ids, .. } = &mut row.value else {
+            return Ok(false);
+        };
+        let existing = rows
+            .iter()
+            .map(|r| {
+                r.first()
+                    .map(|v| match v {
+                        GraphControlValue::Text(s) => s.clone(),
+                        _ => String::new(),
+                    })
+                    .unwrap_or_default()
+            })
+            .collect::<Vec<_>>();
+        let next = catalog.replace_for_drop(&data, &existing, drop.id.references)?;
+        if next != existing {
+            *rows = next
+                .into_iter()
+                .map(|s| vec![GraphControlValue::Text(s)])
+                .collect();
+            row_ids.truncate(rows.len());
+            while row_ids.len() < rows.len() {
+                row_ids.push(Uuid::new_v4());
+            }
+        }
+        self.configuration_error = None;
+        self.editor.selected = Some(target);
+        self.editor.selected_connection = None;
+        Ok(true)
+    }
+    /// Friendly labels are presentation only; text editing and saved data retain stable IDs.
+    pub(super) fn equipment_display_document(&self) -> GraphDocument {
+        let mut doc = self.doc.clone();
+        for node in &mut doc.nodes {
+            if node.definition.as_deref() != Some("entity_equipment") {
+                continue;
+            }
+            for row in &mut node.rows {
+                if row.key.as_deref() != Some("start_equipped_items") {
+                    continue;
+                }
+                if let GraphControlValue::List { rows, columns, .. } = &mut row.value {
+                    for column in columns {
+                        column.label = fl!("entity_equipment_item");
+                    }
+                    for (i, cells) in rows.iter_mut().enumerate() {
+                        if self.editor.text_focus().is_some_and(|f| {
+                            f.node == node.id && f.row == row.id && f.cell == Some((i, 0))
+                        }) {
+                            continue;
+                        }
+                        if let Some(GraphControlValue::Text(reference)) = cells.first_mut() {
+                            if let Some(name) = self.tiles.equipment_names.get(reference) {
+                                *reference = name.clone();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        doc
     }
     /// Show validation feedback without adding a separate values panel.
     pub(super) fn refresh_configuration(&mut self, project: &Project) {
@@ -142,7 +263,46 @@ impl NodesDock {
             shared::entity_graph::owner_data(project, owner).unwrap_or(""),
             &rules,
         );
-        let error = result.as_ref().err().cloned();
+        self.tiles.refresh_equipment_names(project);
+        let equipment = shared::equipment::EquipmentCatalog::new(project);
+        if let Ok(catalog) = &equipment {
+            for node in &self.doc.nodes {
+                if node.definition.as_deref() != Some("entity_equipment") {
+                    continue;
+                }
+                for row in &node.rows {
+                    if let GraphControlValue::List { rows, .. } = &row.value {
+                        for cells in rows {
+                            if let Some(GraphControlValue::Text(reference)) = cells.first() {
+                                if let Ok(item) = catalog.find(reference) {
+                                    self.tiles
+                                        .equipment_names
+                                        .insert(reference.clone(), item.name.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let result = result.and_then(|data| {
+            if project
+                .characters
+                .keys()
+                .any(|id| owner == &shared::entity_graph::character_key(*id))
+            {
+                equipment
+                    .as_ref()
+                    .map_err(Clone::clone)?
+                    .validate_explicit(&data)?;
+            }
+            Ok(data)
+        });
+        let error = result.err();
+        // Rejected-drop feedback stays visible while panning or hovering.
+        if error.is_some() || self.doc != self.committed {
+            self.configuration_error = error.clone();
+        }
         let Some(root) = self
             .doc
             .nodes

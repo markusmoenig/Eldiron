@@ -8,8 +8,13 @@ Characters and items are reusable templates. Place an instance in a region to gi
 - **Behavior Nodes** describe what happens in response to events.
 - **Entity Nodes** define initial configuration, including identity, appearance and player input.
 - **Rules** define shared gameplay such as actions, relationships, combat costs and cooldowns.
+- **Appearance** previews and edits MZ bodies, item models and independent On/Off icons, using the project palette.
 
 Start with [Behavior Nodes](behavior_nodes), then use the [node reference](node_reference) and [examples](behavior_examples).
+
+For an outfit, configure race/class and drag ruleset items onto an Equipment
+node. You do not need to author a model or manually wire clothing materials to
+each character. See [Character and Item Appearance](appearance).
 
 ## Templates and instances
 

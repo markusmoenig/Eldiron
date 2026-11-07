@@ -1,0 +1,27 @@
+# Ruleset wood. Colors are palette indices in wood.palette.json.
+project 1
+result from material "surface"
+material "surface" called "Wood"
+  mode pbr
+  tiling seamless
+  default roughness to 0.82
+  default metallic to 0
+  default opacity to 1
+  default emission strength to 0
+  row "shade" called "Palette shadow"
+    use "Color" id "shade"
+  row "base" called "Palette base"
+    use "Color" id "base"
+  row "detail" called "Surface detail"
+    use "Perlin Noise" id "grain"
+      set "globalScale" to 0.6
+      set "localScale" to 0.3 2.5
+  row "color" called "Pigment"
+    use "Mix" id "pigment"
+      input from row "detail" xxx mapped 0.25 to 0.9
+      set "color1" from row "shade" xyzw
+      set "color2" from row "base" xyzw
+      set "factor" to 1 1 1
+  output base color from row "color" xyz
+  output opacity from row "color" w
+  output roughness from row "detail" x mapped 0.72 to 0.87

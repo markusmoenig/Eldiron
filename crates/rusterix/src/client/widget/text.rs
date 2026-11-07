@@ -77,9 +77,7 @@ impl TextWidget {
     }
 
     fn fallback_font() -> Option<fontdue::Font> {
-        theframework::Embedded::get("fonts/Roboto-Bold.ttf").and_then(|font_bytes| {
-            fontdue::Font::from_bytes(font_bytes.data, fontdue::FontSettings::default()).ok()
-        })
+        super::Widget::fallback_font().cloned()
     }
 
     pub fn init(&mut self, assets: &Assets) {

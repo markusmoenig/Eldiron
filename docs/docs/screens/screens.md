@@ -14,6 +14,26 @@ Design screens with the same map tools you already use:
 
 Each **sector** shows up as an item in the project tree; selecting it opens the widget editor where you can set the **role** and configure widget **attributes** (see [widgets](widgets)).
 
+## Procedural screen artwork
+
+Screen decoration, sector textures and tile-backed widget artwork can use
+[procedural materials](../building_maps/procedural_materials), including MZ Art
+and PBR Color/Opacity. UI artwork uses color and alpha; world lighting channels
+do not turn a screen panel into a lit 3D surface. Recipe edits, palette changes
+and animation frames update the artwork through the normal tile paths.
+
+Continuous sources sample authored screen-grid coordinates. Repeat wraps the
+pattern, while stretched widget artwork fits a representative tile to its target.
+Widget artwork supports stretch, repeat and nine-slice where the widget exposes
+those modes. Opacity is composited over the content below it; it is not replaced
+by a black bitmap background.
+
+Screen export includes referenced baked tiles, editable MZ recipes, composition
+dependencies, linked image tiles and the source palette. Import remaps asset
+identities and palette bindings into the receiving project in one undoable
+change. Gameplay commands and links to other screens still need valid targets
+in that project. See [Project Files](../creator/project_files#portable-screens).
+
 ## Screen Settings and Responsive Layout
 
 Select **Settings** below a Screen in the project tree to edit its screen-level TOML. Screens use the legacy fixed canvas unless they explicitly enable responsive layout:

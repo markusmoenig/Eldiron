@@ -1,0 +1,13 @@
+# Palette-bound ruleset surface, editable in the PBR row editor.
+project 1
+result from material "surface"
+material "surface" called "Ivory bone"
+  mode pbr
+  tiling raw
+  default roughness to 0.85
+  default metallic to 0
+  default opacity to 1
+  default emission strength to 0
+  row "base" called "Ivory bone"
+    use "Color" id "base"
+  output base color from row "base" xyz

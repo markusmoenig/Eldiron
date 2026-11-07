@@ -9,7 +9,7 @@ pub(super) struct Preset {
     angle: f32,
     position: f32,
 }
-pub(super) const PRESETS: [Preset; 17] = [
+pub(super) const PRESETS: [Preset; 18] = [
     Preset {
         label: "Right",
         shape: CompositionShape::Split,
@@ -107,6 +107,12 @@ pub(super) const PRESETS: [Preset; 17] = [
         position: 0.3,
     },
     Preset {
+        label: "Auto road",
+        shape: CompositionShape::AutoRoad,
+        angle: 0.,
+        position: 0.4,
+    },
+    Preset {
         label: "Blend",
         shape: CompositionShape::Blend,
         angle: 0.,
@@ -151,7 +157,7 @@ impl Preset {
                 let t = uv[usize::from(self.angle.abs() < 45.)];
                 (self.position - t).max(t - (1. - self.position))
             }
-            CompositionShape::Road | CompositionShape::Crossing => {
+            CompositionShape::Road | CompositionShape::Crossing | CompositionShape::AutoRoad => {
                 let angle = self.angle.to_radians();
                 let p = [uv[0] - 0.5, uv[1] - 0.5];
                 let x = p[0] * angle.cos() + p[1] * angle.sin();

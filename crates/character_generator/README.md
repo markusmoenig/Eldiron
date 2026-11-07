@@ -1,5 +1,12 @@
 # Eldiron character generator
 
+Eldiron's current editable character/item workflow uses the MZ geometry core in
+`crates/materialz`, with model/rig authoring and ruleset appearances integrated
+into Creator and the runtime. See the [appearance guide](../../docs/docs/characters_items/appearance.md)
+and [integration history](../materialz/docs/unified-appearance-concept.md).
+This crate remains a separate generator experiment; its catalog and adapters
+below should not be mistaken for the production MZ asset format.
+
 Experimental standalone Rust library and CLI for generating humanoids and equipment
 from plain-text appearance definitions. No dependency on Creator, Rusterix,
 SceneVM, or gameplay rules in its default build. The optional `eldiron` feature

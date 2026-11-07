@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use uuid::Uuid;
 use vek::{Vec2, Vec3};
 
@@ -49,7 +50,7 @@ impl Default for AlphaMode {
 }
 
 /// Per-frame dynamic object description (billboards, particles, etc.).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DynamicMeshVertex {
     pub position: Vec3<f32>,
     pub uv: Vec2<f32>,
@@ -76,10 +77,10 @@ pub struct DynamicObject {
     pub tint: Vec3<f32>,
     /// Optional animation start counter. When set, animated tiles can start at frame 0 for this instance.
     pub anim_start_counter: Option<u32>,
-    /// Dynamic mesh vertices in local/object space. Used when `kind == Mesh`.
-    pub mesh_vertices: Vec<DynamicMeshVertex>,
-    /// Dynamic mesh triangle indices. Used when `kind == Mesh`.
-    pub mesh_indices: Vec<u32>,
+    /// Shared mesh vertices; use `Arc::make_mut` for copy-on-write edits. Positions are in host/object space. Used when `kind == Mesh`.
+    pub mesh_vertices: Arc<Vec<DynamicMeshVertex>>,
+    /// Shared triangle indices; use `Arc::make_mut` for copy-on-write edits. Used when `kind == Mesh`.
+    pub mesh_indices: Arc<Vec<u32>>,
     /// Opt-in four-tone ordered dithering in Raster3D. Other objects retain their shading.
     pub pixel_art: bool,
 }
@@ -101,8 +102,8 @@ impl Default for DynamicObject {
             opacity: 1.0,
             tint: Vec3::new(1.0, 1.0, 1.0),
             anim_start_counter: None,
-            mesh_vertices: Vec::new(),
-            mesh_indices: Vec::new(),
+            mesh_vertices: Arc::default(),
+            mesh_indices: Arc::default(),
             pixel_art: false,
         }
     }
@@ -134,8 +135,8 @@ impl DynamicObject {
             opacity: 1.0,
             tint: Vec3::new(1.0, 1.0, 1.0),
             anim_start_counter: None,
-            mesh_vertices: Vec::new(),
-            mesh_indices: Vec::new(),
+            mesh_vertices: Arc::default(),
+            mesh_indices: Arc::default(),
             pixel_art: false,
         }
     }
@@ -184,8 +185,8 @@ impl DynamicObject {
             opacity: 1.0,
             tint: Vec3::new(1.0, 1.0, 1.0),
             anim_start_counter: None,
-            mesh_vertices: Vec::new(),
-            mesh_indices: Vec::new(),
+            mesh_vertices: Arc::default(),
+            mesh_indices: Arc::default(),
             pixel_art: false,
         }
     }
@@ -234,8 +235,8 @@ impl DynamicObject {
             opacity: 1.0,
             tint: Vec3::new(1.0, 1.0, 1.0),
             anim_start_counter: None,
-            mesh_vertices: Vec::new(),
-            mesh_indices: Vec::new(),
+            mesh_vertices: Arc::default(),
+            mesh_indices: Arc::default(),
             pixel_art: false,
         }
     }
@@ -274,8 +275,8 @@ impl DynamicObject {
             opacity: 1.0,
             tint: Vec3::new(1.0, 1.0, 1.0),
             anim_start_counter: None,
-            mesh_vertices: vertices,
-            mesh_indices: indices,
+            mesh_vertices: Arc::new(vertices),
+            mesh_indices: Arc::new(indices),
             pixel_art: false,
         }
     }

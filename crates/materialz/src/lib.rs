@@ -46,3 +46,7 @@ mod fields;
 
 pub mod image_source;
 mod raster;
+
+/// Experimental typed appearance rows. Independent of Eldiron and rendering.
+#[cfg(feature = "integration")]
+pub mod geometry;

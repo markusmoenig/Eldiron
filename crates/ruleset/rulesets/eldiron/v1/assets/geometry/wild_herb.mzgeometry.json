@@ -1,0 +1,635 @@
+{
+  "version": 1,
+  "id": "wild_herb",
+  "label": "Wild Herb",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Wild Herb",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Wild Herb",
+            "document": {
+              "version": 1,
+              "id": "wild_herb-construction",
+              "label": "Wild Herb construction",
+              "rows": [
+                {
+                  "id": "item-green",
+                  "label": "Item-Green",
+                  "tiles": [
+                    {
+                      "id": "item-green-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 36,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sprig-stem",
+                  "label": "Sprig Stem",
+                  "tiles": [
+                    {
+                      "id": "sprig-stem-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.2,
+                              0
+                            ],
+                            "radius": [
+                              0.008,
+                              0.008
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.2,
+                              0
+                            ],
+                            "radius": [
+                              0.008,
+                              0.008
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "sprig-stem-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.0,
+                          0.0,
+                          0.0
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          0.0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "sprig-stem-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "sprig-stem-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sprig-leaf-0",
+                  "label": "Sprig Leaf 0",
+                  "tiles": [
+                    {
+                      "id": "sprig-leaf-0-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.12000000000000001,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.06325000000000001,
+                              -0.09400000000000001,
+                              0
+                            ],
+                            "radius": [
+                              0.055,
+                              0.016
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.115,
+                              -0.05800000000000001,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "sprig-leaf-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "sprig-leaf-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sprig-leaf-1",
+                  "label": "Sprig Leaf 1",
+                  "tiles": [
+                    {
+                      "id": "sprig-leaf-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.04999999999999999,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.06325000000000001,
+                              -0.02399999999999999,
+                              0
+                            ],
+                            "radius": [
+                              0.055,
+                              0.016
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.115,
+                              0.01200000000000001,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "sprig-leaf-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "sprig-leaf-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sprig-leaf-2",
+                  "label": "Sprig Leaf 2",
+                  "tiles": [
+                    {
+                      "id": "sprig-leaf-2-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.020000000000000018,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.06325000000000001,
+                              0.04600000000000001,
+                              0
+                            ],
+                            "radius": [
+                              0.055,
+                              0.016
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.115,
+                              0.08200000000000002,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "sprig-leaf-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "sprig-leaf-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sprig-leaf-3",
+                  "label": "Sprig Leaf 3",
+                  "tiles": [
+                    {
+                      "id": "sprig-leaf-3-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.09000000000000002,
+                              0
+                            ],
+                            "radius": [
+                              0.006,
+                              0.006
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.0495,
+                              0.11600000000000002,
+                              0
+                            ],
+                            "radius": [
+                              0.055,
+                              0.016
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.09,
+                              0.15200000000000002,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "sprig-leaf-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "sprig-leaf-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-violet",
+                  "label": "Item-Violet",
+                  "tiles": [
+                    {
+                      "id": "item-violet-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 54,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sprig-flower",
+                  "label": "Sprig Flower",
+                  "tiles": [
+                    {
+                      "id": "sprig-flower-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.16999999999999996,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.18199999999999997,
+                              0
+                            ],
+                            "radius": [
+                              0.021599999999999998,
+                              0.021599999999999998
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.20999999999999996,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.03
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.23799999999999996,
+                              0
+                            ],
+                            "radius": [
+                              0.021599999999999998,
+                              0.021599999999999998
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.24999999999999997,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "sprig-flower-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-violet"
+                      }
+                    },
+                    {
+                      "id": "sprig-flower-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-violet",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Wild Herb assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "sprig-stem",
+                          "sprig-leaf-0",
+                          "sprig-leaf-1",
+                          "sprig-leaf-2",
+                          "sprig-leaf-3",
+                          "sprig-flower"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          -0.15,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      -0.15,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

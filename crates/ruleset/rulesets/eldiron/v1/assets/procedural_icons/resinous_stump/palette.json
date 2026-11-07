@@ -1,0 +1,51 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "roots-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "roots-outline": {
+    "color": 1
+  },
+  "stump-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "stump-outline": {
+    "color": 1
+  },
+  "cut-colors": {
+    "color0": 19,
+    "color1": 20,
+    "color2": 21,
+    "color3": 22
+  },
+  "cut-outline": {
+    "color": 1
+  },
+  "ring-color": {
+    "color": 18
+  },
+  "core-color": {
+    "color": 21
+  },
+  "sap-colors": {
+    "color0": 19,
+    "color1": 24,
+    "color2": 24,
+    "color3": 22
+  },
+  "sap-outline": {
+    "color": 1
+  },
+  "bark-score-color": {
+    "color": 17
+  }
+}

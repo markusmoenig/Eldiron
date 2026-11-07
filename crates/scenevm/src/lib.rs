@@ -1474,6 +1474,7 @@ impl SceneVM {
     pub fn add_vm_layer(&mut self) -> usize {
         // Overlays default to transparent so they don't hide layers below unless drawn into.
         let mut vm = VM::new_with_shared_atlas(self.atlas.clone());
+        vm.set_background_lighting(self.vm.background_lighting());
         vm.background = vek::Vec4::new(0.0, 0.0, 0.0, 0.0);
         self.overlay_vms.push(vm);
         self.refresh_layer_metadata();
@@ -2488,6 +2489,13 @@ impl SceneVM {
         if !render_debug_enabled() {
             return;
         }
+        static TRACE: OnceLock<bool> = OnceLock::new();
+        if *TRACE.get_or_init(|| std::env::var_os("ELDIRON_TRACE_FRAME_TIMINGS").is_some()) {
+            eprintln!(
+                "[FrameTrace][CPUFrame] size={}x{} render={render_ms:.3} readback={readback_ms:.3} copy={copy_ms:.3}",
+                size.0, size.1
+            );
+        }
         #[derive(Default)]
         struct Timing {
             frames: usize,
@@ -2638,10 +2646,20 @@ impl SceneVM {
         self.draw(out_pixels, out_w, out_h);
     }
 
-    /// Cross-platform synchronous render entrypoint (one function for Native & WASM). Returns a RenderResult.
-    /// Native: blocks until pixels are ready. WASM: presents the last completed frame
-    /// and kicks off a new GPU frame if none is in flight. Call this every frame.
-    /// On WASM, you must call `init_async().await` once before rendering.
+    /// Enable native background indirect-lighting solves for interactive scenes.
+    /// Until a solve completes, presentation uses the preceding completed grid.
+    /// Off by default so one-shot/offline renders remain synchronous. WASM keeps
+    /// its existing serial solver. GPU submission and readback are unchanged.
+    pub fn set_background_lighting(&mut self, enabled: bool) {
+        self.vm.set_background_lighting(enabled);
+        for vm in &mut self.overlay_vms {
+            vm.set_background_lighting(enabled);
+        }
+    }
+
+    /// Cross-platform render entrypoint. Native blocks until pixels are ready;
+    /// WASM presents the last completed frame and starts the next one. Call
+    /// `init_async().await` once before rendering on WASM.
     pub fn render_frame(&mut self, out_pixels: &mut [u8], out_w: u32, out_h: u32) -> RenderResult {
         // let start = instant::Instant::now();
 
@@ -3632,9 +3650,15 @@ mod overlay_upload_tests {
         assert_eq!(overlay.texture.data, [31, 47, 59, 255, 0, 0, 0, 0]);
         overlay.dirty = false;
         overlay.update_pixels(&[31, 47, 59, 255, 0, 0, 0, 0, 123]);
-        assert!(!overlay.dirty, "ignored extra bytes cannot invalidate the GPU texture");
+        assert!(
+            !overlay.dirty,
+            "ignored extra bytes cannot invalidate the GPU texture"
+        );
         overlay.update_pixels(&pixels);
         overlay.update_pixels(&pixels);
-        assert!(overlay.dirty, "an unchanged setter must retain a pending upload");
+        assert!(
+            overlay.dirty,
+            "an unchanged setter must retain a pending upload"
+        );
     }
 }

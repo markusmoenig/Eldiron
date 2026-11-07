@@ -1,0 +1,3278 @@
+{
+  "version": 1,
+  "id": "worn_sunward_charm",
+  "label": "Worn Sunward Charm",
+  "rows": [
+    {
+      "id": "wearer",
+      "label": "Current wearer",
+      "tiles": [
+        {
+          "id": "wearer-input",
+          "op": {
+            "type": "asset",
+            "source": "geometry:input/wearer",
+            "document": {
+              "version": 1,
+              "id": "wearer-rig",
+              "label": "Wearer input",
+              "rows": [
+                {
+                  "id": "rig",
+                  "label": "Skeleton",
+                  "tiles": [
+                    {
+                      "id": "rig-armature",
+                      "op": {
+                        "type": "armature",
+                        "joints": [
+                          {
+                            "id": "pelvis",
+                            "label": "Pelvis",
+                            "parent": null,
+                            "translation": [
+                              0,
+                              0.9,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "spine",
+                            "label": "Spine",
+                            "parent": "pelvis",
+                            "translation": [
+                              0,
+                              0.22,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "chest",
+                            "label": "Chest",
+                            "parent": "spine",
+                            "translation": [
+                              0,
+                              0.22,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "neck",
+                            "label": "Neck",
+                            "parent": "chest",
+                            "translation": [
+                              0,
+                              0.16,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "head",
+                            "label": "Head",
+                            "parent": "neck",
+                            "translation": [
+                              0,
+                              0.12,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "left-shoulder",
+                            "label": "Left Shoulder",
+                            "parent": "chest",
+                            "translation": [
+                              0.215,
+                              0.1,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              7
+                            ]
+                          },
+                          {
+                            "id": "left-elbow",
+                            "label": "Left Elbow",
+                            "parent": "left-shoulder",
+                            "translation": [
+                              0,
+                              -0.27,
+                              0
+                            ],
+                            "rotation": [
+                              -12,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "left-hand",
+                            "label": "Left Hand",
+                            "parent": "left-elbow",
+                            "translation": [
+                              0,
+                              -0.25,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "left-hip",
+                            "label": "Left Hip",
+                            "parent": "pelvis",
+                            "translation": [
+                              0.095,
+                              0,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "left-knee",
+                            "label": "Left Knee",
+                            "parent": "left-hip",
+                            "translation": [
+                              0,
+                              -0.4,
+                              0.035
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "left-foot",
+                            "label": "Left Foot",
+                            "parent": "left-knee",
+                            "translation": [
+                              0,
+                              -0.4,
+                              -0.035
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "right-shoulder",
+                            "label": "Right Shoulder",
+                            "parent": "chest",
+                            "translation": [
+                              -0.215,
+                              0.1,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              -7
+                            ]
+                          },
+                          {
+                            "id": "right-elbow",
+                            "label": "Right Elbow",
+                            "parent": "right-shoulder",
+                            "translation": [
+                              0,
+                              -0.27,
+                              0
+                            ],
+                            "rotation": [
+                              -12,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "right-hand",
+                            "label": "Right Hand",
+                            "parent": "right-elbow",
+                            "translation": [
+                              0,
+                              -0.25,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "right-hip",
+                            "label": "Right Hip",
+                            "parent": "pelvis",
+                            "translation": [
+                              -0.095,
+                              0,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "right-knee",
+                            "label": "Right Knee",
+                            "parent": "right-hip",
+                            "translation": [
+                              0,
+                              -0.4,
+                              0.035
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "right-foot",
+                            "label": "Right Foot",
+                            "parent": "right-knee",
+                            "translation": [
+                              0,
+                              -0.4,
+                              -0.035
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "body",
+                  "label": "Wearer",
+                  "tiles": [
+                    {
+                      "id": "rig-body",
+                      "op": {
+                        "type": "profiles",
+                        "rig": "rig",
+                        "parts": []
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "body",
+              "grip": null
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "mount",
+      "label": "Mount frame",
+      "tiles": [
+        {
+          "id": "mount-frame",
+          "op": {
+            "type": "grip",
+            "translation": [
+              0,
+              0.155,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "worn_sunward_charm",
+      "label": "Sunward Charm",
+      "tiles": [
+        {
+          "id": "accessory-source",
+          "op": {
+            "type": "asset",
+            "source": "ruleset:geometry/sunward_charm",
+            "document": {
+              "version": 1,
+              "id": "sunward_charm",
+              "label": "Sunward Charm",
+              "rows": [
+                {
+                  "id": "details",
+                  "label": "Sunward Charm",
+                  "tiles": [
+                    {
+                      "id": "details-group",
+                      "op": {
+                        "type": "group",
+                        "label": "Sunward Charm",
+                        "document": {
+                          "version": 1,
+                          "id": "sunward_charm-construction",
+                          "label": "Sunward Charm construction",
+                          "rows": [
+                            {
+                              "id": "item-gold",
+                              "label": "Item-Gold",
+                              "tiles": [
+                                {
+                                  "id": "item-gold-material",
+                                  "op": {
+                                    "type": "material",
+                                    "palette": 24,
+                                    "roughness": 0.34,
+                                    "metallic": 0.8
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-0",
+                              "label": "Neck Chain 0",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-0-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.057999999999999996,
+                                        0.0
+                                      ],
+                                      [
+                                        0.062,
+                                        0.0
+                                      ],
+                                      [
+                                        0.05728053101569978,
+                                        0.023726372806635566
+                                      ],
+                                      [
+                                        0.05358501288565463,
+                                        0.022195639077175207
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-0-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-0-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-0-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-0-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-1",
+                              "label": "Neck Chain 1",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-1-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.05358501288565463,
+                                        0.022195639077175207
+                                      ],
+                                      [
+                                        0.05728053101569978,
+                                        0.023726372806635566
+                                      ],
+                                      [
+                                        0.04384062043356595,
+                                        0.043840620433565944
+                                      ],
+                                      [
+                                        0.04101219330881976,
+                                        0.04101219330881975
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-1-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-1-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-1-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-1-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-2",
+                              "label": "Neck Chain 2",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-2-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.04101219330881976,
+                                        0.04101219330881975
+                                      ],
+                                      [
+                                        0.04384062043356595,
+                                        0.043840620433565944
+                                      ],
+                                      [
+                                        0.02372637280663557,
+                                        0.05728053101569978
+                                      ],
+                                      [
+                                        0.02219563907717521,
+                                        0.05358501288565463
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-2-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-2-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-2-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-2-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-3",
+                              "label": "Neck Chain 3",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-3-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.02219563907717521,
+                                        0.05358501288565463
+                                      ],
+                                      [
+                                        0.02372637280663557,
+                                        0.05728053101569978
+                                      ],
+                                      [
+                                        3.796405077356795e-18,
+                                        0.062
+                                      ],
+                                      [
+                                        3.551475717527324e-18,
+                                        0.057999999999999996
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-3-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-3-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-3-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-3-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-4",
+                              "label": "Neck Chain 4",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-4-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        3.551475717527324e-18,
+                                        0.057999999999999996
+                                      ],
+                                      [
+                                        3.796405077356795e-18,
+                                        0.062
+                                      ],
+                                      [
+                                        -0.023726372806635563,
+                                        0.05728053101569978
+                                      ],
+                                      [
+                                        -0.022195639077175203,
+                                        0.05358501288565463
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-4-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-4-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-4-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-4-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-5",
+                              "label": "Neck Chain 5",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-5-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.022195639077175203,
+                                        0.05358501288565463
+                                      ],
+                                      [
+                                        -0.023726372806635563,
+                                        0.05728053101569978
+                                      ],
+                                      [
+                                        -0.043840620433565944,
+                                        0.04384062043356595
+                                      ],
+                                      [
+                                        -0.04101219330881975,
+                                        0.04101219330881976
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-5-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-5-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-5-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-5-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-6",
+                              "label": "Neck Chain 6",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-6-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.04101219330881975,
+                                        0.04101219330881976
+                                      ],
+                                      [
+                                        -0.043840620433565944,
+                                        0.04384062043356595
+                                      ],
+                                      [
+                                        -0.05728053101569978,
+                                        0.023726372806635573
+                                      ],
+                                      [
+                                        -0.05358501288565463,
+                                        0.022195639077175214
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-6-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-6-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-6-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-6-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-7",
+                              "label": "Neck Chain 7",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-7-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.05358501288565463,
+                                        0.022195639077175214
+                                      ],
+                                      [
+                                        -0.05728053101569978,
+                                        0.023726372806635573
+                                      ],
+                                      [
+                                        -0.062,
+                                        7.59281015471359e-18
+                                      ],
+                                      [
+                                        -0.057999999999999996,
+                                        7.102951435054648e-18
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-7-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-7-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-7-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-7-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-8",
+                              "label": "Neck Chain 8",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-8-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.057999999999999996,
+                                        7.102951435054648e-18
+                                      ],
+                                      [
+                                        -0.062,
+                                        7.59281015471359e-18
+                                      ],
+                                      [
+                                        -0.057280531015699784,
+                                        -0.02372637280663556
+                                      ],
+                                      [
+                                        -0.053585012885654634,
+                                        -0.0221956390771752
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-8-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-8-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-8-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-8-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-9",
+                              "label": "Neck Chain 9",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-9-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.053585012885654634,
+                                        -0.0221956390771752
+                                      ],
+                                      [
+                                        -0.057280531015699784,
+                                        -0.02372637280663556
+                                      ],
+                                      [
+                                        -0.04384062043356596,
+                                        -0.043840620433565944
+                                      ],
+                                      [
+                                        -0.041012193308819764,
+                                        -0.04101219330881975
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-9-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-9-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-9-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-9-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-10",
+                              "label": "Neck Chain 10",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-10-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.041012193308819764,
+                                        -0.04101219330881975
+                                      ],
+                                      [
+                                        -0.04384062043356596,
+                                        -0.043840620433565944
+                                      ],
+                                      [
+                                        -0.0237263728066356,
+                                        -0.057280531015699764
+                                      ],
+                                      [
+                                        -0.022195639077175238,
+                                        -0.05358501288565461
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-10-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-10-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-10-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-10-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-11",
+                              "label": "Neck Chain 11",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-11-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.022195639077175238,
+                                        -0.05358501288565461
+                                      ],
+                                      [
+                                        -0.0237263728066356,
+                                        -0.057280531015699764
+                                      ],
+                                      [
+                                        -1.1389215232070384e-17,
+                                        -0.062
+                                      ],
+                                      [
+                                        -1.0654427152581971e-17,
+                                        -0.057999999999999996
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-11-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-11-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-11-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-11-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-12",
+                              "label": "Neck Chain 12",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-12-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -1.0654427152581971e-17,
+                                        -0.057999999999999996
+                                      ],
+                                      [
+                                        -1.1389215232070384e-17,
+                                        -0.062
+                                      ],
+                                      [
+                                        0.02372637280663558,
+                                        -0.05728053101569977
+                                      ],
+                                      [
+                                        0.022195639077175217,
+                                        -0.05358501288565462
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-12-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-12-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-12-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-12-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-13",
+                              "label": "Neck Chain 13",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-13-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.022195639077175217,
+                                        -0.05358501288565462
+                                      ],
+                                      [
+                                        0.02372637280663558,
+                                        -0.05728053101569977
+                                      ],
+                                      [
+                                        0.04384062043356594,
+                                        -0.04384062043356596
+                                      ],
+                                      [
+                                        0.04101219330881974,
+                                        -0.041012193308819764
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-13-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-13-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-13-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-13-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-14",
+                              "label": "Neck Chain 14",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-14-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.04101219330881974,
+                                        -0.041012193308819764
+                                      ],
+                                      [
+                                        0.04384062043356594,
+                                        -0.04384062043356596
+                                      ],
+                                      [
+                                        0.057280531015699764,
+                                        -0.023726372806635605
+                                      ],
+                                      [
+                                        0.05358501288565461,
+                                        -0.02219563907717524
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-14-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-14-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-14-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-14-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "neck-chain-15",
+                              "label": "Neck Chain 15",
+                              "tiles": [
+                                {
+                                  "id": "neck-chain-15-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.05358501288565461,
+                                        -0.02219563907717524
+                                      ],
+                                      [
+                                        0.057280531015699764,
+                                        -0.023726372806635605
+                                      ],
+                                      [
+                                        0.062,
+                                        -1.518562030942718e-17
+                                      ],
+                                      [
+                                        0.057999999999999996,
+                                        -1.4205902870109297e-17
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-15-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.0048
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-15-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0.095,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-15-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "neck-chain-15-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-medallion",
+                              "label": "Sun Medallion",
+                              "tiles": [
+                                {
+                                  "id": "sun-medallion-profile",
+                                  "op": {
+                                    "type": "loft",
+                                    "sections": [
+                                      {
+                                        "center": [
+                                          0,
+                                          -0.1,
+                                          0
+                                        ],
+                                        "radius": [
+                                          0.001,
+                                          0.001
+                                        ]
+                                      },
+                                      {
+                                        "center": [
+                                          0,
+                                          -0.0805,
+                                          0
+                                        ],
+                                        "radius": [
+                                          0.0468,
+                                          0.00864
+                                        ]
+                                      },
+                                      {
+                                        "center": [
+                                          0,
+                                          -0.035,
+                                          0
+                                        ],
+                                        "radius": [
+                                          0.065,
+                                          0.012
+                                        ]
+                                      },
+                                      {
+                                        "center": [
+                                          0,
+                                          0.010499999999999995,
+                                          0
+                                        ],
+                                        "radius": [
+                                          0.0468,
+                                          0.00864
+                                        ]
+                                      },
+                                      {
+                                        "center": [
+                                          0,
+                                          0.03,
+                                          0
+                                        ],
+                                        "radius": [
+                                          0.001,
+                                          0.001
+                                        ]
+                                      }
+                                    ],
+                                    "segments": 16
+                                  }
+                                },
+                                {
+                                  "id": "sun-medallion-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-medallion-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-0",
+                              "label": "Sun Ray 0",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-0-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.007063020230046242,
+                                        0.0235757095153781
+                                      ],
+                                      [
+                                        0.0,
+                                        0.046
+                                      ],
+                                      [
+                                        0.007063020230046242,
+                                        0.0235757095153781
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-0-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-0-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-0-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-0-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-1",
+                              "label": "Sun Ray 1",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-1-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.023171099811025594,
+                                        0.01925956260003843
+                                      ],
+                                      [
+                                        0.040499999999999994,
+                                        0.03514805770653953
+                                      ],
+                                      [
+                                        0.035404609704352503,
+                                        0.012196542369992187
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-1-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-1-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-1-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-1-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-2",
+                              "label": "Sun Ray 2",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-2-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.047196542369992184,
+                                        0.0004046097043525071
+                                      ],
+                                      [
+                                        0.07014805770653953,
+                                        0.005500000000000005
+                                      ],
+                                      [
+                                        0.054259562600038426,
+                                        -0.011828900188974395
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-2-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-2-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-2-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-2-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-3",
+                              "label": "Sun Ray 3",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-3-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.058575709515378105,
+                                        -0.02793697976995375
+                                      ],
+                                      [
+                                        0.081,
+                                        -0.034999999999999996
+                                      ],
+                                      [
+                                        0.058575709515378105,
+                                        -0.042063020230046246
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-3-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-3-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-3-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-3-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-4",
+                              "label": "Sun Ray 4",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-4-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.05425956260003844,
+                                        -0.058171099811025584
+                                      ],
+                                      [
+                                        0.07014805770653953,
+                                        -0.07549999999999998
+                                      ],
+                                      [
+                                        0.0471965423699922,
+                                        -0.0704046097043525
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-4-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-4-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-4-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-4-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-5",
+                              "label": "Sun Ray 5",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-5-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.03540460970435251,
+                                        -0.08219654236999219
+                                      ],
+                                      [
+                                        0.040499999999999994,
+                                        -0.10514805770653954
+                                      ],
+                                      [
+                                        0.02317109981102559,
+                                        -0.08925956260003844
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-5-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-5-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-5-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-5-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-6",
+                              "label": "Sun Ray 6",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-6-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        0.007063020230046255,
+                                        -0.09357570951537811
+                                      ],
+                                      [
+                                        9.91963907309356e-18,
+                                        -0.116
+                                      ],
+                                      [
+                                        -0.007063020230046241,
+                                        -0.09357570951537811
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-6-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-6-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-6-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-6-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-7",
+                              "label": "Sun Ray 7",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-7-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.023171099811025577,
+                                        -0.08925956260003845
+                                      ],
+                                      [
+                                        -0.04049999999999998,
+                                        -0.10514805770653955
+                                      ],
+                                      [
+                                        -0.0354046097043525,
+                                        -0.0821965423699922
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-7-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-7-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-7-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-7-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-8",
+                              "label": "Sun Ray 8",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-8-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.04719654236999217,
+                                        -0.07040460970435253
+                                      ],
+                                      [
+                                        -0.07014805770653951,
+                                        -0.07550000000000004
+                                      ],
+                                      [
+                                        -0.05425956260003842,
+                                        -0.05817109981102562
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-8-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-8-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-8-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-8-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-9",
+                              "label": "Sun Ray 9",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-9-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.058575709515378105,
+                                        -0.042063020230046266
+                                      ],
+                                      [
+                                        -0.081,
+                                        -0.03500000000000002
+                                      ],
+                                      [
+                                        -0.058575709515378105,
+                                        -0.027936979769953768
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-9-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-9-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-9-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-9-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-10",
+                              "label": "Sun Ray 10",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-10-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.05425956260003843,
+                                        -0.011828900188974409
+                                      ],
+                                      [
+                                        -0.07014805770653953,
+                                        0.005500000000000005
+                                      ],
+                                      [
+                                        -0.047196542369992184,
+                                        0.00040460970435251403
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-10-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-10-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-10-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-10-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "sun-ray-11",
+                              "label": "Sun Ray 11",
+                              "tiles": [
+                                {
+                                  "id": "sun-ray-11-profile",
+                                  "op": {
+                                    "type": "contour",
+                                    "points": [
+                                      [
+                                        -0.03540460970435254,
+                                        0.012196542369992167
+                                      ],
+                                      [
+                                        -0.040500000000000036,
+                                        0.035148057706539504
+                                      ],
+                                      [
+                                        -0.02317109981102562,
+                                        0.019259562600038416
+                                      ]
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-11-depth",
+                                  "op": {
+                                    "type": "extrude",
+                                    "depth": 0.012
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-11-placement",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-11-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "sun-ray-11-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "item-blue",
+                              "label": "Item-Blue",
+                              "tiles": [
+                                {
+                                  "id": "item-blue-material",
+                                  "op": {
+                                    "type": "material",
+                                    "palette": 41,
+                                    "roughness": 0.4,
+                                    "metallic": 0
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "blue-enamel",
+                              "label": "Blue Enamel",
+                              "tiles": [
+                                {
+                                  "id": "blue-enamel-profile",
+                                  "op": {
+                                    "type": "loft",
+                                    "sections": [
+                                      {
+                                        "center": [
+                                          0,
+                                          -0.08,
+                                          0.013
+                                        ],
+                                        "radius": [
+                                          0.001,
+                                          0.001
+                                        ]
+                                      },
+                                      {
+                                        "center": [
+                                          0,
+                                          -0.0665,
+                                          0.013
+                                        ],
+                                        "radius": [
+                                          0.0324,
+                                          0.00648
+                                        ]
+                                      },
+                                      {
+                                        "center": [
+                                          0,
+                                          -0.035,
+                                          0.013
+                                        ],
+                                        "radius": [
+                                          0.045,
+                                          0.009
+                                        ]
+                                      },
+                                      {
+                                        "center": [
+                                          0,
+                                          -0.003500000000000003,
+                                          0.013
+                                        ],
+                                        "radius": [
+                                          0.0324,
+                                          0.00648
+                                        ]
+                                      },
+                                      {
+                                        "center": [
+                                          0,
+                                          0.009999999999999995,
+                                          0.013
+                                        ],
+                                        "radius": [
+                                          0.001,
+                                          0.001
+                                        ]
+                                      }
+                                    ],
+                                    "segments": 16
+                                  }
+                                },
+                                {
+                                  "id": "blue-enamel-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-blue"
+                                  }
+                                },
+                                {
+                                  "id": "blue-enamel-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-blue",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "cross-upright",
+                              "label": "Cross Upright",
+                              "tiles": [
+                                {
+                                  "id": "cross-upright-box",
+                                  "op": {
+                                    "type": "box",
+                                    "size": [
+                                      0.009,
+                                      0.06,
+                                      0.004
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "cross-upright-place",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      -0.035,
+                                      0.025
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "cross-upright-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "cross-upright-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "cross-arm",
+                              "label": "Cross Arm",
+                              "tiles": [
+                                {
+                                  "id": "cross-arm-box",
+                                  "op": {
+                                    "type": "box",
+                                    "size": [
+                                      0.035,
+                                      0.009,
+                                      0.004
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "cross-arm-place",
+                                  "op": {
+                                    "type": "transform",
+                                    "translation": [
+                                      0,
+                                      -0.022,
+                                      0.025
+                                    ],
+                                    "rotation": [
+                                      0,
+                                      0,
+                                      0
+                                    ],
+                                    "scale": [
+                                      1,
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                },
+                                {
+                                  "id": "cross-arm-surface",
+                                  "op": {
+                                    "type": "assign_material",
+                                    "row": "item-gold"
+                                  }
+                                },
+                                {
+                                  "id": "cross-arm-texture",
+                                  "op": {
+                                    "type": "texture",
+                                    "source": "ruleset:material/item-gold",
+                                    "size": 64,
+                                    "parts": [],
+                                    "preserve_uv": true,
+                                    "axes": [
+                                      0,
+                                      1
+                                    ],
+                                    "origin": [
+                                      0,
+                                      0
+                                    ],
+                                    "span": [
+                                      1,
+                                      1
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "assembled",
+                              "label": "Sunward Charm assembly",
+                              "tiles": [
+                                {
+                                  "id": "assemble-model",
+                                  "op": {
+                                    "type": "assemble",
+                                    "rows": [
+                                      "neck-chain-0",
+                                      "neck-chain-1",
+                                      "neck-chain-2",
+                                      "neck-chain-3",
+                                      "neck-chain-4",
+                                      "neck-chain-5",
+                                      "neck-chain-6",
+                                      "neck-chain-7",
+                                      "neck-chain-8",
+                                      "neck-chain-9",
+                                      "neck-chain-10",
+                                      "neck-chain-11",
+                                      "neck-chain-12",
+                                      "neck-chain-13",
+                                      "neck-chain-14",
+                                      "neck-chain-15",
+                                      "sun-medallion",
+                                      "sun-ray-0",
+                                      "sun-ray-1",
+                                      "sun-ray-2",
+                                      "sun-ray-3",
+                                      "sun-ray-4",
+                                      "sun-ray-5",
+                                      "sun-ray-6",
+                                      "sun-ray-7",
+                                      "sun-ray-8",
+                                      "sun-ray-9",
+                                      "sun-ray-10",
+                                      "sun-ray-11",
+                                      "blue-enamel",
+                                      "cross-upright",
+                                      "cross-arm"
+                                    ]
+                                  }
+                                }
+                              ]
+                            },
+                            {
+                              "id": "hand-grip",
+                              "label": "Hand grip",
+                              "tiles": [
+                                {
+                                  "id": "hand-grip-frame",
+                                  "op": {
+                                    "type": "grip",
+                                    "translation": [
+                                      0,
+                                      0.155,
+                                      0
+                                    ],
+                                    "rotation": [
+                                      135,
+                                      0,
+                                      0
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          ],
+                          "output": "assembled",
+                          "grip": "hand-grip"
+                        },
+                        "controls": [
+                          {
+                            "id": "size",
+                            "label": "Overall size",
+                            "category": "Dimensions",
+                            "help": "Changes the authored geometry while preserving the hand grip.",
+                            "order": 0,
+                            "value": 1,
+                            "reference": 1,
+                            "min": 0.65,
+                            "max": 1.4,
+                            "modifiers": [
+                              {
+                                "type": "affine",
+                                "parts": [
+                                  "*"
+                                ],
+                                "joints": [],
+                                "pivot": [
+                                  0,
+                                  0.155,
+                                  0
+                                ],
+                                "scale": [
+                                  1,
+                                  1,
+                                  1
+                                ],
+                                "translation": [
+                                  0,
+                                  0,
+                                  0
+                                ],
+                                "frames": true
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "wearable-grip",
+                  "label": "Wearable mounting",
+                  "tiles": [
+                    {
+                      "id": "wearable-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0.155,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "details",
+              "grip": "wearable-grip"
+            }
+          }
+        },
+        {
+          "id": "accessory-attach",
+          "op": {
+            "type": "attach",
+            "enabled": true,
+            "rig": "wearer",
+            "joint": "chest",
+            "grip": "mount",
+            "translation": [
+              0,
+              0.03,
+              0.2
+            ],
+            "rotation": [
+              0,
+              0,
+              0
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "worn_sunward_charm",
+  "grip": null
+}

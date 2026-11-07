@@ -1,0 +1,648 @@
+{
+  "version": 1,
+  "id": "training_spear",
+  "label": "Training Spear",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Training Spear",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Training Spear",
+            "document": {
+              "version": 1,
+              "id": "training_spear-construction",
+              "label": "Training Spear construction",
+              "rows": [
+                {
+                  "id": "iron",
+                  "label": "Iron",
+                  "tiles": [
+                    {
+                      "id": "iron-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.3,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "wood",
+                  "label": "Wood",
+                  "tiles": [
+                    {
+                      "id": "wood-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 20,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "leather",
+                  "label": "Leather",
+                  "tiles": [
+                    {
+                      "id": "leather-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "spear-shaft",
+                  "label": "Long ash shaft",
+                  "tiles": [
+                    {
+                      "id": "spear-shaft-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.65,
+                              0
+                            ],
+                            "radius": [
+                              0.018,
+                              0.018
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.6,
+                              0
+                            ],
+                            "radius": [
+                              0.024,
+                              0.024
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.72,
+                              0
+                            ],
+                            "radius": [
+                              0.022,
+                              0.022
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.82,
+                              0
+                            ],
+                            "radius": [
+                              0.016,
+                              0.016
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "spear-shaft-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "wood"
+                      }
+                    },
+                    {
+                      "id": "spear-shaft-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "spear-wrap",
+                  "label": "Grip binding",
+                  "tiles": [
+                    {
+                      "id": "spear-wrap-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.12,
+                              0
+                            ],
+                            "radius": [
+                              0.027,
+                              0.027
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.1,
+                              0
+                            ],
+                            "radius": [
+                              0.029,
+                              0.029
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.1,
+                              0
+                            ],
+                            "radius": [
+                              0.029,
+                              0.029
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.12,
+                              0
+                            ],
+                            "radius": [
+                              0.027,
+                              0.027
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "spear-wrap-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "leather"
+                      }
+                    },
+                    {
+                      "id": "spear-wrap-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "spear-socket",
+                  "label": "Bound point socket",
+                  "tiles": [
+                    {
+                      "id": "spear-socket-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.69,
+                              0
+                            ],
+                            "radius": [
+                              0.027,
+                              0.027
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.73,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.03
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.8,
+                              0
+                            ],
+                            "radius": [
+                              0.018,
+                              0.018
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "spear-socket-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "leather"
+                      }
+                    },
+                    {
+                      "id": "spear-socket-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/spear-binding",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "spear-point",
+                  "label": "Faceted leaf point",
+                  "tiles": [
+                    {
+                      "id": "spear-point-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.76,
+                              0
+                            ],
+                            "radius": [
+                              0.013,
+                              0.01
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.83,
+                              0
+                            ],
+                            "radius": [
+                              0.115,
+                              0.014
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.95,
+                              0
+                            ],
+                            "radius": [
+                              0.07,
+                              0.009
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              1.05,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "spear-point-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "spear-point-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          -0.25,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "spear-butt",
+                  "label": "Iron butt cap",
+                  "tiles": [
+                    {
+                      "id": "spear-butt-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.675,
+                              0
+                            ],
+                            "radius": [
+                              0.012,
+                              0.012
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.66,
+                              0
+                            ],
+                            "radius": [
+                              0.025,
+                              0.025
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.61,
+                              0
+                            ],
+                            "radius": [
+                              0.025,
+                              0.025
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "spear-butt-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "spear-butt-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Training Spear assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "spear-shaft",
+                          "spear-wrap",
+                          "spear-socket",
+                          "spear-point",
+                          "spear-butt"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "length",
+                "label": "Overall length",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1.725,
+                "reference": 1.725,
+                "min": 1.35,
+                "max": 2,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0.5797101449275363,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              },
+              {
+                "id": "point-width",
+                "label": "Point width",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 0.23,
+                "reference": 0.23,
+                "min": 0.14,
+                "max": 0.3,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "spear-point"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.8,
+                      0
+                    ],
+                    "scale": [
+                      4.3478260869565215,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ]
+              },
+              {
+                "id": "shaft-width",
+                "label": "Shaft width",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.8,
+                "max": 1.25,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "spear-shaft",
+                      "spear-wrap",
+                      "spear-socket",
+                      "spear-butt"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      0,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

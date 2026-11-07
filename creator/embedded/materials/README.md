@@ -15,10 +15,24 @@ the Tilepicker entry. Use numeric filename prefixes to set their order. Existing
 saved projects are not populated or overwritten. Once created, each project owns
 its recipe copy, so editing these files affects subsequently created projects.
 
-The usual GPU worker generates the tile textures. Each file's default base color
-provides a temporary swatch while the first bake runs. Sources use raw coordinates
+The usual GPU worker generates edited tile textures. Validated default bakes in
+`default-bakes.eldiron` bootstrap new projects without rebuilding the stock ruleset
+library and six starters. Source fingerprints, palette, resolution and recipe
+keys must match; changed definitions fall back to a fresh bake. Each file's default base color
+provides a temporary swatch when no matching bake exists. Sources use raw coordinates
 so source detail can vary across world-coordinate pages. Patterns such as the
 brick grid intentionally repeat their layout.
+
+After changing the stock recipes or palette bindings, regenerate the embedded
+archive with the ignored maintainer test (this is CPU baking, without a GPU):
+
+```sh
+ELDIRON_PREPARE_MZ_CACHE="$PWD/creator/embedded/materials/default-bakes.eldiron" \
+cargo test -p eldiron-creator prepare_embedded_material_bakes --lib --offline -- --ignored
+```
+
+The cache is derived data. The editable `.material` and `.palette.json` files
+remain the source of truth; an authored project override is never replaced by it.
 
 - Grass: stretched grass grain with two editable endpoint color rows and a four-tone ramp.
 - Rock: angular stone facets with dark crevices and four stone tones.
@@ -56,6 +70,26 @@ a resolution from 1 to 64. The default stores actual 16×16 textures; 32 stores
 rebakes all procedural tiles and previews on the shared surface grid. Color,
 opacity, roughness, metallic and emission use the same grid; recipe copies stay
 standalone and retain their full procedural detail.
+
+Beside this control, **Characters & Map Items** has independent appearance settings:
+
+```toml
+[appearance]
+sprite_pixels_2d = 0 # 0: source detail; 16/32/64: sprite sampling grid
+pixel_size_3d = 1   # 1: native; 2..16: screen-pixel blocks
+```
+
+Both controls update the map live and support undo. They affect characters and
+items placed in the world, including bitmap sources. Inventory icons retain their
+own resolution. In 3D the meshes render on a coarse grid with their normal lighting,
+shadows and animation, then expand with nearest sampling and depth testing against
+the full-resolution world. This changes the silhouette as well as the shading;
+floors, walls and other world surfaces retain their own material resolution.
+Pixelized 3D entities sample authored texels directly, without mip averaging. Their
+final shaded colors snap to the project palette, with post effects evaluated on the
+coarse grid and bloom excluded from their pixels. This keeps crisp pixel blocks
+while retaining scene lighting, fog, shadows and world occlusion.
+These controls apply to the default Raster2D / Raster3D renderers.
 
 Water uses 16 Loop Flow frames. Eldiron advances one frame per server animation
 tick, exactly like normal tiles: the default 250 ms tick gives a four-second

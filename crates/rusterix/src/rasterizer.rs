@@ -545,11 +545,9 @@ impl Rasterizer {
                                                 if let Some(textile) =
                                                     &assets.tile_list.get(index as usize)
                                                 {
-                                                    let index =
-                                                        textile.frame_index(scene.animation_frame);
-                                                    textile.textures[index].sample(
-                                                        u,
-                                                        v,
+                                                    textile.sample_2d(
+                                                        [u, v],
+                                                        scene.animation_frame,
                                                         self.sample_mode,
                                                         batch.repeat_mode,
                                                     )
@@ -561,11 +559,9 @@ impl Rasterizer {
                                                 if let Some(textile) =
                                                     &scene.dynamic_textures.get(index as usize)
                                                 {
-                                                    let index =
-                                                        textile.frame_index(scene.animation_frame);
-                                                    textile.textures[index].sample(
-                                                        u,
-                                                        v,
+                                                    textile.sample_2d(
+                                                        [u, v],
+                                                        scene.animation_frame,
                                                         self.sample_mode,
                                                         batch.repeat_mode,
                                                     )
@@ -702,24 +698,20 @@ impl Rasterizer {
                                         // Copy or blend to framebuffer
                                         let idx = ((ty - tile.y) * tile.width + (tx - tile.x)) * 4;
 
-                                        if texel[3] == 255 {
-                                            buffer[idx..idx + 4].copy_from_slice(&texel);
-                                        } else {
-                                            let src_alpha = texel[3] as f32 / 255.0;
-                                            let dst_alpha = 1.0 - src_alpha;
-
-                                            for i in 0..3 {
-                                                buffer[idx + i] = ((texel[i] as f32 * src_alpha)
-                                                    + (buffer[idx + i] as f32 * dst_alpha))
-                                                    as u8;
-                                            }
-                                            if !self.preserve_transparency {
-                                                buffer[idx + 3] = 255;
-                                            } else {
-                                                // buffer[idx + 3] = texel[3];
-                                                buffer[idx + 3] = buffer[idx + 3].max(texel[3]);
-                                            }
+                                        let mut destination: [u8; 4] =
+                                            buffer[idx..idx + 4].try_into().unwrap();
+                                        if !self.preserve_transparency {
+                                            destination[3] = 255;
                                         }
+                                        let mut mixed = theframework::thergbabuffer::source_over(
+                                            destination,
+                                            texel,
+                                            texel[3] as f32 / 255.,
+                                        );
+                                        if !self.preserve_transparency {
+                                            mixed[3] = 255;
+                                        }
+                                        buffer[idx..idx + 4].copy_from_slice(&mixed);
                                     }
                                 }
                             }

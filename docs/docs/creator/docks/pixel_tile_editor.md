@@ -4,14 +4,13 @@ sidebar_position: 4
 ---
 
 The **Pixel Tile Editor** is Eldiron’s integrated pixel editor for authored
-tiles and item icon frames.
+bitmap tiles and linked image sources.
 
-It opens when:
-
-- you click a frame in an item's **Icon: On** or **Icon: Off** tree row, or
-- a single tile is selected in the tile picker and you use the top-right [Edit
-  / Maximize Dock control](/docs/creator/actions/#dock-controls), or press
-  `Cmd/Ctrl + [`
+Select a bitmap tile in the Tile Picker and use the top-right [Edit / Maximize
+Dock control](/docs/creator/actions/#dock-controls), or press `Cmd/Ctrl + [`.
+Procedural tiles use the [MZ row editor](/docs/building_maps/procedural_materials).
+Items now open through [Appearance](/docs/characters_items/appearance); **Icon On**
+and **Icon Off** edit their independent MZ state recipes.
 
 Use the adjacent **Restore Dock** control or `Cmd/Ctrl + ]` to return to the normal split layout.
 
@@ -19,29 +18,19 @@ Changes are reflected immediately in the project and on the map or UI.
 
 ## What It Edits
 
-The pixel editor works on authored tile textures and item icon state frames. It
-is used for:
+The pixel editor paints bitmap tile textures and their animation frames. It
+supports direct drawing, filling, erasing, selecting and pasting pixel regions.
+Edits update the source tile used in 2D/3D. Use `Space` to preview its animation.
 
-- painting tile pixels directly
-- editing animated tile frames
-- editing an item's default **On** frames and optional **Off** frames
-- selecting and pasting pixel regions
-- updating the final tile that is used in 2D and 3D
+For an image-backed MZ item icon, use **Image / Tile Source** in the item's recipe.
+A linked project bitmap can be opened here through the Tile Picker; editing it
+updates recipe consumers. Embedded imported images remain part of their MZ
+bundle. Procedural shape/color nodes are edited in MZ, not painted here.
 
-Undo / redo belongs to the selected tile or item icon state, so edits in On and
-Off do not share a history. Use `Space` to preview the frames of the current
-state as an animation.
-
-When an item icon initially comes from a tile UUID or alias, opening it copies
-the resolved tile frames into project-owned icon frames. Painting changes that
-icon copy, not the source tile. The custom frames are serialized with the item
-as PNG entries below `binaries/items/<item-id>/icons/` in the project archive.
-
-**Load Default** replaces the customized state frames from the current source:
-`on_tile_id` or `off_tile_id` when mapped, otherwise the ruleset state artwork
-or ordinary On visual fallback. This means changing the source tile and then
-using **Load Default** imports its latest frames. Loading On never changes Off,
-or vice versa.
+Projects can also retain explicit bitmap item-state frame overrides, serialized
+as PNGs under `binaries/items/<item-id>/icons/<state>/`. These are separate from
+the source tile and from MZ recipes. The current item authoring entry point is
+the [Appearance workspace](/docs/characters_items/appearance).
 
 ## Core Tools
 
@@ -81,7 +70,12 @@ For authored pixel tiles:
 - drawing uses the selected project palette color
 - render material comes from high-level material metadata, such as tile presets, project palette entry presets, or object overrides
 
-Ruleset icon state directories reserve an optional `material.png` for future
+To use bitmap artwork inside an MZ item icon, add **Image / Tile Source** to its
+recipe. A linked project bitmap remains editable here through the Tile Picker;
+the recipe combines it with procedural operations. Official MZ icon output
+includes generated roughness, metallic, opacity and emission alongside color.
+
+Ruleset PNG icon state directories reserve an optional `material.png` for future
 artist-authored material data: red is roughness, blue metallic, green emission,
 and alpha is unused. The editor does not currently load or edit this file.
 

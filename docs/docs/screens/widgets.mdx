@@ -7,6 +7,11 @@ import Admonition from '@theme/Admonition';
 
 ### Widget Drawing Order
 
+Tile-backed artwork can use [MZ procedural materials](../building_maps/procedural_materials)
+as well as bitmap tiles. Color/Opacity, palette updates, animation and continuous
+or repeated sampling follow the source tile. Explicit widget frames and state
+artwork retain their own selection rules. See [Procedural Screen Artwork](/docs/screens/#procedural-screen-artwork).
+
 Every widget supports a **layer** index attribute in its **ui** section, higher layer values are drawn later. Except the **game widget** which is always drawn first. The default **layer** value is 0.
 
 ```toml
@@ -23,6 +28,7 @@ Use a widget with **role = "game"** to render the game inside a screen. The game
 - **role = "game"** draws the game output into this widget region.
 - **grid_size** (2D): pixel size of one tile (zoom level); if omitted, it falls back to **[viewport].grid_size**.
 - **upscale** (3D): render at **(widget size ÷ upscale)** and scale back up; **1** keeps native size, higher values soften, lower values sharpen.
+- For crisp pixelized characters and map items, use the independent [appearance settings](../configuration/game#tile-and-appearance-settings) rather than lowering the entire game widget's resolution.
 - **chunk_load_radius**: number of chunk rings around the player that should be loaded immediately. Default: **2**.
 - **chunk_prefetch_radius**: wider background streaming radius around the player. Chunks outside this radius are unloaded. Default: **5**.
 - **chunk_build_budget_near**: max chunk builds per frame while near chunks are still missing. Higher values reduce startup wait but can cost frame time. Default: **10**.
@@ -383,10 +389,10 @@ Equivalent flat fields are also supported: `hover_background_color`, `hover_bord
 Buttons with `rules.*` commands resolve their label, description, costs, requirements, and cooldown display from the active ruleset. During cooldown the button is visually dimmed and shows a cooldown fill overlay. Inventory, equipped-slot, command, and hovered world-item buttons also use the same rules description data for hover tooltips.
 
 The following attributes let `intent` buttons show specific mouse cursors when hovering or clicking an entity or item. They work in 3D, and also in 2D when `[game].click_intents_2d = true`:
-- **entity_cursor_id** - The [tile id](/docs/what_is/#tile-id) for the mouse cursor when hovering above a character.
-- **entity_clicked_cursor_id** - The [tile id](/docs/what_is/#tile-id) for the mouse cursor when clicking a character.
-- **item_cursor_id** - The [tile id](/docs/what_is/#tile-id) for the mouse cursor when hovering above an item.
-- **item_clicked_cursor_id** - The [tile id](/docs/what_is/#tile-id) for the mouse cursor when clicking an item.
+- **entity_cursor_id** - The [tile id](/docs/characters_items/attributes#tile_id) for the mouse cursor when hovering above a character.
+- **entity_clicked_cursor_id** - The [tile id](/docs/characters_items/attributes#tile_id) for the mouse cursor when clicking a character.
+- **item_cursor_id** - The [tile id](/docs/characters_items/attributes#tile_id) for the mouse cursor when hovering above an item.
+- **item_clicked_cursor_id** - The [tile id](/docs/characters_items/attributes#tile_id) for the mouse cursor when clicking an item.
 
 ---
 

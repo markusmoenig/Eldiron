@@ -452,6 +452,39 @@ impl Tile {
         }
     }
 
+    /// Sample a baked 2D surface, separating spatial pages from animation phases.
+    pub fn sample_2d(
+        &self,
+        uv: [f32; 2],
+        frame: usize,
+        mode: crate::SampleMode,
+        repeat: crate::RepeatMode,
+    ) -> [u8; 4] {
+        let mut index = self.frame_index(frame);
+        let mut uv = uv;
+        if let Some(pages) = &self.uv_pages
+            && repeat == crate::RepeatMode::RepeatXY
+            && pages.size.iter().all(|s| *s > 0)
+            && uv.iter().all(|v| v.is_finite())
+        {
+            if pages.repeat_period.iter().all(|v| v.is_finite() && *v > 0.) {
+                uv = std::array::from_fn(|c| (uv[c] / pages.repeat_period[c]).rem_euclid(1.));
+            } else {
+                let units = pages.units_per_page.max(1) as f32;
+                let grid = uv.map(|v| v / units);
+                let page: [usize; 2] = std::array::from_fn(|c| {
+                    ((grid[c].floor() - pages.origin[c] as f32) as i64)
+                        .clamp(0, pages.size[c] as i64 - 1) as usize
+                });
+                index += page[1] * pages.size[0] as usize + page[0];
+                uv = grid.map(|v| v.rem_euclid(1.));
+            }
+        }
+        self.textures
+            .get(index)
+            .map_or([0; 4], |texture| texture.sample(uv[0], uv[1], mode, repeat))
+    }
+
     /// Parse a comma, semicolon, or newline separated gameplay tag list.
     /// Tags are stored in a stable, lowercase form so scripts can compare them
     /// without depending on how they were capitalized in Creator.

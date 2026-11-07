@@ -85,6 +85,7 @@ struct GeometryParticleSource {
     origin: Vec3<f32>,
     direction: Vec3<f32>,
     size_scale: f32,
+    appearance: bool,
 }
 
 /// Snapshot of one particle pipeline after its most recent dynamic rebuild.
@@ -164,6 +165,129 @@ mod tests {
         let edited = fingerprint(&values);
         values.remove("slots");
         assert_ne!(edited, fingerprint(&values));
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn mz_torch_particles_follow_origin_without_moving_old_particles_and_extinguish() {
+        let mut handler = SceneHandler::default();
+        let mut assets = Assets::default();
+        assets.rules = eldiron_ruleset::latest_official_ruleset().into();
+        assets.palette = eldiron_ruleset::palette_template_from_source(&assets.rules).unwrap();
+        for source in eldiron_ruleset::bundled_appearance_assets_for_ruleset(
+            eldiron_ruleset::OFFICIAL_RULESET_ID,
+            eldiron_ruleset::OFFICIAL_RULESET_VERSION,
+        )
+        .into_iter()
+        .filter(|s| s.id == "torch" || s.id == "torch_off")
+        {
+            assets.procedural_avatars.insert(
+                source.id.into(),
+                std::sync::Arc::new(
+                    crate::procedural_avatar::Appearance::new(
+                        source.source,
+                        source.equipment,
+                        crate::procedural_avatar::fingerprint(&source.source),
+                    )
+                    .unwrap(),
+                ),
+            );
+        }
+        handler.build_atlas(&assets.tiles, false);
+        let mut map = Map::new();
+        let mut torch = crate::Item::default();
+        torch.id = 9;
+        torch.set_attribute("appearance_geometry", Value::Str("torch".into()));
+        torch.set_attribute("appearance_geometry_off", Value::Str("torch_off".into()));
+        torch.set_attribute("active", Value::Bool(true));
+        torch.set_attribute("visible", Value::Bool(true));
+        map.items.push(torch);
+        let camera = crate::D3IsoCamera::new();
+        assert!(
+            handler.mz_particle_sources(&map, &assets, true)[0]
+                .light_override
+                .is_some()
+        );
+        handler.rebuild_geometry_particles_2d(&map, &assets, 8);
+        handler.rebuild_geometry_particles_3d(&map, &camera, &assets, 8);
+        assert_eq!(handler.geometry_emitters_2d.len(), 1);
+        assert_eq!(handler.geometry_emitters_3d.len(), 1);
+        let before2 = handler
+            .geometry_emitters_2d
+            .values()
+            .next()
+            .unwrap()
+            .particles[0]
+            .pos;
+        let before3 = handler
+            .geometry_emitters_3d
+            .values()
+            .next()
+            .unwrap()
+            .particles[0]
+            .pos;
+        map.items[0].position.x += 2.;
+        handler.rebuild_geometry_particles_2d(&map, &assets, 0);
+        handler.rebuild_geometry_particles_3d(&map, &camera, &assets, 0);
+        let e2 = handler.geometry_emitters_2d.values().next().unwrap();
+        let e3 = handler.geometry_emitters_3d.values().next().unwrap();
+        assert_eq!(e2.particles[0].pos, before2);
+        assert_eq!(e3.particles[0].pos, before3);
+        assert_eq!(e2.direction, -Vec3::unit_z());
+        assert_eq!(e3.direction, Vec3::unit_y());
+        assert!(e2.origin.x > before2.x + 1.);
+        assert!(e3.origin.x > before3.x + 1.);
+        map.items[0].set_attribute("active", Value::Bool(false));
+        assert!(handler.mz_particle_sources(&map, &assets, true).is_empty());
+        handler.rebuild_geometry_particles_2d(&map, &assets, 1);
+        handler.rebuild_geometry_particles_3d(&map, &camera, &assets, 1);
+        assert!(handler.geometry_emitters_2d.is_empty());
+        assert!(handler.geometry_emitters_3d.is_empty());
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn equipment_changes_invalidate_both_scene_caches_without_clock_ticks() {
+        let handler = SceneHandler::default();
+        let assets = Assets::default();
+        let styles = FxHashMap::default();
+        let camera = crate::D3IsoCamera::new();
+        let mut map = Map::new();
+        map.entities.push(crate::Entity::default());
+        let hashes = |map: &Map| {
+            [
+                handler.dynamics_hash_2d(map, 0, &styles, &assets),
+                handler.dynamics_hash_3d(map, &camera, 0, &assets, &styles),
+            ]
+        };
+        let assert_changed = |before: [u64; 2], after: [u64; 2]| {
+            assert_ne!(before[0], after[0], "2D must update immediately");
+            assert_ne!(before[1], after[1], "3D must update immediately");
+        };
+        let bare = hashes(&map);
+        let mut sword = crate::Item::default();
+        sword.id = 19;
+        sword.creator_id = Uuid::new_v4();
+        map.entities[0].equipped.insert("main_hand".into(), sword);
+        let worn = hashes(&map);
+        assert_changed(bare, worn);
+        map.entities[0]
+            .equipped
+            .get_mut("main_hand")
+            .unwrap()
+            .set_attribute("active", Value::Bool(true));
+        let active = hashes(&map);
+        assert_changed(worn, active);
+        let sword = map.entities[0].equipped.shift_remove("main_hand").unwrap();
+        map.entities[0].inventory.push(Some(sword));
+        let carried = hashes(&map);
+        assert_changed(active, carried);
+        let sword = map.entities[0].inventory[0].take().unwrap();
+        map.items.push(sword);
+        let dropped = hashes(&map);
+        assert_changed(carried, dropped);
+        map.items[0].set_attribute("active", Value::Bool(false));
+        assert_changed(dropped, hashes(&map));
     }
 
     #[test]
@@ -568,6 +692,7 @@ pub struct SceneHandler {
     // Local render-frame counter for timing animations at fixed FPS
     frame_counter: usize,
     avatar_builder: AvatarRuntimeBuilder,
+    procedural_avatars: crate::procedural_avatar::Runtime,
     last_dynamics_hash_2d: Option<u64>,
     last_dynamics_hash_3d: Option<u64>,
     last_dynamics_tick_2d: Option<usize>,
@@ -575,6 +700,8 @@ pub struct SceneHandler {
     dynamics_ready_2d: bool,
     dynamics_ready_3d: bool,
     entity_item_selection_visible: bool,
+    /// Resolve declarative startup equipment only while authoring, never during gameplay.
+    pub preview_character_setup: bool,
     generated_item_avatar_geo: FxHashSet<GeoId>,
 
     // Timing parameters (configurable)
@@ -1362,6 +1489,7 @@ impl SceneHandler {
                         .try_normalized()
                         .unwrap_or(Vec3::unit_y()),
                     size_scale: 1.0,
+                    appearance: false,
                 });
                 continue;
             }
@@ -1458,6 +1586,7 @@ impl SceneHandler {
                     origin,
                     direction: normal,
                     size_scale: 1.0,
+                    appearance: false,
                 });
             }
         }
@@ -1499,6 +1628,7 @@ impl SceneHandler {
                     origin: effect.origin,
                     direction: effect.direction,
                     size_scale: 1.0,
+                    appearance: false,
                 }
             })
             .collect()
@@ -1531,6 +1661,145 @@ impl SceneHandler {
         }
     }
 
+    fn mz_particle_sources(
+        &mut self,
+        map: &Map,
+        assets: &Assets,
+        two_d: bool,
+    ) -> Vec<GeometryParticleSource> {
+        let mut sources = vec![];
+        for (index, entity) in map.entities.iter().enumerate() {
+            let display;
+            let entity = if self.preview_character_setup {
+                display = crate::server::data::character_for_display(entity, assets);
+                &display
+            } else {
+                entity
+            };
+            if !entity.attributes.get_bool_default("visible", false) || entity.get_mode() == "dead"
+            {
+                continue;
+            }
+            let Some(model) = crate::procedural_avatar::Runtime::resolve(entity, assets) else {
+                continue;
+            };
+            // Equipment may add effects to an otherwise plain body, so check
+            // the compiled variant before sampling/posing any effect anchors.
+            if !model.has_entity_effects(entity, assets) {
+                continue;
+            }
+            let id = Self::entity_render_geo_id(entity, index);
+            let Ok(sample) = self
+                .procedural_avatars
+                .sample(id, entity, model, assets, two_d)
+            else {
+                continue;
+            };
+            let feet = if two_d {
+                Vec3::new(entity.position.x, 0., entity.position.z)
+            } else {
+                entity.position
+            };
+            let size = entity.attributes.get_float_default(
+                if two_d { "size_2d" } else { "size" },
+                if two_d { 1. } else { 2. },
+            );
+            if let Ok(effects) = model.effects_with_pose(
+                entity,
+                assets,
+                feet,
+                size,
+                &sample.animation,
+                sample.time,
+                false,
+                two_d,
+                (!sample.joints.is_empty()).then_some(sample.joints.as_slice()),
+            ) {
+                for effect in effects {
+                    sources.push((Self::hash_u32_label(&format!("{id:?}")), effect));
+                }
+            }
+        }
+        for (index, item) in map.items.iter().enumerate() {
+            if !item.attributes.get_bool_default("visible", false)
+                || !crate::procedural_avatar::Runtime::item_effects_enabled(item)
+            {
+                continue;
+            }
+            let Some(model) = crate::procedural_avatar::Runtime::resolve_item(item, assets) else {
+                continue;
+            };
+            if !model.has_effects {
+                continue;
+            }
+            let id = Self::item_render_geo_id(item, index);
+            let feet = if two_d {
+                Vec3::new(item.position.x, 0., item.position.z)
+            } else {
+                item.position
+            };
+            let size = if two_d {
+                Self::generated_ground_item_size(item)
+            } else {
+                model.model_height(assets).unwrap_or(0.5)
+            };
+            if let Ok(effects) = model.effects(
+                &Entity::default(),
+                assets,
+                feet,
+                size,
+                "idle",
+                0.,
+                item.attributes
+                    .get_bool_default("appearance_ground_flat", false),
+                two_d,
+            ) {
+                for effect in effects {
+                    sources.push((Self::hash_u32_label(&format!("{id:?}")), effect));
+                }
+            }
+        }
+        sources
+            .into_iter()
+            .map(|(owner, source)| {
+                let key = Self::tile_particle_key(13, owner, Self::hash_u32_label(&source.id));
+                let direction = if two_d {
+                    -Vec3::unit_z()
+                } else {
+                    Vec3::unit_y()
+                };
+                let emitter = crate::procedural_avatar::effects::emitter(
+                    &source.definition,
+                    &assets.palette,
+                    source.position,
+                    direction,
+                    source.scale,
+                );
+                let color = emitter.color_ramp.unwrap()[0];
+                GeometryParticleSource {
+                    key,
+                    light_id: GeoId::Unknown(0xB184_0000 ^ key),
+                    sprite_tile_id: Self::ruleset_fx_particle_sprite_tile_id(),
+                    emitter,
+                    light_override: (source.definition.light > 0.).then_some(
+                        crate::map::tile::TileLightEmitter {
+                            color,
+                            intensity: source.definition.light,
+                            range: source.definition.range,
+                            flicker: 0.25,
+                            lift: 0.,
+                        },
+                    ),
+                    emit_implicit_light: false,
+                    origin: source.position,
+                    direction,
+                    size_scale: 1.,
+                    appearance: true,
+                }
+            })
+            .collect()
+    }
+
     fn rebuild_geometry_particles_2d(
         &mut self,
         map: &Map,
@@ -1540,8 +1809,10 @@ impl SceneHandler {
         let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
         let mut has_particles = false;
 
+        let mz_sources = self.mz_particle_sources(map, assets, true);
         for source in Self::geometry_object_particle_sources(map, assets)
             .into_iter()
+            .chain(mz_sources)
             .chain(Self::face_particle_sources(map, assets).into_iter())
             .chain(Self::prefab_particle_sources(map, assets).into_iter())
         {
@@ -1561,12 +1832,31 @@ impl SceneHandler {
             emitter.origin = source.origin;
             emitter.direction = source.direction;
             Self::advance_emitter(emitter, particle_steps);
+            if let Some(light) = &source.light_override {
+                self.vm.execute(Atom::AddLight {
+                    id: source.light_id,
+                    light: Light::new_pointlight(source.origin)
+                        .with_color(Vec3::new(
+                            light.color[0] as f32 / 255.,
+                            light.color[1] as f32 / 255.,
+                            light.color[2] as f32 / 255.,
+                        ))
+                        .with_intensity(light.intensity)
+                        .with_emitting(true)
+                        .with_end_distance(light.range)
+                        .with_flicker(light.flicker),
+                });
+            }
 
             let lifetime_max = emitter.lifetime_range.1.max(0.001);
             for (index, particle) in emitter.particles.iter().enumerate() {
                 has_particles = true;
                 let opacity = (particle.lifetime / lifetime_max).clamp(0.0, 1.0);
-                let size = (particle.radius * 2.6 * source.size_scale).max(0.12);
+                let size = (particle.radius * 2.6 * source.size_scale).max(if source.appearance {
+                    0.01
+                } else {
+                    0.12
+                });
                 let tint = Vec3::new(
                     (particle.color[0] as f32 / 255.0).powf(2.2),
                     (particle.color[1] as f32 / 255.0).powf(2.2),
@@ -1580,7 +1870,7 @@ impl SceneHandler {
                     size,
                 )
                 .with_tint(tint)
-                .with_layer(24)
+                .with_layer(if source.appearance { 5 } else { 24 })
                 .with_opacity(opacity);
                 self.vm.execute(Atom::AddDynamic { object: dynamic });
             }
@@ -1602,8 +1892,10 @@ impl SceneHandler {
         let mut active_emitters: FxHashSet<u32> = FxHashSet::default();
         let mut has_particles = false;
 
+        let mz_sources = self.mz_particle_sources(map, assets, false);
         for source in Self::geometry_object_particle_sources(map, assets)
             .into_iter()
+            .chain(mz_sources)
             .chain(Self::face_particle_sources(map, assets).into_iter())
             .chain(Self::prefab_particle_sources(map, assets).into_iter())
         {
@@ -2494,6 +2786,7 @@ impl SceneHandler {
 
     pub fn empty() -> Self {
         let mut vm = SceneVM::default();
+        vm.set_background_lighting(true);
         vm.set_layer_activity_logging(false);
 
         Self {
@@ -2541,6 +2834,7 @@ impl SceneHandler {
             ruleset_fx_first_seen: FxHashMap::default(),
             frame_counter: 0,
             avatar_builder: AvatarRuntimeBuilder::default(),
+            procedural_avatars: Default::default(),
             last_dynamics_hash_2d: None,
             last_dynamics_hash_3d: None,
             last_dynamics_tick_2d: None,
@@ -2548,6 +2842,7 @@ impl SceneHandler {
             dynamics_ready_2d: false,
             dynamics_ready_3d: false,
             entity_item_selection_visible: false,
+            preview_character_setup: false,
             generated_item_avatar_geo: FxHashSet::default(),
             render_fps: 30.0,
             game_tick_fps: 4.0, // default 250ms ticks
@@ -2763,6 +3058,31 @@ impl SceneHandler {
         }
     }
 
+    fn hash_item_appearance(hasher: &mut rustc_hash::FxHasher, item: &crate::Item) {
+        hasher.write_u32(item.id);
+        hasher.write(item.creator_id.as_bytes());
+        hasher.write(item.item_type.as_bytes());
+        Self::hash_properties(hasher, &item.attributes);
+    }
+
+    /// Equipment and carried lights can change without advancing the animation clock.
+    pub(crate) fn hash_character_items(hasher: &mut rustc_hash::FxHasher, entity: &crate::Entity) {
+        let mut equipped = entity.equipped.iter().collect::<Vec<_>>();
+        equipped.sort_by(|a, b| a.0.cmp(b.0));
+        hasher.write_usize(equipped.len());
+        for (slot, value) in equipped {
+            hasher.write(slot.as_bytes());
+            Self::hash_item_appearance(hasher, value);
+        }
+        hasher.write_usize(entity.inventory.len());
+        for value in &entity.inventory {
+            hasher.write_u8(u8::from(value.is_some()));
+            if let Some(value) = value {
+                Self::hash_item_appearance(hasher, value);
+            }
+        }
+    }
+
     fn dynamics_hash_2d(
         &self,
         map: &Map,
@@ -2771,6 +3091,33 @@ impl SceneHandler {
         assets: &Assets,
     ) -> u64 {
         let mut hasher = rustc_hash::FxHasher::default();
+        if map
+            .entities
+            .iter()
+            .any(|e| crate::procedural_avatar::Runtime::resolve(e, assets).is_some())
+            || map
+                .items
+                .iter()
+                .any(|i| crate::procedural_avatar::Runtime::resolve_item(i, assets).is_some())
+        {
+            if map
+                .entities
+                .iter()
+                .any(|e| crate::procedural_avatar::Runtime::resolve(e, assets).is_some())
+            {
+                hasher.write_u32((self.procedural_avatars.time * 30.).floor() as u32);
+            }
+            let mut revisions = assets
+                .procedural_avatars
+                .iter()
+                .map(|(id, a)| (id, a.signature))
+                .collect::<Vec<_>>();
+            revisions.sort_unstable();
+            for (id, revision) in revisions {
+                hasher.write(id.as_bytes());
+                hasher.write_u64(revision);
+            }
+        }
         hasher.write(map.id.as_bytes());
         hasher.write_u64(animation_frame as u64);
         hasher.write_u64(crate::scenebuilder::preview_geometry::geometry_fingerprint(
@@ -2809,6 +3156,7 @@ impl SceneHandler {
         if let Some(id) = map.properties.get_id("prefab_effect_preview_asset_id") {
             hash_serialized(&mut hasher, &assets.block_props.get(&id));
         }
+        hasher.write_u8(u8::from(self.preview_character_setup));
         Self::hash_avatar_frame_styles(&mut hasher, avatar_frame_styles);
         hasher.write_u64(map.sectors.len() as u64);
         hasher.write_u64(map.linedefs.len() as u64);
@@ -2867,8 +3215,7 @@ impl SceneHandler {
         }
 
         for item in &map.items {
-            Self::hash_properties(&mut hasher, &item.attributes);
-            hasher.write_u32(item.id);
+            Self::hash_item_appearance(&mut hasher, item);
             hasher.write_u32(item.position.x.to_bits());
             hasher.write_u32(item.position.y.to_bits());
             hasher.write_u32(item.position.z.to_bits());
@@ -2888,6 +3235,7 @@ impl SceneHandler {
         }
 
         for entity in &map.entities {
+            Self::hash_character_items(&mut hasher, entity);
             Self::hash_properties(&mut hasher, &entity.attributes);
             hasher.write_u32(entity.id);
             hasher.write_u32(entity.position.x.to_bits());
@@ -2941,9 +3289,40 @@ impl SceneHandler {
         assets: &Assets,
         avatar_frame_styles: &FxHashMap<u32, AvatarFrameStyle>,
     ) -> u64 {
+        let profiling = std::env::var_os("ELDIRON_PROFILE_VALIDATION").is_some();
+        let started = Instant::now();
+        let mut legacy_ms = 0.;
         let mut hasher = rustc_hash::FxHasher::default();
+        if map
+            .entities
+            .iter()
+            .any(|e| crate::procedural_avatar::Runtime::resolve(e, assets).is_some())
+            || map
+                .items
+                .iter()
+                .any(|i| crate::procedural_avatar::Runtime::resolve_item(i, assets).is_some())
+        {
+            if map
+                .entities
+                .iter()
+                .any(|e| crate::procedural_avatar::Runtime::resolve(e, assets).is_some())
+            {
+                hasher.write_u32((self.procedural_avatars.time * 30.).floor() as u32);
+            }
+            let mut revisions = assets
+                .procedural_avatars
+                .iter()
+                .map(|(id, a)| (id, a.signature))
+                .collect::<Vec<_>>();
+            revisions.sort_unstable();
+            for (id, revision) in revisions {
+                hasher.write(id.as_bytes());
+                hasher.write_u64(revision);
+            }
+        }
         hasher.write(map.id.as_bytes());
         hasher.write_u64(animation_frame as u64);
+        hasher.write_u8(u8::from(self.preview_character_setup));
         Self::hash_avatar_frame_styles(&mut hasher, avatar_frame_styles);
         hasher.write(camera.id().as_bytes());
         Self::hash_vec3(&mut hasher, camera.position());
@@ -2952,6 +3331,7 @@ impl SceneHandler {
         Self::hash_vec3(&mut hasher, right);
         Self::hash_vec3(&mut hasher, up);
 
+        let head_ms = started.elapsed().as_secs_f64() * 1000.;
         hasher.write_u64(map.sectors.len() as u64);
         hasher.write_u64(map.linedefs.len() as u64);
         hasher.write_u64(map.vertices.len() as u64);
@@ -3029,8 +3409,9 @@ impl SceneHandler {
             }
         }
 
+        let world_ms = started.elapsed().as_secs_f64() * 1000.;
         for item in &map.items {
-            hasher.write_u32(item.id);
+            Self::hash_item_appearance(&mut hasher, item);
             hasher.write_u32(item.position.x.to_bits());
             hasher.write_u32(item.position.y.to_bits());
             hasher.write_u32(item.position.z.to_bits());
@@ -3049,7 +3430,10 @@ impl SceneHandler {
             }
         }
 
+        let items_ms = started.elapsed().as_secs_f64() * 1000.;
         for entity in &map.entities {
+            Self::hash_properties(&mut hasher, &entity.attributes);
+            Self::hash_character_items(&mut hasher, entity);
             hasher.write_u32(entity.id);
             hasher.write_u32(entity.position.x.to_bits());
             hasher.write_u32(entity.position.y.to_bits());
@@ -3084,12 +3468,27 @@ impl SceneHandler {
             );
             if let Some(avatar) = AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets) {
                 hasher.write_u8(1);
-                hasher.write_u64(AvatarRuntimeBuilder::avatar_definition_signature(avatar));
+                let legacy_started = Instant::now();
+                hasher.write_u64(assets.avatars.cached_signature(avatar, || {
+                    AvatarRuntimeBuilder::avatar_definition_signature(avatar)
+                }));
+                legacy_ms += legacy_started.elapsed().as_secs_f64() * 1000.;
             } else {
                 hasher.write_u8(0);
             }
         }
 
+        if profiling {
+            eprintln!(
+                "[Validation3D] hash={:.3}ms head={:.3}ms world={:.3}ms items={:.3}ms actors={:.3}ms legacy={:.3}ms",
+                started.elapsed().as_secs_f64() * 1000.,
+                head_ms,
+                world_ms - head_ms,
+                items_ms - world_ms,
+                started.elapsed().as_secs_f64() * 1000. - items_ms,
+                legacy_ms
+            );
+        }
         hasher.finish()
     }
 
@@ -3115,6 +3514,7 @@ impl SceneHandler {
     }
 
     pub fn build_atlas(&mut self, tiles: &IndexMap<Uuid, Tile>, editor: bool) {
+        self.procedural_avatars.reset_uploads();
         let active = self.vm.active_vm_index();
         self.vm.set_active_vm(0);
         let fx_sprite = Self::build_particle_sprite_texture([255, 255, 255, 255], None);
@@ -3451,7 +3851,13 @@ impl SceneHandler {
                 enabled: self.settings.avatar_shading_enabled,
                 skin_enabled: self.settings.avatar_skin_shading_enabled,
             });
+        let tick_seconds = assets.animation_tick_seconds();
+        self.procedural_avatars.tick(animation_frame, tick_seconds);
+        let profile = std::env::var_os("ELDIRON_PROFILE_VALIDATION").is_some();
+        let validation_start = Instant::now();
         let current_hash = self.dynamics_hash_2d(map, animation_frame, avatar_frame_styles, assets);
+        let validation_ms = validation_start.elapsed().as_secs_f64() * 1000.;
+        let rebuild_start = Instant::now();
         let has_active_tile_particles = !self.tile_emitters_2d.is_empty();
         let has_active_builder_particles = !self.geometry_emitters_2d.is_empty();
         if self.dynamics_ready_2d
@@ -3481,7 +3887,9 @@ impl SceneHandler {
             let item_pos = Vec2::new(item.position.x, item.position.z);
             let pos = Vec2::new(item_pos.x, item_pos.y);
 
-            if let Some(Value::Light(light)) = item.attributes.get("light") {
+            if let Some(Value::Light(light)) = item.attributes.get("light")
+                && !crate::procedural_avatar::Runtime::item_uses_effects(item, assets)
+            {
                 self.vm.execute(Atom::AddLight {
                     id: Self::item_light_geo_id(item, item_index),
                     light: Light::new_pointlight(
@@ -3496,7 +3904,19 @@ impl SceneHandler {
                 });
             }
 
+            let mz_id = Self::item_render_geo_id(item, item_index);
             if item.attributes.get_bool_default("visible", false)
+                && self
+                    .procedural_avatars
+                    .item_sprite(&mut self.vm, item, assets, mz_id)
+            {
+                active_avatar_geo.insert(mz_id);
+                let size = Self::generated_ground_item_size(item);
+                self.vm.execute(Atom::AddDynamic {
+                    object: DynamicObject::billboard_avatar_2d(mz_id, pos, size, size)
+                        .with_layer(D2_GROUND_ITEM_LAYER),
+                });
+            } else if item.attributes.get_bool_default("visible", false)
                 && let Some((size, rgba)) =
                     Widget::project_item_icon_square(assets, item, animation_frame)
             {
@@ -3555,6 +3975,13 @@ impl SceneHandler {
         }
 
         for (entity_index, entity) in map.entities.iter().enumerate() {
+            let displayed;
+            let entity = if self.preview_character_setup {
+                displayed = crate::server::data::character_for_display(entity, assets);
+                &displayed
+            } else {
+                entity
+            };
             let entity_pos = Vec2::new(entity.position.x, entity.position.z);
             let pos = Vec2::new(entity_pos.x, entity_pos.y);
 
@@ -3602,6 +4029,20 @@ impl SceneHandler {
                     .attributes
                     .get_float_default("size_2d", 1.0)
                     .max(0.01);
+                if self.procedural_avatars.sprite(
+                    &mut self.vm,
+                    entity,
+                    assets,
+                    geo_id,
+                    avatar_frame_styles.get(&entity.id).copied(),
+                ) {
+                    active_avatar_geo.insert(geo_id);
+                    self.vm.execute(Atom::AddDynamic {
+                        object: DynamicObject::billboard_avatar_2d(geo_id, pos, size_2d, size_2d)
+                            .with_layer(D2_CHARACTER_LAYER),
+                    });
+                    continue;
+                }
                 let has_avatar_binding = AvatarRuntimeBuilder::has_avatar_binding(entity);
                 let keep_cached_avatar = self.avatar_builder.has_cached_avatar(geo_id);
                 if let Some(avatar) = AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets) {
@@ -3657,12 +4098,19 @@ impl SceneHandler {
             }
         }
 
+        self.procedural_avatars.retain(&active_avatar_geo);
         self.avatar_builder
             .remove_stale_avatars(&mut self.vm, &active_avatar_geo);
         self.update_generated_item_avatar_data(&active_generated_item_geo);
         self.impact_anim_starts
             .retain(|geo_id, _| active_impact_geo.contains(geo_id));
         self.dynamics_ready_2d = true;
+        if profile {
+            eprintln!(
+                "[Validation2D] hash={validation_ms:.3} rebuild={:.3}",
+                rebuild_start.elapsed().as_secs_f64() * 1000.
+            );
+        }
     }
 
     fn add_billboard_selection_frame(
@@ -3710,6 +4158,8 @@ impl SceneHandler {
             .billboard_anim_states
             .values()
             .any(|state| (state.start_open - state.target_open).abs() > f32::EPSILON);
+        let tick_seconds = assets.animation_tick_seconds();
+        self.procedural_avatars.tick(animation_frame, tick_seconds);
         let current_hash =
             self.dynamics_hash_3d(map, camera, animation_frame, assets, avatar_frame_styles);
         if Self::can_reuse_dynamics_3d(
@@ -3747,6 +4197,13 @@ impl SceneHandler {
 
         // Entities
         for (entity_index, entity) in map.entities.iter().enumerate() {
+            let displayed;
+            let entity = if self.preview_character_setup {
+                displayed = crate::server::data::character_for_display(entity, assets);
+                &displayed
+            } else {
+                entity
+            };
             if entity.get_mode() == "dead" {
                 continue;
             }
@@ -3792,25 +4249,26 @@ impl SceneHandler {
                     continue;
                 }
                 let size = entity.attributes.get_float_default("size", 2.0).max(0.01);
-                let pos_xz = entity.get_pos_xz();
-                let mut ground_y = map
-                    .geometry_floor_height_nearest(pos_xz, entity.position.y)
-                    .or_else(|| {
-                        map.find_sector_at(pos_xz)
-                            .map(|s| s.properties.get_float_default("floor_height", 0.0))
-                    })
-                    .unwrap_or(0.0);
-                if ground_y == 0.0 {
-                    let config = crate::chunkbuilder::terrain_generator::TerrainConfig::default();
-                    ground_y =
-                        crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
-                            map, pos_xz, &config,
-                        );
-                }
                 let visible = entity.attributes.get_bool_default("visible", false);
                 let render_feet3 = if visible {
                     entity.position
                 } else {
+                    let pos_xz = entity.get_pos_xz();
+                    let mut ground_y = map
+                        .geometry_floor_height_nearest(pos_xz, entity.position.y)
+                        .or_else(|| {
+                            map.find_sector_at(pos_xz)
+                                .map(|s| s.properties.get_float_default("floor_height", 0.0))
+                        })
+                        .unwrap_or(0.0);
+                    if ground_y == 0.0 {
+                        let config =
+                            crate::chunkbuilder::terrain_generator::TerrainConfig::default();
+                        ground_y =
+                        crate::chunkbuilder::terrain_generator::TerrainGenerator::sample_height_at(
+                            map, pos_xz, &config,
+                        );
+                    }
                     Vec3::new(entity.position.x, ground_y, entity.position.z)
                 };
                 let center3 = render_feet3 + Vec3::unit_y() * (size * 0.5);
@@ -3818,7 +4276,21 @@ impl SceneHandler {
                 let mut rendered_avatar = false;
                 let mut selection_bounds = (center3, basis.1, basis.2, size, size);
 
-                if let Some(avatar) = AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets) {
+                if self.procedural_avatars.objects(
+                    &mut self.vm,
+                    entity,
+                    assets,
+                    geo_id,
+                    render_feet3,
+                    size,
+                ) {
+                    active_avatar_geo.insert(geo_id);
+                    rendered_avatar = true;
+                }
+                if !rendered_avatar
+                    && let Some(avatar) =
+                        AvatarRuntimeBuilder::find_avatar_for_entity(entity, assets)
+                {
                     let direction = Self::avatar_direction_3d(entity, camera);
                     if self
                         .avatar_builder
@@ -3919,7 +4391,9 @@ impl SceneHandler {
                 continue;
             }
 
-            if let Some(Value::Light(light)) = item.attributes.get("light") {
+            if let Some(Value::Light(light)) = item.attributes.get("light")
+                && !crate::procedural_avatar::Runtime::item_uses_effects(item, assets)
+            {
                 self.vm.execute(Atom::AddLight {
                     id: Self::item_light_geo_id(item, item_index),
                     light: Light::new_pointlight(
@@ -3967,15 +4441,35 @@ impl SceneHandler {
             let default_center3 =
                 Vec3::new(item.position.x, ground_y + size * 0.5, item.position.z);
             let mut selection_bounds = (geo_id, default_center3, basis.1, basis.2, size, size);
-            let billboard_icon = Widget::project_item_icon_square(assets, item, animation_frame)
-                .or_else(|| {
-                    item.attributes
-                        .get("source")
-                        .is_none()
-                        .then(|| Widget::item_generated_icon_square(assets, item))
-                        .flatten()
-                });
-            if visible && let Some((icon_size, rgba)) = billboard_icon {
+            if visible
+                && item.attributes.get("source").is_none()
+                && self.procedural_avatars.item_objects(
+                    &mut self.vm,
+                    item,
+                    assets,
+                    geo_id,
+                    Vec3::new(item.position.x, ground_y + 0.01, item.position.z),
+                )
+            {
+                active_avatar_geo.insert(geo_id);
+                selection_bounds = (
+                    geo_id,
+                    Vec3::new(item.position.x, ground_y + 0.15, item.position.z),
+                    basis.1,
+                    basis.2,
+                    1.,
+                    0.35,
+                );
+            } else if visible
+                && let Some((icon_size, rgba)) =
+                    Widget::project_item_icon_square(assets, item, animation_frame).or_else(|| {
+                        item.attributes
+                            .get("source")
+                            .is_none()
+                            .then(|| Widget::item_generated_icon_square(assets, item))
+                            .flatten()
+                    })
+            {
                 self.vm.execute(Atom::SetAvatarBillboardData {
                     id: geo_id,
                     size: icon_size,
@@ -4257,6 +4751,7 @@ impl SceneHandler {
             self.vm.execute(Atom::AddDynamic { object: dynamic });
         }
 
+        self.procedural_avatars.retain(&active_avatar_geo);
         self.avatar_builder
             .remove_stale_avatars(&mut self.vm, &active_avatar_geo);
         self.update_generated_item_avatar_data(&active_generated_item_geo);

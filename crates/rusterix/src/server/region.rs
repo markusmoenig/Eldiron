@@ -78,10 +78,7 @@ fn ruleset_value_to_attr(value: &toml::Value) -> Option<Value> {
 }
 
 pub(crate) fn trigger_avatar_attack_animation(entity: &mut Entity) {
-    let attack_time = entity
-        .attributes
-        .get_float_default("avatar_attack_time", 0.35)
-        .max(0.05);
+    let attack_time = crate::procedural_avatar::attack_duration(entity);
     let serial = entity
         .attributes
         .get_int_default("avatar_attack_serial", 0)
@@ -110,10 +107,10 @@ fn sync_avatar_animation(entity: &mut Entity, moved: bool) {
     let is_casting = entity.attributes.get_bool_default("spell_casting", false);
     let desired_anim = if is_casting {
         "Cast"
-    } else if moved {
-        "Walk"
     } else if is_attacking {
         "Attack"
+    } else if moved {
+        "Walk"
     } else {
         "Idle"
     };
@@ -622,11 +619,51 @@ mod ruleset_progression_tests {
     }
 
     #[test]
-    fn actual_movement_selects_walk_over_a_lingering_attack_pose() {
+    fn weapon_visual_duration_is_shared_with_rendering_and_allows_retriggering() {
+        let mut entity = Entity::new();
+        let mut bow = Item::default();
+        bow.set_attribute("appearance_attack_time", Value::Float(1.05));
+        entity.equipped.insert("main_hand".into(), bow);
+        trigger_avatar_attack_animation(&mut entity);
+        assert_eq!(
+            entity
+                .attributes
+                .get_float_default("avatar_attack_left", 0.),
+            1.05
+        );
+        let serial = entity.attributes.get_int_default("avatar_attack_serial", 0);
+        advance_avatar_attack_timer(&mut entity, 0.5);
+        sync_avatar_animation(&mut entity, true);
+        assert_eq!(
+            entity.attributes.get_str("avatar_animation"),
+            Some("Attack")
+        );
+        trigger_avatar_attack_animation(&mut entity);
+        assert_ne!(
+            entity.attributes.get_int_default("avatar_attack_serial", 0),
+            serial
+        );
+        entity.set_attribute("avatar_attack_time", Value::Float(0.6));
+        trigger_avatar_attack_animation(&mut entity);
+        assert_eq!(
+            entity
+                .attributes
+                .get_float_default("avatar_attack_left", 0.),
+            crate::procedural_avatar::attack_duration(&entity)
+        );
+    }
+    #[test]
+    fn movement_does_not_cancel_an_active_weapon_attack() {
         let mut entity = Entity::new();
         trigger_avatar_attack_animation(&mut entity);
         sync_avatar_animation(&mut entity, true);
 
+        assert_eq!(
+            entity.attributes.get_str("avatar_animation"),
+            Some("Attack")
+        );
+        advance_avatar_attack_timer(&mut entity, 0.4);
+        sync_avatar_animation(&mut entity, true);
         assert_eq!(entity.attributes.get_str("avatar_animation"), Some("Walk"));
     }
 
@@ -1689,6 +1726,57 @@ mod ruleset_progression_tests {
             ctx.map.items[0]
                 .attributes
                 .get_bool_default("resource_depleted", false)
+        );
+    }
+
+    #[test]
+    fn character_setup_display_matches_real_startup_equipment() {
+        let source = eldiron_ruleset::latest_official_ruleset();
+        let mut ctx = RegionCtx::default();
+        ctx.set_rules(source.parse().unwrap()).unwrap();
+        ctx.assets.rules = source.into();
+        for template in eldiron_ruleset::ruleset_item_templates_from_source(source).unwrap() {
+            ctx.assets.items.insert(
+                template.name.clone(),
+                (String::new(), template.data.clone()),
+            );
+            ctx.item_class_data.insert(template.name, template.data);
+        }
+        let mut entity = Entity::new();
+        entity.id = 1;
+        crate::server::data::apply_entity_data(
+            &mut entity,
+            r#"[attributes]
+            race = "Orc"
+            class = "Warrior"
+            start_equipped_items = ["linen_shirt", "wool_trousers", "leather_shoes", "training_sword", "round_shield"]
+        "#,
+        );
+        apply_ruleset_character_defaults(&ctx.rules, &mut entity);
+        let displayed = crate::server::data::character_for_display(&entity, &ctx.assets);
+        assert!(
+            entity.equipped.is_empty(),
+            "display must not spawn into the real entity"
+        );
+        entity.inventory.resize(8, None);
+        ctx.map.entities.push(entity);
+        apply_spawn_item_lists_for_entity(1, &mut ctx);
+        let actual = &ctx.map.entities[0];
+        for slot in ["torso", "legs", "feet", "main_hand", "shield"] {
+            assert_eq!(
+                displayed.equipped[slot].attributes.get_str("ruleset_id"),
+                actual.equipped[slot].attributes.get_str("ruleset_id"),
+                "{slot}"
+            );
+        }
+        assert_eq!(displayed.attributes.get_str("avatar"), Some("orc"));
+        let mut empty = actual.clone();
+        empty.equipped.clear();
+        empty.set_attribute("start_equipped_items", Value::StrArray(vec![]));
+        assert!(
+            crate::server::data::character_for_display(&empty, &ctx.assets)
+                .equipped
+                .is_empty()
         );
     }
 
@@ -3177,6 +3265,83 @@ mod ruleset_progression_tests {
             Some(40)
         );
         assert!(ctx.map.items.is_empty());
+    }
+
+    #[test]
+    fn equipment_pickup_equip_unequip_drop_preserves_identity_and_state() {
+        let mut ctx = RegionCtx::default();
+        let (sender, _receiver) = unbounded();
+        ctx.from_sender.set(sender).unwrap();
+        ctx.set_rules(
+            eldiron_ruleset::latest_official_ruleset()
+                .parse::<toml::Table>()
+                .unwrap(),
+        )
+        .unwrap();
+        let mut actor = Entity::new();
+        actor.id = 1;
+        actor.inventory.resize(4, None);
+        actor.set_attribute("class", Value::Str("Warrior".into()));
+        ctx.map.entities.push(actor);
+        let template_id = Uuid::new_v4();
+        ctx.assets
+            .items
+            .insert("Custom sword".into(), (String::new(), String::new()));
+        ctx.assets
+            .item_template_ids
+            .insert(template_id, "Custom sword".into());
+        ctx.item_class_data.insert("Custom sword".into(),
+            "[attributes]\nslot='main_hand'\ncategory='sword'\nruleset_kind='weapon'\nvisible=true\nactive=true\n".into());
+        let item = ctx.create_item(template_id.to_string()).unwrap();
+        let item_id = item.id;
+        assert_eq!(item.creator_id, template_id);
+        ctx.map.items.push(item);
+        assert!(move_item_for_entity(&mut ctx, 1, 1, item_id, Some(0), None));
+        assert!(ctx.map.items.is_empty());
+        assert!(move_item_for_entity(
+            &mut ctx,
+            1,
+            1,
+            item_id,
+            None,
+            Some("main_hand".into())
+        ));
+        assert_eq!(
+            ctx.map.entities[0].equipped["main_hand"].creator_id,
+            template_id
+        );
+        assert!(ctx.map.entities[0].get_item(item_id).is_none());
+        assert!(move_item_for_entity(&mut ctx, 1, 1, item_id, Some(1), None));
+        assert!(ctx.map.entities[0].equipped.is_empty());
+        assert!(ctx.map.entities[0].get_item(item_id).is_some());
+        assert!(move_item_for_entity(
+            &mut ctx,
+            1,
+            1,
+            item_id,
+            None,
+            Some("main_hand".into())
+        ));
+        assert!(drop_item_for_entity(&mut ctx, 1, item_id));
+        assert!(ctx.map.entities[0].equipped.is_empty());
+        assert!(ctx.map.entities[0].get_item(item_id).is_none());
+        assert_eq!(ctx.map.items.len(), 1);
+        assert_eq!(ctx.map.items[0].creator_id, template_id);
+        assert!(
+            ctx.map.items[0]
+                .attributes
+                .get_bool_default("active", false)
+        );
+        assert!(move_item_for_entity(
+            &mut ctx,
+            1,
+            1,
+            item_id,
+            None,
+            Some("main_hand".into())
+        ));
+        assert!(ctx.map.items.is_empty());
+        assert_eq!(ctx.map.entities[0].equipped["main_hand"].id, item_id);
     }
 
     #[test]
@@ -12692,7 +12857,9 @@ impl RegionInstance {
             });
 
             // Keep avatar animation state in sync with actual movement this update.
-            let moved = (entity.get_pos_xz() - action_start_pos).magnitude_squared() > 1e-6;
+            let distance = (entity.get_pos_xz() - action_start_pos).magnitude();
+            let moved = distance * distance > 1e-6;
+            if sim_dt > 0.00001 { entity.set_attribute("avatar_move_speed",Value::Float(distance / sim_dt)); }
             sync_avatar_animation(entity, moved);
         }
 
@@ -13691,7 +13858,7 @@ fn apply_starting_item_recipe_state(ctx: &RegionCtx, entity: &Entity, item: &mut
     apply_recipe_output_state(entity, recipe, item);
 }
 
-fn runtime_equipment_item_kind(
+pub fn equipment_item_kind(
     policy: &eldiron_ruleset::ResolvedEquipmentPolicy,
     item: &Item,
 ) -> String {
@@ -13756,7 +13923,7 @@ fn validate_equipment_change(
         .find(|entity| entity.id == entity_id)
         .ok_or_else(|| "Equipment target entity does not exist.".to_string())?;
     let policy = ctx.resolved_equipment_policy()?;
-    let kind = runtime_equipment_item_kind(&policy, item);
+    let kind = equipment_item_kind(&policy, item);
     let category = item.attributes.get_str("category");
     policy.check_item(
         entity.attributes.get_str("class"),
@@ -13770,7 +13937,7 @@ fn validate_equipment_change(
         if equipped.id == item.id || equipped_slot.trim().eq_ignore_ascii_case(&target_slot) {
             continue;
         }
-        let equipped_kind = runtime_equipment_item_kind(&policy, equipped);
+        let equipped_kind = equipment_item_kind(&policy, equipped);
         let equipped_occupied = policy.occupied_slots(
             &equipped_kind,
             equipped.attributes.get_str("category"),
@@ -21651,7 +21818,7 @@ fn equipped_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
                 .weapon_slots
                 .iter()
                 .any(|candidate| candidate.eq_ignore_ascii_case(slot))
-                || runtime_equipment_item_kind(&policy, item) == "weapon"
+                || equipment_item_kind(&policy, item) == "weapon"
         })
         .map(|(_, item)| item.attributes.get_float_default(attr, 0.0))
         .sum()
@@ -21676,7 +21843,7 @@ fn armor_equipped_attr(ctx: &RegionCtx, entity: &Entity, attr: &str) -> f32 {
                 .iter()
                 .any(|candidate| candidate.eq_ignore_ascii_case(slot))
                 || matches!(
-                    runtime_equipment_item_kind(&policy, item).as_str(),
+                    equipment_item_kind(&policy, item).as_str(),
                     "armor" | "clothing"
                 )
         })
@@ -22173,7 +22340,7 @@ pub(crate) fn current_attack_weapon_for_entity<'a>(
     entity
         .equipped
         .values()
-        .find(|item| runtime_equipment_item_kind(&policy, item) == "weapon")
+        .find(|item| equipment_item_kind(&policy, item) == "weapon")
 }
 
 pub(crate) fn current_attack_cooldown_for_entity(ctx: &RegionCtx, entity: &Entity) -> f32 {

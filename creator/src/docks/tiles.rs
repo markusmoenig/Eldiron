@@ -1128,7 +1128,12 @@ impl Dock for TilesDock {
                 }
             }
             TheEvent::Custom(id, _) => {
-                if id.name == "Update Tilepicker" {
+                if id.name == "Update Tilepicker Textures" {
+                    // Baking updates pixels, not board layout, selection, filters
+                    // or sidebar context. Keep those stable while images arrive.
+                    self.render_views(ui, ctx, project);
+                    redraw = true;
+                } else if id.name == "Update Tilepicker" {
                     self.curr_tile = server_ctx.curr_tile_id;
                     self.curr_source = server_ctx.curr_tile_source;
                     if self.curr_source.is_some() {
@@ -1870,7 +1875,10 @@ impl TilesDock {
             .tiles
             .iter()
             .filter_map(|(id, tile)| {
-                if project.map_material_bindings.contains_key(id) || ruleset_tiles.contains(id) {
+                if project.map_material_bindings.contains_key(id)
+                    || ruleset_tiles.contains(id)
+                    || shared::ruleset_materials::is_library_tile(&project.config, id)
+                {
                     return None;
                 }
                 let source = TileSource::SingleTile(*id);
@@ -2539,6 +2547,31 @@ mod tests {
     use super::*;
 
     #[test]
+    fn baked_texture_refresh_keeps_picker_context() {
+        let mut dock = <TilesDock as Dock>::new();
+        let mut project = Project::new();
+        let tile = rusterix::Tile::from_texture(rusterix::Texture::alloc(16, 16));
+        let id = tile.id;
+        project.tiles.insert(id, tile);
+        dock.curr_tile = Some(id);
+        dock.curr_source = Some(TileSource::SingleTile(id));
+        dock.selected_empty_cell = Some((0, Vec2::new(3, 2)));
+        dock.filter = "grass".into();
+        dock.ensure_tab_state(1);
+        dock.tab_offset[0] = Vec2::new(0, 120);
+        let mut server = ServerContext::default();
+        let mut ui = TheUI::new();
+        let mut ctx = TheContext::new(400, 300, 1.);
+        let mut event =
+            TheEvent::Custom(TheId::named("Update Tilepicker Textures"), TheValue::Empty);
+        dock.handle_event(&mut event, &mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(dock.curr_tile, Some(id));
+        assert_eq!(dock.curr_source, Some(TileSource::SingleTile(id)));
+        assert_eq!(dock.selected_empty_cell, Some((0, Vec2::new(3, 2))));
+        assert_eq!(dock.filter, "grass");
+        assert_eq!(dock.tab_offset[0], Vec2::new(0, 120));
+    }
+    #[test]
     fn ruleset_sprites_stay_available_to_items_but_not_in_picker_tabs() {
         let mut project = Project::default();
         project.config = shared::rulesets::DEFAULT_RULESET_CONFIG.into();
@@ -2546,6 +2579,7 @@ mod tests {
         assert!(!bundled.is_empty());
         let ids: Vec<_> = bundled.iter().map(|(id, _)| *id).collect();
         project.tiles.extend(bundled);
+        shared::ruleset_materials::install(&mut project).unwrap();
         for (index, id) in ids.iter().enumerate() {
             project
                 .set_tile_board_position(TileSource::SingleTile(*id), Vec2::new(index as i32, 0));

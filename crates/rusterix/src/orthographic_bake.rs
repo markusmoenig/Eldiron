@@ -140,6 +140,11 @@ impl OrthographicBakeController {
         self.visible = self.committed.is_some();
     }
 
+    /// World bounds are needed only when a requested bake creates its plan.
+    pub fn needs_scene_bounds(&self, region_id: Uuid) -> bool {
+        self.requested_region == Some(region_id) && self.status == OrthographicBakeStatus::Requested
+    }
+
     pub fn prepare_work(
         &mut self,
         region_id: Uuid,
@@ -1021,6 +1026,28 @@ mod tests {
         let json = serde_json::to_string(&map).unwrap();
         let restored: crate::Map = serde_json::from_str(&json).unwrap();
         assert_eq!(restored.orthographic_bake.unwrap().tiles.len(), 1);
+    }
+
+    #[test]
+    fn bounds_discovery_is_only_needed_for_initial_bake_planning() {
+        let region = Uuid::new_v4();
+        let camera = Camera3D::iso();
+        let mut bake = OrthographicBakeController::default();
+        assert!(!bake.needs_scene_bounds(region));
+        bake.request_render(region, 2);
+        assert!(bake.needs_scene_bounds(region));
+        assert!(!bake.needs_scene_bounds(Uuid::new_v4()));
+        let first = bake
+            .prepare_work(region, 64, 64, camera, Some((0., 1., 0., 1.)))
+            .unwrap()
+            .unwrap();
+        assert!(!bake.needs_scene_bounds(region));
+        let second = bake
+            .prepare_work(region, 64, 64, camera, None)
+            .unwrap()
+            .unwrap();
+        assert_eq!(first.tile_size, second.tile_size);
+        assert_eq!(first.camera.pos, second.camera.pos);
     }
 
     #[test]

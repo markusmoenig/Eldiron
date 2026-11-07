@@ -1,5 +1,16 @@
 # Eldiron integration concept
 
+For current Creator usage, see [Procedural Materials](../../../docs/docs/building_maps/procedural_materials.md),
+[Appearance](../../../docs/docs/characters_items/appearance.md) and
+[Rigging](../../../docs/docs/characters_items/rigging.md). The dated concept and
+milestone notes below retain their implementation/validation history.
+
+The broader [unified appearance concept](unified-appearance-concept.md) proposes
+one MZ workflow for geometry, materials, rigging, animation, attachments and
+inventory icons. It is a design proposal with feasibility limits and staged
+validation. The surface integration described here remains its material and
+map-texturing foundation.
+
 MaterialZ should expose a Rust API that evaluates and composes PBR surfaces over
 an explicit coordinate region. Eldiron supplies material instances, shape masks,
 pixelization settings, and palette colors. MaterialZ produces GPU material maps

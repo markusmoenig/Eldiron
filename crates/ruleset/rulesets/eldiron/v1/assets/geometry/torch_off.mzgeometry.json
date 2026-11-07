@@ -1,0 +1,418 @@
+{
+  "version": 1,
+  "id": "torch_off",
+  "label": "Torch Off",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Torch Off",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Torch Off",
+            "document": {
+              "version": 1,
+              "id": "torch_off-construction",
+              "label": "Torch Off construction",
+              "rows": [
+                {
+                  "id": "weapon-ash",
+                  "label": "Weapon-Ash",
+                  "tiles": [
+                    {
+                      "id": "weapon-ash-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "torch-haft",
+                  "label": "Torch Haft",
+                  "tiles": [
+                    {
+                      "id": "torch-haft-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.28,
+                              0
+                            ],
+                            "radius": [
+                              0.022,
+                              0.022
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.12,
+                              0
+                            ],
+                            "radius": [
+                              0.027,
+                              0.027
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "torch-haft-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "torch-haft-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-dust",
+                  "label": "Item-Dust",
+                  "tiles": [
+                    {
+                      "id": "item-dust-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 5,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "torch-rag",
+                  "label": "Torch Rag",
+                  "tiles": [
+                    {
+                      "id": "torch-rag-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.1,
+                              0
+                            ],
+                            "radius": [
+                              0.036,
+                              0.036
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.23,
+                              0
+                            ],
+                            "radius": [
+                              0.044,
+                              0.044
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "torch-rag-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "torch-rag-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-iron",
+                  "label": "Weapon-Iron",
+                  "tiles": [
+                    {
+                      "id": "weapon-iron-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.3,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "iron-band-0",
+                  "label": "Iron Band 0",
+                  "tiles": [
+                    {
+                      "id": "iron-band-0-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.115,
+                              0
+                            ],
+                            "radius": [
+                              0.046,
+                              0.046
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.129,
+                              0
+                            ],
+                            "radius": [
+                              0.046,
+                              0.046
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "iron-band-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "iron-band-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "iron-band-1",
+                  "label": "Iron Band 1",
+                  "tiles": [
+                    {
+                      "id": "iron-band-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0.215,
+                              0
+                            ],
+                            "radius": [
+                              0.046,
+                              0.046
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.229,
+                              0
+                            ],
+                            "radius": [
+                              0.046,
+                              0.046
+                            ]
+                          }
+                        ],
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "iron-band-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-iron"
+                      }
+                    },
+                    {
+                      "id": "iron-band-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Torch Off assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "torch-haft",
+                          "torch-rag",
+                          "iron-band-0",
+                          "iron-band-1"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          -0.08,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          90,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      -0.08,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

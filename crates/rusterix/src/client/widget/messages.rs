@@ -148,9 +148,7 @@ impl MessagesWidget {
     }
 
     fn fallback_font() -> Option<fontdue::Font> {
-        theframework::Embedded::get("fonts/Roboto-Bold.ttf").and_then(|font_bytes| {
-            fontdue::Font::from_bytes(font_bytes.data, fontdue::FontSettings::default()).ok()
-        })
+        super::Widget::fallback_font().cloned()
     }
 
     fn accepts_message_category(&self, category: &str) -> bool {

@@ -154,6 +154,40 @@ impl AvatarRuntimeBuilder {
         shading: AvatarShadingOptions,
         include_weapons: bool,
     ) -> Option<AvatarBuildOutput> {
+        if let Some(asset) = crate::procedural_avatar::Runtime::resolve(entity, assets) {
+            let mut preview_entity = entity.clone();
+            let heading: f32 = match direction {
+                AvatarDirection::Front => 0.,
+                AvatarDirection::FrontRight => 45.,
+                AvatarDirection::Right => 90.,
+                AvatarDirection::BackRight => 135.,
+                AvatarDirection::Back => 180.,
+                AvatarDirection::BackLeft => 225.,
+                AvatarDirection::Left => 270.,
+                AvatarDirection::FrontLeft => 315.,
+            };
+            preview_entity.orientation =
+                vek::Vec2::new(heading.to_radians().sin(), heading.to_radians().cos());
+            if !include_weapons {
+                preview_entity.equipped.clear();
+            }
+            let animation = animation_name
+                .or_else(|| entity.attributes.get_str("avatar_animation"))
+                .unwrap_or("idle")
+                .to_ascii_lowercase();
+            if let Ok(pixels) = asset.sprite(
+                &preview_entity,
+                assets,
+                &animation,
+                frame_index as f32 * 0.25,
+            ) {
+                return Some(AvatarBuildOutput {
+                    size: crate::procedural_avatar::SPRITE_SIZE as u32,
+                    rgba: (*pixels).clone(),
+                    marker_channels: vec![None; crate::procedural_avatar::SPRITE_SIZE.pow(2)],
+                });
+            }
+        }
         let markers = Self::marker_colors_for_entity(entity, assets);
         let anim_name = animation_name.or_else(|| entity.attributes.get_str("avatar_animation"));
         let Some((resolved_anim, resolved_dir)) =
@@ -1467,7 +1501,9 @@ impl AvatarRuntimeBuilder {
             self.avatar_rebuild_latch.remove(&geo_id);
             false
         };
-        let avatar_signature = Self::avatar_definition_signature(avatar);
+        let avatar_signature = assets
+            .avatars
+            .cached_signature(avatar, || Self::avatar_definition_signature(avatar));
         let marker_signature = Self::appearance_signature(entity, assets);
         let cache_missing = !self.avatar_frame_cache.contains_key(&geo_id);
         let cache_stale = self.avatar_frame_cache.get(&geo_id).is_some_and(|cache| {
@@ -1602,7 +1638,12 @@ impl AvatarRuntimeBuilder {
         true
     }
 
-    fn draw_alpha_outline(size: usize, rgba: &mut [u8], color: [u8; 4], thickness: usize) {
+    pub(crate) fn draw_alpha_outline(
+        size: usize,
+        rgba: &mut [u8],
+        color: [u8; 4],
+        thickness: usize,
+    ) {
         if size == 0 || rgba.len() < size * size * 4 || color[3] == 0 || thickness == 0 {
             return;
         }

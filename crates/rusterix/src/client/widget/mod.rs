@@ -1,3 +1,4 @@
+pub mod artwork;
 pub mod avatar;
 pub mod choice;
 pub mod deco;
@@ -94,6 +95,9 @@ pub struct Widget {
     pub frame_slice: usize,
     /// Optional pixel inset for command artwork. Defaults to 12% of the slot size.
     pub icon_inset: Option<f32>,
+    pub artwork: artwork::ScreenArtwork,
+    pub chrome_artwork: artwork::ScreenArtwork,
+    pub frame_artwork: artwork::ScreenArtwork,
     pub textures: Vec<Texture>,
     pub entity_cursor_id: Option<Uuid>,
     pub entity_clicked_cursor_id: Option<Uuid>,
@@ -442,6 +446,9 @@ impl Widget {
             frame_textures: vec![],
             frame_slice: 0,
             icon_inset: None,
+            artwork: Default::default(),
+            chrome_artwork: Default::default(),
+            frame_artwork: Default::default(),
             textures: vec![],
             entity_cursor_id: None,
             entity_clicked_cursor_id: None,
@@ -572,7 +579,15 @@ impl Widget {
             );
         }
 
-        if !self.chrome_textures.is_empty() {
+        if !self.chrome_artwork.draw(
+            buffer,
+            self.rect,
+            assets,
+            visual_state,
+            *animation_frame,
+            draw2d,
+        ) && !self.chrome_textures.is_empty()
+        {
             let texture_index =
                 Self::texture_index_for_state(self.chrome_textures.len(), visual_state);
             let texture = &self.chrome_textures[texture_index];
@@ -587,6 +602,7 @@ impl Widget {
                 assets,
                 resolved_command.or(self.command.as_deref()),
                 visual_state,
+                *animation_frame,
             )
         {
             Self::draw_command_icon_texture(
@@ -598,6 +614,16 @@ impl Widget {
                 self.icon_inset,
             );
             drew_primary_texture = true;
+        }
+        if !drew_primary_texture {
+            drew_primary_texture = self.artwork.draw(
+                buffer,
+                self.rect,
+                assets,
+                visual_state,
+                *animation_frame,
+                draw2d,
+            );
         }
         if !drew_primary_texture && !self.textures.is_empty() {
             let texture_index = Self::texture_index_for_state(self.textures.len(), visual_state);
@@ -657,7 +683,15 @@ impl Widget {
             Self::draw_item_icon(buffer, self.rect, assets, item, draw2d, *animation_frame);
         }
 
-        if !self.frame_textures.is_empty() {
+        if !self.frame_artwork.draw(
+            buffer,
+            self.rect,
+            assets,
+            visual_state,
+            *animation_frame,
+            draw2d,
+        ) && !self.frame_textures.is_empty()
+        {
             let texture_index =
                 Self::texture_index_for_state(self.frame_textures.len(), visual_state);
             blend_texture_layer(
@@ -785,6 +819,7 @@ impl Widget {
         assets: &'a Assets,
         command: Option<&str>,
         visual_state: ButtonVisualState,
+        animation_frame: usize,
     ) -> Option<&'a Texture> {
         let root = assets.rules_table()?;
         let command = command?;
@@ -827,15 +862,19 @@ impl Widget {
             .or(resolved_action_icon)?;
         let icon_name = Self::resolve_icon_texture_id(&root, &icon_name);
 
-        Self::icon_texture(assets, &icon_name)
+        Self::icon_texture(assets, &icon_name, animation_frame)
     }
 
-    fn icon_texture<'a>(assets: &'a Assets, id: &str) -> Option<&'a Texture> {
+    fn icon_texture<'a>(
+        assets: &'a Assets,
+        id: &str,
+        animation_frame: usize,
+    ) -> Option<&'a Texture> {
         assets.textures.get(id).or_else(|| {
             Uuid::parse_str(id)
                 .ok()
                 .and_then(|id| assets.tiles.get(&id))
-                .and_then(|tile| tile.textures.first())
+                .and_then(|tile| tile.textures.get(tile.frame_index(animation_frame)))
         })
     }
 
@@ -1111,7 +1150,25 @@ impl Widget {
         let stride = buffer.stride();
         let rect = rect.with_border(4.0);
         let mut drawn = false;
-        if let Some(frames) = Self::custom_item_icon_frames(assets, item)
+        let explicit_tile = item.attributes.get_str("icon").and_then(|name| {
+            let root = assets.rules_table();
+            let name = root.as_ref().map_or_else(
+                || name.to_string(),
+                |root| Self::resolve_icon_texture_id(root, name),
+            );
+            Uuid::parse_str(&name)
+                .ok()
+                .and_then(|id| assets.tiles.get(&id))
+        });
+        if Self::project_item_icon_frames(assets, item).is_none()
+            && let Some(tile) = explicit_tile
+            && let Some(texture) = tile.textures.get(tile.frame_index(animation_frame))
+        {
+            blend_texture_layer(buffer, rect, draw2d, texture, 0);
+            drawn = true;
+        }
+        if !drawn
+            && let Some(frames) = Self::custom_item_icon_frames(assets, item)
             && !frames.is_empty()
         {
             let texture = &frames[animation_frame % frames.len()];
@@ -1174,7 +1231,9 @@ impl Widget {
 
         // Ruleset PNGs are authoritative RGBA artwork. Prefer them over the
         // palette-driven generators, which now serve only as missing-art fallbacks.
-        if !drawn && Self::draw_item_icon_texture(buffer, rect, assets, item, draw2d) {
+        if !drawn
+            && Self::draw_item_icon_texture(buffer, rect, assets, item, draw2d, animation_frame)
+        {
             drawn = true;
         }
 
@@ -1425,8 +1484,11 @@ impl Widget {
         assets: &Assets,
         item: &Item,
         draw2d: &Draw2D,
+        animation_frame: usize,
     ) -> bool {
-        let Some((size, icon)) = Self::item_icon_texture_square(assets, item) else {
+        let Some((size, icon)) =
+            Self::item_icon_texture_square_at_frame(assets, item, animation_frame)
+        else {
             return false;
         };
         let dest = Self::fit_rect(rect, (size as usize, size as usize));
@@ -1442,6 +1504,13 @@ impl Widget {
     }
 
     fn item_icon_texture_square(assets: &Assets, item: &Item) -> Option<(u32, Vec<u8>)> {
+        Self::item_icon_texture_square_at_frame(assets, item, 0)
+    }
+    fn item_icon_texture_square_at_frame(
+        assets: &Assets,
+        item: &Item,
+        animation_frame: usize,
+    ) -> Option<(u32, Vec<u8>)> {
         // Every official item may own a PNG named after its ruleset id. This
         // avoids forcing action icons and visually richer item defaults to
         // share one semantic texture id.
@@ -1475,7 +1544,7 @@ impl Widget {
             .as_ref()
             .map(|root| Self::resolve_icon_texture_id(root, &icon_id))
             .unwrap_or(icon_id);
-        let texture = Self::icon_texture(assets, &texture_id)?;
+        let texture = Self::icon_texture(assets, &texture_id, animation_frame)?;
         let size = texture.width.max(texture.height).max(1);
         let offset_x = (size - texture.width) / 2;
         let offset_y = (size - texture.height) / 2;
@@ -2083,9 +2152,13 @@ mod tests {
         assets.rules = format!(
             "[ui.commands.spellbook]\nicon = \"{id}\"\n[icons.training_sword]\ntexture = \"{id}\"\n"
         );
-        let command =
-            Widget::command_icon_texture(&assets, Some("ui.spellbook"), ButtonVisualState::Normal)
-                .unwrap();
+        let command = Widget::command_icon_texture(
+            &assets,
+            Some("ui.spellbook"),
+            ButtonVisualState::Normal,
+            0,
+        )
+        .unwrap();
         assert_eq!(command.data, vec![21, 43, 65, 255]);
         let mut item = Item::default();
         item.attributes
@@ -2138,9 +2211,13 @@ mod tests {
             Texture::new(vec![12, 34, 56, 255], 1, 1),
         );
 
-        let texture =
-            Widget::command_icon_texture(&assets, Some("ui.spellbook"), ButtonVisualState::Normal)
-                .expect("UI command should resolve its ruleset icon");
+        let texture = Widget::command_icon_texture(
+            &assets,
+            Some("ui.spellbook"),
+            ButtonVisualState::Normal,
+            0,
+        )
+        .expect("UI command should resolve its ruleset icon");
         assert_eq!(texture.data, vec![12, 34, 56, 255]);
     }
 

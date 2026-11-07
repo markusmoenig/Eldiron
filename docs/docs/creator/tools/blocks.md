@@ -100,6 +100,12 @@ The contextual action list remains available beside the editor. Region-only acti
 
 ### Model The Source
 
+Prefab parts can also use [MZ geometry recipes](/docs/building_maps/mz_geometry_recipes).
+Select source objects or faces and run **Apply MZ Recipe**. The selected geometry
+stays in place and a new recipe-backed part holds the generated result. Select
+that result and use **Edit MZ Recipe** to edit its MZ construction and published
+controls. Pivots, attachments, support surfaces and behavior remain Prefab data.
+
 Use the Object, Face, Edge, and Vertex tools exactly as in the normal 3D editor. Object editing shortcuts such as **M** for move and **S** for size operate on source geometry, and camera movement keeps the transform handles aligned to the current view.
 
 The same contextual modeling actions are available where applicable. Common Prefab-building operations include:

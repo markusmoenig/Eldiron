@@ -1,5 +1,54 @@
 // use crate::prelude::*;
 use std::time::{Duration, Instant};
+
+/// Opt-in frame phase timings for native benchmark runs. Disabled by default.
+pub(crate) struct FrameProfile {
+    state: Option<(Instant, Vec<(&'static str, f64)>)>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn benchmark_redraws_preserve_the_game_tick_deadline() {
+        let mut tracker = UpdateTracker::new();
+        tracker.next_tick_update = Instant::now() + Duration::from_secs(60);
+        for _ in 0..5 {
+            tracker.force_redraw();
+            assert_eq!(tracker.update(33, 250), (true, false));
+        }
+    }
+}
+impl FrameProfile {
+    pub fn new() -> Self {
+        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        Self {
+            state: (*ENABLED.get_or_init(|| std::env::var_os("ELDIRON_PROFILE_EDITOR").is_some()))
+                .then(|| (Instant::now(), Vec::new())),
+        }
+    }
+    pub fn lap(&mut self, name: &'static str) {
+        if let Some((last, phases)) = &mut self.state {
+            phases.push((name, last.elapsed().as_secs_f64() * 1000.));
+            *last = Instant::now();
+        }
+    }
+}
+impl Drop for FrameProfile {
+    fn drop(&mut self) {
+        if let Some((_, phases)) = &self.state {
+            eprintln!(
+                "Editor phases {}",
+                phases
+                    .iter()
+                    .map(|(name, ms)| format!("{name}={ms:.2}"))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            );
+        }
+    }
+}
 // use theframework::prelude::*;
 
 pub struct UpdateTracker {
@@ -16,6 +65,12 @@ impl Default for UpdateTracker {
 }
 
 impl UpdateTracker {
+    /// Benchmark a redraw without accelerating the simulation tick clock.
+    #[cfg(test)]
+    pub fn force_redraw(&mut self) {
+        self.next_redraw_update = Instant::now();
+    }
+
     pub fn new() -> Self {
         let now = Instant::now();
         UpdateTracker {

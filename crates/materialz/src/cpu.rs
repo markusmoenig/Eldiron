@@ -399,7 +399,62 @@ impl<'a> Evaluator<'a> {
             [v[0], v[1], v[2], v[3]]
         };
         let input = || self.node_at(n.input.as_ref().unwrap().node, uv, aa, context);
-        let mut result = if !n.algorithm.primitive {
+        // Exact specializations of the canonical MZ tiles. Edited algorithms still
+        // use the interpreter; ruleset material bakes avoid interpreting the same
+        // scalar Perlin/vector arithmetic hundreds of thousands of times.
+        let canonical = n.code == crate::tilelang::source(n.kernel);
+        let fast = canonical
+            && (matches!(n.kernel, Kernel::Color | Kernel::ColorBlend)
+                || (n.kernel == Kernel::Perlin && scalar("dimensions") < 0.5));
+        let mut result = if fast {
+            let previous = if n.input.is_some() {
+                input()
+            } else {
+                TileSample {
+                    color: [1.; 4],
+                    distance: None,
+                }
+            };
+            let color = match n.kernel {
+                Kernel::Color => {
+                    let c = rgba("color");
+                    [
+                        c[0],
+                        c[1],
+                        c[2],
+                        c[3].clamp(0., 1.) * previous.color[3].clamp(0., 1.),
+                    ]
+                }
+                Kernel::Perlin => {
+                    let v = p("localScale");
+                    let noise = perlin(uv, scalar("globalScale"), [v[0], v[1]]);
+                    [noise, noise, noise, previous.color[3]]
+                }
+                Kernel::ColorBlend => {
+                    let a = rgba("color1");
+                    let b = rgba("color2");
+                    let factor = p("factor");
+                    let rgb = n
+                        .input
+                        .as_ref()
+                        .map(|r| self.select(r, previous))
+                        .unwrap_or_else(|| vec![1.; 3]);
+                    let w: [f32; 3] = std::array::from_fn(|i| rgb[i] * factor[i]);
+                    let alpha = (w.iter().sum::<f32>() / 3.).clamp(0., 1.);
+                    [
+                        a[0] + (b[0] - a[0]) * w[0],
+                        a[1] + (b[1] - a[1]) * w[1],
+                        a[2] + (b[2] - a[2]) * w[2],
+                        (a[3] + (b[3] - a[3]) * alpha) * previous.color[3],
+                    ]
+                }
+                _ => unreachable!(),
+            };
+            TileSample {
+                color,
+                distance: previous.distance,
+            }
+        } else if !n.algorithm.primitive {
             let parameters = n
                 .parameters
                 .iter()
@@ -601,6 +656,33 @@ impl<'a> Evaluator<'a> {
             return Err(Error("Pixel footprint must be finite and positive".into()));
         }
         self.sample_with_width(material, channel, uv, footprint)
+    }
+    pub fn sample_with_footprint_at_time(
+        &self,
+        material: &str,
+        channel: Channel,
+        uv: [f32; 2],
+        footprint: f32,
+        time: f32,
+    ) -> Result<Vec<f32>> {
+        if !footprint.is_finite()
+            || footprint <= 0.
+            || !time.is_finite()
+            || uv.iter().any(|v| !v.is_finite())
+        {
+            return Err(Error("Invalid animated sample domain".into()));
+        }
+        let m = self.program.material(material)?;
+        let Some((_, r)) = m.outputs.iter().find(|(c, _)| *c == channel) else {
+            return Ok(m.default_value(channel)?.to_vec());
+        };
+        let mut context = SampleContext::at(uv);
+        context.time = time;
+        let value = self.reference_at(r, uv, footprint, context);
+        if value.iter().any(|v| !v.is_finite()) {
+            return Err(Error("Non-finite animation result".into()));
+        }
+        Ok(value)
     }
     fn sample_with_width(
         &self,

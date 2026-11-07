@@ -1,0 +1,36 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "haft-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 19,
+    "color3": 21
+  },
+  "haft-outline": {
+    "color": 1
+  },
+  "head-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "head-outline": {
+    "color": 1
+  },
+  "ridge-color": {
+    "color": 9
+  },
+  "socket-colors": {
+    "color0": 17,
+    "color1": 18,
+    "color2": 20,
+    "color3": 22
+  },
+  "socket-outline": {
+    "color": 1
+  }
+}

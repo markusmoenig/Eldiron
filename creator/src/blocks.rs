@@ -738,11 +738,8 @@ pub fn ensure_block_asset_default_palette(project: &mut Project, asset: &BlockAs
     let before_materials = project.palette_materials.clone();
     prefab_palette_slot(project, FURNITURE_WOOD, "wood", "natural");
     prefab_palette_slot(project, FURNITURE_DARK_WOOD, "wood", "natural");
-    let top_source = block_asset_default_surface_source(
-        asset,
-        BlockComponentKind::TableTop,
-        &project.palette,
-    );
+    let top_source =
+        block_asset_default_surface_source(asset, BlockComponentKind::TableTop, &project.palette);
     let leg_source = block_asset_default_surface_source(
         asset,
         BlockComponentKind::TableLegLeftFront,
@@ -999,9 +996,7 @@ pub fn ensure_prefab_default_surfaces(project: &mut Project, asset_id: Uuid) -> 
     };
     let mut changed = false;
     for part in &mut asset.parts {
-        let objects = match &mut part.geometry_source {
-            rusterix::BlockPropGeometrySource::Authored { geometry_objects } => geometry_objects,
-        };
+        let objects = part.geometry_source.geometry_objects_mut();
         for object in objects {
             let (color, material, finish) = effect_surface_defaults(object);
             let mut palette_slot = None;
@@ -2379,9 +2374,9 @@ pub fn bundled_prefab(id: Uuid) -> Option<&'static rusterix::BlockPropAsset> {
     bundled_prefabs().iter().find(|asset| asset.id == id)
 }
 
-/// Reserve the default material colors for the built-in catalog while the
-/// project is loading. A built-in Prefab can then become project-owned later
-/// without rebuilding the live texture atlas on its first selection.
+// Catalog rendering tests may explicitly reserve their demonstration colors.
+// Project loading must never import an unused catalog into the art palette.
+#[cfg(test)]
 fn ensure_bundled_prefab_default_palette(project: &mut Project) -> bool {
     let before_palette = project.palette.clone();
     let before_materials = project.palette_materials.clone();
@@ -2492,7 +2487,6 @@ pub fn upgrade_bundled_prefab_geometry(project: &mut Project, asset_id: Uuid) ->
 }
 
 pub fn upgrade_all_bundled_prefabs(project: &mut Project) -> bool {
-    let bundled_palette_changed = ensure_bundled_prefab_default_palette(project);
     let asset_ids = project.block_props.keys().copied().collect::<Vec<_>>();
     let bundled_changed = asset_ids.into_iter().fold(false, |changed, asset_id| {
         let upgraded = upgrade_bundled_prefab_geometry(project, asset_id);
@@ -2503,8 +2497,17 @@ pub fn upgrade_all_bundled_prefabs(project: &mut Project) -> bool {
     let table_palette_changed = block_assets()
         .iter()
         .find(|asset| asset.name == "Table")
+        .filter(|asset| {
+            project.regions.iter().any(|region| {
+                region
+                    .map
+                    .geometry_objects
+                    .iter()
+                    .any(|object| object.properties.get_id("block_asset_id") == Some(asset.id))
+            })
+        })
         .is_some_and(|asset| ensure_block_asset_default_palette(project, asset));
-    bundled_palette_changed || bundled_changed || table_palette_changed
+    bundled_changed || table_palette_changed
 }
 
 fn prefab_surface_hit_and_normal(
@@ -3302,6 +3305,17 @@ mod tests {
     }
 
     #[test]
+    fn unused_prefab_catalog_does_not_edit_the_project_palette_or_invalidate_bakes() {
+        let mut project = Project::default();
+        let palette = serde_json::to_string(&project.palette).unwrap();
+        let id = Uuid::new_v4();
+        project.procedural_material_cache_keys.insert(id, 123);
+        assert!(!upgrade_all_bundled_prefabs(&mut project));
+        assert_eq!(serde_json::to_string(&project.palette).unwrap(), palette);
+        assert_eq!(project.procedural_material_cache_keys[&id], 123);
+    }
+
+    #[test]
     fn bundled_decoration_uses_the_expected_surface_modes_and_material_slots() {
         let plate = bundled_prefabs()
             .iter()
@@ -3355,7 +3369,7 @@ mod tests {
     }
 
     #[test]
-    fn built_in_prefab_palette_is_ready_before_first_catalog_selection() {
+    fn explicitly_prepared_catalog_palette_reuses_material_slots() {
         let mut project = Project::default();
         ensure_bundled_prefab_default_palette(&mut project);
         let palette = project.palette.clone();

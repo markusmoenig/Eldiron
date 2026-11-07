@@ -281,8 +281,7 @@ pub fn sync_prefab_editor(project: &mut Project, asset_id: Uuid) -> Result<(), S
     }
 
     for part in &mut asset.parts {
-        let rusterix::BlockPropGeometrySource::Authored { geometry_objects } =
-            &mut part.geometry_source;
+        let geometry_objects = part.geometry_source.geometry_objects_mut();
         *geometry_objects = objects_by_part.shift_remove(&part.id).unwrap_or_default();
     }
     let valid_part_ids = asset
@@ -1642,19 +1641,18 @@ fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> AssetI
             attachment.id = Uuid::new_v4();
             attachment_ids.insert(old_id, attachment.id);
         }
-        let objects = match &mut part.geometry_source {
-            rusterix::BlockPropGeometrySource::Authored { geometry_objects } => geometry_objects,
-        };
+        let objects = part.geometry_source.geometry_objects_mut();
         for object in objects {
             let old_object_id = object.id;
             object.id = Uuid::new_v4();
             object_ids.insert(old_object_id, object.id);
+            let recipe_face_ids=shared::geometry_recipe::face_ids_for_owner(object,object.id);
             let mut paint_surface_ids = FxHashMap::default();
             for face in &mut object.faces {
                 let old_surface_id = rusterix::geometry_face_effective_paint_surface_id(face);
                 let old_paint_id = persistent_geometry_paint_id(old_object_id, old_surface_id);
                 let old_face_id = face.id;
-                face.id = Uuid::new_v4();
+                face.id = recipe_face_ids.get(&old_face_id).copied().unwrap_or_else(Uuid::new_v4);
                 face_ids.insert(old_face_id, face.id);
                 if face.paint_surface_id.is_some() {
                     face.paint_surface_id = Some(
@@ -1668,6 +1666,13 @@ fn regenerate_asset_internal_ids(asset: &mut rusterix::BlockPropAsset) -> AssetI
                 paint_ids.insert(old_paint_id, new_paint_id);
             }
         }
+    }
+    for part in &mut asset.parts {
+        for object in part.geometry_source.geometry_objects_mut() {
+            shared::geometry_recipe::remap_ids(object,&|id|object_ids.get(&id).copied().unwrap_or(id),&|id|face_ids.get(&id).copied().unwrap_or(id));
+        }
+        if let rusterix::BlockPropGeometrySource::MZ {binding,generated_cache}=&mut part.geometry_source
+            && let Some(source)=generated_cache.first().and_then(|o|o.properties.get_str(shared::geometry_recipe::BINDING)) { *binding=source.into(); }
     }
     for component in &mut asset.components {
         if let Some(part_id) = component.properties.get_id("part_id")

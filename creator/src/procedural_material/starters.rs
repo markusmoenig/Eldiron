@@ -137,9 +137,17 @@ pub(crate) fn install(project: &mut Project) -> Result<(), String> {
         };
         prepared.push(prepare().map_err(|e| format!("{path}: {e}"))?);
     }
-    let ruleset_tiles = shared::rulesets::bundled_tile_ids_for_project(&project.config)?;
-    let visible =
-        |id: &Uuid| !ruleset_tiles.contains(id) && !project.map_material_bindings.contains_key(id);
+    let mut ruleset_tiles = shared::rulesets::bundled_tile_ids_for_project(&project.config)?;
+    ruleset_tiles.extend(
+        shared::ruleset_materials::definitions(&project.config)
+            .iter()
+            .map(|d| shared::rulesets::material_asset_id(d.id)),
+    );
+    let visible = |id: &Uuid| {
+        !ruleset_tiles.contains(id)
+            && !project.map_material_bindings.contains_key(id)
+            && !shared::ruleset_materials::is_library_tile(&project.config, id)
+    };
     let cols = project.tile_board_cols.max(2);
     let mut next = project
         .tile_board_tiles
@@ -155,6 +163,7 @@ pub(crate) fn install(project: &mut Project) -> Result<(), String> {
         let mut pos = Vec2::new(next % cols, next / cols);
         while project.tile_board_tiles.iter().any(|(id, p)| {
             !ruleset_tiles.contains(id)
+                && !shared::ruleset_materials::is_library_tile(&project.config, id)
                 && !project.map_material_bindings.contains_key(id)
                 && *p == pos
         }) || project.tile_board_empty_slots.contains(&pos)

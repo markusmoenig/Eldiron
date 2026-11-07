@@ -10,11 +10,16 @@ description = "Shared code and common types for the Eldiron applications."
 keywords = ["game", "rpg", "engine", "shared", "eldiron"]
 readme = "README.md"
 
+[[example]]
+name = "mz_selection_recipe"
+required-features = ["graphics"]
+
 [dependencies]
+denrim-materials = { path = "../materialz", features = ["integration"] }
 theframework.workspace = true
-eldiron-ruleset = { path = "../ruleset", version = "0.95.6" }
-rusterix = { path = "../rusterix", version = "0.95.6", default-features = false }
-scenevm = { path = "../scenevm", version = "0.95.6", default-features = false }
+eldiron-ruleset = { path = "../ruleset", version = "0.96.0" }
+rusterix = { path = "../rusterix", version = "0.96.0", default-features = false }
+scenevm = { path = "../scenevm", version = "0.96.0", default-features = false }
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

@@ -423,6 +423,12 @@ pub enum BlockPropGeometrySource {
     Authored {
         geometry_objects: Vec<GeometryObject>,
     },
+    /// Editable MZ binding plus its derived runtime mesh. Hosts regenerate the
+    /// cache; runtime placement, support surfaces and behavior use normal geometry.
+    MZ {
+        binding: String,
+        generated_cache: Vec<GeometryObject>,
+    },
 }
 
 impl<'de> Deserialize<'de> for BlockPropGeometrySource {
@@ -431,6 +437,11 @@ impl<'de> Deserialize<'de> for BlockPropGeometrySource {
         // The removed procedural source, parameters and seed are intentionally ignored.
         #[derive(Deserialize)]
         enum StoredGeometry {
+            MZ {
+                binding: String,
+                #[serde(default)]
+                generated_cache: Vec<GeometryObject>,
+            },
             Authored {
                 #[serde(default)]
                 geometry_objects: Vec<GeometryObject>,
@@ -442,6 +453,7 @@ impl<'de> Deserialize<'de> for BlockPropGeometrySource {
             },
         }
         let geometry_objects = match StoredGeometry::deserialize(deserializer)? {
+            StoredGeometry::MZ { binding, generated_cache } => return Ok(Self::MZ { binding, generated_cache }),
             StoredGeometry::Authored { geometry_objects } => geometry_objects,
             StoredGeometry::Baked { generated_cache } => generated_cache,
         };
@@ -461,6 +473,13 @@ impl BlockPropGeometrySource {
     pub fn geometry_objects(&self) -> &[GeometryObject] {
         match self {
             Self::Authored { geometry_objects } => geometry_objects,
+            Self::MZ { generated_cache, .. } => generated_cache,
+        }
+    }
+    pub fn geometry_objects_mut(&mut self) -> &mut Vec<GeometryObject> {
+        match self {
+            Self::Authored { geometry_objects } => geometry_objects,
+            Self::MZ { generated_cache, .. } => generated_cache,
         }
     }
 }

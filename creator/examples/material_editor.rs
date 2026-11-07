@@ -23,6 +23,8 @@ fn sample() -> MaterialEditorView {
     }
     };
     MaterialEditorView {
+        geometry: false,
+        row_types: vec![],
         animation: Default::default(),
         title: "Material Study".into(),
         image_sources: vec![],

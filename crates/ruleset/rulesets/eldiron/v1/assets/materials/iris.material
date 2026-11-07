@@ -1,0 +1,37 @@
+# Authored iris: garment construction, not all-over noise. Colors use the companion palette indices.
+project 1
+result from material "surface"
+material "surface" called "Iris"
+  mode pbr
+  tiling raw
+  default roughness to 0.38
+  default metallic to 0
+  default opacity to 1
+  default emission strength to 0
+  row "base" called "Main fabric"
+    use "Color" id "base"
+  row "shade" called "Seam / shadow"
+    use "Color" id "shade"
+  row "glint" called "Glint"
+    use "Color" id "glint"
+  row "pupil-mask" called "Pupil shape"
+    use "Circle" id "pupil-shape"
+      set "center" to -0.25 0
+      set "radius" to 0.09
+  row "pupil" called "Pupil"
+    use "Mix" id "pupil-mix"
+      input from row "pupil-mask" www
+      set "color1" from row "base" xyzw
+      set "color2" from row "shade" xyzw
+      set "factor" to 1 1 1
+  row "highlight-mask" called "Eye highlight shape"
+    use "Circle" id "glint-shape"
+      set "center" to -0.28 -0.06
+      set "radius" to 0.028
+  row "highlight" called "Eye highlight"
+    use "Mix" id "highlight-mix"
+      input from row "highlight-mask" www
+      set "color1" from row "pupil" xyzw
+      set "color2" from row "glint" xyzw
+      set "factor" to 1 1 1
+  output base color from row "highlight" xyz

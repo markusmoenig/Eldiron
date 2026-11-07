@@ -137,6 +137,82 @@ fn distance_to_sector_edge_2d(point: Vec2<f32>, sector: &crate::Sector, map: &Ma
     min_dist
 }
 
+/// Ground-level wall strips derived from the same graph as the 3D masonry.
+/// Door openings cut the footprint; windows leave the wall below them intact.
+fn wall_footprints(wall: &crate::WallAssembly) -> Vec<(Uuid, PixelSource, [[f32; 2]; 4])> {
+    let mut polygons = Vec::new();
+    for span in &wall.spans {
+        let style = span.style_override.as_ref().unwrap_or(&wall.style);
+        let Some(length) = wall.span_length(span.id) else {
+            continue;
+        };
+        if !length.is_finite() || length <= 0.001 {
+            continue;
+        }
+        let mut gaps: Vec<_> = span
+            .openings
+            .iter()
+            .filter(|o| o.bottom <= 0.01 && o.bottom + o.height > 0.01)
+            .map(|o| {
+                (
+                    (o.center - o.width * 0.5).clamp(0., length),
+                    (o.center + o.width * 0.5).clamp(0., length),
+                )
+            })
+            .collect();
+        gaps.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut runs = Vec::new();
+        let mut start: f32 = 0.;
+        for (left, right) in gaps {
+            if left > start {
+                runs.push((start, left));
+            }
+            start = start.max(right);
+        }
+        if start < length {
+            runs.push((start, length));
+        }
+        let source = style.primary_stone_source();
+        for (start, end) in runs {
+            let steps = ((end - start).ceil() as usize)
+                .max(if span.curve_offset.abs() > 0.001 {
+                    span.curve_segments as usize
+                } else {
+                    1
+                })
+                .clamp(1, 8192);
+            for step in 0..steps {
+                let from = start + (end - start) * step as f32 / steps as f32;
+                let to = start + (end - start) * (step + 1) as f32 / steps as f32;
+                let Some(a) = wall.span_point(span.id, Vec2::new(from, 0.)) else {
+                    continue;
+                };
+                let Some(b) = wall.span_point(span.id, Vec2::new(to, 0.)) else {
+                    continue;
+                };
+                let a = Vec2::new(a.x, a.z);
+                let b = Vec2::new(b.x, b.z);
+                let delta = b - a;
+                if delta.magnitude_squared() < 1e-8 {
+                    continue;
+                }
+                let n = Vec2::new(-delta.y, delta.x).normalized() * style.thickness * 0.5;
+                polygons.push((
+                    span.id,
+                    source.clone(),
+                    [
+                        (a + n).into_array(),
+                        (b + n).into_array(),
+                        (b - n).into_array(),
+                        (a - n).into_array(),
+                    ],
+                ));
+            }
+        }
+    }
+    polygons
+}
+
 impl Clone for D2ChunkBuilder {
     fn clone(&self) -> Self {
         D2ChunkBuilder {}
@@ -204,6 +280,22 @@ impl ChunkBuilder for D2ChunkBuilder {
                             uvs.push(uv);
                         }
                         vertices.push([local.x, local.y]);
+                    }
+
+                    if let Some(background) = sector
+                        .properties
+                        .get_source("underlay_source")
+                        .and_then(|s| s.tile_from_tile_list(assets))
+                    {
+                        vmchunk.add_poly_2d(
+                            GeoId::Unknown(0xD2000000 ^ sector.id),
+                            background.id,
+                            vertices.clone(),
+                            uvs.clone(),
+                            geo.1.clone(),
+                            -1000,
+                            true,
+                        );
                     }
 
                     if let Some(pixelsource) = source {
@@ -281,6 +373,43 @@ impl ChunkBuilder for D2ChunkBuilder {
                         }
                     }
                 }
+            }
+        }
+
+        // Wall assemblies share their source graph with 3D. Merge strips by
+        // span: SceneVM stores one polygon per geometry ID in each chunk.
+        let mut wall_polygons: FxHashMap<
+            Uuid,
+            (PixelSource, Vec<[f32; 2]>, Vec<(usize, usize, usize)>),
+        > = FxHashMap::default();
+        for wall in &map.wall_assemblies {
+            for (span, source, vertices) in wall_footprints(wall) {
+                let center = Vec2::new(
+                    (vertices[0][0] + vertices[2][0]) * 0.5,
+                    (vertices[0][1] + vertices[2][1]) * 0.5,
+                );
+                if !chunk.bbox.contains(center) {
+                    continue;
+                }
+                let (_, points, triangles) = wall_polygons
+                    .entry(span)
+                    .or_insert_with(|| (source, vec![], vec![]));
+                let base = points.len();
+                points.extend(vertices);
+                triangles.extend([(base, base + 1, base + 2), (base, base + 2, base + 3)]);
+            }
+        }
+        for (span, (source, vertices, indices)) in wall_polygons {
+            if let Some(tile) = source.tile_from_tile_list(assets) {
+                vmchunk.add_poly_2d(
+                    GeoId::GeometryObject(span),
+                    tile.id,
+                    vertices.clone(),
+                    vertices,
+                    indices,
+                    1,
+                    true,
+                );
             }
         }
 
@@ -756,5 +885,31 @@ impl ChunkBuilder for D2ChunkBuilder {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod wall_footprint_tests {
+    use super::*;
+    #[test]
+    fn scepter_wall_footprint_keeps_doorway_clear_and_windows_solid() {
+        let mut wall = crate::WallAssembly::new("Workshop");
+        let a = wall.add_node(vek::Vec3::new(0., 0., 0.));
+        let b = wall.add_node(vek::Vec3::new(6., 0., 0.));
+        let span = wall.add_span(a, b).unwrap();
+        wall.add_rectangular_opening(span, Vec2::new(2., 0.), Vec2::new(4., 2.))
+            .unwrap();
+        wall.add_rectangular_opening(span, Vec2::new(4.5, 1.), Vec2::new(5.5, 2.))
+            .unwrap();
+        let polygons = wall_footprints(&wall);
+        assert!(!polygons.is_empty());
+        assert!(polygons.iter().all(|(_,_,q)| q.iter().all(|p|p[0] <= 2.001) || q.iter().all(|p|p[0] >= 3.999)));
+        assert!(
+            polygons
+                .iter()
+                .any(|(_, _, q)| q.iter().any(|p| p[0] > 4.5))
+        );
+        wall.span_mut(span).unwrap().curve_offset = 1.;
+        assert!(wall_footprints(&wall).len() > polygons.len());
     }
 }

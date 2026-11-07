@@ -40,7 +40,7 @@ Clone the repository and build:
 ```bash
 git clone https://github.com/markusmoenig/Eldiron
 cd Eldiron
-cargo run --release --package creator
+cargo run --release --package eldiron-creator
 ```
 
 ### Linux Dependencies
@@ -83,6 +83,8 @@ This is a good first path through Eldiron:
 4. Press **Play** and walk around.
 5. Inspect one character template and one item template.
 6. Open **Game / Rules**, **Game / Locales**, and **Game / Authoring** to see the game-wide systems.
+7. Open a character's **Appearance** entry and compare its 2D/3D outfit. Drag ruleset items onto an Equipment node to change it.
+8. Select a world tile and inspect **Make Proc** and the [procedural material editor](building_maps/procedural_materials). Its preview uses the minimap; map composition is edited with the Rect tool.
 
 That gives you a much better first impression than geometry alone, because Eldiron is not just a map editor.
 

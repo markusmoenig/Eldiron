@@ -159,11 +159,17 @@ pub fn decode_project(bytes: &[u8]) -> Result<Project, String> {
     if let Err(error) = crate::entity_graph::synchronize(&mut project) {
         eprintln!("Entity configuration: {error}");
     }
+    for error in crate::geometry_recipe::synchronize(&mut project).1 {
+        eprintln!("MZ geometry recipe: {error}");
+    }
     Ok(project)
 }
 
 pub fn encode_project(project: &Project) -> Result<Vec<u8>, String> {
     let mut archived_project = project.clone();
+    for error in crate::geometry_recipe::synchronize(&mut archived_project).1 {
+        eprintln!("MZ geometry recipe: {error}");
+    }
     crate::construction_graph::ensure_wall_patterns(&mut archived_project);
     for error in crate::construction_graph::synchronize(&mut archived_project) {
         eprintln!("Construction pattern: {error}");

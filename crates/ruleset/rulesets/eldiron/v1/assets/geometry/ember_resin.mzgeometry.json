@@ -1,0 +1,303 @@
+{
+  "version": 1,
+  "id": "ember_resin",
+  "label": "Ember Resin",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Ember Resin",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Ember Resin",
+            "document": {
+              "version": 1,
+              "id": "ember_resin-construction",
+              "label": "Ember Resin construction",
+              "rows": [
+                {
+                  "id": "item-ember",
+                  "label": "Item-Ember",
+                  "tiles": [
+                    {
+                      "id": "item-ember-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 25,
+                        "roughness": 0.55,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "ember",
+                  "label": "Ember",
+                  "tiles": [
+                    {
+                      "id": "ember-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.155,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.11599999999999999,
+                              0
+                            ],
+                            "radius": [
+                              0.0684,
+                              0.039599999999999996
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.025,
+                              0
+                            ],
+                            "radius": [
+                              0.095,
+                              0.055
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.066,
+                              0
+                            ],
+                            "radius": [
+                              0.0684,
+                              0.039599999999999996
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.10500000000000001,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "ember-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-ember"
+                      }
+                    },
+                    {
+                      "id": "ember-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-ember",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-wrap",
+                  "label": "Weapon-Wrap",
+                  "tiles": [
+                    {
+                      "id": "weapon-wrap-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "inclusion",
+                  "label": "Inclusion",
+                  "tiles": [
+                    {
+                      "id": "inclusion-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.012,
+                          0.09,
+                          0.006
+                        ]
+                      }
+                    },
+                    {
+                      "id": "inclusion-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.02,
+                          -0.025,
+                          0.056
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          20
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "inclusion-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "inclusion-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Ember Resin assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "ember",
+                          "inclusion"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0.12,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.12,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

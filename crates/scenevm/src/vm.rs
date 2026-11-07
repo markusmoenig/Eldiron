@@ -7,7 +7,11 @@ const DEFAULT_MATERIAL_TABLE_ROW_COUNT: usize =
 const DEFAULT_PAINT_COLOR_PIXEL: [u8; 4] = [0, 0, 0, 0];
 const DEFAULT_PAINT_MATERIAL_PIXEL: [u8; 4] = [254, 0, 0, 0];
 
+mod entity_pixels;
+#[cfg(not(target_arch = "wasm32"))]
+mod irradiance;
 mod raster3d;
+mod raster_mesh;
 
 use crate::{
     Camera3D, CameraKind, Chunk, Light, LightType, Poly2D, Poly3D, Texture,
@@ -114,7 +118,7 @@ struct EmissiveSurfaceLighting {
     broad_color: Vec3<f32>,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct IrradianceOccluder {
     a: [f32; 3],
     b: [f32; 3],
@@ -123,19 +127,146 @@ struct IrradianceOccluder {
     max: Vec3<f32>,
 }
 
+// Edges are invariant across all probe rays. Keep the original input triangles
+// separately in the geometry cache for change detection.
+struct IrradianceTriangle {
+    a: [f32; 3],
+    e1: [f32; 3],
+    e2: [f32; 3],
+    min: Vec3<f32>,
+    max: Vec3<f32>,
+}
+impl From<IrradianceOccluder> for IrradianceTriangle {
+    fn from(t: IrradianceOccluder) -> Self {
+        Self {
+            a: t.a,
+            e1: std::array::from_fn(|i| t.b[i] - t.a[i]),
+            e2: std::array::from_fn(|i| t.c[i] - t.a[i]),
+            min: t.min,
+            max: t.max,
+        }
+    }
+}
+impl IrradianceTriangle {
+    #[inline(always)]
+    fn blocks(&self, ray: &IrradianceRay) -> bool {
+        let d = ray.direction;
+        let [ax, ay, az] = self.e1;
+        let [bx, by, bz] = self.e2;
+        let (px, py, pz) = (
+            d.y * bz - d.z * by,
+            d.z * bx - d.x * bz,
+            d.x * by - d.y * bx,
+        );
+        let det = ax * px + ay * py + az * pz;
+        if det.abs() < 1e-8 {
+            return false;
+        }
+        let inv = 1. / det;
+        let (tx, ty, tz) = (
+            ray.origin.x - self.a[0],
+            ray.origin.y - self.a[1],
+            ray.origin.z - self.a[2],
+        );
+        let u = (tx * px + ty * py + tz * pz) * inv;
+        if !(0. ..=1.).contains(&u) {
+            return false;
+        }
+        let (qx, qy, qz) = (ty * az - tz * ay, tz * ax - tx * az, tx * ay - ty * ax);
+        let v = (d.x * qx + d.y * qy + d.z * qz) * inv;
+        if v < 0. || u + v > 1. {
+            return false;
+        }
+        let t = (bx * qx + by * qy + bz * qz) * inv;
+        t > 0.04 && t < ray.max_t - 0.04
+    }
+}
+
 // Keep only the current grid's lights; moving a carried light must not redo
 // occlusion tests for every stationary torch. Memory is bounded by the grid and
-// IRRADIANCE_GRID_MAX_SOURCES, and geometry changes discard all contributions.
+// IRRADIANCE_GRID_MAX_SOURCES. Geometry changes invalidate affected sources.
 struct IrradianceSourceContribution {
     key: u64,
     values: Vec<Vec3<f32>>,
 }
 struct IrradianceGeometryCache {
     key: u64,
+    bounds_key: u64,
+    inputs: Vec<IrradianceOccluder>,
     occluders: IrradianceOcclusionTree,
     sources: Vec<IrradianceSourceContribution>,
     #[cfg(test)]
     recomputed_sources: usize,
+}
+
+#[derive(Clone)]
+struct IrradianceInput {
+    sources: Vec<RasterPointLight>,
+    occluders: Vec<IrradianceOccluder>,
+    occluder_hash: u64,
+    bounds: raster_mesh::Bounds,
+    layout: u64,
+}
+
+#[derive(Default)]
+struct IrradianceCache {
+    hash: Option<u64>,
+    geometry: Option<IrradianceGeometryCache>,
+}
+
+// A probe-to-light segment visits many hierarchy nodes. Its slab directions
+// and reciprocal components are invariant throughout that traversal.
+struct IrradianceRay {
+    origin: Vec3<f32>,
+    direction: Vec3<f32>,
+    reciprocal: [f32; 3],
+    parallel: [bool; 3],
+    max_t: f32,
+}
+impl IrradianceRay {
+    fn new(origin: Vec3<f32>, direction: Vec3<f32>, max_t: f32) -> Self {
+        let d = direction.into_array();
+        let parallel = d.map(|v| v.abs() <= 1e-6);
+        let reciprocal = std::array::from_fn(|i| if parallel[i] { 0. } else { 1. / d[i] });
+        Self {
+            origin,
+            direction,
+            reciprocal,
+            parallel,
+            max_t,
+        }
+    }
+    #[inline(always)]
+    fn intersects(&self, min: Vec3<f32>, max: Vec3<f32>) -> bool {
+        let mut t_min = 0.0f32;
+        let mut t_max = self.max_t;
+        macro_rules! slab {
+            ($i:expr, $o:expr, $lo:expr, $hi:expr) => {{
+                let mn = $lo - 0.015;
+                let mx = $hi + 0.015;
+                if self.parallel[$i] {
+                    if $o < mn || $o > mx {
+                        return false;
+                    }
+                } else {
+                    let mut a = (mn - $o) * self.reciprocal[$i];
+                    let mut b = (mx - $o) * self.reciprocal[$i];
+                    if a > b {
+                        std::mem::swap(&mut a, &mut b);
+                    }
+                    t_min = t_min.max(a);
+                    t_max = t_max.min(b);
+                    if t_min > t_max {
+                        return false;
+                    }
+                }
+            }};
+        }
+        slab!(0, self.origin.x, min.x, max.x);
+        slab!(1, self.origin.y, min.y, max.y);
+        slab!(2, self.origin.z, min.z, max.z);
+        t_max >= 0.0 && t_min <= self.max_t
+    }
 }
 
 // Bounds hierarchy avoids testing every dungeon triangle for every lighting probe.
@@ -143,7 +274,7 @@ struct IrradianceOcclusionTree {
     min: Vec3<f32>,
     max: Vec3<f32>,
     children: Option<(Box<Self>, Box<Self>)>,
-    triangles: Vec<IrradianceOccluder>,
+    triangles: Vec<IrradianceTriangle>,
 }
 impl IrradianceOcclusionTree {
     fn new(mut triangles: Vec<IrradianceOccluder>) -> Self {
@@ -160,7 +291,10 @@ impl IrradianceOcclusionTree {
             let axis = (0..3)
                 .max_by(|a, b| extent[*a].total_cmp(&extent[*b]))
                 .unwrap();
-            triangles.sort_unstable_by(|a, b| {
+            // The children only need a median partition, not a complete sort at
+            // every level of the lighting hierarchy.
+            let middle = triangles.len() / 2;
+            triangles.select_nth_unstable_by(middle, |a, b| {
                 (a.min[axis] + a.max[axis]).total_cmp(&(b.min[axis] + b.max[axis]))
             });
             let right = triangles.split_off(triangles.len() / 2);
@@ -175,21 +309,25 @@ impl IrradianceOcclusionTree {
             min,
             max,
             children,
-            triangles,
+            triangles: triangles
+                .into_iter()
+                .map(IrradianceTriangle::from)
+                .collect(),
         }
     }
     fn blocked(&self, origin: Vec3<f32>, dir: Vec3<f32>, max_t: f32) -> bool {
-        if !VM::segment_intersects_aabb(origin, dir, max_t, self.min, self.max) {
+        self.blocked_by(&IrradianceRay::new(origin, dir, max_t))
+    }
+    fn blocked_by(&self, ray: &IrradianceRay) -> bool {
+        if !ray.intersects(self.min, self.max) {
             return false;
         }
         if let Some((left, right)) = &self.children {
-            return left.blocked(origin, dir, max_t) || right.blocked(origin, dir, max_t);
+            return left.blocked_by(ray) || right.blocked_by(ray);
         }
-        self.triangles.iter().any(|occ| {
-            VM::segment_intersects_aabb(origin, dir, max_t, occ.min, occ.max)
-                && ray_triangle_intersect(origin, dir, occ.a, occ.b, occ.c)
-                    .is_some_and(|(t, _, _)| t > 0.04 && t < max_t - 0.04)
-        })
+        self.triangles
+            .iter()
+            .any(|occ| ray.intersects(occ.min, occ.max) && occ.blocks(ray))
     }
 }
 
@@ -442,6 +580,7 @@ pub struct VMGpu {
     pub compute_sdf_pipeline: Option<wgpu::ComputePipeline>,
     pub raster2d_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_pipeline: Option<wgpu::RenderPipeline>,
+    entity_pixels: Option<entity_pixels::EntityPixelPass>,
     pub raster3d_alpha_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_paint_alpha_pipeline: Option<wgpu::RenderPipeline>,
     pub raster3d_particle_pipeline: Option<wgpu::RenderPipeline>,
@@ -589,15 +728,15 @@ struct Raster3DSurfacePaintData {
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 pub struct Raster2DUniforms {
-    pub misc0: [f32; 4],                  // x=fb_w, y=fb_h, z=anim_counter, w=unused
-    pub post_params: [f32; 4],            // x=enabled, y=tone mapper, z=exposure, w=gamma
-    pub post_color_adjust: [f32; 4],      // x=saturation, y=luminance, z/w unused
-    pub post_style0: [f32; 4],            // x=grit, y=posterize, z=palette_bias, w=shadow_lift
-    pub post_style1: [f32; 4],            // x=edge_soften, yzw=reserved
+    pub misc0: [f32; 4],       // x=fb_w, y=fb_h, z=anim_counter, w=entity sprite grid
+    pub post_params: [f32; 4], // x=enabled, y=tone mapper, z=exposure, w=gamma
+    pub post_color_adjust: [f32; 4], // x=saturation, y=luminance, z/w unused
+    pub post_style0: [f32; 4], // x=grit, y=posterize, z=palette_bias, w=shadow_lift
+    pub post_style1: [f32; 4], // x=edge_soften, yzw=reserved
     pub ambient_color_strength: [f32; 4], // rgb + strength
-    pub sun_color_intensity: [f32; 4],    // rgb + intensity
-    pub sun_dir_enabled: [f32; 4],        // xyz + enabled
-    pub remap_params: [f32; 4],           // x=start, y=end, z=blend, w=mode
+    pub sun_color_intensity: [f32; 4], // rgb + intensity
+    pub sun_dir_enabled: [f32; 4], // xyz + enabled
+    pub remap_params: [f32; 4], // x=start, y=end, z=blend, w=mode
     pub mat2d_inv_c0: [f32; 4],
     pub mat2d_inv_c1: [f32; 4],
     pub mat2d_inv_c2: [f32; 4],
@@ -1089,9 +1228,20 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     return vec4<f32>(apply_post(tint, in.pos), alpha);
   }
 
+  // Non-particle dynamic vertices use the tint word as a character/item marker.
+  var uv = in.uv;
+  if ((in.tint_rgba & 1u) != 0u && UBO.misc0.w > 0.0) {
+    let grid = UBO.misc0.w;
+    uv = (floor(clamp(uv, vec2<f32>(0.0), vec2<f32>(0.999999)) * grid) + 0.5) / grid;
+  }
+  let black_background = (in.tint_rgba & 2u) != 0u && UBO.post_color_adjust.z > 0.5;
   let is_avatar = (in.tile_index2 & 0x80000000u) != 0u;
   if (is_avatar) {
-    let col_srgb = sd_sample_avatar(in.tile_index, in.uv);
+    let col_srgb = sd_sample_avatar(in.tile_index, uv);
+    if (black_background) {
+      let rgb = apply_scene_lighting(srgb_to_linear(col_srgb.rgb), world) * col_srgb.a;
+      return vec4<f32>(apply_post(rgb, in.pos), 1.0);
+    }
     if (col_srgb.a <= 0.0) {
       discard;
     }
@@ -1100,14 +1250,14 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
   }
 
   let phase_start = select(0u, u32(max(in.blend_factor, 0.0)), in.blend_factor > 1.0);
-  let uv0 = atlas_uv(in.tile_index, in.uv, phase_start);
+  let uv0 = atlas_uv(in.tile_index, uv, phase_start);
   let col0_srgb = textureSampleLevel(atlas_tex, atlas_smp, uv0, 0.0);
   let col0 = vec4<f32>(srgb_to_linear(col0_srgb.rgb), col0_srgb.a);
   var col = col0;
 
   let blend = clamp(in.blend_factor, 0.0, 1.0);
   if (in.tile_index2 != in.tile_index && blend > 0.0) {
-    let uv1 = atlas_uv(in.tile_index2, in.uv, phase_start);
+    let uv1 = atlas_uv(in.tile_index2, uv, phase_start);
     let col1_srgb = textureSampleLevel(atlas_tex, atlas_smp, uv1, 0.0);
     let col1 = vec4<f32>(srgb_to_linear(col1_srgb.rgb), col1_srgb.a);
     let overlay_a = clamp(blend * col1.a, 0.0, 1.0);
@@ -1125,6 +1275,7 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
   let remapped_rgb = apply_palette_remap_2d(col.rgb, in.pos.xy);
   let rgb = apply_scene_lighting(remapped_rgb, world) * (1.0 + emission);
   let a = col.a * opacity;
+  if (black_background) { return vec4<f32>(apply_post(rgb * a, in.pos), 1.0); }
   if (a <= 0.0) {
     discard;
   }
@@ -1376,6 +1527,7 @@ fn fs_main(in: VsOut) -> FsOut {
 "#;
 
 pub const SCENEVM_3D_RASTER_WGSL: &str = r#"
+override ENTITY_PIXEL_ART: bool = false;
 struct U {
     cam_pos: vec4<f32>,
     cam_fwd: vec4<f32>,
@@ -1582,6 +1734,11 @@ fn sample_tile(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool, phase_start_counter
     let uv_min = frame.ofs + pad_uv;
     let uv_max = frame.ofs + frame.scale - pad_uv;
     atlas_uv = clamp(atlas_uv, uv_min, uv_max);
+    if (ENTITY_PIXEL_ART) {
+        // Each screen pixel chooses one authored texel; mip averages erase pixel-art detail.
+        let texel = vec2<i32>(clamp(floor(atlas_uv * atlas_dims), vec2<f32>(0.0), atlas_dims - vec2<f32>(1.0)));
+        return textureLoad(atlas_tex, texel, 0);
+    }
     return textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, lod_clamped);
 }
 
@@ -1597,6 +1754,10 @@ fn sample_tile_lod0(tile_idx: u32, uv: vec2<f32>, clamp_uv: bool, phase_start_co
     let uv_min = frame.ofs + pad_uv;
     let uv_max = frame.ofs + frame.scale - pad_uv;
     atlas_uv = clamp(atlas_uv, uv_min, uv_max);
+    if (ENTITY_PIXEL_ART) {
+        let texel = vec2<i32>(clamp(floor(atlas_uv * atlas_dims), vec2<f32>(0.0), atlas_dims - vec2<f32>(1.0)));
+        return textureLoad(atlas_tex, texel, 0);
+    }
     return textureSampleLevel(atlas_tex, atlas_smp, atlas_uv, 0.0);
 }
 
@@ -2917,6 +3078,22 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
 }
 "#;
 
+fn raster3d_post_source(samples: u32) -> String {
+    SCENEVM_3D_POST_WGSL
+        .replace(
+            "world_depth: texture_depth_2d;",
+            if samples > 1 {
+                "world_depth: texture_depth_multisampled_2d;"
+            } else {
+                "world_depth: texture_depth_2d;"
+            },
+        )
+        .replace(
+            "WORLD_DEPTH_SAMPLES: u32 = 1u;",
+            &format!("WORLD_DEPTH_SAMPLES: u32 = {}u;", samples.max(1)),
+        )
+}
+
 pub const SCENEVM_3D_POST_WGSL: &str = r#"
 struct U {
     cam_pos: vec4<f32>,
@@ -2963,6 +3140,44 @@ struct U {
 @group(0) @binding(1) var scene_tex: texture_2d<f32>;
 @group(0) @binding(2) var bloom_tex: texture_2d<f32>;
 @group(0) @binding(3) var post_smp: sampler;
+@group(0) @binding(4) var world_depth: texture_depth_2d;
+@group(0) @binding(5) var entity_depth: texture_depth_2d;
+const WORLD_DEPTH_SAMPLES: u32 = 1u;
+
+fn entity_pixel_at(pixel: vec2<i32>) -> bool {
+    let block = UBO._pad_tail.x;
+    if (block <= 1u) { return false; }
+    let depth = textureLoad(entity_depth, pixel / i32(block), 0);
+    if (depth >= 1.0) { return false; }
+    // Require full coverage; world edges and foreground occluders keep their own rendering.
+    for (var sample = 0u; sample < WORLD_DEPTH_SAMPLES; sample++) {
+        if (textureLoad(world_depth, pixel, i32(sample)) != depth) { return false; }
+    }
+    return true;
+}
+
+fn pixel_palette_color(color: vec3<f32>) -> vec3<f32> {
+    var best = color;
+    var distance = 1e20;
+    let gamma = max(UBO.post_params.w, 0.001);
+    for (var i = 0u; i < 256u; i++) {
+        if (UBO.palette[i].a <= 0.0) { continue; }
+        // The palette is linear. Match in the same output space as apply_post.
+        let candidate = pow(max(UBO.palette[i].rgb, vec3<f32>(0.0)), vec3<f32>(1.0 / gamma));
+        let delta = color - candidate;
+        let error = dot(delta, delta);
+        if (error < distance) { best = candidate; distance = error; }
+    }
+    return best;
+}
+
+fn bloom_sample(uv: vec2<f32>) -> vec3<f32> {
+    let dims = vec2<i32>(textureDimensions(scene_tex, 0));
+    let pixel = clamp(vec2<i32>(uv * vec2<f32>(dims)), vec2<i32>(0), dims - vec2<i32>(1));
+    if (entity_pixel_at(pixel)) { return vec3<f32>(0.0); }
+    return textureSampleLevel(scene_tex, post_smp, uv, 0.0).rgb;
+}
+
 
 struct VsOut {
     @builtin(position) pos: vec4<f32>,
@@ -3054,20 +3269,29 @@ fn bright_part(c: vec3<f32>) -> vec3<f32> {
 @fragment
 fn fs_extract(in: VsOut) -> @location(0) vec4<f32> {
     let texel = 1.0 / vec2<f32>(textureDimensions(scene_tex, 0));
-    var c = textureSampleLevel(scene_tex, post_smp, in.uv, 0.0).rgb * 0.28;
-    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 1.5,  0.0), 0.0).rgb * 0.12;
-    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>(-1.5,  0.0), 0.0).rgb * 0.12;
-    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 0.0,  1.5), 0.0).rgb * 0.12;
-    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 0.0, -1.5), 0.0).rgb * 0.12;
-    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 2.5,  2.5), 0.0).rgb * 0.06;
-    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>(-2.5,  2.5), 0.0).rgb * 0.06;
-    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>( 2.5, -2.5), 0.0).rgb * 0.06;
-    c += textureSampleLevel(scene_tex, post_smp, in.uv + texel * vec2<f32>(-2.5, -2.5), 0.0).rgb * 0.06;
+    var c = bloom_sample(in.uv) * 0.28;
+    c += bloom_sample(in.uv + texel * vec2<f32>( 1.5,  0.0)) * 0.12;
+    c += bloom_sample(in.uv + texel * vec2<f32>(-1.5,  0.0)) * 0.12;
+    c += bloom_sample(in.uv + texel * vec2<f32>( 0.0,  1.5)) * 0.12;
+    c += bloom_sample(in.uv + texel * vec2<f32>( 0.0, -1.5)) * 0.12;
+    c += bloom_sample(in.uv + texel * vec2<f32>( 2.5,  2.5)) * 0.06;
+    c += bloom_sample(in.uv + texel * vec2<f32>(-2.5,  2.5)) * 0.06;
+    c += bloom_sample(in.uv + texel * vec2<f32>( 2.5, -2.5)) * 0.06;
+    c += bloom_sample(in.uv + texel * vec2<f32>(-2.5, -2.5)) * 0.06;
     return vec4<f32>(bright_part(c), 1.0);
 }
 
 @fragment
 fn fs_composite(in: VsOut) -> @location(0) vec4<f32> {
+    let pixel = vec2<i32>(in.pos.xy);
+    if (entity_pixel_at(pixel)) {
+        let scene = textureLoad(scene_tex, pixel, 0);
+        let block = f32(UBO._pad_tail.x);
+        let center = (floor(in.pos.xy / block) + 0.5) * block;
+        // Tone mapping and grain run once on the coarse grid; bloom cannot soften the result.
+        let color = pixel_palette_color(apply_post(scene.rgb, vec4<f32>(center, in.pos.zw)));
+        return vec4<f32>(color, scene.a);
+    }
     let scene = textureSampleLevel(scene_tex, post_smp, in.uv, 0.0);
     let bloom_texel = 1.0 / vec2<f32>(textureDimensions(bloom_tex, 0));
     var bloom = textureSampleLevel(bloom_tex, post_smp, in.uv, 0.0).rgb * 0.34;
@@ -3410,6 +3634,20 @@ pub struct VM {
     cached_tri_visibility: Vec<u32>, // Per-triangle visibility bitmask (1 bit per triangle)
     cached_tri_geo_ids: Vec<GeoId>,
     cached_static_v3: Vec<Vert3DPod>,
+    raster_mesh_cache: Vec<raster_mesh::MeshCache>,
+    raster_mesh_spans: Vec<raster_mesh::MeshSpan>,
+    raster_static_bounds: Option<raster_mesh::Bounds>,
+    raster_occluder_revision: u64,
+    raster_occluders: Option<(u64, u64, Vec<IrradianceOccluder>, u64)>,
+    raster_had_occluding_billboards: bool,
+    raster_static_geometry_ready: bool,
+    #[cfg(test)]
+    raster_static_build_count_3d: usize,
+    #[cfg(test)]
+    raster_vertex_upload_bytes: usize,
+    #[cfg(test)]
+    raster_occluder_builds: usize,
+    raster_shadow_frame: Option<(Vec4<f32>, u32, raster_mesh::ShadowFrame)>,
     cached_static_i3: Vec<u32>,
     cached_static_tri_visibility: Vec<bool>,
     cached_static_tri_geo_ids: Vec<GeoId>,
@@ -3420,9 +3658,12 @@ pub struct VM {
     cached_static_raster_opaque_indices: Vec<u32>,
     cached_static_raster_paint_alpha_indices: Vec<u32>,
     cached_static_raster_transparent_indices: Vec<u32>,
+    cached_static_raster_transparent_source: Vec<u32>,
     cached_static_raster_particle_indices: Vec<u32>,
+    cached_static_raster_particle_source: Vec<u32>,
     cached_static_raster_camera_key: [f32; 6],
     cached_static_raster_indices_valid: bool,
+    cached_static_raster_material_version: u64,
     cached_line3d: Vec<Line3DPod>,
     line3d_dirty: bool,
     visibility_dirty: bool, // True when only visibility changed (no BVH rebuild needed)
@@ -3451,9 +3692,18 @@ pub struct VM {
     cached_irradiance_grid_data: Vec<[f32; 4]>,
     cached_irradiance_input_hash: Option<u64>,
     cached_irradiance_geometry: Option<IrradianceGeometryCache>,
+    #[cfg(not(target_arch = "wasm32"))]
+    irradiance_worker: Option<irradiance::Worker>,
+    #[cfg(not(target_arch = "wasm32"))]
+    irradiance_epoch: u64,
+    #[cfg(not(target_arch = "wasm32"))]
+    irradiance_async: bool,
     raster_had_dynamics_last_frame: bool,
     organic_visible: bool,
     raster3d_static_geometry_enabled: bool,
+    pub tile_background_black_2d: bool,
+    entity_sprite_pixels_2d: u32,
+    entity_pixel_size_3d: u32,
     compute3d_bake_output: u32,
 
     // Camera
@@ -3600,6 +3850,11 @@ impl VM {
     }
 
     #[inline]
+    pub fn set_entity_pixelization(&mut self, sprite_pixels_2d: u32, pixel_size_3d: u32) {
+        self.entity_sprite_pixels_2d = sprite_pixels_2d.min(128);
+        self.entity_pixel_size_3d = pixel_size_3d.clamp(1, 16);
+    }
+
     fn raster3d_effective_samples(&self) -> u32 {
         if self.raster3d_msaa_samples == 0 {
             1
@@ -4283,7 +4538,7 @@ impl VM {
                         } else {
                             0.0
                         },
-                        _pad0: 0,
+                        _pad0: 2,
                     });
                 }
 
@@ -4575,7 +4830,14 @@ impl VM {
                             tile_index,
                             obj.kind as u32,
                             obj.opacity.to_bits(),
-                            obj.alpha_mode as u32,
+                            obj.alpha_mode as u32
+                                | if matches!(self.render_mode, RenderMode::Compute2D)
+                                    && matches!(obj.id, GeoId::Item(_))
+                                {
+                                    0x100
+                                } else {
+                                    0
+                                },
                         ],
                     });
                 }
@@ -4629,7 +4891,14 @@ impl VM {
                             avatar_index,
                             obj.kind as u32,
                             obj.opacity.to_bits(),
-                            obj.alpha_mode as u32,
+                            obj.alpha_mode as u32
+                                | if matches!(self.render_mode, RenderMode::Compute2D)
+                                    && matches!(obj.id, GeoId::Item(_))
+                                {
+                                    0x100
+                                } else {
+                                    0
+                                },
                         ],
                     });
                 }
@@ -4887,11 +5156,19 @@ impl VM {
 
     #[inline]
     pub fn mark_all_geometry_dirty(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.irradiance_epoch = self.irradiance_epoch.wrapping_add(1);
+        }
         self.geometry2d_dirty = true;
         self.accel_dirty = true;
         self.line3d_dirty = true;
         self.mark_irradiance_grid_dirty();
         self.cached_static_v3.clear();
+        self.raster_mesh_spans.clear();
+        self.raster_static_bounds = None;
+        self.raster_occluders = None;
+        self.raster_static_geometry_ready = false;
         self.cached_static_i3.clear();
         self.cached_static_tri_visibility.clear();
         self.cached_static_tri_geo_ids.clear();
@@ -4900,13 +5177,41 @@ impl VM {
         self.cached_static_raster_opaque_indices.clear();
         self.cached_static_raster_paint_alpha_indices.clear();
         self.cached_static_raster_transparent_indices.clear();
+        self.cached_static_raster_transparent_source.clear();
         self.cached_static_raster_particle_indices.clear();
+        self.cached_static_raster_particle_source.clear();
         self.cached_static_raster_indices_valid = false;
         self.cached_static_v2.clear();
         self.cached_static_i2.clear();
         self.cached_static_tile_bins.clear();
         self.cached_static_tile_tris.clear();
         self.cached_static_fb_size_2d = (0, 0);
+    }
+
+    pub(crate) fn set_background_lighting(&mut self, enabled: bool) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.irradiance_async = enabled;
+            self.irradiance_grid_dirty = true;
+            if !enabled {
+                self.irradiance_worker = None;
+                self.cached_irradiance_input_hash = None;
+                self.cached_irradiance_geometry = None;
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = enabled;
+    }
+
+    pub(crate) fn background_lighting(&self) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.irradiance_async
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            false
+        }
     }
 
     fn vm_flags(&self) -> u32 {
@@ -5394,6 +5699,20 @@ impl VM {
             cached_tri_visibility: Vec::new(),
             cached_tri_geo_ids: Vec::new(),
             cached_static_v3: Vec::new(),
+            raster_mesh_cache: Vec::new(),
+            raster_mesh_spans: Vec::new(),
+            raster_static_bounds: None,
+            raster_occluder_revision: 0,
+            raster_occluders: None,
+            raster_had_occluding_billboards: false,
+            raster_static_geometry_ready: false,
+            #[cfg(test)]
+            raster_static_build_count_3d: 0,
+            #[cfg(test)]
+            raster_vertex_upload_bytes: 0,
+            #[cfg(test)]
+            raster_occluder_builds: 0,
+            raster_shadow_frame: None,
             cached_static_i3: Vec::new(),
             cached_static_tri_visibility: Vec::new(),
             cached_static_tri_geo_ids: Vec::new(),
@@ -5402,9 +5721,12 @@ impl VM {
             cached_static_raster_opaque_indices: Vec::new(),
             cached_static_raster_paint_alpha_indices: Vec::new(),
             cached_static_raster_transparent_indices: Vec::new(),
+            cached_static_raster_transparent_source: Vec::new(),
             cached_static_raster_particle_indices: Vec::new(),
+            cached_static_raster_particle_source: Vec::new(),
             cached_static_raster_camera_key: [0.0; 6],
             cached_static_raster_indices_valid: false,
+            cached_static_raster_material_version: u64::MAX,
             cached_line3d: Vec::new(),
             line3d_dirty: true,
             visibility_dirty: false,
@@ -5433,9 +5755,18 @@ impl VM {
             cached_irradiance_grid_data: Self::disabled_irradiance_grid_data(),
             cached_irradiance_input_hash: None,
             cached_irradiance_geometry: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            irradiance_worker: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            irradiance_epoch: 0,
+            #[cfg(not(target_arch = "wasm32"))]
+            irradiance_async: false,
             raster_had_dynamics_last_frame: false,
             organic_visible: true,
             raster3d_static_geometry_enabled: true,
+            tile_background_black_2d: false,
+            entity_sprite_pixels_2d: 0,
+            entity_pixel_size_3d: 1,
             compute3d_bake_output: 0,
             camera3d: Camera3D::default(),
             enabled: true,
@@ -6064,7 +6395,9 @@ impl VM {
             Atom::SetRenderMode(m) => {
                 if self.render_mode != m {
                     self.render_mode = m;
-                    self.mark_2d_dirty();
+                    // Compute and raster modes share GPU buffers. Restore the
+                    // appropriate vertex representation when switching back.
+                    self.mark_all_geometry_dirty();
                 }
             }
             Atom::AddLight { id, light } => {
@@ -6332,6 +6665,7 @@ impl VM {
             compute_sdf_pipeline: None,
             raster2d_pipeline: None,
             raster3d_pipeline: None,
+            entity_pixels: None,
             raster3d_alpha_pipeline: None,
             raster3d_paint_alpha_pipeline: None,
             raster3d_particle_pipeline: None,
@@ -7558,6 +7892,26 @@ impl VM {
                         ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                         count: None,
                     },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 4,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: raster_samples > 1,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 5,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Depth,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
                 ],
             });
 
@@ -7567,7 +7921,9 @@ impl VM {
         });
         let post_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("vm-3d-post-shader"),
-            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(SCENEVM_3D_POST_WGSL)),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Owned(raster3d_post_source(
+                raster_samples,
+            ))),
         });
         let organic_billboard_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("vm-3d-organic-billboard-shader"),
@@ -8322,6 +8678,7 @@ impl VM {
         camera: &Camera3D,
         tri_start: usize,
         tri_end: usize,
+        sort_by_depth: bool,
     ) -> (Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>, Vec<u32>) {
         if self.cached_i3.is_empty() || self.cached_tri_visibility.is_empty() {
             return (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
@@ -8329,15 +8686,13 @@ impl VM {
         const TILE_INDEX_FLAGS_MASK_CPU: u32 = 0xF000_0000;
         const TILE_INDEX_PARTICLE_FLAG_CPU: u32 = 0x0800_0000u32;
         let base_tile_index = |idx: u32| idx & !TILE_INDEX_FLAGS_MASK_CPU;
-        let mut translucent_tile_cache: FxHashMap<u32, bool> = FxHashMap::default();
+        let mut translucent_tile_cache = vec![None; self.shared_atlas.tiles_map_len()];
         let mut tile_is_translucent = |idx: u32| -> bool {
             let base = base_tile_index(idx);
-            if let Some(v) = translucent_tile_cache.get(&base) {
-                *v
-            } else {
-                let v = self.shared_atlas.tile_index_has_translucency(base);
-                translucent_tile_cache.insert(base, v);
-                v
+            match translucent_tile_cache.get_mut(base as usize) {
+                Some(cached) => *cached
+                    .get_or_insert_with(|| self.shared_atlas.tile_index_has_translucency(base)),
+                None => self.shared_atlas.tile_index_has_translucency(base),
             }
         };
 
@@ -8414,17 +8769,57 @@ impl VM {
                 }
             }
         }
-        transparent_tris.sort_by(|a, b| b.0.total_cmp(&a.0));
+        if sort_by_depth {
+            transparent_tris.sort_by(|a, b| b.0.total_cmp(&a.0));
+        }
         let mut transparent: Vec<u32> = Vec::with_capacity(transparent_tris.len() * 3);
         for (_, tri) in transparent_tris {
             transparent.extend_from_slice(&tri);
         }
-        particle_tris.sort_by(|a, b| b.0.total_cmp(&a.0));
+        if sort_by_depth {
+            particle_tris.sort_by(|a, b| b.0.total_cmp(&a.0));
+        }
         let mut particles: Vec<u32> = Vec::with_capacity(particle_tris.len() * 3);
         for (_, tri) in particle_tris {
             particles.extend_from_slice(&tri);
         }
         (all_visible, opaque, paint_alpha, transparent, particles)
+    }
+
+    fn raster_indices_in_depth_order(&self, source: &[u32], camera: &Camera3D) -> Vec<u32> {
+        let mut triangles = source
+            .chunks_exact(3)
+            .map(|tri| {
+                let a = self.cached_v3[tri[0] as usize].pos;
+                let b = self.cached_v3[tri[1] as usize].pos;
+                let c = self.cached_v3[tri[2] as usize].pos;
+                let center = (Vec3::from(a) + Vec3::from(b) + Vec3::from(c)) / 3.;
+                (
+                    (center - camera.pos).dot(camera.forward),
+                    [tri[0], tri[1], tri[2]],
+                )
+            })
+            .collect::<Vec<_>>();
+        // Start from authored triangle order on every sort, preserving stable
+        // equal-depth alpha ordering when the camera crosses an intersection.
+        triangles.sort_by(|a, b| b.0.total_cmp(&a.0));
+        triangles.into_iter().flat_map(|(_, tri)| tri).collect()
+    }
+
+    fn refresh_static_raster_visibility(&mut self) {
+        self.cached_static_tri_visibility.clear();
+        for chunk in self.chunks_map.values() {
+            for polys in chunk.polys3d_map.values() {
+                for poly in polys {
+                    // Match the order and tile filtering used to build static vertices.
+                    if self.shared_atlas.tile_index(&poly.tile_id).is_some() {
+                        self.cached_static_tri_visibility
+                            .extend(std::iter::repeat_n(poly.visible, poly.indices.len()));
+                    }
+                }
+            }
+        }
+        self.cached_static_raster_indices_valid = false;
     }
 
     fn rebuild_raster_visible_indices(
@@ -8438,18 +8833,30 @@ impl VM {
 
         let static_tri_count = (self.cached_static_i3.len() / 3).min(tri_capacity);
         let camera_key = Self::raster_camera_key(camera);
+        let material_version = self.shared_atlas.content_version();
         let static_cache_valid = self.cached_static_raster_indices_valid
-            && Self::raster_camera_key_matches(self.cached_static_raster_camera_key, camera_key);
+            && self.cached_static_raster_material_version == material_version;
         if !static_cache_valid {
             let (visible, opaque, paint_alpha, transparent, particles) =
-                self.split_raster_visible_indices_range(camera, 0, static_tri_count);
+                self.split_raster_visible_indices_range(camera, 0, static_tri_count, false);
             self.cached_static_raster_visible_indices = visible;
             self.cached_static_raster_opaque_indices = opaque;
             self.cached_static_raster_paint_alpha_indices = paint_alpha;
-            self.cached_static_raster_transparent_indices = transparent;
-            self.cached_static_raster_particle_indices = particles;
+            self.cached_static_raster_transparent_source = transparent;
+            self.cached_static_raster_particle_source = particles;
+        }
+        if !static_cache_valid
+            || !Self::raster_camera_key_matches(self.cached_static_raster_camera_key, camera_key)
+        {
+            self.cached_static_raster_transparent_indices = self.raster_indices_in_depth_order(
+                &self.cached_static_raster_transparent_source,
+                camera,
+            );
+            self.cached_static_raster_particle_indices = self
+                .raster_indices_in_depth_order(&self.cached_static_raster_particle_source, camera);
             self.cached_static_raster_camera_key = camera_key;
             self.cached_static_raster_indices_valid = true;
+            self.cached_static_raster_material_version = material_version;
         }
 
         if static_tri_count >= tri_capacity {
@@ -8465,13 +8872,42 @@ impl VM {
             );
         }
 
+        let first_mesh_tri = self
+            .raster_mesh_spans
+            .first()
+            .map_or(tri_capacity, |span| span.first_index / 3);
         let (
-            dynamic_visible,
-            dynamic_opaque,
-            dynamic_paint_alpha,
-            dynamic_transparent,
+            mut dynamic_visible,
+            mut dynamic_opaque,
+            mut dynamic_paint_alpha,
+            mut dynamic_transparent,
             dynamic_particles,
-        ) = self.split_raster_visible_indices_range(camera, static_tri_count, tri_capacity);
+        ) = self.split_raster_visible_indices_range(
+            camera,
+            static_tri_count,
+            first_mesh_tri,
+            false,
+        );
+        // MeshCache writes uniform opacity/material/flags across each object.
+        // Classify that object once, retaining authored triangle order for alpha.
+        let mut translucent_tiles: FxHashMap<u32, bool> = FxHashMap::default();
+        for span in &self.raster_mesh_spans {
+            let indices = &self.cached_i3[span.first_index..span.end_index];
+            dynamic_visible.extend_from_slice(indices);
+            if self.raster3d_paint_alpha_matches(span.id) {
+                dynamic_paint_alpha.extend_from_slice(indices);
+            } else if span.opacity < 0.999
+                || *translucent_tiles
+                    .entry(span.tile)
+                    .or_insert_with(|| self.shared_atlas.tile_index_has_translucency(span.tile))
+            {
+                dynamic_transparent.extend_from_slice(indices);
+            } else {
+                dynamic_opaque.extend_from_slice(indices);
+            }
+        }
+        let dynamic_transparent = self.raster_indices_in_depth_order(&dynamic_transparent, camera);
+        let dynamic_particles = self.raster_indices_in_depth_order(&dynamic_particles, camera);
 
         if !self.raster3d_static_geometry_enabled {
             return (
@@ -8899,15 +9335,14 @@ impl VM {
         const TILE_INDEX_ALL_FLAGS_MASK_CPU: u32 = 0xF800_0000;
         const TILE_INDEX_PARTICLE_FLAG_CPU: u32 = 0x0800_0000;
         let base_tile_index = |idx: u32| idx & !TILE_INDEX_ALL_FLAGS_MASK_CPU;
-        let mut translucent_tile_cache: FxHashMap<u32, bool> = FxHashMap::default();
+        // Dense atlas indices need only an indexed lookup in this triangle loop.
+        let mut translucent_tile_cache = vec![None; self.shared_atlas.tiles_map_len()];
         let mut tile_is_translucent = |idx: u32| -> bool {
             let base = base_tile_index(idx);
-            if let Some(v) = translucent_tile_cache.get(&base) {
-                *v
-            } else {
-                let v = self.shared_atlas.tile_index_has_translucency(base);
-                translucent_tile_cache.insert(base, v);
-                v
+            match translucent_tile_cache.get_mut(base as usize) {
+                Some(cached) => *cached
+                    .get_or_insert_with(|| self.shared_atlas.tile_index_has_translucency(base)),
+                None => self.shared_atlas.tile_index_has_translucency(base),
             }
         };
 
@@ -8957,7 +9392,10 @@ impl VM {
             let p0 = Vec3::new(v0.pos[0], v0.pos[1], v0.pos[2]);
             let p1 = Vec3::new(v1.pos[0], v1.pos[1], v1.pos[2]);
             let p2 = Vec3::new(v2.pos[0], v2.pos[1], v2.pos[2]);
-            let normal_len = (p1 - p0).cross(p2 - p0).magnitude();
+            let (ax, ay, az) = (p1.x - p0.x, p1.y - p0.y, p1.z - p0.z);
+            let (bx, by, bz) = (p2.x - p0.x, p2.y - p0.y, p2.z - p0.z);
+            let (nx, ny, nz) = (ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx);
+            let normal_len = (nx * nx + ny * ny + nz * nz).sqrt();
             if normal_len <= 1e-5 {
                 continue;
             }
@@ -8994,6 +9432,7 @@ impl VM {
         occluders
     }
 
+    #[cfg(test)]
     fn segment_intersects_aabb(
         origin: Vec3<f32>,
         dir: Vec3<f32>,
@@ -9037,14 +9476,18 @@ impl VM {
         if occluders.children.is_none() && occluders.triangles.is_empty() {
             return 1.0;
         }
-        let to_source = source - probe;
-        let dist = to_source.magnitude();
+        let (x, y, z) = (source.x - probe.x, source.y - probe.y, source.z - probe.z);
+        let dist = (x * x + y * y + z * z).sqrt();
         if dist <= 0.2 {
             return 1.0;
         }
 
-        let dir = to_source / dist;
-        let origin = probe + dir * 0.08;
+        let dir = Vec3::new(x / dist, y / dist, z / dist);
+        let origin = Vec3::new(
+            probe.x + dir.x * 0.08,
+            probe.y + dir.y * 0.08,
+            probe.z + dir.z * 0.08,
+        );
         let max_t = (dist - 0.16).max(0.0);
         if max_t <= 0.0 {
             return 1.0;
@@ -9056,11 +9499,157 @@ impl VM {
         1.0
     }
 
+    fn irradiance_scene_bounds(&self) -> Option<raster_mesh::Bounds> {
+        if !self.raster_static_geometry_ready {
+            return raster_mesh::Bounds::from_vertices(&self.cached_v3);
+        }
+        let mut bounds = self.raster_static_bounds;
+        let prefix_end = self
+            .raster_mesh_spans
+            .first()
+            .map_or(self.cached_v3.len(), |span| span.vertex_start);
+        raster_mesh::Bounds::include(
+            &mut bounds,
+            raster_mesh::Bounds::from_vertices(
+                &self.cached_v3[self.cached_static_v3.len()..prefix_end],
+            ),
+        );
+        for mesh in &self.raster_mesh_cache {
+            raster_mesh::Bounds::include(&mut bounds, mesh.bounds);
+        }
+        bounds
+    }
+
+    fn irradiance_occluder_inputs(&mut self) -> (Vec<IrradianceOccluder>, u64) {
+        let atlas_version = self.shared_atlas.content_version();
+        if self.raster_static_geometry_ready
+            && let Some((revision, version, occluders, hash)) = &self.raster_occluders
+            && *revision == self.raster_occluder_revision
+            && *version == atlas_version
+        {
+            return (occluders.clone(), *hash);
+        }
+        #[cfg(test)]
+        {
+            self.raster_occluder_builds += 1;
+        }
+        let occluders = self.collect_irradiance_occluders();
+        let mut hash = rustc_hash::FxHasher::default();
+        occluders.len().hash(&mut hash);
+        for occluder in &occluders {
+            for value in occluder.a.into_iter().chain(occluder.b).chain(occluder.c) {
+                value.to_bits().hash(&mut hash);
+            }
+        }
+        let hash = hash.finish();
+        if self.raster_static_geometry_ready {
+            self.raster_occluders = Some((
+                self.raster_occluder_revision,
+                atlas_version,
+                occluders.clone(),
+                hash,
+            ));
+        }
+        (occluders, hash)
+    }
+
+    fn irradiance_change_affects_source(
+        bounds: &raster_mesh::Bounds,
+        source: &RasterPointLight,
+    ) -> bool {
+        // The whole probe-to-light segment lies within this sphere. Include a
+        // margin for the ray endpoint offsets and floating-point boundary cases.
+        let p = source.position;
+        let dx = (bounds.min.x - p.x).max(0.).max(p.x - bounds.max.x);
+        let dy = (bounds.min.y - p.y).max(0.).max(p.y - bounds.max.y);
+        let dz = (bounds.min.z - p.z).max(0.).max(p.z - bounds.max.z);
+        let range = source.range + 0.1;
+        let distance2 = dx * dx + dy * dy + dz * dz;
+        !distance2.is_finite() || !range.is_finite() || distance2 <= range * range
+    }
+
+    /// Each probe writes its own cell. Keep source accumulation and neighbor
+    /// order unchanged, so native parallel and browser serial solves agree exactly.
+    fn map_irradiance_probes(
+        values: &mut [Vec3<f32>],
+        parallel: bool,
+        evaluate: impl Fn(usize) -> Vec3<f32> + Sync,
+    ) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if parallel && values.len() >= 256 {
+            values
+                .par_iter_mut()
+                .enumerate()
+                .with_min_len(128)
+                .for_each(|(i, value)| *value = evaluate(i));
+            return;
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = parallel;
+        for (i, value) in values.iter_mut().enumerate() {
+            *value = evaluate(i);
+        }
+    }
+
     fn build_irradiance_grid_data(&mut self) -> Option<Vec<[f32; 4]>> {
+        self.solve_irradiance_grid(true)
+    }
+
+    fn irradiance_propagation_probe(
+        direct: &[Vec3<f32>],
+        previous: &[Vec3<f32>],
+        dims: [u32; 3],
+        i: usize,
+    ) -> Vec3<f32> {
+        let row = dims[0] as usize;
+        let plane = row * dims[1] as usize;
+        let x = i % row;
+        let y = i / row % dims[1] as usize;
+        let z = i / plane;
+        let (mut sx, mut sy, mut sz, mut count) = (0., 0., 0., 0.);
+        let mut add = |j: usize| {
+            let v = previous[j];
+            sx += v.x;
+            sy += v.y;
+            sz += v.z;
+            count += 1.;
+        };
+        // Preserve the serial solver's neighbor accumulation order.
+        if x > 0 {
+            add(i - 1);
+        }
+        if x + 1 < row {
+            add(i + 1);
+        }
+        if y > 0 {
+            add(i - row);
+        }
+        if y + 1 < dims[1] as usize {
+            add(i + row);
+        }
+        if z > 0 {
+            add(i - plane);
+        }
+        if z + 1 < dims[2] as usize {
+            add(i + plane);
+        }
+        if count > 0. {
+            sx /= count;
+            sy /= count;
+            sz /= count;
+        }
+        let d = direct[i];
+        let p = previous[i];
+        Vec3::new(
+            (d.x + sx * 0.42 + p.x * 0.18).clamp(0., 0.85),
+            (d.y + sy * 0.42 + p.y * 0.18).clamp(0., 0.85),
+            (d.z + sz * 0.42 + p.z * 0.18).clamp(0., 0.85),
+        )
+    }
+
+    fn prepare_irradiance_input(&mut self) -> Option<IrradianceInput> {
         if self.cached_v3.is_empty() {
-            self.cached_irradiance_input_hash = None;
-            self.cached_irradiance_geometry = None;
-            return Some(Self::disabled_irradiance_grid_data());
+            return None;
         }
 
         let mut sources: Vec<RasterPointLight> = self
@@ -9082,29 +9671,73 @@ impl VM {
         sources.sort_by(|a, b| b.score.total_cmp(&a.score));
         sources.truncate(IRRADIANCE_GRID_MAX_SOURCES);
         if sources.is_empty() {
-            self.cached_irradiance_input_hash = None;
-            self.cached_irradiance_geometry = None;
-            return Some(Self::disabled_irradiance_grid_data());
+            return None;
         }
-        let occluders = self.collect_irradiance_occluders();
-
-        let mut bmin = Vec3::broadcast(f32::INFINITY);
-        let mut bmax = Vec3::broadcast(f32::NEG_INFINITY);
-        for v in &self.cached_v3 {
-            let p = Vec3::new(v.pos[0], v.pos[1], v.pos[2]);
-            bmin.x = bmin.x.min(p.x);
-            bmin.y = bmin.y.min(p.y);
-            bmin.z = bmin.z.min(p.z);
-            bmax.x = bmax.x.max(p.x);
-            bmax.y = bmax.y.max(p.y);
-            bmax.z = bmax.z.max(p.z);
-        }
+        let (occluders, occluder_hash) = self.irradiance_occluder_inputs();
+        let bounds = self.irradiance_scene_bounds()?;
+        let bmin = bounds.min;
+        let bmax = bounds.max;
         if !bmin.x.is_finite() || !bmax.x.is_finite() {
+            return None;
+        }
+
+        // Identity changes reject an obsolete result even if bounds are equal.
+        let mut ids = self
+            .lights
+            .keys()
+            .map(|id| {
+                let mut h = rustc_hash::FxHasher::default();
+                id.hash(&mut h);
+                h.finish()
+            })
+            .collect::<Vec<_>>();
+        ids.sort_unstable();
+        let mut h = rustc_hash::FxHasher::default();
+        ids.hash(&mut h);
+        sources.len().hash(&mut h);
+        Some(IrradianceInput {
+            sources,
+            occluders,
+            occluder_hash,
+            bounds,
+            layout: h.finish(),
+        })
+    }
+
+    fn solve_irradiance_grid(&mut self, parallel: bool) -> Option<Vec<[f32; 4]>> {
+        let Some(input) = self.prepare_irradiance_input() else {
             self.cached_irradiance_input_hash = None;
             self.cached_irradiance_geometry = None;
             return Some(Self::disabled_irradiance_grid_data());
-        }
+        };
+        let mut cache = IrradianceCache {
+            hash: self.cached_irradiance_input_hash.take(),
+            geometry: self.cached_irradiance_geometry.take(),
+        };
+        let result = Self::solve_prepared_irradiance(input, &mut cache, parallel);
+        self.cached_irradiance_input_hash = cache.hash;
+        self.cached_irradiance_geometry = cache.geometry;
+        result
+    }
 
+    fn solve_prepared_irradiance(
+        input: IrradianceInput,
+        cache: &mut IrradianceCache,
+        parallel: bool,
+    ) -> Option<Vec<[f32; 4]>> {
+        let profile = std::env::var_os("ELDIRON_PROFILE_IRRADIANCE").is_some();
+        let started = instant::Instant::now();
+        let IrradianceInput {
+            sources,
+            occluders,
+            occluder_hash,
+            bounds,
+            ..
+        } = input;
+        let mut bmin = bounds.min;
+        let mut bmax = bounds.max;
+        let sources_prepared = started.elapsed();
+        let occluders_prepared = started.elapsed();
         // Dynamics and ClearLights/AddLight can dirty this grid every frame even
         // when only particles or translucent sprites changed. Fingerprint the
         // inputs the solver actually uses before rebuilding its occlusion tree.
@@ -9112,12 +9745,8 @@ impl VM {
         for value in [bmin.x, bmin.y, bmin.z, bmax.x, bmax.y, bmax.z] {
             value.to_bits().hash(&mut hasher);
         }
-        occluders.len().hash(&mut hasher);
-        for occluder in &occluders {
-            for value in occluder.a.into_iter().chain(occluder.b).chain(occluder.c) {
-                value.to_bits().hash(&mut hasher);
-            }
-        }
+        let bounds_key = hasher.finish();
+        occluder_hash.hash(&mut hasher);
         let geometry_hash = hasher.finish();
         let source_keys: Vec<_> = sources
             .iter()
@@ -9140,21 +9769,51 @@ impl VM {
             .collect();
         source_keys.hash(&mut hasher);
         let input_hash = hasher.finish();
-        if self.cached_irradiance_input_hash == Some(input_hash) {
+        if cache.hash == Some(input_hash) {
             return None;
         }
-        self.cached_irradiance_input_hash = Some(input_hash);
-        let mut geometry_cache = self
-            .cached_irradiance_geometry
-            .take()
-            .filter(|cache| cache.key == geometry_hash)
-            .unwrap_or_else(|| IrradianceGeometryCache {
-                key: geometry_hash,
-                occluders: IrradianceOcclusionTree::new(occluders),
-                sources: Vec::new(),
-                #[cfg(test)]
-                recomputed_sources: 0,
-            });
+        cache.hash = Some(input_hash);
+        // A changed character can only alter a light's probe rays inside that
+        // light's range. Preserve other light contributions when the grid itself
+        // is unchanged. Compare the sampled occluders used by the solver; count
+        // changes conservatively invalidate every source (sampling may shift).
+        let mut changed_bounds: Option<Vec<raster_mesh::Bounds>> = None;
+        let previous = cache.geometry.take();
+        let mut geometry_cache =
+            if let Some(mut cached) = previous.filter(|c| c.bounds_key == bounds_key) {
+                if cached.key == geometry_hash {
+                    changed_bounds = Some(Vec::new());
+                } else {
+                    if cached.inputs.len() == occluders.len() {
+                        changed_bounds = Some(
+                            cached
+                                .inputs
+                                .iter()
+                                .zip(&occluders)
+                                .filter(|(before, after)| before != after)
+                                .map(|(before, after)| raster_mesh::Bounds {
+                                    min: before.min.map2(after.min, f32::min),
+                                    max: before.max.map2(after.max, f32::max),
+                                })
+                                .collect(),
+                        );
+                    }
+                    cached.key = geometry_hash;
+                    cached.inputs = occluders.clone();
+                    cached.occluders = IrradianceOcclusionTree::new(occluders);
+                }
+                cached
+            } else {
+                IrradianceGeometryCache {
+                    key: geometry_hash,
+                    bounds_key,
+                    inputs: occluders.clone(),
+                    occluders: IrradianceOcclusionTree::new(occluders),
+                    sources: Vec::new(),
+                    #[cfg(test)]
+                    recomputed_sources: 0,
+                }
+            };
         let mut previous_sources = std::mem::take(&mut geometry_cache.sources);
         #[cfg(test)]
         {
@@ -9183,104 +9842,86 @@ impl VM {
             extent.z / (dims[2] - 1) as f32,
         );
         let probe_count = (dims[0] * dims[1] * dims[2]) as usize;
-        let mut direct = vec![Vec3::zero(); probe_count];
+        let prepared = started.elapsed();
+        let mut direct = vec![Vec3::<f32>::zero(); probe_count];
 
-        let idx = |x: u32, y: u32, z: u32| -> usize {
-            (x + y * dims[0] + z * dims[0] * dims[1]) as usize
-        };
         let smooth_range = |range: f32, dist: f32| -> f32 {
             let t = ((range - dist) / range.max(0.001)).clamp(0.0, 1.0);
             t * t * (3.0 - 2.0 * t)
         };
 
         for (source, key) in sources.iter().zip(source_keys) {
-            let contribution =
-                if let Some(index) = previous_sources.iter().position(|entry| entry.key == key) {
-                    previous_sources.swap_remove(index)
-                } else {
-                    #[cfg(test)]
-                    {
-                        geometry_cache.recomputed_sources += 1;
+            let contribution = if let Some(index) = previous_sources.iter().position(|entry| {
+                entry.key == key
+                    && changed_bounds.as_ref().is_some_and(|bounds| {
+                        bounds
+                            .iter()
+                            .all(|b| !Self::irradiance_change_affects_source(b, source))
+                    })
+            }) {
+                previous_sources.swap_remove(index)
+            } else {
+                #[cfg(test)]
+                {
+                    geometry_cache.recomputed_sources += 1;
+                }
+                let mut values = vec![Vec3::zero(); probe_count];
+                Self::map_irradiance_probes(&mut values, parallel, |i| {
+                    let x = i as u32 % dims[0];
+                    let y = i as u32 / dims[0] % dims[1];
+                    let z = i as u32 / (dims[0] * dims[1]);
+                    let p = Vec3::new(
+                        bmin.x + cell.x * x as f32,
+                        bmin.y + cell.y * y as f32,
+                        bmin.z + cell.z * z as f32,
+                    );
+                    let (x, y, z) = (
+                        p.x - source.position.x,
+                        p.y - source.position.y,
+                        p.z - source.position.z,
+                    );
+                    let dist2 = (x * x + y * y + z * z).max(0.45);
+                    let dist = dist2.sqrt();
+                    if dist > source.range {
+                        return Vec3::zero();
                     }
-                    let mut values = vec![Vec3::zero(); probe_count];
-                    for z in 0..dims[2] {
-                        for y in 0..dims[1] {
-                            for x in 0..dims[0] {
-                                let p = Vec3::new(
-                                    bmin.x + cell.x * x as f32,
-                                    bmin.y + cell.y * y as f32,
-                                    bmin.z + cell.z * z as f32,
-                                );
-                                let dist2 = (p - source.position).magnitude_squared().max(0.45);
-                                let dist = dist2.sqrt();
-                                if dist > source.range {
-                                    continue;
-                                }
-                                let visibility = Self::irradiance_segment_visibility(
-                                    p,
-                                    source.position,
-                                    &geometry_cache.occluders,
-                                );
-                                let range_factor = smooth_range(source.range, dist);
-                                let atten = source.intensity * range_factor / dist2;
-                                values[idx(x, y, z)] = source.color * (atten * 0.24 * visibility);
-                            }
-                        }
-                    }
-                    IrradianceSourceContribution { key, values }
-                };
+                    let visibility = Self::irradiance_segment_visibility(
+                        p,
+                        source.position,
+                        &geometry_cache.occluders,
+                    );
+                    let range_factor = smooth_range(source.range, dist);
+                    let atten = source.intensity * range_factor / dist2;
+                    let scale = atten * 0.24 * visibility;
+                    Vec3::new(
+                        source.color.x * scale,
+                        source.color.y * scale,
+                        source.color.z * scale,
+                    )
+                });
+                IrradianceSourceContribution { key, values }
+            };
             for (total, value) in direct.iter_mut().zip(&contribution.values) {
-                *total += *value;
+                total.x += value.x;
+                total.y += value.y;
+                total.z += value.z;
             }
             geometry_cache.sources.push(contribution);
         }
-        self.cached_irradiance_geometry = Some(geometry_cache);
+        cache.geometry = Some(geometry_cache);
+        let lit = started.elapsed();
         for value in &mut direct {
-            *value = value.map(|v: f32| v.clamp(0.0, 1.25));
+            value.x = value.x.clamp(0.0, 1.25);
+            value.y = value.y.clamp(0.0, 1.25);
+            value.z = value.z.clamp(0.0, 1.25);
         }
 
         let mut propagated = direct.clone();
         for _ in 0..2 {
             let previous = propagated.clone();
-            for z in 0..dims[2] {
-                for y in 0..dims[1] {
-                    for x in 0..dims[0] {
-                        let mut sum = Vec3::zero();
-                        let mut count = 0.0f32;
-                        for (ox, oy, oz) in [
-                            (-1i32, 0i32, 0i32),
-                            (1, 0, 0),
-                            (0, -1, 0),
-                            (0, 1, 0),
-                            (0, 0, -1),
-                            (0, 0, 1),
-                        ] {
-                            let nx = x as i32 + ox;
-                            let ny = y as i32 + oy;
-                            let nz = z as i32 + oz;
-                            if nx < 0
-                                || ny < 0
-                                || nz < 0
-                                || nx >= dims[0] as i32
-                                || ny >= dims[1] as i32
-                                || nz >= dims[2] as i32
-                            {
-                                continue;
-                            }
-                            sum += previous[idx(nx as u32, ny as u32, nz as u32)];
-                            count += 1.0;
-                        }
-                        let neighbor = if count > 0.0 {
-                            sum / count
-                        } else {
-                            Vec3::zero()
-                        };
-                        let i = idx(x, y, z);
-                        propagated[i] = (direct[i] + neighbor * 0.42 + previous[i] * 0.18)
-                            .map(|v: f32| v.clamp(0.0, 0.85));
-                    }
-                }
-            }
+            Self::map_irradiance_probes(&mut propagated, parallel, |i| {
+                Self::irradiance_propagation_probe(&direct, &previous, dims, i)
+            });
         }
 
         let mut out = Vec::with_capacity(3 + probe_count);
@@ -9289,6 +9930,18 @@ impl VM {
         out.push([dims[0] as f32, dims[1] as f32, dims[2] as f32, 0.0]);
         for c in propagated {
             out.push([c.x, c.y, c.z, 0.0]);
+        }
+        if profile {
+            eprintln!(
+                "[Irradiance] sources={:.3}ms occluders={:.3}ms hierarchy={:.3}ms lights={:.3}ms propagate={:.3}ms probes={} sources={}",
+                sources_prepared.as_secs_f64() * 1000.,
+                (occluders_prepared - sources_prepared).as_secs_f64() * 1000.,
+                (prepared - occluders_prepared).as_secs_f64() * 1000.,
+                (lit - prepared).as_secs_f64() * 1000.,
+                (started.elapsed() - lit).as_secs_f64() * 1000.,
+                probe_count,
+                sources.len()
+            );
         }
         Some(out)
     }
@@ -9303,7 +9956,33 @@ impl VM {
             self.mark_irradiance_grid_dirty();
         }
         let mut rebuilt = false;
-        if self.irradiance_grid_dirty || self.cached_irradiance_grid_data.is_empty() {
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.irradiance_async {
+            let input = self.prepare_irradiance_input();
+            // Overlays with no point lighting don't need a worker at all.
+            if input.is_some() || self.irradiance_worker.is_some() {
+                let worker = self
+                    .irradiance_worker
+                    .get_or_insert_with(irradiance::Worker::new);
+                let (invalidated, data) = worker.update(input, self.irradiance_epoch);
+                if invalidated {
+                    self.cached_irradiance_grid_data = Self::disabled_irradiance_grid_data();
+                    rebuilt = true;
+                }
+                if let Some(data) = data {
+                    self.cached_irradiance_grid_data = data;
+                    rebuilt = true;
+                }
+            }
+            self.irradiance_grid_dirty = false;
+        }
+        #[cfg(target_arch = "wasm32")]
+        let synchronous = true;
+        #[cfg(not(target_arch = "wasm32"))]
+        let synchronous = !self.irradiance_async;
+        if synchronous
+            && (self.irradiance_grid_dirty || self.cached_irradiance_grid_data.is_empty())
+        {
             if let Some(data) = self.build_irradiance_grid_data() {
                 self.cached_irradiance_grid_data = data;
                 rebuilt = true;
@@ -9459,6 +10138,10 @@ impl VM {
                         },
                         _pad0: if obj.kind == DynamicKind::ParticleBillboard {
                             pack_particle_tint_2d(obj.tint)
+                        } else if matches!(obj.id, GeoId::Item(_)) {
+                            3
+                        } else if matches!(obj.id, GeoId::Character(_)) {
+                            1
                         } else {
                             0
                         },
@@ -9546,14 +10229,28 @@ impl VM {
         let m = self.transform2d;
         let m_inv = mat3_inverse_f32(&m).unwrap_or(Mat3::<f32>::identity());
         let u = Raster2DUniforms {
-            misc0: [fb_w as f32, fb_h as f32, self.animation_counter as f32, 0.],
+            misc0: [
+                fb_w as f32,
+                fb_h as f32,
+                self.animation_counter as f32,
+                self.entity_sprite_pixels_2d as f32,
+            ],
             post_params: [
                 self.gp9.x,
                 self.gp9.y,
                 self.gp9.z.max(0.0),
                 self.gp9.w.max(0.001),
             ],
-            post_color_adjust: [self.gp8.z.max(0.0), self.gp8.w.max(0.0), 0.0, 0.0],
+            post_color_adjust: [
+                self.gp8.z.max(0.0),
+                self.gp8.w.max(0.0),
+                if self.tile_background_black_2d {
+                    1.0
+                } else {
+                    0.0
+                },
+                0.0,
+            ],
             post_style0: self.raster3d_post_style0.into_array(),
             post_style1: self.raster3d_post_style1.into_array(),
             ambient_color_strength: self.gp3.into_array(),
@@ -9785,7 +10482,7 @@ impl VM {
         let u = Compute2DUniforms {
             background: self.background.into_array(),
             fb_size: [fb_w, fb_h],
-            _pad0: [0, 0],
+            _pad0: [u32::from(self.tile_background_black_2d), 0],
             gp0: self.gp0.into_array(),
             gp1: self.gp1.into_array(),
             gp2: self.gp2.into_array(),
@@ -10201,7 +10898,7 @@ impl VM {
                             };
                             v3.push(Vert3DPod {
                                 pos: [p[0], p[1], p[2]],
-                                _pad0: 0.0,
+                                entity_pixel_target: 0.0,
                                 uv: [uv0[0], uv0[1]],
                                 _pad1: [0.0, 0.0],
                                 tile_index,
@@ -10233,7 +10930,7 @@ impl VM {
             if v3.is_empty() {
                 v3.push(Vert3DPod {
                     pos: [0.0; 3],
-                    _pad0: 0.0,
+                    entity_pixel_target: 0.0,
                     uv: [0.0; 2],
                     _pad1: [0.0, 0.0],
                     tile_index: 0,
@@ -10579,6 +11276,7 @@ impl VM {
 
         let m = self.transform3d;
         let mut geometry_changed = false;
+        let mut vertex_uploads = Vec::new();
         let has_dynamic_objects =
             !self.dynamic_objects.is_empty() || !self.dynamic_avatar_objects.is_empty();
         let need_dynamic_refresh = has_dynamic_objects || self.raster_had_dynamics_last_frame;
@@ -10589,17 +11287,24 @@ impl VM {
             || need_dynamic_refresh
         {
             let debug_geometry_start = instant::Instant::now();
-            let rebuild_static_geometry = self.accel_dirty
-                || self.geometry3d_dirty
-                || self.cached_static_v3.is_empty()
-                || self.cached_static_i3.is_empty();
+            let rebuild_static_geometry =
+                self.accel_dirty || self.geometry3d_dirty || !self.raster_static_geometry_ready;
             let mut v3: Vec<Vert3DPod>;
             let mut i3: Vec<u32>;
             let mut tri_visibility: Vec<bool>;
             let mut tri_geo_ids: Vec<GeoId>;
 
             if rebuild_static_geometry {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    self.irradiance_epoch = self.irradiance_epoch.wrapping_add(1);
+                }
                 static_geometry_rebuilt = true;
+                self.raster_static_geometry_ready = true;
+                #[cfg(test)]
+                {
+                    self.raster_static_build_count_3d += 1;
+                }
                 v3 = Vec::new();
                 i3 = Vec::new();
                 tri_visibility = Vec::new();
@@ -10681,7 +11386,7 @@ impl VM {
                                 };
                                 v3.push(Vert3DPod {
                                     pos: [p[0], p[1], p[2]],
-                                    _pad0: 0.0,
+                                    entity_pixel_target: 0.0,
                                     uv: [uv0[0], uv0[1]],
                                     _pad1: [0.0, 0.0],
                                     tile_index,
@@ -10711,6 +11416,8 @@ impl VM {
                 }
 
                 self.cached_static_v3 = v3;
+                self.raster_static_bounds =
+                    raster_mesh::Bounds::from_vertices(&self.cached_static_v3);
                 self.cached_static_i3 = i3;
                 self.cached_static_tri_visibility = tri_visibility;
                 self.cached_static_tri_geo_ids = tri_geo_ids;
@@ -10737,7 +11444,15 @@ impl VM {
                 tri_geo_ids = std::mem::take(&mut self.cached_tri_geo_ids);
                 tri_geo_ids.truncate(static_tri_count);
             }
+            if self.visibility_dirty && !rebuild_static_geometry {
+                self.refresh_static_raster_visibility();
+            }
             tri_visibility = self.cached_static_tri_visibility.clone();
+
+            let mut occluders_changed = static_geometry_rebuilt
+                || self.visibility_dirty
+                || self.raster_had_occluding_billboards;
+            let mut had_occluding_billboards = false;
 
             // Dynamic billboards (tile + avatar) as camera-facing quads in world space.
             let dynamic_objs = self.sorted_dynamic_objects();
@@ -10765,6 +11480,10 @@ impl VM {
                     }
                     DynamicKind::Mesh => continue,
                 };
+                // Particle quads do not occlude the irradiance grid. Ordinary
+                // billboards still need camera-dependent occlusion updates.
+                occluders_changed |= obj.kind != DynamicKind::ParticleBillboard;
+                had_occluding_billboards |= obj.kind != DynamicKind::ParticleBillboard;
                 // For non-repeating billboards, clamp UVs in shader to avoid MSAA edge wrap seams.
                 if !matches!(obj.repeat_mode, crate::dynamic::RepeatMode::Repeat) {
                     tile_index2 |= 0x4000_0000u32;
@@ -10807,7 +11526,14 @@ impl VM {
                     let p = pts[i];
                     v3.push(Vert3DPod {
                         pos: [p.x, p.y, p.z],
-                        _pad0: 0.0,
+                        entity_pixel_target: if matches!(
+                            obj.id,
+                            GeoId::Character(_) | GeoId::Item(_)
+                        ) {
+                            1.0
+                        } else {
+                            0.0
+                        },
                         uv: uvs[i],
                         _pad1: [0.0, 0.0],
                         tile_index,
@@ -10829,6 +11555,11 @@ impl VM {
                 tri_geo_ids.push(obj.id);
             }
 
+            self.raster_had_occluding_billboards = had_occluding_billboards;
+            raster_mesh::add_upload_range(&mut vertex_uploads, static_vertex_count, v3.len());
+            let previous_mesh_count = self.raster_mesh_spans.len();
+            self.raster_mesh_spans.clear();
+            let mut mesh_index = 0;
             for obj in &self.dynamic_objects {
                 if obj.kind != DynamicKind::Mesh {
                     continue;
@@ -10837,48 +11568,42 @@ impl VM {
                 let Some(tile_index) = self.shared_atlas.tile_index(&tile_id) else {
                     continue;
                 };
-                let tile_index2 = tile_index | 0x2000_0000u32;
-                let opacity = obj.opacity.clamp(0.0, 1.0);
                 let base = v3.len() as u32;
-
-                for vert in &obj.mesh_vertices {
-                    let p = m * Vec4::new(vert.position.x, vert.position.y, vert.position.z, 1.0);
-                    let w = if p.w != 0.0 { p.w } else { 1.0 };
-                    let n = m * Vec4::new(vert.normal.x, vert.normal.y, vert.normal.z, 0.0);
-                    let mut nn = Vec3::new(n.x, n.y, n.z);
-                    if nn.magnitude_squared() <= 1e-8 {
-                        nn = Vec3::new(0.0, 1.0, 0.0);
-                    } else {
-                        nn = nn.normalized();
-                    }
-                    v3.push(Vert3DPod {
-                        pos: [p.x / w, p.y / w, p.z / w],
-                        _pad0: 0.0,
-                        uv: [vert.uv.x, vert.uv.y],
-                        _pad1: [0.0, 0.0],
-                        tile_index,
-                        tile_index2,
-                        blend_factor: if obj.pixel_art { -1.0 } else { 0.0 },
-                        opacity,
-                        normal: [nn.x, nn.y, nn.z],
-                        _pad2: 0.0,
-                        paint_geo: [0, 0, 0, 0],
-                        paint_uv: [0.0, 0.0],
-                        _pad3: [0.0, 0.0],
-                        paint_geo_fallback: [0, 0, 0, 0],
-                    });
+                if mesh_index == self.raster_mesh_cache.len() {
+                    self.raster_mesh_cache.push(Default::default());
                 }
+                let unchanged =
+                    self.raster_mesh_cache[mesh_index].append(obj, m, tile_index, &mut v3);
+                occluders_changed |= !self.raster_mesh_cache[mesh_index].occluders_unchanged;
+                if !unchanged {
+                    raster_mesh::add_upload_range(&mut vertex_uploads, base as usize, v3.len());
+                }
+                mesh_index += 1;
+                let first_index = i3.len();
                 for tri in obj.mesh_indices.chunks_exact(3) {
                     i3.extend_from_slice(&[base + tri[0], base + tri[1], base + tri[2]]);
                     tri_visibility.push(true);
                     tri_geo_ids.push(obj.id);
                 }
+                self.raster_mesh_spans.push(raster_mesh::MeshSpan {
+                    vertex_start: base as usize,
+                    first_index,
+                    end_index: i3.len(),
+                    tile: tile_index,
+                    opacity: obj.opacity.clamp(0., 1.),
+                    id: obj.id,
+                });
+            }
+
+            self.raster_mesh_cache.truncate(mesh_index);
+            if occluders_changed || previous_mesh_count != mesh_index {
+                self.raster_occluder_revision = self.raster_occluder_revision.wrapping_add(1);
             }
 
             if v3.is_empty() {
                 v3.push(Vert3DPod {
                     pos: [0.0; 3],
-                    _pad0: 0.0,
+                    entity_pixel_target: 0.0,
                     uv: [0.0; 2],
                     _pad1: [0.0, 0.0],
                     tile_index: 0,
@@ -10928,16 +11653,9 @@ impl VM {
 
         if self.visibility_dirty && !geometry_changed {
             let debug_visibility_start = instant::Instant::now();
-            let mut tri_visibility: Vec<bool> = Vec::new();
-            for ch in self.chunks_map.values() {
-                for poly_list in ch.polys3d_map.values() {
-                    for poly in poly_list {
-                        for _ in &poly.indices {
-                            tri_visibility.push(poly.visible);
-                        }
-                    }
-                }
-            }
+            self.refresh_static_raster_visibility();
+            self.raster_occluder_revision = self.raster_occluder_revision.wrapping_add(1);
+            let mut tri_visibility = self.cached_static_tri_visibility.clone();
             if tri_visibility.is_empty() {
                 tri_visibility.push(false);
             }
@@ -11016,13 +11734,31 @@ impl VM {
         let debug_visibility_start = instant::Instant::now();
         let (
             visible_indices,
-            opaque_indices,
-            paint_alpha_indices,
-            transparent_indices,
+            mut opaque_indices,
+            mut paint_alpha_indices,
+            mut transparent_indices,
             particle_indices,
         ) = self.rebuild_raster_visible_indices(&c);
         debug_visibility_ms += debug_visibility_start.elapsed().as_secs_f64() * 1000.0;
 
+        let mut entity_indices = Vec::new();
+        if self.entity_pixel_size_3d > 1 {
+            for indices in [
+                &mut opaque_indices,
+                &mut paint_alpha_indices,
+                &mut transparent_indices,
+            ] {
+                let mut world = Vec::with_capacity(indices.len());
+                for tri in indices.chunks_exact(3) {
+                    if self.cached_v3[tri[0] as usize].entity_pixel_target == 1.0 {
+                        entity_indices.extend_from_slice(tri);
+                    } else {
+                        world.extend_from_slice(tri);
+                    }
+                }
+                *indices = world;
+            }
+        }
         let debug_visible_count = visible_indices.len();
         let debug_opaque_count = opaque_indices.len();
         let debug_transparent_count = transparent_indices.len();
@@ -11033,80 +11769,36 @@ impl VM {
         let use_msaa = raster_samples > 1;
         let shadow_enabled = !self.cached_i3.is_empty() && self.gp2.w > 0.5 && self.gp7.x > 0.5;
 
-        let shadow_bounds_verts = if !self.cached_static_v3.is_empty() {
-            &self.cached_static_v3
-        } else {
-            &self.cached_v3
-        };
-        let mut shadow_center = Vec3::zero();
-        let mut shadow_half_w = 32.0f32;
-        let mut shadow_half_h = 32.0f32;
-        let mut shadow_near = -32.0f32;
-        let mut shadow_far = 32.0f32;
-        if !shadow_bounds_verts.is_empty() {
-            let mut bmin = Vec3::broadcast(f32::INFINITY);
-            let mut bmax = Vec3::broadcast(f32::NEG_INFINITY);
-            for v in shadow_bounds_verts {
-                let p = Vec3::new(v.pos[0], v.pos[1], v.pos[2]);
-                bmin.x = bmin.x.min(p.x);
-                bmin.y = bmin.y.min(p.y);
-                bmin.z = bmin.z.min(p.z);
-                bmax.x = bmax.x.max(p.x);
-                bmax.y = bmax.y.max(p.y);
-                bmax.z = bmax.z.max(p.z);
-            }
-            shadow_center = (bmin + bmax) * 0.5;
+        // Animation changes the dynamic suffix, not the authored environment.
+        // Retain the exact shadow projection until that environment or sun changes.
+        if static_geometry_rebuilt || (self.cached_static_v3.is_empty() && geometry_changed) {
+            self.raster_shadow_frame = None;
         }
-        let sun_l_raw = Vec3::new(-self.gp2.x, -self.gp2.y, -self.gp2.z);
-        let sun_l = if sun_l_raw.magnitude_squared() > 1e-6 {
-            sun_l_raw.normalized()
+        let shadow = if let Some((_, _, frame)) = self
+            .raster_shadow_frame
+            .filter(|(sun, res, _)| *sun == self.gp2 && *res == shadow_res)
+        {
+            frame
         } else {
-            Vec3::new(0.0, -1.0, 0.0)
+            let vertices = if self.cached_static_v3.is_empty() {
+                &self.cached_v3
+            } else {
+                &self.cached_static_v3
+            };
+            let frame = raster_mesh::shadow_frame(vertices, self.gp2, shadow_res);
+            self.raster_shadow_frame = Some((self.gp2, shadow_res, frame));
+            frame
         };
-        let shadow_fwd = -sun_l;
-        let up_hint = if shadow_fwd.y.abs() > 0.99 {
-            Vec3::new(1.0, 0.0, 0.0)
-        } else {
-            Vec3::new(0.0, 1.0, 0.0)
-        };
-        let shadow_right = up_hint.cross(shadow_fwd).normalized();
-        let shadow_up = shadow_fwd.cross(shadow_right).normalized();
-        if !shadow_bounds_verts.is_empty() {
-            let mut minx = f32::INFINITY;
-            let mut maxx = f32::NEG_INFINITY;
-            let mut miny = f32::INFINITY;
-            let mut maxy = f32::NEG_INFINITY;
-            let mut minz = f32::INFINITY;
-            let mut maxz = f32::NEG_INFINITY;
-            for v in shadow_bounds_verts {
-                let p = Vec3::new(v.pos[0], v.pos[1], v.pos[2]);
-                let rel = p - shadow_center;
-                let x = rel.dot(shadow_right);
-                let y = rel.dot(shadow_up);
-                let z = rel.dot(shadow_fwd);
-                minx = minx.min(x);
-                maxx = maxx.max(x);
-                miny = miny.min(y);
-                maxy = maxy.max(y);
-                minz = minz.min(z);
-                maxz = maxz.max(z);
-            }
-            shadow_half_w = ((maxx - minx) * 0.5 + 2.0).max(1.0);
-            shadow_half_h = ((maxy - miny) * 0.5 + 2.0).max(1.0);
-            shadow_near = minz - 4.0;
-            shadow_far = (maxz + 4.0).max(shadow_near + 1.0);
-
-            let texel_w = (shadow_half_w * 2.0) / (shadow_res as f32).max(1.0);
-            let texel_h = (shadow_half_h * 2.0) / (shadow_res as f32).max(1.0);
-            if texel_w.is_finite() && texel_w > 0.0 && texel_h.is_finite() && texel_h > 0.0 {
-                let center_x = shadow_center.dot(shadow_right);
-                let center_y = shadow_center.dot(shadow_up);
-                let snapped_x = (center_x / texel_w).round() * texel_w;
-                let snapped_y = (center_y / texel_h).round() * texel_h;
-                shadow_center +=
-                    shadow_right * (snapped_x - center_x) + shadow_up * (snapped_y - center_y);
-            }
-        }
+        let raster_mesh::ShadowFrame {
+            center: shadow_center,
+            half_w: shadow_half_w,
+            half_h: shadow_half_h,
+            near: shadow_near,
+            far: shadow_far,
+            right: shadow_right,
+            up: shadow_up,
+            forward: shadow_fwd,
+        } = shadow;
 
         let mut ranked_lights: Vec<RasterPointLight> = self
             .lights
@@ -11199,18 +11891,44 @@ impl VM {
             post_style0: self.raster3d_post_style0.into_array(),
             post_style1,
             avatar_highlight_params: self.raster3d_avatar_highlight_params.into_array(),
-            _pad_tail: [0, 0, 0, 0],
+            _pad_tail: [
+                if entity_indices.is_empty() {
+                    0
+                } else {
+                    self.entity_pixel_size_3d
+                },
+                0,
+                0,
+                0,
+            ],
             palette: self.palette,
             palette_tile_indices: self.palette_tile_indices_uniform(),
             organic_params: [self.organic_visible as u32, 0, 0, 0],
         };
 
         let debug_upload_start = instant::Instant::now();
+        static TRACE_UPLOAD: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let trace_upload = *TRACE_UPLOAD.get_or_init(|| {
+            crate::render_debug_enabled()
+                && std::env::var_os("ELDIRON_TRACE_FRAME_TIMINGS").is_some()
+        });
+        let upload_elapsed = || {
+            if trace_upload {
+                debug_upload_start.elapsed().as_secs_f64() * 1000.
+            } else {
+                0.
+            }
+        };
+        let (organic_ms, irradiance_ms, tables_ms, targets_ms, mesh_ms, indices_ms);
+        let full_geometry_upload;
         {
             self.upload_organic_billboard_ssbo(device, queue);
+            organic_ms = upload_elapsed();
             self.upload_irradiance_grid_ssbo(device, queue);
+            irradiance_ms = upload_elapsed();
             self.upload_material_table_ssbo(device, queue);
             self.upload_raster3d_paint_overlay(device, queue);
+            tables_ms = upload_elapsed();
             let g = self.gpu.as_mut().unwrap();
             g.ensure_raster3d_targets(device, fb_w, fb_h, shadow_res, raster_samples);
             queue.write_buffer(
@@ -11218,6 +11936,7 @@ impl VM {
                 0,
                 bytemuck::bytes_of(&u),
             );
+            targets_ms = upload_elapsed();
             let vertex_bytes = (self.cached_v3.len() * std::mem::size_of::<Vert3DPod>()) as u64;
             let index_bytes = (self.cached_i3.len() * std::mem::size_of::<u32>()) as u64;
             let need_full_geom_upload = static_geometry_rebuilt
@@ -11225,7 +11944,12 @@ impl VM {
                 || g.i3d_ssbo.is_none()
                 || vertex_bytes > g.v3d_ssbo_capacity
                 || index_bytes > g.i3d_ssbo_capacity;
+            full_geometry_upload = need_full_geom_upload;
             if need_full_geom_upload {
+                #[cfg(test)]
+                {
+                    self.raster_vertex_upload_bytes += vertex_bytes as usize;
+                }
                 g.v3d_ssbo = Some(
                     device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some("vm-3d-verts-raster"),
@@ -11247,15 +11971,19 @@ impl VM {
                 );
                 g.i3d_ssbo_capacity = index_bytes;
             } else if geometry_changed {
-                let static_vertex_count = self.cached_static_v3.len().min(self.cached_v3.len());
                 let static_index_count = self.cached_static_i3.len().min(self.cached_i3.len());
-                if static_vertex_count < self.cached_v3.len() {
-                    let offset = (static_vertex_count * std::mem::size_of::<Vert3DPod>()) as u64;
+                for (start, end) in vertex_uploads {
+                    let offset = (start * std::mem::size_of::<Vert3DPod>()) as u64;
                     queue.write_buffer(
                         g.v3d_ssbo.as_ref().unwrap(),
                         offset,
-                        bytemuck::cast_slice(&self.cached_v3[static_vertex_count..]),
+                        bytemuck::cast_slice(&self.cached_v3[start..end]),
                     );
+                    #[cfg(test)]
+                    {
+                        self.raster_vertex_upload_bytes +=
+                            (end - start) * std::mem::size_of::<Vert3DPod>();
+                    }
                 }
                 if static_index_count < self.cached_i3.len() {
                     let offset = (static_index_count * std::mem::size_of::<u32>()) as u64;
@@ -11267,6 +11995,7 @@ impl VM {
                 }
             }
 
+            mesh_ms = upload_elapsed();
             if line3d_changed || g.line3d_raster.is_none() {
                 let line_upload = if self.cached_line3d.is_empty() {
                     vec![Line3DPod {
@@ -11383,6 +12112,7 @@ impl VM {
                 "vm-3d-indices-raster-particles",
                 &particle_upload,
             );
+            indices_ms = upload_elapsed();
 
             g.u_raster3d_shadow_bg = Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("vm-raster3d-shadow-bg"),
@@ -11511,7 +12241,32 @@ impl VM {
                 }),
             );
         }
+        if !entity_indices.is_empty() {
+            let g = self.gpu.as_mut().unwrap();
+            entity_pixels::EntityPixelPass::prepare(
+                &mut g.entity_pixels,
+                device,
+                queue,
+                g.u_raster3d_bgl.as_ref().unwrap(),
+                fb_w,
+                fb_h,
+                self.entity_pixel_size_3d,
+                raster_samples,
+                &entity_indices,
+            );
+        }
         let debug_upload_ms = debug_upload_start.elapsed().as_secs_f64() * 1000.0;
+        if trace_upload {
+            eprintln!(
+                "[FrameTrace][RasterUpload] organic={organic_ms:.3} irradiance={:.3} tables={:.3} targets={:.3} mesh={:.3} indices={:.3} bindings_entity={:.3} full_geometry={full_geometry_upload}",
+                irradiance_ms - organic_ms,
+                tables_ms - irradiance_ms,
+                targets_ms - tables_ms,
+                mesh_ms - targets_ms,
+                indices_ms - mesh_ms,
+                debug_upload_ms - indices_ms
+            );
+        }
 
         let debug_encode_start = instant::Instant::now();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -11554,6 +12309,16 @@ impl VM {
                 shadow_pass.draw_indexed(0..g.i3d_raster_count, 0, 0..1);
             }
 
+            if !entity_indices.is_empty() {
+                g.entity_pixels.as_ref().unwrap().render(
+                    &mut encoder,
+                    g.u_raster3d_bg.as_ref().unwrap(),
+                    g.v3d_ssbo.as_ref().unwrap(),
+                    self.viewport_rect2d,
+                    fb_w,
+                    fb_h,
+                );
+            }
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("vm-3d-raster-pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -11633,6 +12398,63 @@ impl VM {
                 pass.set_bind_group(0, g.u_raster3d_bg.as_ref().unwrap(), &[]);
                 pass.draw(0..g.organic_billboard_count.saturating_mul(6), 0..1);
             }
+            if !entity_indices.is_empty() {
+                drop(pass);
+                g.entity_pixels.as_ref().unwrap().composite(
+                    &mut encoder,
+                    if use_msaa {
+                        g.raster3d_msaa_color_view.as_ref().unwrap()
+                    } else {
+                        g.raster3d_scene_view.as_ref().unwrap()
+                    },
+                    if use_msaa {
+                        Some(g.raster3d_scene_view.as_ref().unwrap())
+                    } else {
+                        None
+                    },
+                    g.raster3d_depth_view.as_ref().unwrap(),
+                    self.viewport_rect2d,
+                );
+                pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("vm-3d-transparent-after-entities"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: if use_msaa {
+                            g.raster3d_msaa_color_view.as_ref().unwrap()
+                        } else {
+                            g.raster3d_scene_view.as_ref().unwrap()
+                        },
+                        resolve_target: if use_msaa {
+                            Some(g.raster3d_scene_view.as_ref().unwrap())
+                        } else {
+                            None
+                        },
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                        view: g.raster3d_depth_view.as_ref().unwrap(),
+                        depth_ops: Some(wgpu::Operations {
+                            load: wgpu::LoadOp::Load,
+                            store: wgpu::StoreOp::Store,
+                        }),
+                        stencil_ops: None,
+                    }),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                if let Some([x, y, w, h]) = self.viewport_rect2d {
+                    let sx = x.max(0.0).min((fb_w - 1) as f32) as u32;
+                    let sy = y.max(0.0).min((fb_h - 1) as f32) as u32;
+                    let sw = w.max(1.0).min((fb_w - sx) as f32) as u32;
+                    let sh = h.max(1.0).min((fb_h - sy) as f32) as u32;
+                    pass.set_scissor_rect(sx, sy, sw, sh);
+                    pass.set_viewport(sx as f32, sy as f32, sw as f32, sh as f32, 0.0, 1.0);
+                }
+            }
             if g.i3d_raster_transparent_count > 0 {
                 pass.set_pipeline(g.raster3d_alpha_pipeline.as_ref().unwrap());
                 pass.set_bind_group(0, g.u_raster3d_bg.as_ref().unwrap(), &[]);
@@ -11685,6 +12507,22 @@ impl VM {
                         binding: 3,
                         resource: wgpu::BindingResource::Sampler(&g.sampler_linear),
                     },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: wgpu::BindingResource::TextureView(
+                            g.raster3d_depth_view.as_ref().unwrap(),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: wgpu::BindingResource::TextureView(
+                            if entity_indices.is_empty() {
+                                g.raster3d_shadow_view.as_ref().unwrap()
+                            } else {
+                                g.entity_pixels.as_ref().unwrap().depth_view()
+                            },
+                        ),
+                    },
                 ],
             });
             {
@@ -11732,6 +12570,22 @@ impl VM {
                     wgpu::BindGroupEntry {
                         binding: 3,
                         resource: wgpu::BindingResource::Sampler(&g.sampler_linear),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 4,
+                        resource: wgpu::BindingResource::TextureView(
+                            g.raster3d_depth_view.as_ref().unwrap(),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 5,
+                        resource: wgpu::BindingResource::TextureView(
+                            if entity_indices.is_empty() {
+                                g.raster3d_shadow_view.as_ref().unwrap()
+                            } else {
+                                g.entity_pixels.as_ref().unwrap().depth_view()
+                            },
+                        ),
                     },
                 ],
             });
@@ -13160,7 +14014,7 @@ impl VM {
             {
                 if obj.kind == DynamicKind::Mesh {
                     let mut mesh_pos: Vec<[f32; 3]> = Vec::with_capacity(obj.mesh_vertices.len());
-                    for v in &obj.mesh_vertices {
+                    for v in obj.mesh_vertices.iter() {
                         let p = m * Vec4::new(v.position.x, v.position.y, v.position.z, 1.0);
                         let w = if p.w != 0.0 { p.w } else { 1.0 };
                         mesh_pos.push([p.x / w, p.y / w, p.z / w]);
@@ -14234,6 +15088,80 @@ mod shader_tests {
     }
 
     #[test]
+    fn moved_occluders_only_recompute_overlapping_lights_and_match_full_solve() {
+        use super::Vert3DPod;
+        use bytemuck::Zeroable;
+        let mut vm = VM::new(16, 16);
+        for pos in [
+            [0., 0., 0.],
+            [60., 0., 0.],
+            [0., 4., 60.],
+            [2., 0., 2.],
+            [2., 3., 2.],
+            [2., 0., 4.],
+        ] {
+            let mut v = Vert3DPod::zeroed();
+            v.pos = pos;
+            v.opacity = 1.;
+            vm.cached_v3.push(v);
+        }
+        vm.cached_i3 = vec![0, 1, 2, 3, 4, 5];
+        vm.cached_tri_visibility = vec![3];
+        for (id, position) in [(1, Vec3::new(4., 2., 3.)), (2, Vec3::new(50., 2., 50.))] {
+            vm.execute(crate::Atom::AddLight {
+                id: GeoId::Unknown(id),
+                light: Light::new_pointlight(position)
+                    .with_intensity(2.)
+                    .with_end_distance(10.),
+            });
+        }
+        vm.build_irradiance_grid_data().unwrap();
+        for step in 1..5 {
+            for v in &mut vm.cached_v3[3..] {
+                v.pos[0] = 2. + step as f32 * 0.1;
+            }
+            let incremental = vm.build_irradiance_grid_data().unwrap();
+            assert_eq!(
+                vm.cached_irradiance_geometry
+                    .as_ref()
+                    .unwrap()
+                    .recomputed_sources,
+                1,
+                "A distant stationary light must retain its exact contribution"
+            );
+            vm.cached_irradiance_geometry = None;
+            vm.cached_irradiance_input_hash = None;
+            assert_eq!(incremental, vm.solve_irradiance_grid(false).unwrap());
+        }
+        // Geometry visibility/count changes must not reuse a source by accident.
+        vm.cached_tri_visibility[0] = 1;
+        let incremental = vm.build_irradiance_grid_data().unwrap();
+        assert_eq!(
+            vm.cached_irradiance_geometry
+                .as_ref()
+                .unwrap()
+                .recomputed_sources,
+            2
+        );
+        vm.cached_irradiance_geometry = None;
+        vm.cached_irradiance_input_hash = None;
+        assert_eq!(incremental, vm.solve_irradiance_grid(false).unwrap());
+        // Extending the grid changes every probe location, even for distant lights.
+        vm.cached_v3[1].pos[0] = 80.;
+        let incremental = vm.build_irradiance_grid_data().unwrap();
+        assert_eq!(
+            vm.cached_irradiance_geometry
+                .as_ref()
+                .unwrap()
+                .recomputed_sources,
+            2
+        );
+        vm.cached_irradiance_geometry = None;
+        vm.cached_irradiance_input_hash = None;
+        assert_eq!(incremental, vm.solve_irradiance_grid(false).unwrap());
+    }
+
+    #[test]
     fn moving_one_light_reuses_fixed_lights_and_matches_a_full_solve() {
         use super::Vert3DPod;
         use bytemuck::Zeroable;
@@ -14270,10 +15198,10 @@ mod shader_tests {
             );
             vm.cached_irradiance_geometry = None;
             vm.cached_irradiance_input_hash = None;
-            let full = vm.build_irradiance_grid_data().unwrap();
+            let full = vm.solve_irradiance_grid(false).unwrap();
             assert_eq!(
                 incremental, full,
-                "moving light output must match a full solve exactly"
+                "parallel incremental lighting must match a serial full solve exactly"
             );
         }
         vm.execute(crate::Atom::RemoveLight {
@@ -14297,6 +15225,152 @@ mod shader_tests {
             7,
             "changed occluders refresh every light"
         );
+    }
+
+    #[test]
+    fn prepared_irradiance_ray_matches_reference_slabs() {
+        for min in [Vec3::zero(), Vec3::new(-4., 1., -2.)] {
+            for extent in [Vec3::new(1., 1., 1.), Vec3::new(9., 0., 4.)] {
+                let max = min + extent;
+                for origin in [
+                    Vec3::zero(),
+                    Vec3::new(-1., 2., -5.),
+                    Vec3::new(8., -3., 2.),
+                    min,
+                    max,
+                ] {
+                    for dir in [
+                        Vec3::unit_x(),
+                        -Vec3::unit_z(),
+                        Vec3::unit_y(),
+                        Vec3::new(1., 0.5, 0.25).normalized(),
+                        Vec3::new(0.0000001, -1., 1.),
+                        Vec3::zero(),
+                    ] {
+                        for max_t in [-1., 0., 0.5, 2., 40.] {
+                            assert_eq!(
+                                super::IrradianceRay::new(origin, dir, max_t).intersects(min, max),
+                                VM::segment_intersects_aabb(origin, dir, max_t, min, max)
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn prepared_irradiance_triangles_match_reference_intersections() {
+        use super::{
+            IrradianceOccluder, IrradianceRay, IrradianceTriangle, ray_triangle_intersect,
+        };
+        let mut seed = 0x7485_14afu32;
+        let mut sample = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            (seed as f32 / u32::MAX as f32 - 0.5) * 20.
+        };
+        for _ in 0..64 {
+            let a = [sample(), sample(), sample()];
+            let b = [sample(), sample(), sample()];
+            let c = [sample(), sample(), sample()];
+            let triangle = IrradianceTriangle::from(IrradianceOccluder {
+                a,
+                b,
+                c,
+                min: Vec3::zero(),
+                max: Vec3::zero(),
+            });
+            for _ in 0..128 {
+                let origin = Vec3::new(sample(), sample(), sample());
+                let dir = Vec3::new(sample(), sample(), sample()).normalized();
+                let max_t = sample().abs() * 3.;
+                let expected = ray_triangle_intersect(origin, dir, a, b, c)
+                    .is_some_and(|(t, _, _)| t > 0.04 && t < max_t - 0.04);
+                assert_eq!(
+                    triangle.blocks(&IrradianceRay::new(origin, dir, max_t)),
+                    expected
+                );
+            }
+            // Vertices, edges, opposite faces, parallel rays and segment endpoints.
+            let center = (Vec3::from(a) + Vec3::from(b) + Vec3::from(c)) / 3.;
+            let normal = (Vec3::from(b) - Vec3::from(a))
+                .cross(Vec3::from(c) - Vec3::from(a))
+                .normalized();
+            for target in [Vec3::from(a), Vec3::from(b), Vec3::from(c), center] {
+                for dir in [normal, -normal, Vec3::unit_x(), Vec3::zero()] {
+                    let origin = target - dir;
+                    for max_t in [0., 0.04, 1., 1.04, 2., 20.] {
+                        let expected = ray_triangle_intersect(origin, dir, a, b, c)
+                            .is_some_and(|(t, _, _)| t > 0.04 && t < max_t - 0.04);
+                        assert_eq!(
+                            triangle.blocks(&IrradianceRay::new(origin, dir, max_t)),
+                            expected
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn irradiance_propagation_matches_original_neighbor_order() {
+        for dims in [[1, 1, 1], [2, 3, 4], [18, 8, 18]] {
+            let n = dims.iter().product::<u32>() as usize;
+            let direct: Vec<_> = (0..n)
+                .map(|i| Vec3::new((i % 7) as f32 * 0.17, (i % 11) as f32 * 0.11, 0.23))
+                .collect();
+            let mut previous = direct.clone();
+            for _ in 0..2 {
+                let next: Vec<_> = (0..n)
+                    .map(|i| {
+                        let x = i as u32 % dims[0];
+                        let y = i as u32 / dims[0] % dims[1];
+                        let z = i as u32 / (dims[0] * dims[1]);
+                        let mut sum = Vec3::zero();
+                        let mut count = 0.;
+                        for (ox, oy, oz) in [
+                            (-1, 0, 0),
+                            (1, 0, 0),
+                            (0, -1, 0),
+                            (0, 1, 0),
+                            (0, 0, -1),
+                            (0, 0, 1),
+                        ] {
+                            let (nx, ny, nz) = (x as i32 + ox, y as i32 + oy, z as i32 + oz);
+                            if nx < 0
+                                || ny < 0
+                                || nz < 0
+                                || nx >= dims[0] as i32
+                                || ny >= dims[1] as i32
+                                || nz >= dims[2] as i32
+                            {
+                                continue;
+                            }
+                            sum += previous[(nx as u32
+                                + ny as u32 * dims[0]
+                                + nz as u32 * dims[0] * dims[1])
+                                as usize];
+                            count += 1.;
+                        }
+                        let neighbor = if count > 0. {
+                            sum / count
+                        } else {
+                            Vec3::zero()
+                        };
+                        let expected = (direct[i] + neighbor * 0.42 + previous[i] * 0.18)
+                            .map(|v: f32| v.clamp(0., 0.85));
+                        assert_eq!(
+                            VM::irradiance_propagation_probe(&direct, &previous, dims, i),
+                            expected
+                        );
+                        expected
+                    })
+                    .collect();
+                previous = next;
+            }
+        }
     }
 
     #[test]
@@ -14355,6 +15429,107 @@ mod shader_tests {
         let (shading, geometry) = resolved_poly_normals(&poly, &positions, Mat4::identity());
         assert_eq!(shading, vec![[1.0, 0.0, 0.0]; 3]);
         assert_eq!(geometry, vec![[0.0, 0.0, 1.0]; 3]);
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn map_item_background_switch_preserves_ground_and_character_alpha() {
+        use crate::{Atom, Chunk, DynamicObject, Poly2D, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        for render_mode in [RenderMode::Raster2D, RenderMode::Compute2D] {
+            let mut scene = SceneVM::new(32, 32);
+            scene.execute(Atom::SetRenderMode(render_mode));
+            scene.execute(Atom::SetBackground(Vec4::new(0., 1., 0., 1.)));
+            scene.execute(Atom::SetGP3(Vec4::new(1., 1., 1., 1.)));
+            scene.execute(Atom::SetGP9(Vec4::new(0., 0., 1., 1.)));
+            let tile = Uuid::new_v4();
+            let mut rgba = vec![0u8; 4 * 4 * 4];
+            for y in 1..3 {
+                for x in 1..3 {
+                    rgba[(y * 4 + x) * 4..][..4].copy_from_slice(&[255, 255, 255, 255]);
+                }
+            }
+            scene.execute(Atom::AddTile {
+                id: tile,
+                width: 4,
+                height: 4,
+                frames: vec![rgba.clone()],
+                material_frames: None,
+            });
+            scene.execute(Atom::BuildAtlas);
+            let chunk_id = Uuid::new_v4();
+            for kind in 0..4 {
+                scene.execute(Atom::ClearDynamics);
+                scene.execute(Atom::RemoveChunk { id: chunk_id });
+                let id = if kind == 3 {
+                    GeoId::Character(7)
+                } else {
+                    GeoId::Item(7)
+                };
+                if kind == 0 {
+                    let mut poly = Poly2D::poly(
+                        GeoId::Sector(7),
+                        tile,
+                        vec![[8., 8.], [24., 8.], [24., 24.], [8., 24.]],
+                        vec![[0., 0.], [1., 0.], [1., 1.], [0., 1.]],
+                        vec![(0, 1, 2), (0, 2, 3)],
+                    );
+
+                    let mut chunk = Chunk::default();
+                    chunk.polys_map.insert(poly.id, poly);
+                    scene.execute(Atom::AddChunk {
+                        id: chunk_id,
+                        chunk,
+                    });
+                } else if kind == 2 {
+                    scene.execute(Atom::SetAvatarBillboardData {
+                        id,
+                        size: 4,
+                        rgba: rgba.clone(),
+                    });
+                    scene.execute(Atom::AddDynamic {
+                        object: DynamicObject::billboard_avatar_2d(
+                            id,
+                            Vec2::new(16., 16.),
+                            16.,
+                            16.,
+                        ),
+                    });
+                } else {
+                    scene.execute(Atom::AddDynamic {
+                        object: DynamicObject::billboard_tile_2d(
+                            id,
+                            tile,
+                            Vec2::new(16., 16.),
+                            16.,
+                            16.,
+                        ),
+                    });
+                }
+                for black in [false, true, false] {
+                    scene.vm.tile_background_black_2d = black;
+                    let mut pixels = vec![0; 32 * 32 * 4];
+                    scene.render_frame(&mut pixels, 32, 32);
+                    let corner = &pixels[(10 * 32 + 10) * 4..][..4];
+                    if black && kind != 3 {
+                        assert!(
+                            corner[..3].iter().all(|c| *c < 5),
+                            "Black item backdrop: kind={kind}, {corner:?}"
+                        );
+                    } else {
+                        assert!(
+                            corner[1] > 240 && corner[0] < 5,
+                            "Ground must show through item/character: kind={kind}, {corner:?}"
+                        );
+                    }
+                    let center = &pixels[(16 * 32 + 16) * 4..][..4];
+                    assert!(
+                        center[..3].iter().all(|c| *c > 10),
+                        "Item remains visible: {center:?}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -14684,7 +15859,10 @@ mod shader_tests {
             let first = pixels.clone();
             scene.execute(Atom::SetAnimationCounter(1));
             scene.render_frame(&mut pixels, 64, 16);
-            assert_ne!(pixels, first, "Server ticks must animate spatial pages in {mode:?}");
+            assert_ne!(
+                pixels, first,
+                "Server ticks must animate spatial pages in {mode:?}"
+            );
             scene.execute(Atom::SetAnimationCounter(2));
             scene.render_frame(&mut pixels, 64, 16);
             assert_eq!(
@@ -14696,31 +15874,62 @@ mod shader_tests {
     #[test]
     #[ignore = "requires a native GPU adapter"]
     fn procedural_and_normal_tiles_follow_identical_server_ticks() {
-        use crate::{Atom,Poly2D,RenderMode,SceneVM};
-        use vek::{Vec2,Vec4};
-        for mode in [RenderMode::Raster2D,RenderMode::Compute2D] {
-            let mut scene=SceneVM::new(32,16);
+        use crate::{Atom, Poly2D, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        for mode in [RenderMode::Raster2D, RenderMode::Compute2D] {
+            let mut scene = SceneVM::new(32, 16);
             scene.execute(Atom::SetRenderMode(mode));
             scene.execute(Atom::SetGP3(Vec4::one()));
-            scene.execute(Atom::SetGP8(Vec4::new(0.,0.,1.,1.)));
-            let ids=[Uuid::new_v4(),Uuid::new_v4()];
-            for id in ids { scene.execute(Atom::AddTile { id,width:1,height:1,frames:vec![vec![255,0,0,255],vec![0,255,0,255]],material_frames:None }); }
-            scene.execute(Atom::SetTileUvPages { id:ids[1],animation_frames:2,repeat_period:[16.;2],origin:[0;2],size:[1;2],axes:[[0.;3];2],units_per_page:1 });
-            scene.execute(Atom::BuildAtlas);
-            let mut chunk=Chunk::new(Vec2::zero(),32);
-            for (i,id) in ids.into_iter().enumerate() {
-                let x=i as f32*16.;
-                chunk.add(Poly2D::poly(GeoId::Unknown(i as u32),id,vec![[x,0.],[x+16.,0.],[x+16.,16.],[x,16.]],vec![[0.,0.],[1.,0.],[1.,1.],[0.,1.]],vec![(0,1,2),(0,2,3)]));
+            scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+            let ids = [Uuid::new_v4(), Uuid::new_v4()];
+            for id in ids {
+                scene.execute(Atom::AddTile {
+                    id,
+                    width: 1,
+                    height: 1,
+                    frames: vec![vec![255, 0, 0, 255], vec![0, 255, 0, 255]],
+                    material_frames: None,
+                });
             }
-            scene.execute(Atom::AddChunk{id:Uuid::new_v4(),chunk});
-            let mut pixels=vec![0;32*16*4];
-            for tick in [0,0,1,1,2,7,8] {
+            scene.execute(Atom::SetTileUvPages {
+                id: ids[1],
+                animation_frames: 2,
+                repeat_period: [16.; 2],
+                origin: [0; 2],
+                size: [1; 2],
+                axes: [[0.; 3]; 2],
+                units_per_page: 1,
+            });
+            scene.execute(Atom::BuildAtlas);
+            let mut chunk = Chunk::new(Vec2::zero(), 32);
+            for (i, id) in ids.into_iter().enumerate() {
+                let x = i as f32 * 16.;
+                chunk.add(Poly2D::poly(
+                    GeoId::Unknown(i as u32),
+                    id,
+                    vec![[x, 0.], [x + 16., 0.], [x + 16., 16.], [x, 16.]],
+                    vec![[0., 0.], [1., 0.], [1., 1.], [0., 1.]],
+                    vec![(0, 1, 2), (0, 2, 3)],
+                ));
+            }
+            scene.execute(Atom::AddChunk {
+                id: Uuid::new_v4(),
+                chunk,
+            });
+            let mut pixels = vec![0; 32 * 16 * 4];
+            for tick in [0, 0, 1, 1, 2, 7, 8] {
                 scene.execute(Atom::SetAnimationCounter(tick));
-                scene.render_frame(&mut pixels,32,16);
-                let normal=&pixels[(8*32+8)*4..(8*32+8)*4+3];
-                let procedural=&pixels[(8*32+24)*4..(8*32+24)*4+3];
-                assert_eq!(normal,procedural,"{mode:?}: both tile kinds must hold and advance together on tick {tick}");
-                assert!(normal[tick%2]>40 && normal[1-tick%2]<12,"{mode:?} tick {tick}: {normal:?}");
+                scene.render_frame(&mut pixels, 32, 16);
+                let normal = &pixels[(8 * 32 + 8) * 4..(8 * 32 + 8) * 4 + 3];
+                let procedural = &pixels[(8 * 32 + 24) * 4..(8 * 32 + 24) * 4 + 3];
+                assert_eq!(
+                    normal, procedural,
+                    "{mode:?}: both tile kinds must hold and advance together on tick {tick}"
+                );
+                assert!(
+                    normal[tick % 2] > 40 && normal[1 - tick % 2] < 12,
+                    "{mode:?} tick {tick}: {normal:?}"
+                );
             }
         }
     }
@@ -14747,12 +15956,23 @@ mod shader_tests {
                 id: tile,
                 width: 4,
                 height: 2,
-                frames: vec![colors.repeat(2).into_iter().flatten().collect(), colors.iter().rev().copied().collect::<Vec<_>>().repeat(2).into_iter().flatten().collect()],
+                frames: vec![
+                    colors.repeat(2).into_iter().flatten().collect(),
+                    colors
+                        .iter()
+                        .rev()
+                        .copied()
+                        .collect::<Vec<_>>()
+                        .repeat(2)
+                        .into_iter()
+                        .flatten()
+                        .collect(),
+                ],
                 material_frames: None,
             });
             scene.execute(Atom::SetTileUvPages {
                 animation_frames: 2,
-                repeat_period: [32.,16.],
+                repeat_period: [32., 16.],
                 id: tile,
                 origin: [0, 0],
                 size: [1, 1],
@@ -14775,7 +15995,7 @@ mod shader_tests {
             let mut pixels = vec![0; 64 * 16 * 4];
             scene.render_frame(&mut pixels, 64, 16);
             for i in 0..8 {
-                let expected=&colors[i%4];
+                let expected = &colors[i % 4];
                 let at = (8 * 64 + i * 8 + 4) * 4;
                 let actual = &pixels[at..at + 3];
                 assert!(
@@ -14794,7 +16014,10 @@ mod shader_tests {
             let first = pixels.clone();
             scene.execute(Atom::SetAnimationCounter(1));
             scene.render_frame(&mut pixels, 64, 16);
-            assert_ne!(pixels, first, "Server ticks must animate spatial pages in {mode:?}");
+            assert_ne!(
+                pixels, first,
+                "Server ticks must animate spatial pages in {mode:?}"
+            );
             scene.execute(Atom::SetAnimationCounter(2));
             scene.render_frame(&mut pixels, 64, 16);
             assert_eq!(
@@ -14962,7 +16185,10 @@ mod shader_tests {
             let first = pixels.clone();
             scene.execute(Atom::SetAnimationCounter(1));
             scene.render_frame(&mut pixels, 128, 64);
-            assert_ne!(pixels, first, "Server ticks must animate spatial pages in {mode:?}");
+            assert_ne!(
+                pixels, first,
+                "Server ticks must animate spatial pages in {mode:?}"
+            );
             scene.execute(Atom::SetAnimationCounter(2));
             scene.render_frame(&mut pixels, 128, 64);
             assert_eq!(
@@ -14999,14 +16225,33 @@ mod shader_tests {
                 id: tile,
                 width: 2,
                 height: 2,
-                frames: vec![vec![[255,0,0,255],[0,255,0,255],[0,0,255,255],[255,255,0,255]].into_iter().flatten().collect(), vec![[0,0,255,255],[255,255,0,255],[255,0,0,255],[0,255,0,255]].into_iter().flatten().collect()],
+                frames: vec![
+                    vec![
+                        [255, 0, 0, 255],
+                        [0, 255, 0, 255],
+                        [0, 0, 255, 255],
+                        [255, 255, 0, 255],
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+                    vec![
+                        [0, 0, 255, 255],
+                        [255, 255, 0, 255],
+                        [255, 0, 0, 255],
+                        [0, 255, 0, 255],
+                    ]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+                ],
                 material_frames: None,
             });
             scene.execute(Atom::SetTileUvPages {
                 animation_frames: 2,
-                repeat_period: [2.,2.],
+                repeat_period: [2., 2.],
                 id: tile,
-                origin: [0,0],
+                origin: [0, 0],
                 size: [1, 1],
                 axes: [[0.; 3]; 2],
                 units_per_page: 1,
@@ -15059,7 +16304,10 @@ mod shader_tests {
             let first = pixels.clone();
             scene.execute(Atom::SetAnimationCounter(1));
             scene.render_frame(&mut pixels, 128, 64);
-            assert_ne!(pixels, first, "Server ticks must animate spatial pages in {mode:?}");
+            assert_ne!(
+                pixels, first,
+                "Server ticks must animate spatial pages in {mode:?}"
+            );
             scene.execute(Atom::SetAnimationCounter(2));
             scene.render_frame(&mut pixels, 128, 64);
             assert_eq!(
@@ -15154,6 +16402,447 @@ mod shader_tests {
             assert_eq!(pixels, before);
         }
     }
+    #[test]
+    fn raster_mesh_groups_match_triangle_classification_and_full_bounds() {
+        use crate::{Atom, DynamicObject, dynamic::DynamicMeshVertex};
+        use bytemuck::Zeroable;
+        use vek::Vec2;
+        let mut vm = VM::new_with_shared_atlas(crate::SharedAtlas::new(16, 16));
+        let opaque_id = Uuid::new_v4();
+        let alpha_id = Uuid::new_v4();
+        for (id, alpha) in [(opaque_id, 255), (alpha_id, 100)] {
+            vm.execute(Atom::AddTile {
+                id,
+                width: 2,
+                height: 2,
+                frames: vec![[180, 80, 40, alpha].repeat(4)],
+                material_frames: None,
+            });
+        }
+        vm.build_atlas();
+        let opaque = vm.shared_atlas.tile_index(&opaque_id).unwrap();
+        let alpha = vm.shared_atlas.tile_index(&alpha_id).unwrap();
+        // One static surface and one particle, followed by four uniform meshes.
+        for z in [0., 1.] {
+            for (x, y) in [(-1., -1.), (1., -1.), (0., 1.)] {
+                let mut vertex = super::Vert3DPod::zeroed();
+                vertex.pos = [x, y, z];
+                vertex.tile_index = opaque;
+                vertex.tile_index2 = opaque | if z == 1. { 0x2800_0000 } else { 0 };
+                vertex.opacity = if z == 1. { 0.5 } else { 1. };
+                vm.cached_v3.push(vertex);
+            }
+        }
+        vm.cached_static_v3 = vm.cached_v3[..3].to_vec();
+        vm.raster_static_bounds = super::raster_mesh::Bounds::from_vertices(&vm.cached_static_v3);
+        vm.cached_static_i3 = vec![0, 1, 2];
+        vm.cached_i3 = (0..6).collect();
+        vm.cached_tri_geo_ids = vec![GeoId::Unknown(1), GeoId::Unknown(2)];
+        for (i, tile, opacity) in [
+            (0, opaque, 1.),
+            (1, opaque, 0.5),
+            (2, alpha, 1.),
+            (3, opaque, 0.6),
+        ] {
+            let id = GeoId::Item(i + 10);
+            let object = DynamicObject::mesh(
+                id,
+                opaque_id,
+                [(-1., -1.), (1., -1.), (0., 1.)]
+                    .map(|(x, y)| DynamicMeshVertex {
+                        position: Vec3::new(x, y, i as f32 * 0.2),
+                        normal: Vec3::unit_z(),
+                        uv: Vec2::zero(),
+                    })
+                    .to_vec(),
+                vec![0, 1, 2],
+            )
+            .with_opacity(opacity);
+            let mut cache = super::raster_mesh::MeshCache::default();
+            let base = vm.cached_v3.len();
+            cache.append(&object, Mat4::identity(), tile, &mut vm.cached_v3);
+            let first_index = vm.cached_i3.len();
+            vm.cached_i3.extend((base as u32)..(base as u32 + 3));
+            vm.cached_tri_geo_ids.push(id);
+            vm.raster_mesh_spans.push(super::raster_mesh::MeshSpan {
+                vertex_start: base,
+                first_index,
+                end_index: vm.cached_i3.len(),
+                tile,
+                opacity,
+                id,
+            });
+            vm.raster_mesh_cache.push(cache);
+        }
+        vm.raster3d_paint_alpha_geo_ids.insert(GeoId::Item(13));
+        vm.cached_tri_visibility = vec![63];
+        vm.raster_static_geometry_ready = true;
+        let mut camera = crate::Camera3D::default();
+        for forward in [Vec3::unit_z(), -Vec3::unit_z(), Vec3::unit_y()] {
+            camera.forward = forward;
+            let reference = vm.split_raster_visible_indices_range(&camera, 0, 6, true);
+            assert_eq!(vm.rebuild_raster_visible_indices(&camera), reference);
+        }
+        assert_eq!(
+            vm.irradiance_scene_bounds(),
+            super::raster_mesh::Bounds::from_vertices(&vm.cached_v3)
+        );
+        let (first, hash) = vm.irradiance_occluder_inputs();
+        let (_, second_hash) = vm.irradiance_occluder_inputs();
+        assert_eq!(hash, second_hash);
+        assert_eq!(
+            vm.raster_occluder_builds, 1,
+            "Camera-only updates reuse occluder geometry"
+        );
+        vm.raster_static_geometry_ready = false;
+        let (fresh, fresh_hash) = vm.irradiance_occluder_inputs();
+        assert_eq!(hash, fresh_hash);
+        assert_eq!(
+            first.iter().map(|t| (t.a, t.b, t.c)).collect::<Vec<_>>(),
+            fresh.iter().map(|t| (t.a, t.b, t.c)).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn raster_static_classification_retains_camera_independent_data_and_sorts_alpha() {
+        use bytemuck::Zeroable;
+        let mut vm = VM::new(64, 64);
+        for (z, opacity) in [(0., 1.), (0., 0.5), (1., 0.5)] {
+            for (x, y) in [(-1., -1.), (1., -1.), (0., 1.)] {
+                let mut vertex = super::Vert3DPod::zeroed();
+                vertex.pos = [x, y, z];
+                vertex.opacity = opacity;
+                vm.cached_v3.push(vertex);
+            }
+        }
+        vm.cached_i3 = (0..9).collect();
+        vm.cached_static_i3 = vm.cached_i3.clone();
+        vm.cached_tri_visibility = vec![7];
+        vm.cached_tri_geo_ids = vec![GeoId::Unknown(1); 3];
+        let mut camera = crate::Camera3D::default();
+        for forward in [
+            Vec3::unit_z(),
+            -Vec3::unit_z(),
+            Vec3::unit_y(),
+            Vec3::unit_z(),
+        ] {
+            camera.forward = forward;
+            let retained = vm.rebuild_raster_visible_indices(&camera);
+            assert_eq!(retained.1, vec![0, 1, 2]);
+            let expected_alpha = if forward.z > 0. {
+                vec![6, 7, 8, 3, 4, 5]
+            } else {
+                // Equal-depth surfaces must return to authored order too.
+                vec![3, 4, 5, 6, 7, 8]
+            };
+            assert_eq!(retained.3, expected_alpha);
+            vm.cached_static_raster_indices_valid = false;
+            assert_eq!(vm.rebuild_raster_visible_indices(&camera), retained);
+        }
+        vm.cached_tri_visibility[0] = 6;
+        vm.cached_static_raster_indices_valid = false;
+        assert!(vm.rebuild_raster_visible_indices(&camera).1.is_empty());
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn raster_3d_background_lighting_matches_synchronous_pixels_and_clears() {
+        use crate::{Atom, Camera3D, CameraKind, Chunk, Poly3D, RenderMode, SceneVM};
+        use vek::{Vec2, Vec4};
+        let mut scene = SceneVM::new(64, 64);
+        scene.set_background_lighting(true);
+        scene.execute(Atom::SetRenderMode(RenderMode::Raster3D));
+        scene.execute(Atom::SetGP2(Vec4::new(-0.3, -0.8, -0.5, 0.)));
+        scene.execute(Atom::SetGP3(Vec4::one()));
+        scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+        let tile = Uuid::new_v4();
+        scene.execute(Atom::AddTile {
+            id: tile,
+            width: 2,
+            height: 2,
+            frames: vec![[220, 80, 30, 255].repeat(4)],
+            material_frames: None,
+        });
+        scene.execute(Atom::BuildAtlas);
+        let mut chunk = Chunk::new(Vec2::zero(), 8);
+        chunk.add_3d(Poly3D::poly(
+            GeoId::Unknown(1),
+            tile,
+            vec![[-0.8, -0.8, 0., 1.], [0.8, -0.8, 0., 1.], [0., 0.8, 0., 1.]],
+            vec![[0., 0.], [1., 0.], [0.5, 1.]],
+            vec![(0, 1, 2)],
+        ));
+        scene.execute(Atom::AddChunk {
+            id: Uuid::new_v4(),
+            chunk,
+        });
+        scene.execute(Atom::SetCamera3D {
+            camera: Camera3D::builder()
+                .with_kind(CameraKind::OrthoIso)
+                .with_pos(Vec3::new(0., 0., 4.))
+                .with_basis(Vec3::new(0., 0., -1.), Vec3::unit_y())
+                .with_ortho_half_h(1.5),
+        });
+        let light = crate::Light::new_pointlight(Vec3::new(0., 1., 2.))
+            .with_color(Vec3::one())
+            .with_intensity(2.)
+            .with_end_distance(4.);
+        scene.execute(Atom::AddLight {
+            id: GeoId::ItemLight(3),
+            light: light.clone(),
+        });
+        let mut frame = vec![0; 64 * 64 * 4];
+        scene.render_frame(&mut frame, 64, 64);
+        let reference = scene.vm.solve_irradiance_grid(false).unwrap();
+        let start = std::time::Instant::now();
+        while scene.vm.cached_irradiance_grid_data != reference {
+            assert!(
+                start.elapsed().as_secs() < 5,
+                "native lighting did not publish"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(1));
+            scene.render_frame(&mut frame, 64, 64);
+        }
+        assert!(frame.chunks_exact(4).any(|p| p[0] > 80));
+        let asynchronous = frame.clone();
+        scene.vm.irradiance_async = false;
+        scene.vm.irradiance_grid_dirty = true;
+        scene.vm.cached_irradiance_input_hash = None;
+        scene.render_frame(&mut frame, 64, 64);
+        assert_eq!(
+            asynchronous, frame,
+            "background lighting must preserve settled GPU output"
+        );
+        scene.vm.irradiance_async = true;
+        scene.execute(Atom::ClearLights);
+        scene.render_frame(&mut frame, 64, 64);
+        assert_eq!(
+            scene.vm.cached_irradiance_grid_data,
+            VM::disabled_irradiance_grid_data()
+        );
+        scene.execute(Atom::AddLight {
+            id: GeoId::ItemLight(3),
+            light,
+        });
+        let start = std::time::Instant::now();
+        while scene.vm.cached_irradiance_grid_data != reference {
+            assert!(
+                start.elapsed().as_secs() < 5,
+                "native lighting did not relight"
+            );
+            scene.render_frame(&mut frame, 64, 64);
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn raster_3d_retained_meshes_and_shadow_bounds_match_cold_rebuilds() {
+        use crate::{
+            Atom, Camera3D, CameraKind, Chunk, DynamicObject, Poly3D, RenderMode, SceneVM,
+            dynamic::DynamicMeshVertex,
+        };
+        use vek::{Vec2, Vec4};
+        let mut scene = SceneVM::new(64, 64);
+        // This test compares identical synchronous snapshots. The asynchronous
+        // worker has separate tests for parity and rejecting obsolete results.
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            scene.vm.irradiance_async = false;
+        }
+        scene.execute(Atom::SetRenderMode(RenderMode::Raster3D));
+        scene.execute(Atom::SetBackground(Vec4::new(0., 0., 0., 1.)));
+        scene.execute(Atom::SetGP2(Vec4::new(-0.3, -0.8, -0.5, 0.)));
+        scene.execute(Atom::SetGP3(Vec4::one()));
+        scene.execute(Atom::SetGP8(Vec4::new(0., 0., 1., 1.)));
+        scene.execute(Atom::SetGP9(Vec4::new(0., 0., 1., 2.2)));
+        scene.execute(Atom::SetGP7(Vec4::new(1., 0.7, 512., 0.)));
+        scene.execute(Atom::AddLight {
+            id: GeoId::ItemLight(3),
+            light: crate::Light::new_pointlight(Vec3::new(0., 1., 2.))
+                .with_color(Vec3::one())
+                .with_intensity(2.)
+                .with_end_distance(4.),
+        });
+        let tile = Uuid::new_v4();
+        scene.execute(Atom::AddTile {
+            id: tile,
+            width: 2,
+            height: 2,
+            frames: vec![[220, 80, 30, 255].repeat(4)],
+            material_frames: None,
+        });
+        scene.execute(Atom::BuildAtlas);
+        scene.execute(Atom::SetCamera3D {
+            camera: Camera3D::builder()
+                .with_kind(CameraKind::OrthoIso)
+                .with_pos(Vec3::new(0., 0., 4.))
+                .with_basis(Vec3::new(0., 0., -1.), Vec3::unit_y())
+                .with_ortho_half_h(1.5),
+        });
+        let mut object = DynamicObject::mesh(
+            GeoId::Item(1),
+            tile,
+            vec![
+                DynamicMeshVertex {
+                    position: Vec3::new(-0.8, -0.8, 0.),
+                    normal: Vec3::unit_z(),
+                    uv: Vec2::new(0., 0.),
+                },
+                DynamicMeshVertex {
+                    position: Vec3::new(0.8, -0.8, 0.),
+                    normal: Vec3::unit_z(),
+                    uv: Vec2::new(1., 0.),
+                },
+                DynamicMeshVertex {
+                    position: Vec3::new(0., 0.8, 0.),
+                    normal: Vec3::unit_z(),
+                    uv: Vec2::new(0.5, 1.),
+                },
+            ],
+            vec![0, 1, 2],
+        );
+        let mut frame = vec![0; 64 * 64 * 4];
+        let mut uploaded = None;
+        let mut occluder_builds = None;
+        for _ in 0..2 {
+            scene.execute(Atom::ClearDynamics);
+            scene.execute(Atom::AddDynamic {
+                object: object.clone(),
+            });
+            scene.render_frame(&mut frame, 64, 64);
+            if let Some(bytes) = uploaded {
+                assert_eq!(
+                    scene.vm.raster_vertex_upload_bytes, bytes,
+                    "Unchanged shared mesh vertices must remain resident on the GPU"
+                );
+            }
+            uploaded = Some(scene.vm.raster_vertex_upload_bytes);
+            if let Some(builds) = occluder_builds {
+                assert_eq!(
+                    scene.vm.raster_occluder_builds, builds,
+                    "Unchanged meshes must not rebuild irradiance occluders"
+                );
+            }
+            occluder_builds = Some(scene.vm.raster_occluder_builds);
+        }
+        assert!(
+            frame.chunks_exact(4).any(|p| p[0] > 80),
+            "The test mesh must be visible (max red {}, verts {}, indices {:?}, tile {:?})",
+            frame.chunks_exact(4).map(|p| p[0]).max().unwrap(),
+            scene.vm.cached_v3.len(),
+            scene.vm.cached_i3,
+            scene.vm.shared_atlas.tile_index(&tile)
+        );
+        assert_eq!(
+            scene.vm.raster_static_build_count_3d, 1,
+            "An empty environment is a valid cached static scene"
+        );
+        for stage in 0..15 {
+            match stage {
+                0 => {
+                    for v in std::sync::Arc::make_mut(&mut object.mesh_vertices) {
+                        v.position.x += 0.3;
+                    }
+                }
+                1 => object.opacity = 0.5,
+                2 => {
+                    let mut chunk = Chunk::new(Vec2::zero(), 8);
+                    chunk.add_3d(Poly3D::poly(
+                        GeoId::Unknown(2),
+                        tile,
+                        vec![[-2., -1., -1., 1.], [2., -1., -1., 1.], [0., 2., -1., 1.]],
+                        vec![[0., 0.], [1., 0.], [0.5, 1.]],
+                        vec![(0, 1, 2)],
+                    ));
+                    scene.execute(Atom::AddChunk {
+                        id: Uuid::new_v4(),
+                        chunk,
+                    });
+                }
+                3 => scene.execute(Atom::SetGP2(Vec4::new(-0.3, -0.8, -0.5, 1.))),
+                4 => scene.execute(Atom::SetTransform3D(Mat4::<f32>::translation_3d(
+                    Vec3::<f32>::new(-0.2, 0.1, 0.),
+                ))),
+                5 | 6 => scene.execute(Atom::SetGeoVisible {
+                    id: GeoId::Unknown(2),
+                    visible: stage == 6,
+                }),
+                7 => scene.execute(Atom::AddLight {
+                    id: GeoId::ItemLight(3),
+                    light: crate::Light::new_pointlight(Vec3::new(0.3, 0.8, 2.))
+                        .with_color(Vec3::one())
+                        .with_intensity(2.)
+                        .with_end_distance(4.),
+                }),
+                8 => std::sync::Arc::make_mut(&mut object.mesh_indices).swap(1, 2),
+                12 => {
+                    scene.vm.shared_atlas.with_tile_mut(&tile, |tile| {
+                        for pixel in tile.frames[0].chunks_exact_mut(4) {
+                            pixel[3] = 128;
+                        }
+                    });
+                }
+                13 | 14 => {
+                    scene.vm.shared_atlas.with_tile_mut(&tile, |tile| {
+                        for pixel in tile.frames[0].chunks_exact_mut(4) {
+                            pixel[3] = 255;
+                        }
+                        tile.material_frames =
+                            vec![[254, if stage == 13 { 20 } else { 4 }, 128, 128].repeat(4)];
+                    });
+                }
+                _ => {}
+            }
+            scene.execute(Atom::ClearDynamics);
+            scene.execute(Atom::AddDynamic {
+                object: object.clone(),
+            });
+            if stage == 9 || stage == 10 {
+                let mut billboard = DynamicObject::billboard_tile(
+                    GeoId::Item(4),
+                    tile,
+                    Vec3::new(4., 0., 0.5),
+                    Vec3::unit_x(),
+                    Vec3::unit_y(),
+                    0.5,
+                    0.5,
+                );
+                if stage == 9 {
+                    billboard.kind = crate::DynamicKind::ParticleBillboard;
+                    billboard.opacity = 0.4;
+                }
+                scene.execute(Atom::AddDynamic { object: billboard });
+            }
+            scene.render_frame(&mut frame, 64, 64);
+            let hot = frame.clone();
+            scene.vm.raster_mesh_cache.clear();
+            scene.vm.raster_shadow_frame = None;
+            scene.vm.mark_all_geometry_dirty();
+            scene.render_frame(&mut frame, 64, 64);
+            assert_eq!(
+                frame, hot,
+                "Cached and cold rendering must match after edit {stage}"
+            );
+        }
+        let before_switch = frame.clone();
+        scene.execute(Atom::SetRenderMode(RenderMode::Compute3D));
+        scene.render_frame(&mut frame, 64, 64);
+        scene.execute(Atom::SetRenderMode(RenderMode::Raster3D));
+        scene.render_frame(&mut frame, 64, 64);
+        assert_eq!(
+            frame, before_switch,
+            "Changing backends must restore resident raster geometry"
+        );
+        scene.execute(Atom::ClearDynamics);
+        scene.render_frame(&mut frame, 64, 64);
+        assert!(
+            scene.vm.raster_mesh_cache.is_empty(),
+            "Removed objects must release their converted data"
+        );
+    }
+
     #[test]
     fn raster_shader_validates_with_uniformity_checks() {
         let module = wgpu::naga::front::wgsl::parse_str(SCENEVM_3D_RASTER_WGSL)

@@ -1,0 +1,5057 @@
+{
+  "version": 1,
+  "id": "green_wood",
+  "label": "Green Wood",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Green Wood",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Green Wood",
+            "document": {
+              "version": 1,
+              "id": "green_wood-construction",
+              "label": "Green Wood construction",
+              "rows": [
+                {
+                  "id": "weapon-ash",
+                  "label": "Weapon-Ash",
+                  "tiles": [
+                    {
+                      "id": "weapon-ash-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-bark",
+                  "label": "Left Bark",
+                  "tiles": [
+                    {
+                      "id": "left-bark-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              -0.055,
+                              -0.13,
+                              0
+                            ],
+                            "radius": [
+                              0.0495,
+                              0.0495
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.055,
+                              0.12,
+                              0
+                            ],
+                            "radius": [
+                              0.055,
+                              0.055
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "left-bark-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "left-bark-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-cutwood",
+                  "label": "Item-Cutwood",
+                  "tiles": [
+                    {
+                      "id": "item-cutwood-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 21,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-cut",
+                  "label": "Left Cut",
+                  "tiles": [
+                    {
+                      "id": "left-cut-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              -0.055,
+                              0.12,
+                              0
+                            ],
+                            "radius": [
+                              0.050050000000000004,
+                              0.050050000000000004
+                            ]
+                          },
+                          {
+                            "center": [
+                              -0.055,
+                              0.124,
+                              0
+                            ],
+                            "radius": [
+                              0.050050000000000004,
+                              0.050050000000000004
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "left-cut-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-cutwood"
+                      }
+                    },
+                    {
+                      "id": "left-cut-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-cutwood",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-wrap",
+                  "label": "Weapon-Wrap",
+                  "tiles": [
+                    {
+                      "id": "weapon-wrap-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-0",
+                  "label": "Left Ring 0 0",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.01625,
+                            0.0
+                          ],
+                          [
+                            0.01925,
+                            0.0
+                          ],
+                          [
+                            0.016670989022850444,
+                            0.009624999999999998
+                          ],
+                          [
+                            0.01407291281149713,
+                            0.008124999999999999
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-1",
+                  "label": "Left Ring 0 1",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.01407291281149713,
+                            0.008124999999999999
+                          ],
+                          [
+                            0.016670989022850444,
+                            0.009624999999999998
+                          ],
+                          [
+                            0.009625000000000002,
+                            0.016670989022850444
+                          ],
+                          [
+                            0.008125000000000002,
+                            0.014072912811497128
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-2",
+                  "label": "Left Ring 0 2",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.008125000000000002,
+                            0.014072912811497128
+                          ],
+                          [
+                            0.009625000000000002,
+                            0.016670989022850444
+                          ],
+                          [
+                            1.1787225441793274e-18,
+                            0.01925
+                          ],
+                          [
+                            9.950255243072246e-19,
+                            0.01625
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-3",
+                  "label": "Left Ring 0 3",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            9.950255243072246e-19,
+                            0.01625
+                          ],
+                          [
+                            1.1787225441793274e-18,
+                            0.01925
+                          ],
+                          [
+                            -0.009624999999999996,
+                            0.016670989022850444
+                          ],
+                          [
+                            -0.008124999999999997,
+                            0.01407291281149713
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-4",
+                  "label": "Left Ring 0 4",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.008124999999999997,
+                            0.01407291281149713
+                          ],
+                          [
+                            -0.009624999999999996,
+                            0.016670989022850444
+                          ],
+                          [
+                            -0.016670989022850444,
+                            0.009624999999999998
+                          ],
+                          [
+                            -0.01407291281149713,
+                            0.008124999999999999
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-5",
+                  "label": "Left Ring 0 5",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.01407291281149713,
+                            0.008124999999999999
+                          ],
+                          [
+                            -0.016670989022850444,
+                            0.009624999999999998
+                          ],
+                          [
+                            -0.01925,
+                            2.3574450883586547e-18
+                          ],
+                          [
+                            -0.01625,
+                            1.990051048614449e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-6",
+                  "label": "Left Ring 0 6",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.01625,
+                            1.990051048614449e-18
+                          ],
+                          [
+                            -0.01925,
+                            2.3574450883586547e-18
+                          ],
+                          [
+                            -0.016670989022850448,
+                            -0.009624999999999996
+                          ],
+                          [
+                            -0.014072912811497132,
+                            -0.008124999999999997
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-7",
+                  "label": "Left Ring 0 7",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.014072912811497132,
+                            -0.008124999999999997
+                          ],
+                          [
+                            -0.016670989022850448,
+                            -0.009624999999999996
+                          ],
+                          [
+                            -0.009625000000000009,
+                            -0.016670989022850437
+                          ],
+                          [
+                            -0.008125000000000007,
+                            -0.014072912811497125
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-8",
+                  "label": "Left Ring 0 8",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.008125000000000007,
+                            -0.014072912811497125
+                          ],
+                          [
+                            -0.009625000000000009,
+                            -0.016670989022850437
+                          ],
+                          [
+                            -3.536167632537982e-18,
+                            -0.01925
+                          ],
+                          [
+                            -2.9850765729216734e-18,
+                            -0.01625
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-9",
+                  "label": "Left Ring 0 9",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -2.9850765729216734e-18,
+                            -0.01625
+                          ],
+                          [
+                            -3.536167632537982e-18,
+                            -0.01925
+                          ],
+                          [
+                            0.009625000000000002,
+                            -0.016670989022850444
+                          ],
+                          [
+                            0.008125000000000002,
+                            -0.014072912811497128
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-10",
+                  "label": "Left Ring 0 10",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.008125000000000002,
+                            -0.014072912811497128
+                          ],
+                          [
+                            0.009625000000000002,
+                            -0.016670989022850444
+                          ],
+                          [
+                            0.016670989022850437,
+                            -0.009625000000000009
+                          ],
+                          [
+                            0.014072912811497125,
+                            -0.008125000000000007
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-0-11",
+                  "label": "Left Ring 0 11",
+                  "tiles": [
+                    {
+                      "id": "left-ring-0-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.014072912811497125,
+                            -0.008125000000000007
+                          ],
+                          [
+                            0.016670989022850437,
+                            -0.009625000000000009
+                          ],
+                          [
+                            0.01925,
+                            -4.7148901767173094e-18
+                          ],
+                          [
+                            0.01625,
+                            -3.980102097228898e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-0-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-0",
+                  "label": "Left Ring 1 0",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.0344,
+                            0.0
+                          ],
+                          [
+                            0.0374,
+                            0.0
+                          ],
+                          [
+                            0.03238935010153801,
+                            0.018699999999999998
+                          ],
+                          [
+                            0.02979127389018469,
+                            0.017199999999999997
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-1",
+                  "label": "Left Ring 1 1",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.02979127389018469,
+                            0.017199999999999997
+                          ],
+                          [
+                            0.03238935010153801,
+                            0.018699999999999998
+                          ],
+                          [
+                            0.018700000000000005,
+                            0.032389350101538004
+                          ],
+                          [
+                            0.017200000000000003,
+                            0.029791273890184686
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-2",
+                  "label": "Left Ring 1 2",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.017200000000000003,
+                            0.029791273890184686
+                          ],
+                          [
+                            0.018700000000000005,
+                            0.032389350101538004
+                          ],
+                          [
+                            2.2900895144055507e-18,
+                            0.0374
+                          ],
+                          [
+                            2.1063924945334474e-18,
+                            0.0344
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-3",
+                  "label": "Left Ring 1 3",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            2.1063924945334474e-18,
+                            0.0344
+                          ],
+                          [
+                            2.2900895144055507e-18,
+                            0.0374
+                          ],
+                          [
+                            -0.018699999999999994,
+                            0.03238935010153801
+                          ],
+                          [
+                            -0.017199999999999993,
+                            0.02979127389018469
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-4",
+                  "label": "Left Ring 1 4",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.017199999999999993,
+                            0.02979127389018469
+                          ],
+                          [
+                            -0.018699999999999994,
+                            0.03238935010153801
+                          ],
+                          [
+                            -0.03238935010153801,
+                            0.018699999999999998
+                          ],
+                          [
+                            -0.02979127389018469,
+                            0.017199999999999997
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-5",
+                  "label": "Left Ring 1 5",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.02979127389018469,
+                            0.017199999999999997
+                          ],
+                          [
+                            -0.03238935010153801,
+                            0.018699999999999998
+                          ],
+                          [
+                            -0.0374,
+                            4.5801790288111015e-18
+                          ],
+                          [
+                            -0.0344,
+                            4.212784989066895e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-6",
+                  "label": "Left Ring 1 6",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.0344,
+                            4.212784989066895e-18
+                          ],
+                          [
+                            -0.0374,
+                            4.5801790288111015e-18
+                          ],
+                          [
+                            -0.03238935010153801,
+                            -0.018699999999999994
+                          ],
+                          [
+                            -0.029791273890184697,
+                            -0.017199999999999993
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-7",
+                  "label": "Left Ring 1 7",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.029791273890184697,
+                            -0.017199999999999993
+                          ],
+                          [
+                            -0.03238935010153801,
+                            -0.018699999999999994
+                          ],
+                          [
+                            -0.01870000000000002,
+                            -0.032389350101538
+                          ],
+                          [
+                            -0.017200000000000014,
+                            -0.02979127389018468
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-8",
+                  "label": "Left Ring 1 8",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.017200000000000014,
+                            -0.02979127389018468
+                          ],
+                          [
+                            -0.01870000000000002,
+                            -0.032389350101538
+                          ],
+                          [
+                            -6.870268543216652e-18,
+                            -0.0374
+                          ],
+                          [
+                            -6.319177483600342e-18,
+                            -0.0344
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-9",
+                  "label": "Left Ring 1 9",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -6.319177483600342e-18,
+                            -0.0344
+                          ],
+                          [
+                            -6.870268543216652e-18,
+                            -0.0374
+                          ],
+                          [
+                            0.018700000000000005,
+                            -0.032389350101538004
+                          ],
+                          [
+                            0.017200000000000003,
+                            -0.029791273890184686
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-10",
+                  "label": "Left Ring 1 10",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.017200000000000003,
+                            -0.029791273890184686
+                          ],
+                          [
+                            0.018700000000000005,
+                            -0.032389350101538004
+                          ],
+                          [
+                            0.032389350101538,
+                            -0.01870000000000002
+                          ],
+                          [
+                            0.02979127389018468,
+                            -0.017200000000000014
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "left-ring-1-11",
+                  "label": "Left Ring 1 11",
+                  "tiles": [
+                    {
+                      "id": "left-ring-1-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.02979127389018468,
+                            -0.017200000000000014
+                          ],
+                          [
+                            0.032389350101538,
+                            -0.01870000000000002
+                          ],
+                          [
+                            0.0374,
+                            -9.160358057622203e-18
+                          ],
+                          [
+                            0.0344,
+                            -8.42556997813379e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.055,
+                          0.126,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "left-ring-1-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-bark",
+                  "label": "Right Bark",
+                  "tiles": [
+                    {
+                      "id": "right-bark-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.055,
+                              -0.13,
+                              0
+                            ],
+                            "radius": [
+                              0.0495,
+                              0.0495
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.055,
+                              0.15999999999999998,
+                              0
+                            ],
+                            "radius": [
+                              0.055,
+                              0.055
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "right-bark-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-ash"
+                      }
+                    },
+                    {
+                      "id": "right-bark-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-cut",
+                  "label": "Right Cut",
+                  "tiles": [
+                    {
+                      "id": "right-cut-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.055,
+                              0.15999999999999998,
+                              0
+                            ],
+                            "radius": [
+                              0.050050000000000004,
+                              0.050050000000000004
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.055,
+                              0.16399999999999998,
+                              0
+                            ],
+                            "radius": [
+                              0.050050000000000004,
+                              0.050050000000000004
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "right-cut-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-cutwood"
+                      }
+                    },
+                    {
+                      "id": "right-cut-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-cutwood",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-0",
+                  "label": "Right Ring 0 0",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.01625,
+                            0.0
+                          ],
+                          [
+                            0.01925,
+                            0.0
+                          ],
+                          [
+                            0.016670989022850444,
+                            0.009624999999999998
+                          ],
+                          [
+                            0.01407291281149713,
+                            0.008124999999999999
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-1",
+                  "label": "Right Ring 0 1",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.01407291281149713,
+                            0.008124999999999999
+                          ],
+                          [
+                            0.016670989022850444,
+                            0.009624999999999998
+                          ],
+                          [
+                            0.009625000000000002,
+                            0.016670989022850444
+                          ],
+                          [
+                            0.008125000000000002,
+                            0.014072912811497128
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-2",
+                  "label": "Right Ring 0 2",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.008125000000000002,
+                            0.014072912811497128
+                          ],
+                          [
+                            0.009625000000000002,
+                            0.016670989022850444
+                          ],
+                          [
+                            1.1787225441793274e-18,
+                            0.01925
+                          ],
+                          [
+                            9.950255243072246e-19,
+                            0.01625
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-3",
+                  "label": "Right Ring 0 3",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            9.950255243072246e-19,
+                            0.01625
+                          ],
+                          [
+                            1.1787225441793274e-18,
+                            0.01925
+                          ],
+                          [
+                            -0.009624999999999996,
+                            0.016670989022850444
+                          ],
+                          [
+                            -0.008124999999999997,
+                            0.01407291281149713
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-4",
+                  "label": "Right Ring 0 4",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.008124999999999997,
+                            0.01407291281149713
+                          ],
+                          [
+                            -0.009624999999999996,
+                            0.016670989022850444
+                          ],
+                          [
+                            -0.016670989022850444,
+                            0.009624999999999998
+                          ],
+                          [
+                            -0.01407291281149713,
+                            0.008124999999999999
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-5",
+                  "label": "Right Ring 0 5",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.01407291281149713,
+                            0.008124999999999999
+                          ],
+                          [
+                            -0.016670989022850444,
+                            0.009624999999999998
+                          ],
+                          [
+                            -0.01925,
+                            2.3574450883586547e-18
+                          ],
+                          [
+                            -0.01625,
+                            1.990051048614449e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-6",
+                  "label": "Right Ring 0 6",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.01625,
+                            1.990051048614449e-18
+                          ],
+                          [
+                            -0.01925,
+                            2.3574450883586547e-18
+                          ],
+                          [
+                            -0.016670989022850448,
+                            -0.009624999999999996
+                          ],
+                          [
+                            -0.014072912811497132,
+                            -0.008124999999999997
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-7",
+                  "label": "Right Ring 0 7",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.014072912811497132,
+                            -0.008124999999999997
+                          ],
+                          [
+                            -0.016670989022850448,
+                            -0.009624999999999996
+                          ],
+                          [
+                            -0.009625000000000009,
+                            -0.016670989022850437
+                          ],
+                          [
+                            -0.008125000000000007,
+                            -0.014072912811497125
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-8",
+                  "label": "Right Ring 0 8",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.008125000000000007,
+                            -0.014072912811497125
+                          ],
+                          [
+                            -0.009625000000000009,
+                            -0.016670989022850437
+                          ],
+                          [
+                            -3.536167632537982e-18,
+                            -0.01925
+                          ],
+                          [
+                            -2.9850765729216734e-18,
+                            -0.01625
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-9",
+                  "label": "Right Ring 0 9",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -2.9850765729216734e-18,
+                            -0.01625
+                          ],
+                          [
+                            -3.536167632537982e-18,
+                            -0.01925
+                          ],
+                          [
+                            0.009625000000000002,
+                            -0.016670989022850444
+                          ],
+                          [
+                            0.008125000000000002,
+                            -0.014072912811497128
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-10",
+                  "label": "Right Ring 0 10",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.008125000000000002,
+                            -0.014072912811497128
+                          ],
+                          [
+                            0.009625000000000002,
+                            -0.016670989022850444
+                          ],
+                          [
+                            0.016670989022850437,
+                            -0.009625000000000009
+                          ],
+                          [
+                            0.014072912811497125,
+                            -0.008125000000000007
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-0-11",
+                  "label": "Right Ring 0 11",
+                  "tiles": [
+                    {
+                      "id": "right-ring-0-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.014072912811497125,
+                            -0.008125000000000007
+                          ],
+                          [
+                            0.016670989022850437,
+                            -0.009625000000000009
+                          ],
+                          [
+                            0.01925,
+                            -4.7148901767173094e-18
+                          ],
+                          [
+                            0.01625,
+                            -3.980102097228898e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-0-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-0",
+                  "label": "Right Ring 1 0",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.0344,
+                            0.0
+                          ],
+                          [
+                            0.0374,
+                            0.0
+                          ],
+                          [
+                            0.03238935010153801,
+                            0.018699999999999998
+                          ],
+                          [
+                            0.02979127389018469,
+                            0.017199999999999997
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-1",
+                  "label": "Right Ring 1 1",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.02979127389018469,
+                            0.017199999999999997
+                          ],
+                          [
+                            0.03238935010153801,
+                            0.018699999999999998
+                          ],
+                          [
+                            0.018700000000000005,
+                            0.032389350101538004
+                          ],
+                          [
+                            0.017200000000000003,
+                            0.029791273890184686
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-2",
+                  "label": "Right Ring 1 2",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.017200000000000003,
+                            0.029791273890184686
+                          ],
+                          [
+                            0.018700000000000005,
+                            0.032389350101538004
+                          ],
+                          [
+                            2.2900895144055507e-18,
+                            0.0374
+                          ],
+                          [
+                            2.1063924945334474e-18,
+                            0.0344
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-3",
+                  "label": "Right Ring 1 3",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            2.1063924945334474e-18,
+                            0.0344
+                          ],
+                          [
+                            2.2900895144055507e-18,
+                            0.0374
+                          ],
+                          [
+                            -0.018699999999999994,
+                            0.03238935010153801
+                          ],
+                          [
+                            -0.017199999999999993,
+                            0.02979127389018469
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-4",
+                  "label": "Right Ring 1 4",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.017199999999999993,
+                            0.02979127389018469
+                          ],
+                          [
+                            -0.018699999999999994,
+                            0.03238935010153801
+                          ],
+                          [
+                            -0.03238935010153801,
+                            0.018699999999999998
+                          ],
+                          [
+                            -0.02979127389018469,
+                            0.017199999999999997
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-5",
+                  "label": "Right Ring 1 5",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.02979127389018469,
+                            0.017199999999999997
+                          ],
+                          [
+                            -0.03238935010153801,
+                            0.018699999999999998
+                          ],
+                          [
+                            -0.0374,
+                            4.5801790288111015e-18
+                          ],
+                          [
+                            -0.0344,
+                            4.212784989066895e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-6",
+                  "label": "Right Ring 1 6",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.0344,
+                            4.212784989066895e-18
+                          ],
+                          [
+                            -0.0374,
+                            4.5801790288111015e-18
+                          ],
+                          [
+                            -0.03238935010153801,
+                            -0.018699999999999994
+                          ],
+                          [
+                            -0.029791273890184697,
+                            -0.017199999999999993
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-7",
+                  "label": "Right Ring 1 7",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.029791273890184697,
+                            -0.017199999999999993
+                          ],
+                          [
+                            -0.03238935010153801,
+                            -0.018699999999999994
+                          ],
+                          [
+                            -0.01870000000000002,
+                            -0.032389350101538
+                          ],
+                          [
+                            -0.017200000000000014,
+                            -0.02979127389018468
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-8",
+                  "label": "Right Ring 1 8",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.017200000000000014,
+                            -0.02979127389018468
+                          ],
+                          [
+                            -0.01870000000000002,
+                            -0.032389350101538
+                          ],
+                          [
+                            -6.870268543216652e-18,
+                            -0.0374
+                          ],
+                          [
+                            -6.319177483600342e-18,
+                            -0.0344
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-9",
+                  "label": "Right Ring 1 9",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -6.319177483600342e-18,
+                            -0.0344
+                          ],
+                          [
+                            -6.870268543216652e-18,
+                            -0.0374
+                          ],
+                          [
+                            0.018700000000000005,
+                            -0.032389350101538004
+                          ],
+                          [
+                            0.017200000000000003,
+                            -0.029791273890184686
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-10",
+                  "label": "Right Ring 1 10",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.017200000000000003,
+                            -0.029791273890184686
+                          ],
+                          [
+                            0.018700000000000005,
+                            -0.032389350101538004
+                          ],
+                          [
+                            0.032389350101538,
+                            -0.01870000000000002
+                          ],
+                          [
+                            0.02979127389018468,
+                            -0.017200000000000014
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "right-ring-1-11",
+                  "label": "Right Ring 1 11",
+                  "tiles": [
+                    {
+                      "id": "right-ring-1-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.02979127389018468,
+                            -0.017200000000000014
+                          ],
+                          [
+                            0.032389350101538,
+                            -0.01870000000000002
+                          ],
+                          [
+                            0.0374,
+                            -9.160358057622203e-18
+                          ],
+                          [
+                            0.0344,
+                            -8.42556997813379e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0036
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.055,
+                          0.16599999999999998,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "right-ring-1-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-green",
+                  "label": "Item-Green",
+                  "tiles": [
+                    {
+                      "id": "item-green-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 36,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "fresh-leaf-stem",
+                  "label": "Fresh Leaf Stem",
+                  "tiles": [
+                    {
+                      "id": "fresh-leaf-stem-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.052000000000000005,
+                              0
+                            ],
+                            "radius": [
+                              0.0020800000000000003,
+                              0.0020800000000000003
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.052000000000000005,
+                              0
+                            ],
+                            "radius": [
+                              0.0020800000000000003,
+                              0.0020800000000000003
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-stem-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.06,
+                          0.09200000000000001,
+                          -0.01
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          -0.0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-stem-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-stem-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "fresh-leaf-leaf-0",
+                  "label": "Fresh Leaf Leaf 0",
+                  "tiles": [
+                    {
+                      "id": "fresh-leaf-leaf-0-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.06,
+                              0.06080000000000001,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.0015600000000000002,
+                              0.0015600000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.043554999999999996,
+                              0.06756000000000001,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.0143,
+                              0.0041600000000000005
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.030099999999999995,
+                              0.07692,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-leaf-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-leaf-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "fresh-leaf-leaf-1",
+                  "label": "Fresh Leaf Leaf 1",
+                  "tiles": [
+                    {
+                      "id": "fresh-leaf-leaf-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.06,
+                              0.07900000000000001,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.0015600000000000002,
+                              0.0015600000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.076445,
+                              0.08576000000000002,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.0143,
+                              0.0041600000000000005
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.08990000000000001,
+                              0.09512000000000001,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-leaf-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-leaf-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "fresh-leaf-leaf-2",
+                  "label": "Fresh Leaf Leaf 2",
+                  "tiles": [
+                    {
+                      "id": "fresh-leaf-leaf-2-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.06,
+                              0.09720000000000001,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.0015600000000000002,
+                              0.0015600000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.043554999999999996,
+                              0.10396000000000001,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.0143,
+                              0.0041600000000000005
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.030099999999999995,
+                              0.11332,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-leaf-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-leaf-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "fresh-leaf-leaf-3",
+                  "label": "Fresh Leaf Leaf 3",
+                  "tiles": [
+                    {
+                      "id": "fresh-leaf-leaf-3-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.06,
+                              0.1154,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.0015600000000000002,
+                              0.0015600000000000002
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.07287,
+                              0.12216,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.0143,
+                              0.0041600000000000005
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.0834,
+                              0.13152,
+                              -0.01
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-leaf-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-green"
+                      }
+                    },
+                    {
+                      "id": "fresh-leaf-leaf-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-green",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Green Wood assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "left-bark",
+                          "left-cut",
+                          "left-ring-0-0",
+                          "left-ring-0-1",
+                          "left-ring-0-2",
+                          "left-ring-0-3",
+                          "left-ring-0-4",
+                          "left-ring-0-5",
+                          "left-ring-0-6",
+                          "left-ring-0-7",
+                          "left-ring-0-8",
+                          "left-ring-0-9",
+                          "left-ring-0-10",
+                          "left-ring-0-11",
+                          "left-ring-1-0",
+                          "left-ring-1-1",
+                          "left-ring-1-2",
+                          "left-ring-1-3",
+                          "left-ring-1-4",
+                          "left-ring-1-5",
+                          "left-ring-1-6",
+                          "left-ring-1-7",
+                          "left-ring-1-8",
+                          "left-ring-1-9",
+                          "left-ring-1-10",
+                          "left-ring-1-11",
+                          "right-bark",
+                          "right-cut",
+                          "right-ring-0-0",
+                          "right-ring-0-1",
+                          "right-ring-0-2",
+                          "right-ring-0-3",
+                          "right-ring-0-4",
+                          "right-ring-0-5",
+                          "right-ring-0-6",
+                          "right-ring-0-7",
+                          "right-ring-0-8",
+                          "right-ring-0-9",
+                          "right-ring-0-10",
+                          "right-ring-0-11",
+                          "right-ring-1-0",
+                          "right-ring-1-1",
+                          "right-ring-1-2",
+                          "right-ring-1-3",
+                          "right-ring-1-4",
+                          "right-ring-1-5",
+                          "right-ring-1-6",
+                          "right-ring-1-7",
+                          "right-ring-1-8",
+                          "right-ring-1-9",
+                          "right-ring-1-10",
+                          "right-ring-1-11",
+                          "fresh-leaf-stem",
+                          "fresh-leaf-leaf-0",
+                          "fresh-leaf-leaf-1",
+                          "fresh-leaf-leaf-2",
+                          "fresh-leaf-leaf-3"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

@@ -1,0 +1,75 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "shaft-0-color": {
+    "color": 20
+  },
+  "shaft-0-outline": {
+    "color": 1
+  },
+  "point-0-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "point-0-outline": {
+    "color": 1
+  },
+  "feather-a-0-color": {
+    "color": 23
+  },
+  "feather-a-0-outline": {
+    "color": 1
+  },
+  "shaft-1-color": {
+    "color": 20
+  },
+  "shaft-1-outline": {
+    "color": 1
+  },
+  "point-1-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "point-1-outline": {
+    "color": 1
+  },
+  "feather-a-1-color": {
+    "color": 23
+  },
+  "feather-a-1-outline": {
+    "color": 1
+  },
+  "shaft-2-color": {
+    "color": 20
+  },
+  "shaft-2-outline": {
+    "color": 1
+  },
+  "point-2-colors": {
+    "color0": 4,
+    "color1": 6,
+    "color2": 7,
+    "color3": 9
+  },
+  "point-2-outline": {
+    "color": 1
+  },
+  "feather-a-2-color": {
+    "color": 23
+  },
+  "feather-a-2-outline": {
+    "color": 1
+  },
+  "tie-color": {
+    "color": 17
+  },
+  "tie-outline": {
+    "color": 1
+  }
+}

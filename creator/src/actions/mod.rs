@@ -469,6 +469,7 @@ pub mod compose_materials;
 pub mod create_center_vertex;
 pub mod create_fitted_geometry;
 pub mod create_geometry_box;
+pub mod mz_recipe;
 pub mod create_linedef;
 pub mod create_primitives;
 pub mod create_revolve;

@@ -134,3 +134,86 @@ mod tests {
         assert_eq!(json["commands"][0]["command"], "region.paint_rect");
     }
 }
+
+#[cfg(test)]
+mod request_tests {
+    use crate::*;
+    #[test]
+    fn edit_context_and_transaction_roundtrip() {
+        let request: ScepterRequest=serde_json::from_value(serde_json::json!({
+            "request_id":"road-1","session":"session-uuid","revision":"123",
+            "command":"project.transaction","params":{"operations":[{"op":"composition_copy","params":{"id":"new-uuid","source":"old-uuid"}}]}
+        })).unwrap();
+        assert!(request.command.is_mutation());
+        assert_eq!(
+            serde_json::from_str::<ScepterRequest>(&serde_json::to_string(&request).unwrap())
+                .unwrap(),
+            request
+        );
+        let catalog = ScepterLorebook::built_in();
+        assert!(
+            catalog
+                .describe_command("project.transaction")
+                .unwrap()
+                .implemented
+        );
+        assert!(
+            catalog
+                .describe_command("region.render_preview")
+                .unwrap()
+                .implemented
+        );
+        assert!(
+            catalog
+                .describe_command("geometry.create_room")
+                .unwrap()
+                .implemented
+        );
+    }
+}
+
+#[cfg(test)]
+mod world_protocol_tests {
+    use crate::*;
+    use serde_json::json;
+    #[test]
+    fn map_collaboration_requests_are_discoverable_and_roundtrip() {
+        let catalog = ScepterLorebook::built_in();
+        for name in [
+            "editor.context",
+            "editor.select",
+            "editor.focus",
+            "project.changes",
+            "entity.templates",
+            "region.entities",
+            "geometry.create_room",
+            "region.place_item",
+        ] {
+            assert!(
+                catalog.describe_command(name).unwrap().implemented,
+                "{name}"
+            );
+        }
+        for command in [
+            json!({"command":"editor.select","params":{"targets":{"walls":["wall"]},"wall_spans":["span"],"faces":[],"geometry_vertices":[]}}),
+            json!({"command":"editor.focus","params":{"view":"2d","center":[1,0,2],"scale":0.45}}),
+            json!({"command":"project.changes","params":{"after":7,"limit":64}}),
+            json!({"command":"project.transaction","params":{"operations":[
+                {"op":"room_create","params":{"region":{"name":"Harbor"},"id":"wall","name":"Workshop","min":[0,0,0],"max":[6,3,5],"thickness":0.25,"doors":[{"wall":0,"center":3,"width":1.2,"height":2.2}]}},
+                {"op":"map_copy","params":{"region":{"name":"Harbor"},"targets":{"walls":["wall"]},"translation":[10,0,0]}},
+                {"op":"entity_place","params":{"region":{"name":"Harbor"},"id":"torch","kind":"item","template":"Torch","position":[1,0,1],"active":true}}
+            ]}}),
+            json!({"command":"region.render_preview","params":{"region":{"name":"Harbor"},"editor_view":true,"zoom":0.45,"camera":{"center":[0,0,0],"azimuth":45,"elevation":55,"fov":60,"pitch":0}}}),
+        ] {
+            let parsed: ScepterCommand = serde_json::from_value(command).unwrap();
+            let encoded = serde_json::to_value(&parsed).unwrap();
+            assert_eq!(
+                parsed,
+                serde_json::from_value::<ScepterCommand>(encoded).unwrap()
+            );
+        }
+        let read: ScepterCommand =
+            serde_json::from_value(json!({"command":"project.changes","params":{}})).unwrap();
+        assert!(!read.is_mutation());
+    }
+}

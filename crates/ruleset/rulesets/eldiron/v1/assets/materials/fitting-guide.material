@@ -1,0 +1,13 @@
+# Palette-bound ruleset surface, editable in the PBR row editor.
+project 1
+result from material "surface"
+material "surface" called "Invisible garment fitting envelope"
+  mode pbr
+  tiling raw
+  default roughness to 0.85
+  default metallic to 0
+  default opacity to 0
+  default emission strength to 0
+  row "base" called "Invisible garment fitting envelope"
+    use "Color" id "base"
+  output base color from row "base" xyz

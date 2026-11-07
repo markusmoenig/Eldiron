@@ -1,0 +1,636 @@
+{
+  "version": 1,
+  "id": "training_sword",
+  "label": "Ruleset training sword",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Construction",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Training Sword",
+            "document": {
+              "version": 1,
+              "id": "equipped-sword",
+              "label": "Ruleset training sword",
+              "rows": [
+                {
+                  "id": "sword/steel",
+                  "label": "Sword Steel",
+                  "tiles": [
+                    {
+                      "id": "sword/steel-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.28,
+                        "metallic": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sword/leather",
+                  "label": "Sword Leather",
+                  "tiles": [
+                    {
+                      "id": "sword/leather-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sword/brass",
+                  "label": "Sword Brass",
+                  "tiles": [
+                    {
+                      "id": "sword/brass-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 24,
+                        "roughness": 0.3,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sword/blade",
+                  "label": "Sword Blade",
+                  "tiles": [
+                    {
+                      "id": "sword/blade-0",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.045,
+                            0
+                          ],
+                          [
+                            0.045,
+                            0
+                          ],
+                          [
+                            0.035,
+                            0.65
+                          ],
+                          [
+                            0,
+                            0.82
+                          ],
+                          [
+                            -0.035,
+                            0.65
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "sword/blade-1",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.018
+                      }
+                    },
+                    {
+                      "id": "sword/blade-2",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "sword/steel"
+                      }
+                    },
+                    {
+                      "id": "sword/blade-texture",
+                      "op": {
+                        "type": "texture",
+                        "preserve_uv": true,
+                        "parts": [],
+                        "source": "ruleset:material/wood",
+                        "size": 64,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sword/guard",
+                  "label": "Sword Guard",
+                  "tiles": [
+                    {
+                      "id": "sword/guard-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.27,
+                          0.045,
+                          0.065
+                        ]
+                      }
+                    },
+                    {
+                      "id": "sword/guard-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "sword/brass"
+                      }
+                    },
+                    {
+                      "id": "sword/guard-texture",
+                      "op": {
+                        "type": "texture",
+                        "preserve_uv": true,
+                        "parts": [],
+                        "source": "ruleset:material/wood",
+                        "size": 64,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sword/handle",
+                  "label": "Sword Grip",
+                  "tiles": [
+                    {
+                      "id": "sword/handle-0",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            -0.12
+                          ],
+                          [
+                            0.032,
+                            -0.12
+                          ],
+                          [
+                            0.027,
+                            0.12
+                          ],
+                          [
+                            0,
+                            0.12
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "sword/handle-1",
+                      "op": {
+                        "type": "revolve",
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "sword/handle-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.145,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "sword/handle-3",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "sword/leather"
+                      }
+                    },
+                    {
+                      "id": "sword/handle-texture",
+                      "op": {
+                        "type": "texture",
+                        "preserve_uv": true,
+                        "parts": [],
+                        "source": "ruleset:material/leather",
+                        "size": 64,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sword/pommel",
+                  "label": "Sword Pommel",
+                  "tiles": [
+                    {
+                      "id": "sword/pommel-0",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            -0.035
+                          ],
+                          [
+                            0.025,
+                            -0.035
+                          ],
+                          [
+                            0.045,
+                            0
+                          ],
+                          [
+                            0.025,
+                            0.035
+                          ],
+                          [
+                            0,
+                            0.035
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "sword/pommel-1",
+                      "op": {
+                        "type": "revolve",
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "sword/pommel-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.3,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "sword/pommel-3",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "sword/brass"
+                      }
+                    },
+                    {
+                      "id": "sword/pommel-texture",
+                      "op": {
+                        "type": "texture",
+                        "preserve_uv": true,
+                        "parts": [],
+                        "source": "ruleset:material/wood",
+                        "size": 64,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sword/sword",
+                  "label": "Sword Sword",
+                  "tiles": [
+                    {
+                      "id": "sword/sword-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "sword/blade",
+                          "sword/guard",
+                          "sword/handle",
+                          "sword/pommel"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sword/hand-grip",
+                  "label": "Sword Hand attachment",
+                  "tiles": [
+                    {
+                      "id": "sword/hand-grip-0",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          -0.145,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "sword/sword",
+              "grip": "sword/hand-grip"
+            },
+            "controls": [
+              {
+                "id": "blade-length",
+                "label": "Blade length (m)",
+                "category": "Shape",
+                "order": 0,
+                "value": 0.58,
+                "reference": 0.82,
+                "min": 0.45,
+                "max": 1.15,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "sword/blade"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      1.2195121951219512,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ],
+                "help": "Blade length (m). The attachment frame stays connected."
+              },
+              {
+                "id": "blade-width",
+                "label": "Blade width (m)",
+                "category": "Shape",
+                "order": 1,
+                "value": 0.09,
+                "reference": 0.09,
+                "min": 0.05,
+                "max": 0.14,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "sword/blade"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      11.11111111111111,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ],
+                "help": "Blade width (m). The attachment frame stays connected."
+              },
+              {
+                "id": "guard-width",
+                "label": "Guard width (m)",
+                "category": "Shape",
+                "order": 2,
+                "value": 0.22,
+                "reference": 0.27,
+                "min": 0.16,
+                "max": 0.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "sword/guard"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      3.7037037037037033,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ],
+                "help": "Guard width (m). The attachment frame stays connected."
+              },
+              {
+                "id": "blade-thickness",
+                "label": "Blade thickness (m)",
+                "category": "Shape",
+                "order": 3,
+                "value": 0.018,
+                "reference": 0.018,
+                "min": 0.008,
+                "max": 0.04,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "sword/blade"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      55.55555555555556
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ],
+                "help": "Thickness of the blade. The grip and guard stay in place."
+              },
+              {
+                "id": "handle-length",
+                "label": "Handle length (m)",
+                "category": "Shape",
+                "order": 4,
+                "value": 0.2,
+                "reference": 0.24,
+                "min": 0.16,
+                "max": 0.34,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "sword/handle"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      -0.025,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      4.166666666666667,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  },
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "sword/pommel"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      -1,
+                      0
+                    ],
+                    "frames": false
+                  },
+                  {
+                    "type": "affine",
+                    "parts": [],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      -0.5,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ],
+                "help": "Resize the handle and move its grip frame together. The equipped sword stays in the hand."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

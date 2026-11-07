@@ -5,7 +5,9 @@ sidebar_position: 1
 
 ## Importing Tilesets
 
-Tiles are the basic building block of your Eldiron maps, a basic Ultima 4 style tileset is included in the starter project of Eldiron.
+Tiles are reusable visual sources for Eldiron maps. They can be imported bitmaps,
+animated images, or editable [procedural materials](procedural_materials). New
+projects include procedural world materials; importing a tileset is optional.
 
 You can add more tilesets to your project by clicking the **+** button in the bottom of the project tree and select **Add Tileset**.
 
@@ -40,9 +42,27 @@ Selecting a tile and clicking the top-right **Edit / Maximize Dock** control, or
 
 Use the adjacent **Restore Dock** control or `Cmd/Ctrl + ]` to return to the normal split layout.
 
-Drawing pixels uses the currently selected color in the project palette. Palette actions such as [Clear Palette](/docs/creator/actions/#clear-palette) and [Load Palette](/docs/creator/actions/#load-palette) operate on the editable project palette, not the fixed project palette.
+Drawing pixels uses the selected project palette color. The project has one
+editable palette shared by world art, procedural recipes, appearances and UI;
+see [Palette Tool](/docs/creator/tools/palette) for editing and switching it.
 
 Editing tiles auto-updates them on the map. Undo is supported for each tile individually.
+
+## Procedural Sources and Composition
+
+Use **Make Proc** in the picker to create a procedural tile in a vacant cell or
+make the selected tile procedural. Edit its rows in the Procedural Materials
+sidebar and preview its channels in the minimap. The **Continuous**, **Repeat**
+and **Seamless** controls are saved tiling settings and also affect map placements.
+
+Use the Rect tool's **Compose** mode to combine sources on a painted cell, with
+shape thumbnails for roads, corners, strips and blends. Several layers can build
+on each other's output, including bitmap sources. **Save copy to Tilepicker**
+makes the result reusable. Whole floors and walls can also use surface compositions.
+
+See [Procedural Materials](procedural_materials) for the complete workflow and
+[Game Configuration](/docs/configuration/game#tile-and-appearance-settings) for
+global resolution, map cutout backgrounds and character/item pixelization.
 
 See:
 

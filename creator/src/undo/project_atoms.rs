@@ -18,6 +18,7 @@ pub enum ProjectUndoAtom {
     ),
     TilePickerEdit(Box<Project>, Box<Project>),
     ProceduralMaterialEdit(Uuid, String, String),
+    ProceduralAppearanceEdit(Uuid, Option<String>, Option<String>),
     MaterialCompositionEdit(
         Uuid,
         shared::material_composition::MaterialComposition,
@@ -57,6 +58,7 @@ pub enum ProjectUndoAtom {
     RenameTilemap(Uuid, String, String),
     EditTilemapGridSize(Uuid, i32, i32),
     AddScreen(Screen),
+    ImportScreen(Box<Project>, Box<Project>, Screen, ProjectContext),
     RemoveScreen(usize, Screen),
     RenameScreen(Uuid, String, String),
     AddAsset(Asset),
@@ -306,6 +308,7 @@ impl ProjectUndoAtom {
             PrefabAssetEdit(_, _, _) => "Prefab Effect Preset".to_string(),
             TilePickerEdit(_, _) => "Tile Picker Edit".to_string(),
             ProceduralMaterialEdit(..) => "Edit Procedural Material".to_string(),
+            ProceduralAppearanceEdit(..) => "Edit Procedural Geometry".to_string(),
             MaterialCompositionEdit(..) => "Edit Material Composition".to_string(),
             MapMaterialCompositionCreate(..) => "Compose Map Materials".to_string(),
             ProjectEdit(label, _, _) => label.clone(),
@@ -339,6 +342,7 @@ impl ProjectUndoAtom {
                 format!("Edit Tilemap Grid Size: {} -> {}", old, new)
             }
             AddScreen(screen) => format!("Add Screen: {}", screen.name),
+            ImportScreen(..) => "Import Screen".into(),
             RemoveScreen(_, screen) => format!("Remove Screen: {}", screen.name),
             RenameScreen(_, old, new) => format!("Rename Screen: {} -> {}", old, new),
             AddAsset(asset) => format!("Add Asset: {}", asset.name),
@@ -422,12 +426,26 @@ impl ProjectUndoAtom {
                     ));
                 }
             }
+            ProceduralAppearanceEdit(id, old, _) => {
+                if let Some(text) = old {
+                    project.procedural_appearances.insert(*id, text.clone());
+                } else {
+                    project.procedural_appearances.shift_remove(id);
+                }
+                ctx.ui.redraw_all = true;
+            }
             ProceduralMaterialEdit(id, old, _) => {
                 if project.tiles.contains_key(id) {
                     project.procedural_materials.insert(*id, old.clone());
                     project.procedural_material_cache_keys.shift_remove(id);
                     ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Procedural Tiles Restored"),
+                        TheId::named(
+                            if shared::ruleset_materials::is_library_tile(&project.config, id) {
+                                "Ruleset Materials Restored"
+                            } else {
+                                "Procedural Tiles Restored"
+                            },
+                        ),
                         TheValue::Empty,
                     ));
                 }
@@ -447,8 +465,9 @@ impl ProjectUndoAtom {
                     TheValue::Empty,
                 ));
             }
-            ProjectEdit(_, old, _new) => {
+            ProjectEdit(_, old, new) => {
                 *project = (*old.clone()).clone();
+                refresh_region_tree_diff(ui, new, project);
                 shared::rusterix_utils::insert_content_into_maps(project);
                 crate::utils::editor_scene_full_rebuild(project, server_ctx);
                 update_region(ctx);
@@ -682,7 +701,7 @@ impl ProjectUndoAtom {
                         tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
                     {
                         project.remove_item(&item.id);
-                        region_node.remove_child_by_uuid(&item.id);
+                        remove_item_tree(region_node, &item.id);
                     }
                 }
             }
@@ -690,12 +709,10 @@ impl ProjectUndoAtom {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
                     let item = item.clone();
 
-                    let mut node = gen_item_tree_node(&item, project);
-                    node.set_open(true);
                     if let Some(item_node) =
                         tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
                     {
-                        item_node.add_child_at(*index, node);
+                        append_item_tree(item_node, &item, project, true);
                     }
                     let item_id: Uuid = item.id;
                     project.items.insert_before(*index, item_id, item);
@@ -798,6 +815,16 @@ impl ProjectUndoAtom {
                         }
                     }
                 }
+            }
+            ImportScreen(before, _, screen, previous) => {
+                *project = (**before).clone();
+                AddScreen(screen.clone()).undo(project, ui, ctx, server_ctx);
+                set_project_context(ctx, ui, project, server_ctx, *previous);
+                crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tilepicker"),
+                    TheValue::Empty,
+                ));
             }
             AddScreen(screen) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -1116,12 +1143,26 @@ impl ProjectUndoAtom {
                     ));
                 }
             }
+            ProceduralAppearanceEdit(id, _, new) => {
+                if let Some(text) = new {
+                    project.procedural_appearances.insert(*id, text.clone());
+                } else {
+                    project.procedural_appearances.shift_remove(id);
+                }
+                ctx.ui.redraw_all = true;
+            }
             ProceduralMaterialEdit(id, _, new) => {
                 if project.tiles.contains_key(id) {
                     project.procedural_materials.insert(*id, new.clone());
                     project.procedural_material_cache_keys.shift_remove(id);
                     ctx.ui.send(TheEvent::Custom(
-                        TheId::named("Procedural Tiles Restored"),
+                        TheId::named(
+                            if shared::ruleset_materials::is_library_tile(&project.config, id) {
+                                "Ruleset Materials Restored"
+                            } else {
+                                "Procedural Tiles Restored"
+                            },
+                        ),
                         TheValue::Empty,
                     ));
                 }
@@ -1141,8 +1182,9 @@ impl ProjectUndoAtom {
                     TheValue::Empty,
                 ));
             }
-            ProjectEdit(_, _old, new) => {
+            ProjectEdit(_, old, new) => {
                 *project = (*new.clone()).clone();
+                refresh_region_tree_diff(ui, old, project);
                 shared::rusterix_utils::insert_content_into_maps(project);
                 crate::utils::editor_scene_full_rebuild(project, server_ctx);
                 update_region(ctx);
@@ -1425,9 +1467,7 @@ impl ProjectUndoAtom {
                             }
                         }
 
-                        let mut item_node = gen_item_tree_node(&item, project);
-                        item_node.set_open(true);
-                        node.add_child(item_node);
+                        append_item_tree(node, &item, project, true);
 
                         let item_id = item.id;
                         project.add_item(item);
@@ -1437,7 +1477,7 @@ impl ProjectUndoAtom {
                             ui,
                             project,
                             server_ctx,
-                            ProjectContext::Character(item_id),
+                            ProjectContext::Item(item_id),
                         );
                         update_region(ctx);
                     }
@@ -1448,7 +1488,7 @@ impl ProjectUndoAtom {
                     if let Some(character_node) =
                         tree_layout.get_node_by_id_mut(&server_ctx.tree_items_id)
                     {
-                        character_node.remove_child_by_uuid(&item.id);
+                        remove_item_tree(character_node, &item.id);
                     }
                     project.remove_item(&item.id);
 
@@ -1568,6 +1608,15 @@ impl ProjectUndoAtom {
                         }
                     }
                 }
+            }
+            ImportScreen(_, after, screen, _) => {
+                *project = (**after).clone();
+                AddScreen(screen.clone()).redo(project, ui, ctx, server_ctx);
+                crate::utils::editor_scene_full_rebuild(project, server_ctx);
+                ctx.ui.send(TheEvent::Custom(
+                    TheId::named("Update Tilepicker"),
+                    TheValue::Empty,
+                ));
             }
             AddScreen(screen) => {
                 if let Some(tree_layout) = ui.get_tree_layout("Project Tree") {
@@ -1968,6 +2017,74 @@ fn move_region_item_pos(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore = "Requires a native GPU adapter for the editor asset registry"]
+    fn screen_import_undo_redo_restores_artwork_and_runtime_assets_atomically() {
+        let before = Project::default();
+        let mut source = Project::default();
+        let tile = rusterix::Tile::from_texture(rusterix::Texture::from_color([40, 80, 120, 128]));
+        source.tiles.insert(tile.id, tile.clone());
+        let mut screen = Screen::new();
+        screen.map.properties.set(
+            "source",
+            Value::Source(rusterix::PixelSource::TileId(tile.id)),
+        );
+        let package = shared::screen_package::ScreenPackage::capture(&source, &screen).unwrap();
+        let (after, id) = package.imported_project(&before).unwrap();
+        let imported = after.screens[&id].clone();
+        let rusterix::PixelSource::TileId(tile_id) =
+            *imported.map.properties.get_default_source().unwrap()
+        else {
+            panic!("missing source")
+        };
+        let context = ProjectContext::Region(before.regions[0].id);
+        let atom = ProjectUndoAtom::ImportScreen(
+            Box::new(before.clone()),
+            Box::new(after.clone()),
+            imported,
+            context,
+        );
+        let mut project = before;
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        atom.redo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
+        assert!(project.screens.contains_key(&id));
+        assert!(RUSTERIX.read().unwrap().assets.tiles.contains_key(&tile_id));
+        atom.undo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
+        assert!(!project.screens.contains_key(&id));
+        assert!(!project.tiles.contains_key(&tile_id));
+        assert!(!RUSTERIX.read().unwrap().assets.tiles.contains_key(&tile_id));
+        assert_eq!(server_ctx.pc, context);
+        atom.redo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
+        assert_eq!(project.tiles[&tile_id], after.tiles[&tile_id]);
+        assert!(project.screens.contains_key(&id));
+    }
+
+    #[test]
+    fn ruleset_material_edit_undo_redo_keeps_the_library_identity() {
+        let mut project = Project::default();
+        shared::ruleset_materials::install(&mut project).unwrap();
+        let id = shared::rulesets::material_asset_id("tunic");
+        let before = project.procedural_materials[&id].clone();
+        let mut material = shared::ruleset_materials::editable(&project, "tunic").unwrap();
+        material.root.project.materials[0].label = "Edited tunic".into();
+        let after = material.save().unwrap();
+        project.procedural_materials.insert(id, after.clone());
+        let atom = ProjectUndoAtom::ProceduralMaterialEdit(id, before.clone(), after.clone());
+        let mut ui = TheUI::default();
+        let mut ctx = TheContext::new(64, 64, 1.0);
+        let mut server_ctx = ServerContext::default();
+        atom.undo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
+        assert_eq!(project.procedural_materials[&id], before);
+        atom.redo(&mut project, &mut ui, &mut ctx, &mut server_ctx);
+        assert_eq!(project.procedural_materials[&id], after);
+        assert!(shared::ruleset_materials::is_library_tile(
+            &project.config,
+            &id
+        ));
+    }
 
     #[test]
     fn region_paint_edit_restores_only_paint_state() {

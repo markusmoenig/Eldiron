@@ -143,6 +143,30 @@ The text client uses the same world data, but presents it as:
 
 This is not a separate gameplay system. It is another frontend onto the same world.
 
+### Procedural artwork and appearances
+
+Eldiron includes the MaterialZ Rust core as the workspace crate
+`crates/materialz` (`denrim-materials`). A separate MaterialZ checkout or Swift
+application is not needed. Creator supplies its own row editor, palette controls,
+map-composition UI and full model/rig workspace.
+
+Projects own editable material bundles, palette-index bindings, composition
+assignments and geometry/rig/motion documents. Rulesets supply defaults for
+bodies, clothing, item icons and world models; project edits are retained on
+refresh. The project owns one palette shared by those assets and world/UI art.
+
+Material recipes are baked into color/PBR textures, animation frames and, where
+needed, continuous-coordinate surface pages. Runtime SceneVM samples that data;
+it does not execute a per-pixel MZ material VM. Geometry recipes produce meshes
+with skin weights, grips and attachments. The appearance runtime samples their
+motions for 2D sprites and native posed 3D meshes. Ordinary bitmap assets continue
+through their image-based rendering paths.
+
+Equipment slots, item state, collision and combat remain gameplay data. A visual
+grip or motion does not implement an equip rule or change damage timing. See
+[Procedural Materials](building_maps/procedural_materials) and
+[Appearance](characters_items/appearance) for the authoring workflows.
+
 ## Combat and Progression
 
 The current intended split is:
@@ -173,6 +197,7 @@ This is where you:
 - define rules
 - edit locales
 - edit audio FX
+- author procedural materials, item artwork, models and rigs
 - enter authoring metadata
 
 At runtime, the server and clients consume that authored project data.

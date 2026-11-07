@@ -11,6 +11,50 @@ use toml::Table;
 const SETTINGS_NAV_LAYOUT_ID: &str = "Game Settings Navigation";
 const SETTINGS_NAV_ITEM_PREFIX: &str = "Game Settings Nav ";
 const MATERIAL_RESOLUTION_ID: &str = "Game Material Pixels Per Tile";
+const SPRITE_RESOLUTION_ID: &str = "Game Appearance Sprite Pixels 2D";
+const TILE_BACKGROUND_ID: &str = "Game Material Tile Background 2D";
+const ENTITY_PIXEL_SIZE_ID: &str = "Game Appearance Pixel Size 3D";
+
+fn appearance_pixel_setting(config: &str, key: &str) -> i32 {
+    let fallback = if key == "pixel_size_3d" { 1 } else { 0 };
+    config
+        .parse::<toml::Table>()
+        .ok()
+        .and_then(|t| t.get("appearance")?.get(key)?.as_integer())
+        .map(|v| v.clamp(fallback, if key == "pixel_size_3d" { 16 } else { 128 }) as i32)
+        .unwrap_or(fallback as i32)
+}
+
+fn set_appearance_pixel_setting(config: &str, key: &str, pixels: i32) -> Result<String, String> {
+    set_render_setting(
+        config,
+        "appearance",
+        key,
+        toml_edit::Value::from(pixels as i64),
+    )
+}
+
+fn set_render_setting(
+    config: &str,
+    table_name: &str,
+    key: &str,
+    mut value: toml_edit::Value,
+) -> Result<String, String> {
+    let mut document = config
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|e| format!("Fix Game settings before changing rendering: {e}"))?;
+    if document.get(table_name).is_none() {
+        document[table_name] = toml_edit::Item::Table(toml_edit::Table::new());
+    }
+    let table = document[table_name]
+        .as_table_like_mut()
+        .ok_or("Game settings section must be a table")?;
+    if let Some(old) = table.get(key).and_then(|item| item.as_value()) {
+        *value.decor_mut() = old.decor().clone();
+    }
+    table.insert(key, toml_edit::Item::Value(value));
+    Ok(document.to_string())
+}
 
 struct SettingNavEntry {
     key: &'static str,
@@ -620,15 +664,57 @@ impl Dock for DataDock {
 
         match event {
             TheEvent::ValueChanged(id, value) => {
-                if id.name == MATERIAL_RESOLUTION_ID && server_ctx.pc.is_project_settings() {
+                if matches!(
+                    id.name.as_str(),
+                    MATERIAL_RESOLUTION_ID
+                        | SPRITE_RESOLUTION_ID
+                        | ENTITY_PIXEL_SIZE_ID
+                        | TILE_BACKGROUND_ID
+                ) && server_ctx.pc.is_project_settings()
+                {
                     let pixels = match value {
-                        TheValue::IntRange(v, _) | TheValue::Int(v) => (*v).clamp(0, 64) as u32,
+                        TheValue::IntRange(v, _) | TheValue::Int(v) => (*v).clamp(
+                            if id.name == ENTITY_PIXEL_SIZE_ID {
+                                1
+                            } else {
+                                0
+                            },
+                            if id.name == SPRITE_RESOLUTION_ID {
+                                128
+                            } else if id.name == ENTITY_PIXEL_SIZE_ID {
+                                16
+                            } else {
+                                64
+                            },
+                        )
+                            as u32,
                         _ => return false,
                     };
-                    match crate::procedural_material::pixel_style::set_density(
-                        &project.config,
-                        pixels,
-                    ) {
+                    let changed = if id.name == MATERIAL_RESOLUTION_ID {
+                        crate::procedural_material::pixel_style::set_density(
+                            &project.config,
+                            pixels,
+                        )
+                    } else if id.name == TILE_BACKGROUND_ID {
+                        set_render_setting(
+                            &project.config,
+                            "materials",
+                            "background_2d",
+                            toml_edit::Value::from(if pixels == 1 {
+                                "black"
+                            } else {
+                                "transparent"
+                            }),
+                        )
+                    } else {
+                        let key = if id.name == SPRITE_RESOLUTION_ID {
+                            "sprite_pixels_2d"
+                        } else {
+                            "pixel_size_3d"
+                        };
+                        set_appearance_pixel_setting(&project.config, key, pixels as i32)
+                    };
+                    match changed {
                         Ok(config) if config != project.config => {
                             let states = ui.get_text_area_edit("DockDataEditor").map(|edit| {
                                 let before = edit.get_state();
@@ -991,6 +1077,41 @@ impl Dock for DataDock {
 
 impl DataDock {
     fn sync_material_resolution(&self, ui: &mut TheUI, ctx: &mut TheContext, project: &Project) {
+        for (item, key) in [
+            ("Game Sprite Resolution", "sprite_pixels_2d"),
+            ("Game Entity Pixel Size", "pixel_size_3d"),
+        ] {
+            if let Some(widget) = ui
+                .get_widget(item)
+                .and_then(|item| item.as_tree_item())
+                .and_then(|item| item.embedded_widget_mut())
+            {
+                widget.set_value(TheValue::Int(appearance_pixel_setting(
+                    &project.config,
+                    key,
+                )));
+                widget.set_needs_redraw(true);
+            }
+        }
+        if let Some(widget) = ui
+            .get_widget("Game Tile Background")
+            .and_then(|w| w.as_tree_item())
+            .and_then(|w| w.embedded_widget_mut())
+        {
+            let black = project
+                .config
+                .parse::<toml::Table>()
+                .ok()
+                .and_then(|t| {
+                    t.get("materials")?
+                        .get("background_2d")?
+                        .as_str()
+                        .map(|s| s == "black")
+                })
+                .unwrap_or(false);
+            widget.set_value(TheValue::Int(i32::from(black)));
+            widget.set_needs_redraw(true);
+        }
         if let Some(widget) = ui
             .get_widget("Game Material Resolution")
             .and_then(|item| item.as_tree_item())
@@ -1034,7 +1155,46 @@ impl DataDock {
         resolution.set_status_text("Global procedural texture resolution (1–64 pixels per tile). Slide or type a value. 0 uses smooth 64px baking. Changes rebake all procedural materials.");
         item.add_widget_column(140, Box::new(resolution));
         materials.add_widget(Box::new(item));
+        let mut item = TheTreeItem::new(TheId::named("Game Tile Background"));
+        item.set_text("Tile background".into());
+        let mut menu = TheDropdownMenu::new(TheId::named(TILE_BACKGROUND_ID));
+        menu.add_option("Transparent".into());
+        menu.add_option("Black".into());
+        menu.set_status_text("2D map tiles and item icons: show underlying terrain through transparent pixels, or draw a black tile background. Character sprites, inventory icons and 3D meshes keep their alpha.");
+        item.add_widget_column(140, Box::new(menu));
+        materials.add_widget(Box::new(item));
         root.add_child(materials);
+
+        let mut appearance = TheTreeNode::new(TheId::named("Characters & Map Items"));
+        appearance.set_open(true);
+        for (item_id, control_id, label, default, range, status) in [
+            (
+                "Game Sprite Resolution",
+                SPRITE_RESOLUTION_ID,
+                "2D sprite pixels",
+                0,
+                0..=128,
+                "Characters and items on the map: sample sprites on this pixel grid (e.g. 16, 32, 64). Lower values are chunkier. 0 keeps source detail. Does not change inventory icons or world materials.",
+            ),
+            (
+                "Game Entity Pixel Size",
+                ENTITY_PIXEL_SIZE_ID,
+                "3D pixel size",
+                1,
+                1..=16,
+                "Characters and items on the map: render their shapes and shading in screen-pixel blocks. 1 keeps native detail; 2–16 makes chunkier pixels. World surfaces and inventory icons keep their own detail.",
+            ),
+        ] {
+            let mut item = TheTreeItem::new(TheId::named(item_id));
+            item.set_text(label.into());
+            let mut control = TheTextLineEdit::new(TheId::named(control_id));
+            control.set_value(TheValue::Int(default));
+            control.set_range(TheValue::RangeI32(range));
+            control.set_status_text(status);
+            item.add_widget_column(140, Box::new(control));
+            appearance.add_widget(Box::new(item));
+        }
+        root.add_child(appearance);
 
         for section in GAME_SETTINGS_NAV_SECTIONS {
             let mut node = TheTreeNode::new(TheId::named(&format!("[{}]", section.table)));
@@ -1932,5 +2092,87 @@ mod material_resolution_tests {
             crate::procedural_material::pixel_style::density(&reopened.config),
             32
         );
+    }
+    #[test]
+    fn appearance_settings_preserve_comments_and_material_density() {
+        let config = "# Keep\n[materials]\npixels_per_tile = 16\n[appearance]\nsprite_pixels_2d = 64 # Sprite grid\npixel_size_3d = 1\n";
+        let config = set_appearance_pixel_setting(config, "sprite_pixels_2d", 32).unwrap();
+        let config = set_appearance_pixel_setting(&config, "pixel_size_3d", 4).unwrap();
+        assert!(config.contains("# Keep"));
+        assert!(config.contains("32 # Sprite grid"));
+        assert_eq!(appearance_pixel_setting(&config, "sprite_pixels_2d"), 32);
+        assert_eq!(appearance_pixel_setting(&config, "pixel_size_3d"), 4);
+        assert_eq!(
+            crate::procedural_material::pixel_style::density(&config),
+            16
+        );
+        assert_eq!(appearance_pixel_setting("", "sprite_pixels_2d"), 0);
+        assert_eq!(appearance_pixel_setting("", "pixel_size_3d"), 1);
+        assert!(set_appearance_pixel_setting("[appearance", "pixel_size_3d", 4).is_err());
+    }
+
+    #[test]
+    #[ignore = "settings edits initialize the native GPU renderer"]
+    fn appearance_pixel_controls_live_edit_undo_and_save() {
+        let mut dock = DataDock::new();
+        let mut ctx = TheContext::new(1000, 650, 1.);
+        let mut ui = TheUI::new();
+        ui.canvas = dock.setup(&mut ctx);
+        let mut project = Project::default();
+        project.config = "# Preserve\n[materials]\npixels_per_tile = 16\n".into();
+        let original = project.config.clone();
+        let mut server = ServerContext::default();
+        server.pc = ProjectContext::ProjectSettings;
+        dock.activate(&mut ui, &mut ctx, &project, &mut server);
+        for (control, key, value) in [
+            (SPRITE_RESOLUTION_ID, "sprite_pixels_2d", 32),
+            (ENTITY_PIXEL_SIZE_ID, "pixel_size_3d", 4),
+        ] {
+            let before = project.config.clone();
+            assert!(dock.handle_event(
+                &TheEvent::ValueChanged(TheId::named(control), TheValue::Int(value)),
+                &mut ui,
+                &mut ctx,
+                &mut project,
+                &mut server
+            ));
+            assert_eq!(appearance_pixel_setting(&project.config, key), value);
+            assert_eq!(RUSTERIX.read().unwrap().assets.config, project.config);
+            dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+            assert_eq!(project.config, before);
+            dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+            assert_eq!(appearance_pixel_setting(&project.config, key), value);
+        }
+        let before = project.config.clone();
+        assert!(dock.handle_event(
+            &TheEvent::ValueChanged(TheId::named(TILE_BACKGROUND_ID), TheValue::Int(1)),
+            &mut ui,
+            &mut ctx,
+            &mut project,
+            &mut server
+        ));
+        assert_eq!(
+            project.config.parse::<toml::Table>().unwrap()["materials"]["background_2d"].as_str(),
+            Some("black")
+        );
+        dock.undo(&mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(project.config, before);
+        dock.redo(&mut ui, &mut ctx, &mut project, &mut server);
+        assert_eq!(
+            project.config.parse::<toml::Table>().unwrap()["materials"]["background_2d"].as_str(),
+            Some("black")
+        );
+        let saved = serde_json::to_string(&project).unwrap();
+        let reopened: Project = serde_json::from_str(&saved).unwrap();
+        assert_eq!(
+            appearance_pixel_setting(&reopened.config, "sprite_pixels_2d"),
+            32
+        );
+        assert_eq!(
+            appearance_pixel_setting(&reopened.config, "pixel_size_3d"),
+            4
+        );
+        assert!(project.config.contains("# Preserve"));
+        assert_ne!(original, project.config);
     }
 }

@@ -1,0 +1,12 @@
+{
+  "surface-colors": {
+    "color0": 25,
+    "color1": 24,
+    "color2": 24,
+    "color3": 23
+  },
+  "@surface": {
+    "base color": 24,
+    "emission": 24
+  }
+}

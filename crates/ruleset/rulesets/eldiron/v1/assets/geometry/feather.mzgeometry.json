@@ -1,0 +1,1214 @@
+{
+  "version": 1,
+  "id": "feather",
+  "label": "Feather",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Feather",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Feather",
+            "document": {
+              "version": 1,
+              "id": "feather-construction",
+              "label": "Feather construction",
+              "rows": [
+                {
+                  "id": "item-ivory",
+                  "label": "Item-Ivory",
+                  "tiles": [
+                    {
+                      "id": "item-ivory-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 9,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "feather-vane",
+                  "label": "Feather Vane",
+                  "tiles": [
+                    {
+                      "id": "feather-vane-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            -0.15
+                          ],
+                          [
+                            -0.055,
+                            -0.05
+                          ],
+                          [
+                            -0.06,
+                            0.07
+                          ],
+                          [
+                            0,
+                            0.17
+                          ],
+                          [
+                            0.055,
+                            0.1
+                          ],
+                          [
+                            0.05,
+                            -0.04
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "feather-vane-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.007
+                      }
+                    },
+                    {
+                      "id": "feather-vane-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "feather-vane-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-ivory"
+                      }
+                    },
+                    {
+                      "id": "feather-vane-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-ivory",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-string",
+                  "label": "Bow-String",
+                  "tiles": [
+                    {
+                      "id": "bow-string-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 23,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "quill",
+                  "label": "Quill",
+                  "tiles": [
+                    {
+                      "id": "quill-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.19,
+                              0
+                            ],
+                            "radius": [
+                              0.003,
+                              0.003
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.19,
+                              0
+                            ],
+                            "radius": [
+                              0.003,
+                              0.003
+                            ]
+                          }
+                        ],
+                        "segments": 6
+                      }
+                    },
+                    {
+                      "id": "quill-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.0,
+                          -0.03,
+                          0.005
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          0.0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "quill-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "bow-string"
+                      }
+                    },
+                    {
+                      "id": "quill-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/bow-string",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "item-dust",
+                  "label": "Item-Dust",
+                  "tiles": [
+                    {
+                      "id": "item-dust-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 5,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-0--1",
+                  "label": "Barb 0  1",
+                  "tiles": [
+                    {
+                      "id": "barb-0--1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-0--1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.022,
+                          -0.06899999999999999,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          46.33221985386964
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-0--1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-0--1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-0-1",
+                  "label": "Barb 0 1",
+                  "tiles": [
+                    {
+                      "id": "barb-0-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-0-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.022,
+                          -0.06899999999999999,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          -46.33221985386964
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-0-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-0-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-1--1",
+                  "label": "Barb 1  1",
+                  "tiles": [
+                    {
+                      "id": "barb-1--1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-1--1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.022,
+                          -0.026,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          46.33221985386964
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-1--1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-1--1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-1-1",
+                  "label": "Barb 1 1",
+                  "tiles": [
+                    {
+                      "id": "barb-1-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-1-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.022,
+                          -0.026,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          -46.33221985386964
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-1-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-1-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-2--1",
+                  "label": "Barb 2  1",
+                  "tiles": [
+                    {
+                      "id": "barb-2--1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-2--1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.022,
+                          0.016999999999999998,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          46.33221985386964
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-2--1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-2--1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-2-1",
+                  "label": "Barb 2 1",
+                  "tiles": [
+                    {
+                      "id": "barb-2-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.0304138126514911,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-2-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.022,
+                          0.016999999999999998,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          -46.33221985386964
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-2-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-2-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-3--1",
+                  "label": "Barb 3  1",
+                  "tiles": [
+                    {
+                      "id": "barb-3--1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.030413812651491103,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.030413812651491103,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-3--1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.022,
+                          0.06000000000000001,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          46.33221985386963
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-3--1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-3--1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-3-1",
+                  "label": "Barb 3 1",
+                  "tiles": [
+                    {
+                      "id": "barb-3-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.030413812651491103,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.030413812651491103,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-3-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.022,
+                          0.06000000000000001,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          -46.33221985386963
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-3-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-3-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-4--1",
+                  "label": "Barb 4  1",
+                  "tiles": [
+                    {
+                      "id": "barb-4--1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.030413812651491103,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.030413812651491103,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-4--1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.022,
+                          0.103,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          46.33221985386963
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-4--1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-4--1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "barb-4-1",
+                  "label": "Barb 4 1",
+                  "tiles": [
+                    {
+                      "id": "barb-4-1-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.030413812651491103,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.030413812651491103,
+                              0
+                            ],
+                            "radius": [
+                              0.0015,
+                              0.0015
+                            ]
+                          }
+                        ],
+                        "segments": 4
+                      }
+                    },
+                    {
+                      "id": "barb-4-1-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.022,
+                          0.103,
+                          0.006
+                        ],
+                        "rotation": [
+                          0.0,
+                          0,
+                          -46.33221985386963
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "barb-4-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-dust"
+                      }
+                    },
+                    {
+                      "id": "barb-4-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-dust",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Feather assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "feather-vane",
+                          "quill",
+                          "barb-0--1",
+                          "barb-0-1",
+                          "barb-1--1",
+                          "barb-1-1",
+                          "barb-2--1",
+                          "barb-2-1",
+                          "barb-3--1",
+                          "barb-3-1",
+                          "barb-4--1",
+                          "barb-4-1"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

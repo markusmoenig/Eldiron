@@ -1,0 +1,1535 @@
+{
+  "version": 1,
+  "id": "ember_bead",
+  "label": "Ember Bead",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Ember Bead",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Ember Bead",
+            "document": {
+              "version": 1,
+              "id": "ember_bead-construction",
+              "label": "Ember Bead construction",
+              "rows": [
+                {
+                  "id": "item-ember",
+                  "label": "Item-Ember",
+                  "tiles": [
+                    {
+                      "id": "item-ember-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 25,
+                        "roughness": 0.55,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "ember",
+                  "label": "Ember",
+                  "tiles": [
+                    {
+                      "id": "ember-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.155,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.11599999999999999,
+                              0
+                            ],
+                            "radius": [
+                              0.0684,
+                              0.039599999999999996
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.025,
+                              0
+                            ],
+                            "radius": [
+                              0.095,
+                              0.055
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.066,
+                              0
+                            ],
+                            "radius": [
+                              0.0684,
+                              0.039599999999999996
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.10500000000000001,
+                              0
+                            ],
+                            "radius": [
+                              0.001,
+                              0.001
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "ember-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "item-ember"
+                      }
+                    },
+                    {
+                      "id": "ember-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/item-ember",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "weapon-wrap",
+                  "label": "Weapon-Wrap",
+                  "tiles": [
+                    {
+                      "id": "weapon-wrap-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "inclusion",
+                  "label": "Inclusion",
+                  "tiles": [
+                    {
+                      "id": "inclusion-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.012,
+                          0.09,
+                          0.006
+                        ]
+                      }
+                    },
+                    {
+                      "id": "inclusion-place",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.02,
+                          -0.025,
+                          0.056
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          20
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "inclusion-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "inclusion-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-0",
+                  "label": "Bead Cord 0",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-0-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.051000000000000004,
+                            0.0
+                          ],
+                          [
+                            0.055,
+                            0.0
+                          ],
+                          [
+                            0.04955328773463305,
+                            0.023863605651465697
+                          ],
+                          [
+                            0.04594941226302338,
+                            0.022128070694995467
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-0-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-0-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-0-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-0-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-1",
+                  "label": "Bead Cord 1",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-1-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.04594941226302338,
+                            0.022128070694995467
+                          ],
+                          [
+                            0.04955328773463305,
+                            0.023863605651465697
+                          ],
+                          [
+                            0.03429193910223035,
+                            0.04300073153574164
+                          ],
+                          [
+                            0.031797979894795415,
+                            0.03987340560586952
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-1-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-1-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-1-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-1-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-2",
+                  "label": "Bead Cord 2",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-2-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.031797979894795415,
+                            0.03987340560586952
+                          ],
+                          [
+                            0.03429193910223035,
+                            0.04300073153574164
+                          ],
+                          [
+                            0.012238651367597294,
+                            0.053621035170000296
+                          ],
+                          [
+                            0.011348567631772038,
+                            0.04972132352127301
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-2-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-2-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-2-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-2-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-3",
+                  "label": "Bead Cord 3",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-3-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.011348567631772038,
+                            0.04972132352127301
+                          ],
+                          [
+                            0.012238651367597294,
+                            0.053621035170000296
+                          ],
+                          [
+                            -0.012238651367597289,
+                            0.053621035170000296
+                          ],
+                          [
+                            -0.011348567631772033,
+                            0.04972132352127301
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-3-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-3-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-3-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-3-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-4",
+                  "label": "Bead Cord 4",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-4-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.011348567631772033,
+                            0.04972132352127301
+                          ],
+                          [
+                            -0.012238651367597289,
+                            0.053621035170000296
+                          ],
+                          [
+                            -0.03429193910223034,
+                            0.043000731535741646
+                          ],
+                          [
+                            -0.03179797989479541,
+                            0.03987340560586953
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-4-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-4-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-4-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-4-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-5",
+                  "label": "Bead Cord 5",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-5-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.03179797989479541,
+                            0.03987340560586953
+                          ],
+                          [
+                            -0.03429193910223034,
+                            0.043000731535741646
+                          ],
+                          [
+                            -0.04955328773463305,
+                            0.023863605651465704
+                          ],
+                          [
+                            -0.045949412263023376,
+                            0.02212807069499547
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-5-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-5-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-5-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-5-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-6",
+                  "label": "Bead Cord 6",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-6-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.045949412263023376,
+                            0.02212807069499547
+                          ],
+                          [
+                            -0.04955328773463305,
+                            0.023863605651465704
+                          ],
+                          [
+                            -0.055,
+                            6.735557395310442e-18
+                          ],
+                          [
+                            -0.051000000000000004,
+                            6.245698675651502e-18
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-6-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-6-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-6-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-6-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-7",
+                  "label": "Bead Cord 7",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-7-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.051000000000000004,
+                            6.245698675651502e-18
+                          ],
+                          [
+                            -0.055,
+                            6.735557395310442e-18
+                          ],
+                          [
+                            -0.04955328773463305,
+                            -0.02386360565146569
+                          ],
+                          [
+                            -0.04594941226302338,
+                            -0.02212807069499546
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-7-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-7-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-7-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-7-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-8",
+                  "label": "Bead Cord 8",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-8-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.04594941226302338,
+                            -0.02212807069499546
+                          ],
+                          [
+                            -0.04955328773463305,
+                            -0.02386360565146569
+                          ],
+                          [
+                            -0.03429193910223035,
+                            -0.04300073153574163
+                          ],
+                          [
+                            -0.031797979894795415,
+                            -0.039873405605869515
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-8-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-8-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-8-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-8-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-9",
+                  "label": "Bead Cord 9",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-9-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.031797979894795415,
+                            -0.039873405605869515
+                          ],
+                          [
+                            -0.03429193910223035,
+                            -0.04300073153574163
+                          ],
+                          [
+                            -0.012238651367597303,
+                            -0.053621035170000296
+                          ],
+                          [
+                            -0.011348567631772045,
+                            -0.04972132352127301
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-9-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-9-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-9-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-9-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-10",
+                  "label": "Bead Cord 10",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-10-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.011348567631772045,
+                            -0.04972132352127301
+                          ],
+                          [
+                            -0.012238651367597303,
+                            -0.053621035170000296
+                          ],
+                          [
+                            0.012238651367597234,
+                            -0.05362103517000031
+                          ],
+                          [
+                            0.01134856763177198,
+                            -0.04972132352127302
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-10-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-10-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-10-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-10-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-11",
+                  "label": "Bead Cord 11",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-11-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.01134856763177198,
+                            -0.04972132352127302
+                          ],
+                          [
+                            0.012238651367597234,
+                            -0.05362103517000031
+                          ],
+                          [
+                            0.034291939102230336,
+                            -0.043000731535741646
+                          ],
+                          [
+                            0.0317979798947954,
+                            -0.03987340560586953
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-11-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-11-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-11-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-11-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-12",
+                  "label": "Bead Cord 12",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-12-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.0317979798947954,
+                            -0.03987340560586953
+                          ],
+                          [
+                            0.034291939102230336,
+                            -0.043000731535741646
+                          ],
+                          [
+                            0.049553287734633064,
+                            -0.023863605651465662
+                          ],
+                          [
+                            0.04594941226302339,
+                            -0.022128070694995436
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-12-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-12-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-12-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-12-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bead-cord-13",
+                  "label": "Bead Cord 13",
+                  "tiles": [
+                    {
+                      "id": "bead-cord-13-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.04594941226302339,
+                            -0.022128070694995436
+                          ],
+                          [
+                            0.049553287734633064,
+                            -0.023863605651465662
+                          ],
+                          [
+                            0.055,
+                            -1.3471114790620885e-17
+                          ],
+                          [
+                            0.051000000000000004,
+                            -1.2491397351303004e-17
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-13-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.0048
+                      }
+                    },
+                    {
+                      "id": "bead-cord-13-placement",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0.14,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bead-cord-13-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "weapon-wrap"
+                      }
+                    },
+                    {
+                      "id": "bead-cord-13-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-wrap",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Ember Bead assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "ember",
+                          "inclusion",
+                          "bead-cord-0",
+                          "bead-cord-1",
+                          "bead-cord-2",
+                          "bead-cord-3",
+                          "bead-cord-4",
+                          "bead-cord-5",
+                          "bead-cord-6",
+                          "bead-cord-7",
+                          "bead-cord-8",
+                          "bead-cord-9",
+                          "bead-cord-10",
+                          "bead-cord-11",
+                          "bead-cord-12",
+                          "bead-cord-13"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0.12,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "size",
+                "label": "Overall size",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1,
+                "reference": 1,
+                "min": 0.65,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0.12,
+                      0
+                    ],
+                    "scale": [
+                      1,
+                      1,
+                      1
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

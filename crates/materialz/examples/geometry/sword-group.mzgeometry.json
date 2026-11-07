@@ -1,0 +1,606 @@
+{
+  "version": 1,
+  "id": "editable-grouped-sword",
+  "label": "Sword",
+  "rows": [
+    {
+      "id": "sword",
+      "label": "Sword",
+      "tiles": [
+        {
+          "id": "sword-op-0",
+          "op": {
+            "type": "group",
+            "label": "Sword",
+            "document": {
+              "version": 1,
+              "id": "editable-sword",
+              "label": "Sword",
+              "rows": [
+                {
+                  "id": "steel",
+                  "label": "Steel",
+                  "tiles": [
+                    {
+                      "id": "steel-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.28,
+                        "metallic": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "leather",
+                  "label": "Leather",
+                  "tiles": [
+                    {
+                      "id": "leather-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "brass",
+                  "label": "Brass",
+                  "tiles": [
+                    {
+                      "id": "brass-0",
+                      "op": {
+                        "type": "material",
+                        "palette": 24,
+                        "roughness": 0.3,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "blade",
+                  "label": "Blade",
+                  "tiles": [
+                    {
+                      "id": "blade-0",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.045,
+                            0
+                          ],
+                          [
+                            0.045,
+                            0
+                          ],
+                          [
+                            0.035,
+                            0.65
+                          ],
+                          [
+                            0,
+                            0.82
+                          ],
+                          [
+                            -0.035,
+                            0.65
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "blade-1",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.018
+                      }
+                    },
+                    {
+                      "id": "blade-2",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "steel"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "guard",
+                  "label": "Guard",
+                  "tiles": [
+                    {
+                      "id": "guard-0",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.27,
+                          0.045,
+                          0.065
+                        ]
+                      }
+                    },
+                    {
+                      "id": "guard-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "brass"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "handle",
+                  "label": "Grip",
+                  "tiles": [
+                    {
+                      "id": "handle-0",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            -0.12
+                          ],
+                          [
+                            0.032,
+                            -0.12
+                          ],
+                          [
+                            0.027,
+                            0.12
+                          ],
+                          [
+                            0,
+                            0.12
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "handle-1",
+                      "op": {
+                        "type": "revolve",
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "handle-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.145,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "handle-3",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "leather"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "pommel",
+                  "label": "Pommel",
+                  "tiles": [
+                    {
+                      "id": "pommel-0",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            -0.035
+                          ],
+                          [
+                            0.025,
+                            -0.035
+                          ],
+                          [
+                            0.045,
+                            0
+                          ],
+                          [
+                            0.025,
+                            0.035
+                          ],
+                          [
+                            0,
+                            0.035
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pommel-1",
+                      "op": {
+                        "type": "revolve",
+                        "segments": 12
+                      }
+                    },
+                    {
+                      "id": "pommel-2",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          -0.3,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "pommel-3",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "brass"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "sword",
+                  "label": "Sword",
+                  "tiles": [
+                    {
+                      "id": "sword-0",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "blade",
+                          "guard",
+                          "handle",
+                          "pommel"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand attachment",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-0",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          -0.145,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "sword",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "blade-length",
+                "label": "Blade length (m)",
+                "category": "Shape",
+                "order": 0,
+                "value": 0.58,
+                "reference": 0.82,
+                "min": 0.45,
+                "max": 1.15,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "blade"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      1.2195121951219512,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ],
+                "help": "Blade length (m). The attachment frame stays connected."
+              },
+              {
+                "id": "blade-width",
+                "label": "Blade width (m)",
+                "category": "Shape",
+                "order": 1,
+                "value": 0.09,
+                "reference": 0.09,
+                "min": 0.05,
+                "max": 0.14,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "blade"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      11.11111111111111,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ],
+                "help": "Blade width (m). The attachment frame stays connected."
+              },
+              {
+                "id": "guard-width",
+                "label": "Guard width (m)",
+                "category": "Shape",
+                "order": 2,
+                "value": 0.22,
+                "reference": 0.27,
+                "min": 0.16,
+                "max": 0.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "guard"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      3.7037037037037033,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ],
+                "help": "Guard width (m). The attachment frame stays connected."
+              },
+              {
+                "id": "blade-thickness",
+                "label": "Blade thickness (m)",
+                "category": "Shape",
+                "order": 3,
+                "value": 0.018,
+                "reference": 0.018,
+                "min": 0.008,
+                "max": 0.04,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "blade"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      55.55555555555556
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ],
+                "help": "Thickness of the blade. The grip and guard stay in place."
+              },
+              {
+                "id": "handle-length",
+                "label": "Handle length (m)",
+                "category": "Shape",
+                "order": 4,
+                "value": 0.2,
+                "reference": 0.24,
+                "min": 0.16,
+                "max": 0.34,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "handle"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      -0.025,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      4.166666666666667,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  },
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "pommel"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      -1,
+                      0
+                    ],
+                    "frames": false
+                  },
+                  {
+                    "type": "affine",
+                    "parts": [],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      -0.5,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ],
+                "help": "Resize the handle and move its grip frame together. The equipped sword stays in the hand."
+              },
+              {
+                "id": "steel-color",
+                "label": "Steel",
+                "category": "Colors",
+                "order": 0,
+                "value": 7,
+                "reference": 7,
+                "min": 0,
+                "max": 255,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "blade"
+                    ]
+                  }
+                ],
+                "help": "Choose a color from the project palette."
+              },
+              {
+                "id": "grip-color",
+                "label": "Grip leather",
+                "category": "Colors",
+                "order": 1,
+                "value": 19,
+                "reference": 19,
+                "min": 0,
+                "max": 255,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "handle"
+                    ]
+                  }
+                ],
+                "help": "Choose a color from the project palette."
+              },
+              {
+                "id": "brass-color",
+                "label": "Guard and pommel",
+                "category": "Colors",
+                "order": 2,
+                "value": 24,
+                "reference": 24,
+                "min": 0,
+                "max": 255,
+                "modifiers": [
+                  {
+                    "type": "palette",
+                    "parts": [
+                      "guard",
+                      "pommel"
+                    ]
+                  }
+                ],
+                "help": "Choose a color from the project palette."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "sword",
+  "grip": "sword"
+}

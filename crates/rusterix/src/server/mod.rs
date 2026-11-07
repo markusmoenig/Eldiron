@@ -1,4 +1,5 @@
 pub mod assets;
+pub mod avatar_assets;
 pub mod currency;
 pub mod data;
 pub mod entity;

@@ -5,31 +5,61 @@ use denrim_materials::image_source::ImageSource;
 /// Include authored bundles so undo/reopen also refreshes stale embedded caches.
 /// Only linked bitmap assets are hashed; unrelated tiles do not add per-frame work.
 pub(super) fn input_key(project: &Project) -> u64 {
-    let mut keys = String::new();
-    let mut sources = std::collections::BTreeSet::new();
-    for (id, bundle) in &project.procedural_materials {
-        keys.push_str(&id.to_string());
-        keys.push_str(&cache_key(bundle).to_string());
-        for (offset, _) in bundle.match_indices("eldiron:tile:") {
-            if let Some(id) = bundle
-                .get(offset + 13..offset + 49)
-                .and_then(|s| Uuid::parse_str(s).ok())
-            {
-                sources.insert(id);
+    #[derive(Default)]
+    struct Links {
+        revision: u64,
+        tiles: std::collections::BTreeSet<Uuid>,
+        models: bool,
+    }
+    thread_local! { static LINKS: std::cell::RefCell<Links> = std::cell::RefCell::new(Links::default()); }
+    LINKS.with(|links| {
+        let mut links = links.borrow_mut();
+        let revision = project.procedural_materials.revision();
+        if links.revision != revision {
+            links.revision = revision;
+            links.tiles.clear();
+            links.models = false;
+            for bundle in project.procedural_materials.values() {
+                links.models |= bundle.contains("eldiron:model:");
+                for (offset, _) in bundle.match_indices("eldiron:tile:") {
+                    if let Some(id) = bundle
+                        .get(offset + 13..offset + 49)
+                        .and_then(|s| Uuid::parse_str(s).ok())
+                    {
+                        links.tiles.insert(id);
+                    }
+                }
             }
         }
-    }
-    for id in sources {
-        keys.push_str(&id.to_string());
-        if let Some(tile) = project
+        let images = links
             .tiles
-            .get(&id)
-            .filter(|_| !project.procedural_materials.contains_key(&id))
-        {
-            keys.push_str(&composition::raster_source::key(tile).to_string());
-        }
-    }
-    cache_key(&keys)
+            .iter()
+            .map(|id| {
+                (
+                    *id,
+                    project
+                        .tiles
+                        .get(id)
+                        .filter(|_| !project.procedural_materials.contains_key(id))
+                        .map(composition::raster_source::key),
+                )
+            })
+            .collect::<Vec<_>>();
+        rusterix::procedural_avatar::fingerprint(&(
+            revision,
+            if links.models {
+                project.procedural_appearances.revision()
+            } else {
+                0
+            },
+            if links.models {
+                palette::key(&project.palette)
+            } else {
+                0
+            },
+            images,
+        ))
+    })
 }
 
 pub(super) fn from_tile(id: Uuid, tile: &rusterix::Tile) -> Result<ImageSource, String> {
@@ -143,7 +173,7 @@ pub(super) fn set(
         && !tile.parameters.iter().any(|(id, _)| id == "uvMode")
     {
         tile.parameters
-            .push(("uvMode".into(), Binding::Constant(vec![1.])));
+            .push(("uvMode".into(), Binding::Constant(vec![0.])));
     }
     tile.image = image;
     next.validate().map_err(|e| e.to_string())?;
@@ -151,7 +181,7 @@ pub(super) fn set(
 }
 /// Refresh linked image caches after pixel or material edits, preserving embedded
 /// pixels if the source is absent (e.g. a standalone MaterialZ export).
-pub(super) fn refresh(
+pub(crate) fn refresh(
     asset: &EditableMaterialAsset,
     project: &Project,
 ) -> Result<Option<EditableMaterialAsset>, String> {

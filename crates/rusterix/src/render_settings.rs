@@ -189,6 +189,12 @@ pub struct RenderSettings {
     pub render_style: RenderStyle,
     /// Avatar readability boost toggle for Raster 3D.
     pub avatar_highlight_enabled: bool,
+    /// Sampling grid for character and ground-item sprites; zero keeps source detail.
+    pub sprite_pixels_2d: u32,
+    /// Draw 2D map tiles and item icons on black instead of preserving their cutouts.
+    pub tile_background_black_2d: bool,
+    /// Screen-pixel block size for characters and ground items in Raster3D.
+    pub entity_pixel_size_3d: u32,
     /// Avatar readability lift multiplier.
     pub avatar_highlight_lift: f32,
     /// Avatar readability ambient fill contribution.
@@ -418,6 +424,9 @@ impl Default for RenderSettings {
             lighting_model: LightingModel::CookTorrance,
             render_style: RenderStyle::Nomad,
             avatar_highlight_enabled: true,
+            sprite_pixels_2d: 0,
+            tile_background_black_2d: false,
+            entity_pixel_size_3d: 1,
             avatar_highlight_lift: 1.12,
             avatar_highlight_fill: 0.20,
             avatar_highlight_rim: 0.18,
@@ -491,6 +500,23 @@ impl RenderSettings {
         toml_content: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let doc: toml::Value = toml::from_str(toml_content)?;
+        self.tile_background_black_2d = doc
+            .get("materials")
+            .and_then(|a| a.get("background_2d"))
+            .and_then(toml::Value::as_str)
+            .is_some_and(|s| s == "black");
+        self.sprite_pixels_2d = doc
+            .get("appearance")
+            .and_then(|a| a.get("sprite_pixels_2d"))
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(0)
+            .clamp(0, 128) as u32;
+        self.entity_pixel_size_3d = doc
+            .get("appearance")
+            .and_then(|a| a.get("pixel_size_3d"))
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(1)
+            .clamp(1, 16) as u32;
 
         if let Some(renderer) = doc.get("renderer").and_then(toml::Value::as_table) {
             if let Some(v) = renderer.get("backend_2d").and_then(toml::Value::as_str) {
@@ -888,6 +914,9 @@ impl RenderSettings {
 
     /// Apply these render settings to a SceneVM instance
     pub fn apply_2d(&mut self, vm: &mut SceneVM) {
+        vm.vm.tile_background_black_2d = self.tile_background_black_2d;
+        vm.vm
+            .set_entity_pixelization(self.sprite_pixels_2d, self.entity_pixel_size_3d);
         self.update_transitions();
         let to_linear = |c: f32| c.powf(2.2);
 
@@ -951,6 +980,8 @@ impl RenderSettings {
 
     /// Apply these render settings to a SceneVM instance
     pub fn apply_3d(&mut self, vm: &mut SceneVM) {
+        vm.vm
+            .set_entity_pixelization(self.sprite_pixels_2d, self.entity_pixel_size_3d);
         self.update_transitions();
 
         // Convert sRGB colors to linear space (gamma 2.2) on CPU instead of per-pixel in shader
@@ -1921,6 +1952,46 @@ fn parse_tone_mapper(v: &str) -> PostToneMapper {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn appearance_pixelization_is_independent_and_resets_when_removed() {
+        let mut settings = RenderSettings::default();
+        settings.read("[appearance]\nsprite_pixels_2d = 24\npixel_size_3d = 4\n[materials]\npixels_per_tile = 16\n").unwrap();
+        assert_eq!(settings.sprite_pixels_2d, 24);
+        assert_eq!(settings.entity_pixel_size_3d, 4);
+        settings
+            .read("[appearance]\nsprite_pixels_2d = 999\npixel_size_3d = -4\n")
+            .unwrap();
+        assert_eq!(settings.sprite_pixels_2d, 128);
+        assert_eq!(settings.entity_pixel_size_3d, 1);
+        settings.read("").unwrap();
+        assert_eq!(settings.sprite_pixels_2d, 0);
+        assert_eq!(settings.entity_pixel_size_3d, 1);
+    }
+
+    #[test]
+    fn tile_background_is_opt_in_and_updates_live() {
+        let mut settings = RenderSettings::default();
+        assert!(!settings.tile_background_black_2d);
+        settings
+            .read(
+                r#"[materials]
+background_2d = "black"
+"#,
+            )
+            .unwrap();
+        assert!(settings.tile_background_black_2d);
+        settings
+            .read(
+                r#"[materials]
+background_2d = "transparent"
+"#,
+            )
+            .unwrap();
+        assert!(!settings.tile_background_black_2d);
+        settings.read("").unwrap();
+        assert!(!settings.tile_background_black_2d);
+    }
 
     #[test]
     fn dungeon_black_sky_stays_black_when_time_changes() {

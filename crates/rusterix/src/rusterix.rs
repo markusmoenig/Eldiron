@@ -17,6 +17,8 @@ use ClientDrawMode::*;
 
 /// Rusterix can server as a server or client or both for solo games.
 pub struct Rusterix {
+    #[cfg(not(target_arch = "wasm32"))]
+    appearance_preparation: crate::procedural_avatar::preparation::Preparation,
     pub assets: Assets,
     pub server: Server,
     pub client: Client,
@@ -98,6 +100,8 @@ impl Rusterix {
         // }
 
         Self {
+            #[cfg(not(target_arch = "wasm32"))]
+            appearance_preparation: Default::default(),
             assets: Assets::default(),
             server: Server::default(),
             client: Client::default(),
@@ -214,6 +218,10 @@ impl Rusterix {
 
     /// Set the assets
     pub fn set_assets(&mut self, assets: Assets) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.appearance_preparation = Default::default();
+        }
         self.assets = assets;
         self.scene_handler.mark_dynamics_dirty();
         self.load_audio_assets();
@@ -520,11 +528,15 @@ impl Rusterix {
             .as_scenevm_camera_for_surface(width as f32, height as f32);
         self.orthographic_bake
             .sync_persisted_asset(map.id, map.orthographic_bake.as_ref());
-        let scene_bounds = self.scene_handler.vm.layer_scene_projected_bounds_3d(
-            0,
-            camera.right.normalized(),
-            camera.up.normalized(),
-        );
+        let scene_bounds = if self.orthographic_bake.needs_scene_bounds(map.id) {
+            self.scene_handler.vm.layer_scene_projected_bounds_3d(
+                0,
+                camera.right.normalized(),
+                camera.up.normalized(),
+            )
+        } else {
+            None
+        };
         let bake_work = self.orthographic_bake.prepare_work(
             map.id,
             width as u32,
@@ -1054,7 +1066,11 @@ impl Rusterix {
 
     /// Update the server messages.
     pub fn update_server(&mut self) -> Option<String> {
-        self.server.update(&mut self.assets)
+        let region = self.server.update(&mut self.assets);
+        #[cfg(not(target_arch = "wasm32"))]
+        self.appearance_preparation
+            .prepare(self.server.entities.values().flatten(), &self.assets);
+        region
     }
 
     /// Update the tiles

@@ -1,11 +1,12 @@
 [equipment]
 weapon_slots = ["main_hand", "off_hand"]
-armor_slots = ["head", "torso", "legs", "hands", "feet", "shield", "focus"]
+armor_slots = ["head", "torso", "legs", "hands", "feet", "shield", "focus", "tool"]
 
 [equipment.avatar_anchors]
 main_hand = "main_hand"
 off_hand = "off_hand"
 shield = "off_hand"
+tool = "off_hand"
 
 [equipment.weapon_categories.sword]
 handed = "one_handed"
@@ -413,6 +414,11 @@ pixels = [
 ]
 
 [items.weapons.training_sword]
+appearance_attack = "sword-slash"
+appearance_attack_time = 0.60
+appearance_icon = "icon/training_sword/on"
+appearance_geometry = "training_sword"
+appearance_ground_flat = true
 name = "Training Sword"
 description = "A blunt wooden practice sword used for early drills and safe sparring."
 category = "sword"
@@ -442,6 +448,11 @@ bonus_every = 4
 damage_kind = "physical"
 
 [items.weapons.hand_axe]
+appearance_attack = "axe-chop"
+appearance_attack_time = 0.72
+appearance_icon = "icon/hand_axe/on"
+appearance_geometry = "hand_axe"
+appearance_ground_flat = true
 name = "Hand Axe"
 description = "A compact iron axe with a worn wooden handle, useful as both tool and weapon."
 category = "axe"
@@ -471,6 +482,11 @@ bonus_every = 4
 damage_kind = "physical"
 
 [items.weapons.novice_mace]
+appearance_attack = "mace-swing"
+appearance_attack_time = 0.78
+appearance_geometry = "novice_mace"
+appearance_ground_flat = true
+appearance_icon = "icon/novice_mace/on"
 name = "Novice Mace"
 description = "A plain iron mace with a wooden haft, heavy enough for first combat lessons."
 category = "mace"
@@ -500,6 +516,15 @@ bonus_every = 4
 damage_kind = "physical"
 
 [items.weapons.hunting_bow]
+appearance_attack = "bow-shot"
+appearance_idle = "bow-ready"
+appearance_walk = "bow-walk"
+appearance_hold_joint = "left-hand"
+appearance_two_handed = true
+appearance_attack_time = 1.05
+appearance_geometry = "hunting_bow"
+appearance_ground_flat = true
+appearance_icon = "icon/hunting_bow/on"
 name = "Hunting Bow"
 description = "A simple wooden bow suitable for short patrols and first hunts."
 category = "bow"
@@ -530,6 +555,14 @@ bonus_every = 4
 damage_kind = "physical"
 
 [items.weapons.training_spear]
+appearance_attack = "spear-thrust"
+appearance_idle = "spear-ready"
+appearance_walk = "spear-walk"
+appearance_two_handed = true
+appearance_attack_time = 0.72
+appearance_geometry = "training_spear"
+appearance_ground_flat = true
+appearance_icon = "icon/training_spear/on"
 name = "Training Spear"
 description = "A simple practice spear with an iron tip and a long wooden shaft."
 category = "spear"
@@ -559,6 +592,10 @@ bonus_every = 4
 damage_kind = "physical"
 
 [items.armor.padded_armor]
+appearance_geometry = "padded_armor"
+appearance_ground_flat = true
+appearance_icon = "icon/padded_armor/on"
+appearance_worn_geometry = "garment_padded_armor"
 name = "Padded Armor"
 description = "Layered cloth padding that softens early blows without slowing movement."
 category = "cloth"
@@ -572,6 +609,10 @@ avatar_channels = ["torso", "arms"]
 ARMOR = 1
 
 [items.armor.cleric_vestments]
+appearance_geometry = "cleric_vestments"
+appearance_ground_flat = true
+appearance_icon = "icon/cleric_vestments/on"
+appearance_worn_geometry = "garment_cleric_vestments"
 name = "Cleric Vestments"
 description = "Pale layered vestments reinforced for novice temple guardians and field healers."
 category = "cloth"
@@ -585,6 +626,10 @@ avatar_channels = ["torso", "arms"]
 ARMOR = 1
 
 [items.armor.leather_vest]
+appearance_geometry = "leather_vest"
+appearance_ground_flat = true
+appearance_icon = "icon/leather_vest/on"
+appearance_worn_geometry = "garment_leather_vest"
 name = "Leather Vest"
 description = "A flexible leather vest for scouts, hunters, and light guards."
 category = "leather"
@@ -598,6 +643,10 @@ avatar_channels = ["torso"]
 ARMOR = 2
 
 [items.armor.chain_shirt]
+appearance_geometry = "chain_shirt"
+appearance_ground_flat = true
+appearance_icon = "icon/chain_shirt/on"
+appearance_worn_geometry = "garment_chain_shirt"
 name = "Chain Shirt"
 description = "Interlinked metal rings worn over padding for reliable protection."
 category = "chain"
@@ -611,6 +660,9 @@ avatar_channels = ["torso", "arms"]
 ARMOR = 3
 
 [items.armor.round_shield]
+appearance_icon = "icon/round_shield/on"
+appearance_geometry = "round_shield"
+appearance_ground_flat = true
 name = "Round Shield"
 description = "A round wooden shield with a metal rim and a simple boss."
 category = "shield"
@@ -630,6 +682,10 @@ highlight_color_index = 8
 ARMOR = 1
 
 [items.armor.ritual_censer]
+appearance_geometry = "ritual_censer"
+appearance_ground_flat = false
+appearance_worn_geometry = "worn_ritual_censer"
+appearance_icon = "icon/ritual_censer/on"
 name = "Ritual Censer"
 description = "A hand-balanced censer whose prepared smoke steadies healing and protective magic."
 category = "focus"
@@ -649,6 +705,10 @@ POWER = 1
 RESIST = 1
 
 [items.armor.sunward_charm]
+appearance_geometry = "sunward_charm"
+appearance_ground_flat = false
+appearance_worn_geometry = "worn_sunward_charm"
+appearance_icon = "icon/sunward_charm/on"
 name = "Sunward Charm"
 description = "A warm talisman that turns hostile sorcery and stray flame away from its bearer."
 category = "focus"
@@ -667,6 +727,10 @@ RESIST = 2
 FIRE_RESIST = 1
 
 [items.clothing.linen_shirt]
+appearance_geometry = "linen_shirt"
+appearance_ground_flat = true
+appearance_icon = "icon/linen_shirt/on"
+appearance_worn_geometry = "garment_linen_shirt"
 name = "Linen Shirt"
 description = "A plain linen shirt for everyday travel and layering under armor."
 category = "cloth"
@@ -678,6 +742,10 @@ icon = "linen_shirt"
 avatar_channels = ["torso", "arms"]
 
 [items.clothing.wool_trousers]
+appearance_geometry = "wool_trousers"
+appearance_ground_flat = true
+appearance_icon = "icon/wool_trousers/on"
+appearance_worn_geometry = "garment_wool_trousers"
 name = "Wool Trousers"
 description = "Sturdy wool trousers suited for road dust and cold evenings."
 category = "cloth"
@@ -689,6 +757,10 @@ icon = "wool_trousers"
 avatar_channels = ["legs"]
 
 [items.clothing.leather_shoes]
+appearance_geometry = "leather_shoes"
+appearance_ground_flat = false
+appearance_icon = "icon/leather_shoes/on"
+appearance_worn_geometry = "garment_leather_shoes"
 name = "Leather Shoes"
 description = "Simple leather shoes with enough grip for town paths and dry trails."
 category = "leather"
@@ -700,6 +772,10 @@ icon = "leather_shoes"
 avatar_channels = ["feet"]
 
 [items.containers.small_bag]
+appearance_geometry = "small_bag"
+appearance_ground_flat = false
+appearance_worn_geometry = "worn_small_bag"
+appearance_icon = "icon/small_bag/on"
 name = "Small Bag"
 description = "A simple cloth pouch for carrying a few loose items."
 category = "bag"
@@ -720,6 +796,9 @@ container_slots = 6
 takeable = true
 
 [items.containers.loot_corpse]
+appearance_geometry = "loot_corpse"
+appearance_ground_flat = false
+appearance_icon = "icon/loot_corpse/on"
 name = "Loot Corpse"
 description = "A lootable body containing carried items."
 category = "corpse"
@@ -743,6 +822,9 @@ takeable = false
 visible = true
 
 [items.ammunition.wooden_arrows]
+appearance_geometry = "wooden_arrows"
+appearance_ground_flat = true
+appearance_icon = "icon/wooden_arrows/on"
 name = "Wooden Arrows"
 description = "A bundle of plain wooden arrows for bows."
 category = "arrow"
@@ -762,6 +844,9 @@ quantity = 20
 ammo_for = "bow"
 
 [items.reagents.blessed_herb]
+appearance_geometry = "blessed_herb"
+appearance_ground_flat = true
+appearance_icon = "icon/blessed_herb/on"
 name = "Blessed Herb"
 description = "A small bundle of blessed herbs used for simple restoration rites."
 category = "herb"
@@ -782,6 +867,9 @@ quantity = 3
 reagent_for = "restoration"
 
 [items.reagents.moonwater]
+appearance_geometry = "moonwater"
+appearance_ground_flat = false
+appearance_icon = "icon/moonwater/on"
 name = "Moonwater"
 description = "Moonleaf distilled into a cool reagent associated with life and renewal."
 category = "liquid"
@@ -802,6 +890,9 @@ reagent_for = "life"
 word_of_power = "VI"
 
 [items.reagents.consecrated_oil]
+appearance_geometry = "consecrated_oil"
+appearance_ground_flat = false
+appearance_icon = "icon/consecrated_oil/on"
 name = "Consecrated Oil"
 description = "Blessed herbs carrying a sun shard's radiance for grace and holy fire."
 category = "oil"
@@ -822,6 +913,9 @@ reagent_for = "divine"
 word_of_power = "YA"
 
 [items.reagents.warding_salt]
+appearance_geometry = "warding_salt"
+appearance_ground_flat = false
+appearance_icon = "icon/warding_salt/on"
 name = "Warding Salt"
 description = "Grave dust purified by sunlight, used to trace boundaries the dead cannot cross."
 category = "salt"
@@ -842,6 +936,9 @@ reagent_for = "warding"
 word_of_power = "SAR"
 
 [items.reagents.ember_bead]
+appearance_geometry = "ember_bead"
+appearance_ground_flat = false
+appearance_icon = "icon/ember_bead/on"
 name = "Ember Bead"
 description = "A hardened drop of volatile resin that wakes when a flame word is spoken."
 category = "bead"
@@ -862,6 +959,9 @@ reagent_for = "fire"
 word_of_power = "FUL"
 
 [items.materials.green_wood]
+appearance_geometry = "green_wood"
+appearance_ground_flat = false
+appearance_icon = "icon/green_wood/on"
 name = "Green Wood"
 description = "Fresh flexible wood suitable for simple shafts, handles, and early crafting."
 category = "wood"
@@ -878,6 +978,9 @@ quantity = 5
 crafting_family = "woodworking"
 
 [items.materials.feather]
+appearance_geometry = "feather"
+appearance_ground_flat = true
+appearance_icon = "icon/feather/on"
 name = "Feather"
 description = "A clean feather used for fletching arrows and light craftwork."
 category = "feather"
@@ -893,6 +996,9 @@ quantity = 5
 crafting_family = "fletching"
 
 [items.materials.wild_herb]
+appearance_geometry = "wild_herb"
+appearance_ground_flat = true
+appearance_icon = "icon/wild_herb/on"
 name = "Wild Herb"
 description = "An unprepared herb gathered from the field."
 category = "herb"
@@ -913,6 +1019,9 @@ quantity = 5
 crafting_family = "herbalism"
 
 [items.materials.moonleaf]
+appearance_geometry = "moonleaf"
+appearance_ground_flat = true
+appearance_icon = "icon/moonleaf/on"
 name = "Moonleaf"
 description = "A pale night-growing leaf that holds dew long after sunrise."
 category = "herb"
@@ -933,6 +1042,9 @@ quantity = 4
 crafting_family = "alchemy"
 
 [items.materials.sun_shard]
+appearance_geometry = "sun_shard"
+appearance_ground_flat = false
+appearance_icon = "icon/sun_shard/on"
 name = "Sun Shard"
 description = "A soft golden mineral that stores a trace of daylight."
 category = "mineral"
@@ -952,6 +1064,9 @@ quantity = 3
 crafting_family = "ritualism"
 
 [items.materials.grave_dust]
+appearance_geometry = "grave_dust"
+appearance_ground_flat = false
+appearance_icon = "icon/grave_dust/on"
 name = "Grave Dust"
 description = "Cold mineral dust carrying the memory of a burial place."
 category = "dust"
@@ -971,6 +1086,9 @@ quantity = 4
 crafting_family = "ritualism"
 
 [items.materials.ember_resin]
+appearance_geometry = "ember_resin"
+appearance_ground_flat = false
+appearance_icon = "icon/ember_resin/on"
 name = "Ember Resin"
 description = "Warm sap from scorched wood, stable until shaped or exposed to magic."
 category = "resin"
@@ -990,6 +1108,9 @@ quantity = 4
 crafting_family = "alchemy"
 
 [items.resources.wild_herb_node]
+appearance_geometry = "wild_herb_node"
+appearance_ground_flat = false
+appearance_icon = "icon/wild_herb_node/on"
 name = "Wild Herb Node"
 description = "A small wild herb growth that can be gathered for fresh herbs."
 category = "herb"
@@ -1015,6 +1136,9 @@ amount = 2
 takeable = false
 
 [items.resources.green_wood_node]
+appearance_geometry = "green_wood_node"
+appearance_ground_flat = false
+appearance_icon = "icon/green_wood_node/on"
 name = "Green Wood Node"
 description = "A young flexible wood growth that can be gathered for green wood."
 category = "wood"
@@ -1038,6 +1162,9 @@ amount = 3
 takeable = false
 
 [items.resources.bird_nest_node]
+appearance_geometry = "bird_nest_node"
+appearance_ground_flat = false
+appearance_icon = "icon/bird_nest_node/on"
 name = "Bird Nest Node"
 description = "A small nest that can be gathered for usable feathers."
 category = "nest"
@@ -1062,6 +1189,9 @@ amount = 2
 takeable = false
 
 [items.resources.moonleaf_patch]
+appearance_geometry = "moonleaf_patch"
+appearance_ground_flat = false
+appearance_icon = "icon/moonleaf_patch/on"
 name = "Moonleaf Patch"
 description = "A shaded patch of pale leaves beaded with cold dew."
 category = "herb"
@@ -1087,6 +1217,9 @@ amount = 2
 takeable = false
 
 [items.resources.sunstone_outcrop]
+appearance_geometry = "sunstone_outcrop"
+appearance_ground_flat = false
+appearance_icon = "icon/sunstone_outcrop/on"
 name = "Sunstone Outcrop"
 description = "A low mineral outcrop glittering with trapped golden light."
 category = "mineral"
@@ -1111,6 +1244,9 @@ amount = 2
 takeable = false
 
 [items.resources.old_grave]
+appearance_geometry = "old_grave"
+appearance_ground_flat = false
+appearance_icon = "icon/old_grave/on"
 name = "Old Grave"
 description = "A weathered grave whose cold soil is useful in banishing rites."
 category = "grave"
@@ -1136,6 +1272,9 @@ amount = 2
 takeable = false
 
 [items.resources.resinous_stump]
+appearance_geometry = "resinous_stump"
+appearance_ground_flat = false
+appearance_icon = "icon/resinous_stump/on"
 name = "Resinous Stump"
 description = "A fire-scarred stump bleeding beads of warm amber resin."
 category = "wood"
@@ -1161,6 +1300,9 @@ amount = 2
 takeable = false
 
 [items.currency.copper_coin]
+appearance_geometry = "copper_coin"
+appearance_ground_flat = false
+appearance_icon = "icon/copper_coin/on"
 name = "Copper Coin"
 description = "A small copper coin, the base unit of Eldiron trade."
 category = "coin"
@@ -1176,6 +1318,9 @@ accent_color_index = 4
 highlight_color_index = 22
 
 [items.currency.silver_coin]
+appearance_geometry = "silver_coin"
+appearance_ground_flat = false
+appearance_icon = "icon/silver_coin/on"
 name = "Silver Coin"
 description = "A stamped silver coin worth ten copper."
 category = "coin"
@@ -1191,6 +1336,9 @@ accent_color_index = 36
 highlight_color_index = 22
 
 [items.currency.gold_coin]
+appearance_geometry = "gold_coin"
+appearance_ground_flat = false
+appearance_icon = "icon/gold_coin/on"
 name = "Gold Coin"
 description = "A bright gold coin worth one hundred copper."
 category = "coin"
@@ -1206,6 +1354,13 @@ accent_color_index = 20
 highlight_color_index = 8
 
 [items.tools.torch]
+appearance_idle = "torch-idle"
+appearance_walk = "torch-walk"
+appearance_geometry = "torch"
+appearance_ground_flat = false
+appearance_geometry_off = "torch_off"
+appearance_icon = "icon/torch/on"
+appearance_icon_off = "icon/torch/off"
 name = "Torch"
 description = "A simple hand torch with an iron bracket and a rag-wrapped head."
 category = "utility"

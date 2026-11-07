@@ -421,28 +421,25 @@ Creator creates missing ruleset-backed items and refreshes existing
 ruleset-backed items whose `ruleset_path` still points to the official item.
 Custom project items remain separate project assets.
 
-Ruleset icons live in `[icons]`, with their authoritative artist-editable RGBA
-PNGs under `assets/icons/<id>/<state>/<frame>.png`. Item templates can set
-`icon = "training_sword"`.
-Item display prefers a project-owned edited icon, then an explicit tile, then
-the authored item-id ruleset PNG. This lets an item keep its own artwork even
-when its semantic fallback is shared with an action. Avatar-channel and
-`visual_template` generators are used only when that artwork is missing. The
-PNG colors are never remapped through either project palette.
-Every item exposes **Off** and **On** icon rows in Creator. A single-state item
-has only the On row populated; a stateful item may independently animate both
-rows. The torch is the first bundled example: its former tile files are rebuilt
-from the same one-frame Off and four-frame On icon PNGs, so UI and world art no
-longer have separate binary sources.
-An optional state-local `material.png` is reserved for artist-authored material
-data: red stores roughness, blue metallic, green emission, and alpha is unused.
-No material file is required, and the torch does not invent one because its
-former tiles did not contain material data.
-Items own state bundles keyed by item id. The engine still permits actions to
-share semantic artwork, but every official action now points to its own
-`assets/icons/<action-id>/on/0.png`. The initial file may be copied from a
-semantic placeholder, but it is an independent artist-replaceable source and
-changing it cannot alter another ability.
+The official item library supplies editable **32×32 MZ PBR icon recipes** in
+`assets/procedural_icons/`, with companion `palette.json` bindings. World models
+live in `assets/geometry/`; garment and item surfaces use `assets/materials/`.
+These recipes and project palette indices are the editable source. Generated
+color/material frames are render data, not a replacement for the recipe.
+
+Open **Appearance** under a project item to edit **Icon On**, **Icon Off**,
+**Model On**, **Model Off**, worn geometry and referenced materials. On is the
+default; a separate inactive state is optional. Edits to a shared asset affect
+its references, and project overrides survive ruleset synchronization. The
+world Tile Picker excludes the internal ruleset icon/material swatches.
+See [Appearance](characters_items/appearance) for the complete workflow.
+
+Bitmap icons remain supported through `[icons]` and
+`assets/icons/<id>/<state>/<frame>.png`, including explicit project bitmap
+state overrides and semantic fallback artwork. Official action and local
+interface-command icons still use that PNG library. Their artwork should not
+be described as editable MZ item recipes. The optional PNG-state `material.png`
+remains reserved; MZ-generated PBR maps use the procedural bake path instead.
 
 Custom actions and items may share any semantic icon id, so new content does
 not require one-off artwork. Official actions deliberately use their own ids
@@ -470,26 +467,21 @@ other mappings are authored by the ruleset rather than hardcoded by official
 action id. These fallback tables are optional, and all referenced icon and FX
 preset ids are validated.
 
-Ruleset-backed item templates can also carry item script source, authoring text,
-tile ids, and lights. This is used for reusable interactive objects such as
-`items.tools.torch`: the ruleset creates a normal project item template whose
-`use` intent toggles `active`, which selects its Off or On icon and world-tile
-state automatically. The script only responds to that state change to enable
-or disable the point light and presents different look/use text for both
-states. Its world tiles are reconstructed from the same one-frame Off and
-four-frame On PNG bundle while retaining stable tile UUIDs. There are no
-separate torch tile binaries or UUIDs embedded in the script to keep in sync.
-The same item also
-uses ruleset durability: while `active`, its `condition` drains in game minutes,
-and the default official torch destroys itself at `0%` condition.
+Ruleset-backed item templates can also carry behavior, authoring text, tile
+bindings and lights. The torch's behavior toggles `active`; its independently
+editable MZ On/Off icons and models supply the corresponding appearance. The lit
+icon retains four-frame animation, and its 3D recipe can attach particle effects.
+Light switching, durability and fuel consumption remain item behavior/rules.
+The default official torch drains condition in game minutes while active and
+is removed when it reaches zero.
 
-This behavior is generic. When an item has a boolean `active` attribute and
+For bitmap-state mappings, this behavior is generic. When an item has a boolean `active` attribute and
 defines `off_tile_id` and/or `on_tile_id`, changing `active` automatically
 updates its world `source` from the matching available mapping. A mapping may
 use a tile UUID, tile alias, or palette index. If the requested state has no
-mapping, Eldiron preserves the current source. Creator uses the same mapping as
-the default icon for that state. Pixel edits are stored as independent item
-icon frames, and **Load Default** reloads the currently mapped tile frames.
+mapping, Eldiron preserves the current source. Explicit bitmap icon frames are
+stored separately from their source tile. MZ state recipes use the Appearance
+workspace and their procedural bindings instead.
 
 Ruleset item ids are stable. Startup loadouts can reference `training_sword` or
 `padded_armor` even when the visible item name is `Training Sword` or
@@ -572,20 +564,24 @@ The global fallback avatar reference is:
 avatar = "humanoid"
 ```
 
-The bundled asset lives in the ruleset directory:
+The official procedural bodies are:
 
 ```text
-crates/ruleset/rulesets/eldiron/v1/assets/humanoid.eldiron_avatar
-crates/ruleset/rulesets/eldiron/v1/assets/orc.eldiron_avatar
-crates/ruleset/rulesets/eldiron/v1/assets/skeleton.eldiron_avatar
+assets/humanoid.mzgeometry.json
+assets/geometry/orc.mzgeometry.json
+assets/geometry/skeleton.mzgeometry.json
 ```
 
-Runtime asset loading makes this available to clients. Character visuals can
-still provide concrete presentation with values such as `tile_id` or `avatar`.
-An explicit project visual wins over the ruleset default, and a project avatar
-named `humanoid`, `orc`, or `skeleton` replaces the matching bundled default
-avatar for the project. The bundled Skeleton file is a distinct copy of the
-humanoid asset intended as the import target for a dedicated Skeleton atlas.
+Runtime loading evaluates these editable rigs as directional sprites in 2D and
+native posed meshes in 3D, using shared palette-bound materials, fitted garments
+and held-item grips. The Orc has its own proportions and heavier clips; the
+Skeleton has skeletal geometry rather than a copied humanoid atlas. Bitmap
+`.eldiron_avatar` sources remain available for image-based avatars.
+
+Explicit project `tile_id`, `avatar` and `avatar_id` choices still select the
+character's visual source. Project geometry/material overrides are retained
+across refreshes. Select race/class and equipment in character setup, then use
+[Appearance](characters_items/appearance) to preview or edit the resolved body.
 
 The official ruleset also demonstrates race traits as gameplay data rather than
 engine branches. Skeleton materializes `traits = ["undead", "skeletal"]`;
@@ -605,8 +601,9 @@ avatar_channels = ["torso", "arms"]
 When no project override, explicit tile, authored item-id icon, or semantic icon
 is available, Eldiron can use the default avatar's idle front frame, extract
 the requested channels, recolor them from the project palette, and use that
-shape for inventory, equipped-slot, and ground-item previews. This is generated
-missing art; authored RGBA icon PNGs retain their own colors.
+shape for inventory, equipped-slot, and ground-item previews. This is a
+missing-art fallback, separate from the official MZ item recipes. Project-owned
+bitmap overrides retain their own colors.
 
 ## Runtime Resolution
 

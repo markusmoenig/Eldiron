@@ -1,0 +1,659 @@
+{
+  "version": 1,
+  "id": "round_shield",
+  "label": "Ruleset round shield",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Shield dimensions",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Round Shield",
+            "document": {
+              "version": 1,
+              "id": "curved-shield",
+              "label": "Curved wooden shield",
+              "rows": [
+                {
+                  "id": "shield-wood",
+                  "label": "Shield Wood",
+                  "tiles": [
+                    {
+                      "id": "shield-wood-value",
+                      "op": {
+                        "type": "material",
+                        "palette": 20,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "shield-steel",
+                  "label": "Shield Steel",
+                  "tiles": [
+                    {
+                      "id": "shield-steel-value",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.35,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "shield-leather",
+                  "label": "Shield Leather",
+                  "tiles": [
+                    {
+                      "id": "shield-leather-value",
+                      "op": {
+                        "type": "material",
+                        "palette": 19,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "shield-shell",
+                  "label": "Concave wooden back",
+                  "tiles": [
+                    {
+                      "id": "shield-shell-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            0.06
+                          ],
+                          [
+                            0.06,
+                            0.058
+                          ],
+                          [
+                            0.13,
+                            0.05
+                          ],
+                          [
+                            0.21,
+                            0.031
+                          ],
+                          [
+                            0.28,
+                            0.002
+                          ],
+                          [
+                            0.28,
+                            -0.022
+                          ],
+                          [
+                            0.21,
+                            0.007
+                          ],
+                          [
+                            0.13,
+                            0.026
+                          ],
+                          [
+                            0.06,
+                            0.034
+                          ],
+                          [
+                            0,
+                            0.036
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-shell-turn",
+                      "op": {
+                        "type": "revolve",
+                        "segments": 32
+                      }
+                    },
+                    {
+                      "id": "shield-shell-upright",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-shell-upright-ellipse",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1.107142857142857,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-shell-finish",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "shield-wood"
+                      }
+                    },
+                    {
+                      "id": "shield-back-wood",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/wood",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "shield-face",
+                  "label": "Painted curved face",
+                  "tiles": [
+                    {
+                      "id": "shield-face-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0,
+                            0.062
+                          ],
+                          [
+                            0.06,
+                            0.060000000000000005
+                          ],
+                          [
+                            0.13,
+                            0.052000000000000005
+                          ],
+                          [
+                            0.21,
+                            0.033
+                          ],
+                          [
+                            0.28,
+                            0.004
+                          ],
+                          [
+                            0.28,
+                            0.0015
+                          ],
+                          [
+                            0.21,
+                            0.0305
+                          ],
+                          [
+                            0.13,
+                            0.0495
+                          ],
+                          [
+                            0.06,
+                            0.0575
+                          ],
+                          [
+                            0,
+                            0.0595
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-face-turn",
+                      "op": {
+                        "type": "revolve",
+                        "segments": 32
+                      }
+                    },
+                    {
+                      "id": "shield-face-upright",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          90,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-face-upright-ellipse",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1.107142857142857,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-face-finish",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "shield-steel"
+                      }
+                    },
+                    {
+                      "id": "shield-artwork",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:icon/round_shield/on",
+                        "size": 128,
+                        "parts": [],
+                        "preserve_uv": false,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          -0.32,
+                          -0.35428571428571426
+                        ],
+                        "span": [
+                          0.64,
+                          0.7085714285714285
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "shield-handle",
+                  "label": "Rear hand grip",
+                  "tiles": [
+                    {
+                      "id": "shield-handle-bar",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.14,
+                          0.035,
+                          0.035
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-handle-position",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0,
+                          0,
+                          -0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-handle-finish",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "shield-leather"
+                      }
+                    },
+                    {
+                      "id": "shield-handle-leather",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/leather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "shield-handle-mounts",
+                  "label": "Grip mounts",
+                  "tiles": [
+                    {
+                      "id": "shield-handle-mounts-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.022,
+                          0.055,
+                          0.075
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-handle-mount-left",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.06,
+                          0,
+                          -0.026
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "shield-handle-mount-finish",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "shield-wood"
+                      }
+                    },
+                    {
+                      "id": "shield-handle-mount-wood",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/wood",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "shield-handle-mount-right",
+                  "label": "Other grip mount",
+                  "tiles": [
+                    {
+                      "id": "shield-handle-mount-copy",
+                      "op": {
+                        "type": "reference",
+                        "row": "shield-handle-mounts"
+                      }
+                    },
+                    {
+                      "id": "shield-handle-mount-move",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          0.12,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "shield-body",
+                  "label": "Shield assembly",
+                  "tiles": [
+                    {
+                      "id": "shield-assembly",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "shield-shell",
+                          "shield-face",
+                          "shield-handle",
+                          "shield-handle-mounts",
+                          "shield-handle-mount-right"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "shield-grip",
+                  "label": "Hand attachment",
+                  "tiles": [
+                    {
+                      "id": "shield-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          -0.065
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "shield-body",
+              "grip": "shield-grip"
+            },
+            "controls": [
+              {
+                "id": "width",
+                "label": "Width (m)",
+                "category": "Shape",
+                "order": 0,
+                "value": 0.56,
+                "reference": 0.56,
+                "min": 0.35,
+                "max": 0.85,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      1.7857142857142856,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ],
+                "help": "Overall shield width. The painted face and rear grip resize together."
+              },
+              {
+                "id": "height",
+                "label": "Height (m)",
+                "category": "Shape",
+                "order": 1,
+                "value": 0.62,
+                "reference": 0.62,
+                "min": 0.4,
+                "max": 0.95,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      1.6129032258064517,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ],
+                "help": "Overall shield height."
+              },
+              {
+                "id": "curve",
+                "label": "Curve depth (m)",
+                "category": "Shape",
+                "order": 2,
+                "value": 0.06,
+                "reference": 0.06,
+                "min": 0.015,
+                "max": 0.12,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      16.666666666666668
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ],
+                "help": "Curvature of the convex front and concave back. The grip remains behind the shell."
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

@@ -2109,10 +2109,12 @@ mod tests {
         ));
         let saved: Project =
             serde_json::from_str(&serde_json::to_string(&project).unwrap()).unwrap();
-        assert!(saved.rules_document.document().unwrap().table()["races"]
-            .as_table()
-            .unwrap()
-            .contains_key("Robot"));
+        assert!(
+            saved.rules_document.document().unwrap().table()["races"]
+                .as_table()
+                .unwrap()
+                .contains_key("Robot")
+        );
     }
 
     #[test]
@@ -2316,10 +2318,11 @@ mod tests {
             .position(|(path, _, _, _)| path.last().is_some_and(|s| s == "target"))
             .unwrap();
         assert!(dock.choices[&index].iter().any(|s| s == "friendly_or_self"));
-        assert!(dock
-            .fields
-            .iter()
-            .any(|(path, _, _, _)| path.last().is_some_and(|s| s == "icon")));
+        assert!(
+            dock.fields
+                .iter()
+                .any(|(path, _, _, _)| path.last().is_some_and(|s| s == "icon"))
+        );
         assert!(dock.icons.iter().any(|(id, _)| id == "basic_attack"));
     }
 

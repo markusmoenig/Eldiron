@@ -11,6 +11,11 @@ Read [Ruleset Editor](./creator/docks/ruleset_nodes) for the Creator workflow:
 changing values, adding or removing definitions, replacing icons, editing particle
 effects, and restoring the original ruleset.
 
+For ruleset-driven artwork, [Appearance](characters_items/appearance) explains
+how to equip characters and edit MZ item icons, models, clothing and independent
+On/Off states. Gameplay definitions stay in Rules; appearance recipes use the
+project palette and their own editors.
+
 ## Official Rules
 
 Read [Official Rules](./official_rules) if you want the rulebook view: races,

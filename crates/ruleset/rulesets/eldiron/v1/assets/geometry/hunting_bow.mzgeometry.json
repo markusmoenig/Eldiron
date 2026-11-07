@@ -1,0 +1,2257 @@
+{
+  "version": 1,
+  "id": "hunting_bow",
+  "label": "Hunting Bow",
+  "rows": [
+    {
+      "id": "details",
+      "label": "Hunting Bow",
+      "tiles": [
+        {
+          "id": "details-group",
+          "op": {
+            "type": "group",
+            "label": "Hunting Bow",
+            "document": {
+              "version": 1,
+              "id": "hunting_bow-construction",
+              "label": "Hunting Bow construction",
+              "rows": [
+                {
+                  "id": "bow-rig",
+                  "label": "Flexible bow and arrow rig",
+                  "tiles": [
+                    {
+                      "id": "bow-armature",
+                      "op": {
+                        "type": "armature",
+                        "joints": [
+                          {
+                            "id": "bow-root",
+                            "label": "Bow Root",
+                            "parent": null,
+                            "translation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "bow-upper",
+                            "label": "Bow Upper",
+                            "parent": "bow-root",
+                            "translation": [
+                              0.24,
+                              0.56,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "bow-lower",
+                            "label": "Bow Lower",
+                            "parent": "bow-root",
+                            "translation": [
+                              0.24,
+                              -0.56,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "bow-upper-nock",
+                            "label": "Bow Upper Nock",
+                            "parent": "bow-upper",
+                            "translation": [
+                              0,
+                              -0.515,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "bow-lower-nock",
+                            "label": "Bow Lower Nock",
+                            "parent": "bow-lower",
+                            "translation": [
+                              0,
+                              0.605,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          },
+                          {
+                            "id": "bow-arrow",
+                            "label": "Bow Arrow",
+                            "parent": "bow-root",
+                            "translation": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "rotation": [
+                              0,
+                              0,
+                              0
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "iron",
+                  "label": "Iron",
+                  "tiles": [
+                    {
+                      "id": "iron-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 7,
+                        "roughness": 0.3,
+                        "metallic": 0.9
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "wood",
+                  "label": "Wood",
+                  "tiles": [
+                    {
+                      "id": "wood-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 20,
+                        "roughness": 0.8,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "leather",
+                  "label": "Leather",
+                  "tiles": [
+                    {
+                      "id": "leather-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 18,
+                        "roughness": 0.85,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "linen",
+                  "label": "Linen",
+                  "tiles": [
+                    {
+                      "id": "linen-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 23,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "feathers",
+                  "label": "Feathers",
+                  "tiles": [
+                    {
+                      "id": "feathers-material",
+                      "op": {
+                        "type": "material",
+                        "palette": 9,
+                        "roughness": 0.9,
+                        "metallic": 0
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-stave-lower",
+                  "label": "Lower flexible limb",
+                  "tiles": [
+                    {
+                      "id": "bow-stave-lower-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.24,
+                              -0.56,
+                              0
+                            ],
+                            "radius": [
+                              0.01,
+                              0.01
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.13,
+                              -0.41,
+                              0
+                            ],
+                            "radius": [
+                              0.016,
+                              0.014
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.045,
+                              -0.23,
+                              0
+                            ],
+                            "radius": [
+                              0.021,
+                              0.017
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.08,
+                              0
+                            ],
+                            "radius": [
+                              0.024,
+                              0.02
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "radius": [
+                              0.024,
+                              0.02
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "bow-stave-lower-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "wood"
+                      }
+                    },
+                    {
+                      "id": "bow-stave-lower-2",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-stave-lower-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-root",
+                          "bow-lower"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-stave-upper",
+                  "label": "Upper flexible limb",
+                  "tiles": [
+                    {
+                      "id": "bow-stave-upper-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              0,
+                              0
+                            ],
+                            "radius": [
+                              0.024,
+                              0.02
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.08,
+                              0
+                            ],
+                            "radius": [
+                              0.024,
+                              0.02
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.045,
+                              0.23,
+                              0
+                            ],
+                            "radius": [
+                              0.021,
+                              0.017
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.13,
+                              0.41,
+                              0
+                            ],
+                            "radius": [
+                              0.016,
+                              0.014
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.24,
+                              0.56,
+                              0
+                            ],
+                            "radius": [
+                              0.01,
+                              0.01
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "bow-stave-upper-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "wood"
+                      }
+                    },
+                    {
+                      "id": "bow-stave-upper-2",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-ash",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-stave-upper-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-root",
+                          "bow-upper"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-string-upper",
+                  "label": "Upper bow string",
+                  "tiles": [
+                    {
+                      "id": "bow-string-upper-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.24,
+                              0.045,
+                              0
+                            ],
+                            "radius": [
+                              0.004,
+                              0.004
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.24,
+                              0.56,
+                              0
+                            ],
+                            "radius": [
+                              0.004,
+                              0.004
+                            ]
+                          }
+                        ],
+                        "segments": 6
+                      }
+                    },
+                    {
+                      "id": "bow-string-upper-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "linen"
+                      }
+                    },
+                    {
+                      "id": "bow-string-upper-2",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/bow-string",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-string-upper-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-upper",
+                          "bow-upper-nock"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-string-lower",
+                  "label": "Lower bow string",
+                  "tiles": [
+                    {
+                      "id": "bow-string-lower-0",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.24,
+                              -0.56,
+                              0
+                            ],
+                            "radius": [
+                              0.004,
+                              0.004
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.24,
+                              0.045,
+                              0
+                            ],
+                            "radius": [
+                              0.004,
+                              0.004
+                            ]
+                          }
+                        ],
+                        "segments": 6
+                      }
+                    },
+                    {
+                      "id": "bow-string-lower-1",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "linen"
+                      }
+                    },
+                    {
+                      "id": "bow-string-lower-2",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/bow-string",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-string-lower-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-lower",
+                          "bow-lower-nock"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-grip",
+                  "label": "Bound riser",
+                  "tiles": [
+                    {
+                      "id": "bow-grip-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0,
+                              -0.085,
+                              0
+                            ],
+                            "radius": [
+                              0.026,
+                              0.023
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              -0.07,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.025
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.07,
+                              0
+                            ],
+                            "radius": [
+                              0.03,
+                              0.025
+                            ]
+                          },
+                          {
+                            "center": [
+                              0,
+                              0.085,
+                              0
+                            ],
+                            "radius": [
+                              0.026,
+                              0.023
+                            ]
+                          }
+                        ],
+                        "segments": 10
+                      }
+                    },
+                    {
+                      "id": "bow-grip-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "leather"
+                      }
+                    },
+                    {
+                      "id": "bow-grip-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/bow-grip",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-grip-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-root"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-nock-lower",
+                  "label": "Lower linen binding",
+                  "tiles": [
+                    {
+                      "id": "bow-nock-lower-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.22,
+                              -0.557,
+                              0
+                            ],
+                            "radius": [
+                              0.016,
+                              0.014
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.24,
+                              -0.513,
+                              0
+                            ],
+                            "radius": [
+                              0.016,
+                              0.014
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "bow-nock-lower-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "linen"
+                      }
+                    },
+                    {
+                      "id": "bow-nock-lower-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/bow-string",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-nock-lower-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-lower"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-nock-upper",
+                  "label": "Upper linen binding",
+                  "tiles": [
+                    {
+                      "id": "bow-nock-upper-profile",
+                      "op": {
+                        "type": "loft",
+                        "sections": [
+                          {
+                            "center": [
+                              0.22,
+                              0.513,
+                              0
+                            ],
+                            "radius": [
+                              0.016,
+                              0.014
+                            ]
+                          },
+                          {
+                            "center": [
+                              0.24,
+                              0.557,
+                              0
+                            ],
+                            "radius": [
+                              0.016,
+                              0.014
+                            ]
+                          }
+                        ],
+                        "segments": 8
+                      }
+                    },
+                    {
+                      "id": "bow-nock-upper-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "linen"
+                      }
+                    },
+                    {
+                      "id": "bow-nock-upper-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/bow-string",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-nock-upper-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-upper"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-arrow-shaft",
+                  "label": "Nocked wooden arrow",
+                  "tiles": [
+                    {
+                      "id": "arrow-shaft-box",
+                      "op": {
+                        "type": "box",
+                        "size": [
+                          0.74,
+                          0.014,
+                          0.014
+                        ]
+                      }
+                    },
+                    {
+                      "id": "arrow-shaft-position",
+                      "op": {
+                        "type": "transform",
+                        "translation": [
+                          -0.13,
+                          0.045,
+                          0
+                        ],
+                        "rotation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "scale": [
+                          1,
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-arrow-shaft-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "wood"
+                      }
+                    },
+                    {
+                      "id": "bow-arrow-shaft-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-shaft",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-arrow-shaft-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-arrow"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-arrow-point",
+                  "label": "Steel arrow point",
+                  "tiles": [
+                    {
+                      "id": "bow-arrow-point-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            -0.66,
+                            0.045
+                          ],
+                          [
+                            -0.49,
+                            -0.01
+                          ],
+                          [
+                            -0.49,
+                            0.1
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-arrow-point-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.012
+                      }
+                    },
+                    {
+                      "id": "bow-arrow-point-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "iron"
+                      }
+                    },
+                    {
+                      "id": "bow-arrow-point-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/weapon-iron",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-arrow-point-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-arrow"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-feather-lower",
+                  "label": "Lower flight",
+                  "tiles": [
+                    {
+                      "id": "bow-feather-lower-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.08,
+                            0.018
+                          ],
+                          [
+                            0.2,
+                            0.018
+                          ],
+                          [
+                            0.24,
+                            -0.012
+                          ],
+                          [
+                            0.14,
+                            -0.012
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-feather-lower-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bow-feather-lower-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "feathers"
+                      }
+                    },
+                    {
+                      "id": "bow-feather-lower-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-feather-lower-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-arrow"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "bow-feather-upper",
+                  "label": "Upper flight",
+                  "tiles": [
+                    {
+                      "id": "bow-feather-upper-profile",
+                      "op": {
+                        "type": "contour",
+                        "points": [
+                          [
+                            0.08,
+                            0.072
+                          ],
+                          [
+                            0.2,
+                            0.072
+                          ],
+                          [
+                            0.24,
+                            0.102
+                          ],
+                          [
+                            0.14,
+                            0.102
+                          ]
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-feather-upper-depth",
+                      "op": {
+                        "type": "extrude",
+                        "depth": 0.006
+                      }
+                    },
+                    {
+                      "id": "bow-feather-upper-surface",
+                      "op": {
+                        "type": "assign_material",
+                        "row": "feathers"
+                      }
+                    },
+                    {
+                      "id": "bow-feather-upper-texture",
+                      "op": {
+                        "type": "texture",
+                        "source": "ruleset:material/arrow-feather",
+                        "size": 64,
+                        "parts": [],
+                        "preserve_uv": true,
+                        "axes": [
+                          0,
+                          1
+                        ],
+                        "origin": [
+                          0,
+                          0
+                        ],
+                        "span": [
+                          1,
+                          1
+                        ]
+                      }
+                    },
+                    {
+                      "id": "bow-feather-upper-skin",
+                      "op": {
+                        "type": "skin",
+                        "rig": "bow-rig",
+                        "joints": [
+                          "bow-arrow"
+                        ],
+                        "blend": 1
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "assembled",
+                  "label": "Bow assembly",
+                  "tiles": [
+                    {
+                      "id": "assemble-model",
+                      "op": {
+                        "type": "assemble",
+                        "rows": [
+                          "bow-stave-lower",
+                          "bow-stave-upper",
+                          "bow-string-upper",
+                          "bow-string-lower",
+                          "bow-grip",
+                          "bow-nock-lower",
+                          "bow-nock-upper",
+                          "bow-arrow-shaft",
+                          "bow-arrow-point",
+                          "bow-feather-lower",
+                          "bow-feather-upper"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "hand-grip",
+                  "label": "Hand grip",
+                  "tiles": [
+                    {
+                      "id": "hand-grip-frame",
+                      "op": {
+                        "type": "grip",
+                        "translation": [
+                          0,
+                          0,
+                          0
+                        ],
+                        "rotation": [
+                          135,
+                          -90,
+                          0
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ],
+              "output": "assembled",
+              "grip": "hand-grip"
+            },
+            "controls": [
+              {
+                "id": "height",
+                "label": "Bow height",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 0,
+                "value": 1.12,
+                "reference": 1.12,
+                "min": 0.85,
+                "max": 1.4,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "*"
+                    ],
+                    "joints": [
+                      "*"
+                    ],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0.8928571428571428,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": true
+                  }
+                ]
+              },
+              {
+                "id": "arrow-length",
+                "label": "Arrow length",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 1,
+                "value": 0.9,
+                "reference": 0.9,
+                "min": 0.65,
+                "max": 1.05,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "bow-arrow-shaft",
+                      "bow-arrow-point",
+                      "bow-feather-lower",
+                      "bow-feather-upper"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0.24,
+                      0.045,
+                      0
+                    ],
+                    "scale": [
+                      1.1111111111111112,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ]
+              },
+              {
+                "id": "curve",
+                "label": "Bow curve",
+                "category": "Dimensions",
+                "help": "Changes the authored geometry while preserving the hand grip.",
+                "order": 2,
+                "value": 0.24,
+                "reference": 0.24,
+                "min": 0.16,
+                "max": 0.34,
+                "modifiers": [
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "bow-nock-lower",
+                      "bow-nock-upper",
+                      "bow-stave-upper",
+                      "bow-stave-lower",
+                      "bow-string-upper",
+                      "bow-string-lower"
+                    ],
+                    "joints": [
+                      "*"
+                    ],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      4.166666666666667,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  },
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "bow-arrow-shaft",
+                      "bow-arrow-point",
+                      "bow-feather-lower",
+                      "bow-feather-upper"
+                    ],
+                    "joints": [
+                      "*"
+                    ],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  },
+                  {
+                    "type": "affine",
+                    "parts": [
+                      "bow-arrow-shaft",
+                      "bow-arrow-point",
+                      "bow-feather-lower",
+                      "bow-feather-upper"
+                    ],
+                    "joints": [],
+                    "pivot": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "scale": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "translation": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "frames": false
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "bow-shot",
+      "label": "Bow \u00b7 draw, release and reload",
+      "tiles": [
+        {
+          "id": "bow-shot-motion",
+          "op": {
+            "type": "motion",
+            "rig": "details",
+            "duration": 1.05,
+            "looping": false,
+            "tracks": [
+              {
+                "joint": "bow-upper",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.12,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.3,
+                    "translation": [
+                      0.025,
+                      -0.00625,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.55,
+                    "translation": [
+                      0.06,
+                      -0.015,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.6,
+                    "translation": [
+                      0.06,
+                      -0.015,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.64,
+                    "translation": [
+                      -0.01,
+                      0.0025,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.68,
+                    "translation": [
+                      0.008,
+                      -0.002,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.75,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.84,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.94,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.98,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  }
+                ]
+              },
+              {
+                "joint": "bow-lower",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.12,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.3,
+                    "translation": [
+                      0.025,
+                      0.00625,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.55,
+                    "translation": [
+                      0.06,
+                      0.015,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.6,
+                    "translation": [
+                      0.06,
+                      0.015,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.64,
+                    "translation": [
+                      -0.01,
+                      -0.0025,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.68,
+                    "translation": [
+                      0.008,
+                      0.002,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.75,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.84,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.94,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.98,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  }
+                ]
+              },
+              {
+                "joint": "bow-upper-nock",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.12,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.3,
+                    "translation": [
+                      0.11500000000000002,
+                      0.00625,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.55,
+                    "translation": [
+                      0.22000000000000003,
+                      0.015,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.6,
+                    "translation": [
+                      0.22000000000000003,
+                      0.015,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.64,
+                    "translation": [
+                      0.03,
+                      -0.0025,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.68,
+                    "translation": [
+                      -0.008,
+                      0.002,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.75,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.84,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.94,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.98,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  }
+                ]
+              },
+              {
+                "joint": "bow-lower-nock",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.12,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.3,
+                    "translation": [
+                      0.11500000000000002,
+                      -0.00625,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.55,
+                    "translation": [
+                      0.22000000000000003,
+                      -0.015,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.6,
+                    "translation": [
+                      0.22000000000000003,
+                      -0.015,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.64,
+                    "translation": [
+                      0.03,
+                      0.0025,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.68,
+                    "translation": [
+                      -0.008,
+                      -0.002,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.75,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.84,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.94,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.98,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      -0.0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  }
+                ]
+              },
+              {
+                "joint": "bow-arrow",
+                "keys": [
+                  {
+                    "time": 0,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.12,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.3,
+                    "translation": [
+                      0.14,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.55,
+                    "translation": [
+                      0.28,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.6,
+                    "translation": [
+                      0.28,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.64,
+                    "translation": [
+                      0.02,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.68,
+                    "translation": [
+                      -0.36,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.75,
+                    "translation": [
+                      -1.0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 0.84,
+                    "translation": [
+                      -1.7,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": false
+                  },
+                  {
+                    "time": 0.94,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": false
+                  },
+                  {
+                    "time": 0.98,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  },
+                  {
+                    "time": 1,
+                    "translation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "rotation": [
+                      0,
+                      0,
+                      0
+                    ],
+                    "visible": true
+                  }
+                ]
+              }
+            ],
+            "events": [
+              {
+                "time": 0.64,
+                "name": "release"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "output": "details",
+  "grip": "details"
+}

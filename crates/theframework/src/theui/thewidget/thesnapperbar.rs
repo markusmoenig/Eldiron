@@ -62,6 +62,9 @@ pub struct TheSnapperbar {
     layout_id: TheId,
 
     root_mode: bool,
+    drag_id: Option<TheId>,
+    drag_start: Vec2<i32>,
+    drag_started: bool,
 }
 
 impl TheWidget for TheSnapperbar {
@@ -92,6 +95,9 @@ impl TheWidget for TheSnapperbar {
             layout_id: TheId::empty(),
 
             root_mode: true,
+            drag_id: None,
+            drag_start: Vec2::zero(),
+            drag_started: false,
         }
     }
 
@@ -158,7 +164,9 @@ impl TheWidget for TheSnapperbar {
         let mut redraw = false;
         // println!("event ({}): {:?}", self.widget_id.name, event);
         match event {
-            TheEvent::MouseDown(_coord) => {
+            TheEvent::MouseDown(coord) => {
+                self.drag_start = *coord;
+                self.drag_started = false;
                 self.is_dirty = true;
                 if self.state != TheWidgetState::Clicked {
                     self.state = TheWidgetState::Clicked;
@@ -172,15 +180,31 @@ impl TheWidget for TheSnapperbar {
                 if self.state == TheWidgetState::Clicked {
                     self.state = TheWidgetState::None;
                     ctx.ui.send_widget_state_changed(self.id(), self.state);
-                    self.open = !self.open;
-
-                    ctx.ui.send(TheEvent::SnapperStateChanged(
-                        self.id().clone(),
-                        self.layout_id.clone(),
-                        self.open,
-                    ));
+                    if !self.drag_started {
+                        self.open = !self.open;
+                        ctx.ui.send(TheEvent::SnapperStateChanged(
+                            self.id().clone(),
+                            self.layout_id.clone(),
+                            self.open,
+                        ));
+                    }
                 }
                 redraw = true;
+            }
+            TheEvent::MouseDragged(coord) => {
+                if self.state == TheWidgetState::Clicked
+                    && !self.drag_started
+                    && !ctx.ui.has_drop()
+                    && (coord.x - self.drag_start.x)
+                        .abs()
+                        .max((coord.y - self.drag_start.y).abs())
+                        >= 5
+                    && let Some(id) = &self.drag_id
+                {
+                    self.drag_started = true;
+                    ctx.ui
+                        .send(TheEvent::DragStarted(id.clone(), self.text.clone(), *coord));
+                }
             }
             TheEvent::Hover(_coord) => {
                 if self.state != TheWidgetState::Clicked && !self.id().equals(&ctx.ui.hover) {
@@ -309,6 +333,8 @@ impl TheWidget for TheSnapperbar {
 }
 
 pub trait TheSnapperbarTrait {
+    /// Enable dragging this header with an application-defined asset identity.
+    fn set_drag_id(&mut self, id: Option<TheId>);
     fn set_associated_layout(&mut self, id: TheId);
     fn set_text(&mut self, text: String);
     fn set_canvas_collapse_uuid(&mut self, collapse: Uuid);
@@ -322,6 +348,9 @@ pub trait TheSnapperbarTrait {
 }
 
 impl TheSnapperbarTrait for TheSnapperbar {
+    fn set_drag_id(&mut self, id: Option<TheId>) {
+        self.drag_id = id;
+    }
     fn set_associated_layout(&mut self, layout_id: TheId) {
         self.layout_id = layout_id;
     }
@@ -372,6 +401,38 @@ impl TheSnapperbarTrait for TheSnapperbar {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn draggable_headers_emit_one_asset_drag_without_collapsing_the_tree() {
+        let mut ctx = TheContext::new(300, 100, 1.);
+        let (sender, receiver) = std::sync::mpsc::channel();
+        ctx.ui.state_events_sender = Some(sender);
+        let item = Uuid::new_v4();
+        let mut header = TheSnapperbar::new(TheId::named("Linen Shirt"));
+        header.set_drag_id(Some(TheId::named_with_reference("Item Item", item)));
+        header.set_text("Linen Shirt".into());
+        header.on_event(&TheEvent::MouseDown(Vec2::new(30, 10)), &mut ctx);
+        header.on_event(&TheEvent::MouseDragged(Vec2::new(50, 10)), &mut ctx);
+        header.on_event(&TheEvent::MouseDragged(Vec2::new(60, 10)), &mut ctx);
+        header.on_event(&TheEvent::MouseUp(Vec2::new(60, 10)), &mut ctx);
+        let drags = receiver
+            .try_iter()
+            .filter_map(|e| {
+                if let TheEvent::DragStarted(id, text, _) = e {
+                    Some((id, text))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(drags.len(), 1);
+        assert_eq!(drags[0].0.references, item);
+        assert_eq!(drags[0].1, "Linen Shirt");
+        assert!(!header.open);
+        header.on_event(&TheEvent::MouseDown(Vec2::new(30, 10)), &mut ctx);
+        header.on_event(&TheEvent::MouseUp(Vec2::new(30, 10)), &mut ctx);
+        assert!(header.open, "normal clicks still expand the item");
+    }
 
     #[test]
     fn procedural_chrome_clips_to_surface_and_preserves_guard_bytes() {

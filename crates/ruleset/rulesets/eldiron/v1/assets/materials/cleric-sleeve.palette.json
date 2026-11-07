@@ -1,0 +1,18 @@
+{
+  "@surface": {
+    "base color": 23,
+    "emission": 1
+  },
+  "base": {
+    "color": 23
+  },
+  "shade": {
+    "color": 22
+  },
+  "trim": {
+    "color": 24
+  },
+  "stole": {
+    "color": 40
+  }
+}

@@ -15,15 +15,18 @@ damage_rounding = "round"
 
 [assets.avatars.humanoid]
 path = "assets/humanoid.eldiron_avatar"
-description = "Default Eldiron humanoid avatar."
+description = "Editable MZ humanoid: directional sprites in 2D and a rigged mesh in 3D."
+geometry = "assets/humanoid.mzgeometry.json"
 
 [assets.avatars.orc]
+geometry = "assets/geometry/orc.mzgeometry.json"
 path = "assets/orc.eldiron_avatar"
-description = "Default Eldiron orc avatar, copied from humanoid as an editable starting point."
+description = "Editable MZ orc with a broad build, pointed ears, tusks and shared equipment sockets."
 
 [assets.avatars.skeleton]
+geometry = "assets/geometry/skeleton.mzgeometry.json"
 path = "assets/skeleton.eldiron_avatar"
-description = "Default Eldiron skeleton avatar, copied from humanoid for importing a dedicated skeleton atlas."
+description = "Editable MZ skeleton with open ribs, separate bones, fitted clothing and shared equipment sockets."
 
 [visuals.defaults]
 avatar = "humanoid"

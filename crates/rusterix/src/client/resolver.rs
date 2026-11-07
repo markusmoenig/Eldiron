@@ -517,9 +517,7 @@ fn ruleset_attribute_role(assets: &Assets, role: &str) -> Option<String> {
 
 fn sum_equipped_attr(entity: &crate::Entity, assets: &Assets, attr: &str, weapon: bool) -> f32 {
     let policy = assets
-        .rules
-        .parse::<toml::Table>()
-        .ok()
+        .rules_table()
         .and_then(|rules| eldiron_ruleset::resolve_equipment_policy(&rules).ok())
         .unwrap_or_default();
     let slots = if weapon {
@@ -675,5 +673,32 @@ mod ruleset_equipment_tests {
             resolve_entity_attr(&entity, "LEVEL", &assets),
             "Entity#7:LEVEL"
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_rules_tests {
+    use super::*;
+    #[test]
+    fn hud_equipment_totals_follow_live_rules_and_equipment_changes() {
+        let mut assets = Assets::default();
+        assets.rules = "[equipment]\nweapon_slots=['main_hand']\narmor_slots=['torso']".into();
+        let mut entity = crate::Entity::default();
+        for (slot, value) in [("main_hand", 9.), ("torso", 3.)] {
+            let mut item = crate::Item::default();
+            item.set_attribute("bonus", crate::Value::Float(value));
+            entity.equipped.insert(slot.into(), item);
+        }
+        let first_rules = assets.rules_table().unwrap();
+        assert_eq!(sum_equipped_attr(&entity, &assets, "bonus", true), 9.);
+        assert_eq!(sum_equipped_attr(&entity, &assets, "bonus", false), 3.);
+        assert!(std::sync::Arc::ptr_eq(
+            &first_rules,
+            &assets.rules_table().unwrap()
+        ));
+        assets.rules = "[equipment]\nweapon_slots=['torso']\narmor_slots=['main_hand']".into();
+        assert_eq!(sum_equipped_attr(&entity, &assets, "bonus", true), 3.);
+        entity.equipped.shift_remove("torso");
+        assert_eq!(sum_equipped_attr(&entity, &assets, "bonus", true), 0.);
     }
 }

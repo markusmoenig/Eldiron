@@ -26,10 +26,7 @@ pub struct GraphTextFocus {
 }
 /// Mutable access to whichever text a focus points at: a plain Text row, or a
 /// Text cell inside a List row.
-fn focused_text<'a>(
-    doc: &'a mut GraphDocument,
-    focus: &GraphTextFocus,
-) -> Option<&'a mut String> {
+fn focused_text<'a>(doc: &'a mut GraphDocument, focus: &GraphTextFocus) -> Option<&'a mut String> {
     let row = doc
         .nodes
         .iter_mut()

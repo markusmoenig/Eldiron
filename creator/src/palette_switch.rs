@@ -37,6 +37,23 @@ pub(crate) fn ramps(project: &Project) -> Vec<Vec<u16>> {
             }
         }
     }
+    fn effect_ramps(doc: &denrim_materials::geometry::Document, out: &mut Vec<Vec<u16>>) {
+        use denrim_materials::geometry::Operation;
+        for tile in doc.rows.iter().flat_map(|r| &r.tiles) {
+            match &tile.op {
+                Operation::ParticleEffect { effect } => out.push(effect.palette.to_vec()),
+                Operation::Group { document, .. } | Operation::Asset { document, .. } => {
+                    effect_ramps(document, out)
+                }
+                _ => {}
+            }
+        }
+    }
+    for source in project.procedural_appearances.values() {
+        if let Ok(doc) = denrim_materials::geometry::Document::load(source) {
+            effect_ramps(&doc, &mut result);
+        }
+    }
     result.extend([
         vec![1, 2, 3, 4, 5, 6, 7, 9, 8],
         vec![17, 18, 19, 20, 21, 22, 23],

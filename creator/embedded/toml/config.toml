@@ -214,6 +214,16 @@ sunset_time = 18.0
 color_transition_duration_hours = 0.5
 
 [materials]
+# Background for cutout map tiles and item icons: "transparent" or "black".
+background_2d = "transparent"
 # Procedural texture size (1..64); 0 keeps smooth evaluation at 64px.
 # Also editable in Game > Settings > Procedural Materials > Pixels per tile.
 pixels_per_tile = 16
+
+
+[appearance]
+# Character and map-item sprite sampling grid: 0 = source detail, e.g. 16/32/64.
+# Inventory icons and world materials are independent.
+sprite_pixels_2d = 0
+# Character and map-item screen-pixel block size in 3D: 1 = native, 2..16 = chunky.
+pixel_size_3d = 1

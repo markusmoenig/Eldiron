@@ -41,8 +41,9 @@ Procedural recipes retain palette indices and rebuild their baked textures after
 palette edits. Bundled ruleset bitmap item icons and world tile artwork are palette-fitted
 from their original images on refresh, preserving alpha. Switching repeatedly never recolors
 an already quantized copy. Project-owned full-color bitmap overrides retain their
-own colors; editable MZ item appearance recipes will replace bundled icons over
-time.
+own colors. The official item library already supplies editable MZ icon recipes,
+body/garment materials and world models using these same project palette slots.
+PNG artwork remains supported for other icons and explicit bitmap overrides.
 
 The switch preview shows palette slots, cached material artwork, item icons, an
 avatar and game UI color samples. Cached material previews approximate the

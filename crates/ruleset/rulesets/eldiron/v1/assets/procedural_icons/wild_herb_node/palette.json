@@ -1,0 +1,99 @@
+{
+  "@surface": {
+    "base color": 7,
+    "emission": 1
+  },
+  "soil-colors": {
+    "color0": 16,
+    "color1": 17,
+    "color2": 18,
+    "color3": 20
+  },
+  "soil-outline": {
+    "color": 1
+  },
+  "stem-0-color": {
+    "color": 34
+  },
+  "stem-0-outline": {
+    "color": 1
+  },
+  "leaf-0-0-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-0-0-outline": {
+    "color": 1
+  },
+  "leaf-0-1-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-0-1-outline": {
+    "color": 1
+  },
+  "leaf-0-2-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-0-2-outline": {
+    "color": 1
+  },
+  "leaf-0-3-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-0-3-outline": {
+    "color": 1
+  },
+  "stem-1-color": {
+    "color": 34
+  },
+  "stem-1-outline": {
+    "color": 1
+  },
+  "leaf-1-0-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-1-0-outline": {
+    "color": 1
+  },
+  "leaf-1-1-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-1-1-outline": {
+    "color": 1
+  },
+  "leaf-1-2-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-1-2-outline": {
+    "color": 1
+  },
+  "leaf-1-3-colors": {
+    "color0": 38,
+    "color1": 37,
+    "color2": 36,
+    "color3": 34
+  },
+  "leaf-1-3-outline": {
+    "color": 1
+  }
+}
